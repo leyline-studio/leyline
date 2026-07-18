@@ -125,6 +125,21 @@ impl Catalog {
         })
     }
 
+    /// Returns the asset already carrying this checksum, if any — the
+    /// duplicate detection of `docs/catalog.md` §12.
+    pub fn find_asset_by_checksum(&self, checksum: &[u8; CHECKSUM_LEN]) -> Result<Option<AssetId>> {
+        let found = self.conn.query_row(
+            "SELECT id FROM assets WHERE checksum = ?1",
+            [checksum.as_slice()],
+            |row| row.get::<_, i64>(0),
+        );
+        match found {
+            Ok(id) => Ok(Some(AssetId::new(id))),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(db_err(e)),
+        }
+    }
+
     /// Returns the library-relative path of an asset's file, always derived
     /// from its folder (`docs/catalog.md` §9: no stored asset path).
     pub fn asset_relative_path(&self, asset: AssetId) -> Result<String> {
