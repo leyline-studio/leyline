@@ -9,6 +9,7 @@
 mod assets;
 mod collections;
 mod connection;
+mod details;
 mod exports;
 mod folders;
 mod grid;
@@ -22,6 +23,7 @@ mod versions;
 
 pub use assets::{CHECKSUM_LEN, NewAsset, RegisteredAsset};
 pub use collections::{CollectionNode, RatingRule, SmartRules};
+pub use details::AssetDetails;
 pub use exports::{ExportPreset, ExportRecord};
 pub use grid::{GridItem, GridQuery, Sort};
 pub use keywords::KeywordNode;
