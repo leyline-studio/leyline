@@ -45,6 +45,20 @@ pub enum LeylineError {
     #[error("invalid settings: {0}")]
     InvalidSettings(String),
 
+    /// The revision was written by a newer engine (`docs/pipeline.md` §3.4):
+    /// show the best cached preview instead, never edit, never guess.
+    #[error("settings declare schema {schema} / process {process}, newer than this engine")]
+    NewerSettings {
+        /// Settings format version the revision declares.
+        schema: u32,
+        /// Process (rendering) version the revision declares.
+        process: u32,
+    },
+
+    /// A pixel buffer handed to the engine is malformed.
+    #[error("invalid image: {0}")]
+    InvalidImage(String),
+
     /// An underlying I/O operation failed.
     #[error("i/o error: {0}")]
     Io(#[from] std::io::Error),

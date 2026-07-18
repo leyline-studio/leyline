@@ -89,6 +89,8 @@ pub enum LeylineError {
     AssetMissing(AssetId),
     DecodeFailed { asset: AssetId, reason: String },
     InvalidSettings(String),
+    NewerSettings { schema: u32, process: u32 },
+    InvalidImage(String),
     Io(std::io::Error),
     Db(String),
 }
@@ -96,7 +98,7 @@ pub enum LeylineError {
 pub type Result<T> = std::result::Result<T, LeylineError>;
 ```
 
-`NewerCatalog` matérialise la règle de compatibilité ascendante (`pipeline.md` §3.4) : un moteur ancien ouvre en lecture seule ou refuse, mais ne modifie jamais.
+`NewerCatalog` et `NewerSettings` matérialisent la règle de compatibilité ascendante (`pipeline.md` §3.4) : un moteur ancien ouvre en lecture seule ou refuse — au niveau du catalogue comme d'une révision — mais ne modifie jamais. Face à `NewerSettings`, le client affiche la meilleure preview en cache avec un avertissement.
 
 ---
 

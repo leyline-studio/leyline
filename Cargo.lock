@@ -239,6 +239,9 @@ name = "leyline-preview"
 version = "0.1.0"
 dependencies = [
  "leyline-core",
+ "png",
+ "tempfile",
+ "thiserror",
 ]
 
 [[package]]
