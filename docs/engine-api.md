@@ -87,6 +87,8 @@ pub enum LeylineError {
     LibraryLocked,
     NewerCatalog { found: u32, supported: u32 },
     AssetMissing(AssetId),
+    VersionMissing(VersionId),
+    RevisionMissing(RevisionId),
     DecodeFailed { asset: AssetId, reason: String },
     InvalidSettings(String),
     NewerSettings { schema: u32, process: u32 },

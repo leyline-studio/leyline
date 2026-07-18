@@ -11,9 +11,11 @@ mod connection;
 mod folders;
 mod migrations;
 mod previews;
+mod revisions;
 
 pub use assets::{CHECKSUM_LEN, NewAsset, RegisteredAsset};
 pub use previews::{NewPreview, PreviewRow};
+pub use revisions::{Amendment, RevisionRow};
 
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
