@@ -6,9 +6,20 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
+links = "raw_r"
+build = "build.rs"
 
 [dependencies]
 leyline-core.workspace = true
+thiserror.workspace = true
+
+[build-dependencies]
+cc.workspace = true
+pkg-config.workspace = true
+
+[dev-dependencies]
+png.workspace = true
+tempfile.workspace = true
 
 [lints]
 workspace = true
