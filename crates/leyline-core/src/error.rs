@@ -5,7 +5,7 @@
 
 use std::path::PathBuf;
 
-use crate::id::{AssetId, RevisionId, VersionId};
+use crate::id::{AssetId, KeywordId, RevisionId, VersionId};
 
 /// Errors produced by the Leyline engine and its components (`docs/engine-api.md` §4).
 #[derive(Debug, thiserror::Error)]
@@ -39,6 +39,10 @@ pub enum LeylineError {
     /// The referenced develop revision does not exist in the catalog.
     #[error("revision {0} does not exist")]
     RevisionMissing(RevisionId),
+
+    /// The referenced keyword does not exist in the catalog.
+    #[error("keyword {0} does not exist")]
+    KeywordMissing(KeywordId),
 
     /// The asset's file could not be decoded.
     #[error("failed to decode asset {asset}: {reason}")]

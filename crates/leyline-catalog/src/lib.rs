@@ -9,12 +9,14 @@
 mod assets;
 mod connection;
 mod folders;
+mod keywords;
 mod migrations;
 mod previews;
 mod revisions;
 mod versions;
 
 pub use assets::{CHECKSUM_LEN, NewAsset, RegisteredAsset};
+pub use keywords::KeywordNode;
 pub use previews::{NewPreview, PreviewRow};
 pub use revisions::{Amendment, RevisionRow};
 pub use versions::VersionInfo;

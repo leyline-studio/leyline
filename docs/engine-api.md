@@ -89,6 +89,7 @@ pub enum LeylineError {
     AssetMissing(AssetId),
     VersionMissing(VersionId),
     RevisionMissing(RevisionId),
+    KeywordMissing(KeywordId),
     DecodeFailed { asset: AssetId, reason: String },
     InvalidSettings(String),
     NewerSettings { schema: u32, process: u32 },
