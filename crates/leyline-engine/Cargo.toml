@@ -16,5 +16,8 @@ leyline-color.workspace = true
 leyline-lens.workspace = true
 leyline-export.workspace = true
 
+[dev-dependencies]
+tempfile.workspace = true
+
 [lints]
 workspace = true

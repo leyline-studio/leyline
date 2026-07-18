@@ -1,0 +1,275 @@
+//! Edit sessions: the coalescence policy (`docs/engine-api.md` §10.1).
+//!
+//! A session materializes the rule of `docs/catalog.md` §17: a revision is a
+//! *user intention*, never a UI event. `set` only updates the in-memory
+//! state — called on every cursor movement, it writes nothing. `commit` is
+//! called at commit points (control released, tool changed...) and decides
+//! alone between a new revision and an amendment of the head: successive
+//! adjustments of the *same* parameter within the amendment window coalesce
+//! into one revision.
+//!
+//! Dropping a session commits any pending state: nothing is ever lost.
+
+use std::time::{Duration, Instant};
+
+use leyline_catalog::{Catalog, RevisionRow};
+use leyline_core::{
+    CURRENT_PROCESS, CURRENT_SCHEMA, Crop, LensCorrection, LeylineError, NoiseReduction, Result,
+    RevisionId, Settings, Sharpening, VersionId, WhiteBalance,
+};
+
+/// Default amendment window of `docs/catalog.md` §17.
+pub const DEFAULT_AMEND_WINDOW: Duration = Duration::from_secs(2);
+
+/// One user-facing develop parameter (`docs/pipeline.md` §3.2, schema 1).
+///
+/// The granularity is the *control*: successive changes to the same `Param`
+/// are one intention and coalesce; changing `Param` is a new intention.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Param {
+    /// White balance override (temperature + tint together: one tool).
+    WhiteBalance,
+    /// Exposure compensation in EV.
+    Exposure,
+    /// Contrast slider.
+    Contrast,
+    /// Highlights recovery slider.
+    Highlights,
+    /// Shadows lift slider.
+    Shadows,
+    /// White point slider.
+    Whites,
+    /// Black point slider.
+    Blacks,
+    /// Vibrance slider.
+    Vibrance,
+    /// Saturation slider.
+    Saturation,
+    /// Lens correction step.
+    LensCorrection,
+    /// Noise reduction step.
+    NoiseReduction,
+    /// Sharpening step.
+    Sharpening,
+    /// Rotation in degrees, clockwise.
+    Rotation,
+    /// Crop rectangle; `None` clears it.
+    Crop,
+}
+
+/// A value for one [`Param`]. The pairing is type-checked by
+/// [`EditSession::set`]: a mismatch is an [`LeylineError::InvalidSettings`].
+#[derive(Debug, Clone, PartialEq)]
+pub enum Value {
+    /// For [`Param::Exposure`] and [`Param::Rotation`].
+    Float(f64),
+    /// For the unitless [-100, +100] sliders.
+    Int(i32),
+    /// For [`Param::WhiteBalance`]; `None` returns to as-shot.
+    WhiteBalance(Option<WhiteBalance>),
+    /// For [`Param::LensCorrection`].
+    LensCorrection(LensCorrection),
+    /// For [`Param::NoiseReduction`].
+    NoiseReduction(NoiseReduction),
+    /// For [`Param::Sharpening`].
+    Sharpening(Sharpening),
+    /// For [`Param::Crop`]; `None` returns to the full frame.
+    Crop(Option<Crop>),
+}
+
+/// What changed since the last commit point.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Pending {
+    /// Nothing to commit.
+    Clean,
+    /// Exactly one parameter changed: an amendment candidate.
+    One(Param),
+    /// Several parameters changed: always a new revision.
+    Many,
+}
+
+/// An open edit session on one develop version (`docs/engine-api.md` §10.1).
+///
+/// The session holds the only write handle: while it lives, nothing else
+/// mutates the version, so its in-memory state is authoritative.
+#[derive(Debug)]
+pub struct EditSession<'c> {
+    catalog: &'c mut Catalog,
+    version: VersionId,
+    settings: Settings,
+    pending: Pending,
+    /// Last commit, when it changed exactly one parameter: the §17
+    /// amendment chain. `None` after undo/redo or a multi-parameter commit.
+    last_commit: Option<(Param, Instant)>,
+    amend_window: Duration,
+}
+
+impl<'c> EditSession<'c> {
+    /// Opens a session on the version's head.
+    ///
+    /// A head written by a newer engine (newer `schema` or `process`) is
+    /// refused with [`LeylineError::NewerSettings`]: the client shows the
+    /// best cached preview with a warning instead (`docs/pipeline.md` §3.4).
+    pub fn open(catalog: &'c mut Catalog, version: VersionId) -> Result<EditSession<'c>> {
+        let head = catalog.version_head(version)?;
+        let settings = Settings::parse(&catalog.revision(head)?.settings_json)?;
+        if settings.schema > CURRENT_SCHEMA || settings.process > CURRENT_PROCESS {
+            return Err(LeylineError::NewerSettings {
+                schema: settings.schema,
+                process: settings.process,
+            });
+        }
+        Ok(EditSession {
+            catalog,
+            version,
+            settings,
+            pending: Pending::Clean,
+            last_commit: None,
+            amend_window: DEFAULT_AMEND_WINDOW,
+        })
+    }
+
+    /// Overrides the amendment window (§17: 2 seconds, configurable).
+    pub fn set_amend_window(&mut self, window: Duration) {
+        self.amend_window = window;
+    }
+
+    /// The version this session edits.
+    pub fn version(&self) -> VersionId {
+        self.version
+    }
+
+    /// The complete current develop state, pending changes included.
+    pub fn settings(&self) -> &Settings {
+        &self.settings
+    }
+
+    /// Updates one parameter in memory — no catalog write, real-time preview
+    /// only. Called on every cursor movement.
+    ///
+    /// The value is validated immediately: an out-of-range or mistyped value
+    /// leaves the state untouched.
+    pub fn set(&mut self, param: Param, value: Value) -> Result<()> {
+        let previous = self.settings.clone();
+        apply(&mut self.settings, param, value)?;
+        if let Err(invalid) = self.settings.validate() {
+            self.settings = previous;
+            return Err(invalid);
+        }
+        self.pending = match self.pending {
+            Pending::Clean => Pending::One(param),
+            Pending::One(p) if p == param => Pending::One(param),
+            _ => Pending::Many,
+        };
+        Ok(())
+    }
+
+    /// Commit point: persists the pending state and returns the head.
+    ///
+    /// The session decides alone between amendment and new revision (§17):
+    /// when the pending change touches exactly the parameter of the previous
+    /// commit, within the amendment window, and the catalog guards allow it,
+    /// the head is amended in place. Otherwise a new revision is committed.
+    /// With nothing pending, the current head is returned unchanged.
+    pub fn commit(&mut self) -> Result<RevisionId> {
+        let now = Instant::now();
+        let head = match self.pending {
+            Pending::Clean => return self.catalog.version_head(self.version),
+            Pending::One(param) => {
+                let in_window = self.last_commit.is_some_and(|(p, at)| {
+                    p == param && now.duration_since(at) <= self.amend_window
+                });
+                let amended = if in_window {
+                    self.catalog.try_amend_head(self.version, &self.settings)?
+                } else {
+                    None
+                };
+                let head = match amended {
+                    Some(amendment) => amendment.revision,
+                    None => self.catalog.commit_revision(self.version, &self.settings)?,
+                };
+                self.last_commit = Some((param, now));
+                head
+            }
+            Pending::Many => {
+                let head = self.catalog.commit_revision(self.version, &self.settings)?;
+                self.last_commit = None;
+                head
+            }
+        };
+        self.pending = Pending::Clean;
+        Ok(head)
+    }
+
+    /// Commits any pending state, then moves the head back one revision.
+    ///
+    /// Returns the new head, or `None` at the initial revision. The session
+    /// state reloads from the new head; the undone revision stays reachable.
+    pub fn undo(&mut self) -> Result<Option<RevisionId>> {
+        self.commit()?;
+        let moved = self.catalog.undo_version(self.version)?;
+        self.reload_head(moved)?;
+        Ok(moved)
+    }
+
+    /// Commits any pending state, then moves the head forward one revision.
+    ///
+    /// Returns the new head, or `None` when there is nothing to redo.
+    pub fn redo(&mut self) -> Result<Option<RevisionId>> {
+        self.commit()?;
+        let moved = self.catalog.redo_version(self.version)?;
+        self.reload_head(moved)?;
+        Ok(moved)
+    }
+
+    /// The revision chain of the version, head first.
+    pub fn history(&self) -> Result<Vec<RevisionRow>> {
+        self.catalog.version_history(self.version)
+    }
+
+    /// Reloads the in-memory state after the head moved, and breaks the
+    /// amendment chain: the next commit always creates a revision.
+    fn reload_head(&mut self, moved: Option<RevisionId>) -> Result<()> {
+        if let Some(head) = moved {
+            self.settings = Settings::parse(&self.catalog.revision(head)?.settings_json)?;
+            self.pending = Pending::Clean;
+            self.last_commit = None;
+        }
+        Ok(())
+    }
+}
+
+impl Drop for EditSession<'_> {
+    /// Closing the session commits the pending state: nothing is ever lost
+    /// (`docs/engine-api.md` §10.1). A failing drop-commit is unreportable
+    /// and ignored; call [`EditSession::commit`] explicitly to observe errors.
+    fn drop(&mut self) {
+        let _ = self.commit();
+    }
+}
+
+/// Applies one typed value to the matching settings field.
+fn apply(settings: &mut Settings, param: Param, value: Value) -> Result<()> {
+    match (param, value) {
+        (Param::Exposure, Value::Float(v)) => settings.exposure = v,
+        (Param::Rotation, Value::Float(v)) => settings.rotation = v,
+        (Param::Contrast, Value::Int(v)) => settings.contrast = v,
+        (Param::Highlights, Value::Int(v)) => settings.highlights = v,
+        (Param::Shadows, Value::Int(v)) => settings.shadows = v,
+        (Param::Whites, Value::Int(v)) => settings.whites = v,
+        (Param::Blacks, Value::Int(v)) => settings.blacks = v,
+        (Param::Vibrance, Value::Int(v)) => settings.vibrance = v,
+        (Param::Saturation, Value::Int(v)) => settings.saturation = v,
+        (Param::WhiteBalance, Value::WhiteBalance(v)) => settings.white_balance = v,
+        (Param::LensCorrection, Value::LensCorrection(v)) => settings.lens_correction = v,
+        (Param::NoiseReduction, Value::NoiseReduction(v)) => settings.noise_reduction = v,
+        (Param::Sharpening, Value::Sharpening(v)) => settings.sharpening = v,
+        (Param::Crop, Value::Crop(v)) => settings.crop = v,
+        (param, value) => {
+            return Err(LeylineError::InvalidSettings(format!(
+                "value {value:?} does not fit parameter {param:?}"
+            )));
+        }
+    }
+    Ok(())
+}
