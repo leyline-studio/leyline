@@ -120,4 +120,10 @@ impl Library {
     pub fn edit(&mut self, version: VersionId) -> Result<EditSession<'_>> {
         EditSession::open(&mut self.catalog, version)
     }
+
+    /// Writes the XMP sidecar of an asset — the On Demand synchronization
+    /// of `docs/catalog.md` §29 — and returns its path.
+    pub fn write_xmp(&self, asset: AssetId) -> Result<PathBuf> {
+        crate::xmp::write_xmp_sidecar(&self.catalog, &self.root, asset)
+    }
 }
