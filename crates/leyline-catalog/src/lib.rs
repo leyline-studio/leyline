@@ -12,10 +12,12 @@ mod folders;
 mod migrations;
 mod previews;
 mod revisions;
+mod versions;
 
 pub use assets::{CHECKSUM_LEN, NewAsset, RegisteredAsset};
 pub use previews::{NewPreview, PreviewRow};
 pub use revisions::{Amendment, RevisionRow};
+pub use versions::VersionInfo;
 
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};

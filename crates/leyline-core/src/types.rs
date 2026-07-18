@@ -64,6 +64,22 @@ catalog_enum!(
 );
 
 catalog_enum!(
+    /// Color label carried by a develop version (`docs/catalog.md` §18).
+    ColorLabel {
+        /// Red label.
+        Red = 0,
+        /// Yellow label.
+        Yellow = 1,
+        /// Green label.
+        Green = 2,
+        /// Blue label.
+        Blue = 3,
+        /// Purple label.
+        Purple = 4,
+    }
+);
+
+catalog_enum!(
     /// Size class of a cached preview (`docs/catalog.md` §19).
     PreviewKind {
         /// Up to 256 px.

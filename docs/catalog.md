@@ -753,6 +753,9 @@ La version porte le classement (`rating`, `color_label`, `pick_state`) : chaque 
 
 ```text
 rating :       NULL = non noté, 1 à 5 étoiles (la valeur 0 n'existe pas)
+
+color_label :  NULL = aucun label
+               0 Rouge, 1 Jaune, 2 Vert, 3 Bleu, 4 Violet
 ```
 
 ## Version courante
