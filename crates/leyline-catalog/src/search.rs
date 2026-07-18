@@ -54,8 +54,8 @@ impl Catalog {
                     COALESCE((SELECT group_concat(k.path, ' ')
                               FROM asset_keywords ak JOIN keywords k ON k.id = ak.keyword_id
                               WHERE ak.asset_id = a.id), ''),
-                    '', ''
-             FROM assets a",
+                    COALESCE(m.artist, ''), COALESCE(m.copyright, '')
+             FROM assets a LEFT JOIN metadata m ON m.asset_id = a.id",
             [],
         )
         .map_err(db_err)?;
