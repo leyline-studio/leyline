@@ -229,6 +229,11 @@ impl Catalog {
         version_row(&self.conn, version).map(|(_, head)| head)
     }
 
+    /// Returns the asset a version develops.
+    pub fn version_asset(&self, version: VersionId) -> Result<AssetId> {
+        version_row(&self.conn, version).map(|(asset, _)| asset)
+    }
+
     /// Reads one revision row.
     pub fn revision(&self, revision: RevisionId) -> Result<RevisionRow> {
         self.conn

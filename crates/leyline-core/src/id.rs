@@ -67,6 +67,10 @@ id_type!(
     KeywordId(i64)
 );
 id_type!(
+    /// Identifier of an export preset.
+    ExportPresetId(i64)
+);
+id_type!(
     /// Identifier of an asynchronous engine job.
     JobId(u64)
 );

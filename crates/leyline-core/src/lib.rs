@@ -11,7 +11,9 @@ mod settings;
 mod types;
 
 pub use error::{LeylineError, Result};
-pub use id::{AssetId, CollectionId, FolderId, JobId, KeywordId, RevisionId, VersionId};
+pub use id::{
+    AssetId, CollectionId, ExportPresetId, FolderId, JobId, KeywordId, RevisionId, VersionId,
+};
 pub use settings::{
     CURRENT_PROCESS, CURRENT_SCHEMA, Crop, LensCorrection, NoiseReduction, Settings, Sharpening,
     WhiteBalance,
