@@ -16,4 +16,4 @@ pub use settings::{
     CURRENT_PROCESS, CURRENT_SCHEMA, Crop, LensCorrection, NoiseReduction, Settings, Sharpening,
     WhiteBalance,
 };
-pub use types::{ColorLabel, MediaType, PickState, PreviewKind};
+pub use types::{CollectionType, ColorLabel, MediaType, PickState, PreviewKind};

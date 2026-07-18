@@ -7,6 +7,7 @@
 //! through `leyline-sdk`.
 
 mod assets;
+mod collections;
 mod connection;
 mod folders;
 mod keywords;
@@ -16,6 +17,7 @@ mod revisions;
 mod versions;
 
 pub use assets::{CHECKSUM_LEN, NewAsset, RegisteredAsset};
+pub use collections::CollectionNode;
 pub use keywords::KeywordNode;
 pub use previews::{NewPreview, PreviewRow};
 pub use revisions::{Amendment, RevisionRow};

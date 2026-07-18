@@ -64,6 +64,16 @@ catalog_enum!(
 );
 
 catalog_enum!(
+    /// How a collection gets its members (`docs/catalog.md` §24).
+    CollectionType {
+        /// Explicit list of versions, ordered by the user.
+        Manual = 0,
+        /// Members generated from `rules_json`.
+        Smart = 1,
+    }
+);
+
+catalog_enum!(
     /// Color label carried by a develop version (`docs/catalog.md` §18).
     ColorLabel {
         /// Red label.
