@@ -6,8 +6,12 @@
 //! the engine, never a public interface (`docs/engine-api.md` §14): clients go
 //! through `leyline-sdk`.
 
+mod assets;
 mod connection;
+mod folders;
 mod migrations;
+
+pub use assets::{CHECKSUM_LEN, NewAsset, RegisteredAsset};
 
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -121,6 +125,18 @@ impl Catalog {
     /// Whether this handle was opened without write access.
     pub fn is_read_only(&self) -> bool {
         self.read_only
+    }
+
+    /// Refuses write operations on a read-only handle with a clear error,
+    /// before SQLite would.
+    fn ensure_writable(&self) -> Result<()> {
+        if self.read_only {
+            Err(LeylineError::Db(
+                "catalog opened read-only; writes are refused".to_owned(),
+            ))
+        } else {
+            Ok(())
+        }
     }
 
     /// Reads the single `library` identity row.
