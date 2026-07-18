@@ -9,6 +9,12 @@ rust-version.workspace = true
 
 [dependencies]
 leyline-core.workspace = true
+png.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+png.workspace = true
 
 [lints]
 workspace = true
