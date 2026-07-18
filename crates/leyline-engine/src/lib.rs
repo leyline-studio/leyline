@@ -10,6 +10,7 @@
 
 mod export;
 mod import;
+mod library;
 mod pixels;
 mod preview;
 mod process1;
@@ -18,6 +19,7 @@ mod session;
 
 pub use export::export_version;
 pub use import::{ImportOptions, ImportReport, ImportedFile, SkippedFile, import};
+pub use library::Library;
 pub use preview::{PreviewFile, preview};
 pub use render::{Rendered, render};
 pub use session::{DEFAULT_AMEND_WINDOW, EditSession, Param, Value};
