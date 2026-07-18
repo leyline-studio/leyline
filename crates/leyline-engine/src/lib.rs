@@ -10,10 +10,12 @@
 
 mod import;
 mod pixels;
+mod preview;
 mod process1;
 mod render;
 mod session;
 
 pub use import::{ImportOptions, ImportReport, ImportedFile, SkippedFile, import};
+pub use preview::{PreviewFile, preview};
 pub use render::{Rendered, render};
 pub use session::{DEFAULT_AMEND_WINDOW, EditSession, Param, Value};
