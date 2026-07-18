@@ -14,6 +14,7 @@ mod keywords;
 mod migrations;
 mod previews;
 mod revisions;
+mod search;
 mod versions;
 
 pub use assets::{CHECKSUM_LEN, NewAsset, RegisteredAsset};

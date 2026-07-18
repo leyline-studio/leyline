@@ -152,6 +152,7 @@ impl Catalog {
                 if inserted == 0 && !already {
                     return Err(LeylineError::AssetMissing(asset));
                 }
+                crate::search::refresh_asset_keywords(&tx, asset)?;
             }
         }
         tx.commit().map_err(db_err)?;
@@ -169,6 +170,7 @@ impl Catalog {
                 .map_err(db_err)?;
             for &asset in assets {
                 stmt.execute([asset.get(), keyword.get()]).map_err(db_err)?;
+                crate::search::refresh_asset_keywords(&tx, asset)?;
             }
         }
         tx.commit().map_err(db_err)?;

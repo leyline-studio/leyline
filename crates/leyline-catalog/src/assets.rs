@@ -115,6 +115,8 @@ impl Catalog {
         )
         .map_err(db_err)?;
 
+        crate::search::index_new_asset(&tx, asset, &new.filename)?;
+
         tx.commit().map_err(db_err)?;
         Ok(RegisteredAsset {
             asset,
