@@ -7,8 +7,8 @@
 use std::path::{Path, PathBuf};
 
 use leyline_sdk::{
-    AssetId, ExportFormat, ExportSettings, GridQuery, ImportOptions, Library, PreviewKind,
-    VersionId,
+    AssetId, ColorLabel, ExportFormat, ExportSettings, GridQuery, ImportOptions, Library, Param,
+    PickState, PreviewKind, Settings, Value, VersionId,
 };
 
 const USAGE: &str = "\
@@ -21,10 +21,20 @@ Usage:
   leyline ls <library> [--text <query>] [--rating <min>]
   leyline preview <library> <asset-id> [--kind <thumbnail|small|medium|large|full>]
   leyline export <library> <version-id> <dest-dir> [--png] [--quality <1-100>] [--max-edge <px>]
+  leyline rate <library> <stars|none> <version-id>...
+  leyline pick <library> <pick|reject|none> <version-id>...
+  leyline label <library> <red|yellow|green|blue|purple|none> <version-id>...
+  leyline develop <library> <version-id> <param> <value>
+  leyline history <library> <version-id>
 
 Options:
   --reference   Reference files in place instead of copying into Photos/
   --flat        Do not descend into subdirectories
+
+Develop params (docs/pipeline.md §3.2, schema 1):
+  exposure rotation                 decimal
+  contrast highlights shadows whites blacks vibrance saturation
+                                    integer in [-100, 100]
 ";
 
 fn main() {
@@ -44,6 +54,11 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("ls") => ls(&args[1..]),
         Some("preview") => preview(&args[1..]),
         Some("export") => export(&args[1..]),
+        Some("rate") => rate(&args[1..]),
+        Some("pick") => pick(&args[1..]),
+        Some("label") => label(&args[1..]),
+        Some("develop") => develop(&args[1..]),
+        Some("history") => history(&args[1..]),
         Some("--help") | Some("help") | None => {
             print!("{USAGE}");
             Ok(())
@@ -234,6 +249,152 @@ fn preview(args: &[String]) -> Result<(), String> {
         file.width,
         file.height
     );
+    Ok(())
+}
+
+/// Parses the version ids at the tail of a classement command.
+fn version_ids(ids: &[String]) -> Result<Vec<VersionId>, String> {
+    if ids.is_empty() {
+        return Err("expected at least one version id".to_owned());
+    }
+    ids.iter()
+        .map(|id| {
+            id.parse()
+                .map(VersionId::new)
+                .map_err(|_| format!("bad version id {id:?}"))
+        })
+        .collect()
+}
+
+fn rate(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root, stars, ids @ ..] = positional.as_slice() else {
+        return Err("usage: leyline rate <library> <stars|none> <version-id>...".to_owned());
+    };
+    let rating = match stars.as_str() {
+        "none" => None,
+        n => Some(n.parse().map_err(|_| format!("bad rating {n:?}"))?),
+    };
+    let versions = version_ids(ids)?;
+    open(root)?
+        .catalog_mut()
+        .set_rating(&versions, rating)
+        .map_err(|e| e.to_string())?;
+    println!("rated {} version(s)", versions.len());
+    Ok(())
+}
+
+fn pick(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root, state, ids @ ..] = positional.as_slice() else {
+        return Err("usage: leyline pick <library> <pick|reject|none> <version-id>...".to_owned());
+    };
+    let state = match state.as_str() {
+        "pick" => PickState::Pick,
+        "reject" => PickState::Reject,
+        "none" => PickState::None,
+        other => return Err(format!("unknown pick state {other:?}")),
+    };
+    let versions = version_ids(ids)?;
+    open(root)?
+        .catalog_mut()
+        .set_pick(&versions, state)
+        .map_err(|e| e.to_string())?;
+    println!("flagged {} version(s)", versions.len());
+    Ok(())
+}
+
+fn label(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root, color, ids @ ..] = positional.as_slice() else {
+        return Err(
+            "usage: leyline label <library> <red|yellow|green|blue|purple|none> <version-id>..."
+                .to_owned(),
+        );
+    };
+    let color = match color.as_str() {
+        "red" => Some(ColorLabel::Red),
+        "yellow" => Some(ColorLabel::Yellow),
+        "green" => Some(ColorLabel::Green),
+        "blue" => Some(ColorLabel::Blue),
+        "purple" => Some(ColorLabel::Purple),
+        "none" => None,
+        other => return Err(format!("unknown color label {other:?}")),
+    };
+    let versions = version_ids(ids)?;
+    open(root)?
+        .catalog_mut()
+        .set_color_label(&versions, color)
+        .map_err(|e| e.to_string())?;
+    println!("labeled {} version(s)", versions.len());
+    Ok(())
+}
+
+fn develop(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root, version, param, value] = positional.as_slice() else {
+        return Err("usage: leyline develop <library> <version-id> <param> <value>".to_owned());
+    };
+    let version = VersionId::new(
+        version
+            .parse()
+            .map_err(|_| format!("bad version id {version:?}"))?,
+    );
+    let float = |v: &str| -> Result<Value, String> {
+        Ok(Value::Float(
+            v.parse().map_err(|_| format!("bad decimal {v:?}"))?,
+        ))
+    };
+    let int = |v: &str| -> Result<Value, String> {
+        Ok(Value::Int(
+            v.parse().map_err(|_| format!("bad integer {v:?}"))?,
+        ))
+    };
+    let (param, value) = match param.as_str() {
+        "exposure" => (Param::Exposure, float(value)?),
+        "rotation" => (Param::Rotation, float(value)?),
+        "contrast" => (Param::Contrast, int(value)?),
+        "highlights" => (Param::Highlights, int(value)?),
+        "shadows" => (Param::Shadows, int(value)?),
+        "whites" => (Param::Whites, int(value)?),
+        "blacks" => (Param::Blacks, int(value)?),
+        "vibrance" => (Param::Vibrance, int(value)?),
+        "saturation" => (Param::Saturation, int(value)?),
+        other => return Err(format!("unknown develop parameter {other:?}")),
+    };
+
+    let mut library = open(root)?;
+    let mut session = library.edit(version).map_err(|e| e.to_string())?;
+    session.set(param, value).map_err(|e| e.to_string())?;
+    let revision = session.commit().map_err(|e| e.to_string())?;
+    drop(session);
+    println!("committed revision {revision}");
+    Ok(())
+}
+
+fn history(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root, version] = positional.as_slice() else {
+        return Err("usage: leyline history <library> <version-id>".to_owned());
+    };
+    let version = VersionId::new(
+        version
+            .parse()
+            .map_err(|_| format!("bad version id {version:?}"))?,
+    );
+    let library = open(root)?;
+    let chain = library
+        .catalog()
+        .version_history(version)
+        .map_err(|e| e.to_string())?;
+    for (index, row) in chain.iter().enumerate() {
+        let marker = if index == 0 { "HEAD" } else { "    " };
+        let settings = Settings::parse(&row.settings_json).map_err(|e| e.to_string())?;
+        println!(
+            "{marker} r{:<6} exposure {:+.2}  contrast {:+}  (schema {}, process {})",
+            row.revision, settings.exposure, settings.contrast, settings.schema, settings.process
+        );
+    }
     Ok(())
 }
 
