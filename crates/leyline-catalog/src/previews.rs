@@ -1,0 +1,156 @@
+//! Preview metadata (`docs/catalog.md` §19, §20).
+//!
+//! The catalog stores only metadata about cached previews: the files
+//! themselves live under `Cache/` and belong to `leyline-preview`. Validity
+//! needs no timestamp and no hash — a preview is valid exactly when its
+//! revision is the head of the asset's current version (§20).
+
+use leyline_core::{AssetId, LeylineError, PreviewKind, Result, RevisionId};
+
+use crate::{Catalog, db_err, now_ms};
+
+/// Facts about one cached preview file, as recorded by the generator.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NewPreview {
+    /// Asset the preview renders.
+    pub asset: AssetId,
+    /// Develop revision the preview was rendered from.
+    pub revision: RevisionId,
+    /// Size class of the file.
+    pub kind: PreviewKind,
+    /// Pixel width of the file.
+    pub width: u32,
+    /// Pixel height of the file.
+    pub height: u32,
+    /// Path of the file, relative to the cache root, forward-slashed.
+    pub relative_path: String,
+}
+
+/// One `previews` row.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PreviewRow {
+    /// Asset the preview renders.
+    pub asset: AssetId,
+    /// Develop revision the preview was rendered from.
+    pub revision: RevisionId,
+    /// Size class of the file.
+    pub kind: PreviewKind,
+    /// Pixel width of the file.
+    pub width: u32,
+    /// Pixel height of the file.
+    pub height: u32,
+    /// Path of the file, relative to the cache root, forward-slashed.
+    pub relative_path: String,
+    /// Generation time, UTC Unix epoch milliseconds.
+    pub generated_at: i64,
+}
+
+impl Catalog {
+    /// Records a generated preview file.
+    ///
+    /// Regenerating the same `(asset, revision, kind)` replaces the previous
+    /// row: the cache holds at most one file per slot.
+    pub fn record_preview(&mut self, new: &NewPreview) -> Result<()> {
+        self.ensure_writable()?;
+        self.conn
+            .execute(
+                "INSERT INTO previews (asset_id, revision_id, kind, width, height,
+                                       relative_path, generated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                 ON CONFLICT(asset_id, revision_id, kind) DO UPDATE SET
+                     width = excluded.width,
+                     height = excluded.height,
+                     relative_path = excluded.relative_path,
+                     generated_at = excluded.generated_at",
+                rusqlite::params![
+                    new.asset.get(),
+                    new.revision.get(),
+                    new.kind.as_i64(),
+                    new.width,
+                    new.height,
+                    new.relative_path,
+                    now_ms(),
+                ],
+            )
+            .map_err(db_err)?;
+        Ok(())
+    }
+
+    /// Returns the head revision of the asset's current version — the only
+    /// revision whose previews are valid (§20).
+    pub fn current_head_revision(&self, asset: AssetId) -> Result<RevisionId> {
+        self.conn
+            .query_row(
+                "SELECT v.head_revision_id
+                 FROM develop_current c
+                 JOIN develop_versions v ON v.id = c.version_id
+                 WHERE c.asset_id = ?1",
+                [asset.get()],
+                |row| row.get::<_, i64>(0),
+            )
+            .map(RevisionId::new)
+            .map_err(|e| match e {
+                rusqlite::Error::QueryReturnedNoRows => LeylineError::AssetMissing(asset),
+                other => db_err(other),
+            })
+    }
+
+    /// Returns the valid preview of `kind` for the asset, or `None` when the
+    /// cache holds nothing for the current head revision.
+    ///
+    /// An undo that moves the head back onto an already-previewed revision
+    /// revalidates the old file automatically: validity is the identifier
+    /// comparison of §20, nothing else.
+    pub fn valid_preview(&self, asset: AssetId, kind: PreviewKind) -> Result<Option<PreviewRow>> {
+        let head = self.current_head_revision(asset)?;
+        let found = self.conn.query_row(
+            "SELECT width, height, relative_path, generated_at
+             FROM previews
+             WHERE asset_id = ?1 AND revision_id = ?2 AND kind = ?3",
+            rusqlite::params![asset.get(), head.get(), kind.as_i64()],
+            |row| {
+                Ok(PreviewRow {
+                    asset,
+                    revision: head,
+                    kind,
+                    width: row.get(0)?,
+                    height: row.get(1)?,
+                    relative_path: row.get(2)?,
+                    generated_at: row.get(3)?,
+                })
+            },
+        );
+        match found {
+            Ok(row) => Ok(Some(row)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(db_err(e)),
+        }
+    }
+
+    /// Deletes every preview row of a revision and returns the cache paths of
+    /// the deleted files, so the caller can remove them from disk.
+    ///
+    /// This is the amendment rule of §17: amending the head revision
+    /// invalidates its previews.
+    pub fn remove_revision_previews(&mut self, revision: RevisionId) -> Result<Vec<String>> {
+        self.ensure_writable()?;
+        let tx = self.conn.transaction().map_err(db_err)?;
+        let paths = {
+            let mut stmt = tx
+                .prepare("SELECT relative_path FROM previews WHERE revision_id = ?1")
+                .map_err(db_err)?;
+            let rows = stmt
+                .query_map([revision.get()], |row| row.get::<_, String>(0))
+                .map_err(db_err)?;
+            rows.collect::<std::result::Result<Vec<_>, _>>()
+                .map_err(db_err)?
+        };
+        tx.execute(
+            "DELETE FROM previews WHERE revision_id = ?1",
+            [revision.get()],
+        )
+        .map_err(db_err)?;
+        tx.commit().map_err(db_err)?;
+        Ok(paths)
+    }
+}

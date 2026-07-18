@@ -10,8 +10,10 @@ mod assets;
 mod connection;
 mod folders;
 mod migrations;
+mod previews;
 
 pub use assets::{CHECKSUM_LEN, NewAsset, RegisteredAsset};
+pub use previews::{NewPreview, PreviewRow};
 
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
