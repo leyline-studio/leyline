@@ -1,0 +1,20 @@
+[package]
+name = "leyline-engine"
+description = "Leyline orchestration engine: jobs, events and rendering."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+leyline-core.workspace = true
+leyline-raw.workspace = true
+leyline-catalog.workspace = true
+leyline-preview.workspace = true
+leyline-color.workspace = true
+leyline-lens.workspace = true
+leyline-export.workspace = true
+
+[lints]
+workspace = true

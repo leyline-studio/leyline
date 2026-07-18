@@ -1,0 +1,15 @@
+[package]
+name = "leyline-sdk"
+description = "Stable public API of the Leyline engine."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+leyline-core.workspace = true
+leyline-engine.workspace = true
+
+[lints]
+workspace = true

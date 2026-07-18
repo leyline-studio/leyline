@@ -1,0 +1,27 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+repository = "https://github.com/leyline-studio/leyline"
+rust-version = "1.85"
+
+[workspace.dependencies]
+leyline-core = { path = "crates/leyline-core" }
+leyline-raw = { path = "crates/leyline-raw" }
+leyline-catalog = { path = "crates/leyline-catalog" }
+leyline-preview = { path = "crates/leyline-preview" }
+leyline-color = { path = "crates/leyline-color" }
+leyline-lens = { path = "crates/leyline-lens" }
+leyline-export = { path = "crates/leyline-export" }
+leyline-engine = { path = "crates/leyline-engine" }
+leyline-sdk = { path = "crates/leyline-sdk" }
+
+[workspace.lints.rust]
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }

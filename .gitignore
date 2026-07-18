@@ -1,1 +1,5 @@
 CLAUDE.md
+/target
+.idea/
+# CI workflow kept local until the gh token gets the workflow scope
+.github/
