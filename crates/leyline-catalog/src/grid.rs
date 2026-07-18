@@ -14,6 +14,7 @@ use leyline_core::{
 };
 use rusqlite::types::Value as SqlValue;
 
+use crate::collections::SmartRules;
 use crate::{Catalog, db_err};
 
 /// Sort order of the grid.
@@ -112,7 +113,8 @@ pub struct GridItem {
 impl Catalog {
     /// Counts the versions matching the query, ignoring `range` and `sort`.
     pub fn count(&self, query: &GridQuery) -> Result<u64> {
-        let (sql, params) = build(query, "COUNT(*)", false)?;
+        let filter = self.resolve_collection(query)?;
+        let (sql, params) = build(query, &filter, "COUNT(*)", false)?;
         self.conn
             .query_row(&sql, rusqlite::params_from_iter(params), |row| {
                 row.get::<_, i64>(0)
@@ -126,8 +128,10 @@ impl Catalog {
         if query.range.is_empty() {
             return Ok(Vec::new());
         }
+        let filter = self.resolve_collection(query)?;
         let (mut sql, mut params) = build(
             query,
+            &filter,
             "v.id, a.id, a.filename, a.capture_date, v.rating, v.color_label,
              v.pick_state, a.width, a.height",
             true,
@@ -158,16 +162,58 @@ impl Catalog {
         rows.collect::<std::result::Result<Vec<_>, _>>()
             .map_err(db_err)
     }
+
+    /// Resolves the query's collection filter: manual collections enumerate
+    /// their explicit members, smart collections apply their rules to the
+    /// current versions — the caller sees no difference (§26).
+    fn resolve_collection(&self, query: &GridQuery) -> Result<CollectionFilter> {
+        let Some(collection) = query.collection else {
+            return Ok(CollectionFilter::None);
+        };
+        let rules: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT rules_json FROM collections WHERE id = ?1 AND collection_type = 1",
+                [collection.get()],
+                |row| row.get(0),
+            )
+            .or_else(|e| match e {
+                // Not smart: confirm the collection exists as manual.
+                rusqlite::Error::QueryReturnedNoRows => {
+                    crate::collections::require_collection(&self.conn, collection).map(|()| None)
+                }
+                other => Err(db_err(other)),
+            })?;
+        match rules {
+            None => Ok(CollectionFilter::Manual(collection)),
+            Some(json) => Ok(CollectionFilter::Smart(SmartRules::parse(&json)?)),
+        }
+    }
+}
+
+/// The resolved collection filter of one query.
+enum CollectionFilter {
+    /// No collection: the grid shows current versions.
+    None,
+    /// Manual: the grid shows the explicit members.
+    Manual(CollectionId),
+    /// Smart: the grid shows current versions matching the rules.
+    Smart(SmartRules),
 }
 
 /// Assembles the SQL and its parameters for `select`, with or without the
 /// ORDER BY clause.
-fn build(query: &GridQuery, select: &str, ordered: bool) -> Result<(String, Vec<SqlValue>)> {
+fn build(
+    query: &GridQuery,
+    filter: &CollectionFilter,
+    select: &str,
+    ordered: bool,
+) -> Result<(String, Vec<SqlValue>)> {
     let mut params: Vec<SqlValue> = Vec::new();
     let mut sql = format!("SELECT {select} ");
 
-    match query.collection {
-        None => {
+    match filter {
+        CollectionFilter::None | CollectionFilter::Smart(_) => {
             sql.push_str(
                 "FROM develop_current c
                  JOIN develop_versions v ON v.id = c.version_id
@@ -175,7 +221,7 @@ fn build(query: &GridQuery, select: &str, ordered: bool) -> Result<(String, Vec<
                  WHERE 1=1",
             );
         }
-        Some(collection) => {
+        CollectionFilter::Manual(collection) => {
             sql.push_str(
                 "FROM collection_versions cv
                  JOIN develop_versions v ON v.id = cv.version_id
@@ -183,6 +229,38 @@ fn build(query: &GridQuery, select: &str, ordered: bool) -> Result<(String, Vec<
                  WHERE cv.collection_id = ?",
             );
             params.push(SqlValue::Integer(collection.get()));
+        }
+    }
+
+    if let CollectionFilter::Smart(rules) = filter {
+        if let Some(rating) = rules.rating {
+            sql.push_str(" AND v.rating >= ?");
+            params.push(SqlValue::Integer(i64::from(rating.gte)));
+        }
+        if let Some(camera) = &rules.camera {
+            sql.push_str(
+                " AND EXISTS (SELECT 1 FROM metadata m JOIN cameras cam ON cam.id = m.camera_id
+                              WHERE m.asset_id = a.id
+                                AND (cam.model = ?
+                                     OR cam.manufacturer || ' ' || cam.model = ?))",
+            );
+            params.push(SqlValue::Text(camera.clone()));
+            params.push(SqlValue::Text(camera.clone()));
+        }
+        for path in &rules.keywords {
+            sql.push_str(
+                " AND EXISTS (SELECT 1 FROM asset_keywords ak
+                              JOIN keywords k ON k.id = ak.keyword_id
+                              WHERE ak.asset_id = a.id
+                                AND (k.path = ? OR k.path LIKE ? || '/%'))",
+            );
+            params.push(SqlValue::Text(path.clone()));
+            params.push(SqlValue::Text(path.clone()));
+        }
+        match rules.pick {
+            Some(true) => sql.push_str(" AND v.pick_state = 1"),
+            Some(false) => sql.push_str(" AND v.pick_state <> 1"),
+            None => {}
         }
     }
 
@@ -253,9 +331,9 @@ fn build(query: &GridQuery, select: &str, ordered: bool) -> Result<(String, Vec<
                 ));
             }
             Sort::CollectionOrder => {
-                if query.collection.is_none() {
+                if !matches!(filter, CollectionFilter::Manual(_)) {
                     return Err(LeylineError::Db(
-                        "collection order requires a collection filter".to_owned(),
+                        "collection order requires a manual collection filter".to_owned(),
                     ));
                 }
                 sql.push_str(" ORDER BY cv.position");

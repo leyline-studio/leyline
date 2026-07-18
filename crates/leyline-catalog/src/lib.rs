@@ -20,7 +20,7 @@ mod search;
 mod versions;
 
 pub use assets::{CHECKSUM_LEN, NewAsset, RegisteredAsset};
-pub use collections::CollectionNode;
+pub use collections::{CollectionNode, RatingRule, SmartRules};
 pub use grid::{GridItem, GridQuery, Sort};
 pub use keywords::KeywordNode;
 pub use metadata::{CameraInfo, LensInfo, Metadata, Rational};

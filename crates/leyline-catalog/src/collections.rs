@@ -6,9 +6,78 @@
 //! list; smart collections (§26) are rule-driven and get their members from
 //! queries, never from this table.
 
+use serde::{Deserialize, Serialize};
+
 use leyline_core::{CollectionId, CollectionType, LeylineError, Result, VersionId};
 
 use crate::{Catalog, db_err, now_ms};
+
+/// Rating criterion of a smart collection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RatingRule {
+    /// At least this many stars.
+    pub gte: u8,
+}
+
+/// Criteria of a smart collection (`docs/catalog.md` §26), all combined
+/// with AND. The JSON format is deliberately versionable: rules written by
+/// a newer engine (unknown fields) are refused, never silently truncated.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SmartRules {
+    /// Minimum rating.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rating: Option<RatingRule>,
+    /// Camera match: the model, or "manufacturer model".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub camera: Option<String>,
+    /// Keyword paths; each matches the keyword or any descendant.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub keywords: Vec<String>,
+    /// `true`: flagged as pick; `false`: not flagged as pick.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pick: Option<bool>,
+    /// Fields from newer rule formats, preserved for the refusal check.
+    #[serde(flatten)]
+    pub extra: serde_json::Map<String, serde_json::Value>,
+}
+
+impl SmartRules {
+    /// Parses a `rules_json` document, refusing formats this engine cannot
+    /// evaluate completely: showing a wrong subset would be worse than an
+    /// error (the philosophy of `docs/pipeline.md` §3.4).
+    pub fn parse(json: &str) -> Result<SmartRules> {
+        let rules: SmartRules = serde_json::from_str(json)
+            .map_err(|e| LeylineError::InvalidSettings(format!("smart rules: {e}")))?;
+        if !rules.extra.is_empty() {
+            let fields: Vec<_> = rules.extra.keys().map(String::as_str).collect();
+            return Err(LeylineError::InvalidSettings(format!(
+                "smart rules use criteria this engine does not know: {}",
+                fields.join(", ")
+            )));
+        }
+        rules.validate()?;
+        Ok(rules)
+    }
+
+    /// Serializes the rules to their `rules_json` form.
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(self).expect("rules serialization cannot fail")
+    }
+
+    /// Validates criterion ranges.
+    fn validate(&self) -> Result<()> {
+        if let Some(rating) = self.rating
+            && !(1..=5).contains(&rating.gte)
+        {
+            return Err(LeylineError::InvalidSettings(format!(
+                "smart rules rating.gte must be in [1, 5], got {}",
+                rating.gte
+            )));
+        }
+        Ok(())
+    }
+}
 
 /// One node of the collection tree, children ordered by name.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -45,6 +114,39 @@ impl Catalog {
                 parent.map(CollectionId::get),
                 name,
                 CollectionType::Manual.as_i64(),
+                now_ms(),
+            ],
+        )
+        .map_err(db_err)?;
+        let collection = CollectionId::new(tx.last_insert_rowid());
+        tx.commit().map_err(db_err)?;
+        Ok(collection)
+    }
+
+    /// Creates a smart collection under `parent` (or at the root): its
+    /// members come from the rules, evaluated by the grid query.
+    pub fn create_smart_collection(
+        &mut self,
+        parent: Option<CollectionId>,
+        name: &str,
+        rules: &SmartRules,
+    ) -> Result<CollectionId> {
+        self.ensure_writable()?;
+        rules.validate()?;
+        let tx = self.conn.transaction().map_err(db_err)?;
+        if let Some(parent) = parent {
+            collection_type(&tx, parent)?;
+        }
+        tx.execute(
+            "INSERT INTO collections (uuid, parent_collection_id, name, collection_type,
+                                      rules_json, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![
+                uuid::Uuid::new_v4().to_string(),
+                parent.map(CollectionId::get),
+                name,
+                CollectionType::Smart.as_i64(),
+                rules.to_json(),
                 now_ms(),
             ],
         )
@@ -255,6 +357,14 @@ impl Catalog {
             .collect::<std::result::Result<Vec<_>, _>>()
             .map_err(db_err)
     }
+}
+
+/// Fails with `CollectionMissing` when the collection does not exist.
+pub(crate) fn require_collection(
+    conn: &rusqlite::Connection,
+    collection: CollectionId,
+) -> Result<()> {
+    collection_type(conn, collection).map(|_| ())
 }
 
 /// Returns the collection's type, failing with `CollectionMissing`.
