@@ -141,6 +141,19 @@ Les valeurs neutres sont **gelées par version de schéma** : elles ne changent 
 
 `{}` avec `schema: 1` produira toujours le rendu neutre du schéma 1.
 
+Valeurs neutres du schéma 1 :
+
+| Paramètre | Valeur neutre |
+|---|---|
+| `white_balance` | absent — balance des blancs « telle que prise » du boîtier |
+| `exposure` | 0.0 EV |
+| `contrast`, `highlights`, `shadows`, `whites`, `blacks`, `vibrance`, `saturation` | 0 |
+| `lens_correction` | `{ "enabled": false, "profile": "auto" }` |
+| `noise_reduction` | `{ "luminance": 0, "color": 0 }` |
+| `sharpening` | `{ "amount": 0, "radius": 1.0 }` |
+| `rotation` | 0.0 |
+| `crop` | absent — image entière |
+
 ### Unités et conventions
 
 * `temperature` : Kelvin ;
