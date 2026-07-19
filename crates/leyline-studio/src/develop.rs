@@ -71,6 +71,52 @@ pub fn action(slider: &str, value: f64, current: &Settings) -> Option<(Param, Va
     })
 }
 
+/// Decodes a mouse drag over the develop preview into a crop update.
+///
+/// The preview is letterboxed inside its viewport (`image-fit: contain`)
+/// and already shows the current crop, so the dragged rectangle selects a
+/// sub-rectangle of the *displayed* frame; the returned crop is that
+/// selection composed with `current`, back in full-frame coordinates.
+/// `view` and `image` are the viewport and preview sizes in their own
+/// pixels. Drags covering less than 1 % of the frame in either direction
+/// are ignored, as is a degenerate viewport or preview.
+pub fn drag_crop(
+    press: (f64, f64),
+    release: (f64, f64),
+    view: (f64, f64),
+    image: (f64, f64),
+    current: &Option<Crop>,
+) -> Option<(Param, Value)> {
+    if view.0 <= 0.0 || view.1 <= 0.0 || image.0 <= 0.0 || image.1 <= 0.0 {
+        return None;
+    }
+    let scale = (view.0 / image.0).min(view.1 / image.1);
+    let (offset_x, offset_y) = (
+        (view.0 - image.0 * scale) / 2.0,
+        (view.1 - image.1 * scale) / 2.0,
+    );
+    let to_unit = |p: (f64, f64)| {
+        (
+            ((p.0 - offset_x) / (image.0 * scale)).clamp(0.0, 1.0),
+            ((p.1 - offset_y) / (image.1 * scale)).clamp(0.0, 1.0),
+        )
+    };
+    let (a, b) = (to_unit(press), to_unit(release));
+    let (x0, y0) = (a.0.min(b.0), a.1.min(b.1));
+    let (width, height) = ((a.0 - b.0).abs(), (a.1 - b.1).abs());
+    if width < 0.01 || height < 0.01 {
+        return None;
+    }
+    let base = current.clone().unwrap_or(FULL_FRAME);
+    let crop = Crop {
+        x: base.x + x0 * base.width,
+        y: base.y + y0 * base.height,
+        width: width * base.width,
+        height: height * base.height,
+    };
+    (crop != FULL_FRAME).then_some((Param::Crop, Value::Crop(Some(crop))))
+}
+
 /// The crop edge sliders, in percent of the frame. The smallest accepted
 /// edge is 1 % so the rectangle never collapses.
 fn crop_action(edge: &str, percent: f64, current: Option<Crop>) -> Option<Option<Crop>> {
@@ -256,6 +302,97 @@ mod tests {
             panic!("expected a crop update");
         };
         assert_eq!((crop.y, crop.height), (0.0, 0.5));
+    }
+
+    /// Unwraps the crop rectangle produced by [`drag_crop`].
+    fn dragged(update: Option<(Param, Value)>) -> Crop {
+        match update {
+            Some((Param::Crop, Value::Crop(Some(crop)))) => crop,
+            other => panic!("expected a crop update, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn drag_maps_through_the_letterbox() {
+        // A 100×100 preview centered in a 200×100 viewport: 50 px bands.
+        let crop = dragged(drag_crop(
+            (75.0, 25.0),
+            (125.0, 75.0),
+            (200.0, 100.0),
+            (100.0, 100.0),
+            &None,
+        ));
+        assert_eq!(
+            (crop.x, crop.y, crop.width, crop.height),
+            (0.25, 0.25, 0.5, 0.5)
+        );
+    }
+
+    #[test]
+    fn drag_direction_and_overshoot_are_normalized() {
+        // Dragged up-left from outside the frame: clamps then reorders.
+        let crop = dragged(drag_crop(
+            (120.0, 80.0),
+            (-10.0, 25.0),
+            (100.0, 100.0),
+            (100.0, 100.0),
+            &None,
+        ));
+        assert_eq!(
+            (crop.x, crop.y, crop.width, crop.height),
+            (0.0, 0.25, 1.0, 0.55)
+        );
+    }
+
+    #[test]
+    fn drag_composes_with_the_current_crop() {
+        let current = Some(Crop {
+            x: 0.5,
+            y: 0.0,
+            width: 0.5,
+            height: 0.5,
+        });
+        let crop = dragged(drag_crop(
+            (25.0, 25.0),
+            (75.0, 75.0),
+            (100.0, 100.0),
+            (100.0, 100.0),
+            &current,
+        ));
+        assert_eq!(
+            (crop.x, crop.y, crop.width, crop.height),
+            (0.625, 0.125, 0.25, 0.25)
+        );
+    }
+
+    #[test]
+    fn tiny_and_degenerate_drags_are_ignored() {
+        let view = (100.0, 100.0);
+        assert_eq!(
+            drag_crop((50.0, 50.0), (50.5, 90.0), view, view, &None),
+            None
+        );
+        assert_eq!(
+            drag_crop((50.0, 50.0), (90.0, 50.5), view, view, &None),
+            None
+        );
+        assert_eq!(
+            drag_crop((10.0, 10.0), (90.0, 90.0), view, (0.0, 100.0), &None),
+            None
+        );
+        assert_eq!(
+            drag_crop((10.0, 10.0), (90.0, 90.0), (0.0, 0.0), view, &None),
+            None
+        );
+    }
+
+    #[test]
+    fn full_frame_drag_changes_nothing() {
+        let view = (100.0, 100.0);
+        assert_eq!(
+            drag_crop((-5.0, -5.0), (110.0, 110.0), view, view, &None),
+            None
+        );
     }
 
     #[test]

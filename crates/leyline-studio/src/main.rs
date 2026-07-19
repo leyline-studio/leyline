@@ -369,6 +369,39 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
+        window.on_develop_crop_drag(move |px, py, rx, ry, vw, vh, iw, ih| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let Some((_, version)) = app.develop else {
+                return;
+            };
+            let committed = (|| {
+                let mut session = app.library.edit(version)?;
+                let Some((param, value)) = develop::drag_crop(
+                    (f64::from(px), f64::from(py)),
+                    (f64::from(rx), f64::from(ry)),
+                    (f64::from(vw), f64::from(vh)),
+                    (f64::from(iw), f64::from(ih)),
+                    &session.settings().crop,
+                ) else {
+                    return Ok(());
+                };
+                session.set(param, value)?;
+                session.commit().map(|_| ())
+            })();
+            if let Err(error) = committed
+                .map_err(|e| e.to_string())
+                .and_then(|()| refresh_develop(&mut app, &window))
+            {
+                report_error(&window, &error);
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
         window.on_develop_undo(move || {
             if let Some(window) = handle.upgrade() {
                 history_step(&mut app.borrow_mut(), &window, true);

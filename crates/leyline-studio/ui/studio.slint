@@ -198,6 +198,8 @@ export component StudioWindow inherits Window {
     callback enter-develop();
     callback exit-develop();
     callback develop-edit(string, float);
+    // Mouse crop: press x/y, release x/y, viewport w/h, preview w/h (px).
+    callback develop-crop-drag(float, float, float, float, float, float, float, float);
     callback develop-undo();
     callback develop-redo();
     callback run-import(string, bool, bool);
@@ -323,16 +325,47 @@ export component StudioWindow inherits Window {
                         horizontal-stretch: 1;
                     }
                     Text {
-                        text: "G: library · Ctrl+Z/Y: undo/redo";
+                        text: "G: library · Ctrl+Z/Y: undo/redo · drag: crop";
                         color: #666666;
                         font-size: 12px;
                     }
                 }
 
-                Image {
-                    source: root.develop-image;
-                    image-fit: contain;
+                Rectangle {
                     vertical-stretch: 1;
+                    clip: true;
+
+                    Image {
+                        source: root.develop-image;
+                        image-fit: contain;
+                        width: 100%;
+                        height: 100%;
+                    }
+
+                    crop-drag := TouchArea {
+                        mouse-cursor: crosshair;
+                        pointer-event(event) => {
+                            if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
+                                root.develop-crop-drag(
+                                    self.pressed-x / 1px, self.pressed-y / 1px,
+                                    self.mouse-x / 1px, self.mouse-y / 1px,
+                                    self.width / 1px, self.height / 1px,
+                                    root.develop-image.width, root.develop-image.height);
+                            }
+                        }
+                    }
+
+                    // Selection rectangle, live while the mouse is down.
+                    Rectangle {
+                        visible: crop-drag.pressed;
+                        x: min(crop-drag.pressed-x, crop-drag.mouse-x);
+                        y: min(crop-drag.pressed-y, crop-drag.mouse-y);
+                        width: abs((crop-drag.pressed-x - crop-drag.mouse-x) / 1px) * 1px;
+                        height: abs((crop-drag.pressed-y - crop-drag.mouse-y) / 1px) * 1px;
+                        background: #ffffff22;
+                        border-width: 1px;
+                        border-color: #f0f0f0;
+                    }
                 }
             }
 
