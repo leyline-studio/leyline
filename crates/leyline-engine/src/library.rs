@@ -98,6 +98,21 @@ impl Library {
         crate::preview::preview(&mut self.catalog, &self.cache, &self.root, asset, kind)
     }
 
+    /// Returns the cached preview of the asset's current version when a
+    /// valid one exists, without ever rendering (§11). Lets a client fill
+    /// what is already on disk instantly and schedule the rest.
+    pub fn cached_preview(&self, asset: AssetId, kind: PreviewKind) -> Result<Option<PreviewFile>> {
+        Ok(self
+            .catalog
+            .valid_preview(asset, kind)?
+            .map(|row| PreviewFile {
+                path: self.cache.absolute_path(&row.relative_path),
+                width: row.width,
+                height: row.height,
+                freshly_generated: false,
+            }))
+    }
+
     /// Exports a version at its head revision (§12) and returns the file.
     pub fn export(
         &mut self,

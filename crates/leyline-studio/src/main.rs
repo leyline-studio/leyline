@@ -17,8 +17,10 @@ mod ui {
 }
 
 use std::cell::RefCell;
+use std::collections::VecDeque;
 use std::path::Path;
 use std::rc::Rc;
+use std::time::Duration;
 
 use classify::Action;
 use leyline_sdk::{
@@ -26,7 +28,7 @@ use leyline_sdk::{
     ExportSettings, GridItem, GridQuery, ImportOptions, Library, PickState, PreviewKind, Settings,
     SkippedFile, Sort, VersionId,
 };
-use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
+use slint::{ComponentHandle, Model, ModelRc, SharedString, Timer, TimerMode, VecModel};
 
 use ui::{Cell, StudioWindow};
 
@@ -54,6 +56,10 @@ struct App {
     presets: Vec<ExportPreset>,
     /// Flattened collection ids, parallel to the sidebar rows.
     collections: Vec<CollectionId>,
+    /// The live cell model, so thumbnails can be filled in row by row.
+    cells: Rc<VecModel<Cell>>,
+    /// Grid rows still waiting for a thumbnail, drained by the timer.
+    pending: VecDeque<usize>,
 }
 
 fn main() -> std::process::ExitCode {
@@ -80,6 +86,8 @@ fn run() -> Result<(), String> {
         develop: None,
         presets: Vec::new(),
         collections: Vec::new(),
+        cells: Rc::new(VecModel::default()),
+        pending: VecDeque::new(),
     }));
 
     let window = StudioWindow::new().map_err(|e| e.to_string())?;
@@ -105,8 +113,38 @@ fn run() -> Result<(), String> {
     wire_develop(&app, &window);
     wire_dialogs(&app, &window);
     wire_collections(&app, &window);
+    // Kept alive until the event loop ends: dropping the timer stops it.
+    let _thumbnails = thumbnail_timer(&app);
 
     window.run().map_err(|e| e.to_string())
+}
+
+/// Starts the timer that renders one missing thumbnail per tick, filling
+/// the grid progressively without blocking startup on a full render.
+fn thumbnail_timer(app: &Rc<RefCell<App>>) -> Timer {
+    let app = Rc::clone(app);
+    let timer = Timer::default();
+    timer.start(TimerMode::Repeated, Duration::from_millis(30), move || {
+        let mut app = app.borrow_mut();
+        let Some(index) = app.pending.pop_front() else {
+            return;
+        };
+        let Some(asset) = app.items.get(index).map(|item| item.asset_id) else {
+            return;
+        };
+        let thumbnail = match app.library.preview(asset, PreviewKind::Thumbnail) {
+            Ok(file) => slint::Image::load_from_path(&file.path).unwrap_or_default(),
+            Err(error) => {
+                eprintln!("error: {error}");
+                return;
+            }
+        };
+        if let Some(mut cell) = app.cells.row_data(index) {
+            cell.thumbnail = thumbnail;
+            app.cells.set_row_data(index, cell);
+        }
+    });
+    timer
 }
 
 /// Fills the side panel when a cell is clicked or reached with the arrows.
@@ -692,18 +730,22 @@ fn reload(app: &mut App, window: &StudioWindow) -> Result<(), String> {
         .grid(&app.query)
         .map_err(|e| e.to_string())?;
 
+    // Only thumbnails already cached are loaded here, so the grid appears
+    // instantly; the rest are queued and rendered by the thumbnail timer.
     let mut cells = Vec::with_capacity(items.len());
-    for item in &items {
-        // A missing or unrenderable preview leaves the cell empty rather
-        // than failing the whole browser.
+    let mut pending = VecDeque::new();
+    for (index, item) in items.iter().enumerate() {
         let thumbnail = app
             .library
-            .preview(item.asset_id, PreviewKind::Thumbnail)
+            .cached_preview(item.asset_id, PreviewKind::Thumbnail)
             .ok()
-            .and_then(|file| slint::Image::load_from_path(&file.path).ok())
-            .unwrap_or_default();
+            .flatten()
+            .and_then(|file| slint::Image::load_from_path(&file.path).ok());
+        if thumbnail.is_none() {
+            pending.push_back(index);
+        }
         cells.push(Cell {
-            thumbnail,
+            thumbnail: thumbnail.unwrap_or_default(),
             filename: SharedString::from(item.filename.as_str()),
             stars: SharedString::from(format::stars(item.rating)),
             label: label_color(item.color_label),
@@ -711,8 +753,10 @@ fn reload(app: &mut App, window: &StudioWindow) -> Result<(), String> {
         });
     }
     app.items = items;
+    app.pending = pending;
+    app.cells = Rc::new(VecModel::from(cells));
 
-    window.set_cells(ModelRc::from(Rc::new(VecModel::from(cells))));
+    window.set_cells(ModelRc::from(Rc::clone(&app.cells)));
     window.set_status_line(SharedString::from(status_line(app.items.len(), total)));
 
     let selected = keep
