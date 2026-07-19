@@ -6,6 +6,8 @@
 //! and free of sampling artefacts when shrinking, which is the only
 //! direction previews ever go.
 
+use rayon::prelude::*;
+
 use crate::PreviewError;
 
 /// An owned, tightly packed, interleaved 8-bit RGB image.
@@ -71,34 +73,38 @@ impl Rgb8 {
     }
 
     /// Box-filter downscale to exactly `out_width` x `out_height`: each
-    /// destination pixel is the average of its source rectangle.
+    /// destination pixel is the average of its source rectangle. Output
+    /// rows are independent integer sums, so they run in parallel with a
+    /// result identical to the sequential loop.
     fn box_scaled(&self, out_width: u32, out_height: u32) -> Rgb8 {
         let (w, h) = (self.width as usize, self.height as usize);
         let (ow, oh) = (out_width as usize, out_height as usize);
-        let mut data = Vec::with_capacity(ow * oh * 3);
+        let mut data = vec![0u8; ow * oh * 3];
 
-        for y in 0..oh {
-            let sy0 = y * h / oh;
-            let sy1 = ((y + 1) * h).div_ceil(oh).max(sy0 + 1);
-            for x in 0..ow {
-                let sx0 = x * w / ow;
-                let sx1 = ((x + 1) * w).div_ceil(ow).max(sx0 + 1);
+        data.par_chunks_mut(ow * 3)
+            .enumerate()
+            .for_each(|(y, row)| {
+                let sy0 = y * h / oh;
+                let sy1 = ((y + 1) * h).div_ceil(oh).max(sy0 + 1);
+                for (x, out) in row.chunks_exact_mut(3).enumerate() {
+                    let sx0 = x * w / ow;
+                    let sx1 = ((x + 1) * w).div_ceil(ow).max(sx0 + 1);
 
-                let mut sum = [0u64; 3];
-                for sy in sy0..sy1 {
-                    for sx in sx0..sx1 {
-                        let offset = (sy * w + sx) * 3;
-                        for (channel, total) in sum.iter_mut().enumerate() {
-                            *total += u64::from(self.data[offset + channel]);
+                    let mut sum = [0u64; 3];
+                    for sy in sy0..sy1 {
+                        for sx in sx0..sx1 {
+                            let offset = (sy * w + sx) * 3;
+                            for (channel, total) in sum.iter_mut().enumerate() {
+                                *total += u64::from(self.data[offset + channel]);
+                            }
                         }
                     }
+                    let count = ((sy1 - sy0) * (sx1 - sx0)) as u64;
+                    for (value, total) in out.iter_mut().zip(sum) {
+                        *value = ((total + count / 2) / count) as u8;
+                    }
                 }
-                let count = ((sy1 - sy0) * (sx1 - sx0)) as u64;
-                for total in sum {
-                    data.push(((total + count / 2) / count) as u8);
-                }
-            }
-        }
+            });
 
         Rgb8 {
             width: out_width,

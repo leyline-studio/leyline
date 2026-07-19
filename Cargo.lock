@@ -2813,6 +2813,7 @@ version = "0.1.0"
 dependencies = [
  "leyline-core",
  "png 0.18.1",
+ "rayon",
  "tempfile",
  "thiserror 2.0.18",
 ]
