@@ -19,8 +19,11 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use leyline_catalog::{Catalog, ExportPreset};
-use leyline_core::{AssetId, ExportPresetId, JobId, PreviewKind, Result, VersionId};
+use leyline_catalog::{Catalog, CollectionNode, ExportPreset, KeywordNode, SmartRules};
+use leyline_core::{
+    AssetId, CollectionId, ColorLabel, ExportPresetId, JobId, KeywordId, PickState, PreviewKind,
+    Result, VersionId,
+};
 use leyline_export::ExportSettings;
 use leyline_preview::PreviewCache;
 
@@ -159,6 +162,102 @@ impl Library {
     /// pure catalog operations pass through undecorated.
     pub fn catalog_mut(&self) -> CatalogWrite<'_> {
         CatalogWrite(lock(&self.inner.catalog))
+    }
+
+    /// Emits one `VersionChanged` per version, after a classement write.
+    fn emit_versions_changed(&self, versions: &[VersionId]) {
+        for &version in versions {
+            self.emit(Event::VersionChanged {
+                version_id: version,
+            });
+        }
+    }
+
+    /// Rates a batch of versions (`docs/engine-api.md` §8); `None` clears.
+    /// Emits `VersionChanged` per version.
+    pub fn set_rating(&self, versions: &[VersionId], rating: Option<u8>) -> Result<()> {
+        self.catalog_mut().set_rating(versions, rating)?;
+        self.emit_versions_changed(versions);
+        Ok(())
+    }
+
+    /// Labels a batch of versions (§8); `None` clears. Emits
+    /// `VersionChanged` per version.
+    pub fn set_color_label(&self, versions: &[VersionId], label: Option<ColorLabel>) -> Result<()> {
+        self.catalog_mut().set_color_label(versions, label)?;
+        self.emit_versions_changed(versions);
+        Ok(())
+    }
+
+    /// Flags a batch of versions (§8). Emits `VersionChanged` per version.
+    pub fn set_pick(&self, versions: &[VersionId], pick: PickState) -> Result<()> {
+        self.catalog_mut().set_pick(versions, pick)?;
+        self.emit_versions_changed(versions);
+        Ok(())
+    }
+
+    /// Tags a batch of assets (§8, idempotent). Emits `AssetsChanged`.
+    pub fn add_keyword(&self, assets: &[AssetId], keyword: KeywordId) -> Result<()> {
+        self.catalog_mut().add_keyword(assets, keyword)?;
+        self.emit(Event::AssetsChanged {
+            asset_ids: assets.to_vec(),
+        });
+        Ok(())
+    }
+
+    /// Untags a batch of assets (§8; removing an absent tag is a no-op).
+    /// Emits `AssetsChanged`.
+    pub fn remove_keyword(&self, assets: &[AssetId], keyword: KeywordId) -> Result<()> {
+        self.catalog_mut().remove_keyword(assets, keyword)?;
+        self.emit(Event::AssetsChanged {
+            asset_ids: assets.to_vec(),
+        });
+        Ok(())
+    }
+
+    /// Creates a keyword under `parent`, or at the root (§8).
+    pub fn create_keyword(&self, parent: Option<KeywordId>, name: &str) -> Result<KeywordId> {
+        self.catalog_mut().create_keyword(parent, name)
+    }
+
+    /// The complete keyword tree, siblings ordered by name (§8).
+    pub fn keyword_tree(&self) -> Result<Vec<KeywordNode>> {
+        self.catalog().keyword_tree()
+    }
+
+    /// Creates a manual collection under `parent`, or at the root (§9).
+    pub fn create_collection(
+        &self,
+        parent: Option<CollectionId>,
+        name: &str,
+    ) -> Result<CollectionId> {
+        self.catalog_mut().create_collection(parent, name)
+    }
+
+    /// Creates a smart collection driven by `rules` (§9, catalogue §26).
+    pub fn create_smart_collection(
+        &self,
+        parent: Option<CollectionId>,
+        name: &str,
+        rules: &SmartRules,
+    ) -> Result<CollectionId> {
+        self.catalog_mut()
+            .create_smart_collection(parent, name, rules)
+    }
+
+    /// Adds versions to a manual collection (§9).
+    pub fn add_to_collection(&self, id: CollectionId, versions: &[VersionId]) -> Result<()> {
+        self.catalog_mut().add_to_collection(id, versions)
+    }
+
+    /// Removes versions from a manual collection (§9).
+    pub fn remove_from_collection(&self, id: CollectionId, versions: &[VersionId]) -> Result<()> {
+        self.catalog_mut().remove_from_collection(id, versions)
+    }
+
+    /// The collection tree, children under their parents (§9).
+    pub fn collections(&self) -> Result<Vec<CollectionNode>> {
+        self.catalog().collections()
     }
 
     /// Imports files (`docs/engine-api.md` §6). `progress` receives
@@ -386,9 +485,12 @@ impl Library {
 
     /// Opens an edit session on a version (§10.1). The session holds the
     /// catalog lock: nothing else mutates while editing, so keep sessions
-    /// short — Studio opens one per commit point.
+    /// short — Studio opens one per commit point. Every history write of
+    /// the session emits `VersionChanged` (§3.2).
     pub fn edit(&self, version: VersionId) -> Result<EditSession<CatalogWrite<'_>>> {
-        EditSession::open(self.catalog_mut(), version)
+        let library = self.clone();
+        Ok(EditSession::open(self.catalog_mut(), version)?
+            .with_notifier(move |version_id| library.emit(Event::VersionChanged { version_id })))
     }
 
     /// Writes the XMP sidecar of an asset — the On Demand synchronization

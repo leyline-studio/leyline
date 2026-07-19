@@ -217,14 +217,10 @@ fn wire_classify(app: &Rc<RefCell<App>>, window: &StudioWindow) {
         let Some(action) = classify::from_key(key.as_str(), label, pick) else {
             return;
         };
-        // Scoped: the catalog guard must be released before the reload.
-        let applied = {
-            let mut catalog = app.library.catalog_mut();
-            match action {
-                Action::Rate(rating) => catalog.set_rating(&[version], rating),
-                Action::Label(label) => catalog.set_color_label(&[version], label),
-                Action::Flag(pick) => catalog.set_pick(&[version], pick),
-            }
+        let applied = match action {
+            Action::Rate(rating) => app.library.set_rating(&[version], rating),
+            Action::Label(label) => app.library.set_color_label(&[version], label),
+            Action::Flag(pick) => app.library.set_pick(&[version], pick),
         };
         if let Err(error) = applied
             .map_err(|e| e.to_string())
@@ -585,14 +581,11 @@ fn wire_collections(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 return;
             }
             let mut app = app.borrow_mut();
-            // Two statements: the catalog guard of the first must be
-            // released before the refresh re-enters the library.
             let created = app
                 .library
-                .catalog_mut()
                 .create_collection(None, name)
-                .map_err(|e| e.to_string());
-            let created = created.and_then(|_| refresh_collections(&mut app, &window));
+                .map_err(|e| e.to_string())
+                .and_then(|_| refresh_collections(&mut app, &window));
             match created {
                 Ok(()) => window.set_dialog(SharedString::default()),
                 Err(error) => window
@@ -639,7 +632,6 @@ fn wire_keywords(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             };
             let tagged = ensure_keyword_path(&mut app, &path).and_then(|keyword| {
                 app.library
-                    .catalog_mut()
                     .add_keyword(&[asset], keyword)
                     .map_err(|e| e.to_string())
             });
@@ -670,7 +662,6 @@ fn wire_keywords(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             };
             let untagged = app
                 .library
-                .catalog_mut()
                 .remove_keyword(&[asset], keyword)
                 .map_err(|e| e.to_string());
             if let Err(error) = untagged.and_then(|()| reload(&mut app, &window)) {
@@ -683,16 +674,11 @@ fn wire_keywords(app: &Rc<RefCell<App>>, window: &StudioWindow) {
 /// Finds or creates the keyword at a slash-separated path (`Nature/Birds`),
 /// creating the missing levels, and returns the leaf keyword.
 fn ensure_keyword_path(app: &mut App, path: &str) -> Result<KeywordId, String> {
-    let tree = app
-        .library
-        .catalog()
-        .keyword_tree()
-        .map_err(|e| e.to_string())?;
+    let tree = app.library.keyword_tree().map_err(|e| e.to_string())?;
     let (mut parent, missing) = resolve_keyword_path(&tree, path)?;
     for level in missing {
         parent = Some(
             app.library
-                .catalog_mut()
                 .create_keyword(parent, &level)
                 .map_err(|e| e.to_string())?,
         );
@@ -736,11 +722,7 @@ fn keyword_rows(app: &App, asset: AssetId) -> Result<(Vec<KeywordId>, Vec<Shared
         .catalog()
         .asset_keywords(asset)
         .map_err(|e| e.to_string())?;
-    let tree = app
-        .library
-        .catalog()
-        .keyword_tree()
-        .map_err(|e| e.to_string())?;
+    let tree = app.library.keyword_tree().map_err(|e| e.to_string())?;
     let mut paths = std::collections::HashMap::new();
     collect_keyword_paths(&tree, &mut paths);
     let names = ids
@@ -775,14 +757,10 @@ fn collection_membership(app: &mut App, window: &StudioWindow, add: bool) {
     let Some(version) = item_at(app, window.get_selected()).map(|item| item.version_id) else {
         return;
     };
-    // Scoped: the catalog guard must be released before the reload.
-    let changed = {
-        let mut catalog = app.library.catalog_mut();
-        if add {
-            catalog.add_to_collection(collection, &[version])
-        } else {
-            catalog.remove_from_collection(collection, &[version])
-        }
+    let changed = if add {
+        app.library.add_to_collection(collection, &[version])
+    } else {
+        app.library.remove_from_collection(collection, &[version])
     };
     if let Err(error) = changed
         .map_err(|e| e.to_string())
@@ -794,11 +772,7 @@ fn collection_membership(app: &mut App, window: &StudioWindow, add: bool) {
 
 /// Reloads the sidebar from the catalog's collection tree.
 fn refresh_collections(app: &mut App, window: &StudioWindow) -> Result<(), String> {
-    let tree = app
-        .library
-        .catalog()
-        .collections()
-        .map_err(|e| e.to_string())?;
+    let tree = app.library.collections().map_err(|e| e.to_string())?;
     let mut flat = Vec::new();
     flatten_collections(&tree, 0, &mut flat);
     app.collections = flat.iter().map(|(id, ..)| *id).collect();

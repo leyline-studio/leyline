@@ -89,13 +89,15 @@ enum Pending {
     Many,
 }
 
+/// Callback invoked after every write to the version's history.
+type Notifier = Box<dyn FnMut(VersionId) + Send>;
+
 /// An open edit session on one develop version (`docs/engine-api.md` §10.1).
 ///
 /// The session holds the only write handle: while it lives, nothing else
 /// mutates the version, so its in-memory state is authoritative. It is
 /// generic over how that handle is held — a plain `&mut Catalog`, or the
 /// lock guard a shared [`crate::Library`] hands out.
-#[derive(Debug)]
 pub struct EditSession<C: DerefMut<Target = Catalog>> {
     catalog: C,
     version: VersionId,
@@ -105,6 +107,22 @@ pub struct EditSession<C: DerefMut<Target = Catalog>> {
     /// amendment chain. `None` after undo/redo or a multi-parameter commit.
     last_commit: Option<(Param, Instant)>,
     amend_window: Duration,
+    /// Called after each commit, amendment, undo or redo that actually
+    /// wrote — the `Library` plugs `VersionChanged` in here (§3.2).
+    notify: Option<Notifier>,
+}
+
+impl<C: DerefMut<Target = Catalog>> std::fmt::Debug for EditSession<C> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EditSession")
+            .field("version", &self.version)
+            .field("settings", &self.settings)
+            .field("pending", &self.pending)
+            .field("last_commit", &self.last_commit)
+            .field("amend_window", &self.amend_window)
+            .field("notify", &self.notify.as_ref().map(|_| "…"))
+            .finish_non_exhaustive()
+    }
 }
 
 impl<C: DerefMut<Target = Catalog>> EditSession<C> {
@@ -129,7 +147,15 @@ impl<C: DerefMut<Target = Catalog>> EditSession<C> {
             pending: Pending::Clean,
             last_commit: None,
             amend_window: DEFAULT_AMEND_WINDOW,
+            notify: None,
         })
+    }
+
+    /// Registers a callback invoked after every write to the version's
+    /// history (commit, amendment, undo, redo). One callback at most.
+    pub fn with_notifier(mut self, notify: impl FnMut(VersionId) + Send + 'static) -> Self {
+        self.notify = Some(Box::new(notify));
+        self
     }
 
     /// Overrides the amendment window (§17: 2 seconds, configurable).
@@ -201,6 +227,7 @@ impl<C: DerefMut<Target = Catalog>> EditSession<C> {
             }
         };
         self.pending = Pending::Clean;
+        self.notify_write();
         Ok(head)
     }
 
@@ -212,6 +239,9 @@ impl<C: DerefMut<Target = Catalog>> EditSession<C> {
         self.commit()?;
         let moved = self.catalog.undo_version(self.version)?;
         self.reload_head(moved)?;
+        if moved.is_some() {
+            self.notify_write();
+        }
         Ok(moved)
     }
 
@@ -222,12 +252,23 @@ impl<C: DerefMut<Target = Catalog>> EditSession<C> {
         self.commit()?;
         let moved = self.catalog.redo_version(self.version)?;
         self.reload_head(moved)?;
+        if moved.is_some() {
+            self.notify_write();
+        }
         Ok(moved)
     }
 
     /// The revision chain of the version, head first.
     pub fn history(&self) -> Result<Vec<RevisionRow>> {
         self.catalog.version_history(self.version)
+    }
+
+    /// Reports a history write to the registered notifier, if any.
+    fn notify_write(&mut self) {
+        let version = self.version;
+        if let Some(notify) = self.notify.as_mut() {
+            notify(version);
+        }
     }
 
     /// Reloads the in-memory state after the head moved, and breaks the

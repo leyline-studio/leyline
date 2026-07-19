@@ -71,7 +71,7 @@ pub enum JobResult {
 * Studio branche ce canal sur la boucle Slint ; la CLI le lit en séquence ; un script peut l'ignorer. Un récepteur abandonné se désabonne silencieusement.
 * Les événements sont des **notifications**, jamais des données complètes : le client re-requête ce dont il a besoin. Cela évite tout problème de cohérence entre le flux et la base.
 * `PreviewReady` porte l'asset (pas la version) : la surface preview est asset-based (§11), la preview rendue est toujours celle de la version courante de l'asset.
-* **État livré** : `subscribe` et les jobs `import_async`, `preview_async`, `export_async` émettent `JobProgress`, `AssetsAdded`, `PreviewReady` et `JobFinished`. `AssetsChanged` et `VersionChanged` ne sont pas encore émis — les écritures directes au catalogue (classement, mots-clés, commits d'édition) ne notifient pas encore ; les variantes font partie du contrat et arriveront avec l'instrumentation de ces chemins.
+* **État livré** : `subscribe` et les jobs `import_async`, `preview_async`, `export_async` émettent `JobProgress`, `AssetsAdded`, `PreviewReady` et `JobFinished`. Les écritures de la façade notifient : classement (§8) → un `VersionChanged` par version du lot ; mots-clés (§8) → `AssetsChanged` avec le lot ; chaque écriture d'historique d'une session d'édition (§10.1 — commit, amendement, undo, redo) → `VersionChanged`. Un client qui écrit via `catalog_mut()` directement contourne les notifications : passer par la façade.
 
 ## 3.3 Threading
 

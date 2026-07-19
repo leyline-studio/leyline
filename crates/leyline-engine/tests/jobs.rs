@@ -176,6 +176,72 @@ fn an_export_job_reports_per_version_failures_in_the_report() {
 }
 
 #[test]
+fn facade_writes_and_edit_sessions_notify_subscribers() {
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::create(&dir.path().join("Library"), "Jobs").unwrap();
+
+    let source = dir.path().join("photo.png");
+    sample_png(&source);
+    let report = library
+        .import(
+            &source,
+            &ImportOptions {
+                copy_files: true,
+                recursive: false,
+            },
+            |_, _| {},
+        )
+        .unwrap();
+    let registered = report.imported[0].registered;
+    let events = library.subscribe();
+
+    // Classement: one VersionChanged per version of the batch.
+    library.set_rating(&[registered.version], Some(4)).unwrap();
+    assert_eq!(
+        events.try_recv(),
+        Ok(Event::VersionChanged {
+            version_id: registered.version
+        })
+    );
+
+    // Keywords: AssetsChanged with the batch.
+    let keyword = library.create_keyword(None, "Nature").unwrap();
+    library.add_keyword(&[registered.asset], keyword).unwrap();
+    assert_eq!(
+        events.try_recv(),
+        Ok(Event::AssetsChanged {
+            asset_ids: vec![registered.asset]
+        })
+    );
+
+    // An edit session notifies on commit and on undo, not on open/drop.
+    {
+        let mut session = library.edit(registered.version).unwrap();
+        session
+            .set(
+                leyline_engine::Param::Exposure,
+                leyline_engine::Value::Float(0.5),
+            )
+            .unwrap();
+        session.commit().unwrap();
+        assert_eq!(
+            events.try_recv(),
+            Ok(Event::VersionChanged {
+                version_id: registered.version
+            })
+        );
+        session.undo().unwrap();
+        assert_eq!(
+            events.try_recv(),
+            Ok(Event::VersionChanged {
+                version_id: registered.version
+            })
+        );
+    }
+    assert!(events.try_recv().is_err(), "no event without a write");
+}
+
+#[test]
 fn a_dropped_subscriber_never_blocks_the_engine() {
     let dir = tempfile::tempdir().unwrap();
     let library = Library::create(&dir.path().join("Library"), "Jobs").unwrap();
