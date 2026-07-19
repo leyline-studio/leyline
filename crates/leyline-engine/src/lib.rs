@@ -18,6 +18,7 @@ mod process1;
 mod process2;
 mod render;
 mod session;
+mod source;
 mod xmp;
 
 pub use decode_cache::DecodeCache;

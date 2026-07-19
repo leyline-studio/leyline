@@ -24,6 +24,39 @@ const COPY: ImportOptions = ImportOptions {
 };
 
 #[test]
+fn a_readable_image_imports_with_its_dimensions() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut catalog, root) = library(&dir);
+
+    // One real 6×2 PNG, one unreadable JPEG: both import (non-RAW files
+    // are never refused), only the readable one gets dimensions.
+    let shoot = dir.path().join("Shoot");
+    std::fs::create_dir(&shoot).unwrap();
+    image::save_buffer(
+        shoot.join("real.png"),
+        &[10u8; 6 * 2 * 3],
+        6,
+        2,
+        image::ExtendedColorType::Rgb8,
+    )
+    .unwrap();
+    write(&shoot.join("opaque.jpg"), b"not a jpeg");
+
+    let report = import(&mut catalog, &root, &shoot, &COPY, |_, _| {}).unwrap();
+    assert_eq!(report.skipped, vec![]);
+    assert_eq!(report.imported.len(), 2);
+
+    for file in &report.imported {
+        let details = catalog.asset_details(file.registered.asset).unwrap();
+        if file.relative_path.ends_with("real.png") {
+            assert_eq!((details.width, details.height), (Some(6), Some(2)));
+        } else {
+            assert_eq!((details.width, details.height), (None, None));
+        }
+    }
+}
+
+#[test]
 fn copy_import_mirrors_the_source_under_photos() {
     let dir = tempfile::tempdir().unwrap();
     let (mut catalog, root) = library(&dir);

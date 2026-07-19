@@ -138,6 +138,17 @@ fn import_one(
         None
     };
 
+    // Non-RAW images are probed for their dimensions when the header is
+    // readable; unlike RAW files they still import when it is not —
+    // decode problems surface at render time (preview, export), never as
+    // an import refusal.
+    let probed = match media_type {
+        MediaType::Jpeg | MediaType::Png | MediaType::Tiff => {
+            crate::source::probe_dimensions(file).ok()
+        }
+        _ => None,
+    };
+
     let relative_path = if options.copy_files {
         copy_into_photos(library_root, source, file, &filename)?
     } else {
@@ -155,8 +166,8 @@ fn import_one(
         media_type,
         file_size,
         checksum,
-        width: raw.as_ref().map(|m| m.width),
-        height: raw.as_ref().map(|m| m.height),
+        width: raw.as_ref().map(|m| m.width).or(probed.map(|(w, _)| w)),
+        height: raw.as_ref().map(|m| m.height).or(probed.map(|(_, h)| h)),
         capture_date: raw.as_ref().and_then(|m| m.capture_ms),
         capture_offset_minutes: None,
     })?;
@@ -279,7 +290,7 @@ fn reference_in_place(library_root: &Path, file: &Path) -> std::result::Result<S
 }
 
 /// Maps a lowercase extension to its media type (`docs/catalog.md` §10).
-fn media_type(extension: &str) -> Option<MediaType> {
+pub(crate) fn media_type(extension: &str) -> Option<MediaType> {
     Some(match extension {
         "3fr" | "arw" | "cr2" | "cr3" | "crw" | "erf" | "kdc" | "mef" | "mos" | "mrw" | "nef"
         | "nrw" | "orf" | "pef" | "raf" | "raw" | "rw2" | "sr2" | "srw" | "x3f" => MediaType::Raw,

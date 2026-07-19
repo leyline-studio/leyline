@@ -21,6 +21,7 @@ leyline-engine = { path = "crates/leyline-engine" }
 leyline-sdk = { path = "crates/leyline-sdk" }
 
 blake3 = "1"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "tiff"] }
 jpeg-encoder = "0.6"
 rusqlite = { version = "0.37", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }

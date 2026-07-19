@@ -61,9 +61,7 @@ pub fn preview(
         ..DecodeParams::default()
     };
     let decoded = decodes
-        .get_or_insert_with(asset, &params, || {
-            leyline_raw::decode(&file, &params).map(|decoded| decoded.image)
-        })
+        .get_or_insert_with(asset, &params, || crate::source::decode(&file, &params))
         .map_err(|e| LeylineError::DecodeFailed {
             asset,
             reason: e.to_string(),

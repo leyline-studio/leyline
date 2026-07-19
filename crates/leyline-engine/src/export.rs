@@ -102,13 +102,13 @@ pub fn export_version(
 
     let relative = catalog.asset_relative_path(asset)?;
     let source = library_root.join(relative.replace('/', std::path::MAIN_SEPARATOR_STR));
-    let decoded = leyline_raw::decode(&source, &DecodeParams::default()).map_err(|e| {
+    let decoded = crate::source::decode(&source, &DecodeParams::default()).map_err(|e| {
         LeylineError::DecodeFailed {
             asset,
             reason: e.to_string(),
         }
     })?;
-    let rendered = render(&decoded.image, &develop)?;
+    let rendered = render(&decoded, &develop)?;
 
     let scaled;
     let image = Rgb8::new(rendered.width, rendered.height, rendered.data)

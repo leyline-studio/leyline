@@ -92,6 +92,8 @@ L'utilisateur règle des **valeurs**, jamais l'ordre.
 
 Cet ordre fait partie du contrat de rendu : le modifier change les pixels produits, donc impose une nouvelle *process version* (§3.3).
 
+**Sources non-RAW.** Le catalogue accepte à l'import des fichiers JPEG, TIFF et PNG (catalogue §10). Ces fichiers entrent dans la même chaîne : ils sont décodés par des codecs natifs (orientation EXIF appliquée, échantillons normalisés en RGB 8 bits) et prennent la place de « RAW décodé » en tête de pipeline. Le décodage reste déterministe au même titre que LibRaw (§5). HEIF et PSD sont catalogués mais n'ont pas de décodeur en V1 : demander leurs pixels est une erreur explicite, pas un refus LibRaw.
+
 ---
 
 ## 3.2 settings_json

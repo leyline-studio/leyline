@@ -95,6 +95,62 @@ fn an_undecodable_asset_reports_decode_failure() {
     assert!(matches!(err, LeylineError::DecodeFailed { asset: a, .. } if a == asset));
 }
 
+#[test]
+fn generates_a_scaled_preview_from_a_png() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut catalog, root, cache) = library(&dir);
+
+    // A real 8×4 PNG: the thumbnail must come out scaled, not refused.
+    let source = dir.path().join("photo.png");
+    image::save_buffer(
+        &source,
+        &[128u8; 8 * 4 * 3],
+        8,
+        4,
+        image::ExtendedColorType::Rgb8,
+    )
+    .unwrap();
+    let report = import(
+        &mut catalog,
+        &root,
+        &source,
+        &ImportOptions {
+            copy_files: true,
+            recursive: false,
+        },
+        |_, _| {},
+    )
+    .unwrap();
+    let asset = report.imported[0].registered.asset;
+
+    let mut decodes = DecodeCache::new(2);
+    let thumb = preview(
+        &mut catalog,
+        &cache,
+        &mut decodes,
+        &root,
+        asset,
+        PreviewKind::Thumbnail,
+    )
+    .unwrap();
+    assert!(thumb.freshly_generated);
+    assert!(thumb.path.is_file());
+    assert_eq!((thumb.width, thumb.height), (8, 4));
+
+    // Second call: served from cache.
+    let again = preview(
+        &mut catalog,
+        &cache,
+        &mut decodes,
+        &root,
+        asset,
+        PreviewKind::Thumbnail,
+    )
+    .unwrap();
+    assert!(!again.freshly_generated);
+    assert_eq!(again.path, thumb.path);
+}
+
 /// Full pipeline against a real RAW file. Run with
 /// `LEYLINE_TEST_RAW=/path/to/file.ext cargo test -p leyline-engine -- --ignored`.
 #[test]

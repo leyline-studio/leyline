@@ -178,6 +178,50 @@ fn presets_are_validated_stored_and_drive_batches() {
     ));
 }
 
+#[test]
+fn exports_a_png_source_to_jpeg_and_journals_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut catalog, root) = library(&dir);
+
+    let source = dir.path().join("photo.png");
+    image::save_buffer(
+        &source,
+        &[200u8; 4 * 2 * 3],
+        4,
+        2,
+        image::ExtendedColorType::Rgb8,
+    )
+    .unwrap();
+    let report = import(
+        &mut catalog,
+        &root,
+        &source,
+        &ImportOptions {
+            copy_files: true,
+            recursive: false,
+        },
+        |_, _| {},
+    )
+    .unwrap();
+    let registered = report.imported[0].registered;
+
+    let written = export_version(
+        &mut catalog,
+        &root,
+        registered.version,
+        &ExportSettings::default(),
+        None,
+        &dir.path().join("out"),
+    )
+    .unwrap();
+    let bytes = std::fs::read(&written).unwrap();
+    assert_eq!(&bytes[..3], &[0xFF, 0xD8, 0xFF], "JPEG SOI marker");
+
+    let history = catalog.export_history(registered.asset).unwrap();
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0].format, "jpg");
+}
+
 /// Full pipeline against a real RAW file. Run with
 /// `LEYLINE_TEST_RAW=/path/to/file.ext cargo test -p leyline-engine -- --ignored`.
 #[test]
