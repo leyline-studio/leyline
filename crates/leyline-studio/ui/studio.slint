@@ -186,6 +186,8 @@ export component StudioWindow inherits Window {
     in property <string> detail-camera;
     in property <string> detail-lens;
     in property <string> detail-exposure;
+    // Keyword paths of the selected photo, already flattened by Rust.
+    in property <[string]> detail-keywords;
 
     // Develop view state, mirrored from Rust.
     in property <bool> develop-mode;
@@ -223,6 +225,10 @@ export component StudioWindow inherits Window {
     callback run-new-collection(string);
     callback add-to-collection();
     callback remove-from-collection();
+    // Tag the selected photo with a slash-separated keyword path, or untag
+    // the keyword at an index of `detail-keywords`.
+    callback add-keyword(string);
+    callback remove-keyword(int);
     callback search(string);
     // First visible cell and how many cells fit, sent on scroll or resize.
     callback viewport-moved(int, int);
@@ -920,6 +926,67 @@ export component StudioWindow inherits Window {
                         DetailRow {
                             label: "Exposure";
                             value: root.detail-exposure;
+                        }
+
+                        Text {
+                            text: "Keywords";
+                            color: #9a9a9a;
+                            font-size: 11px;
+                        }
+                        for kw[i] in root.detail-keywords: HorizontalLayout {
+                            spacing: 6px;
+                            Text {
+                                text: kw;
+                                color: #e6e6e6;
+                                font-size: 12px;
+                                overflow: elide;
+                                horizontal-stretch: 1;
+                            }
+                            TouchArea {
+                                width: 16px;
+                                height: 16px;
+                                Text {
+                                    text: "×";
+                                    color: #9a9a9a;
+                                    font-size: 12px;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                    width: 100%;
+                                    height: 100%;
+                                }
+                                clicked => {
+                                    root.remove-keyword(i);
+                                }
+                            }
+                        }
+                        Rectangle {
+                            height: 24px;
+                            background: #1b1b1b;
+                            border-radius: 4px;
+                            border-width: 1px;
+                            border-color: keyword-input.text == "" ? #333333 : #6fa8dc;
+                            keyword-input := TextInput {
+                                x: 8px;
+                                width: parent.width - 16px;
+                                height: 100%;
+                                color: #e6e6e6;
+                                font-size: 12px;
+                                vertical-alignment: center;
+                                single-line: true;
+                                accepted => {
+                                    root.add-keyword(self.text);
+                                    self.text = "";
+                                    keys.focus();
+                                }
+                            }
+                            if keyword-input.text == "" && !keyword-input.has-focus: Text {
+                                x: 8px;
+                                height: 100%;
+                                text: "Add keyword (Nature/Birds)…";
+                                color: #666666;
+                                font-size: 12px;
+                                vertical-alignment: center;
+                            }
                         }
                     }
                 }

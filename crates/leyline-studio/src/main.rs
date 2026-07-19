@@ -3,8 +3,9 @@
 //! The library browser. Studio opens a library through the SDK — never the
 //! catalog directly — renders the photo grid with cached thumbnails, lets
 //! the user filter, sort and classify (rate, label, flag) photos, shows
-//! the metadata of the selected photo, and develops it non-destructively
-//! in a dedicated view (`D` enters, `G` leaves).
+//! the metadata and keywords of the selected photo (tagging by
+//! slash-separated path), and develops it non-destructively in a
+//! dedicated view (`D` enters, `G` leaves).
 
 mod classify;
 mod develop;
@@ -25,8 +26,8 @@ use std::time::Duration;
 use classify::Action;
 use leyline_sdk::{
     AssetId, CollectionId, CollectionNode, CollectionType, ColorLabel, ExportPreset, ExportReport,
-    ExportSettings, GridItem, GridQuery, ImportOptions, Library, PickState, PreviewKind, Settings,
-    SkippedFile, Sort, VersionId,
+    ExportSettings, GridItem, GridQuery, ImportOptions, KeywordId, KeywordNode, Library, PickState,
+    PreviewKind, Settings, SkippedFile, Sort, VersionId,
 };
 use slint::{ComponentHandle, Model, ModelRc, SharedString, Timer, TimerMode, VecModel};
 
@@ -67,6 +68,8 @@ struct App {
     presets: Vec<ExportPreset>,
     /// Flattened collection ids, parallel to the sidebar rows.
     collections: Vec<CollectionId>,
+    /// Keywords of the selected photo, parallel to the panel's rows.
+    keywords: Vec<KeywordId>,
     /// The live cell model, so thumbnails can be filled in row by row.
     cells: Rc<VecModel<Cell>>,
     /// Grid rows still waiting for a thumbnail, drained by the timer.
@@ -100,6 +103,7 @@ fn run() -> Result<(), String> {
         develop: None,
         presets: Vec::new(),
         collections: Vec::new(),
+        keywords: Vec::new(),
         cells: Rc::new(VecModel::default()),
         pending: VecDeque::new(),
     }));
@@ -127,6 +131,7 @@ fn run() -> Result<(), String> {
     wire_develop(&app, &window);
     wire_dialogs(&app, &window);
     wire_collections(&app, &window);
+    wire_keywords(&app, &window);
     {
         // Scrolling or resizing moves the visible window: fetch the matching
         // rows from the catalog when the loaded window no longer covers it.
@@ -191,7 +196,7 @@ fn wire_select(app: &Rc<RefCell<App>>, window: &StudioWindow) {
         let Some(window) = handle.upgrade() else {
             return;
         };
-        show_details(&app.borrow(), &window, index);
+        show_details(&mut app.borrow_mut(), &window, index);
     });
 }
 
@@ -610,6 +615,147 @@ fn wire_collections(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     }
 }
 
+/// Connects the keyword panel: tagging by path, untagging by row.
+fn wire_keywords(app: &Rc<RefCell<App>>, window: &StudioWindow) {
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_add_keyword(move |path| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let path = path.trim().to_owned();
+            if path.is_empty() {
+                return;
+            }
+            let Some(asset) = item_at(&app, window.get_selected()).map(|item| item.asset_id) else {
+                return;
+            };
+            let tagged = ensure_keyword_path(&mut app, &path).and_then(|keyword| {
+                app.library
+                    .catalog_mut()
+                    .add_keyword(&[asset], keyword)
+                    .map_err(|e| e.to_string())
+            });
+            // Reload rather than refresh the panel alone: a text search may
+            // now match (or no longer match) the tagged photo.
+            if let Err(error) = tagged.and_then(|()| reload(&mut app, &window)) {
+                report_error(&window, &error);
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_remove_keyword(move |index| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let Some(asset) = item_at(&app, window.get_selected()).map(|item| item.asset_id) else {
+                return;
+            };
+            let Some(keyword) = usize::try_from(index)
+                .ok()
+                .and_then(|i| app.keywords.get(i))
+                .copied()
+            else {
+                return;
+            };
+            let untagged = app
+                .library
+                .catalog_mut()
+                .remove_keyword(&[asset], keyword)
+                .map_err(|e| e.to_string());
+            if let Err(error) = untagged.and_then(|()| reload(&mut app, &window)) {
+                report_error(&window, &error);
+            }
+        });
+    }
+}
+
+/// Finds or creates the keyword at a slash-separated path (`Nature/Birds`),
+/// creating the missing levels, and returns the leaf keyword.
+fn ensure_keyword_path(app: &mut App, path: &str) -> Result<KeywordId, String> {
+    let tree = app
+        .library
+        .catalog()
+        .keyword_tree()
+        .map_err(|e| e.to_string())?;
+    let (mut parent, missing) = resolve_keyword_path(&tree, path)?;
+    for level in missing {
+        parent = Some(
+            app.library
+                .catalog_mut()
+                .create_keyword(parent, &level)
+                .map_err(|e| e.to_string())?,
+        );
+    }
+    parent.ok_or_else(|| "enter a keyword".to_owned())
+}
+
+/// Walks the keyword tree along a slash-separated path and returns the
+/// deepest existing keyword plus the levels still to create beneath it.
+fn resolve_keyword_path(
+    tree: &[KeywordNode],
+    path: &str,
+) -> Result<(Option<KeywordId>, Vec<String>), String> {
+    let mut parent = None;
+    let mut siblings = tree;
+    let mut missing = Vec::new();
+    for level in path.split('/') {
+        let level = level.trim();
+        if level.is_empty() {
+            return Err("keyword levels cannot be empty".to_owned());
+        }
+        if !missing.is_empty() {
+            missing.push(level.to_owned());
+            continue;
+        }
+        match siblings.iter().find(|node| node.name == level) {
+            Some(node) => {
+                parent = Some(node.keyword);
+                siblings = &node.children;
+            }
+            None => missing.push(level.to_owned()),
+        }
+    }
+    Ok((parent, missing))
+}
+
+/// The keywords of an asset as parallel `(ids, full paths)` panel rows.
+fn keyword_rows(app: &App, asset: AssetId) -> Result<(Vec<KeywordId>, Vec<SharedString>), String> {
+    let ids = app
+        .library
+        .catalog()
+        .asset_keywords(asset)
+        .map_err(|e| e.to_string())?;
+    let tree = app
+        .library
+        .catalog()
+        .keyword_tree()
+        .map_err(|e| e.to_string())?;
+    let mut paths = std::collections::HashMap::new();
+    collect_keyword_paths(&tree, &mut paths);
+    let names = ids
+        .iter()
+        .map(|id| SharedString::from(paths.get(id).map_or("?", String::as_str)))
+        .collect();
+    Ok((ids, names))
+}
+
+/// Flattens the keyword tree into an id → full path map.
+fn collect_keyword_paths(
+    nodes: &[KeywordNode],
+    out: &mut std::collections::HashMap<KeywordId, String>,
+) {
+    for node in nodes {
+        out.insert(node.keyword, node.path.clone());
+        collect_keyword_paths(&node.children, out);
+    }
+}
+
 /// Adds the selected photo's version to the active collection, or removes
 /// it, then reloads the grid (membership may change what it shows).
 fn collection_membership(app: &mut App, window: &StudioWindow, add: bool) {
@@ -894,17 +1040,24 @@ fn reload(app: &mut App, window: &StudioWindow) -> Result<(), String> {
 }
 
 /// Reads and formats everything the side panel shows for one grid row.
-fn show_details(app: &App, window: &StudioWindow, index: i32) {
-    let Some(item) = item_at(app, index) else {
+fn show_details(app: &mut App, window: &StudioWindow, index: i32) {
+    let Some(asset) = item_at(app, index).map(|item| item.asset_id) else {
         return;
     };
-    let details = match app.library.catalog().asset_details(item.asset_id) {
+    let details = match app.library.catalog().asset_details(asset) {
         Ok(details) => details,
         Err(error) => {
             eprintln!("error: {error}");
             return;
         }
     };
+    match keyword_rows(app, asset) {
+        Ok((ids, paths)) => {
+            app.keywords = ids;
+            window.set_detail_keywords(ModelRc::from(Rc::new(VecModel::from(paths))));
+        }
+        Err(error) => eprintln!("error: {error}"),
+    }
     let meta = details.metadata.as_ref();
     window.set_detail_filename(SharedString::from(details.filename.as_str()));
     window.set_detail_path(SharedString::from(details.relative_path.as_str()));
@@ -1030,6 +1183,46 @@ mod tests {
         // At the ends of the grid the margin has nothing left to fetch.
         assert!(!window_is_stale((0, 30), &(0..126), 10_000));
         assert!(!window_is_stale((970, 30), &(922..1_000), 1_000));
+    }
+
+    #[test]
+    fn keyword_paths_resolve_existing_levels_and_list_missing_ones() {
+        let node = |id: i64, name: &str, path: &str, children: Vec<KeywordNode>| KeywordNode {
+            keyword: KeywordId::new(id),
+            name: name.to_owned(),
+            path: path.to_owned(),
+            children,
+        };
+        let tree = vec![node(
+            1,
+            "Nature",
+            "Nature",
+            vec![node(2, "Birds", "Nature/Birds", vec![])],
+        )];
+
+        // A fully existing path resolves to its leaf, nothing to create.
+        let (parent, missing) = resolve_keyword_path(&tree, "Nature/Birds").unwrap();
+        assert_eq!((parent, missing), (Some(KeywordId::new(2)), vec![]));
+
+        // A partly existing path stops at the deepest known level; spaces
+        // around levels are trimmed.
+        let (parent, missing) = resolve_keyword_path(&tree, "Nature / Birds / Heron").unwrap();
+        assert_eq!(parent, Some(KeywordId::new(2)));
+        assert_eq!(missing, vec!["Heron".to_owned()]);
+
+        // A brand-new root creates every level.
+        let (parent, missing) = resolve_keyword_path(&tree, "Travel/Iceland").unwrap();
+        assert_eq!(parent, None);
+        assert_eq!(missing, vec!["Travel".to_owned(), "Iceland".to_owned()]);
+
+        // Empty levels are refused.
+        assert!(resolve_keyword_path(&tree, "Nature//Heron").is_err());
+        assert!(resolve_keyword_path(&tree, "/").is_err());
+
+        // The id → path map covers nested nodes.
+        let mut paths = std::collections::HashMap::new();
+        collect_keyword_paths(&tree, &mut paths);
+        assert_eq!(paths[&KeywordId::new(2)], "Nature/Birds");
     }
 
     #[test]
