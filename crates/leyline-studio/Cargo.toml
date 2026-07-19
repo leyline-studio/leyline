@@ -9,6 +9,10 @@ rust-version.workspace = true
 
 [dependencies]
 leyline-sdk.workspace = true
+slint.workspace = true
+
+[build-dependencies]
+slint-build.workspace = true
 
 [lints]
 workspace = true

@@ -1,0 +1,163 @@
+// Leyline Studio main window (`docs/roadmap.md` phase 5, first slice).
+//
+// The library browser: a thumbnail grid on the left, the metadata of the
+// selected photo on the right. All strings arrive preformatted from Rust —
+// the UI never interprets catalog values itself.
+
+export struct Cell {
+    thumbnail: image,
+    filename: string,
+    stars: string,
+    label: color,
+    has-label: bool,
+}
+
+component DetailRow inherits HorizontalLayout {
+    in property <string> label;
+    in property <string> value;
+    spacing: 8px;
+    Text {
+        text: root.label;
+        color: #9a9a9a;
+        font-size: 12px;
+        width: 72px;
+    }
+    Text {
+        text: root.value;
+        color: #e6e6e6;
+        font-size: 12px;
+        wrap: word-wrap;
+        horizontal-stretch: 1;
+    }
+}
+
+export component StudioWindow inherits Window {
+    title: "Leyline Studio — " + root.library-name;
+    preferred-width: 1280px;
+    preferred-height: 800px;
+    background: #1b1b1b;
+
+    in property <string> library-name;
+    in property <string> status-line;
+    in property <[Cell]> cells;
+    in-out property <int> selected: -1;
+
+    in property <string> detail-filename;
+    in property <string> detail-path;
+    in property <string> detail-capture;
+    in property <string> detail-dimensions;
+    in property <string> detail-file-size;
+    in property <string> detail-camera;
+    in property <string> detail-lens;
+    in property <string> detail-exposure;
+
+    callback select(int);
+
+    property <length> cell-size: 176px;
+
+    HorizontalLayout {
+        VerticalLayout {
+            horizontal-stretch: 1;
+            padding: 12px;
+            spacing: 8px;
+
+            Text {
+                text: root.status-line;
+                color: #9a9a9a;
+                font-size: 13px;
+            }
+
+            flick := Flickable {
+                property <int> columns: max(1, Math.floor(self.width / root.cell-size));
+                viewport-height: Math.ceil(root.cells.length / self.columns) * root.cell-size;
+
+                for cell[i] in root.cells: Rectangle {
+                    x: Math.mod(i, flick.columns) * root.cell-size;
+                    y: Math.floor(i / flick.columns) * root.cell-size;
+                    width: root.cell-size;
+                    height: root.cell-size;
+
+                    Rectangle {
+                        x: 4px;
+                        y: 4px;
+                        width: parent.width - 8px;
+                        height: parent.height - 8px;
+                        background: i == root.selected ? #2f4f6f : #242424;
+                        border-radius: 4px;
+                        border-width: i == root.selected ? 2px : 1px;
+                        border-color: i == root.selected ? #6fa8dc : #333333;
+
+                        VerticalLayout {
+                            padding: 6px;
+                            spacing: 4px;
+
+                            Image {
+                                source: cell.thumbnail;
+                                image-fit: contain;
+                                vertical-stretch: 1;
+                            }
+                            HorizontalLayout {
+                                spacing: 4px;
+                                if cell.has-label: Rectangle {
+                                    width: 10px;
+                                    height: 10px;
+                                    y: (parent.height - self.height) / 2;
+                                    border-radius: 5px;
+                                    background: cell.label;
+                                }
+                                Text {
+                                    text: cell.filename;
+                                    color: #d0d0d0;
+                                    font-size: 11px;
+                                    overflow: elide;
+                                    horizontal-stretch: 1;
+                                }
+                                Text {
+                                    text: cell.stars;
+                                    color: #d8b23c;
+                                    font-size: 11px;
+                                }
+                            }
+                        }
+                    }
+
+                    TouchArea {
+                        clicked => {
+                            root.selected = i;
+                            root.select(i);
+                        }
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            width: 300px;
+            background: #212121;
+
+            VerticalLayout {
+                padding: 16px;
+                spacing: 10px;
+                alignment: start;
+
+                Text {
+                    text: root.selected < 0 ? "No photo selected" : root.detail-filename;
+                    color: #f0f0f0;
+                    font-size: 15px;
+                    font-weight: 600;
+                    overflow: elide;
+                }
+                if root.selected >= 0: VerticalLayout {
+                    spacing: 6px;
+                    DetailRow { label: "Path"; value: root.detail-path; }
+                    DetailRow { label: "Captured"; value: root.detail-capture; }
+                    DetailRow { label: "Size"; value: root.detail-dimensions; }
+                    DetailRow { label: "File"; value: root.detail-file-size; }
+                    DetailRow { label: "Camera"; value: root.detail-camera; }
+                    DetailRow { label: "Lens"; value: root.detail-lens; }
+                    DetailRow { label: "Exposure"; value: root.detail-exposure; }
+                }
+            }
+        }
+    }
+}
