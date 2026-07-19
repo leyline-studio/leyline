@@ -15,6 +15,73 @@ use leyline_raw::DecodeParams;
 
 use crate::render;
 
+/// One version a batch wrote to disk.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExportedVersion {
+    /// The exported version.
+    pub version: VersionId,
+    /// The written file.
+    pub path: PathBuf,
+}
+
+/// One version a batch could not export, with the human-readable reason.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FailedExport {
+    /// The version left unexported.
+    pub version: VersionId,
+    /// Why the export failed.
+    pub reason: String,
+}
+
+/// Outcome of one export batch.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ExportReport {
+    /// Versions exported, in request order.
+    pub exported: Vec<ExportedVersion>,
+    /// Versions left unexported, with reasons.
+    pub failed: Vec<FailedExport>,
+}
+
+/// Exports several versions into `destination_dir` with one recipe.
+///
+/// One failing version does not stop the batch: it is reported in
+/// [`ExportReport::failed`] and the others proceed. Two versions of the
+/// same asset collide on the output name, so the second one fails — the
+/// exports-never-overwrite rule applies inside a batch too. `progress`
+/// receives `(done, total)` after each version, the batching contract of
+/// `docs/engine-api.md` §12.
+pub fn export_batch(
+    catalog: &mut Catalog,
+    library_root: &Path,
+    versions: &[VersionId],
+    settings: &ExportSettings,
+    preset: Option<ExportPresetId>,
+    destination_dir: &Path,
+    mut progress: impl FnMut(u64, u64),
+) -> Result<ExportReport> {
+    settings.validate().map_err(export_err)?;
+    let total = versions.len() as u64;
+    let mut report = ExportReport::default();
+    for (done, &version) in versions.iter().enumerate() {
+        match export_version(
+            catalog,
+            library_root,
+            version,
+            settings,
+            preset,
+            destination_dir,
+        ) {
+            Ok(path) => report.exported.push(ExportedVersion { version, path }),
+            Err(error) => report.failed.push(FailedExport {
+                version,
+                reason: error.to_string(),
+            }),
+        }
+        progress(done as u64 + 1, total);
+    }
+    Ok(report)
+}
+
 /// Exports one version into `destination_dir` and returns the written file.
 ///
 /// The file is named after the original (`IMG_0001.CR3` → `IMG_0001.jpg`);
@@ -89,7 +156,7 @@ pub fn export_version(
 }
 
 /// Maps encoder errors onto the platform error type.
-fn export_err(error: ExportError) -> LeylineError {
+pub(crate) fn export_err(error: ExportError) -> LeylineError {
     match error {
         ExportError::Io(e) => LeylineError::Io(e),
         ExportError::InvalidImage(m) => LeylineError::InvalidImage(m),

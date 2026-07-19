@@ -13,8 +13,8 @@ pub use leyline_core::{
 };
 
 pub use leyline_engine::{
-    DEFAULT_AMEND_WINDOW, EditSession, ImportOptions, ImportReport, ImportedFile, Library, Param,
-    PreviewFile, SkippedFile, Value,
+    DEFAULT_AMEND_WINDOW, EditSession, ExportReport, ExportedVersion, FailedExport, ImportOptions,
+    ImportReport, ImportedFile, Library, Param, PreviewFile, SkippedFile, Value,
 };
 
 pub use leyline_catalog::{

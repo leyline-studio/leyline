@@ -317,8 +317,10 @@ dependencies = [
 name = "leyline-sdk"
 version = "0.1.0"
 dependencies = [
+ "leyline-catalog",
  "leyline-core",
  "leyline-engine",
+ "leyline-export",
 ]
 
 [[package]]

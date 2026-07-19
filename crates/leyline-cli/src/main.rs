@@ -20,7 +20,11 @@ Usage:
   leyline import <library> <source> [--reference] [--flat]
   leyline ls <library> [--text <query>] [--rating <min>]
   leyline preview <library> <asset-id> [--kind <thumbnail|small|medium|large|full>]
-  leyline export <library> <version-id> <dest-dir> [--png] [--quality <1-100>] [--max-edge <px>]
+  leyline export <library> <dest-dir> <version-id>...
+                 [--preset <name>] [--png] [--quality <1-100>] [--max-edge <px>]
+  leyline preset <library> <name> [--png] [--quality <1-100>] [--max-edge <px>]
+  leyline presets <library>
+  leyline exports <library> <asset-id>
   leyline rate <library> <stars|none> <version-id>...
   leyline pick <library> <pick|reject|none> <version-id>...
   leyline label <library> <red|yellow|green|blue|purple|none> <version-id>...
@@ -54,6 +58,9 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("ls") => ls(&args[1..]),
         Some("preview") => preview(&args[1..]),
         Some("export") => export(&args[1..]),
+        Some("preset") => preset(&args[1..]),
+        Some("presets") => presets(&args[1..]),
+        Some("exports") => exports(&args[1..]),
         Some("rate") => rate(&args[1..]),
         Some("pick") => pick(&args[1..]),
         Some("label") => label(&args[1..]),
@@ -398,18 +405,8 @@ fn history(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
-fn export(args: &[String]) -> Result<(), String> {
-    let (positional, options) = parse(args, &["quality", "max-edge"])?;
-    let [root, version, destination] = positional.as_slice() else {
-        return Err("usage: leyline export <library> <version-id> <dest-dir> \
-             [--png] [--quality <q>] [--max-edge <px>]"
-            .to_owned());
-    };
-    let version = VersionId::new(
-        version
-            .parse()
-            .map_err(|_| format!("bad version id {version:?}"))?,
-    );
+/// Builds an [`ExportSettings`] from the shared recipe flags.
+fn recipe(options: &Options) -> Result<ExportSettings, String> {
     let mut settings = ExportSettings::default();
     if options.switch("png") {
         settings.format = ExportFormat::Png;
@@ -422,10 +419,125 @@ fn export(args: &[String]) -> Result<(), String> {
     if let Some(edge) = options.value("max-edge") {
         settings.max_edge = Some(edge.parse().map_err(|_| format!("bad max edge {edge:?}"))?);
     }
+    Ok(settings)
+}
+
+fn export(args: &[String]) -> Result<(), String> {
+    let (positional, options) = parse(args, &["preset", "quality", "max-edge"])?;
+    let [root, destination, ids @ ..] = positional.as_slice() else {
+        return Err(
+            "usage: leyline export <library> <dest-dir> <version-id>... \
+             [--preset <name>] [--png] [--quality <q>] [--max-edge <px>]"
+                .to_owned(),
+        );
+    };
+    let versions = version_ids(ids)?;
+    let destination = PathBuf::from(destination);
     let mut library = open(root)?;
-    let written = library
-        .export(version, &settings, None, &PathBuf::from(destination))
+
+    let progress = |done: u64, total: u64| eprint!("\rexporting {done}/{total}");
+    let report = match options.value("preset") {
+        Some(name) => {
+            if options.switch("png")
+                || options.value("quality").is_some()
+                || options.value("max-edge").is_some()
+            {
+                return Err("--preset already defines the recipe; \
+                     drop --png/--quality/--max-edge"
+                    .to_owned());
+            }
+            let stored = library
+                .export_presets()
+                .map_err(|e| e.to_string())?
+                .into_iter()
+                .find(|p| p.name == *name)
+                .ok_or_else(|| format!("no export preset named {name:?}"))?;
+            library
+                .export_with_preset(&versions, stored.preset, &destination, progress)
+                .map_err(|e| e.to_string())?
+        }
+        None => {
+            let settings = recipe(&options)?;
+            library
+                .export_batch(&versions, &settings, &destination, progress)
+                .map_err(|e| e.to_string())?
+        }
+    };
+    eprintln!();
+    for exported in &report.exported {
+        println!("exported {}", exported.path.display());
+    }
+    for failed in &report.failed {
+        println!("failed   v{}: {}", failed.version, failed.reason);
+    }
+    if report.failed.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "{} of {} export(s) failed",
+            report.failed.len(),
+            versions.len()
+        ))
+    }
+}
+
+fn preset(args: &[String]) -> Result<(), String> {
+    let (positional, options) = parse(args, &["quality", "max-edge"])?;
+    let [root, name] = positional.as_slice() else {
+        return Err("usage: leyline preset <library> <name> \
+             [--png] [--quality <q>] [--max-edge <px>]"
+            .to_owned());
+    };
+    let settings = recipe(&options)?;
+    let mut library = open(root)?;
+    let id = library
+        .create_export_preset(name, &settings)
         .map_err(|e| e.to_string())?;
-    println!("exported {}", written.display());
+    println!("created preset {name:?} (p{id})");
+    Ok(())
+}
+
+fn presets(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root] = positional.as_slice() else {
+        return Err("usage: leyline presets <library>".to_owned());
+    };
+    let stored = open(root)?.export_presets().map_err(|e| e.to_string())?;
+    for preset in &stored {
+        println!(
+            "p{:<6} {:20} {}",
+            preset.preset, preset.name, preset.settings_json
+        );
+    }
+    println!("{} preset(s)", stored.len());
+    Ok(())
+}
+
+fn exports(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root, asset] = positional.as_slice() else {
+        return Err("usage: leyline exports <library> <asset-id>".to_owned());
+    };
+    let asset = AssetId::new(
+        asset
+            .parse()
+            .map_err(|_| format!("bad asset id {asset:?}"))?,
+    );
+    let library = open(root)?;
+    let history = library
+        .catalog()
+        .export_history(asset)
+        .map_err(|e| e.to_string())?;
+    for record in &history {
+        let preset = match record.preset {
+            Some(id) => format!("p{id}"),
+            None => "-".to_owned(),
+        };
+        println!(
+            "{:13} {:4} {:6} {}",
+            record.exported_at, record.format, preset, record.destination
+        );
+    }
+    println!("{} export(s)", history.len());
     Ok(())
 }

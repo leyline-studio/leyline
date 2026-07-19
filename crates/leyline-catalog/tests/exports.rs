@@ -40,6 +40,12 @@ fn presets_store_and_list_by_name() {
     assert_eq!(names, ["Archive", "Web"]);
     assert_eq!(presets[1].preset, web);
     assert!(presets[1].settings_json.contains("2048"));
+
+    assert_eq!(catalog.export_preset(web).unwrap(), presets[1]);
+    assert!(matches!(
+        catalog.export_preset(leyline_core::ExportPresetId::new(999)),
+        Err(LeylineError::ExportPresetMissing(_))
+    ));
 }
 
 #[test]

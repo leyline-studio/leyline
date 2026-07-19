@@ -9,11 +9,12 @@
 
 use std::path::{Path, PathBuf};
 
-use leyline_catalog::Catalog;
+use leyline_catalog::{Catalog, ExportPreset};
 use leyline_core::{AssetId, ExportPresetId, PreviewKind, Result, VersionId};
 use leyline_export::ExportSettings;
 use leyline_preview::PreviewCache;
 
+use crate::export::ExportReport;
 use crate::import::{ImportOptions, ImportReport};
 use crate::preview::PreviewFile;
 use crate::session::EditSession;
@@ -113,6 +114,65 @@ impl Library {
             preset,
             destination_dir,
         )
+    }
+
+    /// Exports several versions with one ad-hoc recipe (§12). `progress`
+    /// receives `(done, total)` per version; one failure does not stop the
+    /// batch.
+    pub fn export_batch(
+        &mut self,
+        versions: &[VersionId],
+        settings: &ExportSettings,
+        destination_dir: &Path,
+        progress: impl FnMut(u64, u64),
+    ) -> Result<ExportReport> {
+        crate::export::export_batch(
+            &mut self.catalog,
+            &self.root,
+            versions,
+            settings,
+            None,
+            destination_dir,
+            progress,
+        )
+    }
+
+    /// Exports several versions with a stored preset (§12): the preset's
+    /// recipe drives the batch and each success is journaled against it.
+    pub fn export_with_preset(
+        &mut self,
+        versions: &[VersionId],
+        preset: ExportPresetId,
+        destination_dir: &Path,
+        progress: impl FnMut(u64, u64),
+    ) -> Result<ExportReport> {
+        let stored = self.catalog.export_preset(preset)?;
+        let settings =
+            ExportSettings::parse(&stored.settings_json).map_err(crate::export::export_err)?;
+        crate::export::export_batch(
+            &mut self.catalog,
+            &self.root,
+            versions,
+            &settings,
+            Some(preset),
+            destination_dir,
+            progress,
+        )
+    }
+
+    /// Stores a named export preset (§12), validating the recipe first.
+    pub fn create_export_preset(
+        &mut self,
+        name: &str,
+        settings: &ExportSettings,
+    ) -> Result<ExportPresetId> {
+        settings.validate().map_err(crate::export::export_err)?;
+        self.catalog.create_export_preset(name, &settings.to_json())
+    }
+
+    /// Lists every stored export preset, ordered by name (§12).
+    pub fn export_presets(&self) -> Result<Vec<ExportPreset>> {
+        self.catalog.export_presets()
     }
 
     /// Opens an edit session on a version (§10.1). The session borrows the

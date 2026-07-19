@@ -60,6 +60,28 @@ impl Catalog {
         Ok(ExportPresetId::new(self.conn.last_insert_rowid()))
     }
 
+    /// Reads one stored export preset.
+    pub fn export_preset(&self, preset: ExportPresetId) -> Result<ExportPreset> {
+        self.conn
+            .query_row(
+                "SELECT name, settings_json, created_at
+                 FROM export_presets WHERE id = ?1",
+                [preset.get()],
+                |row| {
+                    Ok(ExportPreset {
+                        preset,
+                        name: row.get(0)?,
+                        settings_json: row.get(1)?,
+                        created_at: row.get(2)?,
+                    })
+                },
+            )
+            .map_err(|e| match e {
+                rusqlite::Error::QueryReturnedNoRows => LeylineError::ExportPresetMissing(preset),
+                other => db_err(other),
+            })
+    }
+
     /// Lists every export preset, ordered by name.
     pub fn export_presets(&self) -> Result<Vec<ExportPreset>> {
         let mut stmt = self

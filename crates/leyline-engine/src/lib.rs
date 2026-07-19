@@ -18,7 +18,7 @@ mod render;
 mod session;
 mod xmp;
 
-pub use export::export_version;
+pub use export::{ExportReport, ExportedVersion, FailedExport, export_batch, export_version};
 pub use import::{ImportOptions, ImportReport, ImportedFile, SkippedFile, import};
 pub use library::Library;
 pub use preview::{PreviewFile, preview};
