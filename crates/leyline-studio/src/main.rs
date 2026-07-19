@@ -188,16 +188,16 @@ fn wire_classify(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             .map_err(|e| e.to_string())
             .and_then(|()| reload(&mut app, &window))
         {
-            eprintln!("error: {error}");
+            report_error(&window, &error);
         }
     });
 }
 
 /// Connects the filter bar: stars, label dots, pick chips, sort cycling.
 fn wire_filters(app: &Rc<RefCell<App>>, window: &StudioWindow) {
-    let on_error = |result: Result<(), String>| {
+    let on_error = |window: &StudioWindow, result: Result<(), String>| {
         if let Err(error) = result {
-            eprintln!("error: {error}");
+            report_error(window, &error);
         }
     };
 
@@ -212,7 +212,7 @@ fn wire_filters(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             app.query.rating_at_least =
                 classify::toggle_rating_filter(app.query.rating_at_least, stars as u8);
             window.set_filter_rating(app.query.rating_at_least.map_or(0, i32::from));
-            on_error(reload(&mut app, &window));
+            on_error(&window, reload(&mut app, &window));
         });
     }
     {
@@ -228,7 +228,7 @@ fn wire_filters(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             let mut app = app.borrow_mut();
             app.query.color_label = classify::toggle_label_filter(app.query.color_label, clicked);
             window.set_filter_label(app.query.color_label.map_or(-1, |l| l.as_i64() as i32));
-            on_error(reload(&mut app, &window));
+            on_error(&window, reload(&mut app, &window));
         });
     }
     {
@@ -244,7 +244,7 @@ fn wire_filters(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             let mut app = app.borrow_mut();
             app.query.pick = classify::toggle_pick_filter(app.query.pick, clicked);
             window.set_filter_pick(app.query.pick.map_or(-1, |p| p.as_i64() as i32));
-            on_error(reload(&mut app, &window));
+            on_error(&window, reload(&mut app, &window));
         });
     }
     {
@@ -257,7 +257,7 @@ fn wire_filters(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             let mut app = app.borrow_mut();
             let text = text.trim();
             app.query.text = (!text.is_empty()).then(|| text.to_owned());
-            on_error(reload(&mut app, &window));
+            on_error(&window, reload(&mut app, &window));
         });
     }
     {
@@ -274,7 +274,7 @@ fn wire_filters(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 .map_or(0, |i| (i + 1) % SORTS.len());
             app.query.sort = SORTS[next].0;
             window.set_sort_label(SharedString::from(SORTS[next].1));
-            on_error(reload(&mut app, &window));
+            on_error(&window, reload(&mut app, &window));
         });
     }
 }
@@ -304,7 +304,7 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 }
                 Err(error) => {
                     app.develop = None;
-                    eprintln!("error: {error}");
+                    report_error(&window, &error);
                 }
             }
         });
@@ -321,7 +321,7 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             window.set_develop_mode(false);
             // Edits invalidated the thumbnails: rebuild the grid.
             if let Err(error) = reload(&mut app, &window) {
-                eprintln!("error: {error}");
+                report_error(&window, &error);
             }
         });
     }
@@ -350,7 +350,7 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 .map_err(|e| e.to_string())
                 .and_then(|()| refresh_develop(&mut app, &window))
             {
-                eprintln!("error: {error}");
+                report_error(&window, &error);
             }
         });
     }
@@ -422,7 +422,7 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             let presets = match app.library.export_presets() {
                 Ok(presets) => presets,
                 Err(error) => {
-                    eprintln!("error: {error}");
+                    report_error(&window, &error.to_string());
                     return;
                 }
             };
@@ -498,7 +498,7 @@ fn wire_collections(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             window.set_active_collection(if picked.is_some() { index } else { -1 });
             app.query.collection = picked;
             if let Err(error) = reload(&mut app, &window) {
-                eprintln!("error: {error}");
+                report_error(&window, &error);
             }
         });
     }
@@ -556,7 +556,7 @@ fn collection_membership(app: &mut App, window: &StudioWindow, add: bool) {
         .and_then(|i| app.collections.get(i))
         .copied()
     else {
-        eprintln!("error: select a collection in the sidebar first");
+        report_error(window, "select a collection in the sidebar first");
         return;
     };
     let Some(version) = usize::try_from(window.get_selected())
@@ -576,7 +576,7 @@ fn collection_membership(app: &mut App, window: &StudioWindow, add: bool) {
         .map_err(|e| e.to_string())
         .and_then(|()| reload(app, window))
     {
-        eprintln!("error: {error}");
+        report_error(window, &error);
     }
 }
 
@@ -654,7 +654,7 @@ fn history_step(app: &mut App, window: &StudioWindow, undo: bool) {
         .map_err(|e| e.to_string())
         .and_then(|_| refresh_develop(app, window))
     {
-        eprintln!("error: {error}");
+        report_error(window, &error);
     }
 }
 
@@ -671,7 +671,7 @@ fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<(), String> {
     window.set_dev(dev_model(&settings));
     let file = app
         .library
-        .preview(asset, PreviewKind::Medium)
+        .preview(asset, PreviewKind::Small)
         .map_err(|e| e.to_string())?;
     let image = slint::Image::load_from_path(&file.path)
         .map_err(|_| format!("cannot load preview {}", file.path.display()))?;
@@ -709,6 +709,13 @@ fn dev_model(settings: &Settings) -> ui::DevSettings {
         sharpen_amount: settings.sharpening.amount as f32,
         sharpen_radius: settings.sharpening.radius as f32,
     }
+}
+
+/// Surfaces a callback failure in the status line, where a GUI user can
+/// see it; stderr keeps a copy for terminal logs.
+fn report_error(window: &StudioWindow, message: &str) {
+    eprintln!("error: {message}");
+    window.set_status_line(SharedString::from(format!("Error: {message}")));
 }
 
 /// Re-runs the grid query and rebuilds the cell model, keeping the current
