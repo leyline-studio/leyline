@@ -207,6 +207,8 @@ export component StudioWindow inherits Window {
     callback select-collection(int);
     callback run-new-collection(string);
     callback add-to-collection();
+    callback remove-from-collection();
+    callback search(string);
 
     property <length> cell-size: 176px;
 
@@ -267,7 +269,11 @@ export component StudioWindow inherits Window {
                 return accept;
             }
             if (event.text == "b" || event.text == "B") {
-                root.add-to-collection();
+                if (event.modifiers.shift) {
+                    root.remove-from-collection();
+                } else {
+                    root.add-to-collection();
+                }
                 return accept;
             }
             if (event.text == Key.LeftArrow) {
@@ -584,6 +590,36 @@ export component StudioWindow inherits Window {
                         active: root.filter-pick == 0;
                         clicked => {
                             root.pick-filter(0);
+                        }
+                    }
+
+                    Rectangle {
+                        height: 24px;
+                        width: 180px;
+                        background: #1b1b1b;
+                        border-radius: 12px;
+                        border-width: 1px;
+                        border-color: search-input.text == "" ? #333333 : #6fa8dc;
+                        search-input := TextInput {
+                            x: 10px;
+                            width: parent.width - 20px;
+                            height: 100%;
+                            color: #e6e6e6;
+                            font-size: 12px;
+                            vertical-alignment: center;
+                            single-line: true;
+                            accepted => {
+                                root.search(self.text);
+                                keys.focus();
+                            }
+                        }
+                        if search-input.text == "" && !search-input.has-focus: Text {
+                            x: 10px;
+                            height: 100%;
+                            text: "Search…";
+                            color: #666666;
+                            font-size: 12px;
+                            vertical-alignment: center;
                         }
                     }
 

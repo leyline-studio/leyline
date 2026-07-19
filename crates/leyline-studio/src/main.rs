@@ -212,6 +212,19 @@ fn wire_filters(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
+        window.on_search(move |text| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let text = text.trim();
+            app.query.text = (!text.is_empty()).then(|| text.to_owned());
+            on_error(reload(&mut app, &window));
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
         window.on_cycle_sort(move || {
             let Some(window) = handle.upgrade() else {
                 return;
@@ -481,35 +494,51 @@ fn wire_collections(app: &Rc<RefCell<App>>, window: &StudioWindow) {
         let app = Rc::clone(app);
         let handle = window.as_weak();
         window.on_add_to_collection(move || {
-            let Some(window) = handle.upgrade() else {
-                return;
-            };
-            let mut app = app.borrow_mut();
-            let Some(collection) = usize::try_from(window.get_active_collection())
-                .ok()
-                .and_then(|i| app.collections.get(i))
-                .copied()
-            else {
-                eprintln!("error: select a collection in the sidebar first");
-                return;
-            };
-            let Some(version) = usize::try_from(window.get_selected())
-                .ok()
-                .and_then(|i| app.items.get(i))
-                .map(|item| item.version_id)
-            else {
-                return;
-            };
-            if let Err(error) = app
-                .library
-                .catalog_mut()
-                .add_to_collection(collection, &[version])
-                .map_err(|e| e.to_string())
-                .and_then(|()| reload(&mut app, &window))
-            {
-                eprintln!("error: {error}");
+            if let Some(window) = handle.upgrade() {
+                collection_membership(&mut app.borrow_mut(), &window, true);
             }
         });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_remove_from_collection(move || {
+            if let Some(window) = handle.upgrade() {
+                collection_membership(&mut app.borrow_mut(), &window, false);
+            }
+        });
+    }
+}
+
+/// Adds the selected photo's version to the active collection, or removes
+/// it, then reloads the grid (membership may change what it shows).
+fn collection_membership(app: &mut App, window: &StudioWindow, add: bool) {
+    let Some(collection) = usize::try_from(window.get_active_collection())
+        .ok()
+        .and_then(|i| app.collections.get(i))
+        .copied()
+    else {
+        eprintln!("error: select a collection in the sidebar first");
+        return;
+    };
+    let Some(version) = usize::try_from(window.get_selected())
+        .ok()
+        .and_then(|i| app.items.get(i))
+        .map(|item| item.version_id)
+    else {
+        return;
+    };
+    let catalog = app.library.catalog_mut();
+    let changed = if add {
+        catalog.add_to_collection(collection, &[version])
+    } else {
+        catalog.remove_from_collection(collection, &[version])
+    };
+    if let Err(error) = changed
+        .map_err(|e| e.to_string())
+        .and_then(|()| reload(app, window))
+    {
+        eprintln!("error: {error}");
     }
 }
 
