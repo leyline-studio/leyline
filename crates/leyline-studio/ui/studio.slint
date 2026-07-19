@@ -184,6 +184,17 @@ export component StudioWindow inherits Window {
     callback develop-edit(string, float);
     callback develop-undo();
     callback develop-redo();
+    callback run-import(string, bool, bool);
+    callback open-export();
+    callback run-export(int, string);
+
+    // Modal dialog state: "" (none), "import" or "export".
+    in-out property <string> dialog;
+    in-out property <string> dialog-result;
+    in-out property <bool> import-copy: true;
+    in-out property <bool> import-recursive: true;
+    in property <[string]> export-presets;
+    in-out property <int> export-preset: -1;
 
     property <length> cell-size: 176px;
 
@@ -203,6 +214,12 @@ export component StudioWindow inherits Window {
 
     keys := FocusScope {
         key-pressed(event) => {
+            if (root.dialog != "") {
+                if (event.text == Key.Escape) {
+                    root.dialog = "";
+                }
+                return accept;
+            }
             if (root.develop-mode) {
                 if (event.text == "g" || event.text == "G" || event.text == Key.Escape) {
                     root.exit-develop();
@@ -221,6 +238,15 @@ export component StudioWindow inherits Window {
             }
             if (event.text == "d" || event.text == "D") {
                 root.enter-develop();
+                return accept;
+            }
+            if (event.text == "i" || event.text == "I") {
+                root.dialog-result = "";
+                root.dialog = "import";
+                return accept;
+            }
+            if (event.text == "e" || event.text == "E") {
+                root.open-export();
                 return accept;
             }
             if (event.text == Key.LeftArrow) {
@@ -598,6 +624,180 @@ export component StudioWindow inherits Window {
                             label: "Exposure";
                             value: root.detail-exposure;
                         }
+                    }
+                }
+            }
+        }
+
+        // Modal overlay: import and export dialogs.
+        Rectangle {
+            visible: root.dialog != "";
+            background: #000000aa;
+            TouchArea {
+                clicked => {
+                    root.dialog = "";
+                }
+            }
+
+            Rectangle {
+                width: 480px;
+                background: #262626;
+                border-radius: 8px;
+                border-width: 1px;
+                border-color: #3a3a3a;
+                height: body.preferred-height;
+                TouchArea { }
+
+                body := VerticalLayout {
+                    padding: 20px;
+                    spacing: 12px;
+
+                    if root.dialog == "import": VerticalLayout {
+                        spacing: 12px;
+                        Text {
+                            text: "Import photos";
+                            color: #f0f0f0;
+                            font-size: 15px;
+                            font-weight: 600;
+                        }
+                        Text {
+                            text: "Source folder (absolute path)";
+                            color: #9a9a9a;
+                            font-size: 12px;
+                        }
+                        Rectangle {
+                            height: 28px;
+                            background: #1b1b1b;
+                            border-radius: 4px;
+                            border-width: 1px;
+                            border-color: #3a3a3a;
+                            import-source := TextInput {
+                                x: 8px;
+                                width: parent.width - 16px;
+                                height: 100%;
+                                color: #e6e6e6;
+                                font-size: 12px;
+                                vertical-alignment: center;
+                                single-line: true;
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            FilterChip {
+                                text: "Copy into library";
+                                active: root.import-copy;
+                                clicked => {
+                                    root.import-copy = !root.import-copy;
+                                }
+                            }
+                            FilterChip {
+                                text: "Recursive";
+                                active: root.import-recursive;
+                                clicked => {
+                                    root.import-recursive = !root.import-recursive;
+                                }
+                            }
+                            Rectangle {
+                                horizontal-stretch: 1;
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: end;
+                            FilterChip {
+                                text: "Cancel";
+                                active: false;
+                                clicked => {
+                                    root.dialog = "";
+                                }
+                            }
+                            FilterChip {
+                                text: "Import";
+                                active: true;
+                                clicked => {
+                                    root.run-import(import-source.text, root.import-copy, root.import-recursive);
+                                }
+                            }
+                        }
+                    }
+
+                    if root.dialog == "export": VerticalLayout {
+                        spacing: 12px;
+                        Text {
+                            text: "Export selected photo";
+                            color: #f0f0f0;
+                            font-size: 15px;
+                            font-weight: 600;
+                        }
+                        Text {
+                            text: "Preset";
+                            color: #9a9a9a;
+                            font-size: 12px;
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: start;
+                            FilterChip {
+                                text: "Default JPEG";
+                                active: root.export-preset == -1;
+                                clicked => {
+                                    root.export-preset = -1;
+                                }
+                            }
+                            for name[i] in root.export-presets: FilterChip {
+                                text: name;
+                                active: root.export-preset == i;
+                                clicked => {
+                                    root.export-preset = i;
+                                }
+                            }
+                        }
+                        Text {
+                            text: "Destination folder (absolute path)";
+                            color: #9a9a9a;
+                            font-size: 12px;
+                        }
+                        Rectangle {
+                            height: 28px;
+                            background: #1b1b1b;
+                            border-radius: 4px;
+                            border-width: 1px;
+                            border-color: #3a3a3a;
+                            export-destination := TextInput {
+                                x: 8px;
+                                width: parent.width - 16px;
+                                height: 100%;
+                                color: #e6e6e6;
+                                font-size: 12px;
+                                vertical-alignment: center;
+                                single-line: true;
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: end;
+                            FilterChip {
+                                text: "Cancel";
+                                active: false;
+                                clicked => {
+                                    root.dialog = "";
+                                }
+                            }
+                            FilterChip {
+                                text: "Export";
+                                active: true;
+                                clicked => {
+                                    root.run-export(root.export-preset, export-destination.text);
+                                }
+                            }
+                        }
+                    }
+
+                    if root.dialog-result != "": Text {
+                        text: root.dialog-result;
+                        color: #d8b23c;
+                        font-size: 12px;
+                        wrap: word-wrap;
                     }
                 }
             }

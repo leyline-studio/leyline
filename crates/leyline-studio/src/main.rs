@@ -22,8 +22,8 @@ use std::rc::Rc;
 
 use classify::Action;
 use leyline_sdk::{
-    AssetId, ColorLabel, GridItem, GridQuery, Library, PickState, PreviewKind, Settings, Sort,
-    VersionId,
+    AssetId, ColorLabel, ExportPreset, ExportReport, ExportSettings, GridItem, GridQuery,
+    ImportOptions, Library, PickState, PreviewKind, Settings, SkippedFile, Sort, VersionId,
 };
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 
@@ -49,6 +49,8 @@ struct App {
     items: Vec<GridItem>,
     /// The photo open in the develop view, when in develop mode.
     develop: Option<(AssetId, VersionId)>,
+    /// Stored export presets, parallel to the dialog's preset chips.
+    presets: Vec<ExportPreset>,
 }
 
 fn main() -> std::process::ExitCode {
@@ -73,6 +75,7 @@ fn run() -> Result<(), String> {
         query: GridQuery::default(),
         items: Vec::new(),
         develop: None,
+        presets: Vec::new(),
     }));
 
     let window = StudioWindow::new().map_err(|e| e.to_string())?;
@@ -92,6 +95,7 @@ fn run() -> Result<(), String> {
     wire_classify(&app, &window);
     wire_filters(&app, &window);
     wire_develop(&app, &window);
+    wire_dialogs(&app, &window);
 
     window.run().map_err(|e| e.to_string())
 }
@@ -310,6 +314,134 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     }
 }
 
+/// Connects the import and export dialogs.
+fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_run_import(move |source, copy, recursive| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            if source.is_empty() {
+                window.set_dialog_result(SharedString::from("Enter a source folder."));
+                return;
+            }
+            let options = ImportOptions {
+                copy_files: copy,
+                recursive,
+            };
+            match app
+                .library
+                .import(Path::new(source.as_str()), &options, |_, _| {})
+            {
+                Ok(report) => {
+                    window.set_dialog_result(SharedString::from(import_summary(
+                        report.imported.len(),
+                        &report.skipped,
+                    )));
+                    if let Err(error) = reload(&mut app, &window) {
+                        eprintln!("error: {error}");
+                    }
+                }
+                Err(error) => {
+                    window.set_dialog_result(SharedString::from(format!("Import failed: {error}")));
+                }
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_open_export(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let presets = match app.library.export_presets() {
+                Ok(presets) => presets,
+                Err(error) => {
+                    eprintln!("error: {error}");
+                    return;
+                }
+            };
+            let names: Vec<SharedString> = presets
+                .iter()
+                .map(|preset| SharedString::from(preset.name.as_str()))
+                .collect();
+            app.presets = presets;
+            window.set_export_presets(ModelRc::from(Rc::new(VecModel::from(names))));
+            window.set_export_preset(-1);
+            window.set_dialog_result(SharedString::default());
+            window.set_dialog(SharedString::from("export"));
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_run_export(move |preset, destination| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let Some(version) = usize::try_from(window.get_selected())
+                .ok()
+                .and_then(|i| app.items.get(i))
+                .map(|item| item.version_id)
+            else {
+                window.set_dialog_result(SharedString::from("Select a photo first."));
+                return;
+            };
+            if destination.is_empty() {
+                window.set_dialog_result(SharedString::from("Enter a destination folder."));
+                return;
+            }
+            let destination = Path::new(destination.as_str());
+            let stored = usize::try_from(preset)
+                .ok()
+                .and_then(|i| app.presets.get(i))
+                .map(|preset| preset.preset);
+            let report = match stored {
+                Some(id) => app
+                    .library
+                    .export_with_preset(&[version], id, destination, |_, _| {}),
+                None => app.library.export_batch(
+                    &[version],
+                    &ExportSettings::default(),
+                    destination,
+                    |_, _| {},
+                ),
+            };
+            window.set_dialog_result(SharedString::from(match report {
+                Ok(report) => export_summary(&report),
+                Err(error) => format!("Export failed: {error}"),
+            }));
+        });
+    }
+}
+
+/// One line summing up an import batch for the dialog.
+fn import_summary(imported: usize, skipped: &[SkippedFile]) -> String {
+    match skipped {
+        [] => format!("{imported} imported."),
+        [first, ..] => format!(
+            "{imported} imported, {} skipped ({}).",
+            skipped.len(),
+            first.reason
+        ),
+    }
+}
+
+/// One line summing up an export batch for the dialog.
+fn export_summary(report: &ExportReport) -> String {
+    match (report.exported.first(), report.failed.first()) {
+        (Some(done), _) => format!("Exported to {}.", done.path.display()),
+        (None, Some(failed)) => format!("Export failed: {}", failed.reason),
+        (None, None) => "Nothing to export.".to_owned(),
+    }
+}
+
 /// Moves the develop head one revision back or forward, then refreshes.
 fn history_step(app: &mut App, window: &StudioWindow, undo: bool) {
     let Some((_, version)) = app.develop else {
@@ -486,5 +618,49 @@ fn label_color(label: Option<ColorLabel>) -> slint::Color {
         Some(ColorLabel::Blue) => slint::Color::from_rgb_u8(0x5F, 0x8F, 0xDF),
         Some(ColorLabel::Purple) => slint::Color::from_rgb_u8(0xA0, 0x6F, 0xDF),
         None => slint::Color::default(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use leyline_sdk::{ExportedVersion, FailedExport};
+
+    use super::*;
+
+    #[test]
+    fn import_summaries_count_and_explain() {
+        assert_eq!(import_summary(3, &[]), "3 imported.");
+        let skipped = vec![
+            SkippedFile {
+                path: PathBuf::from("/photos/a.xmp"),
+                reason: "unsupported file type".to_owned(),
+            },
+            SkippedFile {
+                path: PathBuf::from("/photos/b.xmp"),
+                reason: "unsupported file type".to_owned(),
+            },
+        ];
+        assert_eq!(
+            import_summary(1, &skipped),
+            "1 imported, 2 skipped (unsupported file type)."
+        );
+    }
+
+    #[test]
+    fn export_summaries_show_the_file_or_the_failure() {
+        let mut report = ExportReport::default();
+        assert_eq!(export_summary(&report), "Nothing to export.");
+        report.failed.push(FailedExport {
+            version: VersionId::new(7),
+            reason: "no such version".to_owned(),
+        });
+        assert_eq!(export_summary(&report), "Export failed: no such version");
+        report.exported.push(ExportedVersion {
+            version: VersionId::new(7),
+            path: PathBuf::from("/out/photo.jpg"),
+        });
+        assert_eq!(export_summary(&report), "Exported to /out/photo.jpg.");
     }
 }
