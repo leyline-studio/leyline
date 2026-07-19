@@ -22,8 +22,9 @@ use std::rc::Rc;
 
 use classify::Action;
 use leyline_sdk::{
-    AssetId, ColorLabel, ExportPreset, ExportReport, ExportSettings, GridItem, GridQuery,
-    ImportOptions, Library, PickState, PreviewKind, Settings, SkippedFile, Sort, VersionId,
+    AssetId, CollectionId, CollectionNode, CollectionType, ColorLabel, ExportPreset, ExportReport,
+    ExportSettings, GridItem, GridQuery, ImportOptions, Library, PickState, PreviewKind, Settings,
+    SkippedFile, Sort, VersionId,
 };
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 
@@ -51,6 +52,8 @@ struct App {
     develop: Option<(AssetId, VersionId)>,
     /// Stored export presets, parallel to the dialog's preset chips.
     presets: Vec<ExportPreset>,
+    /// Flattened collection ids, parallel to the sidebar rows.
+    collections: Vec<CollectionId>,
 }
 
 fn main() -> std::process::ExitCode {
@@ -76,6 +79,7 @@ fn run() -> Result<(), String> {
         items: Vec::new(),
         develop: None,
         presets: Vec::new(),
+        collections: Vec::new(),
     }));
 
     let window = StudioWindow::new().map_err(|e| e.to_string())?;
@@ -89,13 +93,18 @@ fn run() -> Result<(), String> {
         .collect();
     window.set_label_colors(ModelRc::from(Rc::new(VecModel::from(palette))));
 
-    reload(&mut app.borrow_mut(), &window)?;
+    {
+        let mut app = app.borrow_mut();
+        refresh_collections(&mut app, &window)?;
+        reload(&mut app, &window)?;
+    }
 
     wire_select(&app, &window);
     wire_classify(&app, &window);
     wire_filters(&app, &window);
     wire_develop(&app, &window);
     wire_dialogs(&app, &window);
+    wire_collections(&app, &window);
 
     window.run().map_err(|e| e.to_string())
 }
@@ -421,6 +430,129 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     }
 }
 
+/// Connects the collections sidebar and its creation dialog.
+fn wire_collections(app: &Rc<RefCell<App>>, window: &StudioWindow) {
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_select_collection(move |index| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let picked = usize::try_from(index)
+                .ok()
+                .and_then(|i| app.collections.get(i))
+                .copied();
+            window.set_active_collection(if picked.is_some() { index } else { -1 });
+            app.query.collection = picked;
+            if let Err(error) = reload(&mut app, &window) {
+                eprintln!("error: {error}");
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_run_new_collection(move |name| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let name = name.trim();
+            if name.is_empty() {
+                window.set_dialog_result(SharedString::from("Enter a name."));
+                return;
+            }
+            let mut app = app.borrow_mut();
+            let created = app
+                .library
+                .catalog_mut()
+                .create_collection(None, name)
+                .map_err(|e| e.to_string())
+                .and_then(|_| refresh_collections(&mut app, &window));
+            match created {
+                Ok(()) => window.set_dialog(SharedString::default()),
+                Err(error) => window
+                    .set_dialog_result(SharedString::from(format!("Creation failed: {error}"))),
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_add_to_collection(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let Some(collection) = usize::try_from(window.get_active_collection())
+                .ok()
+                .and_then(|i| app.collections.get(i))
+                .copied()
+            else {
+                eprintln!("error: select a collection in the sidebar first");
+                return;
+            };
+            let Some(version) = usize::try_from(window.get_selected())
+                .ok()
+                .and_then(|i| app.items.get(i))
+                .map(|item| item.version_id)
+            else {
+                return;
+            };
+            if let Err(error) = app
+                .library
+                .catalog_mut()
+                .add_to_collection(collection, &[version])
+                .map_err(|e| e.to_string())
+                .and_then(|()| reload(&mut app, &window))
+            {
+                eprintln!("error: {error}");
+            }
+        });
+    }
+}
+
+/// Reloads the sidebar from the catalog's collection tree.
+fn refresh_collections(app: &mut App, window: &StudioWindow) -> Result<(), String> {
+    let tree = app
+        .library
+        .catalog()
+        .collections()
+        .map_err(|e| e.to_string())?;
+    let mut flat = Vec::new();
+    flatten_collections(&tree, 0, &mut flat);
+    app.collections = flat.iter().map(|(id, ..)| *id).collect();
+    let rows: Vec<ui::CollectionRow> = flat
+        .into_iter()
+        .map(|(_, name, depth, smart)| ui::CollectionRow {
+            name: SharedString::from(name),
+            depth,
+            smart,
+        })
+        .collect();
+    window.set_collections(ModelRc::from(Rc::new(VecModel::from(rows))));
+    Ok(())
+}
+
+/// Flattens the collection tree into `(id, name, depth, smart)` sidebar
+/// rows, depth first, children under their parent.
+fn flatten_collections(
+    nodes: &[CollectionNode],
+    depth: i32,
+    out: &mut Vec<(CollectionId, String, i32, bool)>,
+) {
+    for node in nodes {
+        out.push((
+            node.collection,
+            node.name.clone(),
+            depth,
+            node.collection_type == CollectionType::Smart,
+        ));
+        flatten_collections(&node.children, depth + 1, out);
+    }
+}
+
 /// One line summing up an import batch for the dialog.
 fn import_summary(imported: usize, skipped: &[SkippedFile]) -> String {
     match skipped {
@@ -645,6 +777,31 @@ mod tests {
         assert_eq!(
             import_summary(1, &skipped),
             "1 imported, 2 skipped (unsupported file type)."
+        );
+    }
+
+    #[test]
+    fn flattening_keeps_children_under_their_parent() {
+        let node = |id: i64, name: &str, children: Vec<CollectionNode>| CollectionNode {
+            collection: CollectionId::new(id),
+            name: name.to_owned(),
+            description: None,
+            collection_type: CollectionType::Manual,
+            children,
+        };
+        let tree = vec![
+            node(1, "Travel", vec![node(2, "Iceland", vec![])]),
+            node(3, "Portfolio", vec![]),
+        ];
+        let mut flat = Vec::new();
+        flatten_collections(&tree, 0, &mut flat);
+        let shape: Vec<(i64, &str, i32)> = flat
+            .iter()
+            .map(|(id, name, depth, _)| (id.get(), name.as_str(), *depth))
+            .collect();
+        assert_eq!(
+            shape,
+            vec![(1, "Travel", 0), (2, "Iceland", 1), (3, "Portfolio", 0)]
         );
     }
 

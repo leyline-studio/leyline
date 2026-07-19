@@ -14,6 +14,13 @@ export struct Cell {
     has-label: bool,
 }
 
+// One row of the collections sidebar, already flattened by Rust.
+export struct CollectionRow {
+    name: string,
+    depth: int,
+    smart: bool,
+}
+
 // Develop slider values, mirrored from the Settings held in Rust.
 export struct DevSettings {
     exposure: float,
@@ -195,6 +202,11 @@ export component StudioWindow inherits Window {
     in-out property <bool> import-recursive: true;
     in property <[string]> export-presets;
     in-out property <int> export-preset: -1;
+    in property <[CollectionRow]> collections;
+    in-out property <int> active-collection: -1;
+    callback select-collection(int);
+    callback run-new-collection(string);
+    callback add-to-collection();
 
     property <length> cell-size: 176px;
 
@@ -247,6 +259,15 @@ export component StudioWindow inherits Window {
             }
             if (event.text == "e" || event.text == "E") {
                 root.open-export();
+                return accept;
+            }
+            if (event.text == "n" || event.text == "N") {
+                root.dialog-result = "";
+                root.dialog = "collection";
+                return accept;
+            }
+            if (event.text == "b" || event.text == "B") {
+                root.add-to-collection();
                 return accept;
             }
             if (event.text == Key.LeftArrow) {
@@ -424,6 +445,77 @@ export component StudioWindow inherits Window {
 
         HorizontalLayout {
             visible: !root.develop-mode;
+
+            Rectangle {
+                width: 190px;
+                background: #202020;
+
+                VerticalLayout {
+                    padding: 10px;
+                    spacing: 4px;
+
+                    Text {
+                        text: "Collections";
+                        color: #9a9a9a;
+                        font-size: 11px;
+                    }
+
+                    Rectangle {
+                        height: 24px;
+                        border-radius: 4px;
+                        background: root.active-collection == -1 ? #2f4f6f : transparent;
+                        Text {
+                            x: 8px;
+                            width: parent.width - 16px;
+                            height: 100%;
+                            text: "All photos";
+                            color: #e6e6e6;
+                            font-size: 12px;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+                        TouchArea {
+                            clicked => {
+                                root.select-collection(-1);
+                            }
+                        }
+                    }
+
+                    Flickable {
+                        vertical-stretch: 1;
+                        viewport-height: root.collections.length * 26px;
+                        for row[i] in root.collections: Rectangle {
+                            y: i * 26px;
+                            height: 24px;
+                            width: parent.width;
+                            border-radius: 4px;
+                            background: root.active-collection == i ? #2f4f6f : transparent;
+                            Text {
+                                x: 8px + row.depth * 12px;
+                                width: parent.width - self.x - 8px;
+                                height: 100%;
+                                text: (row.smart ? "◈ " : "") + row.name;
+                                color: #d0d0d0;
+                                font-size: 12px;
+                                vertical-alignment: center;
+                                overflow: elide;
+                            }
+                            TouchArea {
+                                clicked => {
+                                    root.select-collection(i);
+                                }
+                            }
+                        }
+                    }
+
+                    Text {
+                        text: "N: new · B: add photo";
+                        color: #666666;
+                        font-size: 10px;
+                    }
+                }
+            }
+
             VerticalLayout {
                 horizontal-stretch: 1;
                 padding: 12px;
@@ -788,6 +880,55 @@ export component StudioWindow inherits Window {
                                 active: true;
                                 clicked => {
                                     root.run-export(root.export-preset, export-destination.text);
+                                }
+                            }
+                        }
+                    }
+
+                    if root.dialog == "collection": VerticalLayout {
+                        spacing: 12px;
+                        Text {
+                            text: "New collection";
+                            color: #f0f0f0;
+                            font-size: 15px;
+                            font-weight: 600;
+                        }
+                        Text {
+                            text: "Name";
+                            color: #9a9a9a;
+                            font-size: 12px;
+                        }
+                        Rectangle {
+                            height: 28px;
+                            background: #1b1b1b;
+                            border-radius: 4px;
+                            border-width: 1px;
+                            border-color: #3a3a3a;
+                            collection-name := TextInput {
+                                x: 8px;
+                                width: parent.width - 16px;
+                                height: 100%;
+                                color: #e6e6e6;
+                                font-size: 12px;
+                                vertical-alignment: center;
+                                single-line: true;
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: end;
+                            FilterChip {
+                                text: "Cancel";
+                                active: false;
+                                clicked => {
+                                    root.dialog = "";
+                                }
+                            }
+                            FilterChip {
+                                text: "Create";
+                                active: true;
+                                clicked => {
+                                    root.run-new-collection(collection-name.text);
                                 }
                             }
                         }
