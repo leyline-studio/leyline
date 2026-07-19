@@ -301,7 +301,9 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             let committed = (|| {
                 let mut session = app.library.edit(version)?;
                 let wb = session.settings().white_balance.clone();
-                let Some((param, value)) = develop::action(slider.as_str(), f64::from(value), wb)
+                let crop = session.settings().crop.clone();
+                let Some((param, value)) =
+                    develop::action(slider.as_str(), f64::from(value), wb, crop)
                 else {
                     return Ok(());
                 };
@@ -644,6 +646,12 @@ fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<(), String> {
 /// Mirrors pipeline settings into the develop slider model.
 fn dev_model(settings: &Settings) -> ui::DevSettings {
     let wb = settings.white_balance.clone().unwrap_or_default();
+    let crop = settings.crop.clone().unwrap_or(leyline_sdk::Crop {
+        x: 0.0,
+        y: 0.0,
+        width: 1.0,
+        height: 1.0,
+    });
     ui::DevSettings {
         exposure: settings.exposure as f32,
         contrast: settings.contrast as f32,
@@ -655,6 +663,11 @@ fn dev_model(settings: &Settings) -> ui::DevSettings {
         saturation: settings.saturation as f32,
         wb_temp: wb.temperature as f32,
         wb_tint: wb.tint as f32,
+        rotation: settings.rotation as f32,
+        crop_left: (crop.x * 100.0) as f32,
+        crop_top: (crop.y * 100.0) as f32,
+        crop_width: (crop.width * 100.0) as f32,
+        crop_height: (crop.height * 100.0) as f32,
     }
 }
 

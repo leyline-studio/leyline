@@ -33,6 +33,11 @@ export struct DevSettings {
     saturation: float,
     wb-temp: float,
     wb-tint: float,
+    rotation: float,
+    crop-left: float,
+    crop-top: float,
+    crop-width: float,
+    crop-height: float,
 }
 
 component DetailRow inherits HorizontalLayout {
@@ -442,6 +447,68 @@ export component StudioWindow inherits Window {
                             value: root.dev.saturation;
                             edited(v) => {
                                 root.develop-edit("saturation", v);
+                            }
+                        }
+
+                        Text {
+                            text: "Geometry";
+                            color: #9a9a9a;
+                            font-size: 11px;
+                        }
+                        EditSlider {
+                            label: "Rotation";
+                            minimum: -45;
+                            maximum: 45;
+                            decimals: 1;
+                            value: root.dev.rotation;
+                            edited(v) => {
+                                root.develop-edit("rotation", v);
+                            }
+                        }
+                        EditSlider {
+                            label: "Crop left";
+                            minimum: 0;
+                            maximum: 100;
+                            value: root.dev.crop-left;
+                            edited(v) => {
+                                root.develop-edit("crop-left", v);
+                            }
+                        }
+                        EditSlider {
+                            label: "Crop top";
+                            minimum: 0;
+                            maximum: 100;
+                            value: root.dev.crop-top;
+                            edited(v) => {
+                                root.develop-edit("crop-top", v);
+                            }
+                        }
+                        EditSlider {
+                            label: "Crop width";
+                            minimum: 1;
+                            maximum: 100;
+                            value: root.dev.crop-width;
+                            edited(v) => {
+                                root.develop-edit("crop-width", v);
+                            }
+                        }
+                        EditSlider {
+                            label: "Crop height";
+                            minimum: 1;
+                            maximum: 100;
+                            value: root.dev.crop-height;
+                            edited(v) => {
+                                root.develop-edit("crop-height", v);
+                            }
+                        }
+                        HorizontalLayout {
+                            alignment: end;
+                            FilterChip {
+                                text: "Reset crop";
+                                active: false;
+                                clicked => {
+                                    root.develop-edit("crop-reset", 0);
+                                }
                             }
                         }
                     }
