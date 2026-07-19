@@ -1,8 +1,10 @@
-// Leyline Studio main window (`docs/roadmap.md` phase 5, first slice).
+// Leyline Studio main window (`docs/roadmap.md` phase 5).
 //
-// The library browser: a thumbnail grid on the left, the metadata of the
-// selected photo on the right. All strings arrive preformatted from Rust —
-// the UI never interprets catalog values itself.
+// The library browser: a filter bar on top, a thumbnail grid on the left,
+// the metadata of the selected photo on the right. All strings arrive
+// preformatted from Rust — the UI never interprets catalog values itself,
+// and every filter or classement decision is made in Rust too: the UI only
+// reports what was clicked or typed.
 
 export struct Cell {
     thumbnail: image,
@@ -31,16 +33,52 @@ component DetailRow inherits HorizontalLayout {
     }
 }
 
+component FilterChip inherits Rectangle {
+    in property <bool> active;
+    in property <string> text;
+    callback clicked;
+
+    height: 24px;
+    width: chip-text.preferred-width + 18px;
+    border-radius: 12px;
+    background: root.active ? #2f4f6f : #242424;
+    border-width: 1px;
+    border-color: root.active ? #6fa8dc : #333333;
+
+    chip-text := Text {
+        text: root.text;
+        color: root.active ? #e6e6e6 : #9a9a9a;
+        font-size: 12px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        width: 100%;
+        height: 100%;
+    }
+    TouchArea {
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
 export component StudioWindow inherits Window {
     title: "Leyline Studio — " + root.library-name;
     preferred-width: 1280px;
     preferred-height: 800px;
     background: #1b1b1b;
+    forward-focus: keys;
 
     in property <string> library-name;
     in property <string> status-line;
     in property <[Cell]> cells;
     in-out property <int> selected: -1;
+
+    // Filter state, mirrored from the GridQuery held in Rust.
+    in property <int> filter-rating; // 0 = off, else minimum stars
+    in property <int> filter-label; // -1 = off, else ColorLabel encoding
+    in property <int> filter-pick; // -1 = off, else PickState encoding
+    in property <string> sort-label;
+    in property <[color]> label-colors;
 
     in property <string> detail-filename;
     in property <string> detail-path;
@@ -52,110 +90,252 @@ export component StudioWindow inherits Window {
     in property <string> detail-exposure;
 
     callback select(int);
+    callback classify(string);
+    callback rating-filter(int);
+    callback label-filter(int);
+    callback pick-filter(int);
+    callback cycle-sort();
 
     property <length> cell-size: 176px;
 
-    HorizontalLayout {
-        VerticalLayout {
-            horizontal-stretch: 1;
-            padding: 12px;
-            spacing: 8px;
+    // Moves the selection to `index` and scrolls it into view.
+    function select-cell(index: int) {
+        if (index < 0 || index >= root.cells.length) {
+            return;
+        }
+        root.selected = index;
+        root.select(index);
+        if (Math.floor(index / flick.columns) * root.cell-size < -flick.viewport-y) {
+            flick.viewport-y = -Math.floor(index / flick.columns) * root.cell-size;
+        } else if ((Math.floor(index / flick.columns) + 1) * root.cell-size > -flick.viewport-y + flick.height) {
+            flick.viewport-y = flick.height - (Math.floor(index / flick.columns) + 1) * root.cell-size;
+        }
+    }
 
-            Text {
-                text: root.status-line;
-                color: #9a9a9a;
-                font-size: 13px;
+    keys := FocusScope {
+        key-pressed(event) => {
+            if (event.text == Key.LeftArrow) {
+                root.select-cell(max(root.selected - 1, 0));
+                return accept;
             }
-
-            flick := Flickable {
-                property <int> columns: max(1, Math.floor(self.width / root.cell-size));
-                viewport-height: Math.ceil(root.cells.length / self.columns) * root.cell-size;
-
-                for cell[i] in root.cells: Rectangle {
-                    x: Math.mod(i, flick.columns) * root.cell-size;
-                    y: Math.floor(i / flick.columns) * root.cell-size;
-                    width: root.cell-size;
-                    height: root.cell-size;
-
-                    Rectangle {
-                        x: 4px;
-                        y: 4px;
-                        width: parent.width - 8px;
-                        height: parent.height - 8px;
-                        background: i == root.selected ? #2f4f6f : #242424;
-                        border-radius: 4px;
-                        border-width: i == root.selected ? 2px : 1px;
-                        border-color: i == root.selected ? #6fa8dc : #333333;
-
-                        VerticalLayout {
-                            padding: 6px;
-                            spacing: 4px;
-
-                            Image {
-                                source: cell.thumbnail;
-                                image-fit: contain;
-                                vertical-stretch: 1;
-                            }
-                            HorizontalLayout {
-                                spacing: 4px;
-                                if cell.has-label: Rectangle {
-                                    width: 10px;
-                                    height: 10px;
-                                    y: (parent.height - self.height) / 2;
-                                    border-radius: 5px;
-                                    background: cell.label;
-                                }
-                                Text {
-                                    text: cell.filename;
-                                    color: #d0d0d0;
-                                    font-size: 11px;
-                                    overflow: elide;
-                                    horizontal-stretch: 1;
-                                }
-                                Text {
-                                    text: cell.stars;
-                                    color: #d8b23c;
-                                    font-size: 11px;
-                                }
-                            }
-                        }
-                    }
-
-                    TouchArea {
-                        clicked => {
-                            root.selected = i;
-                            root.select(i);
-                        }
-                    }
-                }
+            if (event.text == Key.RightArrow) {
+                root.select-cell(root.selected < 0 ? 0 : root.selected + 1);
+                return accept;
             }
+            if (event.text == Key.UpArrow) {
+                root.select-cell(root.selected - flick.columns);
+                return accept;
+            }
+            if (event.text == Key.DownArrow) {
+                root.select-cell(root.selected < 0 ? 0 : root.selected + flick.columns);
+                return accept;
+            }
+            root.classify(event.text);
+            accept
         }
 
-        Rectangle {
-            width: 300px;
-            background: #212121;
-
+        HorizontalLayout {
             VerticalLayout {
-                padding: 16px;
-                spacing: 10px;
-                alignment: start;
+                horizontal-stretch: 1;
+                padding: 12px;
+                spacing: 8px;
+
+                HorizontalLayout {
+                    spacing: 10px;
+
+                    HorizontalLayout {
+                        spacing: 2px;
+                        for s in 5: TouchArea {
+                            width: 18px;
+                            height: 24px;
+                            Text {
+                                text: root.filter-rating > s ? "★" : "☆";
+                                color: root.filter-rating > s ? #d8b23c : #666666;
+                                font-size: 15px;
+                                vertical-alignment: center;
+                                horizontal-alignment: center;
+                                width: 100%;
+                                height: 100%;
+                            }
+                            clicked => {
+                                root.rating-filter(s + 1);
+                            }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 4px;
+                        for l in 5: TouchArea {
+                            width: 16px;
+                            height: 24px;
+                            Rectangle {
+                                width: 12px;
+                                height: 12px;
+                                y: (parent.height - self.height) / 2;
+                                border-radius: 6px;
+                                background: root.label-colors[l];
+                                border-width: root.filter-label == l ? 2px : 0px;
+                                border-color: #f0f0f0;
+                                opacity: root.filter-label == l || root.filter-label == -1 ? 1 : 0.35;
+                            }
+                            clicked => {
+                                root.label-filter(l);
+                            }
+                        }
+                    }
+
+                    FilterChip {
+                        text: "⚑ Picked";
+                        active: root.filter-pick == 1;
+                        clicked => {
+                            root.pick-filter(1);
+                        }
+                    }
+                    FilterChip {
+                        text: "✕ Rejected";
+                        active: root.filter-pick == 2;
+                        clicked => {
+                            root.pick-filter(2);
+                        }
+                    }
+                    FilterChip {
+                        text: "– Unflagged";
+                        active: root.filter-pick == 0;
+                        clicked => {
+                            root.pick-filter(0);
+                        }
+                    }
+
+                    Rectangle {
+                        horizontal-stretch: 1;
+                    }
+
+                    FilterChip {
+                        text: "Sort: " + root.sort-label;
+                        active: false;
+                        clicked => {
+                            root.cycle-sort();
+                        }
+                    }
+                }
 
                 Text {
-                    text: root.selected < 0 ? "No photo selected" : root.detail-filename;
-                    color: #f0f0f0;
-                    font-size: 15px;
-                    font-weight: 600;
-                    overflow: elide;
+                    text: root.status-line;
+                    color: #9a9a9a;
+                    font-size: 13px;
                 }
-                if root.selected >= 0: VerticalLayout {
-                    spacing: 6px;
-                    DetailRow { label: "Path"; value: root.detail-path; }
-                    DetailRow { label: "Captured"; value: root.detail-capture; }
-                    DetailRow { label: "Size"; value: root.detail-dimensions; }
-                    DetailRow { label: "File"; value: root.detail-file-size; }
-                    DetailRow { label: "Camera"; value: root.detail-camera; }
-                    DetailRow { label: "Lens"; value: root.detail-lens; }
-                    DetailRow { label: "Exposure"; value: root.detail-exposure; }
+
+                flick := Flickable {
+                    property <int> columns: max(1, Math.floor(self.width / root.cell-size));
+                    viewport-height: Math.ceil(root.cells.length / self.columns) * root.cell-size;
+
+                    for cell[i] in root.cells: Rectangle {
+                        x: Math.mod(i, flick.columns) * root.cell-size;
+                        y: Math.floor(i / flick.columns) * root.cell-size;
+                        width: root.cell-size;
+                        height: root.cell-size;
+
+                        Rectangle {
+                            x: 4px;
+                            y: 4px;
+                            width: parent.width - 8px;
+                            height: parent.height - 8px;
+                            background: i == root.selected ? #2f4f6f : #242424;
+                            border-radius: 4px;
+                            border-width: i == root.selected ? 2px : 1px;
+                            border-color: i == root.selected ? #6fa8dc : #333333;
+
+                            VerticalLayout {
+                                padding: 6px;
+                                spacing: 4px;
+
+                                Image {
+                                    source: cell.thumbnail;
+                                    image-fit: contain;
+                                    vertical-stretch: 1;
+                                }
+                                HorizontalLayout {
+                                    spacing: 4px;
+                                    if cell.has-label: Rectangle {
+                                        width: 10px;
+                                        height: 10px;
+                                        y: (parent.height - self.height) / 2;
+                                        border-radius: 5px;
+                                        background: cell.label;
+                                    }
+                                    Text {
+                                        text: cell.filename;
+                                        color: #d0d0d0;
+                                        font-size: 11px;
+                                        overflow: elide;
+                                        horizontal-stretch: 1;
+                                    }
+                                    Text {
+                                        text: cell.stars;
+                                        color: #d8b23c;
+                                        font-size: 11px;
+                                    }
+                                }
+                            }
+                        }
+
+                        TouchArea {
+                            clicked => {
+                                root.selected = i;
+                                root.select(i);
+                            }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                width: 300px;
+                background: #212121;
+
+                VerticalLayout {
+                    padding: 16px;
+                    spacing: 10px;
+                    alignment: start;
+
+                    Text {
+                        text: root.selected < 0 ? "No photo selected" : root.detail-filename;
+                        color: #f0f0f0;
+                        font-size: 15px;
+                        font-weight: 600;
+                        overflow: elide;
+                    }
+                    if root.selected >= 0: VerticalLayout {
+                        spacing: 6px;
+                        DetailRow {
+                            label: "Path";
+                            value: root.detail-path;
+                        }
+                        DetailRow {
+                            label: "Captured";
+                            value: root.detail-capture;
+                        }
+                        DetailRow {
+                            label: "Size";
+                            value: root.detail-dimensions;
+                        }
+                        DetailRow {
+                            label: "File";
+                            value: root.detail-file-size;
+                        }
+                        DetailRow {
+                            label: "Camera";
+                            value: root.detail-camera;
+                        }
+                        DetailRow {
+                            label: "Lens";
+                            value: root.detail-lens;
+                        }
+                        DetailRow {
+                            label: "Exposure";
+                            value: root.detail-exposure;
+                        }
+                    }
                 }
             }
         }
