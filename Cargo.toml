@@ -33,6 +33,8 @@ pkg-config = "0.3"
 png = "0.18"
 tiff = "0.10"
 image-webp = "0.2"
+ravif = "0.11"
+rgb = "0.8"
 
 [workspace.lints.rust]
 missing_docs = "warn"

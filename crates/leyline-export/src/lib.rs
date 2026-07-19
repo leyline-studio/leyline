@@ -2,8 +2,8 @@
 //!
 //! This crate only encodes: it receives finished 8-bit RGB pixels and
 //! writes them in the requested format. Rendering, scaling and catalog
-//! bookkeeping belong to the engine. V1 covers JPEG, PNG, TIFF and
-//! (lossless) WebP; AVIF is a planned addition to [`ExportFormat`].
+//! bookkeeping belong to the engine. V1 covers the `specification.md`
+//! formats — JPEG, TIFF, (lossless) WebP, AVIF — plus lossless PNG.
 //!
 //! [`ExportSettings`] doubles as the `settings_json` of export presets
 //! (`docs/catalog.md` §27), so a preset is exactly a named, stored instance
@@ -42,6 +42,8 @@ pub enum ExportFormat {
     Tiff,
     /// WebP, lossless.
     Webp,
+    /// AVIF, quality-controlled.
+    Avif,
 }
 
 impl ExportFormat {
@@ -52,6 +54,7 @@ impl ExportFormat {
             ExportFormat::Png => "png",
             ExportFormat::Tiff => "tif",
             ExportFormat::Webp => "webp",
+            ExportFormat::Avif => "avif",
         }
     }
 }
@@ -62,7 +65,7 @@ impl ExportFormat {
 pub struct ExportSettings {
     /// Output format.
     pub format: ExportFormat,
-    /// JPEG quality in [1, 100]; ignored by lossless formats.
+    /// JPEG/AVIF quality in [1, 100]; ignored by lossless formats.
     pub quality: u8,
     /// Scale so the longest edge fits this, never upscaling; `None` = full
     /// resolution. The engine applies it before encoding.
@@ -177,6 +180,16 @@ pub fn encode(
                 .encode(rgb8, width, height, image_webp::ColorType::Rgb8)
                 .map_err(|e| ExportError::Encode(e.to_string()))?;
         }
+        ExportFormat::Avif => {
+            use rgb::FromSlice;
+            let image = ravif::Img::new(rgb8.as_rgb(), width as usize, height as usize);
+            let encoded = ravif::Encoder::new()
+                .with_quality(f32::from(settings.quality))
+                .with_speed(6)
+                .encode_rgb(image)
+                .map_err(|e| ExportError::Encode(e.to_string()))?;
+            std::fs::write(path, encoded.avif_file)?;
+        }
     }
     Ok(())
 }
@@ -196,7 +209,7 @@ mod tests {
     }
 
     #[test]
-    fn encodes_jpeg_and_png_signatures() {
+    fn every_format_writes_its_file_signature() {
         let dir = tempfile::tempdir().unwrap();
         let pixels = gradient(8, 6);
 
@@ -232,6 +245,16 @@ mod tests {
         let bytes = std::fs::read(&webp).unwrap();
         assert_eq!(&bytes[..4], b"RIFF", "WebP RIFF container");
         assert_eq!(&bytes[8..12], b"WEBP", "WebP fourcc");
+
+        let avif = dir.path().join("out.avif");
+        let avif_settings = ExportSettings {
+            format: ExportFormat::Avif,
+            ..ExportSettings::default()
+        };
+        encode(&avif, 8, 6, &pixels, &avif_settings).unwrap();
+        let bytes = std::fs::read(&avif).unwrap();
+        assert_eq!(&bytes[4..8], b"ftyp", "ISOBMFF ftyp box");
+        assert_eq!(&bytes[8..12], b"avif", "AVIF brand");
     }
 
     #[test]
@@ -280,7 +303,7 @@ mod tests {
             Err(ExportError::InvalidSettings(_))
         ));
         assert!(matches!(
-            ExportSettings::parse(r#"{"format":"avif"}"#),
+            ExportSettings::parse(r#"{"format":"jxl"}"#),
             Err(ExportError::InvalidSettings(_))
         ));
     }

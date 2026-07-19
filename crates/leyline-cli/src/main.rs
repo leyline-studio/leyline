@@ -34,7 +34,7 @@ Usage:
 Options:
   --reference   Reference files in place instead of copying into Photos/
   --flat        Do not descend into subdirectories
-  --format <f>  Export format: jpeg (default), png, tiff, webp
+  --format <f>  Export format: jpeg (default), png, tiff, webp, avif
 
 Develop params (docs/pipeline.md §3.2, schema 1):
   exposure rotation                 decimal
@@ -415,6 +415,7 @@ fn recipe(options: &Options) -> Result<ExportSettings, String> {
             "png" => ExportFormat::Png,
             "tiff" | "tif" => ExportFormat::Tiff,
             "webp" => ExportFormat::Webp,
+            "avif" => ExportFormat::Avif,
             other => return Err(format!("unknown export format {other:?}")),
         };
     }
