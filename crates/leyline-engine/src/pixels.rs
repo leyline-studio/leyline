@@ -7,6 +7,7 @@
 
 use leyline_core::{LeylineError, Result};
 use leyline_raw::RawImage;
+use rayon::prelude::*;
 
 /// The working buffer of the develop pipeline: interleaved RGB, `f32`
 /// samples, gamma-encoded sRGB, clamped to [0, 1].
@@ -36,7 +37,11 @@ impl Pixels {
                 if image.data.len() != samples {
                     return Err(bad_length(image, samples));
                 }
-                image.data.iter().map(|&v| f32::from(v) / 255.0).collect()
+                image
+                    .data
+                    .par_iter()
+                    .map(|&v| f32::from(v) / 255.0)
+                    .collect()
             }
             16 => {
                 if image.data.len() != samples * 2 {
@@ -44,7 +49,7 @@ impl Pixels {
                 }
                 image
                     .data
-                    .chunks_exact(2)
+                    .par_chunks_exact(2)
                     .map(|pair| {
                         let v = u16::from_ne_bytes([pair[0], pair[1]]);
                         f32::from(v) / 65535.0
@@ -67,7 +72,7 @@ impl Pixels {
     /// Renders the buffer to tightly packed 8-bit RGB.
     pub fn to_rgb8(&self) -> Vec<u8> {
         self.data
-            .iter()
+            .par_iter()
             .map(|&v| (v.clamp(0.0, 1.0) * 255.0).round() as u8)
             .collect()
     }
