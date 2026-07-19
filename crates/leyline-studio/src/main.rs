@@ -113,6 +113,18 @@ fn run() -> Result<(), String> {
     wire_develop(&app, &window);
     wire_dialogs(&app, &window);
     wire_collections(&app, &window);
+    {
+        // Scrolling reprioritizes the thumbnail queue: rows at or after
+        // the first visible cell are rendered before those scrolled past.
+        let app = Rc::clone(&app);
+        window.on_viewport_moved(move |first| {
+            let mut app = app.borrow_mut();
+            let first = usize::try_from(first).unwrap_or(0);
+            let (visible, passed): (Vec<usize>, Vec<usize>) =
+                app.pending.iter().partition(|&&index| index >= first);
+            app.pending = visible.into_iter().chain(passed).collect();
+        });
+    }
     // Kept alive until the event loop ends: dropping the timer stops it.
     let _thumbnails = thumbnail_timer(&app);
 

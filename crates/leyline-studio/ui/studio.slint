@@ -218,6 +218,7 @@ export component StudioWindow inherits Window {
     callback add-to-collection();
     callback remove-from-collection();
     callback search(string);
+    callback viewport-moved(int);
 
     property <length> cell-size: 176px;
 
@@ -759,6 +760,9 @@ export component StudioWindow inherits Window {
                 flick := Flickable {
                     property <int> columns: max(1, Math.floor(self.width / root.cell-size));
                     viewport-height: Math.ceil(root.cells.length / self.columns) * root.cell-size;
+                    flicked => {
+                        root.viewport-moved(Math.floor(-self.viewport-y / root.cell-size) * self.columns);
+                    }
 
                     for cell[i] in root.cells: Rectangle {
                         x: Math.mod(i, flick.columns) * root.cell-size;
