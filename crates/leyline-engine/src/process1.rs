@@ -9,7 +9,10 @@
 //!
 //! * a parameter at its neutral value skips its operator entirely, so the
 //!   neutral rendering is bit-for-bit the decoded image;
-//! * operators are pure, single-threaded and deterministic;
+//! * operators are pure and deterministic; their loops may run rows in
+//!   parallel (ADR 0012), but every sample is computed by the same scalar
+//!   formula in the same order regardless of thread count, so the output
+//!   is bit-for-bit identical to a single-threaded run;
 //! * the working buffer stays gamma-encoded sRGB in [0, 1] between steps
 //!   (see [`crate::pixels`]); white balance and exposure convert to linear
 //!   light internally.
@@ -21,9 +24,16 @@
 use leyline_core::Result;
 use leyline_core::{Crop, Settings, WhiteBalance};
 use leyline_raw::RawImage;
+use rayon::prelude::*;
 
 use crate::pixels::{Pixels, linear_to_srgb, luma, srgb_to_linear};
 use crate::render::Rendered;
+
+/// Runs `op` on every pixel row of the interleaved buffer, in parallel.
+fn par_rows(px: &mut Pixels, op: impl Fn(&mut [f32]) + Send + Sync) {
+    let row = px.width as usize * 3;
+    px.data.par_chunks_mut(row).for_each(op);
+}
 
 /// Renders a decoded image according to `settings`, which the caller has
 /// already validated and confirmed to declare `process: 1`.
@@ -106,11 +116,13 @@ fn linear_gains(px: &mut Pixels, wb: Option<&WhiteBalance>, exposure_ev: f64) {
     let gain = 2.0f64.powf(exposure_ev);
     let gains = gains.map(|g| (g * gain) as f32);
 
-    for rgb in px.data.chunks_exact_mut(3) {
-        for (sample, gain) in rgb.iter_mut().zip(gains) {
-            *sample = linear_to_srgb((srgb_to_linear(*sample) * gain).clamp(0.0, 1.0));
+    par_rows(px, |row| {
+        for rgb in row.chunks_exact_mut(3) {
+            for (sample, gain) in rgb.iter_mut().zip(gains) {
+                *sample = linear_to_srgb((srgb_to_linear(*sample) * gain).clamp(0.0, 1.0));
+            }
         }
-    }
+    });
 }
 
 /// Approximate color of a blackbody radiator, gamma-encoded RGB in (0, 1].
@@ -150,16 +162,18 @@ fn blackbody_rgb(kelvin: f64) -> [f64; 3] {
 /// monotone and fix middle gray.
 fn contrast(px: &mut Pixels, amount: i32) {
     let k = f32::from(amount as i16) / 100.0;
-    for sample in &mut px.data {
-        let x = *sample;
-        *sample = if k >= 0.0 {
-            let s = x * x * (3.0 - 2.0 * x);
-            ((1.0 - k) * x + k * s).clamp(0.0, 1.0)
-        } else {
-            let flat = 0.25 + 0.5 * x;
-            ((1.0 + k) * x - k * flat).clamp(0.0, 1.0)
-        };
-    }
+    par_rows(px, |row| {
+        for sample in row {
+            let x = *sample;
+            *sample = if k >= 0.0 {
+                let s = x * x * (3.0 - 2.0 * x);
+                ((1.0 - k) * x + k * s).clamp(0.0, 1.0)
+            } else {
+                let flat = 0.25 + 0.5 * x;
+                ((1.0 + k) * x - k * flat).clamp(0.0, 1.0)
+            };
+        }
+    });
 }
 
 /// Luma-masked tone adjustments: `shadows` acts on dark pixels with weight
@@ -170,19 +184,21 @@ fn contrast(px: &mut Pixels, amount: i32) {
 fn highlights_shadows(px: &mut Pixels, highlights: i32, shadows: i32) {
     let h = f32::from(highlights as i16) / 100.0;
     let s = f32::from(shadows as i16) / 100.0;
-    for rgb in px.data.chunks_exact_mut(3) {
-        let l = luma(rgb);
-        let delta = 0.5 * (s * (1.0 - l) * (1.0 - l) + h * l * l);
-        for sample in rgb {
-            let x = *sample;
-            let moved = if delta >= 0.0 {
-                x + delta * (1.0 - x)
-            } else {
-                x + delta * x
-            };
-            *sample = moved.clamp(0.0, 1.0);
+    par_rows(px, |row| {
+        for rgb in row.chunks_exact_mut(3) {
+            let l = luma(rgb);
+            let delta = 0.5 * (s * (1.0 - l) * (1.0 - l) + h * l * l);
+            for sample in rgb {
+                let x = *sample;
+                let moved = if delta >= 0.0 {
+                    x + delta * (1.0 - x)
+                } else {
+                    x + delta * x
+                };
+                *sample = moved.clamp(0.0, 1.0);
+            }
         }
-    }
+    });
 }
 
 /// Endpoint remapping: positive `whites` brightens by lowering the white
@@ -192,9 +208,11 @@ fn whites_blacks(px: &mut Pixels, whites: i32, blacks: i32) {
     let white = 1.0 - f32::from(whites as i16) / 100.0 * 0.25;
     let black = -f32::from(blacks as i16) / 100.0 * 0.25;
     let scale = 1.0 / (white - black);
-    for sample in &mut px.data {
-        *sample = ((*sample - black) * scale).clamp(0.0, 1.0);
-    }
+    par_rows(px, |row| {
+        for sample in row {
+            *sample = ((*sample - black) * scale).clamp(0.0, 1.0);
+        }
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -206,19 +224,21 @@ fn whites_blacks(px: &mut Pixels, whites: i32, blacks: i32) {
 /// move more than already-saturated ones.
 fn saturate(px: &mut Pixels, amount: i32, vibrance: bool) {
     let k = f32::from(amount as i16) / 100.0;
-    for rgb in px.data.chunks_exact_mut(3) {
-        let l = luma(rgb);
-        let factor = if vibrance {
-            let chroma = rgb.iter().fold(0.0f32, |m, &v| m.max(v))
-                - rgb.iter().fold(1.0f32, |m, &v| m.min(v));
-            1.0 + k * (1.0 - chroma)
-        } else {
-            1.0 + k
-        };
-        for sample in rgb {
-            *sample = (l + (*sample - l) * factor).clamp(0.0, 1.0);
+    par_rows(px, |row| {
+        for rgb in row.chunks_exact_mut(3) {
+            let l = luma(rgb);
+            let factor = if vibrance {
+                let chroma = rgb.iter().fold(0.0f32, |m, &v| m.max(v))
+                    - rgb.iter().fold(1.0f32, |m, &v| m.min(v));
+                1.0 + k * (1.0 - chroma)
+            } else {
+                1.0 + k
+            };
+            for sample in rgb {
+                *sample = (l + (*sample - l) * factor).clamp(0.0, 1.0);
+            }
         }
-    }
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -246,10 +266,16 @@ fn color_noise_reduction(px: &mut Pixels, strength: i32) {
             .map(|i| px.data[i * 3 + channel] - plane[i])
             .collect();
         let blurred = gaussian_blur(&chroma, w, h, k * 3.0);
-        for i in 0..w * h {
-            let smoothed = chroma[i] + k * (blurred[i] - chroma[i]);
-            px.data[i * 3 + channel] = (plane[i] + smoothed).clamp(0.0, 1.0);
-        }
+        px.data
+            .par_chunks_mut(w * 3)
+            .enumerate()
+            .for_each(|(y, row)| {
+                for x in 0..w {
+                    let i = y * w + x;
+                    let smoothed = chroma[i] + k * (blurred[i] - chroma[i]);
+                    row[x * 3 + channel] = (plane[i] + smoothed).clamp(0.0, 1.0);
+                }
+            });
     }
 }
 
@@ -264,17 +290,32 @@ fn sharpen(px: &mut Pixels, amount: i32, radius: f64) {
 
 /// Extracts the luma plane.
 fn luma_plane(px: &Pixels) -> Vec<f32> {
-    px.data.chunks_exact(3).map(luma).collect()
+    let width = px.width as usize;
+    let mut out = vec![0.0f32; width * px.height as usize];
+    out.par_chunks_mut(width)
+        .zip(px.data.par_chunks(width * 3))
+        .for_each(|(dst, src)| {
+            for (value, rgb) in dst.iter_mut().zip(src.chunks_exact(3)) {
+                *value = luma(rgb);
+            }
+        });
+    out
 }
 
 /// Adds a per-pixel delta to all three channels (a pure luma shift).
-fn add_luma_delta(px: &mut Pixels, delta: impl Fn(usize) -> f32) {
-    for (i, rgb) in px.data.chunks_exact_mut(3).enumerate() {
-        let d = delta(i);
-        for sample in rgb {
-            *sample = (*sample + d).clamp(0.0, 1.0);
-        }
-    }
+fn add_luma_delta(px: &mut Pixels, delta: impl Fn(usize) -> f32 + Sync) {
+    let width = px.width as usize;
+    px.data
+        .par_chunks_mut(width * 3)
+        .enumerate()
+        .for_each(|(y, row)| {
+            for (x, rgb) in row.chunks_exact_mut(3).enumerate() {
+                let d = delta(y * width + x);
+                for sample in rgb {
+                    *sample = (*sample + d).clamp(0.0, 1.0);
+                }
+            }
+        });
 }
 
 /// Separable Gaussian blur of a single plane. Kernel radius is `⌈3σ⌉`,
@@ -292,33 +333,33 @@ fn gaussian_blur(plane: &[f32], width: usize, height: usize, sigma: f32) -> Vec<
         *weight /= sum;
     }
 
-    let convolve = |src: &[f32], length: usize, stride: usize, base: usize| -> Vec<f32> {
-        (0..length)
-            .map(|i| {
-                let mut acc = kernel[0] * src[base + i * stride];
-                for (k, &weight) in kernel.iter().enumerate().skip(1) {
-                    let lo = i.saturating_sub(k);
-                    let hi = (i + k).min(length - 1);
-                    acc += weight * (src[base + lo * stride] + src[base + hi * stride]);
-                }
-                acc
-            })
-            .collect()
+    let convolve = |src: &[f32], i: usize, length: usize, stride: usize, base: usize| -> f32 {
+        let mut acc = kernel[0] * src[base + i * stride];
+        for (k, &weight) in kernel.iter().enumerate().skip(1) {
+            let lo = i.saturating_sub(k);
+            let hi = (i + k).min(length - 1);
+            acc += weight * (src[base + lo * stride] + src[base + hi * stride]);
+        }
+        acc
     };
 
-    // Horizontal pass, then vertical.
+    // Horizontal pass, then vertical; both write full output rows, so the
+    // rows parallelize without overlapping.
     let mut horizontal = vec![0.0f32; plane.len()];
-    for y in 0..height {
-        let row = convolve(plane, width, 1, y * width);
-        horizontal[y * width..(y + 1) * width].copy_from_slice(&row);
-    }
+    horizontal
+        .par_chunks_mut(width)
+        .enumerate()
+        .for_each(|(y, row)| {
+            for (x, value) in row.iter_mut().enumerate() {
+                *value = convolve(plane, x, width, 1, y * width);
+            }
+        });
     let mut out = vec![0.0f32; plane.len()];
-    for x in 0..width {
-        let column = convolve(&horizontal, height, width, x);
-        for (y, value) in column.into_iter().enumerate() {
-            out[y * width + x] = value;
+    out.par_chunks_mut(width).enumerate().for_each(|(y, row)| {
+        for (x, value) in row.iter_mut().enumerate() {
+            *value = convolve(&horizontal, y, height, width, x);
         }
-    }
+    });
     out
 }
 
@@ -340,20 +381,22 @@ fn rotate(px: &Pixels, degrees: f64) -> Pixels {
     let (cx, cy) = (w / 2.0, h / 2.0);
     let (ocx, ocy) = (f64::from(out_w) / 2.0, f64::from(out_h) / 2.0);
 
-    for y in 0..out_h as usize {
-        for x in 0..out_w as usize {
-            // Screen coordinates grow downward, so the clockwise rotation
-            // matrix is [cos −sin; sin cos]; this is its inverse.
-            let dx = (x as f64 + 0.5) - ocx;
-            let dy = (y as f64 + 0.5) - ocy;
-            let sx = cos * dx + sin * dy + cx;
-            let sy = -sin * dx + cos * dy + cy;
-            if let Some(rgb) = bilinear(px, sx, sy) {
-                let offset = (y * out_w as usize + x) * 3;
-                data[offset..offset + 3].copy_from_slice(&rgb);
+    data.par_chunks_mut(out_w as usize * 3)
+        .enumerate()
+        .for_each(|(y, row)| {
+            for (x, rgb_out) in row.chunks_exact_mut(3).enumerate() {
+                // Screen coordinates grow downward, so the clockwise
+                // rotation matrix is [cos −sin; sin cos]; this is its
+                // inverse.
+                let dx = (x as f64 + 0.5) - ocx;
+                let dy = (y as f64 + 0.5) - ocy;
+                let sx = cos * dx + sin * dy + cx;
+                let sy = -sin * dx + cos * dy + cy;
+                if let Some(rgb) = bilinear(px, sx, sy) {
+                    rgb_out.copy_from_slice(&rgb);
+                }
             }
-        }
-    }
+        });
     Pixels {
         width: out_w,
         height: out_h,

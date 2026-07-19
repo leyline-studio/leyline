@@ -17,3 +17,4 @@ Une décision acceptée ne se modifie pas : elle se remplace par un nouvel ADR q
 | [0009](0009-gpl3-cla-dual-license.md) | GPL-3.0 + CLA, modèle double licence |
 | [0010](0010-relative-paths.md) | Bibliothèque autonome, chemins relatifs |
 | [0011](0011-engine-api-model.md) | API moteur : lib Rust, sync/async, événements |
+| [0012](0012-rayon-data-parallelism.md) | Parallélisme de données Rayon, rendu bit-pour-bit |

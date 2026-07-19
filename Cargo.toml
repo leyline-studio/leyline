@@ -38,6 +38,7 @@ image-webp = "0.2"
 ravif = "0.11"
 rgb = "0.8"
 criterion = "0.5"
+rayon = "1"
 
 [workspace.lints.rust]
 missing_docs = "warn"
