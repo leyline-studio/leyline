@@ -217,11 +217,14 @@ fn wire_classify(app: &Rc<RefCell<App>>, window: &StudioWindow) {
         let Some(action) = classify::from_key(key.as_str(), label, pick) else {
             return;
         };
-        let catalog = app.library.catalog_mut();
-        let applied = match action {
-            Action::Rate(rating) => catalog.set_rating(&[version], rating),
-            Action::Label(label) => catalog.set_color_label(&[version], label),
-            Action::Flag(pick) => catalog.set_pick(&[version], pick),
+        // Scoped: the catalog guard must be released before the reload.
+        let applied = {
+            let mut catalog = app.library.catalog_mut();
+            match action {
+                Action::Rate(rating) => catalog.set_rating(&[version], rating),
+                Action::Label(label) => catalog.set_color_label(&[version], label),
+                Action::Flag(pick) => catalog.set_pick(&[version], pick),
+            }
         };
         if let Err(error) = applied
             .map_err(|e| e.to_string())
@@ -514,7 +517,7 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             let Some(window) = handle.upgrade() else {
                 return;
             };
-            let mut app = app.borrow_mut();
+            let app = app.borrow_mut();
             let Some(version) = item_at(&app, window.get_selected()).map(|item| item.version_id)
             else {
                 window.set_dialog_result(SharedString::from("Select a photo first."));
@@ -582,12 +585,14 @@ fn wire_collections(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 return;
             }
             let mut app = app.borrow_mut();
+            // Two statements: the catalog guard of the first must be
+            // released before the refresh re-enters the library.
             let created = app
                 .library
                 .catalog_mut()
                 .create_collection(None, name)
-                .map_err(|e| e.to_string())
-                .and_then(|_| refresh_collections(&mut app, &window));
+                .map_err(|e| e.to_string());
+            let created = created.and_then(|_| refresh_collections(&mut app, &window));
             match created {
                 Ok(()) => window.set_dialog(SharedString::default()),
                 Err(error) => window
@@ -770,11 +775,14 @@ fn collection_membership(app: &mut App, window: &StudioWindow, add: bool) {
     let Some(version) = item_at(app, window.get_selected()).map(|item| item.version_id) else {
         return;
     };
-    let catalog = app.library.catalog_mut();
-    let changed = if add {
-        catalog.add_to_collection(collection, &[version])
-    } else {
-        catalog.remove_from_collection(collection, &[version])
+    // Scoped: the catalog guard must be released before the reload.
+    let changed = {
+        let mut catalog = app.library.catalog_mut();
+        if add {
+            catalog.add_to_collection(collection, &[version])
+        } else {
+            catalog.remove_from_collection(collection, &[version])
+        }
     };
     if let Err(error) = changed
         .map_err(|e| e.to_string())

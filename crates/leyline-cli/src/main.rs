@@ -166,7 +166,7 @@ fn import(args: &[String]) -> Result<(), String> {
     let [root, source] = positional.as_slice() else {
         return Err("usage: leyline import <library> <source> [--reference] [--flat]".to_owned());
     };
-    let mut library = open(root)?;
+    let library = open(root)?;
     let report = library
         .import(
             Path::new(source),
@@ -244,7 +244,7 @@ fn preview(args: &[String]) -> Result<(), String> {
         "full" => PreviewKind::Full,
         other => return Err(format!("unknown preview kind {other:?}")),
     };
-    let mut library = open(root)?;
+    let library = open(root)?;
     let file = library.preview(asset, kind).map_err(|e| e.to_string())?;
     let freshness = if file.freshly_generated {
         "generated"
@@ -371,7 +371,7 @@ fn develop(args: &[String]) -> Result<(), String> {
         other => return Err(format!("unknown develop parameter {other:?}")),
     };
 
-    let mut library = open(root)?;
+    let library = open(root)?;
     let mut session = library.edit(version).map_err(|e| e.to_string())?;
     session.set(param, value).map_err(|e| e.to_string())?;
     let revision = session.commit().map_err(|e| e.to_string())?;
@@ -441,7 +441,7 @@ fn export(args: &[String]) -> Result<(), String> {
     };
     let versions = version_ids(ids)?;
     let destination = PathBuf::from(destination);
-    let mut library = open(root)?;
+    let library = open(root)?;
 
     let progress = |done: u64, total: u64| eprint!("\rexporting {done}/{total}");
     let report = match options.value("preset") {
@@ -497,7 +497,7 @@ fn preset(args: &[String]) -> Result<(), String> {
             .to_owned());
     };
     let settings = recipe(&options)?;
-    let mut library = open(root)?;
+    let library = open(root)?;
     let id = library
         .create_export_preset(name, &settings)
         .map_err(|e| e.to_string())?;

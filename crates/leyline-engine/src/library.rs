@@ -1,20 +1,31 @@
 //! The library facade: one handle over a library on disk
-//! (`docs/engine-api.md` §5, `docs/catalog.md` §3).
+//! (`docs/engine-api.md` §5, §3, `docs/catalog.md` §3).
 //!
 //! A `Library` owns the physical layout — `catalog.db`, `Photos/`,
 //! `Cache/`, `Exports/`, `Backups/` — and orchestrates the engine's
 //! synchronous cores (import, preview, export, edit sessions) over it.
-//! Threading, jobs and events (§3 of the API) will wrap this type; clients
-//! outside the engine reach it through `leyline-sdk`.
+//!
+//! The handle is the §3.3 execution model: `Send + Sync`, cloned at the
+//! cost of an `Arc`, every clone sharing the same catalog. Queries stay
+//! synchronous (SQLite answers in microseconds); works — import, preview
+//! rendering, export — also exist as `*_async` jobs that return a `JobId`
+//! immediately and progress through the [`Event`] stream (§3.1). Catalog
+//! writes are serialized by an internal lock; clients have no ordering
+//! constraint to respect.
 
+use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc::{Receiver, Sender, channel};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use leyline_catalog::{Catalog, ExportPreset};
-use leyline_core::{AssetId, ExportPresetId, PreviewKind, Result, VersionId};
+use leyline_core::{AssetId, ExportPresetId, JobId, PreviewKind, Result, VersionId};
 use leyline_export::ExportSettings;
 use leyline_preview::PreviewCache;
 
 use crate::decode_cache::DecodeCache;
+use crate::events::{Event, JobResult};
 use crate::export::ExportReport;
 use crate::import::{ImportOptions, ImportReport};
 use crate::preview::PreviewFile;
@@ -25,13 +36,54 @@ use crate::session::EditSession;
 /// bounding memory: a full-size 24 MP decode is ~72 MB.
 const DECODE_CACHE_CAPACITY: usize = 2;
 
-/// An open Leyline library.
-#[derive(Debug)]
+/// An open Leyline library. Clones share the same underlying handle.
+#[derive(Debug, Clone)]
 pub struct Library {
+    inner: Arc<Inner>,
+}
+
+/// State shared by every clone of the handle.
+#[derive(Debug)]
+struct Inner {
     root: PathBuf,
-    catalog: Catalog,
     cache: PreviewCache,
-    decodes: DecodeCache,
+    catalog: Mutex<Catalog>,
+    decodes: Mutex<DecodeCache>,
+    /// One sender per subscriber; pruned when a receiver is dropped.
+    subscribers: Mutex<Vec<Sender<Event>>>,
+    /// Next job id, unique within this process.
+    next_job: AtomicU64,
+}
+
+/// Read access to the catalog, released when dropped.
+///
+/// Holding it blocks writers: keep it for one query, not across calls
+/// into the same [`Library`].
+pub struct CatalogRead<'a>(MutexGuard<'a, Catalog>);
+
+impl Deref for CatalogRead<'_> {
+    type Target = Catalog;
+    fn deref(&self) -> &Catalog {
+        &self.0
+    }
+}
+
+/// Write access to the catalog, released when dropped.
+///
+/// Same locking rule as [`CatalogRead`]: one operation, then drop.
+pub struct CatalogWrite<'a>(MutexGuard<'a, Catalog>);
+
+impl Deref for CatalogWrite<'_> {
+    type Target = Catalog;
+    fn deref(&self) -> &Catalog {
+        &self.0
+    }
+}
+
+impl DerefMut for CatalogWrite<'_> {
+    fn deref_mut(&mut self) -> &mut Catalog {
+        &mut self.0
+    }
 }
 
 impl Library {
@@ -42,77 +94,164 @@ impl Library {
             std::fs::create_dir_all(root.join(dir))?;
         }
         let catalog = Catalog::create(&root.join("catalog.db"), name)?;
-        Ok(Library {
-            root: root.to_owned(),
-            catalog,
-            cache: PreviewCache::new(root.join("Cache")),
-            decodes: DecodeCache::new(DECODE_CACHE_CAPACITY),
-        })
+        Ok(Library::assemble(root, catalog))
     }
 
     /// Opens an existing library, applying pending catalog migrations.
     pub fn open(root: &Path) -> Result<Library> {
         let catalog = Catalog::open(&root.join("catalog.db"))?;
-        Ok(Library {
-            root: root.to_owned(),
-            catalog,
-            cache: PreviewCache::new(root.join("Cache")),
-            decodes: DecodeCache::new(DECODE_CACHE_CAPACITY),
-        })
+        Ok(Library::assemble(root, catalog))
     }
 
     /// Opens an existing library without write access — the §5 fallback for
     /// catalogs newer than this engine.
     pub fn open_read_only(root: &Path) -> Result<Library> {
         let catalog = Catalog::open_read_only(&root.join("catalog.db"))?;
-        Ok(Library {
-            root: root.to_owned(),
-            catalog,
-            cache: PreviewCache::new(root.join("Cache")),
-            decodes: DecodeCache::new(DECODE_CACHE_CAPACITY),
-        })
+        Ok(Library::assemble(root, catalog))
+    }
+
+    fn assemble(root: &Path, catalog: Catalog) -> Library {
+        Library {
+            inner: Arc::new(Inner {
+                root: root.to_owned(),
+                cache: PreviewCache::new(root.join("Cache")),
+                catalog: Mutex::new(catalog),
+                decodes: Mutex::new(DecodeCache::new(DECODE_CACHE_CAPACITY)),
+                subscribers: Mutex::new(Vec::new()),
+                next_job: AtomicU64::new(1),
+            }),
+        }
     }
 
     /// The library root directory.
     pub fn root(&self) -> &Path {
-        &self.root
+        &self.inner.root
+    }
+
+    /// Subscribes to the event stream (`docs/engine-api.md` §3.2).
+    ///
+    /// Every clone of the handle feeds the same stream. Events are
+    /// notifications, never complete data: re-query what you need.
+    pub fn subscribe(&self) -> Receiver<Event> {
+        let (sender, receiver) = channel();
+        lock(&self.inner.subscribers).push(sender);
+        receiver
+    }
+
+    /// Sends an event to every live subscriber, dropping dead ones.
+    fn emit(&self, event: Event) {
+        lock(&self.inner.subscribers).retain(|s| s.send(event.clone()).is_ok());
+    }
+
+    /// A process-unique id for a new job.
+    fn new_job(&self) -> JobId {
+        JobId::new(self.inner.next_job.fetch_add(1, Ordering::Relaxed))
     }
 
     /// Read access to the catalog: grid queries, trees, histories.
-    pub fn catalog(&self) -> &Catalog {
-        &self.catalog
+    pub fn catalog(&self) -> CatalogRead<'_> {
+        CatalogRead(lock(&self.inner.catalog))
     }
 
     /// Write access to the catalog: classement, keywords, collections...
     ///
     /// The facade adds orchestration only where several stores cooperate;
     /// pure catalog operations pass through undecorated.
-    pub fn catalog_mut(&mut self) -> &mut Catalog {
-        &mut self.catalog
+    pub fn catalog_mut(&self) -> CatalogWrite<'_> {
+        CatalogWrite(lock(&self.inner.catalog))
     }
 
     /// Imports files (`docs/engine-api.md` §6). `progress` receives
     /// `(done, total)` per candidate file.
+    ///
+    /// This is the synchronous core; it holds the catalog for the whole
+    /// batch. Prefer [`Library::import_async`] from interactive clients.
     pub fn import(
-        &mut self,
+        &self,
         source: &Path,
         options: &ImportOptions,
         progress: impl FnMut(u64, u64),
     ) -> Result<ImportReport> {
-        crate::import::import(&mut self.catalog, &self.root, source, options, progress)
+        let mut catalog = lock(&self.inner.catalog);
+        crate::import::import(&mut catalog, &self.inner.root, source, options, progress)
+    }
+
+    /// Imports files as a job (§3.1): returns immediately, progresses as
+    /// `JobProgress` per candidate file, then `AssetsAdded` and
+    /// `JobFinished` with the report.
+    pub fn import_async(&self, source: &Path, options: &ImportOptions) -> JobId {
+        let job = self.new_job();
+        let library = self.clone();
+        let source = source.to_owned();
+        let options = *options;
+        std::thread::spawn(move || {
+            let imported = library.import(&source, &options, |done, total| {
+                library.emit(Event::JobProgress {
+                    job_id: job,
+                    done,
+                    total,
+                });
+            });
+            let result = match imported {
+                Ok(report) => {
+                    let asset_ids: Vec<AssetId> = report
+                        .imported
+                        .iter()
+                        .map(|file| file.registered.asset)
+                        .collect();
+                    if !asset_ids.is_empty() {
+                        library.emit(Event::AssetsAdded { asset_ids });
+                    }
+                    JobResult::Import(report)
+                }
+                Err(error) => JobResult::Failed(error.to_string()),
+            };
+            library.emit(Event::JobFinished {
+                job_id: job,
+                result,
+            });
+        });
+        job
     }
 
     /// Returns the preview of the asset's current version, rendering it into
     /// the cache first when nothing valid exists (§11).
-    pub fn preview(&mut self, asset: AssetId, kind: PreviewKind) -> Result<PreviewFile> {
+    pub fn preview(&self, asset: AssetId, kind: PreviewKind) -> Result<PreviewFile> {
+        let mut catalog = lock(&self.inner.catalog);
+        let mut decodes = lock(&self.inner.decodes);
         crate::preview::preview(
-            &mut self.catalog,
-            &self.cache,
-            &mut self.decodes,
-            &self.root,
+            &mut catalog,
+            &self.inner.cache,
+            &mut decodes,
+            &self.inner.root,
             asset,
             kind,
         )
+    }
+
+    /// Renders a preview as a job (§3.1, §11): returns immediately, then
+    /// `PreviewReady` on success and `JobFinished` either way. A cache hit
+    /// still emits both — the client logic stays uniform.
+    pub fn preview_async(&self, asset: AssetId, kind: PreviewKind) -> JobId {
+        let job = self.new_job();
+        let library = self.clone();
+        std::thread::spawn(move || {
+            let result = match library.preview(asset, kind) {
+                Ok(file) => {
+                    library.emit(Event::PreviewReady {
+                        asset_id: asset,
+                        kind,
+                    });
+                    JobResult::Preview(file)
+                }
+                Err(error) => JobResult::Failed(error.to_string()),
+            };
+            library.emit(Event::JobFinished {
+                job_id: job,
+                result,
+            });
+        });
+        job
     }
 
     /// Returns the cached preview of the asset's current version when a
@@ -120,10 +259,10 @@ impl Library {
     /// what is already on disk instantly and schedule the rest.
     pub fn cached_preview(&self, asset: AssetId, kind: PreviewKind) -> Result<Option<PreviewFile>> {
         Ok(self
-            .catalog
+            .catalog()
             .valid_preview(asset, kind)?
             .map(|row| PreviewFile {
-                path: self.cache.absolute_path(&row.relative_path),
+                path: self.inner.cache.absolute_path(&row.relative_path),
                 width: row.width,
                 height: row.height,
                 freshly_generated: false,
@@ -132,15 +271,16 @@ impl Library {
 
     /// Exports a version at its head revision (§12) and returns the file.
     pub fn export(
-        &mut self,
+        &self,
         version: VersionId,
         settings: &ExportSettings,
         preset: Option<ExportPresetId>,
         destination_dir: &Path,
     ) -> Result<PathBuf> {
+        let mut catalog = lock(&self.inner.catalog);
         crate::export::export_version(
-            &mut self.catalog,
-            &self.root,
+            &mut catalog,
+            &self.inner.root,
             version,
             settings,
             preset,
@@ -152,15 +292,16 @@ impl Library {
     /// receives `(done, total)` per version; one failure does not stop the
     /// batch.
     pub fn export_batch(
-        &mut self,
+        &self,
         versions: &[VersionId],
         settings: &ExportSettings,
         destination_dir: &Path,
         progress: impl FnMut(u64, u64),
     ) -> Result<ExportReport> {
+        let mut catalog = lock(&self.inner.catalog);
         crate::export::export_batch(
-            &mut self.catalog,
-            &self.root,
+            &mut catalog,
+            &self.inner.root,
             versions,
             settings,
             None,
@@ -169,21 +310,56 @@ impl Library {
         )
     }
 
+    /// Exports several versions as a job (§3.1, §12): returns immediately,
+    /// progresses as `JobProgress` per version, then `JobFinished` with the
+    /// report (per-version failures inside it, batch failures as `Failed`).
+    pub fn export_async(
+        &self,
+        versions: Vec<VersionId>,
+        settings: ExportSettings,
+        destination_dir: PathBuf,
+    ) -> JobId {
+        let job = self.new_job();
+        let library = self.clone();
+        std::thread::spawn(move || {
+            let exported = library.export_batch(&versions, &settings, &destination_dir, {
+                let library = library.clone();
+                move |done, total| {
+                    library.emit(Event::JobProgress {
+                        job_id: job,
+                        done,
+                        total,
+                    });
+                }
+            });
+            let result = match exported {
+                Ok(report) => JobResult::Export(report),
+                Err(error) => JobResult::Failed(error.to_string()),
+            };
+            library.emit(Event::JobFinished {
+                job_id: job,
+                result,
+            });
+        });
+        job
+    }
+
     /// Exports several versions with a stored preset (§12): the preset's
     /// recipe drives the batch and each success is journaled against it.
     pub fn export_with_preset(
-        &mut self,
+        &self,
         versions: &[VersionId],
         preset: ExportPresetId,
         destination_dir: &Path,
         progress: impl FnMut(u64, u64),
     ) -> Result<ExportReport> {
-        let stored = self.catalog.export_preset(preset)?;
+        let mut catalog = lock(&self.inner.catalog);
+        let stored = catalog.export_preset(preset)?;
         let settings =
             ExportSettings::parse(&stored.settings_json).map_err(crate::export::export_err)?;
         crate::export::export_batch(
-            &mut self.catalog,
-            &self.root,
+            &mut catalog,
+            &self.inner.root,
             versions,
             &settings,
             Some(preset),
@@ -194,28 +370,36 @@ impl Library {
 
     /// Stores a named export preset (§12), validating the recipe first.
     pub fn create_export_preset(
-        &mut self,
+        &self,
         name: &str,
         settings: &ExportSettings,
     ) -> Result<ExportPresetId> {
         settings.validate().map_err(crate::export::export_err)?;
-        self.catalog.create_export_preset(name, &settings.to_json())
+        self.catalog_mut()
+            .create_export_preset(name, &settings.to_json())
     }
 
     /// Lists every stored export preset, ordered by name (§12).
     pub fn export_presets(&self) -> Result<Vec<ExportPreset>> {
-        self.catalog.export_presets()
+        self.catalog().export_presets()
     }
 
-    /// Opens an edit session on a version (§10.1). The session borrows the
-    /// library exclusively: nothing else mutates while editing.
-    pub fn edit(&mut self, version: VersionId) -> Result<EditSession<'_>> {
-        EditSession::open(&mut self.catalog, version)
+    /// Opens an edit session on a version (§10.1). The session holds the
+    /// catalog lock: nothing else mutates while editing, so keep sessions
+    /// short — Studio opens one per commit point.
+    pub fn edit(&self, version: VersionId) -> Result<EditSession<CatalogWrite<'_>>> {
+        EditSession::open(self.catalog_mut(), version)
     }
 
     /// Writes the XMP sidecar of an asset — the On Demand synchronization
     /// of `docs/catalog.md` §29 — and returns its path.
     pub fn write_xmp(&self, asset: AssetId) -> Result<PathBuf> {
-        crate::xmp::write_xmp_sidecar(&self.catalog, &self.root, asset)
+        crate::xmp::write_xmp_sidecar(&self.catalog(), &self.inner.root, asset)
     }
+}
+
+/// Locks a mutex, recovering the data if a previous holder panicked: the
+/// catalog is transactional, a poisoned lock carries no torn state.
+fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }

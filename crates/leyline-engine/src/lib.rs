@@ -9,6 +9,7 @@
 //! of `docs/engine-api.md` §10.1 on top of the catalog's revision mechanics.
 
 mod decode_cache;
+mod events;
 mod export;
 mod import;
 mod library;
@@ -22,9 +23,10 @@ mod source;
 mod xmp;
 
 pub use decode_cache::DecodeCache;
+pub use events::{Event, JobResult};
 pub use export::{ExportReport, ExportedVersion, FailedExport, export_batch, export_version};
 pub use import::{ImportOptions, ImportReport, ImportedFile, SkippedFile, import};
-pub use library::Library;
+pub use library::{CatalogRead, CatalogWrite, Library};
 pub use preview::{PreviewFile, preview};
 pub use render::{Rendered, render};
 pub use session::{DEFAULT_AMEND_WINDOW, EditSession, Param, Value};

@@ -7,7 +7,7 @@ use leyline_engine::{ImportOptions, Library};
 fn sidecar_reflects_the_catalog_truth() {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path().join("Lib");
-    let mut library = Library::create(&root, "XMP").unwrap();
+    let library = Library::create(&root, "XMP").unwrap();
 
     std::fs::write(dir.path().join("heron.png"), b"pixels").unwrap();
     let report = library
@@ -22,14 +22,17 @@ fn sidecar_reflects_the_catalog_truth() {
         .unwrap();
     let registered = report.imported[0].registered;
 
-    let catalog = library.catalog_mut();
-    catalog.set_rating(&[registered.version], Some(4)).unwrap();
-    catalog
-        .set_color_label(&[registered.version], Some(ColorLabel::Blue))
-        .unwrap();
-    let nature = catalog.create_keyword(None, "Nature").unwrap();
-    let heron = catalog.create_keyword(Some(nature), "Héron & co").unwrap();
-    catalog.add_keyword(&[registered.asset], heron).unwrap();
+    // Scoped: the catalog guard must be released before write_xmp locks.
+    {
+        let mut catalog = library.catalog_mut();
+        catalog.set_rating(&[registered.version], Some(4)).unwrap();
+        catalog
+            .set_color_label(&[registered.version], Some(ColorLabel::Blue))
+            .unwrap();
+        let nature = catalog.create_keyword(None, "Nature").unwrap();
+        let heron = catalog.create_keyword(Some(nature), "Héron & co").unwrap();
+        catalog.add_keyword(&[registered.asset], heron).unwrap();
+    }
 
     let sidecar = library.write_xmp(registered.asset).unwrap();
     assert_eq!(sidecar, root.join("Photos").join("heron.xmp"));

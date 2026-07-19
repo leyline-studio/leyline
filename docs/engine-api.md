@@ -53,21 +53,31 @@ pub enum Event {
     AssetsAdded { asset_ids: Vec<AssetId> },
     AssetsChanged { asset_ids: Vec<AssetId> },
     VersionChanged { version_id: VersionId },
-    PreviewReady { version_id: VersionId, kind: PreviewKind },
+    PreviewReady { asset_id: AssetId, kind: PreviewKind },
     JobProgress { job_id: JobId, done: u64, total: u64 },
     JobFinished { job_id: JobId, result: JobResult },
     LibraryClosed,
 }
+
+pub enum JobResult {
+    Import(ImportReport),   // échecs par fichier inclus dans le rapport
+    Export(ExportReport),   // échecs par version inclus dans le rapport
+    Preview(PreviewFile),
+    Failed(String),         // le job a échoué avant de produire quoi que ce soit
+}
 ```
 
-* La souscription rend un `Receiver<Event>` (canal standard).
-* Studio branche ce canal sur la boucle Slint ; la CLI le lit en séquence ; un script peut l'ignorer.
+* La souscription rend un `Receiver<Event>` (canal standard) : `library.subscribe()`.
+* Studio branche ce canal sur la boucle Slint ; la CLI le lit en séquence ; un script peut l'ignorer. Un récepteur abandonné se désabonne silencieusement.
 * Les événements sont des **notifications**, jamais des données complètes : le client re-requête ce dont il a besoin. Cela évite tout problème de cohérence entre le flux et la base.
+* `PreviewReady` porte l'asset (pas la version) : la surface preview est asset-based (§11), la preview rendue est toujours celle de la version courante de l'asset.
+* **État livré** : `subscribe` et les jobs `import_async`, `preview_async`, `export_async` émettent `JobProgress`, `AssetsAdded`, `PreviewReady` et `JobFinished`. `AssetsChanged` et `VersionChanged` ne sont pas encore émis — les écritures directes au catalogue (classement, mots-clés, commits d'édition) ne notifient pas encore ; les variantes font partie du contrat et arriveront avec l'instrumentation de ces chemins.
 
 ## 3.3 Threading
 
-* `Library` est `Send + Sync` et se clone à coût nul (`Arc` interne).
-* Le moteur gère un pool de rendu dimensionné sur la machine.
+* `Library` est `Send + Sync` et se clone à coût nul (`Arc` interne). Chaque clone partage le même catalogue et le même flux d'événements.
+* Les accès catalogue passent par des gardes (`catalog()` / `catalog_mut()`) qui tiennent le verrou interne : une opération, puis relâcher — ne jamais garder une garde en travers d'un autre appel à la `Library` (une session d'édition tient la garde pour sa durée de vie, c'est voulu : rien d'autre ne mute pendant l'édition).
+* Chaque job `*_async` tourne sur son propre thread ; le rendu lui-même parallélise via le pool rayon (phase 7). Un pool de rendu dédié et borné reste à venir.
 * Les écritures catalogue sont sérialisées en interne ; le client n'a aucune contrainte d'ordre à respecter.
 
 ---
@@ -138,11 +148,16 @@ pub struct ImportOptions {
 }
 
 impl Library {
-    pub fn import(&self, source: &Path, options: ImportOptions) -> Result<JobId>;
+    /// Le cœur synchrone : tient le catalogue pendant tout le lot.
+    pub fn import(&self, source: &Path, options: &ImportOptions,
+                  progress: impl FnMut(u64, u64)) -> Result<ImportReport>;
+    /// Le job : retourne immédiatement, progresse par `JobProgress`,
+    /// annonce `AssetsAdded` puis `JobFinished` avec le rapport.
+    pub fn import_async(&self, source: &Path, options: &ImportOptions) -> JobId;
 }
 ```
 
-L'import est un travail : extraction EXIF, checksum BLAKE3, création de la révision initiale et de la version `Default` (catalogue §18), génération des miniatures — le tout en flux, avec `JobProgress` par lot.
+L'import est un travail : extraction EXIF, checksum BLAKE3, création de la révision initiale et de la version `Default` (catalogue §18) — en flux, avec `JobProgress` par fichier candidat. La génération des miniatures reste à la charge du client (`preview_async` par asset), en attendant qu'elle soit intégrée au job d'import.
 
 ---
 
@@ -293,18 +308,20 @@ impl Library {
 
 Le client affiche toujours quelque chose immédiatement (`Ready` ou `Stale`), puis se met à jour sur `PreviewReady`. La validité suit strictement le catalogue §20 (`revision_id` de tête).
 
-**État transitoire (jobs/événements différés)** : tant que le modèle à `JobId` n'est pas livré, la surface synchrone tient lieu de contrat :
+**Surface livrée** : le get-or-generate synchrone, la lecture seule du cache, et le job de rendu. L'enum `Preview` (`Ready`/`Stale`/`Generating`) ci-dessus, qui fusionne les trois en un seul appel, reste à venir.
 
 ```rust
 impl Library {
     /// Get-or-generate synchrone : rend la preview si rien de valide en cache.
-    pub fn preview(&mut self, asset: AssetId, kind: PreviewKind) -> Result<PreviewFile>;
+    pub fn preview(&self, asset: AssetId, kind: PreviewKind) -> Result<PreviewFile>;
     /// Lecture seule du cache : `None` si rien de valide, ne rend jamais.
     pub fn cached_preview(&self, asset: AssetId, kind: PreviewKind) -> Result<Option<PreviewFile>>;
+    /// Le job : `PreviewReady` en cas de succès, puis `JobFinished`.
+    pub fn preview_async(&self, asset: AssetId, kind: PreviewKind) -> JobId;
 }
 ```
 
-`cached_preview` permet au client le même motif que `Ready`/`Generating` : afficher immédiatement ce qui existe, planifier lui-même la génération du reste (Studio remplit sa grille ainsi).
+`cached_preview` permet au client le même motif que `Ready`/`Generating` : afficher immédiatement ce qui existe, planifier la génération du reste — désormais via `preview_async` et l'événement `PreviewReady` (Studio peut remplacer son timer par ce flux).
 
 La `Library` garde en mémoire les derniers décodages source (cache MRU borné, phase 7) : la boucle de développement re-rend le même asset après chaque commit de curseur, et sans ce cache chaque ajustement payait un décodage LibRaw complet. Les fichiers source ne changeant jamais (édition non-destructive), une entrée reste valide toute la vie du processus ; les pixels servis sont bit-à-bit ceux d'un décodage frais (`pipeline.md` §5), la reproductibilité n'est pas affectée.
 
@@ -322,6 +339,17 @@ pub struct ExportRequest {
 impl Library {
     pub fn export(&self, request: ExportRequest) -> Result<JobId>;
     pub fn export_presets(&self) -> Result<Vec<ExportPreset>>;
+}
+```
+
+**Surface livrée** : la forme à `ExportRequest` unique reste à venir ; aujourd'hui l'export existe en synchrone (`export`, `export_batch`, `export_with_preset` — recette ad hoc ou preset) et en job pour la recette ad hoc :
+
+```rust
+impl Library {
+    /// Le job : `JobProgress` par version, puis `JobFinished` avec le
+    /// rapport (échecs par version dans le rapport, échec du lot en `Failed`).
+    pub fn export_async(&self, versions: Vec<VersionId>,
+                        settings: ExportSettings, destination_dir: PathBuf) -> JobId;
 }
 ```
 

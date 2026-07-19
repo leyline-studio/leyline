@@ -23,7 +23,7 @@ fn create_open_and_work_end_to_end() {
     drop(library);
 
     // Reopen and drive a full flow through the one handle.
-    let mut library = Library::open(&root).unwrap();
+    let library = Library::open(&root).unwrap();
     std::fs::write(dir.path().join("photo.png"), b"pixels").unwrap();
     let report = library
         .import(
@@ -71,7 +71,7 @@ fn read_only_handles_refuse_writes() {
     let root = dir.path().join("RO");
     drop(Library::create(&root, "RO").unwrap());
 
-    let mut library = Library::open_read_only(&root).unwrap();
+    let library = Library::open_read_only(&root).unwrap();
     assert!(library.catalog().is_read_only());
     assert!(matches!(
         library.catalog_mut().ensure_folder("Photos/New"),

@@ -126,7 +126,7 @@ fn a_failing_version_does_not_stop_the_batch() {
 #[test]
 fn presets_are_validated_stored_and_drive_batches() {
     let dir = tempfile::tempdir().unwrap();
-    let mut library = Library::create(&dir.path().join("Library"), "Presets").unwrap();
+    let library = Library::create(&dir.path().join("Library"), "Presets").unwrap();
 
     // The facade refuses an invalid recipe instead of storing it.
     assert!(matches!(

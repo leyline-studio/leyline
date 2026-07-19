@@ -10,6 +10,7 @@
 //!
 //! Dropping a session commits any pending state: nothing is ever lost.
 
+use std::ops::DerefMut;
 use std::time::{Duration, Instant};
 
 use leyline_catalog::{Catalog, RevisionRow};
@@ -91,10 +92,12 @@ enum Pending {
 /// An open edit session on one develop version (`docs/engine-api.md` §10.1).
 ///
 /// The session holds the only write handle: while it lives, nothing else
-/// mutates the version, so its in-memory state is authoritative.
+/// mutates the version, so its in-memory state is authoritative. It is
+/// generic over how that handle is held — a plain `&mut Catalog`, or the
+/// lock guard a shared [`crate::Library`] hands out.
 #[derive(Debug)]
-pub struct EditSession<'c> {
-    catalog: &'c mut Catalog,
+pub struct EditSession<C: DerefMut<Target = Catalog>> {
+    catalog: C,
     version: VersionId,
     settings: Settings,
     pending: Pending,
@@ -104,13 +107,13 @@ pub struct EditSession<'c> {
     amend_window: Duration,
 }
 
-impl<'c> EditSession<'c> {
+impl<C: DerefMut<Target = Catalog>> EditSession<C> {
     /// Opens a session on the version's head.
     ///
     /// A head written by a newer engine (newer `schema` or `process`) is
     /// refused with [`LeylineError::NewerSettings`]: the client shows the
     /// best cached preview with a warning instead (`docs/pipeline.md` §3.4).
-    pub fn open(catalog: &'c mut Catalog, version: VersionId) -> Result<EditSession<'c>> {
+    pub fn open(catalog: C, version: VersionId) -> Result<EditSession<C>> {
         let head = catalog.version_head(version)?;
         let settings = Settings::parse(&catalog.revision(head)?.settings_json)?;
         if settings.schema > CURRENT_SCHEMA || settings.process > CURRENT_PROCESS {
@@ -239,7 +242,7 @@ impl<'c> EditSession<'c> {
     }
 }
 
-impl Drop for EditSession<'_> {
+impl<C: DerefMut<Target = Catalog>> Drop for EditSession<C> {
     /// Closing the session commits the pending state: nothing is ever lost
     /// (`docs/engine-api.md` §10.1). A failing drop-commit is unreportable
     /// and ignored; call [`EditSession::commit`] explicitly to observe errors.
