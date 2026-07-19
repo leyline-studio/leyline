@@ -293,6 +293,19 @@ impl Library {
 
 Le client affiche toujours quelque chose immédiatement (`Ready` ou `Stale`), puis se met à jour sur `PreviewReady`. La validité suit strictement le catalogue §20 (`revision_id` de tête).
 
+**État transitoire (jobs/événements différés)** : tant que le modèle à `JobId` n'est pas livré, la surface synchrone tient lieu de contrat :
+
+```rust
+impl Library {
+    /// Get-or-generate synchrone : rend la preview si rien de valide en cache.
+    pub fn preview(&mut self, asset: AssetId, kind: PreviewKind) -> Result<PreviewFile>;
+    /// Lecture seule du cache : `None` si rien de valide, ne rend jamais.
+    pub fn cached_preview(&self, asset: AssetId, kind: PreviewKind) -> Result<Option<PreviewFile>>;
+}
+```
+
+`cached_preview` permet au client le même motif que `Ready`/`Generating` : afficher immédiatement ce qui existe, planifier lui-même la génération du reste (Studio remplit sa grille ainsi).
+
 ---
 
 # 12. Export
