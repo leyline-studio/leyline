@@ -38,6 +38,10 @@ export struct DevSettings {
     crop-top: float,
     crop-width: float,
     crop-height: float,
+    nr-luminance: float,
+    nr-color: float,
+    sharpen-amount: float,
+    sharpen-radius: float,
 }
 
 component DetailRow inherits HorizontalLayout {
@@ -447,6 +451,49 @@ export component StudioWindow inherits Window {
                             value: root.dev.saturation;
                             edited(v) => {
                                 root.develop-edit("saturation", v);
+                            }
+                        }
+
+                        Text {
+                            text: "Detail";
+                            color: #9a9a9a;
+                            font-size: 11px;
+                        }
+                        EditSlider {
+                            label: "Luminance NR";
+                            minimum: 0;
+                            maximum: 100;
+                            value: root.dev.nr-luminance;
+                            edited(v) => {
+                                root.develop-edit("nr-luminance", v);
+                            }
+                        }
+                        EditSlider {
+                            label: "Color NR";
+                            minimum: 0;
+                            maximum: 100;
+                            value: root.dev.nr-color;
+                            edited(v) => {
+                                root.develop-edit("nr-color", v);
+                            }
+                        }
+                        EditSlider {
+                            label: "Sharpen amount";
+                            minimum: 0;
+                            maximum: 100;
+                            value: root.dev.sharpen-amount;
+                            edited(v) => {
+                                root.develop-edit("sharpen-amount", v);
+                            }
+                        }
+                        EditSlider {
+                            label: "Sharpen radius";
+                            minimum: 0.5;
+                            maximum: 3;
+                            decimals: 1;
+                            value: root.dev.sharpen-radius;
+                            edited(v) => {
+                                root.develop-edit("sharpen-radius", v);
                             }
                         }
 

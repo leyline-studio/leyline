@@ -300,10 +300,8 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             };
             let committed = (|| {
                 let mut session = app.library.edit(version)?;
-                let wb = session.settings().white_balance.clone();
-                let crop = session.settings().crop.clone();
                 let Some((param, value)) =
-                    develop::action(slider.as_str(), f64::from(value), wb, crop)
+                    develop::action(slider.as_str(), f64::from(value), session.settings())
                 else {
                     return Ok(());
                 };
@@ -668,6 +666,10 @@ fn dev_model(settings: &Settings) -> ui::DevSettings {
         crop_top: (crop.y * 100.0) as f32,
         crop_width: (crop.width * 100.0) as f32,
         crop_height: (crop.height * 100.0) as f32,
+        nr_luminance: settings.noise_reduction.luminance as f32,
+        nr_color: settings.noise_reduction.color as f32,
+        sharpen_amount: settings.sharpening.amount as f32,
+        sharpen_radius: settings.sharpening.radius as f32,
     }
 }
 
