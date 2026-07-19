@@ -14,6 +14,20 @@ export struct Cell {
     has-label: bool,
 }
 
+// Develop slider values, mirrored from the Settings held in Rust.
+export struct DevSettings {
+    exposure: float,
+    contrast: float,
+    highlights: float,
+    shadows: float,
+    whites: float,
+    blacks: float,
+    vibrance: float,
+    saturation: float,
+    wb-temp: float,
+    wb-tint: float,
+}
+
 component DetailRow inherits HorizontalLayout {
     in property <string> label;
     in property <string> value;
@@ -61,6 +75,70 @@ component FilterChip inherits Rectangle {
     }
 }
 
+// One develop slider. The displayed position follows the authoritative
+// value from Rust except while dragging, so refreshing the settings after
+// a commit never breaks a binding.
+component EditSlider inherits VerticalLayout {
+    in property <string> label;
+    in property <float> minimum;
+    in property <float> maximum;
+    in property <float> value;
+    in property <int> decimals;
+    callback edited(float);
+
+    property <bool> dragging;
+    property <float> drag-value;
+    property <float> shown: root.dragging ? root.drag-value : root.value;
+    property <float> factor: root.decimals == 0 ? 1 : 100;
+
+    spacing: 2px;
+
+    HorizontalLayout {
+        Text {
+            text: root.label;
+            color: #9a9a9a;
+            font-size: 12px;
+            horizontal-stretch: 1;
+        }
+        Text {
+            text: Math.round(root.shown * root.factor) / root.factor;
+            color: #e6e6e6;
+            font-size: 12px;
+        }
+    }
+    track := Rectangle {
+        height: 14px;
+        Rectangle {
+            y: parent.height / 2 - 2px;
+            height: 4px;
+            border-radius: 2px;
+            background: #333333;
+        }
+        Rectangle {
+            x: (track.width - 12px) * (root.shown - root.minimum) / (root.maximum - root.minimum);
+            y: parent.height / 2 - 6px;
+            width: 12px;
+            height: 12px;
+            border-radius: 6px;
+            background: root.dragging ? #6fa8dc : #8a8a8a;
+        }
+        TouchArea {
+            moved => {
+                if (self.pressed) {
+                    root.dragging = true;
+                    root.drag-value = Math.clamp(root.minimum + (self.mouse-x / self.width) * (root.maximum - root.minimum), root.minimum, root.maximum);
+                }
+            }
+            pointer-event(event) => {
+                if (event.kind == PointerEventKind.up && root.dragging) {
+                    root.dragging = false;
+                    root.edited(root.drag-value);
+                }
+            }
+        }
+    }
+}
+
 export component StudioWindow inherits Window {
     title: "Leyline Studio — " + root.library-name;
     preferred-width: 1280px;
@@ -89,12 +167,23 @@ export component StudioWindow inherits Window {
     in property <string> detail-lens;
     in property <string> detail-exposure;
 
+    // Develop view state, mirrored from Rust.
+    in property <bool> develop-mode;
+    in property <image> develop-image;
+    in property <string> develop-filename;
+    in property <DevSettings> dev;
+
     callback select(int);
     callback classify(string);
     callback rating-filter(int);
     callback label-filter(int);
     callback pick-filter(int);
     callback cycle-sort();
+    callback enter-develop();
+    callback exit-develop();
+    callback develop-edit(string, float);
+    callback develop-undo();
+    callback develop-redo();
 
     property <length> cell-size: 176px;
 
@@ -114,6 +203,26 @@ export component StudioWindow inherits Window {
 
     keys := FocusScope {
         key-pressed(event) => {
+            if (root.develop-mode) {
+                if (event.text == "g" || event.text == "G" || event.text == Key.Escape) {
+                    root.exit-develop();
+                    return accept;
+                }
+                if (event.modifiers.control && (event.text == "z" || event.text == "Z")) {
+                    root.develop-undo();
+                    return accept;
+                }
+                if (event.modifiers.control && (event.text == "y" || event.text == "Y")) {
+                    root.develop-redo();
+                    return accept;
+                }
+                root.classify(event.text);
+                return accept;
+            }
+            if (event.text == "d" || event.text == "D") {
+                root.enter-develop();
+                return accept;
+            }
             if (event.text == Key.LeftArrow) {
                 root.select-cell(max(root.selected - 1, 0));
                 return accept;
@@ -135,6 +244,160 @@ export component StudioWindow inherits Window {
         }
 
         HorizontalLayout {
+            visible: root.develop-mode;
+            VerticalLayout {
+                horizontal-stretch: 1;
+                padding: 12px;
+                spacing: 8px;
+
+                HorizontalLayout {
+                    Text {
+                        text: root.develop-filename;
+                        color: #f0f0f0;
+                        font-size: 14px;
+                        font-weight: 600;
+                        overflow: elide;
+                        horizontal-stretch: 1;
+                    }
+                    Text {
+                        text: "G: library · Ctrl+Z/Y: undo/redo";
+                        color: #666666;
+                        font-size: 12px;
+                    }
+                }
+
+                Image {
+                    source: root.develop-image;
+                    image-fit: contain;
+                    vertical-stretch: 1;
+                }
+            }
+
+            Rectangle {
+                width: 300px;
+                background: #212121;
+
+                Flickable {
+                    VerticalLayout {
+                        padding: 16px;
+                        spacing: 12px;
+                        alignment: start;
+
+                        Text {
+                            text: "White balance";
+                            color: #9a9a9a;
+                            font-size: 11px;
+                        }
+                        EditSlider {
+                            label: "Temperature";
+                            minimum: 2000;
+                            maximum: 12000;
+                            value: root.dev.wb-temp;
+                            edited(v) => {
+                                root.develop-edit("wb-temp", v);
+                            }
+                        }
+                        EditSlider {
+                            label: "Tint";
+                            minimum: -100;
+                            maximum: 100;
+                            value: root.dev.wb-tint;
+                            edited(v) => {
+                                root.develop-edit("wb-tint", v);
+                            }
+                        }
+
+                        Text {
+                            text: "Tone";
+                            color: #9a9a9a;
+                            font-size: 11px;
+                        }
+                        EditSlider {
+                            label: "Exposure";
+                            minimum: -5;
+                            maximum: 5;
+                            decimals: 2;
+                            value: root.dev.exposure;
+                            edited(v) => {
+                                root.develop-edit("exposure", v);
+                            }
+                        }
+                        EditSlider {
+                            label: "Contrast";
+                            minimum: -100;
+                            maximum: 100;
+                            value: root.dev.contrast;
+                            edited(v) => {
+                                root.develop-edit("contrast", v);
+                            }
+                        }
+                        EditSlider {
+                            label: "Highlights";
+                            minimum: -100;
+                            maximum: 100;
+                            value: root.dev.highlights;
+                            edited(v) => {
+                                root.develop-edit("highlights", v);
+                            }
+                        }
+                        EditSlider {
+                            label: "Shadows";
+                            minimum: -100;
+                            maximum: 100;
+                            value: root.dev.shadows;
+                            edited(v) => {
+                                root.develop-edit("shadows", v);
+                            }
+                        }
+                        EditSlider {
+                            label: "Whites";
+                            minimum: -100;
+                            maximum: 100;
+                            value: root.dev.whites;
+                            edited(v) => {
+                                root.develop-edit("whites", v);
+                            }
+                        }
+                        EditSlider {
+                            label: "Blacks";
+                            minimum: -100;
+                            maximum: 100;
+                            value: root.dev.blacks;
+                            edited(v) => {
+                                root.develop-edit("blacks", v);
+                            }
+                        }
+
+                        Text {
+                            text: "Presence";
+                            color: #9a9a9a;
+                            font-size: 11px;
+                        }
+                        EditSlider {
+                            label: "Vibrance";
+                            minimum: -100;
+                            maximum: 100;
+                            value: root.dev.vibrance;
+                            edited(v) => {
+                                root.develop-edit("vibrance", v);
+                            }
+                        }
+                        EditSlider {
+                            label: "Saturation";
+                            minimum: -100;
+                            maximum: 100;
+                            value: root.dev.saturation;
+                            edited(v) => {
+                                root.develop-edit("saturation", v);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        HorizontalLayout {
+            visible: !root.develop-mode;
             VerticalLayout {
                 horizontal-stretch: 1;
                 padding: 12px;
