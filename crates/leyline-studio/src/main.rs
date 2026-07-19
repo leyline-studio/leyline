@@ -743,6 +743,10 @@ fn reload(app: &mut App, window: &StudioWindow) -> Result<(), String> {
         .catalog()
         .count(&app.query)
         .map_err(|e| e.to_string())?;
+    // The default window stops at 1 000 rows; widen it to the full result
+    // set so large libraries are not silently truncated. Cells are cheap —
+    // thumbnails stay lazy, filled visible-first by the timer.
+    app.query.range = 0..u32::try_from(total).unwrap_or(u32::MAX);
     let items = app
         .library
         .catalog()
