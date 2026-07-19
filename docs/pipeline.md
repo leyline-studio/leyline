@@ -179,6 +179,15 @@ Règle fondamentale :
 
 Le code des anciennes process versions est conservé dans le moteur : c'est le prix de la promesse « mêmes pixels dans dix ans ».
 
+Versions connues :
+
+| `process` | Définition |
+|---|---|
+| 1 | Pipeline initial (`process1.rs`) : fonctions de transfert sRGB exactes (`powf` par échantillon) |
+| 2 | Identique à 1, fonctions de transfert par table de 4096 intervalles avec interpolation linéaire (ADR 0013) — écart < 2·10⁻⁵, invisible en 8 bits mais pas bit-identique |
+
+Une révision éditée hérite du process de son parent ; seules les nouvelles révisions par défaut (imports) écrivent la version courante.
+
 ---
 
 ## 3.4 Évolution du schéma

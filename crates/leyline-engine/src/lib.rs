@@ -15,6 +15,7 @@ mod library;
 mod pixels;
 mod preview;
 mod process1;
+mod process2;
 mod render;
 mod session;
 mod xmp;

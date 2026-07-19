@@ -10,6 +10,7 @@ use leyline_core::{LeylineError, Result};
 use leyline_raw::RawImage;
 
 use crate::process1;
+use crate::process2;
 
 /// A rendered develop result: tightly packed, interleaved 8-bit RGB.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -39,6 +40,7 @@ pub fn render(image: &RawImage, settings: &Settings) -> Result<Rendered> {
     settings.validate()?;
     match settings.process {
         1 => process1::develop(image, settings),
+        2 => process2::develop(image, settings),
         other => Err(LeylineError::InvalidSettings(format!(
             "process version {other} does not exist"
         ))),
@@ -332,6 +334,28 @@ mod tests {
         // Top-left crop pixel is source pixel (3, 4).
         let src = &image.data[((4 * 12 + 3) * 3)..((4 * 12 + 3) * 3 + 3)];
         assert_eq!(&out.data[0..3], src);
+    }
+
+    #[test]
+    fn process_2_matches_process_1_within_one_8bit_step() {
+        // The LUT approximation (ADR 0013) may move a sample across a
+        // rounding boundary, never further.
+        let image = test_image();
+        let settings = |process| Settings {
+            process,
+            white_balance: Some(WhiteBalance {
+                temperature: 5000,
+                tint: 10,
+            }),
+            exposure: 0.4,
+            ..Settings::default()
+        };
+        let p1 = render(&image, &settings(1)).unwrap();
+        let p2 = render(&image, &settings(2)).unwrap();
+        assert_eq!(p1.data.len(), p2.data.len());
+        for (a, b) in p1.data.iter().zip(&p2.data) {
+            assert!(a.abs_diff(*b) <= 1, "{a} vs {b}");
+        }
     }
 
     #[test]

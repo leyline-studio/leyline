@@ -17,7 +17,9 @@ use crate::error::{LeylineError, Result};
 pub const CURRENT_SCHEMA: u32 = 1;
 
 /// Most recent process (rendering) version this engine implements.
-pub const CURRENT_PROCESS: u32 = 1;
+/// Process 2 (ADR 0013) renders like process 1 with the sRGB transfer
+/// functions computed by lookup table.
+pub const CURRENT_PROCESS: u32 = 2;
 
 /// White balance override, in physical units.
 ///

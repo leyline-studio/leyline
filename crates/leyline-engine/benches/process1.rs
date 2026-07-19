@@ -1,12 +1,14 @@
-//! Benchmarks of the process 1 rendering pipeline (`docs/roadmap.md`
+//! Benchmarks of the develop rendering pipeline (`docs/roadmap.md`
 //! phase 7).
 //!
 //! A synthetic 3 MP gradient image stands in for a decoded RAW so the
-//! numbers isolate the operators from LibRaw and the disk. Groups follow
-//! the pipeline sections: `neutral` is the pass-through floor, `tone`,
-//! `color` and `detail` exercise the per-pixel and blur operators,
-//! `geometry` the resampling ones, and `full` a realistic edit touching
-//! everything. Run with `cargo bench -p leyline-engine`.
+//! numbers isolate the operators from LibRaw and the disk. The `process1`
+//! group follows the pipeline sections: `neutral` is the pass-through
+//! floor, `tone`, `color` and `detail` exercise the per-pixel and blur
+//! operators, `geometry` the resampling ones, and `full` a realistic edit
+//! touching everything. The `process2` group repeats the transfer-heavy
+//! cases through the LUT pipeline (ADR 0013) for comparison. Run with
+//! `cargo bench -p leyline-engine`.
 
 use criterion::{Criterion, criterion_group, criterion_main};
 use leyline_core::{Crop, NoiseReduction, Settings, Sharpening, WhiteBalance};
@@ -41,8 +43,11 @@ fn synthetic_image() -> RawImage {
 }
 
 /// A typical tone edit: white balance, exposure and the four tone sliders.
+/// Pinned to process 1 so recorded baselines stay comparable; the
+/// `process2` group overrides the version.
 fn tone_settings() -> Settings {
     Settings {
+        process: 1,
         white_balance: Some(WhiteBalance {
             temperature: 5200,
             tint: 8,
@@ -57,13 +62,39 @@ fn tone_settings() -> Settings {
     }
 }
 
+/// The realistic everything-on edit shared by both `full` benches.
+fn full_settings() -> Settings {
+    Settings {
+        vibrance: 25,
+        noise_reduction: NoiseReduction {
+            luminance: 30,
+            color: 20,
+        },
+        sharpening: Sharpening {
+            amount: 50,
+            radius: 1.0,
+        },
+        rotation: 1.5,
+        crop: Some(Crop {
+            x: 0.05,
+            y: 0.05,
+            width: 0.9,
+            height: 0.9,
+        }),
+        ..tone_settings()
+    }
+}
+
 fn benches(c: &mut Criterion) {
     let image = synthetic_image();
     let mut group = c.benchmark_group("process1");
     group.sample_size(10);
 
     group.bench_function("neutral", |b| {
-        let settings = Settings::default();
+        let settings = Settings {
+            process: 1,
+            ..Settings::default()
+        };
         b.iter(|| render(black_box(&image), black_box(&settings)).unwrap());
     });
 
@@ -74,6 +105,7 @@ fn benches(c: &mut Criterion) {
 
     group.bench_function("color", |b| {
         let settings = Settings {
+            process: 1,
             vibrance: 30,
             saturation: 10,
             ..Settings::default()
@@ -83,6 +115,7 @@ fn benches(c: &mut Criterion) {
 
     group.bench_function("detail", |b| {
         let settings = Settings {
+            process: 1,
             noise_reduction: NoiseReduction {
                 luminance: 40,
                 color: 30,
@@ -98,6 +131,7 @@ fn benches(c: &mut Criterion) {
 
     group.bench_function("geometry", |b| {
         let settings = Settings {
+            process: 1,
             rotation: 2.0,
             crop: Some(Crop {
                 x: 0.1,
@@ -111,24 +145,28 @@ fn benches(c: &mut Criterion) {
     });
 
     group.bench_function("full", |b| {
+        let settings = full_settings();
+        b.iter(|| render(black_box(&image), black_box(&settings)).unwrap());
+    });
+
+    group.finish();
+
+    // The transfer-heavy cases again through the LUT pipeline (ADR 0013).
+    let mut group = c.benchmark_group("process2");
+    group.sample_size(10);
+
+    group.bench_function("tone", |b| {
         let settings = Settings {
-            vibrance: 25,
-            noise_reduction: NoiseReduction {
-                luminance: 30,
-                color: 20,
-            },
-            sharpening: Sharpening {
-                amount: 50,
-                radius: 1.0,
-            },
-            rotation: 1.5,
-            crop: Some(Crop {
-                x: 0.05,
-                y: 0.05,
-                width: 0.9,
-                height: 0.9,
-            }),
+            process: 2,
             ..tone_settings()
+        };
+        b.iter(|| render(black_box(&image), black_box(&settings)).unwrap());
+    });
+
+    group.bench_function("full", |b| {
+        let settings = Settings {
+            process: 2,
+            ..full_settings()
         };
         b.iter(|| render(black_box(&image), black_box(&settings)).unwrap());
     });
