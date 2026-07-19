@@ -21,8 +21,8 @@ Usage:
   leyline ls <library> [--text <query>] [--rating <min>]
   leyline preview <library> <asset-id> [--kind <thumbnail|small|medium|large|full>]
   leyline export <library> <dest-dir> <version-id>...
-                 [--preset <name>] [--png] [--quality <1-100>] [--max-edge <px>]
-  leyline preset <library> <name> [--png] [--quality <1-100>] [--max-edge <px>]
+                 [--preset <name>] [--format <f>] [--quality <1-100>] [--max-edge <px>]
+  leyline preset <library> <name> [--format <f>] [--quality <1-100>] [--max-edge <px>]
   leyline presets <library>
   leyline exports <library> <asset-id>
   leyline rate <library> <stars|none> <version-id>...
@@ -34,6 +34,7 @@ Usage:
 Options:
   --reference   Reference files in place instead of copying into Photos/
   --flat        Do not descend into subdirectories
+  --format <f>  Export format: jpeg (default), png, tiff, webp
 
 Develop params (docs/pipeline.md §3.2, schema 1):
   exposure rotation                 decimal
@@ -408,8 +409,14 @@ fn history(args: &[String]) -> Result<(), String> {
 /// Builds an [`ExportSettings`] from the shared recipe flags.
 fn recipe(options: &Options) -> Result<ExportSettings, String> {
     let mut settings = ExportSettings::default();
-    if options.switch("png") {
-        settings.format = ExportFormat::Png;
+    if let Some(format) = options.value("format") {
+        settings.format = match format {
+            "jpeg" | "jpg" => ExportFormat::Jpeg,
+            "png" => ExportFormat::Png,
+            "tiff" | "tif" => ExportFormat::Tiff,
+            "webp" => ExportFormat::Webp,
+            other => return Err(format!("unknown export format {other:?}")),
+        };
     }
     if let Some(quality) = options.value("quality") {
         settings.quality = quality
@@ -423,11 +430,11 @@ fn recipe(options: &Options) -> Result<ExportSettings, String> {
 }
 
 fn export(args: &[String]) -> Result<(), String> {
-    let (positional, options) = parse(args, &["preset", "quality", "max-edge"])?;
+    let (positional, options) = parse(args, &["preset", "format", "quality", "max-edge"])?;
     let [root, destination, ids @ ..] = positional.as_slice() else {
         return Err(
             "usage: leyline export <library> <dest-dir> <version-id>... \
-             [--preset <name>] [--png] [--quality <q>] [--max-edge <px>]"
+             [--preset <name>] [--format <f>] [--quality <q>] [--max-edge <px>]"
                 .to_owned(),
         );
     };
@@ -438,12 +445,12 @@ fn export(args: &[String]) -> Result<(), String> {
     let progress = |done: u64, total: u64| eprint!("\rexporting {done}/{total}");
     let report = match options.value("preset") {
         Some(name) => {
-            if options.switch("png")
+            if options.value("format").is_some()
                 || options.value("quality").is_some()
                 || options.value("max-edge").is_some()
             {
                 return Err("--preset already defines the recipe; \
-                     drop --png/--quality/--max-edge"
+                     drop --format/--quality/--max-edge"
                     .to_owned());
             }
             let stored = library
@@ -482,10 +489,10 @@ fn export(args: &[String]) -> Result<(), String> {
 }
 
 fn preset(args: &[String]) -> Result<(), String> {
-    let (positional, options) = parse(args, &["quality", "max-edge"])?;
+    let (positional, options) = parse(args, &["format", "quality", "max-edge"])?;
     let [root, name] = positional.as_slice() else {
         return Err("usage: leyline preset <library> <name> \
-             [--png] [--quality <q>] [--max-edge <px>]"
+             [--format <f>] [--quality <q>] [--max-edge <px>]"
             .to_owned());
     };
     let settings = recipe(&options)?;

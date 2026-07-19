@@ -2,8 +2,8 @@
 //!
 //! This crate only encodes: it receives finished 8-bit RGB pixels and
 //! writes them in the requested format. Rendering, scaling and catalog
-//! bookkeeping belong to the engine. V1 starts with JPEG and PNG; TIFF,
-//! WebP and AVIF are planned additions to [`ExportFormat`].
+//! bookkeeping belong to the engine. V1 covers JPEG, PNG, TIFF and
+//! (lossless) WebP; AVIF is a planned addition to [`ExportFormat`].
 //!
 //! [`ExportSettings`] doubles as the `settings_json` of export presets
 //! (`docs/catalog.md` §27), so a preset is exactly a named, stored instance
@@ -38,6 +38,10 @@ pub enum ExportFormat {
     Jpeg,
     /// PNG, lossless.
     Png,
+    /// TIFF, lossless, deflate-compressed.
+    Tiff,
+    /// WebP, lossless.
+    Webp,
 }
 
 impl ExportFormat {
@@ -46,6 +50,8 @@ impl ExportFormat {
         match self {
             ExportFormat::Jpeg => "jpg",
             ExportFormat::Png => "png",
+            ExportFormat::Tiff => "tif",
+            ExportFormat::Webp => "webp",
         }
     }
 }
@@ -154,6 +160,23 @@ pub fn encode(
                 .write_image_data(rgb8)
                 .map_err(|e| ExportError::Encode(e.to_string()))?;
         }
+        ExportFormat::Tiff => {
+            let file = std::fs::File::create(path)?;
+            let mut encoder = tiff::encoder::TiffEncoder::new(std::io::BufWriter::new(file))
+                .map_err(|e| ExportError::Encode(e.to_string()))?
+                .with_compression(tiff::encoder::Compression::Deflate(
+                    tiff::encoder::DeflateLevel::default(),
+                ));
+            encoder
+                .write_image::<tiff::encoder::colortype::RGB8>(width, height, rgb8)
+                .map_err(|e| ExportError::Encode(e.to_string()))?;
+        }
+        ExportFormat::Webp => {
+            let file = std::fs::File::create(path)?;
+            image_webp::WebPEncoder::new(std::io::BufWriter::new(file))
+                .encode(rgb8, width, height, image_webp::ColorType::Rgb8)
+                .map_err(|e| ExportError::Encode(e.to_string()))?;
+        }
     }
     Ok(())
 }
@@ -190,6 +213,25 @@ mod tests {
         encode(&png_path, 8, 6, &pixels, &png_settings).unwrap();
         let bytes = std::fs::read(&png_path).unwrap();
         assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n", "PNG signature");
+
+        let tif = dir.path().join("out.tif");
+        let tiff_settings = ExportSettings {
+            format: ExportFormat::Tiff,
+            ..ExportSettings::default()
+        };
+        encode(&tif, 8, 6, &pixels, &tiff_settings).unwrap();
+        let bytes = std::fs::read(&tif).unwrap();
+        assert_eq!(&bytes[..4], b"II*\0", "little-endian TIFF header");
+
+        let webp = dir.path().join("out.webp");
+        let webp_settings = ExportSettings {
+            format: ExportFormat::Webp,
+            ..ExportSettings::default()
+        };
+        encode(&webp, 8, 6, &pixels, &webp_settings).unwrap();
+        let bytes = std::fs::read(&webp).unwrap();
+        assert_eq!(&bytes[..4], b"RIFF", "WebP RIFF container");
+        assert_eq!(&bytes[8..12], b"WEBP", "WebP fourcc");
     }
 
     #[test]
@@ -238,7 +280,7 @@ mod tests {
             Err(ExportError::InvalidSettings(_))
         ));
         assert!(matches!(
-            ExportSettings::parse(r#"{"format":"webp"}"#),
+            ExportSettings::parse(r#"{"format":"avif"}"#),
             Err(ExportError::InvalidSettings(_))
         ));
     }
