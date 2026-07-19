@@ -164,7 +164,11 @@ export component StudioWindow inherits Window {
 
     in property <string> library-name;
     in property <string> status-line;
+    // The loaded window of grid cells; cell `i` shows grid row
+    // `window-start + i` out of `total-cells` matching rows.
     in property <[Cell]> cells;
+    in property <int> total-cells;
+    in property <int> window-start;
     in-out property <int> selected: -1;
 
     // Filter state, mirrored from the GridQuery held in Rust.
@@ -220,13 +224,14 @@ export component StudioWindow inherits Window {
     callback add-to-collection();
     callback remove-from-collection();
     callback search(string);
-    callback viewport-moved(int);
+    // First visible cell and how many cells fit, sent on scroll or resize.
+    callback viewport-moved(int, int);
 
     property <length> cell-size: 176px;
 
     // Moves the selection to `index` and scrolls it into view.
     function select-cell(index: int) {
-        if (index < 0 || index >= root.cells.length) {
+        if (index < 0 || index >= root.total-cells) {
             return;
         }
         root.selected = index;
@@ -792,14 +797,22 @@ export component StudioWindow inherits Window {
 
                 flick := Flickable {
                     property <int> columns: max(1, Math.floor(self.width / root.cell-size));
-                    viewport-height: Math.ceil(root.cells.length / self.columns) * root.cell-size;
-                    flicked => {
-                        root.viewport-moved(Math.floor(-self.viewport-y / root.cell-size) * self.columns);
+                    // Virtual scrolling: only the loaded window has cells, but
+                    // the viewport spans the whole grid; scrolling or resizing
+                    // asks Rust for the matching window.
+                    property <int> first-cell: Math.floor(-self.viewport-y / root.cell-size) * self.columns;
+                    property <int> visible-cells: (Math.ceil(self.height / root.cell-size) + 1) * self.columns;
+                    viewport-height: Math.ceil(root.total-cells / self.columns) * root.cell-size;
+                    changed first-cell => {
+                        root.viewport-moved(self.first-cell, self.visible-cells);
+                    }
+                    changed visible-cells => {
+                        root.viewport-moved(self.first-cell, self.visible-cells);
                     }
 
                     for cell[i] in root.cells: Rectangle {
-                        x: Math.mod(i, flick.columns) * root.cell-size;
-                        y: Math.floor(i / flick.columns) * root.cell-size;
+                        x: Math.mod(root.window-start + i, flick.columns) * root.cell-size;
+                        y: Math.floor((root.window-start + i) / flick.columns) * root.cell-size;
                         width: root.cell-size;
                         height: root.cell-size;
 
@@ -808,10 +821,10 @@ export component StudioWindow inherits Window {
                             y: 4px;
                             width: parent.width - 8px;
                             height: parent.height - 8px;
-                            background: i == root.selected ? #2f4f6f : #242424;
+                            background: root.window-start + i == root.selected ? #2f4f6f : #242424;
                             border-radius: 4px;
-                            border-width: i == root.selected ? 2px : 1px;
-                            border-color: i == root.selected ? #6fa8dc : #333333;
+                            border-width: root.window-start + i == root.selected ? 2px : 1px;
+                            border-color: root.window-start + i == root.selected ? #6fa8dc : #333333;
 
                             VerticalLayout {
                                 padding: 6px;
@@ -849,12 +862,12 @@ export component StudioWindow inherits Window {
 
                         TouchArea {
                             clicked => {
-                                root.selected = i;
-                                root.select(i);
+                                root.selected = root.window-start + i;
+                                root.select(root.window-start + i);
                             }
                             double-clicked => {
-                                root.selected = i;
-                                root.select(i);
+                                root.selected = root.window-start + i;
+                                root.select(root.window-start + i);
                                 root.enter-develop();
                             }
                         }

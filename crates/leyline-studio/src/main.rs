@@ -44,12 +44,23 @@ const SORTS: [(Sort, &str); 8] = [
     (Sort::Rating { ascending: true }, "rating ↑"),
 ];
 
+/// Cells kept loaded beyond each edge of the visible window; a new window
+/// is fetched once the viewport gets within half this margin of an edge.
+const OVERSCAN: usize = 48;
+
 /// Application state shared by every UI callback.
 struct App {
     library: Library,
     query: GridQuery,
-    /// Rows currently displayed, parallel to the grid cell model.
+    /// Rows of the loaded window, parallel to the grid cell model;
+    /// `items[0]` is grid row `window_start` (virtual scrolling).
     items: Vec<GridItem>,
+    /// Grid index of the first loaded row.
+    window_start: usize,
+    /// Total rows matching the query, loaded or not.
+    total: u64,
+    /// Last viewport reported by the UI: first visible cell, cell capacity.
+    viewport: (usize, usize),
     /// The photo open in the develop view, when in develop mode.
     develop: Option<(AssetId, VersionId)>,
     /// Stored export presets, parallel to the dialog's preset chips.
@@ -83,6 +94,9 @@ fn run() -> Result<(), String> {
         library,
         query: GridQuery::default(),
         items: Vec::new(),
+        window_start: 0,
+        total: 0,
+        viewport: (0, 0),
         develop: None,
         presets: Vec::new(),
         collections: Vec::new(),
@@ -114,15 +128,25 @@ fn run() -> Result<(), String> {
     wire_dialogs(&app, &window);
     wire_collections(&app, &window);
     {
-        // Scrolling reprioritizes the thumbnail queue: rows at or after
-        // the first visible cell are rendered before those scrolled past.
+        // Scrolling or resizing moves the visible window: fetch the matching
+        // rows from the catalog when the loaded window no longer covers it.
         let app = Rc::clone(&app);
-        window.on_viewport_moved(move |first| {
+        let handle = window.as_weak();
+        window.on_viewport_moved(move |first, capacity| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
             let mut app = app.borrow_mut();
-            let first = usize::try_from(first).unwrap_or(0);
-            let (visible, passed): (Vec<usize>, Vec<usize>) =
-                app.pending.iter().partition(|&&index| index >= first);
-            app.pending = visible.into_iter().chain(passed).collect();
+            app.viewport = (
+                usize::try_from(first).unwrap_or(0),
+                usize::try_from(capacity).unwrap_or(0).max(1),
+            );
+            let loaded = app.window_start..app.window_start + app.items.len();
+            if window_is_stale(app.viewport, &loaded, app.total)
+                && let Err(error) = load_window(&mut app, &window)
+            {
+                report_error(&window, &error);
+            }
         });
     }
     // Kept alive until the event loop ends: dropping the timer stops it.
@@ -180,9 +204,7 @@ fn wire_classify(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             return;
         };
         let mut app = app.borrow_mut();
-        let Some((version, label, pick)) = usize::try_from(window.get_selected())
-            .ok()
-            .and_then(|i| app.items.get(i))
+        let Some((version, label, pick)) = item_at(&app, window.get_selected())
             .map(|item| (item.version_id, item.color_label, item.pick))
         else {
             return;
@@ -301,9 +323,7 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 return;
             };
             let mut app = app.borrow_mut();
-            let Some((asset, version, filename)) = usize::try_from(window.get_selected())
-                .ok()
-                .and_then(|i| app.items.get(i))
+            let Some((asset, version, filename)) = item_at(&app, window.get_selected())
                 .map(|item| (item.asset_id, item.version_id, item.filename.clone()))
             else {
                 return;
@@ -490,10 +510,7 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 return;
             };
             let mut app = app.borrow_mut();
-            let Some(version) = usize::try_from(window.get_selected())
-                .ok()
-                .and_then(|i| app.items.get(i))
-                .map(|item| item.version_id)
+            let Some(version) = item_at(&app, window.get_selected()).map(|item| item.version_id)
             else {
                 window.set_dialog_result(SharedString::from("Select a photo first."));
                 return;
@@ -604,11 +621,7 @@ fn collection_membership(app: &mut App, window: &StudioWindow, add: bool) {
         report_error(window, "select a collection in the sidebar first");
         return;
     };
-    let Some(version) = usize::try_from(window.get_selected())
-        .ok()
-        .and_then(|i| app.items.get(i))
-        .map(|item| item.version_id)
-    else {
+    let Some(version) = item_at(app, window.get_selected()).map(|item| item.version_id) else {
         return;
     };
     let catalog = app.library.catalog_mut();
@@ -763,33 +776,59 @@ fn report_error(window: &StudioWindow, message: &str) {
     window.set_status_line(SharedString::from(format!("Error: {message}")));
 }
 
-/// Re-runs the grid query and rebuilds the cell model, keeping the current
-/// selection when the same version is still visible.
-fn reload(app: &mut App, window: &StudioWindow) -> Result<(), String> {
-    let keep: Option<VersionId> = usize::try_from(window.get_selected())
-        .ok()
-        .and_then(|i| app.items.get(i))
-        .map(|item| item.version_id);
+/// The window worth loading for a viewport: the visible cells plus the
+/// overscan margin on each side, clamped to the grid.
+fn desired_window(viewport: (usize, usize), total: u64) -> std::ops::Range<usize> {
+    let (first, capacity) = viewport;
+    let total = usize::try_from(total).unwrap_or(usize::MAX);
+    let start = first.saturating_sub(OVERSCAN).min(total);
+    let end = first
+        .saturating_add(capacity)
+        .saturating_add(OVERSCAN)
+        .min(total);
+    start..end.max(start)
+}
 
-    let total = app
-        .library
-        .catalog()
-        .count(&app.query)
-        .map_err(|e| e.to_string())?;
-    // The default window stops at 1 000 rows; widen it to the full result
-    // set so large libraries are not silently truncated. Cells are cheap —
-    // thumbnails stay lazy, filled visible-first by the timer.
-    app.query.range = 0..u32::try_from(total).unwrap_or(u32::MAX);
+/// True when the loaded window no longer serves the viewport: part of the
+/// visible range is missing, or an edge with more rows beyond it is closer
+/// than half the overscan margin.
+fn window_is_stale(viewport: (usize, usize), loaded: &std::ops::Range<usize>, total: u64) -> bool {
+    let (first, capacity) = viewport;
+    let total = usize::try_from(total).unwrap_or(usize::MAX);
+    let visible_end = first.saturating_add(capacity).min(total);
+    first < loaded.start
+        || visible_end > loaded.end
+        || (loaded.start > 0 && first < loaded.start + OVERSCAN / 2)
+        || (loaded.end < total && visible_end + OVERSCAN / 2 > loaded.end)
+}
+
+/// The grid item shown at a whole-grid index, when it is loaded.
+fn item_at(app: &App, index: i32) -> Option<&GridItem> {
+    usize::try_from(index)
+        .ok()?
+        .checked_sub(app.window_start)
+        .and_then(|i| app.items.get(i))
+}
+
+/// Fetches the window of rows serving the current viewport and rebuilds
+/// the cell model from it (virtual scrolling: the rest of the grid only
+/// exists as the scrollbar's extent).
+fn load_window(app: &mut App, window: &StudioWindow) -> Result<(), String> {
+    let range = desired_window(app.viewport, app.total);
+    app.query.range = u32::try_from(range.start).unwrap_or(u32::MAX)
+        ..u32::try_from(range.end).unwrap_or(u32::MAX);
     let items = app
         .library
         .catalog()
         .grid(&app.query)
         .map_err(|e| e.to_string())?;
 
-    // Only thumbnails already cached are loaded here, so the grid appears
-    // instantly; the rest are queued and rendered by the thumbnail timer.
+    // Only thumbnails already cached are loaded here, so the window appears
+    // instantly; the rest are queued and rendered by the thumbnail timer,
+    // visible cells before the overscan rows above them.
+    let first_visible = app.viewport.0.saturating_sub(range.start);
     let mut cells = Vec::with_capacity(items.len());
-    let mut pending = VecDeque::new();
+    let mut missing = Vec::new();
     for (index, item) in items.iter().enumerate() {
         let thumbnail = app
             .library
@@ -798,7 +837,7 @@ fn reload(app: &mut App, window: &StudioWindow) -> Result<(), String> {
             .flatten()
             .and_then(|file| slint::Image::load_from_path(&file.path).ok());
         if thumbnail.is_none() {
-            pending.push_back(index);
+            missing.push(index);
         }
         cells.push(Cell {
             thumbnail: thumbnail.unwrap_or_default(),
@@ -808,16 +847,44 @@ fn reload(app: &mut App, window: &StudioWindow) -> Result<(), String> {
             has_label: item.color_label.is_some(),
         });
     }
+    let (visible, above): (VecDeque<usize>, VecDeque<usize>) = missing
+        .into_iter()
+        .partition(|&index| index >= first_visible);
     app.items = items;
-    app.pending = pending;
+    app.window_start = range.start;
+    app.pending = visible.into_iter().chain(above).collect();
     app.cells = Rc::new(VecModel::from(cells));
 
     window.set_cells(ModelRc::from(Rc::clone(&app.cells)));
-    window.set_status_line(SharedString::from(status_line(app.items.len(), total)));
+    window.set_window_start(i32::try_from(range.start).unwrap_or(i32::MAX));
+
+    // The selection may have just scrolled into the loaded window (arrow
+    // navigation past the edge): fill the side panel now that its row exists.
+    let selected = window.get_selected();
+    if item_at(app, selected).is_some() {
+        show_details(app, window, selected);
+    }
+    Ok(())
+}
+
+/// Re-runs the grid query — count plus the visible window — and rebuilds
+/// the cell model, keeping the current selection when the same version is
+/// still in the loaded window.
+fn reload(app: &mut App, window: &StudioWindow) -> Result<(), String> {
+    let keep: Option<VersionId> = item_at(app, window.get_selected()).map(|item| item.version_id);
+
+    app.total = app
+        .library
+        .catalog()
+        .count(&app.query)
+        .map_err(|e| e.to_string())?;
+    window.set_total_cells(i32::try_from(app.total).unwrap_or(i32::MAX));
+    window.set_status_line(SharedString::from(format!("{} photos", app.total)));
+    load_window(app, window)?;
 
     let selected = keep
         .and_then(|version| app.items.iter().position(|item| item.version_id == version))
-        .and_then(|i| i32::try_from(i).ok())
+        .and_then(|i| i32::try_from(i + app.window_start).ok())
         .unwrap_or(-1);
     window.set_selected(selected);
     if selected >= 0 {
@@ -828,7 +895,7 @@ fn reload(app: &mut App, window: &StudioWindow) -> Result<(), String> {
 
 /// Reads and formats everything the side panel shows for one grid row.
 fn show_details(app: &App, window: &StudioWindow, index: i32) {
-    let Some(item) = usize::try_from(index).ok().and_then(|i| app.items.get(i)) else {
+    let Some(item) = item_at(app, index) else {
         return;
     };
     let details = match app.library.catalog().asset_details(item.asset_id) {
@@ -866,15 +933,6 @@ fn show_details(app: &App, window: &StudioWindow, index: i32) {
     window.set_detail_exposure(SharedString::from(
         meta.map_or_else(String::new, format::exposure_line),
     ));
-}
-
-/// The header line above the grid.
-fn status_line(shown: usize, total: u64) -> String {
-    if shown as u64 >= total {
-        format!("{total} photos")
-    } else {
-        format!("{shown} of {total} photos")
-    }
 }
 
 /// The label shown on the sort button for a sort order.
@@ -947,6 +1005,31 @@ mod tests {
             shape,
             vec![(1, "Travel", 0), (2, "Iceland", 1), (3, "Portfolio", 0)]
         );
+    }
+
+    #[test]
+    fn desired_window_pads_the_viewport_and_clamps_to_the_grid() {
+        assert_eq!(desired_window((0, 30), 10_000), 0..30 + OVERSCAN);
+        assert_eq!(
+            desired_window((500, 30), 10_000),
+            500 - OVERSCAN..530 + OVERSCAN
+        );
+        assert_eq!(desired_window((980, 30), 1_000), 980 - OVERSCAN..1_000);
+        assert_eq!(desired_window((0, 30), 10), 0..10);
+    }
+
+    #[test]
+    fn window_goes_stale_near_an_edge_with_rows_beyond_it() {
+        let loaded = 452..578; // desired_window((500, 30), 10_000)
+        assert!(!window_is_stale((500, 30), &loaded, 10_000));
+        // Drifting towards an edge crosses the half-overscan threshold.
+        assert!(window_is_stale((460, 30), &loaded, 10_000));
+        assert!(window_is_stale((530, 30), &loaded, 10_000));
+        // A jump lands entirely outside the loaded window.
+        assert!(window_is_stale((2_000, 30), &loaded, 10_000));
+        // At the ends of the grid the margin has nothing left to fetch.
+        assert!(!window_is_stale((0, 30), &(0..126), 10_000));
+        assert!(!window_is_stale((970, 30), &(922..1_000), 1_000));
     }
 
     #[test]
