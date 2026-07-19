@@ -259,7 +259,7 @@ export component StudioWindow inherits Window {
                 root.classify(event.text);
                 return accept;
             }
-            if (event.text == "d" || event.text == "D") {
+            if (event.text == "d" || event.text == "D" || event.text == Key.Return) {
                 root.enter-develop();
                 return accept;
             }
@@ -814,6 +814,11 @@ export component StudioWindow inherits Window {
                             clicked => {
                                 root.selected = i;
                                 root.select(i);
+                            }
+                            double-clicked => {
+                                root.selected = i;
+                                root.select(i);
+                                root.enter-develop();
                             }
                         }
                     }
