@@ -306,6 +306,8 @@ impl Library {
 
 `cached_preview` permet au client le même motif que `Ready`/`Generating` : afficher immédiatement ce qui existe, planifier lui-même la génération du reste (Studio remplit sa grille ainsi).
 
+La `Library` garde en mémoire les derniers décodages source (cache MRU borné, phase 7) : la boucle de développement re-rend le même asset après chaque commit de curseur, et sans ce cache chaque ajustement payait un décodage LibRaw complet. Les fichiers source ne changeant jamais (édition non-destructive), une entrée reste valide toute la vie du processus ; les pixels servis sont bit-à-bit ceux d'un décodage frais (`pipeline.md` §5), la reproductibilité n'est pas affectée.
+
 ---
 
 # 12. Export

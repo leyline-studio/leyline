@@ -14,10 +14,16 @@ use leyline_core::{AssetId, ExportPresetId, PreviewKind, Result, VersionId};
 use leyline_export::ExportSettings;
 use leyline_preview::PreviewCache;
 
+use crate::decode_cache::DecodeCache;
 use crate::export::ExportReport;
 use crate::import::{ImportOptions, ImportReport};
 use crate::preview::PreviewFile;
 use crate::session::EditSession;
+
+/// Decoded images kept in memory for preview renders. Two covers the
+/// develop loop (the edited asset, at worst in two size classes) while
+/// bounding memory: a full-size 24 MP decode is ~72 MB.
+const DECODE_CACHE_CAPACITY: usize = 2;
 
 /// An open Leyline library.
 #[derive(Debug)]
@@ -25,6 +31,7 @@ pub struct Library {
     root: PathBuf,
     catalog: Catalog,
     cache: PreviewCache,
+    decodes: DecodeCache,
 }
 
 impl Library {
@@ -39,6 +46,7 @@ impl Library {
             root: root.to_owned(),
             catalog,
             cache: PreviewCache::new(root.join("Cache")),
+            decodes: DecodeCache::new(DECODE_CACHE_CAPACITY),
         })
     }
 
@@ -49,6 +57,7 @@ impl Library {
             root: root.to_owned(),
             catalog,
             cache: PreviewCache::new(root.join("Cache")),
+            decodes: DecodeCache::new(DECODE_CACHE_CAPACITY),
         })
     }
 
@@ -60,6 +69,7 @@ impl Library {
             root: root.to_owned(),
             catalog,
             cache: PreviewCache::new(root.join("Cache")),
+            decodes: DecodeCache::new(DECODE_CACHE_CAPACITY),
         })
     }
 
@@ -95,7 +105,14 @@ impl Library {
     /// Returns the preview of the asset's current version, rendering it into
     /// the cache first when nothing valid exists (§11).
     pub fn preview(&mut self, asset: AssetId, kind: PreviewKind) -> Result<PreviewFile> {
-        crate::preview::preview(&mut self.catalog, &self.cache, &self.root, asset, kind)
+        crate::preview::preview(
+            &mut self.catalog,
+            &self.cache,
+            &mut self.decodes,
+            &self.root,
+            asset,
+            kind,
+        )
     }
 
     /// Returns the cached preview of the asset's current version when a

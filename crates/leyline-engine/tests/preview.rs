@@ -2,7 +2,7 @@
 
 use leyline_catalog::{Catalog, NewPreview};
 use leyline_core::{LeylineError, PreviewKind};
-use leyline_engine::{ImportOptions, import, preview};
+use leyline_engine::{DecodeCache, ImportOptions, import, preview};
 use leyline_preview::PreviewCache;
 
 fn library(dir: &tempfile::TempDir) -> (Catalog, std::path::PathBuf, PreviewCache) {
@@ -52,6 +52,7 @@ fn a_valid_cached_preview_is_served_without_decoding() {
     let served = preview(
         &mut catalog,
         &cache,
+        &mut DecodeCache::new(2),
         &root,
         registered.asset,
         PreviewKind::Thumbnail,
@@ -82,7 +83,15 @@ fn an_undecodable_asset_reports_decode_failure() {
     let asset = report.imported[0].registered.asset;
 
     // No valid cache entry: generation is attempted and the decoder refuses.
-    let err = preview(&mut catalog, &cache, &root, asset, PreviewKind::Thumbnail).unwrap_err();
+    let err = preview(
+        &mut catalog,
+        &cache,
+        &mut DecodeCache::new(2),
+        &root,
+        asset,
+        PreviewKind::Thumbnail,
+    )
+    .unwrap_err();
     assert!(matches!(err, LeylineError::DecodeFailed { asset: a, .. } if a == asset));
 }
 
@@ -109,13 +118,30 @@ fn generates_scaled_previews_from_a_real_raw() {
     assert_eq!(report.skipped, vec![], "the sample RAW must import");
     let asset = report.imported[0].registered.asset;
 
-    let thumb = preview(&mut catalog, &cache, &root, asset, PreviewKind::Thumbnail).unwrap();
+    let mut decodes = DecodeCache::new(2);
+    let thumb = preview(
+        &mut catalog,
+        &cache,
+        &mut decodes,
+        &root,
+        asset,
+        PreviewKind::Thumbnail,
+    )
+    .unwrap();
     assert!(thumb.freshly_generated);
     assert!(thumb.path.is_file());
     assert!(thumb.width.max(thumb.height) <= 256);
 
     // Second call: served from cache, same file.
-    let again = preview(&mut catalog, &cache, &root, asset, PreviewKind::Thumbnail).unwrap();
+    let again = preview(
+        &mut catalog,
+        &cache,
+        &mut decodes,
+        &root,
+        asset,
+        PreviewKind::Thumbnail,
+    )
+    .unwrap();
     assert!(!again.freshly_generated);
     assert_eq!(again.path, thumb.path);
 }

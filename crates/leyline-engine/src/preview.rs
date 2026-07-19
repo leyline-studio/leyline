@@ -14,6 +14,7 @@ use leyline_core::{AssetId, LeylineError, PreviewKind, Result, Settings};
 use leyline_preview::{PreviewCache, PreviewError, Rgb8};
 use leyline_raw::DecodeParams;
 
+use crate::decode_cache::DecodeCache;
 use crate::render;
 
 /// A preview file ready to display.
@@ -34,6 +35,7 @@ pub struct PreviewFile {
 pub fn preview(
     catalog: &mut Catalog,
     cache: &PreviewCache,
+    decodes: &mut DecodeCache,
     library_root: &Path,
     asset: AssetId,
     kind: PreviewKind,
@@ -52,21 +54,22 @@ pub fn preview(
 
     let relative = catalog.asset_relative_path(asset)?;
     let file = library_root.join(relative.replace('/', std::path::MAIN_SEPARATOR_STR));
-    let decoded = leyline_raw::decode(
-        &file,
-        &DecodeParams {
-            // Small size classes never need full resolution: half-size
-            // decoding is much faster and still ≥ 2× the target edge.
-            half_size: matches!(kind, PreviewKind::Thumbnail | PreviewKind::Small),
-            ..DecodeParams::default()
-        },
-    )
-    .map_err(|e| LeylineError::DecodeFailed {
-        asset,
-        reason: e.to_string(),
-    })?;
+    let params = DecodeParams {
+        // Small size classes never need full resolution: half-size
+        // decoding is much faster and still ≥ 2× the target edge.
+        half_size: matches!(kind, PreviewKind::Thumbnail | PreviewKind::Small),
+        ..DecodeParams::default()
+    };
+    let decoded = decodes
+        .get_or_insert_with(asset, &params, || {
+            leyline_raw::decode(&file, &params).map(|decoded| decoded.image)
+        })
+        .map_err(|e| LeylineError::DecodeFailed {
+            asset,
+            reason: e.to_string(),
+        })?;
 
-    let rendered = render(&decoded.image, &settings)?;
+    let rendered = render(&decoded, &settings)?;
     let image = Rgb8::new(rendered.width, rendered.height, rendered.data).map_err(preview_err)?;
     let stored = cache
         .store(asset, head, kind, &image)

@@ -8,6 +8,7 @@
 //! Editing goes through [`EditSession`], which owns the coalescence policy
 //! of `docs/engine-api.md` §10.1 on top of the catalog's revision mechanics.
 
+mod decode_cache;
 mod export;
 mod import;
 mod library;
@@ -18,6 +19,7 @@ mod render;
 mod session;
 mod xmp;
 
+pub use decode_cache::DecodeCache;
 pub use export::{ExportReport, ExportedVersion, FailedExport, export_batch, export_version};
 pub use import::{ImportOptions, ImportReport, ImportedFile, SkippedFile, import};
 pub use library::Library;
