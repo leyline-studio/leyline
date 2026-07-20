@@ -103,6 +103,66 @@ impl Correction {
     }
 }
 
+/// Subject distance assumed when de-vignetting, in meters: EXIF rarely
+/// records the real focus distance, and Lensfun's own convention uses 1000
+/// as its "effectively infinity" calibration bucket — the least wrong
+/// default for typical (non-macro) photography.
+const ASSUMED_DISTANCE_M: f32 = 1000.0;
+
+/// A vignetting (corner darkening) correction, configured for one shot.
+///
+/// A separate [`Modifier`] from [`Correction`]: Lensfun's `reverse` flag
+/// means opposite things for the two passes (`true` corrects distortion but
+/// *simulates* vignetting), so the two corrections can't share one
+/// `Modifier` instance.
+pub struct Vignetting {
+    modifier: Modifier,
+    /// Whether a calibration was found; [`Vignetting::gain_row`] always
+    /// returns identity gains otherwise, so callers can skip the
+    /// per-pixel work up front.
+    matched: bool,
+}
+
+impl Vignetting {
+    /// Builds the correction for one shot: focal length, aperture (f-number)
+    /// and the image's pixel dimensions.
+    pub fn new(
+        profile: &Profile,
+        focal_mm: f32,
+        aperture_f: f32,
+        width: u32,
+        height: u32,
+    ) -> Vignetting {
+        // `reverse = false`: opposite of `Correction::new` — see struct docs.
+        let mut modifier = Modifier::new(
+            profile.lens,
+            focal_mm,
+            profile.camera.crop_factor,
+            width,
+            height,
+            false,
+        );
+        let matched =
+            modifier.enable_vignetting_correction(profile.lens, aperture_f, ASSUMED_DISTANCE_M);
+        Vignetting { modifier, matched }
+    }
+
+    /// Whether a vignetting calibration was found for this shot.
+    pub fn matched(&self) -> bool {
+        self.matched
+    }
+
+    /// The gain to multiply each **linear-light** sample of output row `y`
+    /// by, `width` pixels wide starting at `x = 0`. All 1.0 when no
+    /// calibration matched — safe to apply unconditionally.
+    pub fn gain_row(&self, y: u32, width: u32) -> Vec<f32> {
+        let mut gains = vec![1.0f32; width as usize];
+        self.modifier
+            .apply_color_modification_f32(&mut gains, 0.0, y as f32, width as usize, 1, 1);
+        gains
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -153,5 +213,34 @@ mod tests {
         let profile = find_profile(CAMERA_MAKE, CAMERA_MODEL, Some(LENS_MAKE), LENS_MODEL).unwrap();
         let correction = Correction::new(&profile, 20.0, 100, 100);
         assert_eq!(correction.source_row(50, 100).len(), 100);
+    }
+
+    #[test]
+    fn vignetting_brightens_corners_and_leaves_the_center_alone() {
+        let profile = find_profile(CAMERA_MAKE, CAMERA_MODEL, Some(LENS_MAKE), LENS_MODEL).unwrap();
+        let (width, height) = (6720_u32, 4480_u32);
+        let vignetting = Vignetting::new(&profile, 20.0, 2.8, width, height);
+        assert!(vignetting.matched());
+
+        let center = vignetting.gain_row(height / 2, width)[(width / 2) as usize];
+        assert!(
+            (center - 1.0).abs() < 0.01,
+            "center should be ~neutral: {center}"
+        );
+
+        let corner = vignetting.gain_row(0, width)[0];
+        assert!(
+            corner > 1.5,
+            "corner should brighten well above 1.0: {corner}"
+        );
+    }
+
+    #[test]
+    fn unmatched_gear_reports_no_match_and_identity_gains() {
+        let profile = find_profile(CAMERA_MAKE, CAMERA_MODEL, Some(LENS_MAKE), LENS_MODEL).unwrap();
+        // A focal length far outside any calibrated range: no usable data.
+        let vignetting = Vignetting::new(&profile, 9999.0, 2.8, 100, 100);
+        assert!(!vignetting.matched());
+        assert_eq!(vignetting.gain_row(50, 100), vec![1.0; 100]);
     }
 }

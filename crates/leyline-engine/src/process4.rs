@@ -1,24 +1,27 @@
-//! Process version 3 — the third rendering contract of the develop pipeline
-//! (ADR 0016).
+//! Process version 4 — the fourth rendering contract of the develop
+//! pipeline (ADR 0017).
 //!
-//! This module *is* the definition of `process: 3`: the exact formulas
+//! This module *is* the definition of `process: 4`: the exact formulas
 //! below, applied in the fixed order of `docs/pipeline.md` §3.1, are
 //! frozen. Any change that alters the pixels they produce must land as a
 //! new process version in a new module — this one is kept as-is forever
 //! (§3.3).
 //!
-//! Process 3 differs from process 2 in exactly one place: `lens_correction`
-//! is now rendered instead of being a declared-but-inert setting. When
-//! enabled, the shot's camera and lens EXIF strings are matched against
-//! Lensfun's bundled profile database (`leyline_lens::find_profile`); a
-//! match yields a per-pixel backward coordinate map that undistorts the
-//! image before any tonal operator runs — the first step of §3.1's fixed
-//! order. No match (unknown gear, or no [`LensShot`] at all) leaves the
-//! image untouched: EXIF is best-effort, correction is never guessed.
-//! Vignetting and transverse chromatic aberration are not corrected by this
-//! process version — only geometric distortion — a deliberate scope cut,
-//! not a limitation of Lensfun itself. Every other operator is copied from
-//! process 2 unchanged, so this module stays self-contained and frozen.
+//! Process 4 differs from process 3 in exactly one place: the lens
+//! correction step also de-vignettes, using the same matched Lensfun
+//! profile plus the shot's aperture (`LensShot::aperture_f`) and an assumed
+//! subject distance of 1000 m (EXIF rarely records the real one; Lensfun's
+//! own convention treats 1000 as "effectively infinity", the least wrong
+//! default for typical, non-macro photography). The correction multiplies
+//! each sample by the profile's radial gain in **linear light** (through
+//! the same transfer tables as white balance/exposure), right after the
+//! geometric undistortion process 3 already applies — still the first step
+//! of §3.1's fixed order. No aperture on the shot, or no vignetting
+//! calibration for it, leaves the image exactly as process 3 would render
+//! it. Transverse chromatic aberration remains out of scope — a further
+//! scope cut, not a limitation of Lensfun itself. Every other operator is
+//! copied from process 3 unchanged, so this module stays self-contained and
+//! frozen.
 //!
 //! Design rules shared by every operator:
 //!
@@ -108,7 +111,7 @@ fn par_rows(px: &mut Pixels, op: impl Fn(&mut [f32]) + Send + Sync) {
 }
 
 /// Renders a decoded image according to `settings`, which the caller has
-/// already validated and confirmed to declare `process: 3`. `shot` is the
+/// already validated and confirmed to declare `process: 4`. `shot` is the
 /// EXIF identification needed to look up a Lensfun profile; `None` when the
 /// caller has none (e.g. no camera/lens metadata on the asset).
 pub(crate) fn develop(
@@ -120,7 +123,17 @@ pub(crate) fn develop(
 
     if settings.lens_correction.enabled {
         if let Some(shot) = shot {
-            px = correct_lens(&px, shot);
+            if let Some(profile) = leyline_lens::find_profile(
+                &shot.camera_make,
+                &shot.camera_model,
+                shot.lens_make.as_deref(),
+                shot.lens_model.as_deref().unwrap_or(""),
+            ) {
+                px = undistort(&px, &profile, shot.focal_mm);
+                if let Some(aperture_f) = shot.aperture_f {
+                    devignette(&mut px, &profile, shot.focal_mm, aperture_f);
+                }
+            }
         }
     }
 
@@ -170,23 +183,17 @@ pub(crate) fn develop(
 }
 
 // ---------------------------------------------------------------------------
-// Lens correction (the process 3 difference)
+// Lens correction (process 3's distortion, carried unchanged, plus process
+// 4's vignetting)
 // ---------------------------------------------------------------------------
 
-/// Undistorts the image geometrically using the shot's Lensfun profile, when
-/// one matches. No match — unknown camera or lens, or no calibration at this
-/// focal length — leaves `px` unchanged: correction is only ever applied
-/// from real calibration data, never approximated.
-fn correct_lens(px: &Pixels, shot: &LensShot) -> Pixels {
-    let Some(profile) = leyline_lens::find_profile(
-        &shot.camera_make,
-        &shot.camera_model,
-        shot.lens_make.as_deref(),
-        shot.lens_model.as_deref().unwrap_or(""),
-    ) else {
-        return px.clone();
-    };
-    let correction = leyline_lens::Correction::new(&profile, shot.focal_mm, px.width, px.height);
+/// Undistorts the image geometrically using an already-matched Lensfun
+/// profile. No distortion calibration at this focal length leaves `px`
+/// unchanged: correction is only ever applied from real calibration data,
+/// never approximated. Identical to process 3's `correct_lens`, split from
+/// the profile lookup so [`devignette`] can reuse the same match.
+fn undistort(px: &Pixels, profile: &leyline_lens::Profile, focal_mm: f32) -> Pixels {
+    let correction = leyline_lens::Correction::new(profile, focal_mm, px.width, px.height);
 
     let mut data = vec![0.0f32; px.data.len()];
     data.par_chunks_mut(px.width as usize * 3)
@@ -205,6 +212,35 @@ fn correct_lens(px: &Pixels, shot: &LensShot) -> Pixels {
         height: px.height,
         data,
     }
+}
+
+/// Corrects corner darkening (vignetting) using an already-matched Lensfun
+/// profile, `aperture_f` and [`leyline_lens::Vignetting`]'s assumed subject
+/// distance. No vignetting calibration for this focal/aperture pair leaves
+/// `px` unchanged. The gain is a radial multiplier defined in linear light
+/// (a physical falloff of incoming light), so each sample round-trips
+/// through the same transfer tables as [`linear_gains`] rather than being
+/// multiplied directly in gamma space.
+fn devignette(px: &mut Pixels, profile: &leyline_lens::Profile, focal_mm: f32, aperture_f: f32) {
+    let vignetting =
+        leyline_lens::Vignetting::new(profile, focal_mm, aperture_f, px.width, px.height);
+    if !vignetting.matched() {
+        return;
+    }
+    let (to_linear, to_srgb) = tables();
+    let width = px.width;
+    px.data
+        .par_chunks_mut(width as usize * 3)
+        .enumerate()
+        .for_each(|(y, row)| {
+            let gains = vignetting.gain_row(y as u32, width);
+            for (x, rgb) in row.chunks_exact_mut(3).enumerate() {
+                let gain = gains[x];
+                for sample in rgb {
+                    *sample = lookup(to_srgb, (lookup(to_linear, *sample) * gain).clamp(0.0, 1.0));
+                }
+            }
+        });
 }
 
 /// Bilinear sample in Lensfun's own pixel convention: centers at integer
@@ -269,7 +305,8 @@ fn linear_gains(px: &mut Pixels, wb: Option<&WhiteBalance>, exposure_ev: f64) {
 /// Approximate color of a blackbody radiator, gamma-encoded RGB in (0, 1].
 ///
 /// Tanner Helland's polynomial fit, frozen as part of process 2 and carried
-/// unchanged into process 3. Channels are floored at 0.01 so gain ratios
+/// unchanged into process 3 and process 4. Channels are floored at 0.01 so
+/// gain ratios
 /// stay finite at extreme temperatures.
 fn blackbody_rgb(kelvin: f64) -> [f64; 3] {
     let t = kelvin.clamp(1000.0, 40000.0) / 100.0;
@@ -634,46 +671,42 @@ mod tests {
         }
     }
 
-    #[test]
-    fn disabled_lens_correction_matches_process_2_bit_for_bit() {
-        let image = test_image(64, 48);
-        let settings = Settings {
-            process: 3,
-            exposure: 0.3,
-            contrast: 20,
-            ..Settings::default()
-        };
-        let with_process_3 = develop(&image, &settings, Some(&canon_shot(20.0))).unwrap();
-        let with_process_2 = crate::process2::develop(&image, &settings).unwrap();
-        assert_eq!(with_process_3, with_process_2);
-    }
-
-    #[test]
-    fn no_shot_leaves_the_image_unchanged_even_when_enabled() {
-        let image = test_image(64, 48);
-        let settings = Settings {
-            process: 3,
+    fn enabled_settings() -> Settings {
+        Settings {
+            process: 4,
             lens_correction: LensCorrection {
                 enabled: true,
                 profile: "auto".to_owned(),
             },
             ..Settings::default()
+        }
+    }
+
+    #[test]
+    fn disabled_lens_correction_matches_process_3_bit_for_bit() {
+        let image = test_image(64, 48);
+        let settings = Settings {
+            process: 4,
+            exposure: 0.3,
+            contrast: 20,
+            ..Settings::default()
         };
-        let out = develop(&image, &settings, None).unwrap();
+        let with_process_4 = develop(&image, &settings, Some(&canon_shot(20.0))).unwrap();
+        let with_process_3 =
+            crate::process3::develop(&image, &settings, Some(&canon_shot(20.0))).unwrap();
+        assert_eq!(with_process_4, with_process_3);
+    }
+
+    #[test]
+    fn no_shot_leaves_the_image_unchanged_even_when_enabled() {
+        let image = test_image(64, 48);
+        let out = develop(&image, &enabled_settings(), None).unwrap();
         assert_eq!(out.data, image.data);
     }
 
     #[test]
     fn unmatched_gear_leaves_the_image_unchanged() {
         let image = test_image(64, 48);
-        let settings = Settings {
-            process: 3,
-            lens_correction: LensCorrection {
-                enabled: true,
-                profile: "auto".to_owned(),
-            },
-            ..Settings::default()
-        };
         let shot = LensShot {
             camera_make: "Nobody".to_owned(),
             camera_model: "Nothing".to_owned(),
@@ -682,22 +715,14 @@ mod tests {
             focal_mm: 20.0,
             aperture_f: Some(2.8),
         };
-        let out = develop(&image, &settings, Some(&shot)).unwrap();
+        let out = develop(&image, &enabled_settings(), Some(&shot)).unwrap();
         assert_eq!(out.data, image.data);
     }
 
     #[test]
     fn a_matched_profile_undistorts_the_image() {
         let image = test_image(640, 480);
-        let settings = Settings {
-            process: 3,
-            lens_correction: LensCorrection {
-                enabled: true,
-                profile: "auto".to_owned(),
-            },
-            ..Settings::default()
-        };
-        let out = develop(&image, &settings, Some(&canon_shot(20.0))).unwrap();
+        let out = develop(&image, &enabled_settings(), Some(&canon_shot(20.0))).unwrap();
         assert_eq!((out.width, out.height), (image.width, image.height));
         assert_ne!(
             out.data, image.data,
@@ -709,10 +734,32 @@ mod tests {
     fn disabled_setting_ignores_a_matched_profile() {
         let image = test_image(64, 48);
         let settings = Settings {
-            process: 3,
+            process: 4,
             ..Settings::default()
         };
         let out = develop(&image, &settings, Some(&canon_shot(20.0))).unwrap();
         assert_eq!(out.data, image.data);
+    }
+
+    #[test]
+    fn no_aperture_skips_vignetting_but_keeps_distortion() {
+        let image = test_image(640, 480);
+        let mut shot = canon_shot(20.0);
+        shot.aperture_f = None;
+        let out4 = develop(&image, &enabled_settings(), Some(&shot)).unwrap();
+        let out3 = crate::process3::develop(&image, &enabled_settings(), Some(&shot)).unwrap();
+        assert_eq!(out4, out3);
+    }
+
+    #[test]
+    fn vignetting_further_changes_the_distortion_only_process_3_render() {
+        let image = test_image(640, 480);
+        let out4 = develop(&image, &enabled_settings(), Some(&canon_shot(20.0))).unwrap();
+        let out3 =
+            crate::process3::develop(&image, &enabled_settings(), Some(&canon_shot(20.0))).unwrap();
+        assert_ne!(
+            out4.data, out3.data,
+            "vignetting correction should change more than distortion alone"
+        );
     }
 }

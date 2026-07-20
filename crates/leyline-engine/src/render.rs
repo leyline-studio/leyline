@@ -13,6 +13,7 @@ use leyline_raw::RawImage;
 use crate::process1;
 use crate::process2;
 use crate::process3;
+use crate::process4;
 
 /// A rendered develop result: tightly packed, interleaved 8-bit RGB.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -26,8 +27,9 @@ pub struct Rendered {
 }
 
 /// EXIF identification of one shot, as needed to look up its Lensfun
-/// profile (`leyline_lens::find_profile`) — process 3's lens correction
-/// step. Built from the asset's catalog [`Metadata`] by [`lens_shot`].
+/// profile (`leyline_lens::find_profile`) — the lens correction step of
+/// process 3 (distortion) and process 4 (vignetting). Built from the
+/// asset's catalog [`Metadata`] by [`lens_shot`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct LensShot {
     /// Camera manufacturer, as written by EXIF.
@@ -40,12 +42,16 @@ pub struct LensShot {
     pub lens_model: Option<String>,
     /// Focal length in millimeters at capture.
     pub focal_mm: f32,
+    /// Aperture f-number at capture, when recorded — needed for
+    /// vignetting correction (process 4); distortion doesn't use it.
+    pub aperture_f: Option<f32>,
 }
 
 /// Builds a [`LensShot`] from an asset's catalog metadata, when it carries
 /// enough to attempt a profile match: a camera body and a focal length.
-/// Missing lens make/model is not disqualifying here — [`LensShot`] simply
-/// carries `None`, and the profile lookup skips correction on its own.
+/// Missing lens make/model or aperture is not disqualifying here —
+/// [`LensShot`] simply carries `None`, and the profile lookup / vignetting
+/// step skip correction on their own.
 pub fn lens_shot(meta: &Metadata) -> Option<LensShot> {
     let camera = meta.camera.as_ref()?;
     let focal_mm = meta.focal_length?.as_f64() as f32;
@@ -55,6 +61,7 @@ pub fn lens_shot(meta: &Metadata) -> Option<LensShot> {
         lens_make: meta.lens.as_ref().map(|l| l.manufacturer.clone()),
         lens_model: meta.lens.as_ref().map(|l| l.model.clone()),
         focal_mm,
+        aperture_f: meta.aperture.map(|r| r.as_f64() as f32),
     })
 }
 
@@ -78,6 +85,7 @@ pub fn render(image: &RawImage, settings: &Settings, shot: Option<&LensShot>) ->
         1 => process1::develop(image, settings),
         2 => process2::develop(image, settings),
         3 => process3::develop(image, settings, shot),
+        4 => process4::develop(image, settings, shot),
         other => Err(LeylineError::InvalidSettings(format!(
             "process version {other} does not exist"
         ))),
