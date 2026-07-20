@@ -25,3 +25,4 @@ Une décision acceptée ne se modifie pas : elle se remplace par un nouvel ADR q
 | [0017](0017-process-4-vignetting.md) | Process 4 : correction du vignettage (Lensfun) |
 | [0018](0018-process-5-tca.md) | Process 5 : aberration chromatique transversale (Lensfun) |
 | [0019](0019-distribution-i18n.md) | Distribution : installateur par plateforme et internationalisation FR/EN |
+| [0020](0020-menu-bar.md) | Barre de menu comme surface de commandes |
