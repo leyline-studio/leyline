@@ -30,7 +30,7 @@ use leyline_preview::PreviewCache;
 use crate::decode_cache::DecodeCache;
 use crate::events::{Event, JobResult};
 use crate::export::ExportReport;
-use crate::import::{ImportOptions, ImportReport};
+use crate::import::{ImportOptions, ImportReport, ImportedFile};
 use crate::presets::PresetApplyReport;
 use crate::preview::{Preview, PreviewFile};
 use crate::reprocess::ReprocessReport;
@@ -281,14 +281,42 @@ impl Library {
     ///
     /// This is the synchronous core; it holds the catalog for the whole
     /// batch. Prefer [`Library::import_async`] from interactive clients.
+    ///
+    /// Every asset that lands in the catalog also gets its thumbnail
+    /// rendered before this returns (§11), through the same `preview` core
+    /// `preview_async` uses — the client never has to schedule that step
+    /// itself. A thumbnail failure never turns a successful import into a
+    /// skip: it just leaves that one asset without a cached thumbnail, and
+    /// the existing lazy path (`cached_preview` + `preview_async`) picks it
+    /// up the first time it needs to be displayed, exactly as before this
+    /// step existed.
     pub fn import(
         &self,
         source: &Path,
         options: &ImportOptions,
         progress: impl FnMut(u64, u64),
     ) -> Result<ImportReport> {
-        let mut catalog = lock(&self.inner.catalog);
-        crate::import::import(&mut catalog, &self.inner.root, source, options, progress)
+        let report = {
+            let mut catalog = lock(&self.inner.catalog);
+            crate::import::import(&mut catalog, &self.inner.root, source, options, progress)
+        }?;
+        self.generate_import_thumbnails(&report.imported);
+        Ok(report)
+    }
+
+    /// Best-effort thumbnail pass for freshly imported assets (§6, §11).
+    ///
+    /// Run serially: [`Library::preview`] holds the catalog lock for the
+    /// whole decode+render of each asset (the decode cache is a small LRU
+    /// too, not built for concurrent renders), so parallelizing here would
+    /// need deeper changes to that locking, not just a `rayon` iterator
+    /// over this loop — the calls would simply serialize on the catalog
+    /// mutex today. Left serial; worth revisiting if import-time
+    /// thumbnailing shows up in the perf benches.
+    fn generate_import_thumbnails(&self, imported: &[ImportedFile]) {
+        for file in imported {
+            let _ = self.preview(file.registered.asset, PreviewKind::Thumbnail);
+        }
     }
 
     /// Imports files as a job (§3.1): returns immediately, progresses as

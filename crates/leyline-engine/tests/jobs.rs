@@ -114,6 +114,107 @@ fn an_import_job_progresses_announces_assets_and_finishes() {
 }
 
 #[test]
+fn import_leaves_a_cached_thumbnail_with_no_separate_call() {
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::create(&dir.path().join("Library"), "Jobs").unwrap();
+
+    let source = dir.path().join("Shoot");
+    std::fs::create_dir(&source).unwrap();
+    sample_png(&source.join("a.png"));
+
+    let report = library
+        .import(
+            &source,
+            &ImportOptions {
+                copy_files: true,
+                recursive: false,
+            },
+            |_, _| {},
+        )
+        .unwrap();
+    let asset = report.imported[0].registered.asset;
+
+    // No `preview`/`preview_async` call: the import job already rendered
+    // the thumbnail as part of itself.
+    let cached = library
+        .cached_preview(asset, PreviewKind::Thumbnail)
+        .unwrap();
+    assert!(cached.is_some_and(|file| file.path.is_file()));
+}
+
+#[test]
+fn import_async_also_leaves_a_cached_thumbnail_once_finished() {
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::create(&dir.path().join("Library"), "Jobs").unwrap();
+    let events = library.subscribe();
+
+    let source = dir.path().join("Shoot");
+    std::fs::create_dir(&source).unwrap();
+    sample_png(&source.join("a.png"));
+
+    let job = library.import_async(
+        &source,
+        &ImportOptions {
+            copy_files: true,
+            recursive: false,
+        },
+    );
+    let received = drain_until_finished(&events, job);
+    let asset = match received.last() {
+        Some(Event::JobFinished {
+            result: JobResult::Import(report),
+            ..
+        }) => report.imported[0].registered.asset,
+        other => panic!("expected an import JobFinished, got {other:?}"),
+    };
+
+    let cached = library
+        .cached_preview(asset, PreviewKind::Thumbnail)
+        .unwrap();
+    assert!(cached.is_some_and(|file| file.path.is_file()));
+}
+
+#[test]
+fn a_thumbnail_that_fails_to_render_does_not_fail_the_import() {
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::create(&dir.path().join("Library"), "Jobs").unwrap();
+
+    let source = dir.path().join("Shoot");
+    std::fs::create_dir(&source).unwrap();
+    // A non-RAW image import never refuses on an unreadable header
+    // (`docs/engine-api.md` §6): it lands in the catalog with no
+    // dimensions, and its thumbnail render fails the same way a decode
+    // fails at display time today — best-effort, never fatal.
+    std::fs::write(source.join("opaque.jpg"), b"not a jpeg").unwrap();
+
+    let report = library
+        .import(
+            &source,
+            &ImportOptions {
+                copy_files: true,
+                recursive: false,
+            },
+            |_, _| {},
+        )
+        .unwrap();
+
+    assert_eq!(report.skipped, vec![]);
+    assert_eq!(report.imported.len(), 1);
+    let asset = report.imported[0].registered.asset;
+
+    // No cached thumbnail (the decode failed), but the asset is still a
+    // normal, successfully imported asset — the lazy path picks the
+    // failure back up the same way it always has.
+    assert_eq!(
+        library
+            .cached_preview(asset, PreviewKind::Thumbnail)
+            .unwrap(),
+        None
+    );
+    assert!(library.preview(asset, PreviewKind::Thumbnail).is_err());
+}
+
+#[test]
 fn a_preview_job_emits_preview_ready_then_finishes() {
     let dir = tempfile::tempdir().unwrap();
     let library = Library::create(&dir.path().join("Library"), "Jobs").unwrap();
@@ -169,9 +270,9 @@ fn preview_state_reports_generating_with_nothing_cached() {
     let asset = report.imported[0].registered.asset;
 
     let events = library.subscribe();
-    let state = library
-        .preview_state(asset, PreviewKind::Thumbnail)
-        .unwrap();
+    // The import job only renders the `Thumbnail` size class (§11); a
+    // larger size class is still nothing cached at all.
+    let state = library.preview_state(asset, PreviewKind::Small).unwrap();
     let job = match state {
         Preview::Generating(job) => job,
         other => panic!("expected Generating, got {other:?}"),
@@ -180,7 +281,7 @@ fn preview_state_reports_generating_with_nothing_cached() {
     let received = drain_until_finished(&events, job);
     assert!(received.iter().any(|e| matches!(
         e,
-        Event::PreviewReady { asset_id, kind } if *asset_id == asset && *kind == PreviewKind::Thumbnail
+        Event::PreviewReady { asset_id, kind } if *asset_id == asset && *kind == PreviewKind::Small
     )));
 }
 

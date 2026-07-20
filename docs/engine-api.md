@@ -160,7 +160,7 @@ impl Library {
 }
 ```
 
-L'import est un travail : extraction EXIF, checksum BLAKE3, création de la révision initiale et de la version `Default` (catalogue §18) — en flux, avec `JobProgress` par fichier candidat. La génération des miniatures reste à la charge du client (`preview_async` par asset), en attendant qu'elle soit intégrée au job d'import.
+L'import est un travail : extraction EXIF, checksum BLAKE3, création de la révision initiale et de la version `Default` (catalogue §18) — en flux, avec `JobProgress` par fichier candidat. Chaque asset importé avec succès reçoit aussi sa miniature (`PreviewKind::Thumbnail`) avant que `import`/`import_async` ne retourne, via le même cœur que `preview_async` (§11) : le client n'a plus besoin de la déclencher lui-même après coup. Un échec de rendu de miniature n'annule jamais l'import de l'asset — il reste importé, sans miniature en cache, et retombe sur le chemin paresseux existant (`cached_preview` puis `preview_async`) la première fois qu'il doit s'afficher. Ce rendu est fait séquentiellement, asset par asset : la miniature partage le verrou du catalogue avec le reste de l'import (§11), le paralléliser demanderait de revoir ce verrouillage, pas seulement d'itérer avec `rayon`.
 
 ---
 
