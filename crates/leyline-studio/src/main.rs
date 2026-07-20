@@ -713,6 +713,7 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             window.set_export_format(0);
             window.set_export_quality_text(SharedString::from("90"));
             window.set_export_max_edge_text(SharedString::default());
+            window.set_export_preset_name(SharedString::default());
             window.set_dialog_result(SharedString::default());
             window.set_dialog(SharedString::from("export"));
         });
@@ -759,6 +760,56 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             window.set_dialog_result(Tr::get(&window).invoke_exporting_ellipsis());
         });
     }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_run_save_export_preset(move |name, format, quality, max_edge| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            if name.trim().is_empty() {
+                window.set_dialog_result(Tr::get(&window).invoke_enter_a_name());
+                return;
+            }
+            let (name, settings) = match export_preset_request(&name, format, &quality, &max_edge) {
+                Ok(request) => request,
+                Err(message) => {
+                    window.set_dialog_result(SharedString::from(message));
+                    return;
+                }
+            };
+            let mut app = app.borrow_mut();
+            let saved = app
+                .library
+                .create_export_preset(&name, &settings)
+                .map_err(|e| e.to_string())
+                .and_then(|_| refresh_export_presets(&mut app, &window));
+            match saved {
+                Ok(()) => {
+                    window.set_export_preset_name(SharedString::default());
+                    window.set_dialog_result(Tr::get(&window).invoke_preset_saved());
+                }
+                Err(error) => {
+                    window.set_dialog_result(
+                        Tr::get(&window).invoke_save_failed(SharedString::from(error)),
+                    );
+                }
+            }
+        });
+    }
+}
+
+/// Reloads the export dialog's preset picker from the catalog (mirrors
+/// `refresh_presets` for develop presets).
+fn refresh_export_presets(app: &mut App, window: &StudioWindow) -> Result<(), String> {
+    let presets = app.library.export_presets().map_err(|e| e.to_string())?;
+    let names: Vec<SharedString> = presets
+        .iter()
+        .map(|preset| SharedString::from(preset.name.as_str()))
+        .collect();
+    app.presets = presets;
+    window.set_export_presets(ModelRc::from(Rc::new(VecModel::from(names))));
+    Ok(())
 }
 
 /// Builds an ad-hoc `ExportSettings` from the export dialog's custom fields
@@ -789,6 +840,23 @@ fn export_settings(format: i32, quality: &str, max_edge: &str) -> Result<ExportS
         quality,
         max_edge,
     })
+}
+
+/// Builds a `(name, ExportSettings)` request for saving the export dialog's
+/// custom fields as a reusable preset — trims and validates the name, then
+/// reuses `export_settings` so the recipe validation isn't duplicated.
+fn export_preset_request(
+    name: &str,
+    format: i32,
+    quality: &str,
+    max_edge: &str,
+) -> Result<(String, ExportSettings), String> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err("name is empty".to_owned());
+    }
+    let settings = export_settings(format, quality, max_edge)?;
+    Ok((name.to_owned(), settings))
 }
 
 /// Connects the collections sidebar and its creation dialog.
@@ -1608,6 +1676,32 @@ mod tests {
         assert!(export_settings(5, "90", "").is_err());
         assert!(export_settings(0, "not a number", "").is_err());
         assert!(export_settings(0, "90", "not a number").is_err());
+    }
+
+    #[test]
+    fn export_preset_request_trims_the_name_and_reuses_export_settings() {
+        let (name, settings) = export_preset_request("  Web  ", 0, "80", "2048").unwrap();
+        assert_eq!(name, "Web");
+        assert_eq!(
+            settings,
+            ExportSettings {
+                format: ExportFormat::Jpeg,
+                quality: 80,
+                max_edge: Some(2048),
+            }
+        );
+    }
+
+    #[test]
+    fn export_preset_request_rejects_a_blank_or_whitespace_only_name() {
+        assert!(export_preset_request("", 0, "80", "").is_err());
+        assert!(export_preset_request("   ", 0, "80", "").is_err());
+    }
+
+    #[test]
+    fn export_preset_request_still_validates_the_recipe() {
+        assert!(export_preset_request("Web", 0, "not a number", "").is_err());
+        assert!(export_preset_request("Web", 5, "80", "").is_err());
     }
 
     #[test]

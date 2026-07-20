@@ -106,569 +106,583 @@ msgctxt "Tr"
 msgid "Select a collection in the sidebar first."
 msgstr "Sélectionnez d'abord une collection dans le panneau latéral."
 
-#: ui/studio.slint:356 ui/studio.slint:1567
+#: ui/studio.slint:114
+msgctxt "Tr"
+msgid "Preset saved."
+msgstr "Préréglage enregistré."
+
+#: ui/studio.slint:363 ui/studio.slint:1574
 msgctxt "StudioWindow"
 msgid "File"
 msgstr "Fichier"
 
-#: ui/studio.slint:358
+#: ui/studio.slint:365
 msgctxt "StudioWindow"
 msgid "Import…    I"
 msgstr "Importer…    I"
 
-#: ui/studio.slint:365
+#: ui/studio.slint:372
 msgctxt "StudioWindow"
 msgid "Export…    E"
 msgstr "Exporter…    E"
 
 #. disabled until there is a preferences panel to open.
-#: ui/studio.slint:375
+#: ui/studio.slint:382
 msgctxt "StudioWindow"
 msgid "Preferences…"
 msgstr "Préférences…"
 
-#: ui/studio.slint:380
+#: ui/studio.slint:387
 msgctxt "StudioWindow"
 msgid "Quit"
 msgstr "Quitter"
 
-#: ui/studio.slint:387
+#: ui/studio.slint:394
 msgctxt "StudioWindow"
 msgid "Library"
 msgstr "Bibliothèque"
 
-#: ui/studio.slint:389
+#: ui/studio.slint:396
 msgctxt "StudioWindow"
 msgid "New Collection…    N"
 msgstr "Nouvelle collection…    N"
 
-#: ui/studio.slint:396 ui/studio.slint:1499
+#: ui/studio.slint:403 ui/studio.slint:1506
 msgctxt "StudioWindow"
 msgid "Add to Collection    B"
 msgstr "Ajouter à la collection    B"
 
-#: ui/studio.slint:403 ui/studio.slint:1508
+#: ui/studio.slint:410 ui/studio.slint:1515
 msgctxt "StudioWindow"
 msgid "Remove from Collection    Shift+B"
 msgstr "Retirer de la collection    Maj+B"
 
-#: ui/studio.slint:411
+#: ui/studio.slint:418
 msgctxt "StudioWindow"
 msgid "Reprocess Library…    Shift+R"
 msgstr "Retraiter la bibliothèque…    Maj+R"
 
-#: ui/studio.slint:418
+#: ui/studio.slint:425
 msgctxt "StudioWindow"
 msgid "Photo"
 msgstr "Photo"
 
-#: ui/studio.slint:420 ui/studio.slint:1384
+#: ui/studio.slint:427 ui/studio.slint:1391
 msgctxt "StudioWindow"
 msgid "Rate"
 msgstr "Note"
 
-#: ui/studio.slint:422 ui/studio.slint:1386
+#: ui/studio.slint:429 ui/studio.slint:1393
 msgctxt "StudioWindow"
 msgid "1 star    1"
 msgstr "1 étoile    1"
 
-#: ui/studio.slint:429 ui/studio.slint:1394
+#: ui/studio.slint:436 ui/studio.slint:1401
 msgctxt "StudioWindow"
 msgid "2 stars    2"
 msgstr "2 étoiles    2"
 
-#: ui/studio.slint:436 ui/studio.slint:1402
+#: ui/studio.slint:443 ui/studio.slint:1409
 msgctxt "StudioWindow"
 msgid "3 stars    3"
 msgstr "3 étoiles    3"
 
-#: ui/studio.slint:443 ui/studio.slint:1410
+#: ui/studio.slint:450 ui/studio.slint:1417
 msgctxt "StudioWindow"
 msgid "4 stars    4"
 msgstr "4 étoiles    4"
 
-#: ui/studio.slint:450 ui/studio.slint:1418
+#: ui/studio.slint:457 ui/studio.slint:1425
 msgctxt "StudioWindow"
 msgid "5 stars    5"
 msgstr "5 étoiles    5"
 
-#: ui/studio.slint:458 ui/studio.slint:1427
+#: ui/studio.slint:465 ui/studio.slint:1434
 msgctxt "StudioWindow"
 msgid "Clear Rating    0"
 msgstr "Effacer la note    0"
 
-#: ui/studio.slint:466 ui/studio.slint:1436
+#: ui/studio.slint:473 ui/studio.slint:1443
 msgctxt "StudioWindow"
 msgid "Label"
 msgstr "Étiquette"
 
-#: ui/studio.slint:468 ui/studio.slint:1438
+#: ui/studio.slint:475 ui/studio.slint:1445
 msgctxt "StudioWindow"
 msgid "Red    6"
 msgstr "Rouge    6"
 
-#: ui/studio.slint:475 ui/studio.slint:1446
+#: ui/studio.slint:482 ui/studio.slint:1453
 msgctxt "StudioWindow"
 msgid "Yellow    7"
 msgstr "Jaune    7"
 
-#: ui/studio.slint:482 ui/studio.slint:1454
+#: ui/studio.slint:489 ui/studio.slint:1461
 msgctxt "StudioWindow"
 msgid "Green    8"
 msgstr "Vert    8"
 
-#: ui/studio.slint:489 ui/studio.slint:1462
+#: ui/studio.slint:496 ui/studio.slint:1469
 msgctxt "StudioWindow"
 msgid "Blue    9"
 msgstr "Bleu    9"
 
-#: ui/studio.slint:497 ui/studio.slint:1471
+#: ui/studio.slint:504 ui/studio.slint:1478
 msgctxt "StudioWindow"
 msgid "Flag"
 msgstr "Drapeau"
 
-#: ui/studio.slint:499 ui/studio.slint:1473
+#: ui/studio.slint:506 ui/studio.slint:1480
 msgctxt "StudioWindow"
 msgid "Pick    P"
 msgstr "Sélectionner    P"
 
-#: ui/studio.slint:506 ui/studio.slint:1481
+#: ui/studio.slint:513 ui/studio.slint:1488
 msgctxt "StudioWindow"
 msgid "Reject    X"
 msgstr "Rejeter    X"
 
-#: ui/studio.slint:513 ui/studio.slint:1489
+#: ui/studio.slint:520 ui/studio.slint:1496
 msgctxt "StudioWindow"
 msgid "Clear    U"
 msgstr "Effacer    U"
 
-#: ui/studio.slint:522 ui/studio.slint:589 ui/studio.slint:1375
+#: ui/studio.slint:529 ui/studio.slint:596 ui/studio.slint:1382
 msgctxt "StudioWindow"
 msgid "Develop    D"
 msgstr "Développer    D"
 
 #. than silently acting on something else.
-#: ui/studio.slint:532 ui/studio.slint:778
+#: ui/studio.slint:539 ui/studio.slint:785
 msgctxt "StudioWindow"
 msgid "Reprocess    R"
 msgstr "Retraiter    R"
 
-#: ui/studio.slint:540
+#: ui/studio.slint:547
 msgctxt "StudioWindow"
 msgid "Develop"
 msgstr "Développement"
 
-#: ui/studio.slint:543
+#: ui/studio.slint:550
 msgctxt "StudioWindow"
 msgid "Undo    Ctrl+Z"
 msgstr "Annuler    Ctrl+Z"
 
-#: ui/studio.slint:549
+#: ui/studio.slint:556
 msgctxt "StudioWindow"
 msgid "Redo    Ctrl+Y"
 msgstr "Rétablir    Ctrl+Y"
 
-#: ui/studio.slint:556
+#: ui/studio.slint:563
 msgctxt "StudioWindow"
 msgid "Save Preset…    S"
 msgstr "Enregistrer un preset…    S"
 
-#: ui/studio.slint:562
+#: ui/studio.slint:569
 msgctxt "StudioWindow"
 msgid "Apply Preset"
 msgstr "Appliquer un preset"
 
-#: ui/studio.slint:573 ui/studio.slint:785
+#: ui/studio.slint:580 ui/studio.slint:792
 msgctxt "StudioWindow"
 msgid "Back to Library    G"
 msgstr "Retour à la bibliothèque    G"
 
-#: ui/studio.slint:580
+#: ui/studio.slint:587
 msgctxt "StudioWindow"
 msgid "View"
 msgstr "Affichage"
 
-#: ui/studio.slint:582
+#: ui/studio.slint:589
 msgctxt "StudioWindow"
 msgid "Library    G"
 msgstr "Bibliothèque    G"
 
-#: ui/studio.slint:597
+#: ui/studio.slint:604
 msgctxt "StudioWindow"
 msgid "Help"
 msgstr "Aide"
 
-#: ui/studio.slint:599
+#: ui/studio.slint:606
 msgctxt "StudioWindow"
 msgid "Keyboard Shortcuts…"
 msgstr "Raccourcis clavier…"
 
-#: ui/studio.slint:606
+#: ui/studio.slint:613
 msgctxt "StudioWindow"
 msgid "About Leyline"
 msgstr "À propos de Leyline"
 
-#: ui/studio.slint:714
+#: ui/studio.slint:721
 msgctxt "StudioWindow"
 msgid ""
 "G: library · Ctrl+Z/Y: undo/redo · S: save preset · R: reprocess · drag: crop"
 msgstr ""
-"G : bibliothèque · Ctrl+Z/Y : annuler/rétablir · S : enregistrer le preset · "
-"R : retraiter · glisser : recadrer"
+"G / D — bibliothèque / développement\n"
+"I — importer · E — exporter · N — nouvelle collection\n"
+"B / Maj+B — ajouter / retirer de la collection\n"
+"Maj+R — retraiter la bibliothèque · R — retraiter (développement)\n"
+"Ctrl+Z / Ctrl+Y — annuler / rétablir · S — enregistrer le preset\n"
+"0–5 — noter · 6–9 — étiquette de couleur · P / X / U — sélectionner / rejeter / effacer"
 
-#: ui/studio.slint:762
+#: ui/studio.slint:769
 msgctxt "StudioWindow"
 msgid "Reset Crop"
 msgstr "Réinitialiser le recadrage"
 
 #. which ADR 0021 explicitly excludes.
-#: ui/studio.slint:773
+#: ui/studio.slint:780
 msgctxt "StudioWindow"
 msgid "Compare Before/After"
 msgstr "Comparer avant/après"
 
-#: ui/studio.slint:806
+#: ui/studio.slint:813
 msgctxt "StudioWindow"
 msgid "Presets"
 msgstr "Presets"
 
-#: ui/studio.slint:847
+#: ui/studio.slint:854
 msgctxt "StudioWindow"
 msgid "Save as preset…"
 msgstr "Enregistrer comme preset…"
 
-#: ui/studio.slint:856 ui/studio.slint:1993
+#: ui/studio.slint:863 ui/studio.slint:2041
 msgctxt "StudioWindow"
 msgid "White balance"
 msgstr "Balance des blancs"
 
-#: ui/studio.slint:861
+#: ui/studio.slint:868
 msgctxt "StudioWindow"
 msgid "Temperature"
 msgstr "Température"
 
-#: ui/studio.slint:870
+#: ui/studio.slint:877
 msgctxt "StudioWindow"
 msgid "Tint"
 msgstr "Teinte"
 
-#: ui/studio.slint:880 ui/studio.slint:2000
+#: ui/studio.slint:887 ui/studio.slint:2048
 msgctxt "StudioWindow"
 msgid "Tone"
 msgstr "Tonalité"
 
-#: ui/studio.slint:885 ui/studio.slint:1579
+#: ui/studio.slint:892 ui/studio.slint:1586
 msgctxt "StudioWindow"
 msgid "Exposure"
 msgstr "Exposition"
 
-#: ui/studio.slint:895
+#: ui/studio.slint:902
 msgctxt "StudioWindow"
 msgid "Contrast"
 msgstr "Contraste"
 
-#: ui/studio.slint:904
+#: ui/studio.slint:911
 msgctxt "StudioWindow"
 msgid "Highlights"
 msgstr "Hautes lumières"
 
-#: ui/studio.slint:913
+#: ui/studio.slint:920
 msgctxt "StudioWindow"
 msgid "Shadows"
 msgstr "Ombres"
 
-#: ui/studio.slint:922
+#: ui/studio.slint:929
 msgctxt "StudioWindow"
 msgid "Whites"
 msgstr "Blancs"
 
-#: ui/studio.slint:931
+#: ui/studio.slint:938
 msgctxt "StudioWindow"
 msgid "Blacks"
 msgstr "Noirs"
 
-#: ui/studio.slint:941 ui/studio.slint:2007
+#: ui/studio.slint:948 ui/studio.slint:2055
 msgctxt "StudioWindow"
 msgid "Presence"
 msgstr "Présence"
 
-#: ui/studio.slint:946
+#: ui/studio.slint:953
 msgctxt "StudioWindow"
 msgid "Vibrance"
 msgstr "Vibrance"
 
-#: ui/studio.slint:955
+#: ui/studio.slint:962
 msgctxt "StudioWindow"
 msgid "Saturation"
 msgstr "Saturation"
 
-#: ui/studio.slint:965 ui/studio.slint:2017
+#: ui/studio.slint:972 ui/studio.slint:2065
 msgctxt "StudioWindow"
 msgid "Lens correction"
 msgstr "Correction d'objectif"
 
-#: ui/studio.slint:971
+#: ui/studio.slint:978
 msgctxt "StudioWindow"
 msgid "Enabled"
 msgstr "Activée"
 
-#: ui/studio.slint:971
+#: ui/studio.slint:978
 msgctxt "StudioWindow"
 msgid "Disabled"
 msgstr "Désactivée"
 
-#: ui/studio.slint:978 ui/studio.slint:2024
+#: ui/studio.slint:985 ui/studio.slint:2072
 msgctxt "StudioWindow"
 msgid "Detail"
 msgstr "Détail"
 
-#: ui/studio.slint:983
+#: ui/studio.slint:990
 msgctxt "StudioWindow"
 msgid "Luminance NR"
 msgstr "RdB luminance"
 
-#: ui/studio.slint:992
+#: ui/studio.slint:999
 msgctxt "StudioWindow"
 msgid "Color NR"
 msgstr "RdB couleur"
 
-#: ui/studio.slint:1001
+#: ui/studio.slint:1008
 msgctxt "StudioWindow"
 msgid "Sharpen amount"
 msgstr "Intensité de netteté"
 
-#: ui/studio.slint:1010
+#: ui/studio.slint:1017
 msgctxt "StudioWindow"
 msgid "Sharpen radius"
 msgstr "Rayon de netteté"
 
-#: ui/studio.slint:1021 ui/studio.slint:2031
+#: ui/studio.slint:1028 ui/studio.slint:2079
 msgctxt "StudioWindow"
 msgid "Geometry"
 msgstr "Géométrie"
 
-#: ui/studio.slint:1026
+#: ui/studio.slint:1033
 msgctxt "StudioWindow"
 msgid "Rotation"
 msgstr "Rotation"
 
-#: ui/studio.slint:1036
+#: ui/studio.slint:1043
 msgctxt "StudioWindow"
 msgid "Crop left"
 msgstr "Recadrage gauche"
 
-#: ui/studio.slint:1045
+#: ui/studio.slint:1052
 msgctxt "StudioWindow"
 msgid "Crop top"
 msgstr "Recadrage haut"
 
-#: ui/studio.slint:1054
+#: ui/studio.slint:1061
 msgctxt "StudioWindow"
 msgid "Crop width"
 msgstr "Largeur du recadrage"
 
-#: ui/studio.slint:1063
+#: ui/studio.slint:1070
 msgctxt "StudioWindow"
 msgid "Crop height"
 msgstr "Hauteur du recadrage"
 
-#: ui/studio.slint:1074
+#: ui/studio.slint:1081
 msgctxt "StudioWindow"
 msgid "Reset crop"
 msgstr "Réinitialiser le recadrage"
 
-#: ui/studio.slint:1098
+#: ui/studio.slint:1105
 msgctxt "StudioWindow"
 msgid "Collections"
 msgstr "Collections"
 
-#: ui/studio.slint:1111
+#: ui/studio.slint:1118
 msgctxt "StudioWindow"
 msgid "All photos"
 msgstr "Toutes les photos"
 
-#: ui/studio.slint:1152
+#: ui/studio.slint:1159
 msgctxt "StudioWindow"
 msgid "N: new · B: add photo"
 msgstr "N : nouvelle · B : ajouter la photo"
 
-#: ui/studio.slint:1209
+#: ui/studio.slint:1216
 msgctxt "StudioWindow"
 msgid "⚑ Picked"
 msgstr "⚑ Sélectionnées"
 
-#: ui/studio.slint:1216
+#: ui/studio.slint:1223
 msgctxt "StudioWindow"
 msgid "✕ Rejected"
 msgstr "✕ Rejetées"
 
-#: ui/studio.slint:1223
+#: ui/studio.slint:1230
 msgctxt "StudioWindow"
 msgid "– Unflagged"
 msgstr "– Sans drapeau"
 
-#: ui/studio.slint:1261
+#: ui/studio.slint:1268
 msgctxt "StudioWindow"
 msgid "Search…"
 msgstr "Rechercher…"
 
-#: ui/studio.slint:1273
+#: ui/studio.slint:1280
 msgctxt "StudioWindow"
 msgid "Sort: {}"
 msgstr "Tri : {}"
 
 #. Shift+R, scoped to one version.
-#: ui/studio.slint:1523
+#: ui/studio.slint:1530
 msgctxt "StudioWindow"
 msgid "Reprocess"
 msgstr "Retraiter"
 
-#: ui/studio.slint:1546
+#: ui/studio.slint:1553
 msgctxt "StudioWindow"
 msgid "No photo selected"
 msgstr "Aucune photo sélectionnée"
 
-#: ui/studio.slint:1555
+#: ui/studio.slint:1562
 msgctxt "StudioWindow"
 msgid "Path"
 msgstr "Chemin"
 
-#: ui/studio.slint:1559
+#: ui/studio.slint:1566
 msgctxt "StudioWindow"
 msgid "Captured"
 msgstr "Prise le"
 
-#: ui/studio.slint:1563
+#: ui/studio.slint:1570
 msgctxt "StudioWindow"
 msgid "Size"
 msgstr "Taille"
 
-#: ui/studio.slint:1571
+#: ui/studio.slint:1578
 msgctxt "StudioWindow"
 msgid "Camera"
 msgstr "Appareil"
 
-#: ui/studio.slint:1575
+#: ui/studio.slint:1582
 msgctxt "StudioWindow"
 msgid "Lens"
 msgstr "Objectif"
 
-#: ui/studio.slint:1584
+#: ui/studio.slint:1591
 msgctxt "StudioWindow"
 msgid "Keywords"
 msgstr "Mots-clés"
 
-#: ui/studio.slint:1645
+#: ui/studio.slint:1652
 msgctxt "StudioWindow"
 msgid "Add keyword (Nature/Birds)…"
 msgstr "Ajouter un mot-clé (Nature/Oiseaux)…"
 
-#: ui/studio.slint:1682
+#: ui/studio.slint:1689
 msgctxt "StudioWindow"
 msgid "Import photos"
 msgstr "Importer des photos"
 
-#: ui/studio.slint:1688
+#: ui/studio.slint:1695
 msgctxt "StudioWindow"
 msgid "Source folder (absolute path)"
 msgstr "Dossier source (chemin absolu)"
 
-#: ui/studio.slint:1711
+#: ui/studio.slint:1718
 msgctxt "StudioWindow"
 msgid "Copy into library"
 msgstr "Copier dans la bibliothèque"
 
-#: ui/studio.slint:1718
+#: ui/studio.slint:1725
 msgctxt "StudioWindow"
 msgid "Recursive"
 msgstr "Récursif"
 
-#: ui/studio.slint:1732 ui/studio.slint:1878 ui/studio.slint:1933 ui/studio.slint:2042
+#: ui/studio.slint:1739 ui/studio.slint:1926 ui/studio.slint:1981 ui/studio.slint:2090
 msgctxt "StudioWindow"
 msgid "Cancel"
 msgstr "Annuler"
 
-#: ui/studio.slint:1739
+#: ui/studio.slint:1746
 msgctxt "StudioWindow"
 msgid "Import"
 msgstr "Importer"
 
-#: ui/studio.slint:1751
+#: ui/studio.slint:1758
 msgctxt "StudioWindow"
 msgid "Export selected photo"
 msgstr "Exporter la photo sélectionnée"
 
-#: ui/studio.slint:1757
+#: ui/studio.slint:1764
 msgctxt "StudioWindow"
 msgid "Preset"
 msgstr "Preset"
 
-#: ui/studio.slint:1765
+#: ui/studio.slint:1772
 msgctxt "StudioWindow"
 msgid "Custom"
 msgstr "Personnalisé"
 
-#: ui/studio.slint:1782
+#: ui/studio.slint:1789
 msgctxt "StudioWindow"
 msgid "Format"
 msgstr "Format"
 
-#: ui/studio.slint:1803
+#: ui/studio.slint:1810
 msgctxt "StudioWindow"
 msgid "Quality (1-100)"
 msgstr "Qualité (1-100)"
 
-#: ui/studio.slint:1829
+#: ui/studio.slint:1836
 msgctxt "StudioWindow"
 msgid "Max edge px (blank = full size)"
 msgstr "Bord max en px (vide = taille réelle)"
 
-#: ui/studio.slint:1854
+#: ui/studio.slint:1865
 msgctxt "StudioWindow"
-msgid "Destination folder (absolute path)"
-msgstr "Dossier de destination (chemin absolu)"
+msgid "Save as preset (optional name)"
+msgstr "Enregistrer comme preset (nom facultatif)"
 
-#: ui/studio.slint:1885
-msgctxt "StudioWindow"
-msgid "Export"
-msgstr "Exporter"
-
-#: ui/studio.slint:1903
-msgctxt "StudioWindow"
-msgid "New collection"
-msgstr "Nouvelle collection"
-
-#: ui/studio.slint:1909 ui/studio.slint:1965
-msgctxt "StudioWindow"
-msgid "Name"
-msgstr "Nom"
-
-#: ui/studio.slint:1940
-msgctxt "StudioWindow"
-msgid "Create"
-msgstr "Créer"
-
-#: ui/studio.slint:1959
+#: ui/studio.slint:1888 ui/studio.slint:2007
 msgctxt "StudioWindow"
 msgid "Save as preset"
 msgstr "Enregistrer comme preset"
 
-#: ui/studio.slint:1986
+#: ui/studio.slint:1902
+msgctxt "StudioWindow"
+msgid "Destination folder (absolute path)"
+msgstr "Dossier de destination (chemin absolu)"
+
+#: ui/studio.slint:1933
+msgctxt "StudioWindow"
+msgid "Export"
+msgstr "Exporter"
+
+#: ui/studio.slint:1951
+msgctxt "StudioWindow"
+msgid "New collection"
+msgstr "Nouvelle collection"
+
+#: ui/studio.slint:1957 ui/studio.slint:2013
+msgctxt "StudioWindow"
+msgid "Name"
+msgstr "Nom"
+
+#: ui/studio.slint:1988
+msgctxt "StudioWindow"
+msgid "Create"
+msgstr "Créer"
+
+#: ui/studio.slint:2034
 msgctxt "StudioWindow"
 msgid "Groups (geometry is rarely reused across photos)"
 msgstr "Groupes (la géométrie est rarement réutilisée d'une photo à l'autre)"
 
-#: ui/studio.slint:2049
+#: ui/studio.slint:2097
 msgctxt "StudioWindow"
 msgid "Save"
 msgstr "Enregistrer"
 
-#: ui/studio.slint:2072
+#: ui/studio.slint:2120
 msgctxt "StudioWindow"
 msgid "Keyboard shortcuts"
 msgstr "Raccourcis clavier"
 
-#: ui/studio.slint:2078
+#: ui/studio.slint:2126
 msgctxt "StudioWindow"
 msgid ""
 "G / D — library / develop\n"
@@ -685,12 +699,12 @@ msgstr ""
 "Ctrl+Z / Ctrl+Y — annuler / rétablir · S — enregistrer le preset\n"
 "0–5 — noter · 6–9 — étiquette de couleur · P / X / U — sélectionner / rejeter / effacer"
 
-#: ui/studio.slint:2087 ui/studio.slint:2114
+#: ui/studio.slint:2135 ui/studio.slint:2162
 msgctxt "StudioWindow"
 msgid "Close"
 msgstr "Fermer"
 
-#: ui/studio.slint:2105
+#: ui/studio.slint:2153
 msgctxt "StudioWindow"
 msgid "Local-first, non-destructive RAW development."
 msgstr "Développement RAW local et non destructif."

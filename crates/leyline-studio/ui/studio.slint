@@ -110,6 +110,9 @@ export global Tr {
     public pure function select-collection-first() -> string {
         return @tr("Select a collection in the sidebar first.");
     }
+    public pure function preset-saved() -> string {
+        return @tr("Preset saved.");
+    }
 }
 
 component DetailRow inherits HorizontalLayout {
@@ -301,9 +304,13 @@ export component StudioWindow inherits Window {
     // preset index (-1 = ad-hoc), destination, format index, quality text, max-edge text.
     // Format/quality/max-edge are ignored when a stored preset is chosen.
     callback run-export(int, string, int, string, string);
+    // Name, format index, quality text, max-edge text — stores the custom
+    // export dialog's current recipe as a reusable preset (§12).
+    callback run-save-export-preset(string, int, string, string);
     in-out property <int> export-format: 0;
     in-out property <string> export-quality-text: "90";
     in-out property <string> export-max-edge-text: "";
+    in-out property <string> export-preset-name: "";
 
     // Modal dialog state: "" (none), "import" or "export".
     in-out property <string> dialog;
@@ -1846,6 +1853,47 @@ export component StudioWindow inherits Window {
                                             vertical-alignment: center;
                                             single-line: true;
                                         }
+                                    }
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                VerticalLayout {
+                                    spacing: 4px;
+                                    horizontal-stretch: 1;
+                                    Text {
+                                        text: @tr("Save as preset (optional name)");
+                                        color: #9a9a9a;
+                                        font-size: 12px;
+                                    }
+                                    Rectangle {
+                                        height: 28px;
+                                        background: #1b1b1b;
+                                        border-radius: 4px;
+                                        border-width: 1px;
+                                        border-color: #3a3a3a;
+                                        TextInput {
+                                            x: 8px;
+                                            width: parent.width - 16px;
+                                            height: 100%;
+                                            text <=> root.export-preset-name;
+                                            color: #e6e6e6;
+                                            font-size: 12px;
+                                            vertical-alignment: center;
+                                            single-line: true;
+                                        }
+                                    }
+                                }
+                                FilterChip {
+                                    text: @tr("Save as preset");
+                                    active: false;
+                                    clicked => {
+                                        root.run-save-export-preset(
+                                            root.export-preset-name,
+                                            root.export-format,
+                                            root.export-quality-text,
+                                            root.export-max-edge-text,
+                                        );
                                     }
                                 }
                             }
