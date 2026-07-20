@@ -25,10 +25,10 @@ use std::time::Duration;
 
 use classify::Action;
 use leyline_sdk::{
-    AssetId, CollectionId, CollectionNode, CollectionType, ColorLabel, Event, ExportPreset,
-    ExportReport, ExportSettings, GridItem, GridQuery, ImportOptions, JobId, JobResult, KeywordId,
-    KeywordNode, Library, PickState, Preset, PreviewKind, Settings, SettingsGroup, SkippedFile,
-    Sort, VersionId,
+    AssetId, CollectionId, CollectionNode, CollectionType, ColorLabel, Event, ExportFormat,
+    ExportPreset, ExportReport, ExportSettings, GridItem, GridQuery, ImportOptions, JobId,
+    JobResult, KeywordId, KeywordNode, Library, PickState, Preset, PreviewKind, Settings,
+    SettingsGroup, SkippedFile, Sort, VersionId,
 };
 use slint::{ComponentHandle, Model, ModelRc, SharedString, Timer, TimerMode, VecModel};
 
@@ -654,6 +654,9 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             app.presets = presets;
             window.set_export_presets(ModelRc::from(Rc::new(VecModel::from(names))));
             window.set_export_preset(-1);
+            window.set_export_format(0);
+            window.set_export_quality_text(SharedString::from("90"));
+            window.set_export_max_edge_text(SharedString::default());
             window.set_dialog_result(SharedString::default());
             window.set_dialog(SharedString::from("export"));
         });
@@ -661,7 +664,7 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_run_export(move |preset, destination| {
+        window.on_run_export(move |preset, destination, format, quality, max_edge| {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -685,14 +688,51 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                     .library
                     .export_with_preset_async(vec![version], id, destination),
                 None => {
+                    let settings = match export_settings(format, &quality, &max_edge) {
+                        Ok(settings) => settings,
+                        Err(message) => {
+                            window.set_dialog_result(SharedString::from(message));
+                            return;
+                        }
+                    };
                     app.library
-                        .export_async(vec![version], ExportSettings::default(), destination)
+                        .export_async(vec![version], settings, destination)
                 }
             };
             app.export_job = Some(job);
             window.set_dialog_result(SharedString::from("Exporting…"));
         });
     }
+}
+
+/// Builds an ad-hoc `ExportSettings` from the export dialog's custom fields
+/// (the `Custom` chip, as opposed to a stored preset).
+fn export_settings(format: i32, quality: &str, max_edge: &str) -> Result<ExportSettings, String> {
+    let format = match format {
+        0 => ExportFormat::Jpeg,
+        1 => ExportFormat::Png,
+        2 => ExportFormat::Tiff,
+        3 => ExportFormat::Webp,
+        4 => ExportFormat::Avif,
+        other => return Err(format!("unknown export format index {other}")),
+    };
+    let quality = quality
+        .parse()
+        .map_err(|_| format!("bad quality {quality:?}"))?;
+    let max_edge = if max_edge.trim().is_empty() {
+        None
+    } else {
+        Some(
+            max_edge
+                .parse()
+                .map_err(|_| format!("bad max edge {max_edge:?}"))?,
+        )
+    };
+    Ok(ExportSettings {
+        format,
+        quality,
+        max_edge,
+    })
 }
 
 /// Connects the collections sidebar and its creation dialog.
@@ -1472,6 +1512,43 @@ mod tests {
             import_summary(1, &skipped),
             "1 imported, 2 skipped (unsupported file type)."
         );
+    }
+
+    #[test]
+    fn export_settings_parses_every_format_and_blank_max_edge() {
+        for (index, format) in [
+            ExportFormat::Jpeg,
+            ExportFormat::Png,
+            ExportFormat::Tiff,
+            ExportFormat::Webp,
+            ExportFormat::Avif,
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let settings = export_settings(index as i32, "80", "").unwrap();
+            assert_eq!(
+                settings,
+                ExportSettings {
+                    format,
+                    quality: 80,
+                    max_edge: None,
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn export_settings_parses_a_max_edge() {
+        let settings = export_settings(0, "90", "2048").unwrap();
+        assert_eq!(settings.max_edge, Some(2048));
+    }
+
+    #[test]
+    fn export_settings_rejects_bad_input() {
+        assert!(export_settings(5, "90", "").is_err());
+        assert!(export_settings(0, "not a number", "").is_err());
+        assert!(export_settings(0, "90", "not a number").is_err());
     }
 
     #[test]

@@ -224,7 +224,12 @@ export component StudioWindow inherits Window {
     callback run-save-preset(string, bool, bool, bool, bool, bool, bool);
     callback run-import(string, bool, bool);
     callback open-export();
-    callback run-export(int, string);
+    // preset index (-1 = ad-hoc), destination, format index, quality text, max-edge text.
+    // Format/quality/max-edge are ignored when a stored preset is chosen.
+    callback run-export(int, string, int, string, string);
+    in-out property <int> export-format: 0;
+    in-out property <string> export-quality-text: "90";
+    in-out property <string> export-max-edge-text: "";
 
     // Modal dialog state: "" (none), "import" or "export".
     in-out property <string> dialog;
@@ -1212,7 +1217,7 @@ export component StudioWindow inherits Window {
                             spacing: 8px;
                             alignment: start;
                             FilterChip {
-                                text: "Default JPEG";
+                                text: "Custom";
                                 active: root.export-preset == -1;
                                 clicked => {
                                     root.export-preset = -1;
@@ -1223,6 +1228,80 @@ export component StudioWindow inherits Window {
                                 active: root.export-preset == i;
                                 clicked => {
                                     root.export-preset = i;
+                                }
+                            }
+                        }
+                        if root.export-preset == -1: VerticalLayout {
+                            spacing: 8px;
+                            Text {
+                                text: "Format";
+                                color: #9a9a9a;
+                                font-size: 12px;
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                alignment: start;
+                                for name[i] in ["JPEG", "PNG", "TIFF", "WebP", "AVIF"]: FilterChip {
+                                    text: name;
+                                    active: root.export-format == i;
+                                    clicked => {
+                                        root.export-format = i;
+                                    }
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 12px;
+                                VerticalLayout {
+                                    spacing: 4px;
+                                    horizontal-stretch: 1;
+                                    Text {
+                                        text: "Quality (1-100)";
+                                        color: #9a9a9a;
+                                        font-size: 12px;
+                                    }
+                                    Rectangle {
+                                        height: 28px;
+                                        background: #1b1b1b;
+                                        border-radius: 4px;
+                                        border-width: 1px;
+                                        border-color: #3a3a3a;
+                                        TextInput {
+                                            x: 8px;
+                                            width: parent.width - 16px;
+                                            height: 100%;
+                                            text <=> root.export-quality-text;
+                                            color: #e6e6e6;
+                                            font-size: 12px;
+                                            vertical-alignment: center;
+                                            single-line: true;
+                                        }
+                                    }
+                                }
+                                VerticalLayout {
+                                    spacing: 4px;
+                                    horizontal-stretch: 1;
+                                    Text {
+                                        text: "Max edge px (blank = full size)";
+                                        color: #9a9a9a;
+                                        font-size: 12px;
+                                    }
+                                    Rectangle {
+                                        height: 28px;
+                                        background: #1b1b1b;
+                                        border-radius: 4px;
+                                        border-width: 1px;
+                                        border-color: #3a3a3a;
+                                        TextInput {
+                                            x: 8px;
+                                            width: parent.width - 16px;
+                                            height: 100%;
+                                            text <=> root.export-max-edge-text;
+                                            color: #e6e6e6;
+                                            font-size: 12px;
+                                            vertical-alignment: center;
+                                            single-line: true;
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1261,7 +1340,13 @@ export component StudioWindow inherits Window {
                                 text: "Export";
                                 active: true;
                                 clicked => {
-                                    root.run-export(root.export-preset, export-destination.text);
+                                    root.run-export(
+                                        root.export-preset,
+                                        export-destination.text,
+                                        root.export-format,
+                                        root.export-quality-text,
+                                        root.export-max-edge-text,
+                                    );
                                 }
                             }
                         }
