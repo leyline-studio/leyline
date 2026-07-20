@@ -7,12 +7,16 @@
 //! floor, `tone`, `color` and `detail` exercise the per-pixel and blur
 //! operators, `geometry` the resampling ones, and `full` a realistic edit
 //! touching everything. The `process2` group repeats the transfer-heavy
-//! cases through the LUT pipeline (ADR 0013) for comparison. Run with
-//! `cargo bench -p leyline-engine`.
+//! cases through the LUT pipeline (ADR 0013) for comparison. The `process5`
+//! group measures the lens correction step (ADR 0016–0018): the same tone
+//! edit and a real bundled Lensfun profile, with `lens_correction` off vs.
+//! on — distortion, vignetting and TCA all run together, the pipeline
+//! resamples the image up to three times per pixel instead of once. Run
+//! with `cargo bench -p leyline-engine`.
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use leyline_core::{Crop, NoiseReduction, Settings, Sharpening, WhiteBalance};
-use leyline_engine::render;
+use leyline_core::{Crop, LensCorrection, NoiseReduction, Settings, Sharpening, WhiteBalance};
+use leyline_engine::{LensShot, render};
 use leyline_raw::RawImage;
 use std::hint::black_box;
 
@@ -59,6 +63,21 @@ fn tone_settings() -> Settings {
         whites: 10,
         blacks: -10,
         ..Settings::default()
+    }
+}
+
+/// A real bundled Lensfun profile (Canon EOS 5D Mark III + EF 16-35mm
+/// f/2.8L II USM) with distortion, vignetting and TCA calibration data all
+/// present at 20mm — the same fixture `leyline-lens` and `process3`–`5`
+/// unit tests already use.
+fn canon_shot() -> LensShot {
+    LensShot {
+        camera_make: "Canon".to_owned(),
+        camera_model: "Canon EOS 5D Mark III".to_owned(),
+        lens_make: Some("Canon".to_owned()),
+        lens_model: Some("Canon EF 16-35mm f/2.8L II USM".to_owned()),
+        focal_mm: 20.0,
+        aperture_f: Some(2.8),
     }
 }
 
@@ -169,6 +188,49 @@ fn benches(c: &mut Criterion) {
             ..full_settings()
         };
         b.iter(|| render(black_box(&image), black_box(&settings), None).unwrap());
+    });
+
+    group.finish();
+
+    // Lens correction (ADR 0016–0018): same tone edit and shot, disabled
+    // vs. enabled (distortion + vignetting + TCA all at once, the only
+    // combination `lens_correction.enabled` can produce).
+    let mut group = c.benchmark_group("process5");
+    group.sample_size(10);
+    let shot = canon_shot();
+
+    group.bench_function("baseline_no_lens_correction", |b| {
+        let settings = Settings {
+            process: 5,
+            ..tone_settings()
+        };
+        b.iter(|| {
+            render(
+                black_box(&image),
+                black_box(&settings),
+                Some(black_box(&shot)),
+            )
+            .unwrap()
+        });
+    });
+
+    group.bench_function("lens_correction", |b| {
+        let settings = Settings {
+            process: 5,
+            lens_correction: LensCorrection {
+                enabled: true,
+                profile: "auto".to_owned(),
+            },
+            ..tone_settings()
+        };
+        b.iter(|| {
+            render(
+                black_box(&image),
+                black_box(&settings),
+                Some(black_box(&shot)),
+            )
+            .unwrap()
+        });
     });
 
     group.finish();
