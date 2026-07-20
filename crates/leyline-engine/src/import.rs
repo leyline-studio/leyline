@@ -13,7 +13,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use leyline_catalog::{
-    CHECKSUM_LEN, CameraInfo, Catalog, Metadata, NewAsset, Rational, RegisteredAsset,
+    CHECKSUM_LEN, CameraInfo, Catalog, LensInfo, Metadata, NewAsset, Rational, RegisteredAsset,
 };
 use leyline_core::{LeylineError, MediaType, Result};
 use leyline_raw::RawMetadata;
@@ -318,8 +318,17 @@ fn exif_metadata(raw: &RawMetadata) -> Metadata {
             model: raw.model.clone(),
         })
     };
+    let lens = match (&raw.lens_make, &raw.lens_model) {
+        (None, None) => None,
+        (make, model) => Some(LensInfo {
+            manufacturer: make.clone().unwrap_or_default(),
+            model: model.clone().unwrap_or_default(),
+            mount: None,
+        }),
+    };
     Metadata {
         camera,
+        lens,
         iso: raw.iso.map(|iso| iso.round() as u32),
         shutter: raw.shutter_s.and_then(shutter_rational),
         aperture: raw.aperture_f.map(|f| tenths(f64::from(f))),
@@ -348,5 +357,66 @@ fn tenths(value: f64) -> Rational {
     Rational {
         numerator: (value * 10.0).round() as i64,
         denominator: 10,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn raw() -> RawMetadata {
+        RawMetadata {
+            make: String::new(),
+            model: String::new(),
+            lens_make: None,
+            lens_model: None,
+            width: 0,
+            height: 0,
+            iso: None,
+            shutter_s: None,
+            aperture_f: None,
+            focal_mm: None,
+            capture_ms: None,
+            flip: 0,
+        }
+    }
+
+    #[test]
+    fn no_lens_data_leaves_lens_unset() {
+        assert_eq!(exif_metadata(&raw()).lens, None);
+    }
+
+    #[test]
+    fn lens_make_and_model_populate_lens_info() {
+        let meta = exif_metadata(&RawMetadata {
+            lens_make: Some("Canon".to_owned()),
+            lens_model: Some("EF 24-70mm f/2.8L II USM".to_owned()),
+            ..raw()
+        });
+        assert_eq!(
+            meta.lens,
+            Some(LensInfo {
+                manufacturer: "Canon".to_owned(),
+                model: "EF 24-70mm f/2.8L II USM".to_owned(),
+                mount: None,
+            })
+        );
+    }
+
+    #[test]
+    fn lens_model_without_make_still_populates_lens_info() {
+        // Some cameras (compacts, older bodies) only report the lens model.
+        let meta = exif_metadata(&RawMetadata {
+            lens_model: Some("18-55mm".to_owned()),
+            ..raw()
+        });
+        assert_eq!(
+            meta.lens,
+            Some(LensInfo {
+                manufacturer: String::new(),
+                model: "18-55mm".to_owned(),
+                mount: None,
+            })
+        );
     }
 }

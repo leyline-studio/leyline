@@ -48,6 +48,8 @@ unsafe extern "C" {
     );
     pub(crate) fn leyline_shim_make(data: *const LibrawData) -> *const c_char;
     pub(crate) fn leyline_shim_model(data: *const LibrawData) -> *const c_char;
+    pub(crate) fn leyline_shim_lens_make(data: *const LibrawData) -> *const c_char;
+    pub(crate) fn leyline_shim_lens_model(data: *const LibrawData) -> *const c_char;
     pub(crate) fn leyline_shim_iso(data: *const LibrawData) -> f32;
     pub(crate) fn leyline_shim_shutter(data: *const LibrawData) -> f32;
     pub(crate) fn leyline_shim_aperture(data: *const LibrawData) -> f32;

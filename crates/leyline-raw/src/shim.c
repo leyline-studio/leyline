@@ -23,6 +23,12 @@ void leyline_shim_set_options(libraw_data_t *d, int use_camera_wb,
 
 const char *leyline_shim_make(const libraw_data_t *d) { return d->idata.make; }
 const char *leyline_shim_model(const libraw_data_t *d) { return d->idata.model; }
+const char *leyline_shim_lens_make(const libraw_data_t *d) {
+    return d->lens.LensMake;
+}
+const char *leyline_shim_lens_model(const libraw_data_t *d) {
+    return d->lens.Lens;
+}
 float leyline_shim_iso(const libraw_data_t *d) { return d->other.iso_speed; }
 float leyline_shim_shutter(const libraw_data_t *d) { return d->other.shutter; }
 float leyline_shim_aperture(const libraw_data_t *d) { return d->other.aperture; }

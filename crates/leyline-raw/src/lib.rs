@@ -50,6 +50,10 @@ pub struct RawMetadata {
     pub make: String,
     /// Camera model.
     pub model: String,
+    /// Lens manufacturer, when recorded.
+    pub lens_make: Option<String>,
+    /// Lens model, when recorded.
+    pub lens_model: Option<String>,
     /// Image width in pixels, after camera crop, before orientation.
     pub width: u32,
     /// Image height in pixels, after camera crop, before orientation.
@@ -128,6 +132,8 @@ impl Handle {
             RawMetadata {
                 make: shim_string(ffi::leyline_shim_make(self.0)),
                 model: shim_string(ffi::leyline_shim_model(self.0)),
+                lens_make: non_empty(shim_string(ffi::leyline_shim_lens_make(self.0))),
+                lens_model: non_empty(shim_string(ffi::leyline_shim_lens_model(self.0))),
                 width: ffi::leyline_shim_raw_width(self.0).max(0) as u32,
                 height: ffi::leyline_shim_raw_height(self.0).max(0) as u32,
                 iso: positive(ffi::leyline_shim_iso(self.0)),
@@ -242,6 +248,11 @@ unsafe fn shim_string(ptr: *const std::ffi::c_char) -> String {
 /// A metadata float is "recorded" when strictly positive and finite.
 fn positive(value: f32) -> Option<f32> {
     (value.is_finite() && value > 0.0).then_some(value)
+}
+
+/// LibRaw returns empty strings, not NULL, for absent lens fields.
+fn non_empty(value: String) -> Option<String> {
+    (!value.trim().is_empty()).then_some(value)
 }
 
 /// Converts a path for `libraw_open_file`.
