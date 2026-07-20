@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use leyline_core::{JobId, PreviewKind, VersionId};
-use leyline_engine::{Event, ImportOptions, JobResult, Library};
+use leyline_engine::{Event, ImportOptions, JobResult, Library, Preview};
 use leyline_export::ExportSettings;
 
 /// Events are notifications across threads: the handle must be shareable.
@@ -147,6 +147,127 @@ fn a_preview_job_emits_preview_ready_then_finishes() {
         }) => assert!(file.path.is_file()),
         other => panic!("expected a preview JobFinished, got {other:?}"),
     }
+}
+
+#[test]
+fn preview_state_reports_generating_with_nothing_cached() {
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::create(&dir.path().join("Library"), "Jobs").unwrap();
+
+    let source = dir.path().join("photo.png");
+    sample_png(&source);
+    let report = library
+        .import(
+            &source,
+            &ImportOptions {
+                copy_files: true,
+                recursive: false,
+            },
+            |_, _| {},
+        )
+        .unwrap();
+    let asset = report.imported[0].registered.asset;
+
+    let events = library.subscribe();
+    let state = library
+        .preview_state(asset, PreviewKind::Thumbnail)
+        .unwrap();
+    let job = match state {
+        Preview::Generating(job) => job,
+        other => panic!("expected Generating, got {other:?}"),
+    };
+
+    let received = drain_until_finished(&events, job);
+    assert!(received.iter().any(|e| matches!(
+        e,
+        Event::PreviewReady { asset_id, kind } if *asset_id == asset && *kind == PreviewKind::Thumbnail
+    )));
+}
+
+#[test]
+fn preview_state_reports_ready_once_the_head_revision_is_cached() {
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::create(&dir.path().join("Library"), "Jobs").unwrap();
+
+    let source = dir.path().join("photo.png");
+    sample_png(&source);
+    let report = library
+        .import(
+            &source,
+            &ImportOptions {
+                copy_files: true,
+                recursive: false,
+            },
+            |_, _| {},
+        )
+        .unwrap();
+    let asset = report.imported[0].registered.asset;
+
+    // Generate the cache entry for the current head synchronously first.
+    let generated = library.preview(asset, PreviewKind::Thumbnail).unwrap();
+
+    let state = library
+        .preview_state(asset, PreviewKind::Thumbnail)
+        .unwrap();
+    match state {
+        Preview::Ready(path) => assert_eq!(path, generated.path),
+        other => panic!("expected Ready, got {other:?}"),
+    }
+}
+
+#[test]
+fn preview_state_reports_stale_and_starts_a_regeneration_job_after_an_edit() {
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::create(&dir.path().join("Library"), "Jobs").unwrap();
+
+    let source = dir.path().join("photo.png");
+    sample_png(&source);
+    let report = library
+        .import(
+            &source,
+            &ImportOptions {
+                copy_files: true,
+                recursive: false,
+            },
+            |_, _| {},
+        )
+        .unwrap();
+    let registered = report.imported[0].registered;
+
+    // Cache a preview for the initial revision.
+    let old = library
+        .preview(registered.asset, PreviewKind::Thumbnail)
+        .unwrap();
+
+    // Commit a new revision: the head moves on, the cached file above is
+    // now for a non-head revision — stale but still displayable.
+    {
+        let mut session = library.edit(registered.version).unwrap();
+        session
+            .set(
+                leyline_engine::Param::Exposure,
+                leyline_engine::Value::Float(0.5),
+            )
+            .unwrap();
+        session.commit().unwrap();
+    }
+
+    let events = library.subscribe();
+    let state = library
+        .preview_state(registered.asset, PreviewKind::Thumbnail)
+        .unwrap();
+    let (path, job) = match state {
+        Preview::Stale { path, job } => (path, job),
+        other => panic!("expected Stale, got {other:?}"),
+    };
+    assert_eq!(path, old.path);
+
+    let received = drain_until_finished(&events, job);
+    assert!(received.iter().any(|e| matches!(
+        e,
+        Event::PreviewReady { asset_id, kind }
+            if *asset_id == registered.asset && *kind == PreviewKind::Thumbnail
+    )));
 }
 
 #[test]

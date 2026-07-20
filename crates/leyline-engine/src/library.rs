@@ -32,7 +32,7 @@ use crate::events::{Event, JobResult};
 use crate::export::ExportReport;
 use crate::import::{ImportOptions, ImportReport};
 use crate::presets::PresetApplyReport;
-use crate::preview::PreviewFile;
+use crate::preview::{Preview, PreviewFile};
 use crate::reprocess::ReprocessReport;
 use crate::session::EditSession;
 
@@ -382,6 +382,32 @@ impl Library {
                 height: row.height,
                 freshly_generated: false,
             }))
+    }
+
+    /// Fuses `preview`, `cached_preview` and `preview_async` into one
+    /// convenience call (§11): the client always has something to display
+    /// immediately, except when nothing has ever been cached.
+    ///
+    /// - A valid cache hit (head revision) comes back as [`Preview::Ready`],
+    ///   no job started.
+    /// - A cache entry for an older revision comes back as
+    ///   [`Preview::Stale`]: display it right away, a regeneration job is
+    ///   already running, watch `PreviewReady`/`JobFinished` (§3.2) for the
+    ///   fresh file.
+    /// - Nothing cached at all comes back as [`Preview::Generating`]: a job
+    ///   was started, nothing to show until it finishes.
+    pub fn preview_state(&self, asset: AssetId, kind: PreviewKind) -> Result<Preview> {
+        if let Some(row) = self.catalog().valid_preview(asset, kind)? {
+            return Ok(Preview::Ready(
+                self.inner.cache.absolute_path(&row.relative_path),
+            ));
+        }
+        if let Some(row) = self.catalog().latest_preview(asset, kind)? {
+            let path = self.inner.cache.absolute_path(&row.relative_path);
+            let job = self.preview_async(asset, kind);
+            return Ok(Preview::Stale { path, job });
+        }
+        Ok(Preview::Generating(self.preview_async(asset, kind)))
     }
 
     /// Exports a version at its head revision (§12) and returns the file.

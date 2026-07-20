@@ -127,6 +127,41 @@ impl Catalog {
         }
     }
 
+    /// Returns the most recently generated preview of `kind` for the asset,
+    /// whatever revision it was rendered from — `None` only when the cache
+    /// holds nothing at all for this asset and kind.
+    ///
+    /// Unlike [`Catalog::valid_preview`], this does not check freshness: a
+    /// plain commit (`docs/catalog.md` §17) leaves the previous revision's
+    /// preview rows in place, so a stale-but-displayable file can still be
+    /// found here after the head has moved on (`docs/engine-api.md` §11).
+    pub fn latest_preview(&self, asset: AssetId, kind: PreviewKind) -> Result<Option<PreviewRow>> {
+        let found = self.conn.query_row(
+            "SELECT revision_id, width, height, relative_path, generated_at
+             FROM previews
+             WHERE asset_id = ?1 AND kind = ?2
+             ORDER BY generated_at DESC
+             LIMIT 1",
+            rusqlite::params![asset.get(), kind.as_i64()],
+            |row| {
+                Ok(PreviewRow {
+                    asset,
+                    revision: RevisionId::new(row.get(0)?),
+                    kind,
+                    width: row.get(1)?,
+                    height: row.get(2)?,
+                    relative_path: row.get(3)?,
+                    generated_at: row.get(4)?,
+                })
+            },
+        );
+        match found {
+            Ok(row) => Ok(Some(row)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(db_err(e)),
+        }
+    }
+
     /// Deletes every preview row of a revision and returns the cache paths of
     /// the deleted files, so the caller can remove them from disk.
     ///

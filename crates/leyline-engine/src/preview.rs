@@ -17,6 +17,28 @@ use leyline_raw::DecodeParams;
 use crate::decode_cache::DecodeCache;
 use crate::render;
 
+/// Fuses `preview`, `cached_preview` and `preview_async` (§11) into one
+/// call: the client always gets something to show immediately (`Ready` or
+/// `Stale`), or knows a render is already under way (`Generating`), and
+/// either way follows up on the `PreviewReady`/`JobFinished` events (§3.2)
+/// of the returned [`leyline_core::JobId`] when there is one.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Preview {
+    /// A valid, up-to-date cached file: the head revision's preview.
+    Ready(PathBuf),
+    /// A cached file exists but is no longer the head revision's: usable
+    /// for immediate display while a fresh render is already queued.
+    Stale {
+        /// The outdated cached file, safe to display right away.
+        path: PathBuf,
+        /// The regeneration job already started; watch for its
+        /// `PreviewReady`/`JobFinished` events.
+        job: leyline_core::JobId,
+    },
+    /// Nothing cached at all: a render was started, nothing to show yet.
+    Generating(leyline_core::JobId),
+}
+
 /// A preview file ready to display.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreviewFile {

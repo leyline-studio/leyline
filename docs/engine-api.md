@@ -383,15 +383,11 @@ pub enum Preview {
     /// Rien en cache : génération lancée.
     Generating(JobId),
 }
-
-impl Library {
-    pub fn preview(&self, version: VersionId, kind: PreviewKind) -> Result<Preview>;
-}
 ```
 
 Le client affiche toujours quelque chose immédiatement (`Ready` ou `Stale`), puis se met à jour sur `PreviewReady`. La validité suit strictement le catalogue §20 (`revision_id` de tête).
 
-**Surface livrée** : le get-or-generate synchrone, la lecture seule du cache, et le job de rendu. L'enum `Preview` (`Ready`/`Stale`/`Generating`) ci-dessus, qui fusionne les trois en un seul appel, reste à venir.
+**Surface livrée** : le get-or-generate synchrone, la lecture seule du cache, le job de rendu, et l'enum `Preview` (`Ready`/`Stale`/`Generating`) qui fusionne les trois en un seul appel.
 
 ```rust
 impl Library {
@@ -401,10 +397,15 @@ impl Library {
     pub fn cached_preview(&self, asset: AssetId, kind: PreviewKind) -> Result<Option<PreviewFile>>;
     /// Le job : `PreviewReady` en cas de succès, puis `JobFinished`.
     pub fn preview_async(&self, asset: AssetId, kind: PreviewKind) -> JobId;
+    /// Fusionne les trois appels ci-dessus derrière l'enum `Preview` : un
+    /// cache à jour rend `Ready` sans rien lancer ; un cache d'une révision
+    /// non-tête rend `Stale` avec le fichier obsolète et lance `preview_async` ;
+    /// rien en cache rend `Generating` et lance `preview_async`.
+    pub fn preview_state(&self, asset: AssetId, kind: PreviewKind) -> Result<Preview>;
 }
 ```
 
-`cached_preview` permet au client le même motif que `Ready`/`Generating` : afficher immédiatement ce qui existe, planifier la génération du reste — désormais via `preview_async` et l'événement `PreviewReady` (Studio peut remplacer son timer par ce flux).
+`cached_preview` permet au client le même motif que `Ready`/`Generating` : afficher immédiatement ce qui existe, planifier la génération du reste — désormais via `preview_async` et l'événement `PreviewReady` (Studio peut remplacer son timer par ce flux), ou directement via `preview_state`.
 
 La `Library` garde en mémoire les derniers décodages source (cache MRU borné, phase 7) : la boucle de développement re-rend le même asset après chaque commit de curseur, et sans ce cache chaque ajustement payait un décodage LibRaw complet. Les fichiers source ne changeant jamais (édition non-destructive), une entrée reste valide toute la vie du processus ; les pixels servis sont bit-à-bit ceux d'un décodage frais (`pipeline.md` §5), la reproductibilité n'est pas affectée.
 

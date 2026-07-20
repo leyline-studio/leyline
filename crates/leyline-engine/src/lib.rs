@@ -33,7 +33,7 @@ pub use export::{ExportReport, ExportedVersion, FailedExport, export_batch, expo
 pub use import::{ImportOptions, ImportReport, ImportedFile, SkippedFile, import};
 pub use library::{CatalogRead, CatalogWrite, Library};
 pub use presets::{FailedApply, PresetApplyReport, apply_batch, capture};
-pub use preview::{PreviewFile, preview};
+pub use preview::{Preview, PreviewFile, preview};
 pub use render::{LensShot, Rendered, lens_shot, render};
 pub use reprocess::{FailedReprocess, ReprocessReport, reprocess_batch};
 pub use session::{DEFAULT_AMEND_WINDOW, EditSession, Param, Value};
