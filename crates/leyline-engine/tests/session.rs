@@ -4,7 +4,7 @@
 use std::time::Duration;
 
 use leyline_catalog::{CHECKSUM_LEN, Catalog, NewAsset, RegisteredAsset};
-use leyline_core::{LeylineError, MediaType, Settings, VersionId};
+use leyline_core::{CURRENT_PROCESS, LeylineError, MediaType, Settings, VersionId};
 use leyline_engine::{EditSession, Param, Value};
 
 fn catalog_with_asset(dir: &tempfile::TempDir) -> (Catalog, RegisteredAsset) {
@@ -213,6 +213,68 @@ fn newer_engine_heads_are_refused() {
         EditSession::open(&mut catalog, reg.version),
         Err(LeylineError::NewerSettings { schema: 99, .. })
     ));
+}
+
+#[test]
+fn reprocess_migrates_an_old_process_to_a_new_revision() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut catalog, reg) = catalog_with_asset(&dir);
+    catalog
+        .connection()
+        .execute(
+            "UPDATE develop_revisions SET settings_json = '{\"schema\":1,\"process\":1,\"exposure\":0.4}'
+             WHERE id = ?1",
+            [reg.revision.get()],
+        )
+        .unwrap();
+
+    let mut session = EditSession::open(&mut catalog, reg.version).unwrap();
+    assert_eq!(session.settings().process, 1);
+
+    let head = session.reprocess().unwrap();
+    assert_ne!(head, reg.revision, "reprocessing writes a new revision");
+    assert_eq!(session.settings().process, CURRENT_PROCESS);
+    assert_eq!(
+        session.settings().exposure,
+        0.4,
+        "parameter values are untouched"
+    );
+    assert_eq!(session.history().unwrap().len(), 2);
+}
+
+#[test]
+fn reprocess_on_a_current_process_head_is_a_no_op() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut catalog, reg) = catalog_with_asset(&dir);
+
+    let mut session = EditSession::open(&mut catalog, reg.version).unwrap();
+    let head = session.reprocess().unwrap();
+    assert_eq!(head, reg.revision, "already current: no new revision");
+    assert_eq!(session.history().unwrap().len(), 1);
+}
+
+#[test]
+fn reprocess_commits_pending_state_first() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut catalog, reg) = catalog_with_asset(&dir);
+    catalog
+        .connection()
+        .execute(
+            "UPDATE develop_revisions SET settings_json = '{\"schema\":1,\"process\":1}'
+             WHERE id = ?1",
+            [reg.revision.get()],
+        )
+        .unwrap();
+
+    let mut session = EditSession::open(&mut catalog, reg.version).unwrap();
+    session.set(Param::Contrast, Value::Int(20)).unwrap();
+    session.reprocess().unwrap();
+
+    assert_eq!(session.settings().contrast, 20);
+    assert_eq!(session.settings().process, CURRENT_PROCESS);
+    // The pending contrast edit and the reprocess are separate intentions:
+    // two new revisions on top of the initial one.
+    assert_eq!(session.history().unwrap().len(), 3);
 }
 
 #[test]

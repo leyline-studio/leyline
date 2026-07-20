@@ -263,6 +263,29 @@ impl<C: DerefMut<Target = Catalog>> EditSession<C> {
         self.catalog.version_history(self.version)
     }
 
+    /// Migrates the version's head to the engine's current process version
+    /// (`docs/pipeline.md` §4.5): a new revision with the exact same
+    /// parameter values, re-rendered under a newer process contract — e.g.
+    /// a photo imported before lens correction existed picking it up
+    /// without the user touching a single slider.
+    ///
+    /// Always its own revision, never an amendment (§4.5: "conserve les
+    /// anciennes" — reprocessing keeps prior results reachable, it doesn't
+    /// extend the last edit's history entry). A no-op when the head
+    /// already declares `CURRENT_PROCESS`: returns the current head
+    /// unchanged, without writing a new revision.
+    pub fn reprocess(&mut self) -> Result<RevisionId> {
+        self.commit()?;
+        if self.settings.process == CURRENT_PROCESS {
+            return self.catalog.version_head(self.version);
+        }
+        self.settings.process = CURRENT_PROCESS;
+        let head = self.catalog.commit_revision(self.version, &self.settings)?;
+        self.last_commit = None;
+        self.notify_write();
+        Ok(head)
+    }
+
     /// Reports a history write to the registered notifier, if any.
     fn notify_write(&mut self) {
         let version = self.version;

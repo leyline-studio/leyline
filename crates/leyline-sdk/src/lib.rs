@@ -14,8 +14,9 @@ pub use leyline_core::{
 
 pub use leyline_engine::{
     CatalogRead, CatalogWrite, DEFAULT_AMEND_WINDOW, EditSession, Event, ExportReport,
-    ExportedVersion, FailedApply, FailedExport, ImportOptions, ImportReport, ImportedFile,
-    JobResult, Library, Param, PresetApplyReport, PreviewFile, SkippedFile, Value,
+    ExportedVersion, FailedApply, FailedExport, FailedReprocess, ImportOptions, ImportReport,
+    ImportedFile, JobResult, Library, Param, PresetApplyReport, PreviewFile, ReprocessReport,
+    SkippedFile, Value,
 };
 
 pub use leyline_catalog::{

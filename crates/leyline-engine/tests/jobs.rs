@@ -225,6 +225,58 @@ fn a_preset_job_reports_per_version_failures_and_notifies() {
 }
 
 #[test]
+fn a_reprocess_job_migrates_versions_and_reports_failures() {
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::create(&dir.path().join("Library"), "Jobs").unwrap();
+
+    let source = dir.path().join("photo.png");
+    sample_png(&source);
+    let report = library
+        .import(
+            &source,
+            &ImportOptions {
+                copy_files: true,
+                recursive: false,
+            },
+            |_, _| {},
+        )
+        .unwrap();
+    let registered = report.imported[0].registered;
+
+    // Simulate a photo imported before the current process version existed.
+    library
+        .catalog_mut()
+        .connection()
+        .execute(
+            "UPDATE develop_revisions SET settings_json = '{\"schema\":1,\"process\":1}'
+             WHERE id = ?1",
+            [registered.revision.get()],
+        )
+        .unwrap();
+
+    let events = library.subscribe();
+    // One known version and one unknown: the batch still finishes, the
+    // unknown one lands in the report, not in a job-level `Failed`.
+    let job = library.reprocess_async(vec![registered.version, VersionId::new(999)]);
+    let received = drain_until_finished(&events, job);
+
+    assert!(received.iter().any(|e| matches!(
+        e,
+        Event::VersionChanged { version_id } if *version_id == registered.version
+    )));
+    match received.last() {
+        Some(Event::JobFinished {
+            result: JobResult::Reprocess(report),
+            ..
+        }) => {
+            assert_eq!(report.reprocessed, vec![registered.version]);
+            assert_eq!(report.failed.len(), 1);
+        }
+        other => panic!("expected a reprocess JobFinished, got {other:?}"),
+    }
+}
+
+#[test]
 fn facade_writes_and_edit_sessions_notify_subscribers() {
     let dir = tempfile::tempdir().unwrap();
     let library = Library::create(&dir.path().join("Library"), "Jobs").unwrap();

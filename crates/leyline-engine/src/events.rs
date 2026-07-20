@@ -11,6 +11,7 @@ use crate::export::ExportReport;
 use crate::import::ImportReport;
 use crate::presets::PresetApplyReport;
 use crate::preview::PreviewFile;
+use crate::reprocess::ReprocessReport;
 
 /// A notification from the engine (`docs/engine-api.md` §3.2).
 #[derive(Debug, Clone, PartialEq)]
@@ -66,6 +67,8 @@ pub enum JobResult {
     Export(ExportReport),
     /// A preset application batch completed (per-version failures included).
     Preset(PresetApplyReport),
+    /// A reprocess batch completed (per-version failures included).
+    Reprocess(ReprocessReport),
     /// A preview render completed.
     Preview(PreviewFile),
     /// The job failed before producing anything.

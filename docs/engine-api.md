@@ -339,6 +339,39 @@ impl Library {
 
 ---
 
+## 10.4 Retraitement
+
+Migrer une version vers la version de process courante du moteur (`pipeline.md` §4.5) — typiquement pour qu'une photo importée avant l'arrivée d'une fonctionnalité de rendu (ex. la correction d'objectif, process 3–5) en bénéficie sans que l'utilisateur ne touche un seul curseur.
+
+```rust
+impl EditSession {
+    /// Migre la tête vers `CURRENT_PROCESS` : nouvelle révision, mêmes
+    /// paramètres. Rien s'il n'y a rien à faire.
+    pub fn reprocess(&mut self) -> Result<RevisionId>;
+}
+
+/// Outcome of one reprocess batch — même forme que `PresetApplyReport` (§10.3).
+pub struct ReprocessReport {
+    pub reprocessed: Vec<VersionId>,
+    pub already_current: Vec<VersionId>,
+    pub failed: Vec<(VersionId, String)>,
+}
+
+impl Library {
+    pub fn reprocess(&self, versions: &[VersionId], progress: impl FnMut(u64, u64)) -> Result<ReprocessReport>;
+
+    /// Le job : `JobProgress` par version, puis `JobFinished` avec le rapport.
+    pub fn reprocess_async(&self, versions: Vec<VersionId>) -> JobId;
+}
+```
+
+* Toujours une nouvelle révision, jamais un amendement : §4.5 dit explicitement que le retraitement « conserve les anciennes » exécutions — étendre la dernière modification de l'utilisateur en place perdrait la distinction entre « ce que l'utilisateur a réglé » et « ce que le moteur a migré ».
+* Une version déjà sur `CURRENT_PROCESS` ne produit aucune révision : `EditSession::reprocess` renvoie la tête inchangée, `ReprocessReport::already_current` la compte séparément — ni un succès qui écrit, ni un échec.
+* `EditSession::reprocess` commite d'abord tout état en attente (même règle que `undo`/`redo`, §10.1) avant de migrer : rien ne se perd.
+* `reprocess_async` est un **travail** (§3.1) pour la même raison que `apply_preset_async` : une sélection peut aller jusqu'à toute la bibliothèque.
+
+---
+
 # 11. Previews
 
 ```rust

@@ -33,6 +33,7 @@ use crate::export::ExportReport;
 use crate::import::{ImportOptions, ImportReport};
 use crate::presets::PresetApplyReport;
 use crate::preview::PreviewFile;
+use crate::reprocess::ReprocessReport;
 use crate::session::EditSession;
 
 /// Decoded images kept in memory for preview renders. Two covers the
@@ -612,6 +613,58 @@ impl Library {
             });
             let result = match applied {
                 Ok(report) => JobResult::Preset(report),
+                Err(error) => JobResult::Failed(error.to_string()),
+            };
+            library.emit(Event::JobFinished {
+                job_id: job,
+                result,
+            });
+        });
+        job
+    }
+
+    /// Migrates several versions to the engine's current process version
+    /// (`docs/engine-api.md` §10.4, `docs/pipeline.md` §4.5): the
+    /// synchronous core. One fresh `EditSession` per version, so one
+    /// `VersionChanged` per migration — prefer [`Library::reprocess_async`]
+    /// from interactive clients.
+    pub fn reprocess(
+        &self,
+        versions: &[VersionId],
+        mut progress: impl FnMut(u64, u64),
+    ) -> Result<ReprocessReport> {
+        let mut catalog = lock(&self.inner.catalog);
+        let report = crate::reprocess::reprocess_batch(&mut catalog, versions, &mut progress);
+        drop(catalog);
+        for &version in &report.reprocessed {
+            self.emit(Event::VersionChanged {
+                version_id: version,
+            });
+        }
+        Ok(report)
+    }
+
+    /// Migrates several versions to the engine's current process version as
+    /// a job (§3.1, §10.4): returns immediately, progresses as
+    /// `JobProgress` per version, then `JobFinished` with the report
+    /// (per-version failures inside it, already-current versions counted
+    /// separately, never as failures).
+    pub fn reprocess_async(&self, versions: Vec<VersionId>) -> JobId {
+        let job = self.new_job();
+        let library = self.clone();
+        std::thread::spawn(move || {
+            let migrated = library.reprocess(&versions, {
+                let library = library.clone();
+                move |done, total| {
+                    library.emit(Event::JobProgress {
+                        job_id: job,
+                        done,
+                        total,
+                    });
+                }
+            });
+            let result = match migrated {
+                Ok(report) => JobResult::Reprocess(report),
                 Err(error) => JobResult::Failed(error.to_string()),
             };
             library.emit(Event::JobFinished {
