@@ -2788,7 +2788,9 @@ dependencies = [
 name = "leyline-cli"
 version = "0.1.0"
 dependencies = [
+ "image",
  "leyline-sdk",
+ "tempfile",
 ]
 
 [[package]]
