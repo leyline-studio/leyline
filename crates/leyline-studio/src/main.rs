@@ -206,8 +206,13 @@ fn run() -> Result<(), String> {
 }
 
 /// Starts the timer that pumps engine events into the UI — job progress,
-/// finished imports and exports, freshly rendered thumbnails — and keeps
-/// a few thumbnail render jobs in flight off the UI thread.
+/// finished imports and exports, freshly rendered thumbnails, added or
+/// edited versions — and keeps a few thumbnail render jobs in flight off
+/// the UI thread. The 30 ms interval is not a re-scan: it only drains the
+/// `mpsc::Receiver` `Library::subscribe()` returns, because Slint's loop is
+/// single-threaded and cannot be woken from the job threads that emit
+/// events (`docs/engine-api.md` §3.2–3.3) — every UI update it triggers is
+/// still driven by an event, never by the tick itself.
 fn event_pump(app: &Rc<RefCell<App>>, window: &StudioWindow) -> Timer {
     let app = Rc::clone(app);
     let handle = window.as_weak();
@@ -259,9 +264,9 @@ fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
                     }
                     _ => return,
                 });
-                if let Err(error) = reload(app, window) {
-                    report_error(window, &error);
-                }
+                // No explicit reload here: a successful import already
+                // emitted `AssetsAdded` (handled below), and an import that
+                // added nothing (every file skipped) leaves the grid as-is.
             } else if app.export_job == Some(job_id) {
                 app.export_job = None;
                 window.set_dialog_result(match result {
@@ -285,6 +290,33 @@ fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
                 && asset_ids.contains(&asset)
             {
                 show_details(app, window, selected);
+            }
+        }
+        Event::VersionChanged { version_id } => {
+            // A version's head moved — rating/label/pick, a develop commit,
+            // a preset application or a reprocess (`docs/engine-api.md`
+            // §3.2) — any of which can invalidate the cached thumbnail
+            // (`cached_preview` follows the head revision id) or the row's
+            // filter/sort position. Reload only when the version is one of
+            // the loaded rows, and not while develop is open: the develop
+            // view refreshes itself on every commit, the grid isn't visible,
+            // and `on_exit_develop` reloads it unconditionally on the way
+            // back out.
+            if app.develop.is_none()
+                && app.items.iter().any(|item| item.version_id == version_id)
+                && let Err(error) = reload(app, window)
+            {
+                report_error(window, &error);
+            }
+        }
+        Event::AssetsAdded { .. } => {
+            // New assets — our own import, or another writer's — can change
+            // both the total count and the visible window; skip while
+            // develop is open for the same reason as `VersionChanged`.
+            if app.develop.is_none()
+                && let Err(error) = reload(app, window)
+            {
+                report_error(window, &error);
             }
         }
         _ => {}
