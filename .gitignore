@@ -3,3 +3,5 @@ CLAUDE.md
 .idea/
 # CI workflow kept local until the gh token gets the workflow scope
 .github/
+# cross-build artifact (mingw-built libraw_r DLL), regenerated per-machine
+/packaging/windows/vendor/

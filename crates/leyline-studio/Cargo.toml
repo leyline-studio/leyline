@@ -43,6 +43,23 @@ icons = [
     "../../packaging/icons/icon.png",
 ]
 
+# LibRaw is always dynamically linked (ADR 0004, LGPL substitution
+# obligation) — on Linux the .so is a system package the user already has
+# (or installs alongside Leyline), but Windows has no equivalent convention,
+# so `libraw_r-23.dll` must ship next to the exe. It's a build artifact of
+# the cross-compile (see `packaging/windows/build-nsis.sh`), not committed —
+# `packaging/windows/vendor/` is gitignored and populated right before
+# packaging. This `resources` entry is consumed by the nsis/wix/app
+# packagers only (cargo-packager's appimage/deb/pacman builders never read
+# `resources` at all), and is a glob that resolves to nothing when the
+# vendor DLL hasn't been built yet — safe no-op for the Linux AppImage build.
+# The macOS `.app` packager *does* read `resources` too; if a Windows DLL
+# happens to sit in the vendor dir when someone eventually builds `-f dmg`,
+# it would get bundled there as well — harmless dead weight, but worth a
+# `rm -rf packaging/windows/vendor` before a macOS build until this is
+# scoped more tightly (cargo-packager 0.11.8 has no per-format resources).
+resources = ["../../packaging/windows/vendor/*.dll"]
+
 # Linux: portable AppImage is the first deliverable (ADR 0019). `.deb` may
 # come later; no config needed for it yet.
 [package.metadata.packager.linux]

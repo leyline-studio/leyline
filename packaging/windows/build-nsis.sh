@@ -8,7 +8,7 @@
 #
 # 2026-07-20: cross-compiled and packaged successfully from this Linux/WSL2
 # box for target x86_64-pc-windows-gnu (`rustup target add
-# x86_64-pc-windows-gnu` + `apt install mingw-w64 nsis`). Two things to know
+# x86_64-pc-windows-gnu` + `apt install mingw-w64 nsis`). Things to know
 # before repeating this:
 #
 # 1. PKG_CONFIG_LIBDIR, not just PKG_CONFIG_PATH, must be restricted to
@@ -53,33 +53,53 @@
 #    file LibRaw's ./configure needs. This produces `libraw_r-23.dll` +
 #    `libraw_r.dll.a` + `libraw_r.pc` for the mingw target.
 #
-# KNOWN GAP — not yet fixed: the NSIS installer built this way does NOT
-# bundle libraw_r-23.dll. leyline-raw links it dynamically (see point 2), so
-# the installed app will fail to start on a real Windows machine with
-# "libraw_r-23.dll not found" (reproduced locally under Wine — see below)
-# until that DLL ships next to leyline-studio.exe. cargo-packager supports
-# this via a `resources` entry in `[package.metadata.packager]`
-# (placed next to the executable for the nsis/wix formats — see
-# cargo-packager's Config::resources docs), but it was deliberately NOT
-# wired up here: `resources` is a top-level (format-agnostic) config key,
-# and adding a Windows-only DLL path there risked changing behavior of the
-# already-verified Linux AppImage build without being able to re-verify it
-# end-to-end in the same sitting. Whoever picks this up next should either
-# scope it correctly (confirm cargo-packager ignores unknown-platform
-# resources cleanly, or gate it behind a separate config file passed via
-# `-c`) or have the script copy the cross-built DLL next to the binary and
-# pass it explicitly before invoking cargo packager.
+# 3. leyline-raw links libraw_r dynamically, so the built .exe needs
+#    `libraw_r-23.dll` next to it — plus the mingw runtime DLLs that DLL
+#    itself was linked against: `libgcc_s_seh-1.dll`, `libstdc++-6.dll`
+#    (must be the "posix" thread-model variant — check with
+#    `update-alternatives --list x86_64-w64-mingw32-gcc`, since Debian's
+#    "win32" variant is ABI-incompatible and produces the same missing-DLL
+#    error), and `libwinpthread-1.dll`. All four are staged into
+#    `packaging/windows/vendor/` (gitignored — rebuilt every run, not
+#    committed) and picked up by the `resources` entry in
+#    `crates/leyline-studio/Cargo.toml`'s `[package.metadata.packager]`,
+#    which cargo-packager places next to the exe for the nsis/wix formats.
+#
+#    IMPORTANT: `resources` is a format-agnostic config key, and
+#    cargo-packager's `appimage` packager internally reuses the `deb`
+#    module's data-generation step, which *does* read `resources` — so
+#    leaving Windows DLLs sitting in `packaging/windows/vendor/` while
+#    running the Linux AppImage build would bundle them into the AppImage
+#    too (discovered by testing, not assumed). This script therefore always
+#    empties `packaging/windows/vendor/` on exit (success or failure) via
+#    the trap below — the vendor DLLs must never outlive this script's run.
+#    Don't remove that trap without re-verifying the AppImage build's
+#    contents (`--appimage-extract` + `find -iname '*.dll'`) afterward.
 #
 # Weak sanity check available (not a substitute for real Windows testing):
 # `apt install wine64` lets you smoke-test that the produced .exe/.dll are
-# well-formed PE binaries and see missing-DLL errors like the one above.
-# Wine 6.0.3 (Ubuntu jammy) also can't resolve `bcryptprimitives.dll` for
-# this binary — that's a Wine gap in this environment (older bcrypt shim),
-# not evidence of a problem with the .exe itself; real Windows 10/11 ships
-# bcryptprimitives.dll natively.
+# well-formed PE binaries, actually load their dependencies, and see
+# missing-DLL errors if any are still absent. Wine 6.0.3 (Ubuntu jammy)
+# can't resolve `bcryptprimitives.dll` for this binary — that's a Wine gap
+# in this environment (older bcrypt shim), not evidence of a problem with
+# the .exe itself; real Windows 10/11 ships bcryptprimitives.dll natively.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
 
-cargo packager --release -p leyline-studio -f nsis "$@"
+vendor_dir="packaging/windows/vendor"
+mkdir -p "$vendor_dir"
+cleanup() { rm -rf "$vendor_dir"; }
+trap cleanup EXIT
+
+# Populate the vendor DLLs this run needs. libraw_r-23.dll (and its
+# libraw_r.pc) must already exist from the manual cross-build described in
+# point 2 above — this script doesn't redo that autotools build itself.
+: "${LIBRAW_MINGW_PREFIX:?Set LIBRAW_MINGW_PREFIX to the --prefix used when cross-building LibRaw for x86_64-w64-mingw32, see point 2 above}"
+cp "$LIBRAW_MINGW_PREFIX/bin/libraw_r-23.dll" "$vendor_dir/"
+cp /usr/lib/gcc/x86_64-w64-mingw32/10-posix/libgcc_s_seh-1.dll "$vendor_dir/"
+cp /usr/lib/gcc/x86_64-w64-mingw32/10-posix/libstdc++-6.dll "$vendor_dir/"
+cp /usr/x86_64-w64-mingw32/lib/libwinpthread-1.dll "$vendor_dir/"
+
+cargo packager --release -p leyline-studio -f nsis --target x86_64-pc-windows-gnu "$@"
