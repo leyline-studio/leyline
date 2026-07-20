@@ -32,6 +32,10 @@ Phase 7
 
 Optimisations CPU/GPU.
 
+Phase 8
+
+Distribution : installateur par plateforme, internationalisation FR/EN (`docs/adr/0019-distribution-i18n.md`).
+
 Long terme
 
 Plugins, SDK stable, HDR, panorama, IA locale optionnelle.
