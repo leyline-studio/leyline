@@ -41,6 +41,26 @@ use crate::session::EditSession;
 /// bounding memory: a full-size 24 MP decode is ~72 MB.
 const DECODE_CACHE_CAPACITY: usize = 2;
 
+/// Upper bound on the job pool (§3.3) regardless of core count: past a few
+/// dozen threads the catalog mutex and disk I/O dominate anyway, so a very
+/// high core count desktop gains nothing from an even wider pool.
+const JOB_POOL_MAX_THREADS: usize = 16;
+
+/// Sizes the shared job pool (§3.3): one worker per core, clamped so an
+/// unusual host (one logical core, or an exotic many-core workstation)
+/// still gets a sane bound. This is the engine's only concurrency ceiling
+/// for `*_async` jobs — a client that fires many of them in quick
+/// succession queues behind it instead of spawning unbounded OS threads.
+fn job_pool_size() -> usize {
+    std::thread::available_parallelism()
+        .map(std::num::NonZeroUsize::get)
+        .unwrap_or(4)
+        .clamp(1, JOB_POOL_MAX_THREADS)
+}
+
+/// One unit of work submitted to the job pool: a `*_async` job's closure.
+type Job = Box<dyn FnOnce() + Send + 'static>;
+
 /// An open Leyline library. Clones share the same underlying handle.
 #[derive(Debug, Clone)]
 pub struct Library {
@@ -58,6 +78,19 @@ struct Inner {
     subscribers: Mutex<Vec<Sender<Event>>>,
     /// Next job id, unique within this process.
     next_job: AtomicU64,
+    /// Feeds the bounded job pool every `*_async` job runs on (§3.3),
+    /// instead of each call spawning its own unmanaged OS thread. The
+    /// pool's worker threads are plain `std::thread`s reading from this
+    /// channel's receiving end, deliberately *not* rayon workers: pixel-
+    /// level parallelism inside a job (`rayon::prelude` in
+    /// `process1..5.rs`, `pixels.rs`) still runs on rayon's own separate
+    /// global pool exactly as before this change. Sharing one rayon
+    /// registry between job dispatch and nested `par_iter`/`join` work
+    /// would let work-stealing recruit a job's thread to run *another*
+    /// job's closure while the first is still holding the non-reentrant
+    /// catalog mutex — a real deadlock hit during development of this
+    /// pool, which is why the two stay on separate pools.
+    jobs: Sender<Job>,
 }
 
 /// Read access to the catalog, released when dropped.
@@ -116,6 +149,33 @@ impl Library {
     }
 
     fn assemble(root: &Path, catalog: Catalog) -> Library {
+        let (job_tx, job_rx) = channel::<Job>();
+        let job_rx = Arc::new(Mutex::new(job_rx));
+        for i in 0..job_pool_size() {
+            let job_rx = Arc::clone(&job_rx);
+            std::thread::Builder::new()
+                .name(format!("leyline-job-{i}"))
+                .spawn(move || {
+                    // A separate `let` before the `match`, deliberately not
+                    // `while let Ok(job) = lock(&job_rx).recv() { job() }`:
+                    // that form keeps the receiver's `MutexGuard` alive for
+                    // the whole loop body, so one worker would hold the
+                    // lock while *running* its job — every other worker
+                    // then blocks trying to `recv()` its own job and never
+                    // gets there. `recv()` errors once every `Sender` (i.e.
+                    // every `Library` clone's `Inner`) has dropped: the
+                    // pool shuts itself down at that point, no explicit
+                    // signal needed.
+                    loop {
+                        let job = lock(&job_rx).recv();
+                        match job {
+                            Ok(job) => job(),
+                            Err(_) => break,
+                        }
+                    }
+                })
+                .expect("spawning a job pool worker thread");
+        }
         Library {
             inner: Arc::new(Inner {
                 root: root.to_owned(),
@@ -124,8 +184,19 @@ impl Library {
                 decodes: Mutex::new(DecodeCache::new(DECODE_CACHE_CAPACITY)),
                 subscribers: Mutex::new(Vec::new()),
                 next_job: AtomicU64::new(1),
+                jobs: job_tx,
             }),
         }
+    }
+
+    /// Submits a `*_async` job's closure to the bounded job pool (§3.3).
+    fn spawn_job(&self, job: impl FnOnce() + Send + 'static) {
+        // The pool only shuts down once every `Sender` (every `Inner`) has
+        // dropped, which can't happen while `self` is alive to call this.
+        self.inner
+            .jobs
+            .send(Box::new(job))
+            .expect("the job pool outlives every live Library handle");
     }
 
     /// The library root directory.
@@ -147,8 +218,12 @@ impl Library {
     /// subscriber with [`Event::LibraryClosed`] so clients can tear down
     /// their UI before the handle disappears.
     ///
-    /// `Library` clones share one `Arc`; other clones — and any job thread
-    /// still running against them — stay usable. `close` is the owning
+    /// `Library` clones share one `Arc`; other clones — and any job still
+    /// running against them on the job pool (§3.3) — stay usable. The job
+    /// sender lives on that same `Arc`, so the pool's worker threads keep
+    /// running until the last clone drops, then exit on their own once
+    /// `recv()` starts erroring — no explicit shutdown signal needed.
+    /// `close` is the owning
     /// client's courtesy notice that its session is ending, not a hard
     /// resource release: the catalog connection closes only once the last
     /// clone drops, same as any `Arc`-backed handle.
@@ -327,7 +402,7 @@ impl Library {
         let library = self.clone();
         let source = source.to_owned();
         let options = *options;
-        std::thread::spawn(move || {
+        self.spawn_job(move || {
             let imported = library.import(&source, &options, |done, total| {
                 library.emit(Event::JobProgress {
                     job_id: job,
@@ -378,7 +453,7 @@ impl Library {
     pub fn preview_async(&self, asset: AssetId, kind: PreviewKind) -> JobId {
         let job = self.new_job();
         let library = self.clone();
-        std::thread::spawn(move || {
+        self.spawn_job(move || {
             let result = match library.preview(asset, kind) {
                 Ok(file) => {
                     library.emit(Event::PreviewReady {
@@ -490,7 +565,7 @@ impl Library {
     ) -> JobId {
         let job = self.new_job();
         let library = self.clone();
-        std::thread::spawn(move || {
+        self.spawn_job(move || {
             let exported = library.export_batch(&versions, &settings, &destination_dir, {
                 let library = library.clone();
                 move |done, total| {
@@ -523,7 +598,7 @@ impl Library {
     ) -> JobId {
         let job = self.new_job();
         let library = self.clone();
-        std::thread::spawn(move || {
+        self.spawn_job(move || {
             let exported = library.export_with_preset(&versions, preset, &destination_dir, {
                 let library = library.clone();
                 move |done, total| {
@@ -654,7 +729,7 @@ impl Library {
     pub fn apply_preset_async(&self, preset: PresetId, versions: Vec<VersionId>) -> JobId {
         let job = self.new_job();
         let library = self.clone();
-        std::thread::spawn(move || {
+        self.spawn_job(move || {
             let applied = library.apply_preset(preset, &versions, {
                 let library = library.clone();
                 move |done, total| {
@@ -706,7 +781,7 @@ impl Library {
     pub fn reprocess_async(&self, versions: Vec<VersionId>) -> JobId {
         let job = self.new_job();
         let library = self.clone();
-        std::thread::spawn(move || {
+        self.spawn_job(move || {
             let migrated = library.reprocess(&versions, {
                 let library = library.clone();
                 move |done, total| {
@@ -740,4 +815,111 @@ impl Library {
 /// catalog is transactional, a poisoned lock carries no torn state.
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// Unit tests for the job pool itself (§3.3): they use `spawn_job`
+/// directly to submit synthetic work, unlike `tests/jobs.rs` which only
+/// exercises the public `*_async` facade and its event contract.
+#[cfg(test)]
+mod tests {
+    use std::sync::Barrier;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::Duration;
+
+    use super::*;
+
+    fn open_test_library(name: &str) -> (tempfile::TempDir, Library) {
+        let dir = tempfile::tempdir().unwrap();
+        let library = Library::create(&dir.path().join("Library"), name).unwrap();
+        (dir, library)
+    }
+
+    /// Submits `count` synthetic jobs straight to `library`'s job pool and
+    /// blocks until every one of them has run `body` — bypassing the
+    /// `*_async` facade entirely, since what's under test here is the
+    /// pool's own concurrency bound, not any one job kind's behavior.
+    fn run_on_job_pool(library: &Library, count: usize, body: impl Fn() + Send + Sync + 'static) {
+        let body = Arc::new(body);
+        let (done_tx, done_rx) = std::sync::mpsc::channel();
+        for _ in 0..count {
+            let body = Arc::clone(&body);
+            let done_tx = done_tx.clone();
+            library.spawn_job(move || {
+                body();
+                done_tx.send(()).unwrap();
+            });
+        }
+        for _ in 0..count {
+            // Generous: this test and its sibling both saturate the pool's
+            // full width at once, and `cargo test` runs them (and every
+            // other test in the crate) concurrently — on a machine with
+            // exactly `width` cores that's real, if temporary, contention,
+            // not a hang.
+            done_rx
+                .recv_timeout(Duration::from_secs(30))
+                .expect("every job submitted to the job pool must finish");
+        }
+    }
+
+    /// Submitting exactly as many jobs as the pool has workers must let
+    /// them all run at once — the bound is a ceiling, not an accidental
+    /// serialization down to one thread.
+    #[test]
+    fn job_pool_reaches_its_configured_width() {
+        let (_dir, library) = open_test_library("PoolWidth");
+        let width = job_pool_size();
+
+        let running = Arc::new(AtomicUsize::new(0));
+        let max_running = Arc::new(AtomicUsize::new(0));
+        // Every job must reach the barrier before any of them is released:
+        // that only happens if `width` of them are genuinely in flight
+        // together.
+        let barrier = Arc::new(Barrier::new(width));
+
+        let running2 = Arc::clone(&running);
+        let max2 = Arc::clone(&max_running);
+        let barrier2 = Arc::clone(&barrier);
+        run_on_job_pool(&library, width, move || {
+            let now = running2.fetch_add(1, Ordering::SeqCst) + 1;
+            max2.fetch_max(now, Ordering::SeqCst);
+            barrier2.wait();
+            running2.fetch_sub(1, Ordering::SeqCst);
+        });
+
+        assert_eq!(max_running.load(Ordering::SeqCst), width);
+    }
+
+    /// Submitting far more jobs than the pool has workers must still
+    /// complete every one of them (queued, not dropped), and the observed
+    /// concurrency must never exceed the pool's configured width — the
+    /// ceiling this whole change exists to enforce.
+    #[test]
+    fn job_pool_never_exceeds_its_configured_width() {
+        let (_dir, library) = open_test_library("PoolBound");
+        let width = job_pool_size();
+        let rounds = 3;
+
+        let running = Arc::new(AtomicUsize::new(0));
+        let max_running = Arc::new(AtomicUsize::new(0));
+        // Reused across `rounds` batches of `width`: std's Barrier is
+        // cyclic, so each full batch synchronizes and releases in turn.
+        let barrier = Arc::new(Barrier::new(width));
+
+        let running2 = Arc::clone(&running);
+        let max2 = Arc::clone(&max_running);
+        let barrier2 = Arc::clone(&barrier);
+        run_on_job_pool(&library, width * rounds, move || {
+            let now = running2.fetch_add(1, Ordering::SeqCst) + 1;
+            max2.fetch_max(now, Ordering::SeqCst);
+            barrier2.wait();
+            running2.fetch_sub(1, Ordering::SeqCst);
+        });
+
+        assert_eq!(running.load(Ordering::SeqCst), 0, "every job must finish");
+        assert_eq!(
+            max_running.load(Ordering::SeqCst),
+            width,
+            "concurrency must reach the pool width but never exceed it"
+        );
+    }
 }

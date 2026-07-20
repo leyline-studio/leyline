@@ -591,3 +591,77 @@ fn a_dropped_subscriber_never_blocks_the_engine() {
         })
     ));
 }
+
+#[test]
+fn many_concurrent_preview_jobs_all_complete_behind_the_bounded_pool() {
+    // `*_async` jobs run on a shared, bounded render pool (§3.3, capped at
+    // 16 threads regardless of core count) rather than one raw OS thread
+    // per call. This count is comfortably past that cap on any host, so
+    // most of these jobs must queue behind the pool instead of all running
+    // at once — the point of this test is that queuing loses nothing: every
+    // job still gets its `PreviewReady` and `JobFinished`, none silently
+    // dropped by a full queue. `library.rs`'s unit tests separately prove
+    // the pool's concurrency never exceeds its configured width; this is
+    // the public-API-level correctness check under that same load.
+    const ASSET_COUNT: usize = 20;
+
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::create(&dir.path().join("Library"), "Jobs").unwrap();
+
+    let mut assets = Vec::with_capacity(ASSET_COUNT);
+    for i in 0..ASSET_COUNT {
+        let source = dir.path().join(format!("photo-{i}.png"));
+        // Distinct pixels per file: import dedupes by checksum, and
+        // `sample_png` alone would make every one of these a duplicate of
+        // the first.
+        image::save_buffer(
+            &source,
+            &[i as u8; 4 * 2 * 3],
+            4,
+            2,
+            image::ExtendedColorType::Rgb8,
+        )
+        .unwrap();
+        let report = library
+            .import(
+                &source,
+                &ImportOptions {
+                    copy_files: true,
+                    recursive: false,
+                },
+                |_, _| {},
+            )
+            .unwrap();
+        assets.push(report.imported[0].registered.asset);
+    }
+
+    let events = library.subscribe();
+    // `Small` was never rendered by import (which only thumbnails, §11),
+    // so every one of these is a real render job, not a cache hit.
+    let jobs: Vec<(JobId, leyline_core::AssetId)> = assets
+        .iter()
+        .map(|&asset| (library.preview_async(asset, PreviewKind::Small), asset))
+        .collect();
+
+    for (job, asset) in jobs {
+        let received = drain_until_finished(&events, job);
+        assert!(
+            received.iter().any(|e| matches!(
+                e,
+                Event::PreviewReady { asset_id, kind }
+                    if *asset_id == asset && *kind == PreviewKind::Small
+            )),
+            "job {job:?} never emitted its own PreviewReady"
+        );
+        assert!(
+            matches!(
+                received.last(),
+                Some(Event::JobFinished {
+                    result: JobResult::Preview(_),
+                    ..
+                })
+            ),
+            "job {job:?} did not finish with a Preview result"
+        );
+    }
+}
