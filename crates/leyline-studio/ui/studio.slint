@@ -2159,11 +2159,188 @@ export component StudioWindow inherits Window {
                             font-size: 15px;
                             font-weight: 600;
                         }
-                        Text {
-                            text: @tr("G / D — library / develop\nI — import · E — export · N — new collection\nB / Shift+B — add / remove from collection\nShift+R — reprocess library · R — reprocess (develop)\nCtrl+Z / Ctrl+Y — undo / redo · S — save preset\n0–5 — rate · 6–9 — color label · P / X / U — pick / reject / clear");
-                            color: #c8c8c8;
-                            font-size: 12px;
-                            wrap: word-wrap;
+                        VerticalLayout {
+                            spacing: 4px;
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Text {
+                                    text: "G / D";
+                                    color: #e6e6e6;
+                                    font-size: 12px;
+                                    font-weight: 600;
+                                    width: 110px;
+                                }
+                                Text {
+                                    text: @tr("Library / develop");
+                                    color: #9a9a9a;
+                                    font-size: 12px;
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Text {
+                                    text: "I";
+                                    color: #e6e6e6;
+                                    font-size: 12px;
+                                    font-weight: 600;
+                                    width: 110px;
+                                }
+                                Text {
+                                    text: @tr("Import");
+                                    color: #9a9a9a;
+                                    font-size: 12px;
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Text {
+                                    text: "E";
+                                    color: #e6e6e6;
+                                    font-size: 12px;
+                                    font-weight: 600;
+                                    width: 110px;
+                                }
+                                Text {
+                                    text: @tr("Export");
+                                    color: #9a9a9a;
+                                    font-size: 12px;
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Text {
+                                    text: "N";
+                                    color: #e6e6e6;
+                                    font-size: 12px;
+                                    font-weight: 600;
+                                    width: 110px;
+                                }
+                                Text {
+                                    text: @tr("New collection");
+                                    color: #9a9a9a;
+                                    font-size: 12px;
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Text {
+                                    text: "B / Shift+B";
+                                    color: #e6e6e6;
+                                    font-size: 12px;
+                                    font-weight: 600;
+                                    width: 110px;
+                                }
+                                Text {
+                                    text: @tr("Add / remove from collection");
+                                    color: #9a9a9a;
+                                    font-size: 12px;
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Text {
+                                    text: "Shift+R";
+                                    color: #e6e6e6;
+                                    font-size: 12px;
+                                    font-weight: 600;
+                                    width: 110px;
+                                }
+                                Text {
+                                    text: @tr("Reprocess library");
+                                    color: #9a9a9a;
+                                    font-size: 12px;
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Text {
+                                    text: "R";
+                                    color: #e6e6e6;
+                                    font-size: 12px;
+                                    font-weight: 600;
+                                    width: 110px;
+                                }
+                                Text {
+                                    text: @tr("Reprocess (develop mode)");
+                                    color: #9a9a9a;
+                                    font-size: 12px;
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Text {
+                                    text: "Ctrl+Z / Ctrl+Y";
+                                    color: #e6e6e6;
+                                    font-size: 12px;
+                                    font-weight: 600;
+                                    width: 110px;
+                                }
+                                Text {
+                                    text: @tr("Undo / redo");
+                                    color: #9a9a9a;
+                                    font-size: 12px;
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Text {
+                                    text: "S";
+                                    color: #e6e6e6;
+                                    font-size: 12px;
+                                    font-weight: 600;
+                                    width: 110px;
+                                }
+                                Text {
+                                    text: @tr("Save preset");
+                                    color: #9a9a9a;
+                                    font-size: 12px;
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Text {
+                                    text: "0–5";
+                                    color: #e6e6e6;
+                                    font-size: 12px;
+                                    font-weight: 600;
+                                    width: 110px;
+                                }
+                                Text {
+                                    text: @tr("Rate");
+                                    color: #9a9a9a;
+                                    font-size: 12px;
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Text {
+                                    text: "6–9";
+                                    color: #e6e6e6;
+                                    font-size: 12px;
+                                    font-weight: 600;
+                                    width: 110px;
+                                }
+                                Text {
+                                    text: @tr("Color label");
+                                    color: #9a9a9a;
+                                    font-size: 12px;
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Text {
+                                    text: "P / X / U";
+                                    color: #e6e6e6;
+                                    font-size: 12px;
+                                    font-weight: 600;
+                                    width: 110px;
+                                }
+                                Text {
+                                    text: @tr("Pick / reject / clear");
+                                    color: #9a9a9a;
+                                    font-size: 12px;
+                                }
+                            }
                         }
                         HorizontalLayout {
                             spacing: 8px;

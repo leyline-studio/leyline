@@ -318,12 +318,8 @@ msgctxt "StudioWindow"
 msgid ""
 "G: library · Ctrl+Z/Y: undo/redo · S: save preset · R: reprocess · drag: crop"
 msgstr ""
-"G / D — bibliothèque / développement\n"
-"I — importer · E — exporter · N — nouvelle collection\n"
-"B / Maj+B — ajouter / retirer de la collection\n"
-"Maj+R — retraiter la bibliothèque · R — retraiter (développement)\n"
-"Ctrl+Z / Ctrl+Y — annuler / rétablir · S — enregistrer le preset\n"
-"0–5 — noter · 6–9 — étiquette de couleur · P / X / U — sélectionner / rejeter / effacer"
+"G : bibliothèque · Ctrl+Z/Y : annuler/rétablir · S : enregistrer le preset "
+"· R : retraiter · glisser : recadrer"
 
 #: ui/studio.slint:769
 msgctxt "StudioWindow"
@@ -677,27 +673,50 @@ msgctxt "StudioWindow"
 msgid "Save"
 msgstr "Enregistrer"
 
-#: ui/studio.slint:2120
+#: ui/studio.slint:2157
 msgctxt "StudioWindow"
 msgid "Keyboard shortcuts"
 msgstr "Raccourcis clavier"
 
-#: ui/studio.slint:2126
+#: ui/studio.slint:2174
 msgctxt "StudioWindow"
-msgid ""
-"G / D — library / develop\n"
-"I — import · E — export · N — new collection\n"
-"B / Shift+B — add / remove from collection\n"
-"Shift+R — reprocess library · R — reprocess (develop)\n"
-"Ctrl+Z / Ctrl+Y — undo / redo · S — save preset\n"
-"0–5 — rate · 6–9 — color label · P / X / U — pick / reject / clear"
-msgstr ""
-"G / D — bibliothèque / développement\n"
-"I — importer · E — exporter · N — nouvelle collection\n"
-"B / Maj+B — ajouter / retirer de la collection\n"
-"Maj+R — retraiter la bibliothèque · R — retraiter (développement)\n"
-"Ctrl+Z / Ctrl+Y — annuler / rétablir · S — enregistrer le preset\n"
-"0–5 — noter · 6–9 — étiquette de couleur · P / X / U — sélectionner / rejeter / effacer"
+msgid "Library / develop"
+msgstr "Bibliothèque / développement"
+
+#: ui/studio.slint:2234
+msgctxt "StudioWindow"
+msgid "Add / remove from collection"
+msgstr "Ajouter / retirer de la collection"
+
+#: ui/studio.slint:2249
+msgctxt "StudioWindow"
+msgid "Reprocess library"
+msgstr "Retraiter la bibliothèque"
+
+#: ui/studio.slint:2264
+msgctxt "StudioWindow"
+msgid "Reprocess (develop mode)"
+msgstr "Retraiter (mode développement)"
+
+#: ui/studio.slint:2279
+msgctxt "StudioWindow"
+msgid "Undo / redo"
+msgstr "Annuler / rétablir"
+
+#: ui/studio.slint:2294
+msgctxt "StudioWindow"
+msgid "Save preset"
+msgstr "Enregistrer le preset"
+
+#: ui/studio.slint:2324
+msgctxt "StudioWindow"
+msgid "Color label"
+msgstr "Étiquette de couleur"
+
+#: ui/studio.slint:2339
+msgctxt "StudioWindow"
+msgid "Pick / reject / clear"
+msgstr "Sélectionner / rejeter / effacer"
 
 #: ui/studio.slint:2135 ui/studio.slint:2162
 msgctxt "StudioWindow"
