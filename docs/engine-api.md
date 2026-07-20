@@ -62,6 +62,7 @@ pub enum Event {
 pub enum JobResult {
     Import(ImportReport),   // échecs par fichier inclus dans le rapport
     Export(ExportReport),   // échecs par version inclus dans le rapport
+    Preset(PresetApplyReport), // échecs par version inclus dans le rapport
     Preview(PreviewFile),
     Failed(String),         // le job a échoué avant de produire quoi que ce soit
 }
@@ -71,7 +72,7 @@ pub enum JobResult {
 * Studio branche ce canal sur la boucle Slint ; la CLI le lit en séquence ; un script peut l'ignorer. Un récepteur abandonné se désabonne silencieusement.
 * Les événements sont des **notifications**, jamais des données complètes : le client re-requête ce dont il a besoin. Cela évite tout problème de cohérence entre le flux et la base.
 * `PreviewReady` porte l'asset (pas la version) : la surface preview est asset-based (§11), la preview rendue est toujours celle de la version courante de l'asset.
-* **État livré** : `subscribe` et les jobs `import_async`, `preview_async`, `export_async` émettent `JobProgress`, `AssetsAdded`, `PreviewReady` et `JobFinished`. Les écritures de la façade notifient : classement (§8) → un `VersionChanged` par version du lot ; mots-clés (§8) → `AssetsChanged` avec le lot ; chaque écriture d'historique d'une session d'édition (§10.1 — commit, amendement, undo, redo) → `VersionChanged`. Un client qui écrit via `catalog_mut()` directement contourne les notifications : passer par la façade.
+* **État livré** : `subscribe` et les jobs `import_async`, `preview_async`, `export_async` émettent `JobProgress`, `AssetsAdded`, `PreviewReady` et `JobFinished`. Les écritures de la façade notifient : classement (§8) → un `VersionChanged` par version du lot ; mots-clés (§8) → `AssetsChanged` avec le lot ; chaque écriture d'historique d'une session d'édition (§10.1 — commit, amendement, undo, redo) → `VersionChanged`. L'application d'un preset (§10.3) ne notifie rien de plus : c'est un commit de session par version ciblée, donc les mêmes `VersionChanged` que §10.1, portés par le job `apply_preset_async`. Un client qui écrit via `catalog_mut()` directement contourne les notifications : passer par la façade.
 
 ## 3.3 Threading
 
@@ -90,6 +91,7 @@ pub struct VersionId(i64);
 pub struct RevisionId(i64);
 pub struct CollectionId(i64);
 pub struct KeywordId(i64);
+pub struct PresetId(i64);
 pub struct JobId(u64);
 
 pub enum LeylineError {
@@ -101,6 +103,7 @@ pub enum LeylineError {
     RevisionMissing(RevisionId),
     KeywordMissing(KeywordId),
     CollectionMissing(CollectionId),
+    PresetMissing(PresetId),
     DecodeFailed { asset: AssetId, reason: String },
     InvalidSettings(String),
     NewerSettings { schema: u32, process: u32 },
@@ -286,6 +289,53 @@ impl Library {
     pub fn delete_version(&self, version: VersionId) -> Result<()>;   // refuse la dernière version
 }
 ```
+
+---
+
+## 10.3 Presets
+
+Un preset (`docs/presets.md`) capture un sous-ensemble de `Param` (§10.1) — jamais l'état complet — et s'applique en écrivant une révision normale sur chaque version ciblée. Aucun nouveau mécanisme de rendu ou d'écriture : l'application réutilise `EditSession::set`/`commit` tels quels (`docs/adr/0014-develop-presets.md`).
+
+```rust
+pub enum SettingsGroup {
+    WhiteBalance,
+    Tone,
+    Presence,
+    LensCorrection,
+    Detail,
+    Geometry,
+}
+
+pub struct PresetInfo {
+    pub id: PresetId,
+    pub name: String,
+    pub groups: Vec<SettingsGroup>,
+}
+
+/// Outcome of one preset application batch — même forme qu'`ExportReport` (§12).
+pub struct PresetApplyReport {
+    pub applied: Vec<VersionId>,
+    pub failed: Vec<(VersionId, String)>,
+}
+
+impl Library {
+    /// Capture les champs des `groups` demandés depuis la tête de `from` (§10.1).
+    pub fn create_preset(&self, name: &str, from: VersionId, groups: &[SettingsGroup]) -> Result<PresetId>;
+    pub fn presets(&self) -> Result<Vec<PresetInfo>>;
+    pub fn rename_preset(&self, id: PresetId, name: &str) -> Result<()>;
+    pub fn delete_preset(&self, id: PresetId) -> Result<()>;
+
+    /// Le job : `JobProgress` par version, puis `JobFinished` avec le rapport
+    /// (échecs par version dans le rapport, échec du lot en `Failed`).
+    pub fn apply_preset_async(&self, preset: PresetId, versions: Vec<VersionId>) -> JobId;
+}
+```
+
+* `SettingsGroup` regroupe les `Param` de §10.1 à la granularité des cases à cocher du preset (`docs/presets.md` §3.1) : `Tone` = Exposure + Contrast + Highlights + Shadows + Whites + Blacks, `Presence` = Vibrance + Saturation, `Detail` = NoiseReduction + Sharpening, `Geometry` = Rotation + Crop ; les autres groupes correspondent chacun à un seul `Param`.
+* `apply_preset_async` est un **travail** (§3.1) même pour une seule version : une sélection peut aller jusqu'à toute la bibliothèque (`docs/presets.md` §5.2), et une seule catégorie d'appel évite de faire dépendre requête/travail de la taille de la sélection au moment de l'appel.
+* Pour chaque version du lot : ouvrir une session fraîche via `Library::edit` (§10.1), `set` chaque paramètre des groupes inclus, puis `commit` une seule fois. Une session neuve n'a pas d'historique de commit à amender (`last_commit` vide, §10.1) : le commit est donc toujours une nouvelle révision, jamais un amendement — sans avoir à modifier la politique de coalescence pour ce cas.
+* Une version en échec (typiquement `NewerSettings`, catalogue §17/§3.4, si le preset ou la tête référence un schéma que le moteur ne connaît plus) rejoint `PresetApplyReport::failed` avec la raison ; les autres versions du lot continuent (`docs/presets.md` §5.2).
+* `create_preset` ne connaît que le vocabulaire de `Settings` (`leyline-core`) : il lit la tête de `from`, garde les champs des groupes demandés, sérialise le `preset_json` avec `schema` = celui de cette tête (`docs/presets.md` §3.2).
 
 ---
 

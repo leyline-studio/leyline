@@ -275,6 +275,145 @@ impl Settings {
     }
 }
 
+/// One category of develop settings a preset can capture (`docs/presets.md`
+/// §3.1). Atomic: including a group captures — or applies — all of its
+/// fields together, never a single field of it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SettingsGroup {
+    /// [`Settings::white_balance`].
+    WhiteBalance,
+    /// [`Settings::exposure`], `contrast`, `highlights`, `shadows`, `whites`, `blacks`.
+    Tone,
+    /// [`Settings::vibrance`], `saturation`.
+    Presence,
+    /// [`Settings::lens_correction`].
+    LensCorrection,
+    /// [`Settings::noise_reduction`], `sharpening`.
+    Detail,
+    /// [`Settings::rotation`], `crop`. Never included by default when a
+    /// preset is created (`docs/presets.md` §3.1): geometry is a per-photo
+    /// judgment, not a reproducible style.
+    Geometry,
+}
+
+/// A named, partial jeu of develop settings (`docs/presets.md` §3.2,
+/// `preset_json`), unlike [`Settings`] which is always complete.
+///
+/// A field is `Some` if and only if its [`SettingsGroup`] is in `groups` —
+/// that list is the source of truth for what the preset touches; an absent
+/// field means "leave untouched", never "neutral value" (the opposite rule
+/// from [`Settings`], `docs/presets.md` §3.2). No `process` field: a preset
+/// never fixes a rendering version, only values.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PresetSettings {
+    /// Version of the settings *format* this preset's fields use — the same
+    /// numbering as [`Settings::schema`], not an independent space.
+    pub schema: u32,
+    /// The categories this preset touches.
+    pub groups: Vec<SettingsGroup>,
+
+    /// `Some(None)` = included, reset to as-shot; `Some(Some(wb))` = included
+    /// with an override; `None` = category not included.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub white_balance: Option<Option<WhiteBalance>>,
+    /// Present when `groups` includes [`SettingsGroup::Tone`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exposure: Option<f64>,
+    /// Present when `groups` includes [`SettingsGroup::Tone`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contrast: Option<i32>,
+    /// Present when `groups` includes [`SettingsGroup::Tone`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub highlights: Option<i32>,
+    /// Present when `groups` includes [`SettingsGroup::Tone`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shadows: Option<i32>,
+    /// Present when `groups` includes [`SettingsGroup::Tone`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub whites: Option<i32>,
+    /// Present when `groups` includes [`SettingsGroup::Tone`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blacks: Option<i32>,
+    /// Present when `groups` includes [`SettingsGroup::Presence`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vibrance: Option<i32>,
+    /// Present when `groups` includes [`SettingsGroup::Presence`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub saturation: Option<i32>,
+
+    /// Present when `groups` includes [`SettingsGroup::LensCorrection`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lens_correction: Option<LensCorrection>,
+    /// Present when `groups` includes [`SettingsGroup::Detail`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub noise_reduction: Option<NoiseReduction>,
+    /// Present when `groups` includes [`SettingsGroup::Detail`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sharpening: Option<Sharpening>,
+
+    /// Present when `groups` includes [`SettingsGroup::Geometry`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rotation: Option<f64>,
+    /// `Some(None)` = included, cleared to full frame; `Some(Some(c))` =
+    /// included with a crop; `None` = category not included.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub crop: Option<Option<Crop>>,
+}
+
+impl PresetSettings {
+    /// Captures the fields of `groups` from a complete develop state
+    /// (`docs/presets.md` §3.1 — the create-a-preset step).
+    pub fn capture(settings: &Settings, groups: &[SettingsGroup]) -> PresetSettings {
+        let mut preset = PresetSettings {
+            schema: settings.schema,
+            groups: groups.to_vec(),
+            ..PresetSettings::default()
+        };
+        for group in groups {
+            match group {
+                SettingsGroup::WhiteBalance => {
+                    preset.white_balance = Some(settings.white_balance.clone());
+                }
+                SettingsGroup::Tone => {
+                    preset.exposure = Some(settings.exposure);
+                    preset.contrast = Some(settings.contrast);
+                    preset.highlights = Some(settings.highlights);
+                    preset.shadows = Some(settings.shadows);
+                    preset.whites = Some(settings.whites);
+                    preset.blacks = Some(settings.blacks);
+                }
+                SettingsGroup::Presence => {
+                    preset.vibrance = Some(settings.vibrance);
+                    preset.saturation = Some(settings.saturation);
+                }
+                SettingsGroup::LensCorrection => {
+                    preset.lens_correction = Some(settings.lens_correction.clone());
+                }
+                SettingsGroup::Detail => {
+                    preset.noise_reduction = Some(settings.noise_reduction.clone());
+                    preset.sharpening = Some(settings.sharpening.clone());
+                }
+                SettingsGroup::Geometry => {
+                    preset.rotation = Some(settings.rotation);
+                    preset.crop = Some(settings.crop.clone());
+                }
+            }
+        }
+        preset
+    }
+
+    /// Parses a `preset_json` document.
+    pub fn parse(json: &str) -> Result<PresetSettings> {
+        serde_json::from_str(json).map_err(|e| LeylineError::InvalidSettings(e.to_string()))
+    }
+
+    /// Serializes back to a `preset_json` document.
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(self).expect("preset serialization cannot fail")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -395,5 +534,40 @@ mod tests {
             Settings::parse("{ not json"),
             Err(LeylineError::InvalidSettings(_))
         ));
+    }
+
+    #[test]
+    fn preset_captures_only_the_requested_groups() {
+        let s = Settings::parse(SPEC_EXAMPLE).unwrap();
+        let preset = PresetSettings::capture(&s, &[SettingsGroup::Tone, SettingsGroup::Presence]);
+        assert_eq!(preset.schema, 1);
+        assert_eq!(preset.exposure, Some(0.35));
+        assert_eq!(preset.contrast, Some(12));
+        assert_eq!(preset.vibrance, Some(18));
+        assert_eq!(preset.saturation, Some(0));
+        // Not requested: absent, not neutral.
+        assert_eq!(preset.white_balance, None);
+        assert_eq!(preset.lens_correction, None);
+        assert_eq!(preset.rotation, None);
+        assert_eq!(preset.crop, None);
+    }
+
+    #[test]
+    fn preset_json_omits_fields_of_excluded_groups() {
+        let s = Settings::parse(SPEC_EXAMPLE).unwrap();
+        let preset = PresetSettings::capture(&s, &[SettingsGroup::WhiteBalance]);
+        let json = preset.to_json();
+        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert!(value.get("white_balance").is_some());
+        assert!(value.get("exposure").is_none());
+        assert!(value.get("crop").is_none());
+    }
+
+    #[test]
+    fn preset_round_trips_losslessly() {
+        let s = Settings::parse(SPEC_EXAMPLE).unwrap();
+        let preset = PresetSettings::capture(&s, &[SettingsGroup::Detail, SettingsGroup::Geometry]);
+        let reparsed = PresetSettings::parse(&preset.to_json()).unwrap();
+        assert_eq!(preset, reparsed);
     }
 }

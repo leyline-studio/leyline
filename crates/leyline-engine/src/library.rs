@@ -19,10 +19,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use leyline_catalog::{Catalog, CollectionNode, ExportPreset, KeywordNode, SmartRules};
+use leyline_catalog::{Catalog, CollectionNode, ExportPreset, KeywordNode, Preset, SmartRules};
 use leyline_core::{
-    AssetId, CollectionId, ColorLabel, ExportPresetId, JobId, KeywordId, PickState, PreviewKind,
-    Result, VersionId,
+    AssetId, CollectionId, ColorLabel, ExportPresetId, JobId, KeywordId, PickState, PresetId,
+    PresetSettings, PreviewKind, Result, SettingsGroup, VersionId,
 };
 use leyline_export::ExportSettings;
 use leyline_preview::PreviewCache;
@@ -31,6 +31,7 @@ use crate::decode_cache::DecodeCache;
 use crate::events::{Event, JobResult};
 use crate::export::ExportReport;
 use crate::import::{ImportOptions, ImportReport};
+use crate::presets::PresetApplyReport;
 use crate::preview::PreviewFile;
 use crate::session::EditSession;
 
@@ -524,6 +525,87 @@ impl Library {
         let library = self.clone();
         Ok(EditSession::open(self.catalog_mut(), version)?
             .with_notifier(move |version_id| library.emit(Event::VersionChanged { version_id })))
+    }
+
+    /// Captures the fields of `groups` from `from`'s head into a named,
+    /// stored preset (`docs/engine-api.md` §10.3).
+    pub fn create_preset(
+        &self,
+        name: &str,
+        from: VersionId,
+        groups: &[SettingsGroup],
+    ) -> Result<PresetId> {
+        let captured = crate::presets::capture(&self.catalog(), from, groups)?;
+        self.catalog_mut().create_preset(name, &captured.to_json())
+    }
+
+    /// Lists every stored develop preset, ordered by name (§10.3).
+    pub fn presets(&self) -> Result<Vec<Preset>> {
+        self.catalog().presets()
+    }
+
+    /// Renames a stored develop preset (§10.3).
+    pub fn rename_preset(&self, id: PresetId, name: &str) -> Result<()> {
+        self.catalog_mut().rename_preset(id, name)
+    }
+
+    /// Deletes a stored develop preset; revisions it already produced are
+    /// untouched (§10.3, `docs/presets.md` §4).
+    pub fn delete_preset(&self, id: PresetId) -> Result<()> {
+        self.catalog_mut().delete_preset(id)
+    }
+
+    /// Applies a stored preset to several versions (§10.3): the synchronous
+    /// core. One fresh `EditSession` per version, so one `VersionChanged`
+    /// per success — prefer [`Library::apply_preset_async`] from
+    /// interactive clients.
+    pub fn apply_preset(
+        &self,
+        preset: PresetId,
+        versions: &[VersionId],
+        mut progress: impl FnMut(u64, u64),
+    ) -> Result<PresetApplyReport> {
+        let stored = self.catalog().preset(preset)?;
+        let fields = PresetSettings::parse(&stored.preset_json)?;
+        let mut catalog = lock(&self.inner.catalog);
+        let report = crate::presets::apply_batch(&mut catalog, &fields, versions, &mut progress);
+        drop(catalog);
+        for &version in &report.applied {
+            self.emit(Event::VersionChanged {
+                version_id: version,
+            });
+        }
+        Ok(report)
+    }
+
+    /// Applies a stored preset to several versions as a job (§3.1, §10.3):
+    /// returns immediately, progresses as `JobProgress` per version, then
+    /// `JobFinished` with the report (per-version failures inside it, batch
+    /// failures — e.g. an unknown preset — as `Failed`).
+    pub fn apply_preset_async(&self, preset: PresetId, versions: Vec<VersionId>) -> JobId {
+        let job = self.new_job();
+        let library = self.clone();
+        std::thread::spawn(move || {
+            let applied = library.apply_preset(preset, &versions, {
+                let library = library.clone();
+                move |done, total| {
+                    library.emit(Event::JobProgress {
+                        job_id: job,
+                        done,
+                        total,
+                    });
+                }
+            });
+            let result = match applied {
+                Ok(report) => JobResult::Preset(report),
+                Err(error) => JobResult::Failed(error.to_string()),
+            };
+            library.emit(Event::JobFinished {
+                job_id: job,
+                result,
+            });
+        });
+        job
     }
 
     /// Writes the XMP sidecar of an asset — the On Demand synchronization

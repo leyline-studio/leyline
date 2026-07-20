@@ -19,3 +19,4 @@ Une décision acceptée ne se modifie pas : elle se remplace par un nouvel ADR q
 | [0011](0011-engine-api-model.md) | API moteur : lib Rust, sync/async, événements |
 | [0012](0012-rayon-data-parallelism.md) | Parallélisme de données Rayon, rendu bit-pour-bit |
 | [0013](0013-process-2-lut-transfer.md) | Process 2 : fonctions de transfert sRGB par table |
+| [0014](0014-develop-presets.md) | Presets de développement : catégories partielles, application par révision normale |

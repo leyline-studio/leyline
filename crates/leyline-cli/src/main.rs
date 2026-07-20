@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use leyline_sdk::{
     AssetId, ColorLabel, ExportFormat, ExportSettings, GridQuery, ImportOptions, Library, Param,
-    PickState, PreviewKind, Settings, Value, VersionId,
+    PickState, PresetId, PreviewKind, Settings, SettingsGroup, Value, VersionId,
 };
 
 const USAGE: &str = "\
@@ -30,6 +30,10 @@ Usage:
   leyline label <library> <red|yellow|green|blue|purple|none> <version-id>...
   leyline develop <library> <version-id> <param> <value>
   leyline history <library> <version-id>
+  leyline preset-save <library> <name> <version-id> --groups <g,g,...>
+  leyline preset-list <library>
+  leyline preset-apply <library> <name> <version-id>...
+  leyline preset-rm <library> <name>
 
 Options:
   --reference   Reference files in place instead of copying into Photos/
@@ -40,6 +44,10 @@ Develop params (docs/pipeline.md §3.2, schema 1):
   exposure rotation                 decimal
   contrast highlights shadows whites blacks vibrance saturation
                                     integer in [-100, 100]
+
+Preset groups (docs/presets.md §3.1, comma-separated, no spaces):
+  white_balance tone presence lens_correction detail geometry
+                                    geometry is never included unless named
 ";
 
 fn main() {
@@ -67,6 +75,10 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("label") => label(&args[1..]),
         Some("develop") => develop(&args[1..]),
         Some("history") => history(&args[1..]),
+        Some("preset-save") => preset_save(&args[1..]),
+        Some("preset-list") => preset_list(&args[1..]),
+        Some("preset-apply") => preset_apply(&args[1..]),
+        Some("preset-rm") => preset_rm(&args[1..]),
         Some("--help") | Some("help") | None => {
             print!("{USAGE}");
             Ok(())
@@ -403,6 +415,118 @@ fn history(args: &[String]) -> Result<(), String> {
             row.revision, settings.exposure, settings.contrast, settings.schema, settings.process
         );
     }
+    Ok(())
+}
+
+/// Parses a comma-separated list of preset group names (`docs/presets.md` §3.1).
+fn groups(value: &str) -> Result<Vec<SettingsGroup>, String> {
+    value
+        .split(',')
+        .map(|name| match name {
+            "white_balance" => Ok(SettingsGroup::WhiteBalance),
+            "tone" => Ok(SettingsGroup::Tone),
+            "presence" => Ok(SettingsGroup::Presence),
+            "lens_correction" => Ok(SettingsGroup::LensCorrection),
+            "detail" => Ok(SettingsGroup::Detail),
+            "geometry" => Ok(SettingsGroup::Geometry),
+            other => Err(format!("unknown preset group {other:?}")),
+        })
+        .collect()
+}
+
+/// Finds a stored develop preset by name.
+fn find_preset(library: &Library, name: &str) -> Result<PresetId, String> {
+    library
+        .presets()
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .find(|p| p.name == name)
+        .map(|p| p.preset)
+        .ok_or_else(|| format!("no develop preset named {name:?}"))
+}
+
+fn preset_save(args: &[String]) -> Result<(), String> {
+    let (positional, options) = parse(args, &["groups"])?;
+    let [root, name, version] = positional.as_slice() else {
+        return Err(
+            "usage: leyline preset-save <library> <name> <version-id> --groups <g,g,...>"
+                .to_owned(),
+        );
+    };
+    let version = VersionId::new(
+        version
+            .parse()
+            .map_err(|_| format!("bad version id {version:?}"))?,
+    );
+    let groups = groups(
+        options
+            .value("groups")
+            .ok_or("--groups is required, e.g. --groups tone,presence")?,
+    )?;
+    let library = open(root)?;
+    let id = library
+        .create_preset(name, version, &groups)
+        .map_err(|e| e.to_string())?;
+    println!("created preset {name:?} ({id})");
+    Ok(())
+}
+
+fn preset_list(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root] = positional.as_slice() else {
+        return Err("usage: leyline preset-list <library>".to_owned());
+    };
+    let stored = open(root)?.presets().map_err(|e| e.to_string())?;
+    for preset in &stored {
+        println!(
+            "{:<6} {:20} {}",
+            preset.preset, preset.name, preset.preset_json
+        );
+    }
+    println!("{} preset(s)", stored.len());
+    Ok(())
+}
+
+fn preset_apply(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root, name, ids @ ..] = positional.as_slice() else {
+        return Err("usage: leyline preset-apply <library> <name> <version-id>...".to_owned());
+    };
+    let library = open(root)?;
+    let preset = find_preset(&library, name)?;
+    let versions = version_ids(ids)?;
+    let report = library
+        .apply_preset(preset, &versions, |done, total| {
+            eprint!("\rapplying {done}/{total}")
+        })
+        .map_err(|e| e.to_string())?;
+    eprintln!();
+    for version in &report.applied {
+        println!("applied  v{version}");
+    }
+    for failed in &report.failed {
+        println!("failed   v{}: {}", failed.version, failed.reason);
+    }
+    if report.failed.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "{} of {} application(s) failed",
+            report.failed.len(),
+            versions.len()
+        ))
+    }
+}
+
+fn preset_rm(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root, name] = positional.as_slice() else {
+        return Err("usage: leyline preset-rm <library> <name>".to_owned());
+    };
+    let library = open(root)?;
+    let preset = find_preset(&library, name)?;
+    library.delete_preset(preset).map_err(|e| e.to_string())?;
+    println!("deleted preset {name:?}");
     Ok(())
 }
 

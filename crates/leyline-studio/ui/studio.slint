@@ -196,6 +196,8 @@ export component StudioWindow inherits Window {
     in property <image> develop-image;
     in property <string> develop-filename;
     in property <DevSettings> dev;
+    // Stored develop preset names, already ordered by Rust.
+    in property <[string]> dev-presets;
 
     callback select(int);
     callback classify(string);
@@ -210,6 +212,13 @@ export component StudioWindow inherits Window {
     callback develop-crop-drag(float, float, float, float, float, float, float, float);
     callback develop-undo();
     callback develop-redo();
+    // Apply / delete the develop preset at an index of `dev-presets`.
+    callback apply-preset(int);
+    callback delete-preset(int);
+    callback open-preset-dialog();
+    // Name, then one flag per group: white-balance, tone, presence,
+    // lens-correction, detail, geometry (`docs/presets.md` §3.1).
+    callback run-save-preset(string, bool, bool, bool, bool, bool, bool);
     callback run-import(string, bool, bool);
     callback open-export();
     callback run-export(int, string);
@@ -275,6 +284,10 @@ export component StudioWindow inherits Window {
                 }
                 if (event.modifiers.control && (event.text == "y" || event.text == "Y")) {
                     root.develop-redo();
+                    return accept;
+                }
+                if (event.text == "s" || event.text == "S") {
+                    root.open-preset-dialog();
                     return accept;
                 }
                 root.classify(event.text);
@@ -343,7 +356,7 @@ export component StudioWindow inherits Window {
                         horizontal-stretch: 1;
                     }
                     Text {
-                        text: "G: library · Ctrl+Z/Y: undo/redo · drag: crop";
+                        text: "G: library · Ctrl+Z/Y: undo/redo · S: save preset · drag: crop";
                         color: #666666;
                         font-size: 12px;
                     }
@@ -396,6 +409,56 @@ export component StudioWindow inherits Window {
                         padding: 16px;
                         spacing: 12px;
                         alignment: start;
+
+                        Text {
+                            text: "Presets";
+                            color: #9a9a9a;
+                            font-size: 11px;
+                        }
+                        for name[i] in root.dev-presets: HorizontalLayout {
+                            spacing: 6px;
+                            TouchArea {
+                                horizontal-stretch: 1;
+                                Text {
+                                    text: name;
+                                    color: #e6e6e6;
+                                    font-size: 12px;
+                                    overflow: elide;
+                                    width: 100%;
+                                    height: 100%;
+                                    vertical-alignment: center;
+                                }
+                                clicked => {
+                                    root.apply-preset(i);
+                                }
+                            }
+                            TouchArea {
+                                width: 16px;
+                                height: 16px;
+                                Text {
+                                    text: "×";
+                                    color: #9a9a9a;
+                                    font-size: 12px;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                    width: 100%;
+                                    height: 100%;
+                                }
+                                clicked => {
+                                    root.delete-preset(i);
+                                }
+                            }
+                        }
+                        HorizontalLayout {
+                            alignment: end;
+                            FilterChip {
+                                text: "Save as preset…";
+                                active: false;
+                                clicked => {
+                                    root.open-preset-dialog();
+                                }
+                            }
+                        }
 
                         Text {
                             text: "White balance";
@@ -1224,6 +1287,122 @@ export component StudioWindow inherits Window {
                                 active: true;
                                 clicked => {
                                     root.run-new-collection(collection-name.text);
+                                }
+                            }
+                        }
+                    }
+
+                    if root.dialog == "preset": save-group := VerticalLayout {
+                        spacing: 12px;
+                        property <bool> g-white-balance: true;
+                        property <bool> g-tone: true;
+                        property <bool> g-presence: true;
+                        property <bool> g-lens-correction: false;
+                        property <bool> g-detail: false;
+                        property <bool> g-geometry: false;
+
+                        Text {
+                            text: "Save as preset";
+                            color: #f0f0f0;
+                            font-size: 15px;
+                            font-weight: 600;
+                        }
+                        Text {
+                            text: "Name";
+                            color: #9a9a9a;
+                            font-size: 12px;
+                        }
+                        Rectangle {
+                            height: 28px;
+                            background: #1b1b1b;
+                            border-radius: 4px;
+                            border-width: 1px;
+                            border-color: #3a3a3a;
+                            preset-name := TextInput {
+                                x: 8px;
+                                width: parent.width - 16px;
+                                height: 100%;
+                                color: #e6e6e6;
+                                font-size: 12px;
+                                vertical-alignment: center;
+                                single-line: true;
+                            }
+                        }
+                        Text {
+                            text: "Groups (geometry is rarely reused across photos)";
+                            color: #9a9a9a;
+                            font-size: 12px;
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            FilterChip {
+                                text: "White balance";
+                                active: save-group.g-white-balance;
+                                clicked => {
+                                    save-group.g-white-balance = !save-group.g-white-balance;
+                                }
+                            }
+                            FilterChip {
+                                text: "Tone";
+                                active: save-group.g-tone;
+                                clicked => {
+                                    save-group.g-tone = !save-group.g-tone;
+                                }
+                            }
+                            FilterChip {
+                                text: "Presence";
+                                active: save-group.g-presence;
+                                clicked => {
+                                    save-group.g-presence = !save-group.g-presence;
+                                }
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            FilterChip {
+                                text: "Lens correction";
+                                active: save-group.g-lens-correction;
+                                clicked => {
+                                    save-group.g-lens-correction = !save-group.g-lens-correction;
+                                }
+                            }
+                            FilterChip {
+                                text: "Detail";
+                                active: save-group.g-detail;
+                                clicked => {
+                                    save-group.g-detail = !save-group.g-detail;
+                                }
+                            }
+                            FilterChip {
+                                text: "Geometry";
+                                active: save-group.g-geometry;
+                                clicked => {
+                                    save-group.g-geometry = !save-group.g-geometry;
+                                }
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: end;
+                            FilterChip {
+                                text: "Cancel";
+                                active: false;
+                                clicked => {
+                                    root.dialog = "";
+                                }
+                            }
+                            FilterChip {
+                                text: "Save";
+                                active: true;
+                                clicked => {
+                                    root.run-save-preset(
+                                        preset-name.text,
+                                        save-group.g-white-balance,
+                                        save-group.g-tone,
+                                        save-group.g-presence,
+                                        save-group.g-lens-correction,
+                                        save-group.g-detail,
+                                        save-group.g-geometry);
                                 }
                             }
                         }

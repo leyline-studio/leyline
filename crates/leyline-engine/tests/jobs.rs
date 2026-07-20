@@ -176,6 +176,55 @@ fn an_export_job_reports_per_version_failures_in_the_report() {
 }
 
 #[test]
+fn a_preset_job_reports_per_version_failures_and_notifies() {
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::create(&dir.path().join("Library"), "Jobs").unwrap();
+
+    let source = dir.path().join("photo.png");
+    sample_png(&source);
+    let report = library
+        .import(
+            &source,
+            &ImportOptions {
+                copy_files: true,
+                recursive: false,
+            },
+            |_, _| {},
+        )
+        .unwrap();
+    let registered = report.imported[0].registered;
+
+    let preset = library
+        .create_preset(
+            "Contraste",
+            registered.version,
+            &[leyline_core::SettingsGroup::WhiteBalance],
+        )
+        .unwrap();
+
+    let events = library.subscribe();
+    // One known version and one unknown: the batch still finishes, the
+    // unknown one lands in the report, not in a job-level `Failed`.
+    let job = library.apply_preset_async(preset, vec![registered.version, VersionId::new(999)]);
+    let received = drain_until_finished(&events, job);
+
+    assert!(received.iter().any(|e| matches!(
+        e,
+        Event::VersionChanged { version_id } if *version_id == registered.version
+    )));
+    match received.last() {
+        Some(Event::JobFinished {
+            result: JobResult::Preset(report),
+            ..
+        }) => {
+            assert_eq!(report.applied, vec![registered.version]);
+            assert_eq!(report.failed.len(), 1);
+        }
+        other => panic!("expected a preset JobFinished, got {other:?}"),
+    }
+}
+
+#[test]
 fn facade_writes_and_edit_sessions_notify_subscribers() {
     let dir = tempfile::tempdir().unwrap();
     let library = Library::create(&dir.path().join("Library"), "Jobs").unwrap();

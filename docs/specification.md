@@ -15,6 +15,9 @@
 * Vibrance / Saturation
 * Rotation
 * Recadrage
+* Correction d'objectif (Lensfun)
+* Gestion des couleurs (LittleCMS)
+* Presets de développement (créer, appliquer, en lot) — voir `docs/presets.md`
 * Export JPEG/TIFF/WebP/AVIF
 
 ## Exclus volontairement

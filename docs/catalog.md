@@ -1572,3 +1572,27 @@ Le catalogue Leyline est conçu comme un **Digital Asset Manager (DAM)** moderne
 * contraintes d'intégrité strictes et migrations versionnées.
 
 L'objectif est de fournir un catalogue robuste, performant et extensible, capable d'accompagner l'évolution de Leyline pendant de nombreuses années sans remise en cause de son architecture fondamentale.
+
+---
+
+# 41. Develop Presets
+
+```sql
+CREATE TABLE develop_presets (
+
+    id INTEGER PRIMARY KEY,
+
+    uuid TEXT NOT NULL UNIQUE,
+
+    name TEXT NOT NULL,
+
+    preset_json TEXT NOT NULL,
+
+    created_at INTEGER NOT NULL
+
+);
+```
+
+Presets de développement (`docs/presets.md`) : un jeu **partiel** de réglages, jamais un `settings_json` complet (§17). Le catalogue traite `preset_json` comme une chaîne opaque, au même titre qu'`export_presets.settings_json` (§27) — c'est le moteur (`leyline-core::PresetSettings`) qui en interprète la structure.
+
+Aucune clé étrangère vers `develop_revisions` : une révision créée par l'application d'un preset est une révision ordinaire, sans trace de son origine, conformément à la règle « une révision représente une intention utilisateur, jamais un événement d'interface » (§17). Renommer ou supprimer un preset n'a donc aucun effet rétroactif sur l'historique déjà écrit avec lui.

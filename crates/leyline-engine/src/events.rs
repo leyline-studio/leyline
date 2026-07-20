@@ -9,6 +9,7 @@ use leyline_core::{AssetId, JobId, PreviewKind, VersionId};
 
 use crate::export::ExportReport;
 use crate::import::ImportReport;
+use crate::presets::PresetApplyReport;
 use crate::preview::PreviewFile;
 
 /// A notification from the engine (`docs/engine-api.md` §3.2).
@@ -63,6 +64,8 @@ pub enum JobResult {
     Import(ImportReport),
     /// An export batch completed (per-version failures included).
     Export(ExportReport),
+    /// A preset application batch completed (per-version failures included).
+    Preset(PresetApplyReport),
     /// A preview render completed.
     Preview(PreviewFile),
     /// The job failed before producing anything.

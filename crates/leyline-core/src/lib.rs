@@ -12,10 +12,11 @@ mod types;
 
 pub use error::{LeylineError, Result};
 pub use id::{
-    AssetId, CollectionId, ExportPresetId, FolderId, JobId, KeywordId, RevisionId, VersionId,
+    AssetId, CollectionId, ExportPresetId, FolderId, JobId, KeywordId, PresetId, RevisionId,
+    VersionId,
 };
 pub use settings::{
-    CURRENT_PROCESS, CURRENT_SCHEMA, Crop, LensCorrection, NoiseReduction, Settings, Sharpening,
-    WhiteBalance,
+    CURRENT_PROCESS, CURRENT_SCHEMA, Crop, LensCorrection, NoiseReduction, PresetSettings,
+    Settings, SettingsGroup, Sharpening, WhiteBalance,
 };
 pub use types::{CollectionType, ColorLabel, MediaType, PickState, PreviewKind};
