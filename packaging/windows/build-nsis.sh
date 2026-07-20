@@ -54,12 +54,21 @@
 #    `libraw_r.dll.a` + `libraw_r.pc` for the mingw target.
 #
 # 3. leyline-raw links libraw_r dynamically, so the built .exe needs
-#    `libraw_r-23.dll` next to it — plus the mingw runtime DLLs that DLL
-#    itself was linked against: `libgcc_s_seh-1.dll`, `libstdc++-6.dll`
-#    (must be the "posix" thread-model variant — check with
-#    `update-alternatives --list x86_64-w64-mingw32-gcc`, since Debian's
-#    "win32" variant is ABI-incompatible and produces the same missing-DLL
-#    error), and `libwinpthread-1.dll`. All four are staged into
+#    `libraw_r-23.dll` next to it — plus every DLL that DLL itself was
+#    linked against (check with
+#    `x86_64-w64-mingw32-objdump -p libraw_r-23.dll | grep 'DLL Name'`):
+#    `zlib1.dll` (LibRaw's real zlib dependency — `--disable-lcms` in point 2
+#    does NOT disable zlib), `libgcc_s_seh-1.dll`, `libstdc++-6.dll` (must be
+#    the "posix" thread-model variant — check with `update-alternatives
+#    --list x86_64-w64-mingw32-gcc`, since Debian's "win32" variant is
+#    ABI-incompatible and produces the same missing-DLL error), and
+#    transitively `libwinpthread-1.dll`. Verifying this under Wine is not
+#    enough on its own: Wine ships its own `zlib1.dll` in its fake
+#    `system32`, which silently satisfies that import even when the vendor
+#    dir is missing it — this exact gap shipped once and only surfaced on a
+#    real Windows machine ("zlib1.dll est introuvable" on first launch).
+#    Trust `objdump -p`'s import list over a Wine smoke test for whether a
+#    DLL needs bundling. All five are staged into
 #    `packaging/windows/vendor/` (gitignored — rebuilt every run, not
 #    committed) and picked up by the `resources` entry in
 #    `crates/leyline-studio/Cargo.toml`'s `[package.metadata.packager]`,
@@ -98,6 +107,7 @@ trap cleanup EXIT
 # point 2 above — this script doesn't redo that autotools build itself.
 : "${LIBRAW_MINGW_PREFIX:?Set LIBRAW_MINGW_PREFIX to the --prefix used when cross-building LibRaw for x86_64-w64-mingw32, see point 2 above}"
 cp "$LIBRAW_MINGW_PREFIX/bin/libraw_r-23.dll" "$vendor_dir/"
+cp /usr/x86_64-w64-mingw32/lib/zlib1.dll "$vendor_dir/"
 cp /usr/lib/gcc/x86_64-w64-mingw32/10-posix/libgcc_s_seh-1.dll "$vendor_dir/"
 cp /usr/lib/gcc/x86_64-w64-mingw32/10-posix/libstdc++-6.dll "$vendor_dir/"
 cp /usr/x86_64-w64-mingw32/lib/libwinpthread-1.dll "$vendor_dir/"
