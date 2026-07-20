@@ -552,6 +552,15 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             }
         });
     }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_develop_reprocess(move || {
+            if let Some(window) = handle.upgrade() {
+                reprocess_current(&mut app.borrow_mut(), &window);
+            }
+        });
+    }
 }
 
 /// Connects the import and export dialogs.
@@ -1119,6 +1128,27 @@ fn history_step(app: &mut App, window: &StudioWindow, undo: bool) {
         if undo { session.undo() } else { session.redo() }
     })();
     if let Err(error) = moved
+        .map_err(|e| e.to_string())
+        .and_then(|_| refresh_develop(app, window))
+    {
+        report_error(window, &error);
+    }
+}
+
+/// Migrates the open photo to the engine's current process version
+/// (`docs/engine-api.md` §10.4) — a new revision with the same parameter
+/// values, so a photo imported before a rendering feature existed (e.g.
+/// lens correction) can pick it up without the user touching a slider. A
+/// no-op, silently, when the head is already current.
+fn reprocess_current(app: &mut App, window: &StudioWindow) {
+    let Some((_, version)) = app.develop else {
+        return;
+    };
+    let reprocessed = (|| {
+        let mut session = app.library.edit(version)?;
+        session.reprocess()
+    })();
+    if let Err(error) = reprocessed
         .map_err(|e| e.to_string())
         .and_then(|_| refresh_develop(app, window))
     {

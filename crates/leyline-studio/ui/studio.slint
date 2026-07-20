@@ -213,6 +213,7 @@ export component StudioWindow inherits Window {
     callback develop-crop-drag(float, float, float, float, float, float, float, float);
     callback develop-undo();
     callback develop-redo();
+    callback develop-reprocess();
     // Apply / delete the develop preset at an index of `dev-presets`.
     callback apply-preset(int);
     callback delete-preset(int);
@@ -291,6 +292,10 @@ export component StudioWindow inherits Window {
                     root.open-preset-dialog();
                     return accept;
                 }
+                if (event.text == "r" || event.text == "R") {
+                    root.develop-reprocess();
+                    return accept;
+                }
                 root.classify(event.text);
                 return accept;
             }
@@ -357,7 +362,7 @@ export component StudioWindow inherits Window {
                         horizontal-stretch: 1;
                     }
                     Text {
-                        text: "G: library · Ctrl+Z/Y: undo/redo · S: save preset · drag: crop";
+                        text: "G: library · Ctrl+Z/Y: undo/redo · S: save preset · R: reprocess · drag: crop";
                         color: #666666;
                         font-size: 12px;
                     }
