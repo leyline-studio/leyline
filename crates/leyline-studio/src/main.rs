@@ -30,9 +30,9 @@ use leyline_sdk::{
     JobResult, KeywordId, KeywordNode, Library, PickState, Preset, PreviewKind, Settings,
     SettingsGroup, SkippedFile, Sort, VersionId,
 };
-use slint::{ComponentHandle, Model, ModelRc, SharedString, Timer, TimerMode, VecModel};
+use slint::{ComponentHandle, Global, Model, ModelRc, SharedString, Timer, TimerMode, VecModel};
 
-use ui::{Cell, StudioWindow};
+use ui::{Cell, StudioWindow, Tr};
 
 /// Sort orders the header button cycles through, with their labels.
 const SORTS: [(Sort, &str); 8] = [
@@ -94,6 +94,16 @@ struct App {
 /// few enough to leave the catalog responsive for the UI thread.
 const MAX_PREVIEW_JOBS: usize = 3;
 
+/// The bundled-translation language to try at startup (ADR 0019): the
+/// primary subtag of the system locale (`fr_FR.UTF-8` → `fr`, `en-US` →
+/// `en`), lowercased to match the `translations/<lang>/` directory names
+/// `slint_build::with_bundled_translations` bundles from.
+fn system_language() -> Option<String> {
+    let locale = sys_locale::get_locale()?;
+    let primary = locale.split(['-', '_']).next().unwrap_or(&locale);
+    Some(primary.to_lowercase())
+}
+
 fn main() -> std::process::ExitCode {
     match run() {
         Ok(()) => std::process::ExitCode::SUCCESS,
@@ -134,6 +144,14 @@ fn run() -> Result<(), String> {
     }));
 
     let window = StudioWindow::new().map_err(|e| e.to_string())?;
+    // ADR 0019: system locale first, English fallback. `select_bundled_translation`
+    // must run after `StudioWindow::new()` — the bundled language list is
+    // registered by the generated component's constructor — and an
+    // unmatched or undetectable locale simply keeps the English strings
+    // `@tr(...)` is written in, so a failed lookup is not an error to surface.
+    if let Some(language) = system_language() {
+        let _ = slint::select_bundled_translation(&language);
+    }
     window.set_library_name(SharedString::from(info.name.as_str()));
     window.set_filter_label(-1);
     window.set_filter_pick(-1);
@@ -221,32 +239,38 @@ fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
             done,
             total,
         } => {
+            let done = i32::try_from(done).unwrap_or(i32::MAX);
+            let total = i32::try_from(total).unwrap_or(i32::MAX);
             if app.import_job == Some(job_id) {
-                window.set_dialog_result(SharedString::from(format!("Importing {done}/{total}…")));
+                window.set_dialog_result(Tr::get(window).invoke_importing_progress(done, total));
             } else if app.export_job == Some(job_id) {
-                window.set_dialog_result(SharedString::from(format!("Exporting {done}/{total}…")));
+                window.set_dialog_result(Tr::get(window).invoke_exporting_progress(done, total));
             }
         }
         Event::JobFinished { job_id, result } => {
             if app.import_job == Some(job_id) {
                 app.import_job = None;
-                window.set_dialog_result(SharedString::from(match result {
+                window.set_dialog_result(match result {
                     JobResult::Import(report) => {
-                        import_summary(report.imported.len(), &report.skipped)
+                        SharedString::from(import_summary(report.imported.len(), &report.skipped))
                     }
-                    JobResult::Failed(reason) => format!("Import failed: {reason}"),
+                    JobResult::Failed(reason) => {
+                        Tr::get(window).invoke_import_failed(SharedString::from(reason))
+                    }
                     _ => return,
-                }));
+                });
                 if let Err(error) = reload(app, window) {
                     report_error(window, &error);
                 }
             } else if app.export_job == Some(job_id) {
                 app.export_job = None;
-                window.set_dialog_result(SharedString::from(match result {
-                    JobResult::Export(report) => export_summary(&report),
-                    JobResult::Failed(reason) => format!("Export failed: {reason}"),
+                window.set_dialog_result(match result {
+                    JobResult::Export(report) => SharedString::from(export_summary(&report)),
+                    JobResult::Failed(reason) => {
+                        Tr::get(window).invoke_export_failed(SharedString::from(reason))
+                    }
                     _ => return,
-                }));
+                });
             } else if app.preview_jobs.remove(&job_id)
                 && let JobResult::Failed(reason) = result
             {
@@ -605,12 +629,11 @@ fn reprocess_library(app: &mut App, window: &StudioWindow) {
     })();
     match outcome {
         Ok(report) => {
-            window.set_status_line(SharedString::from(format!(
-                "Reprocessed {} photo(s), {} already current, {} failed",
-                report.reprocessed.len(),
-                report.already_current.len(),
-                report.failed.len()
-            )));
+            window.set_status_line(Tr::get(window).invoke_reprocessed(
+                i32::try_from(report.reprocessed.len()).unwrap_or(i32::MAX),
+                i32::try_from(report.already_current.len()).unwrap_or(i32::MAX),
+                i32::try_from(report.failed.len()).unwrap_or(i32::MAX),
+            ));
         }
         Err(error) => report_error(window, &error.to_string()),
     }
@@ -625,12 +648,11 @@ fn reprocess_selected(app: &mut App, window: &StudioWindow) {
     };
     match app.library.reprocess(&[version], |_, _| {}) {
         Ok(report) => {
-            window.set_status_line(SharedString::from(format!(
-                "Reprocessed {} photo(s), {} already current, {} failed",
-                report.reprocessed.len(),
-                report.already_current.len(),
-                report.failed.len()
-            )));
+            window.set_status_line(Tr::get(window).invoke_reprocessed(
+                i32::try_from(report.reprocessed.len()).unwrap_or(i32::MAX),
+                i32::try_from(report.already_current.len()).unwrap_or(i32::MAX),
+                i32::try_from(report.failed.len()).unwrap_or(i32::MAX),
+            ));
         }
         Err(error) => report_error(window, &error.to_string()),
     }
@@ -652,7 +674,7 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             };
             let mut app = app.borrow_mut();
             if source.is_empty() {
-                window.set_dialog_result(SharedString::from("Enter a source folder."));
+                window.set_dialog_result(Tr::get(&window).invoke_enter_source_folder());
                 return;
             }
             let options = ImportOptions {
@@ -663,7 +685,7 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 .library
                 .import_async(Path::new(source.as_str()), &options);
             app.import_job = Some(job);
-            window.set_dialog_result(SharedString::from("Importing…"));
+            window.set_dialog_result(Tr::get(&window).invoke_importing_ellipsis());
         });
     }
     {
@@ -705,11 +727,11 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             let mut app = app.borrow_mut();
             let Some(version) = item_at(&app, window.get_selected()).map(|item| item.version_id)
             else {
-                window.set_dialog_result(SharedString::from("Select a photo first."));
+                window.set_dialog_result(Tr::get(&window).invoke_select_photo_first());
                 return;
             };
             if destination.is_empty() {
-                window.set_dialog_result(SharedString::from("Enter a destination folder."));
+                window.set_dialog_result(Tr::get(&window).invoke_enter_destination_folder());
                 return;
             }
             let destination = PathBuf::from(destination.as_str());
@@ -734,7 +756,7 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 }
             };
             app.export_job = Some(job);
-            window.set_dialog_result(SharedString::from("Exporting…"));
+            window.set_dialog_result(Tr::get(&window).invoke_exporting_ellipsis());
         });
     }
 }
@@ -799,7 +821,7 @@ fn wire_collections(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             };
             let name = name.trim();
             if name.is_empty() {
-                window.set_dialog_result(SharedString::from("Enter a name."));
+                window.set_dialog_result(Tr::get(&window).invoke_enter_a_name());
                 return;
             }
             let mut app = app.borrow_mut();
@@ -810,8 +832,9 @@ fn wire_collections(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 .and_then(|_| refresh_collections(&mut app, &window));
             match created {
                 Ok(()) => window.set_dialog(SharedString::default()),
-                Err(error) => window
-                    .set_dialog_result(SharedString::from(format!("Creation failed: {error}"))),
+                Err(error) => window.set_dialog_result(
+                    Tr::get(&window).invoke_creation_failed(SharedString::from(error)),
+                ),
             }
         });
     }
@@ -968,12 +991,12 @@ fn wire_presets(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 };
                 let name = name.trim();
                 if name.is_empty() {
-                    window.set_dialog_result(SharedString::from("Enter a name."));
+                    window.set_dialog_result(Tr::get(&window).invoke_enter_a_name());
                     return;
                 }
                 let mut app = app.borrow_mut();
                 let Some((_, version)) = app.develop else {
-                    window.set_dialog_result(SharedString::from("Open a photo in develop first."));
+                    window.set_dialog_result(Tr::get(&window).invoke_open_photo_in_develop_first());
                     return;
                 };
                 let flags = [
@@ -989,7 +1012,7 @@ fn wire_presets(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                     .filter_map(|(on, group)| on.then_some(group))
                     .collect();
                 if groups.is_empty() {
-                    window.set_dialog_result(SharedString::from("Pick at least one group."));
+                    window.set_dialog_result(Tr::get(&window).invoke_pick_at_least_one_group());
                     return;
                 }
                 let saved = app
@@ -1000,8 +1023,9 @@ fn wire_presets(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 match saved {
                     Ok(()) => window.set_dialog(SharedString::default()),
                     Err(error) => {
-                        window
-                            .set_dialog_result(SharedString::from(format!("Save failed: {error}")));
+                        window.set_dialog_result(
+                            Tr::get(&window).invoke_save_failed(SharedString::from(error)),
+                        );
                     }
                 }
             },
@@ -1160,7 +1184,7 @@ fn collection_membership(app: &mut App, window: &StudioWindow, add: bool) {
         .and_then(|i| app.collections.get(i))
         .copied()
     else {
-        report_error(window, "select a collection in the sidebar first");
+        report_error(window, &Tr::get(window).invoke_select_collection_first());
         return;
     };
     let Some(version) = item_at(app, window.get_selected()).map(|item| item.version_id) else {
@@ -1332,7 +1356,7 @@ fn dev_model(settings: &Settings) -> ui::DevSettings {
 /// see it; stderr keeps a copy for terminal logs.
 fn report_error(window: &StudioWindow, message: &str) {
     eprintln!("error: {message}");
-    window.set_status_line(SharedString::from(format!("Error: {message}")));
+    window.set_status_line(Tr::get(window).invoke_error_prefix(SharedString::from(message)));
 }
 
 /// The window worth loading for a viewport: the visible cells plus the
@@ -1437,8 +1461,9 @@ fn reload(app: &mut App, window: &StudioWindow) -> Result<(), String> {
         .catalog()
         .count(&app.query)
         .map_err(|e| e.to_string())?;
-    window.set_total_cells(i32::try_from(app.total).unwrap_or(i32::MAX));
-    window.set_status_line(SharedString::from(format!("{} photos", app.total)));
+    let total = i32::try_from(app.total).unwrap_or(i32::MAX);
+    window.set_total_cells(total);
+    window.set_status_line(Tr::get(window).invoke_photo_count(total));
     load_window(app, window)?;
 
     let selected = keep

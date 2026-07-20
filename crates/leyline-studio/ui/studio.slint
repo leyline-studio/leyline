@@ -1,10 +1,14 @@
 // Leyline Studio main window (`docs/roadmap.md` phase 5).
 //
 // The library browser: a filter bar on top, a thumbnail grid on the left,
-// the metadata of the selected photo on the right. All strings arrive
-// preformatted from Rust — the UI never interprets catalog values itself,
-// and every filter or classement decision is made in Rust too: the UI only
-// reports what was clicked or typed.
+// the metadata of the selected photo on the right. Catalog values (dates,
+// sizes, exposure, ratings…) still arrive preformatted from Rust — the UI
+// never interprets those itself — and every filter or classement decision
+// is made in Rust too: the UI only reports what was clicked or typed. The
+// one exception is prose meant for translation (ADR 0019): status-line and
+// dialog messages built from catalog numbers are assembled through the
+// `Tr` global below instead, because `@tr(...)` — and therefore
+// `slint-tr-extractor` — only sees strings written in `.slint` files.
 
 export struct Cell {
     thumbnail: image,
@@ -43,6 +47,69 @@ export struct DevSettings {
     sharpen-amount: float,
     sharpen-radius: float,
     lens-correction: bool,
+}
+
+// Translated templates for the status-line and dialog messages Rust builds
+// from catalog numbers (counts, paths, error text…). Slint 1.13 has no
+// public `slint::tr!()` for Rust code — translation is a `.slint`-only
+// mechanism — so Rust supplies the numbers and calls these functions
+// instead of formatting the sentence itself; `slint-tr-extractor` picks up
+// the `@tr(...)` calls below exactly like any other UI string.
+export global Tr {
+    public pure function photo-count(n: int) -> string {
+        return @tr("{} photo" | "{} photos" % n, n);
+    }
+    public pure function importing-progress(done: int, total: int) -> string {
+        return @tr("Importing {}/{}…", done, total);
+    }
+    public pure function exporting-progress(done: int, total: int) -> string {
+        return @tr("Exporting {}/{}…", done, total);
+    }
+    public pure function import-failed(reason: string) -> string {
+        return @tr("Import failed: {}", reason);
+    }
+    public pure function export-failed(reason: string) -> string {
+        return @tr("Export failed: {}", reason);
+    }
+    public pure function reprocessed(reprocessed: int, already-current: int, failed: int) -> string {
+        return @tr("Reprocessed {} photo(s), {} already current, {} failed", reprocessed, already-current, failed);
+    }
+    public pure function enter-source-folder() -> string {
+        return @tr("Enter a source folder.");
+    }
+    public pure function importing-ellipsis() -> string {
+        return @tr("Importing…");
+    }
+    public pure function select-photo-first() -> string {
+        return @tr("Select a photo first.");
+    }
+    public pure function enter-destination-folder() -> string {
+        return @tr("Enter a destination folder.");
+    }
+    public pure function exporting-ellipsis() -> string {
+        return @tr("Exporting…");
+    }
+    public pure function enter-a-name() -> string {
+        return @tr("Enter a name.");
+    }
+    public pure function creation-failed(error: string) -> string {
+        return @tr("Creation failed: {}", error);
+    }
+    public pure function open-photo-in-develop-first() -> string {
+        return @tr("Open a photo in develop first.");
+    }
+    public pure function pick-at-least-one-group() -> string {
+        return @tr("Pick at least one group.");
+    }
+    public pure function save-failed(error: string) -> string {
+        return @tr("Save failed: {}", error);
+    }
+    public pure function error-prefix(message: string) -> string {
+        return @tr("Error: {}", message);
+    }
+    public pure function select-collection-first() -> string {
+        return @tr("Select a collection in the sidebar first.");
+    }
 }
 
 component DetailRow inherits HorizontalLayout {
@@ -286,16 +353,16 @@ export component StudioWindow inherits Window {
     // disabled outside the context where their shortcut is meaningful.
     MenuBar {
         Menu {
-            title: "File";
+            title: @tr("File");
             MenuItem {
-                title: "Import…    I";
+                title: @tr("Import…    I");
                 activated => {
                     root.dialog-result = "";
                     root.dialog = "import";
                 }
             }
             MenuItem {
-                title: "Export…    E";
+                title: @tr("Export…    E");
                 activated => {
                     root.open-export();
                 }
@@ -305,35 +372,35 @@ export component StudioWindow inherits Window {
                 // ADR 0019 (language preferences) is decided but not yet
                 // implemented: kept visible per the ADR 0020 menu map,
                 // disabled until there is a preferences panel to open.
-                title: "Preferences…";
+                title: @tr("Preferences…");
                 enabled: false;
             }
             MenuSeparator { }
             MenuItem {
-                title: "Quit";
+                title: @tr("Quit");
                 activated => {
                     root.quit();
                 }
             }
         }
         Menu {
-            title: "Library";
+            title: @tr("Library");
             MenuItem {
-                title: "New Collection…    N";
+                title: @tr("New Collection…    N");
                 activated => {
                     root.dialog-result = "";
                     root.dialog = "collection";
                 }
             }
             MenuItem {
-                title: "Add to Collection    B";
+                title: @tr("Add to Collection    B");
                 enabled: root.selected >= 0 && root.active-collection >= 0;
                 activated => {
                     root.add-to-collection();
                 }
             }
             MenuItem {
-                title: "Remove from Collection    Shift+B";
+                title: @tr("Remove from Collection    Shift+B");
                 enabled: root.selected >= 0 && root.active-collection >= 0;
                 activated => {
                     root.remove-from-collection();
@@ -341,46 +408,46 @@ export component StudioWindow inherits Window {
             }
             MenuSeparator { }
             MenuItem {
-                title: "Reprocess Library…    Shift+R";
+                title: @tr("Reprocess Library…    Shift+R");
                 activated => {
                     root.reprocess-library();
                 }
             }
         }
         Menu {
-            title: "Photo";
+            title: @tr("Photo");
             Menu {
-                title: "Rate";
+                title: @tr("Rate");
                 MenuItem {
-                    title: "1 star    1";
+                    title: @tr("1 star    1");
                     enabled: root.selected >= 0;
                     activated => {
                         root.classify("1");
                     }
                 }
                 MenuItem {
-                    title: "2 stars    2";
+                    title: @tr("2 stars    2");
                     enabled: root.selected >= 0;
                     activated => {
                         root.classify("2");
                     }
                 }
                 MenuItem {
-                    title: "3 stars    3";
+                    title: @tr("3 stars    3");
                     enabled: root.selected >= 0;
                     activated => {
                         root.classify("3");
                     }
                 }
                 MenuItem {
-                    title: "4 stars    4";
+                    title: @tr("4 stars    4");
                     enabled: root.selected >= 0;
                     activated => {
                         root.classify("4");
                     }
                 }
                 MenuItem {
-                    title: "5 stars    5";
+                    title: @tr("5 stars    5");
                     enabled: root.selected >= 0;
                     activated => {
                         root.classify("5");
@@ -388,7 +455,7 @@ export component StudioWindow inherits Window {
                 }
                 MenuSeparator { }
                 MenuItem {
-                    title: "Clear Rating    0";
+                    title: @tr("Clear Rating    0");
                     enabled: root.selected >= 0;
                     activated => {
                         root.classify("0");
@@ -396,30 +463,30 @@ export component StudioWindow inherits Window {
                 }
             }
             Menu {
-                title: "Label";
+                title: @tr("Label");
                 MenuItem {
-                    title: "Red    6";
+                    title: @tr("Red    6");
                     enabled: root.selected >= 0;
                     activated => {
                         root.classify("6");
                     }
                 }
                 MenuItem {
-                    title: "Yellow    7";
+                    title: @tr("Yellow    7");
                     enabled: root.selected >= 0;
                     activated => {
                         root.classify("7");
                     }
                 }
                 MenuItem {
-                    title: "Green    8";
+                    title: @tr("Green    8");
                     enabled: root.selected >= 0;
                     activated => {
                         root.classify("8");
                     }
                 }
                 MenuItem {
-                    title: "Blue    9";
+                    title: @tr("Blue    9");
                     enabled: root.selected >= 0;
                     activated => {
                         root.classify("9");
@@ -427,23 +494,23 @@ export component StudioWindow inherits Window {
                 }
             }
             Menu {
-                title: "Flag";
+                title: @tr("Flag");
                 MenuItem {
-                    title: "Pick    P";
+                    title: @tr("Pick    P");
                     enabled: root.selected >= 0;
                     activated => {
                         root.classify("p");
                     }
                 }
                 MenuItem {
-                    title: "Reject    X";
+                    title: @tr("Reject    X");
                     enabled: root.selected >= 0;
                     activated => {
                         root.classify("x");
                     }
                 }
                 MenuItem {
-                    title: "Clear    U";
+                    title: @tr("Clear    U");
                     enabled: root.selected >= 0;
                     activated => {
                         root.classify("u");
@@ -452,7 +519,7 @@ export component StudioWindow inherits Window {
             }
             MenuSeparator { }
             MenuItem {
-                title: "Develop    D";
+                title: @tr("Develop    D");
                 enabled: root.selected >= 0 && !root.develop-mode;
                 activated => {
                     root.enter-develop();
@@ -462,7 +529,7 @@ export component StudioWindow inherits Window {
                 // Today `R` only reprocesses the photo open in develop —
                 // same contract here: disabled outside that context rather
                 // than silently acting on something else.
-                title: "Reprocess    R";
+                title: @tr("Reprocess    R");
                 enabled: root.develop-mode;
                 activated => {
                     root.develop-reprocess();
@@ -470,29 +537,29 @@ export component StudioWindow inherits Window {
             }
         }
         Menu {
-            title: "Develop";
+            title: @tr("Develop");
             enabled: root.develop-mode;
             MenuItem {
-                title: "Undo    Ctrl+Z";
+                title: @tr("Undo    Ctrl+Z");
                 activated => {
                     root.develop-undo();
                 }
             }
             MenuItem {
-                title: "Redo    Ctrl+Y";
+                title: @tr("Redo    Ctrl+Y");
                 activated => {
                     root.develop-redo();
                 }
             }
             MenuSeparator { }
             MenuItem {
-                title: "Save Preset…    S";
+                title: @tr("Save Preset…    S");
                 activated => {
                     root.open-preset-dialog();
                 }
             }
             Menu {
-                title: "Apply Preset";
+                title: @tr("Apply Preset");
                 enabled: root.dev-presets.length > 0;
                 for name[index] in root.dev-presets: MenuItem {
                     title: name;
@@ -503,23 +570,23 @@ export component StudioWindow inherits Window {
             }
             MenuSeparator { }
             MenuItem {
-                title: "Back to Library    G";
+                title: @tr("Back to Library    G");
                 activated => {
                     root.exit-develop();
                 }
             }
         }
         Menu {
-            title: "View";
+            title: @tr("View");
             MenuItem {
-                title: "Library    G";
+                title: @tr("Library    G");
                 enabled: root.develop-mode;
                 activated => {
                     root.exit-develop();
                 }
             }
             MenuItem {
-                title: "Develop    D";
+                title: @tr("Develop    D");
                 enabled: !root.develop-mode && root.selected >= 0;
                 activated => {
                     root.enter-develop();
@@ -527,16 +594,16 @@ export component StudioWindow inherits Window {
             }
         }
         Menu {
-            title: "Help";
+            title: @tr("Help");
             MenuItem {
-                title: "Keyboard Shortcuts…";
+                title: @tr("Keyboard Shortcuts…");
                 activated => {
                     root.dialog-result = "";
                     root.dialog = "shortcuts";
                 }
             }
             MenuItem {
-                title: "About Leyline";
+                title: @tr("About Leyline");
                 activated => {
                     root.dialog-result = "";
                     root.dialog = "about";
@@ -644,7 +711,7 @@ export component StudioWindow inherits Window {
                         horizontal-stretch: 1;
                     }
                     Text {
-                        text: "G: library · Ctrl+Z/Y: undo/redo · S: save preset · R: reprocess · drag: crop";
+                        text: @tr("G: library · Ctrl+Z/Y: undo/redo · S: save preset · R: reprocess · drag: crop");
                         color: #666666;
                         font-size: 12px;
                     }
@@ -692,7 +759,7 @@ export component StudioWindow inherits Window {
                     ContextMenuArea {
                         Menu {
                             MenuItem {
-                                title: "Reset Crop";
+                                title: @tr("Reset Crop");
                                 activated => {
                                     root.develop-edit("crop-reset", 0);
                                 }
@@ -703,19 +770,19 @@ export component StudioWindow inherits Window {
                                 // like File ▸ Preferences… in ADR 0020) —
                                 // wiring one up would be new functionality,
                                 // which ADR 0021 explicitly excludes.
-                                title: "Compare Before/After";
+                                title: @tr("Compare Before/After");
                                 enabled: false;
                             }
                             MenuSeparator { }
                             MenuItem {
-                                title: "Reprocess    R";
+                                title: @tr("Reprocess    R");
                                 activated => {
                                     root.develop-reprocess();
                                 }
                             }
                             MenuSeparator { }
                             MenuItem {
-                                title: "Back to Library    G";
+                                title: @tr("Back to Library    G");
                                 activated => {
                                     root.exit-develop();
                                 }
@@ -736,7 +803,7 @@ export component StudioWindow inherits Window {
                         alignment: start;
 
                         Text {
-                            text: "Presets";
+                            text: @tr("Presets");
                             color: #9a9a9a;
                             font-size: 11px;
                         }
@@ -777,7 +844,7 @@ export component StudioWindow inherits Window {
                         HorizontalLayout {
                             alignment: end;
                             FilterChip {
-                                text: "Save as preset…";
+                                text: @tr("Save as preset…");
                                 active: false;
                                 clicked => {
                                     root.open-preset-dialog();
@@ -786,12 +853,12 @@ export component StudioWindow inherits Window {
                         }
 
                         Text {
-                            text: "White balance";
+                            text: @tr("White balance");
                             color: #9a9a9a;
                             font-size: 11px;
                         }
                         EditSlider {
-                            label: "Temperature";
+                            label: @tr("Temperature");
                             minimum: 2000;
                             maximum: 12000;
                             value: root.dev.wb-temp;
@@ -800,7 +867,7 @@ export component StudioWindow inherits Window {
                             }
                         }
                         EditSlider {
-                            label: "Tint";
+                            label: @tr("Tint");
                             minimum: -100;
                             maximum: 100;
                             value: root.dev.wb-tint;
@@ -810,12 +877,12 @@ export component StudioWindow inherits Window {
                         }
 
                         Text {
-                            text: "Tone";
+                            text: @tr("Tone");
                             color: #9a9a9a;
                             font-size: 11px;
                         }
                         EditSlider {
-                            label: "Exposure";
+                            label: @tr("Exposure");
                             minimum: -5;
                             maximum: 5;
                             decimals: 2;
@@ -825,7 +892,7 @@ export component StudioWindow inherits Window {
                             }
                         }
                         EditSlider {
-                            label: "Contrast";
+                            label: @tr("Contrast");
                             minimum: -100;
                             maximum: 100;
                             value: root.dev.contrast;
@@ -834,7 +901,7 @@ export component StudioWindow inherits Window {
                             }
                         }
                         EditSlider {
-                            label: "Highlights";
+                            label: @tr("Highlights");
                             minimum: -100;
                             maximum: 100;
                             value: root.dev.highlights;
@@ -843,7 +910,7 @@ export component StudioWindow inherits Window {
                             }
                         }
                         EditSlider {
-                            label: "Shadows";
+                            label: @tr("Shadows");
                             minimum: -100;
                             maximum: 100;
                             value: root.dev.shadows;
@@ -852,7 +919,7 @@ export component StudioWindow inherits Window {
                             }
                         }
                         EditSlider {
-                            label: "Whites";
+                            label: @tr("Whites");
                             minimum: -100;
                             maximum: 100;
                             value: root.dev.whites;
@@ -861,7 +928,7 @@ export component StudioWindow inherits Window {
                             }
                         }
                         EditSlider {
-                            label: "Blacks";
+                            label: @tr("Blacks");
                             minimum: -100;
                             maximum: 100;
                             value: root.dev.blacks;
@@ -871,12 +938,12 @@ export component StudioWindow inherits Window {
                         }
 
                         Text {
-                            text: "Presence";
+                            text: @tr("Presence");
                             color: #9a9a9a;
                             font-size: 11px;
                         }
                         EditSlider {
-                            label: "Vibrance";
+                            label: @tr("Vibrance");
                             minimum: -100;
                             maximum: 100;
                             value: root.dev.vibrance;
@@ -885,7 +952,7 @@ export component StudioWindow inherits Window {
                             }
                         }
                         EditSlider {
-                            label: "Saturation";
+                            label: @tr("Saturation");
                             minimum: -100;
                             maximum: 100;
                             value: root.dev.saturation;
@@ -895,25 +962,25 @@ export component StudioWindow inherits Window {
                         }
 
                         Text {
-                            text: "Lens correction";
+                            text: @tr("Lens correction");
                             color: #9a9a9a;
                             font-size: 11px;
                         }
                         FilterChip {
                             active: root.dev.lens-correction;
-                            text: root.dev.lens-correction ? "Enabled" : "Disabled";
+                            text: root.dev.lens-correction ? @tr("Enabled") : @tr("Disabled");
                             clicked => {
                                 root.develop-edit("lens-correction", root.dev.lens-correction ? 0 : 1);
                             }
                         }
 
                         Text {
-                            text: "Detail";
+                            text: @tr("Detail");
                             color: #9a9a9a;
                             font-size: 11px;
                         }
                         EditSlider {
-                            label: "Luminance NR";
+                            label: @tr("Luminance NR");
                             minimum: 0;
                             maximum: 100;
                             value: root.dev.nr-luminance;
@@ -922,7 +989,7 @@ export component StudioWindow inherits Window {
                             }
                         }
                         EditSlider {
-                            label: "Color NR";
+                            label: @tr("Color NR");
                             minimum: 0;
                             maximum: 100;
                             value: root.dev.nr-color;
@@ -931,7 +998,7 @@ export component StudioWindow inherits Window {
                             }
                         }
                         EditSlider {
-                            label: "Sharpen amount";
+                            label: @tr("Sharpen amount");
                             minimum: 0;
                             maximum: 100;
                             value: root.dev.sharpen-amount;
@@ -940,7 +1007,7 @@ export component StudioWindow inherits Window {
                             }
                         }
                         EditSlider {
-                            label: "Sharpen radius";
+                            label: @tr("Sharpen radius");
                             minimum: 0.5;
                             maximum: 3;
                             decimals: 1;
@@ -951,12 +1018,12 @@ export component StudioWindow inherits Window {
                         }
 
                         Text {
-                            text: "Geometry";
+                            text: @tr("Geometry");
                             color: #9a9a9a;
                             font-size: 11px;
                         }
                         EditSlider {
-                            label: "Rotation";
+                            label: @tr("Rotation");
                             minimum: -45;
                             maximum: 45;
                             decimals: 1;
@@ -966,7 +1033,7 @@ export component StudioWindow inherits Window {
                             }
                         }
                         EditSlider {
-                            label: "Crop left";
+                            label: @tr("Crop left");
                             minimum: 0;
                             maximum: 100;
                             value: root.dev.crop-left;
@@ -975,7 +1042,7 @@ export component StudioWindow inherits Window {
                             }
                         }
                         EditSlider {
-                            label: "Crop top";
+                            label: @tr("Crop top");
                             minimum: 0;
                             maximum: 100;
                             value: root.dev.crop-top;
@@ -984,7 +1051,7 @@ export component StudioWindow inherits Window {
                             }
                         }
                         EditSlider {
-                            label: "Crop width";
+                            label: @tr("Crop width");
                             minimum: 1;
                             maximum: 100;
                             value: root.dev.crop-width;
@@ -993,7 +1060,7 @@ export component StudioWindow inherits Window {
                             }
                         }
                         EditSlider {
-                            label: "Crop height";
+                            label: @tr("Crop height");
                             minimum: 1;
                             maximum: 100;
                             value: root.dev.crop-height;
@@ -1004,7 +1071,7 @@ export component StudioWindow inherits Window {
                         HorizontalLayout {
                             alignment: end;
                             FilterChip {
-                                text: "Reset crop";
+                                text: @tr("Reset crop");
                                 active: false;
                                 clicked => {
                                     root.develop-edit("crop-reset", 0);
@@ -1028,7 +1095,7 @@ export component StudioWindow inherits Window {
                     spacing: 4px;
 
                     Text {
-                        text: "Collections";
+                        text: @tr("Collections");
                         color: #9a9a9a;
                         font-size: 11px;
                     }
@@ -1041,7 +1108,7 @@ export component StudioWindow inherits Window {
                             x: 8px;
                             width: parent.width - 16px;
                             height: 100%;
-                            text: "All photos";
+                            text: @tr("All photos");
                             color: #e6e6e6;
                             font-size: 12px;
                             vertical-alignment: center;
@@ -1082,7 +1149,7 @@ export component StudioWindow inherits Window {
                     }
 
                     Text {
-                        text: "N: new · B: add photo";
+                        text: @tr("N: new · B: add photo");
                         color: #666666;
                         font-size: 10px;
                     }
@@ -1139,21 +1206,21 @@ export component StudioWindow inherits Window {
                     }
 
                     FilterChip {
-                        text: "⚑ Picked";
+                        text: @tr("⚑ Picked");
                         active: root.filter-pick == 1;
                         clicked => {
                             root.pick-filter(1);
                         }
                     }
                     FilterChip {
-                        text: "✕ Rejected";
+                        text: @tr("✕ Rejected");
                         active: root.filter-pick == 2;
                         clicked => {
                             root.pick-filter(2);
                         }
                     }
                     FilterChip {
-                        text: "– Unflagged";
+                        text: @tr("– Unflagged");
                         active: root.filter-pick == 0;
                         clicked => {
                             root.pick-filter(0);
@@ -1191,7 +1258,7 @@ export component StudioWindow inherits Window {
                         if search-input.text == "" && !search-input.has-focus: Text {
                             x: 10px;
                             height: 100%;
-                            text: "Search…";
+                            text: @tr("Search…");
                             color: #666666;
                             font-size: 12px;
                             vertical-alignment: center;
@@ -1203,7 +1270,7 @@ export component StudioWindow inherits Window {
                     }
 
                     FilterChip {
-                        text: "Sort: " + root.sort-label;
+                        text: @tr("Sort: {}", root.sort-label);
                         active: false;
                         clicked => {
                             root.cycle-sort();
@@ -1305,7 +1372,7 @@ export component StudioWindow inherits Window {
                         ContextMenuArea {
                             Menu {
                                 MenuItem {
-                                    title: "Develop    D";
+                                    title: @tr("Develop    D");
                                     activated => {
                                         root.selected = root.window-start + i;
                                         root.select(root.window-start + i);
@@ -1314,9 +1381,9 @@ export component StudioWindow inherits Window {
                                 }
                                 MenuSeparator { }
                                 Menu {
-                                    title: "Rate";
+                                    title: @tr("Rate");
                                     MenuItem {
-                                        title: "1 star    1";
+                                        title: @tr("1 star    1");
                                         activated => {
                                             root.selected = root.window-start + i;
                                             root.select(root.window-start + i);
@@ -1324,7 +1391,7 @@ export component StudioWindow inherits Window {
                                         }
                                     }
                                     MenuItem {
-                                        title: "2 stars    2";
+                                        title: @tr("2 stars    2");
                                         activated => {
                                             root.selected = root.window-start + i;
                                             root.select(root.window-start + i);
@@ -1332,7 +1399,7 @@ export component StudioWindow inherits Window {
                                         }
                                     }
                                     MenuItem {
-                                        title: "3 stars    3";
+                                        title: @tr("3 stars    3");
                                         activated => {
                                             root.selected = root.window-start + i;
                                             root.select(root.window-start + i);
@@ -1340,7 +1407,7 @@ export component StudioWindow inherits Window {
                                         }
                                     }
                                     MenuItem {
-                                        title: "4 stars    4";
+                                        title: @tr("4 stars    4");
                                         activated => {
                                             root.selected = root.window-start + i;
                                             root.select(root.window-start + i);
@@ -1348,7 +1415,7 @@ export component StudioWindow inherits Window {
                                         }
                                     }
                                     MenuItem {
-                                        title: "5 stars    5";
+                                        title: @tr("5 stars    5");
                                         activated => {
                                             root.selected = root.window-start + i;
                                             root.select(root.window-start + i);
@@ -1357,7 +1424,7 @@ export component StudioWindow inherits Window {
                                     }
                                     MenuSeparator { }
                                     MenuItem {
-                                        title: "Clear Rating    0";
+                                        title: @tr("Clear Rating    0");
                                         activated => {
                                             root.selected = root.window-start + i;
                                             root.select(root.window-start + i);
@@ -1366,9 +1433,9 @@ export component StudioWindow inherits Window {
                                     }
                                 }
                                 Menu {
-                                    title: "Label";
+                                    title: @tr("Label");
                                     MenuItem {
-                                        title: "Red    6";
+                                        title: @tr("Red    6");
                                         activated => {
                                             root.selected = root.window-start + i;
                                             root.select(root.window-start + i);
@@ -1376,7 +1443,7 @@ export component StudioWindow inherits Window {
                                         }
                                     }
                                     MenuItem {
-                                        title: "Yellow    7";
+                                        title: @tr("Yellow    7");
                                         activated => {
                                             root.selected = root.window-start + i;
                                             root.select(root.window-start + i);
@@ -1384,7 +1451,7 @@ export component StudioWindow inherits Window {
                                         }
                                     }
                                     MenuItem {
-                                        title: "Green    8";
+                                        title: @tr("Green    8");
                                         activated => {
                                             root.selected = root.window-start + i;
                                             root.select(root.window-start + i);
@@ -1392,7 +1459,7 @@ export component StudioWindow inherits Window {
                                         }
                                     }
                                     MenuItem {
-                                        title: "Blue    9";
+                                        title: @tr("Blue    9");
                                         activated => {
                                             root.selected = root.window-start + i;
                                             root.select(root.window-start + i);
@@ -1401,9 +1468,9 @@ export component StudioWindow inherits Window {
                                     }
                                 }
                                 Menu {
-                                    title: "Flag";
+                                    title: @tr("Flag");
                                     MenuItem {
-                                        title: "Pick    P";
+                                        title: @tr("Pick    P");
                                         activated => {
                                             root.selected = root.window-start + i;
                                             root.select(root.window-start + i);
@@ -1411,7 +1478,7 @@ export component StudioWindow inherits Window {
                                         }
                                     }
                                     MenuItem {
-                                        title: "Reject    X";
+                                        title: @tr("Reject    X");
                                         activated => {
                                             root.selected = root.window-start + i;
                                             root.select(root.window-start + i);
@@ -1419,7 +1486,7 @@ export component StudioWindow inherits Window {
                                         }
                                     }
                                     MenuItem {
-                                        title: "Clear    U";
+                                        title: @tr("Clear    U");
                                         activated => {
                                             root.selected = root.window-start + i;
                                             root.select(root.window-start + i);
@@ -1429,7 +1496,7 @@ export component StudioWindow inherits Window {
                                 }
                                 MenuSeparator { }
                                 MenuItem {
-                                    title: "Add to Collection    B";
+                                    title: @tr("Add to Collection    B");
                                     enabled: root.active-collection >= 0;
                                     activated => {
                                         root.selected = root.window-start + i;
@@ -1438,7 +1505,7 @@ export component StudioWindow inherits Window {
                                     }
                                 }
                                 MenuItem {
-                                    title: "Remove from Collection    Shift+B";
+                                    title: @tr("Remove from Collection    Shift+B");
                                     enabled: root.active-collection >= 0;
                                     activated => {
                                         root.selected = root.window-start + i;
@@ -1453,7 +1520,7 @@ export component StudioWindow inherits Window {
                                     // path behind `R`, which needs an open
                                     // develop session. Same call as
                                     // Shift+R, scoped to one version.
-                                    title: "Reprocess";
+                                    title: @tr("Reprocess");
                                     activated => {
                                         root.selected = root.window-start + i;
                                         root.select(root.window-start + i);
@@ -1476,7 +1543,7 @@ export component StudioWindow inherits Window {
                     alignment: start;
 
                     Text {
-                        text: root.selected < 0 ? "No photo selected" : root.detail-filename;
+                        text: root.selected < 0 ? @tr("No photo selected") : root.detail-filename;
                         color: #f0f0f0;
                         font-size: 15px;
                         font-weight: 600;
@@ -1485,36 +1552,36 @@ export component StudioWindow inherits Window {
                     if root.selected >= 0: VerticalLayout {
                         spacing: 6px;
                         DetailRow {
-                            label: "Path";
+                            label: @tr("Path");
                             value: root.detail-path;
                         }
                         DetailRow {
-                            label: "Captured";
+                            label: @tr("Captured");
                             value: root.detail-capture;
                         }
                         DetailRow {
-                            label: "Size";
+                            label: @tr("Size");
                             value: root.detail-dimensions;
                         }
                         DetailRow {
-                            label: "File";
+                            label: @tr("File");
                             value: root.detail-file-size;
                         }
                         DetailRow {
-                            label: "Camera";
+                            label: @tr("Camera");
                             value: root.detail-camera;
                         }
                         DetailRow {
-                            label: "Lens";
+                            label: @tr("Lens");
                             value: root.detail-lens;
                         }
                         DetailRow {
-                            label: "Exposure";
+                            label: @tr("Exposure");
                             value: root.detail-exposure;
                         }
 
                         Text {
-                            text: "Keywords";
+                            text: @tr("Keywords");
                             color: #9a9a9a;
                             font-size: 11px;
                         }
@@ -1575,7 +1642,7 @@ export component StudioWindow inherits Window {
                             if keyword-input.text == "" && !keyword-input.has-focus: Text {
                                 x: 8px;
                                 height: 100%;
-                                text: "Add keyword (Nature/Birds)…";
+                                text: @tr("Add keyword (Nature/Birds)…");
                                 color: #666666;
                                 font-size: 12px;
                                 vertical-alignment: center;
@@ -1612,13 +1679,13 @@ export component StudioWindow inherits Window {
                     if root.dialog == "import": VerticalLayout {
                         spacing: 12px;
                         Text {
-                            text: "Import photos";
+                            text: @tr("Import photos");
                             color: #f0f0f0;
                             font-size: 15px;
                             font-weight: 600;
                         }
                         Text {
-                            text: "Source folder (absolute path)";
+                            text: @tr("Source folder (absolute path)");
                             color: #9a9a9a;
                             font-size: 12px;
                         }
@@ -1641,14 +1708,14 @@ export component StudioWindow inherits Window {
                         HorizontalLayout {
                             spacing: 8px;
                             FilterChip {
-                                text: "Copy into library";
+                                text: @tr("Copy into library");
                                 active: root.import-copy;
                                 clicked => {
                                     root.import-copy = !root.import-copy;
                                 }
                             }
                             FilterChip {
-                                text: "Recursive";
+                                text: @tr("Recursive");
                                 active: root.import-recursive;
                                 clicked => {
                                     root.import-recursive = !root.import-recursive;
@@ -1662,14 +1729,14 @@ export component StudioWindow inherits Window {
                             spacing: 8px;
                             alignment: end;
                             FilterChip {
-                                text: "Cancel";
+                                text: @tr("Cancel");
                                 active: false;
                                 clicked => {
                                     root.dialog = "";
                                 }
                             }
                             FilterChip {
-                                text: "Import";
+                                text: @tr("Import");
                                 active: true;
                                 clicked => {
                                     root.run-import(import-source.text, root.import-copy, root.import-recursive);
@@ -1681,13 +1748,13 @@ export component StudioWindow inherits Window {
                     if root.dialog == "export": VerticalLayout {
                         spacing: 12px;
                         Text {
-                            text: "Export selected photo";
+                            text: @tr("Export selected photo");
                             color: #f0f0f0;
                             font-size: 15px;
                             font-weight: 600;
                         }
                         Text {
-                            text: "Preset";
+                            text: @tr("Preset");
                             color: #9a9a9a;
                             font-size: 12px;
                         }
@@ -1695,7 +1762,7 @@ export component StudioWindow inherits Window {
                             spacing: 8px;
                             alignment: start;
                             FilterChip {
-                                text: "Custom";
+                                text: @tr("Custom");
                                 active: root.export-preset == -1;
                                 clicked => {
                                     root.export-preset = -1;
@@ -1712,7 +1779,7 @@ export component StudioWindow inherits Window {
                         if root.export-preset == -1: VerticalLayout {
                             spacing: 8px;
                             Text {
-                                text: "Format";
+                                text: @tr("Format");
                                 color: #9a9a9a;
                                 font-size: 12px;
                             }
@@ -1733,7 +1800,7 @@ export component StudioWindow inherits Window {
                                     spacing: 4px;
                                     horizontal-stretch: 1;
                                     Text {
-                                        text: "Quality (1-100)";
+                                        text: @tr("Quality (1-100)");
                                         color: #9a9a9a;
                                         font-size: 12px;
                                     }
@@ -1759,7 +1826,7 @@ export component StudioWindow inherits Window {
                                     spacing: 4px;
                                     horizontal-stretch: 1;
                                     Text {
-                                        text: "Max edge px (blank = full size)";
+                                        text: @tr("Max edge px (blank = full size)");
                                         color: #9a9a9a;
                                         font-size: 12px;
                                     }
@@ -1784,7 +1851,7 @@ export component StudioWindow inherits Window {
                             }
                         }
                         Text {
-                            text: "Destination folder (absolute path)";
+                            text: @tr("Destination folder (absolute path)");
                             color: #9a9a9a;
                             font-size: 12px;
                         }
@@ -1808,14 +1875,14 @@ export component StudioWindow inherits Window {
                             spacing: 8px;
                             alignment: end;
                             FilterChip {
-                                text: "Cancel";
+                                text: @tr("Cancel");
                                 active: false;
                                 clicked => {
                                     root.dialog = "";
                                 }
                             }
                             FilterChip {
-                                text: "Export";
+                                text: @tr("Export");
                                 active: true;
                                 clicked => {
                                     root.run-export(
@@ -1833,13 +1900,13 @@ export component StudioWindow inherits Window {
                     if root.dialog == "collection": VerticalLayout {
                         spacing: 12px;
                         Text {
-                            text: "New collection";
+                            text: @tr("New collection");
                             color: #f0f0f0;
                             font-size: 15px;
                             font-weight: 600;
                         }
                         Text {
-                            text: "Name";
+                            text: @tr("Name");
                             color: #9a9a9a;
                             font-size: 12px;
                         }
@@ -1863,14 +1930,14 @@ export component StudioWindow inherits Window {
                             spacing: 8px;
                             alignment: end;
                             FilterChip {
-                                text: "Cancel";
+                                text: @tr("Cancel");
                                 active: false;
                                 clicked => {
                                     root.dialog = "";
                                 }
                             }
                             FilterChip {
-                                text: "Create";
+                                text: @tr("Create");
                                 active: true;
                                 clicked => {
                                     root.run-new-collection(collection-name.text);
@@ -1889,13 +1956,13 @@ export component StudioWindow inherits Window {
                         property <bool> g-geometry: false;
 
                         Text {
-                            text: "Save as preset";
+                            text: @tr("Save as preset");
                             color: #f0f0f0;
                             font-size: 15px;
                             font-weight: 600;
                         }
                         Text {
-                            text: "Name";
+                            text: @tr("Name");
                             color: #9a9a9a;
                             font-size: 12px;
                         }
@@ -1916,28 +1983,28 @@ export component StudioWindow inherits Window {
                             }
                         }
                         Text {
-                            text: "Groups (geometry is rarely reused across photos)";
+                            text: @tr("Groups (geometry is rarely reused across photos)");
                             color: #9a9a9a;
                             font-size: 12px;
                         }
                         HorizontalLayout {
                             spacing: 8px;
                             FilterChip {
-                                text: "White balance";
+                                text: @tr("White balance");
                                 active: save-group.g-white-balance;
                                 clicked => {
                                     save-group.g-white-balance = !save-group.g-white-balance;
                                 }
                             }
                             FilterChip {
-                                text: "Tone";
+                                text: @tr("Tone");
                                 active: save-group.g-tone;
                                 clicked => {
                                     save-group.g-tone = !save-group.g-tone;
                                 }
                             }
                             FilterChip {
-                                text: "Presence";
+                                text: @tr("Presence");
                                 active: save-group.g-presence;
                                 clicked => {
                                     save-group.g-presence = !save-group.g-presence;
@@ -1947,21 +2014,21 @@ export component StudioWindow inherits Window {
                         HorizontalLayout {
                             spacing: 8px;
                             FilterChip {
-                                text: "Lens correction";
+                                text: @tr("Lens correction");
                                 active: save-group.g-lens-correction;
                                 clicked => {
                                     save-group.g-lens-correction = !save-group.g-lens-correction;
                                 }
                             }
                             FilterChip {
-                                text: "Detail";
+                                text: @tr("Detail");
                                 active: save-group.g-detail;
                                 clicked => {
                                     save-group.g-detail = !save-group.g-detail;
                                 }
                             }
                             FilterChip {
-                                text: "Geometry";
+                                text: @tr("Geometry");
                                 active: save-group.g-geometry;
                                 clicked => {
                                     save-group.g-geometry = !save-group.g-geometry;
@@ -1972,14 +2039,14 @@ export component StudioWindow inherits Window {
                             spacing: 8px;
                             alignment: end;
                             FilterChip {
-                                text: "Cancel";
+                                text: @tr("Cancel");
                                 active: false;
                                 clicked => {
                                     root.dialog = "";
                                 }
                             }
                             FilterChip {
-                                text: "Save";
+                                text: @tr("Save");
                                 active: true;
                                 clicked => {
                                     root.run-save-preset(
@@ -2002,13 +2069,13 @@ export component StudioWindow inherits Window {
                     if root.dialog == "shortcuts": VerticalLayout {
                         spacing: 12px;
                         Text {
-                            text: "Keyboard shortcuts";
+                            text: @tr("Keyboard shortcuts");
                             color: #f0f0f0;
                             font-size: 15px;
                             font-weight: 600;
                         }
                         Text {
-                            text: "G / D — library / develop\nI — import · E — export · N — new collection\nB / Shift+B — add / remove from collection\nShift+R — reprocess library · R — reprocess (develop)\nCtrl+Z / Ctrl+Y — undo / redo · S — save preset\n0–5 — rate · 6–9 — color label · P / X / U — pick / reject / clear";
+                            text: @tr("G / D — library / develop\nI — import · E — export · N — new collection\nB / Shift+B — add / remove from collection\nShift+R — reprocess library · R — reprocess (develop)\nCtrl+Z / Ctrl+Y — undo / redo · S — save preset\n0–5 — rate · 6–9 — color label · P / X / U — pick / reject / clear");
                             color: #c8c8c8;
                             font-size: 12px;
                             wrap: word-wrap;
@@ -2017,7 +2084,7 @@ export component StudioWindow inherits Window {
                             spacing: 8px;
                             alignment: end;
                             FilterChip {
-                                text: "Close";
+                                text: @tr("Close");
                                 active: true;
                                 clicked => {
                                     root.dialog = "";
@@ -2035,7 +2102,7 @@ export component StudioWindow inherits Window {
                             font-weight: 600;
                         }
                         Text {
-                            text: "Local-first, non-destructive RAW development.";
+                            text: @tr("Local-first, non-destructive RAW development.");
                             color: #c8c8c8;
                             font-size: 12px;
                             wrap: word-wrap;
@@ -2044,7 +2111,7 @@ export component StudioWindow inherits Window {
                             spacing: 8px;
                             alignment: end;
                             FilterChip {
-                                text: "Close";
+                                text: @tr("Close");
                                 active: true;
                                 clicked => {
                                     root.dialog = "";
