@@ -302,6 +302,15 @@ export component StudioWindow inherits Window {
     callback run-save-preset(string, bool, bool, bool, bool, bool, bool);
     callback run-import(string, bool, bool);
     callback open-export();
+    // Opens a native OS folder picker; on a non-cancelled pick, Rust sets
+    // `import-source-text` / `export-destination-text` below. Manual typing
+    // into the paired TextInput keeps working — the picker is just a
+    // faster alternative, not a replacement (both are `<=>` bound to the
+    // same property so either input path stays in sync).
+    callback browse-import-source();
+    callback browse-export-destination();
+    in-out property <string> import-source-text: "";
+    in-out property <string> export-destination-text: "";
     // Stops the event loop — the menu bar's File ▸ Quit, equivalent to
     // closing the window from the OS chrome.
     callback quit();
@@ -1700,20 +1709,32 @@ export component StudioWindow inherits Window {
                             color: #9a9a9a;
                             font-size: 12px;
                         }
-                        Rectangle {
-                            height: 28px;
-                            background: #1b1b1b;
-                            border-radius: 4px;
-                            border-width: 1px;
-                            border-color: #3a3a3a;
-                            import-source := TextInput {
-                                x: 8px;
-                                width: parent.width - 16px;
-                                height: 100%;
-                                color: #e6e6e6;
-                                font-size: 12px;
-                                vertical-alignment: center;
-                                single-line: true;
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Rectangle {
+                                height: 28px;
+                                horizontal-stretch: 1;
+                                background: #1b1b1b;
+                                border-radius: 4px;
+                                border-width: 1px;
+                                border-color: #3a3a3a;
+                                import-source := TextInput {
+                                    x: 8px;
+                                    width: parent.width - 16px;
+                                    height: 100%;
+                                    text <=> root.import-source-text;
+                                    color: #e6e6e6;
+                                    font-size: 12px;
+                                    vertical-alignment: center;
+                                    single-line: true;
+                                }
+                            }
+                            FilterChip {
+                                text: @tr("Browse…");
+                                active: false;
+                                clicked => {
+                                    root.browse-import-source();
+                                }
                             }
                         }
                         HorizontalLayout {
@@ -1907,20 +1928,32 @@ export component StudioWindow inherits Window {
                             color: #9a9a9a;
                             font-size: 12px;
                         }
-                        Rectangle {
-                            height: 28px;
-                            background: #1b1b1b;
-                            border-radius: 4px;
-                            border-width: 1px;
-                            border-color: #3a3a3a;
-                            export-destination := TextInput {
-                                x: 8px;
-                                width: parent.width - 16px;
-                                height: 100%;
-                                color: #e6e6e6;
-                                font-size: 12px;
-                                vertical-alignment: center;
-                                single-line: true;
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Rectangle {
+                                height: 28px;
+                                horizontal-stretch: 1;
+                                background: #1b1b1b;
+                                border-radius: 4px;
+                                border-width: 1px;
+                                border-color: #3a3a3a;
+                                export-destination := TextInput {
+                                    x: 8px;
+                                    width: parent.width - 16px;
+                                    height: 100%;
+                                    text <=> root.export-destination-text;
+                                    color: #e6e6e6;
+                                    font-size: 12px;
+                                    vertical-alignment: center;
+                                    single-line: true;
+                                }
+                            }
+                            FilterChip {
+                                text: @tr("Browse…");
+                                active: false;
+                                clicked => {
+                                    root.browse-export-destination();
+                                }
                             }
                         }
                         HorizontalLayout {

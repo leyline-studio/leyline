@@ -32,5 +32,6 @@ Catalog, RAW, Color, Lens, Preview et Export sont consommés par Engine.
 * LibRaw
 * Lensfun
 * LittleCMS
+* rfd — sélecteurs de dossier natifs (Explorer/GTK/Finder) dans Studio, pour les dialogues d'import et d'export
 * Tests unitaires + intégration + benchmarks.
 

@@ -752,6 +752,35 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
         let _ = slint::quit_event_loop();
     });
     {
+        let handle = window.as_weak();
+        window.on_browse_import_source(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            // rfd's blocking API is fine to call directly from a Slint
+            // callback: it runs synchronously on the calling thread and,
+            // like the rest of this app's callbacks, we're already on the
+            // UI thread here, so no extra thread hop / async wiring needed.
+            if let Some(folder) = rfd::FileDialog::new().pick_folder() {
+                window
+                    .set_import_source_text(SharedString::from(folder.to_string_lossy().as_ref()));
+            }
+        });
+    }
+    {
+        let handle = window.as_weak();
+        window.on_browse_export_destination(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            if let Some(folder) = rfd::FileDialog::new().pick_folder() {
+                window.set_export_destination_text(SharedString::from(
+                    folder.to_string_lossy().as_ref(),
+                ));
+            }
+        });
+    }
+    {
         let app = Rc::clone(app);
         let handle = window.as_weak();
         window.on_run_import(move |source, copy, recursive| {

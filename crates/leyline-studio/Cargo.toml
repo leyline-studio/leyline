@@ -12,6 +12,7 @@ leyline-sdk.workspace = true
 slint.workspace = true
 sys-locale.workspace = true
 directories.workspace = true
+rfd.workspace = true
 
 [build-dependencies]
 slint-build.workspace = true
