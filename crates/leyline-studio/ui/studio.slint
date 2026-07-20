@@ -214,6 +214,7 @@ export component StudioWindow inherits Window {
     callback develop-undo();
     callback develop-redo();
     callback develop-reprocess();
+    callback reprocess-library();
     // Apply / delete the develop preset at an index of `dev-presets`.
     callback apply-preset(int);
     callback delete-preset(int);
@@ -323,6 +324,10 @@ export component StudioWindow inherits Window {
                 } else {
                     root.add-to-collection();
                 }
+                return accept;
+            }
+            if ((event.text == "r" || event.text == "R") && event.modifiers.shift) {
+                root.reprocess-library();
                 return accept;
             }
             if (event.text == Key.LeftArrow) {

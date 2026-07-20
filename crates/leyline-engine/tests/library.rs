@@ -98,3 +98,52 @@ fn close_notifies_every_subscriber() {
     // The other clone survives closing this one: `close` only notifies.
     assert!(other_clone.catalog().library().is_ok());
 }
+
+#[test]
+fn reprocess_migrates_a_batch_and_notifies_subscribers() {
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::create(&dir.path().join("Reprocess"), "Reprocess").unwrap();
+
+    let source = dir.path().join("photo.png");
+    std::fs::write(&source, b"not a real png, dimensions aren't needed here").unwrap();
+    let report = library
+        .import(
+            &source,
+            &ImportOptions {
+                copy_files: true,
+                recursive: false,
+            },
+            |_, _| {},
+        )
+        .unwrap();
+    let registered = report.imported[0].registered;
+
+    // Simulate a photo imported before the current process version existed.
+    library
+        .catalog_mut()
+        .connection()
+        .execute(
+            "UPDATE develop_revisions SET settings_json = '{\"schema\":1,\"process\":1}'
+             WHERE id = ?1",
+            [registered.revision.get()],
+        )
+        .unwrap();
+
+    let events = library.subscribe();
+    let migrated = library.reprocess(&[registered.version], |_, _| {}).unwrap();
+    assert_eq!(migrated.reprocessed, vec![registered.version]);
+    assert_eq!(migrated.already_current, vec![]);
+    assert_eq!(migrated.failed.len(), 0);
+    assert_eq!(
+        events.recv().unwrap(),
+        Event::VersionChanged {
+            version_id: registered.version
+        }
+    );
+
+    // A second pass finds nothing left to migrate — and notifies nothing.
+    let already = library.reprocess(&[registered.version], |_, _| {}).unwrap();
+    assert_eq!(already.reprocessed, vec![]);
+    assert_eq!(already.already_current, vec![registered.version]);
+    assert!(events.try_recv().is_err());
+}

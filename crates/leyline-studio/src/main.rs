@@ -561,6 +561,50 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             }
         });
     }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_reprocess_library(move || {
+            if let Some(window) = handle.upgrade() {
+                reprocess_library(&mut app.borrow_mut(), &window);
+            }
+        });
+    }
+}
+
+/// Migrates every version in the library to the current process version
+/// (`docs/engine-api.md` §10.4), regardless of the active grid filter.
+/// Reprocessing only rewrites `settings_json` — no pixels render during the
+/// call — so this runs synchronously rather than as a tracked job, the same
+/// way classement writes do.
+fn reprocess_library(app: &mut App, window: &StudioWindow) {
+    let query = GridQuery::default();
+    let outcome = (|| {
+        let count = app.library.catalog().count(&query)?;
+        let all = GridQuery {
+            range: 0..u32::try_from(count).unwrap_or(u32::MAX),
+            ..query
+        };
+        let versions: Vec<VersionId> = app
+            .library
+            .catalog()
+            .grid(&all)?
+            .into_iter()
+            .map(|item| item.version_id)
+            .collect();
+        app.library.reprocess(&versions, |_, _| {})
+    })();
+    match outcome {
+        Ok(report) => {
+            window.set_status_line(SharedString::from(format!(
+                "Reprocessed {} photo(s), {} already current, {} failed",
+                report.reprocessed.len(),
+                report.already_current.len(),
+                report.failed.len()
+            )));
+        }
+        Err(error) => report_error(window, &error.to_string()),
+    }
 }
 
 /// Connects the import and export dialogs.
