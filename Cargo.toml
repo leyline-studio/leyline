@@ -41,6 +41,7 @@ ravif = "0.11"
 rgb = "0.8"
 criterion = "0.5"
 rayon = "1"
+lensfun = "0.7"
 
 [workspace.lints.rust]
 missing_docs = "warn"
