@@ -4,7 +4,7 @@
 //! unit-testable: the UI forwards the slider name and released value, and
 //! the session applies whatever comes back.
 
-use leyline_sdk::{Crop, NoiseReduction, Param, Settings, Sharpening, Value};
+use leyline_sdk::{Crop, LensCorrection, NoiseReduction, Param, Settings, Sharpening, Value};
 
 /// Decodes a slider release into an engine parameter update.
 ///
@@ -29,6 +29,13 @@ pub fn action(slider: &str, value: f64, current: &Settings) -> Option<(Param, Va
         "blacks" => (Param::Blacks, int),
         "vibrance" => (Param::Vibrance, int),
         "saturation" => (Param::Saturation, int),
+        "lens-correction" => (
+            Param::LensCorrection,
+            Value::LensCorrection(LensCorrection {
+                enabled: value != 0.0,
+                profile: "auto".to_owned(),
+            }),
+        ),
         "wb-temp" => {
             let mut wb = current.white_balance.clone().unwrap_or_default();
             wb.temperature = value.round() as u32;
@@ -268,6 +275,31 @@ mod tests {
                 Value::Sharpening(Sharpening {
                     amount: 0,
                     radius: 0.1,
+                })
+            ))
+        );
+    }
+
+    #[test]
+    fn lens_correction_toggles_on_and_off() {
+        let neutral = settings(None, None);
+        assert_eq!(
+            action("lens-correction", 1.0, &neutral),
+            Some((
+                Param::LensCorrection,
+                Value::LensCorrection(LensCorrection {
+                    enabled: true,
+                    profile: "auto".to_owned(),
+                })
+            ))
+        );
+        assert_eq!(
+            action("lens-correction", 0.0, &neutral),
+            Some((
+                Param::LensCorrection,
+                Value::LensCorrection(LensCorrection {
+                    enabled: false,
+                    profile: "auto".to_owned(),
                 })
             ))
         );

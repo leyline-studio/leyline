@@ -42,6 +42,7 @@ export struct DevSettings {
     nr-color: float,
     sharpen-amount: float,
     sharpen-radius: float,
+    lens-correction: bool,
 }
 
 component DetailRow inherits HorizontalLayout {
@@ -566,6 +567,19 @@ export component StudioWindow inherits Window {
                             value: root.dev.saturation;
                             edited(v) => {
                                 root.develop-edit("saturation", v);
+                            }
+                        }
+
+                        Text {
+                            text: "Lens correction";
+                            color: #9a9a9a;
+                            font-size: 11px;
+                        }
+                        FilterChip {
+                            active: root.dev.lens-correction;
+                            text: root.dev.lens-correction ? "Enabled" : "Disabled";
+                            clicked => {
+                                root.develop-edit("lens-correction", root.dev.lens-correction ? 0 : 1);
                             }
                         }
 
