@@ -18,16 +18,16 @@ mod ui {
 }
 
 use std::cell::RefCell;
-use std::collections::VecDeque;
-use std::path::Path;
+use std::collections::{HashSet, VecDeque};
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::time::Duration;
 
 use classify::Action;
 use leyline_sdk::{
-    AssetId, CollectionId, CollectionNode, CollectionType, ColorLabel, ExportPreset, ExportReport,
-    ExportSettings, GridItem, GridQuery, ImportOptions, KeywordId, KeywordNode, Library, PickState,
-    PreviewKind, Settings, SkippedFile, Sort, VersionId,
+    AssetId, CollectionId, CollectionNode, CollectionType, ColorLabel, Event, ExportPreset,
+    ExportReport, ExportSettings, GridItem, GridQuery, ImportOptions, JobId, JobResult, KeywordId,
+    KeywordNode, Library, PickState, PreviewKind, Settings, SkippedFile, Sort, VersionId,
 };
 use slint::{ComponentHandle, Model, ModelRc, SharedString, Timer, TimerMode, VecModel};
 
@@ -72,9 +72,22 @@ struct App {
     keywords: Vec<KeywordId>,
     /// The live cell model, so thumbnails can be filled in row by row.
     cells: Rc<VecModel<Cell>>,
-    /// Grid rows still waiting for a thumbnail, drained by the timer.
+    /// Grid rows still waiting for a thumbnail, drained by the event pump.
     pending: VecDeque<usize>,
+    /// Engine event stream, polled by the pump timer (Slint is
+    /// single-threaded: pull, don't push across threads).
+    events: std::sync::mpsc::Receiver<Event>,
+    /// The import job the dialog is waiting on, when one runs.
+    import_job: Option<JobId>,
+    /// The export job the dialog is waiting on, when one runs.
+    export_job: Option<JobId>,
+    /// Thumbnail render jobs currently in flight.
+    preview_jobs: HashSet<JobId>,
 }
+
+/// Thumbnail render jobs kept in flight at once: enough to hide latency,
+/// few enough to leave the catalog responsive for the UI thread.
+const MAX_PREVIEW_JOBS: usize = 3;
 
 fn main() -> std::process::ExitCode {
     match run() {
@@ -92,6 +105,7 @@ fn run() -> Result<(), String> {
     };
     let library = Library::open(Path::new(&root)).map_err(|e| e.to_string())?;
     let info = library.catalog().library().map_err(|e| e.to_string())?;
+    let events = library.subscribe();
 
     let app = Rc::new(RefCell::new(App {
         library,
@@ -106,6 +120,10 @@ fn run() -> Result<(), String> {
         keywords: Vec::new(),
         cells: Rc::new(VecModel::default()),
         pending: VecDeque::new(),
+        events,
+        import_job: None,
+        export_job: None,
+        preview_jobs: HashSet::new(),
     }));
 
     let window = StudioWindow::new().map_err(|e| e.to_string())?;
@@ -155,37 +173,121 @@ fn run() -> Result<(), String> {
         });
     }
     // Kept alive until the event loop ends: dropping the timer stops it.
-    let _thumbnails = thumbnail_timer(&app);
+    let _events = event_pump(&app, &window);
 
     window.run().map_err(|e| e.to_string())
 }
 
-/// Starts the timer that renders one missing thumbnail per tick, filling
-/// the grid progressively without blocking startup on a full render.
-fn thumbnail_timer(app: &Rc<RefCell<App>>) -> Timer {
+/// Starts the timer that pumps engine events into the UI — job progress,
+/// finished imports and exports, freshly rendered thumbnails — and keeps
+/// a few thumbnail render jobs in flight off the UI thread.
+fn event_pump(app: &Rc<RefCell<App>>, window: &StudioWindow) -> Timer {
     let app = Rc::clone(app);
+    let handle = window.as_weak();
     let timer = Timer::default();
     timer.start(TimerMode::Repeated, Duration::from_millis(30), move || {
+        let Some(window) = handle.upgrade() else {
+            return;
+        };
         let mut app = app.borrow_mut();
+        while let Ok(event) = app.events.try_recv() {
+            handle_event(&mut app, &window, event);
+        }
+        dispatch_thumbnails(&mut app);
+    });
+    timer
+}
+
+/// Reacts to one engine event on the UI thread.
+fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
+    match event {
+        Event::PreviewReady {
+            asset_id,
+            kind: PreviewKind::Thumbnail,
+        } => {
+            set_thumbnail_cell(app, asset_id);
+        }
+        Event::JobProgress {
+            job_id,
+            done,
+            total,
+        } => {
+            if app.import_job == Some(job_id) {
+                window.set_dialog_result(SharedString::from(format!("Importing {done}/{total}…")));
+            } else if app.export_job == Some(job_id) {
+                window.set_dialog_result(SharedString::from(format!("Exporting {done}/{total}…")));
+            }
+        }
+        Event::JobFinished { job_id, result } => {
+            if app.import_job == Some(job_id) {
+                app.import_job = None;
+                window.set_dialog_result(SharedString::from(match result {
+                    JobResult::Import(report) => {
+                        import_summary(report.imported.len(), &report.skipped)
+                    }
+                    JobResult::Failed(reason) => format!("Import failed: {reason}"),
+                    _ => return,
+                }));
+                if let Err(error) = reload(app, window) {
+                    report_error(window, &error);
+                }
+            } else if app.export_job == Some(job_id) {
+                app.export_job = None;
+                window.set_dialog_result(SharedString::from(match result {
+                    JobResult::Export(report) => export_summary(&report),
+                    JobResult::Failed(reason) => format!("Export failed: {reason}"),
+                    _ => return,
+                }));
+            } else if app.preview_jobs.remove(&job_id)
+                && let JobResult::Failed(reason) = result
+            {
+                eprintln!("error: {reason}");
+            }
+        }
+        Event::AssetsChanged { asset_ids } => {
+            // Another writer touched assets: refresh the side panel when
+            // the selected photo is among them.
+            let selected = window.get_selected();
+            if let Some(asset) = item_at(app, selected).map(|item| item.asset_id)
+                && asset_ids.contains(&asset)
+            {
+                show_details(app, window, selected);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Fills the grid cell of an asset with its freshly cached thumbnail.
+fn set_thumbnail_cell(app: &mut App, asset: AssetId) {
+    let Some(index) = app.items.iter().position(|item| item.asset_id == asset) else {
+        return; // scrolled out of the loaded window meanwhile
+    };
+    let Ok(Some(file)) = app.library.cached_preview(asset, PreviewKind::Thumbnail) else {
+        return;
+    };
+    let Ok(image) = slint::Image::load_from_path(&file.path) else {
+        return;
+    };
+    if let Some(mut cell) = app.cells.row_data(index) {
+        cell.thumbnail = image;
+        app.cells.set_row_data(index, cell);
+    }
+}
+
+/// Keeps up to [`MAX_PREVIEW_JOBS`] thumbnail renders in flight, visible
+/// rows first (the pending queue is ordered that way by `load_window`).
+fn dispatch_thumbnails(app: &mut App) {
+    while app.preview_jobs.len() < MAX_PREVIEW_JOBS {
         let Some(index) = app.pending.pop_front() else {
             return;
         };
         let Some(asset) = app.items.get(index).map(|item| item.asset_id) else {
-            return;
+            continue; // the loaded window moved since this row was queued
         };
-        let thumbnail = match app.library.preview(asset, PreviewKind::Thumbnail) {
-            Ok(file) => slint::Image::load_from_path(&file.path).unwrap_or_default(),
-            Err(error) => {
-                eprintln!("error: {error}");
-                return;
-            }
-        };
-        if let Some(mut cell) = app.cells.row_data(index) {
-            cell.thumbnail = thumbnail;
-            app.cells.set_row_data(index, cell);
-        }
-    });
-    timer
+        let job = app.library.preview_async(asset, PreviewKind::Thumbnail);
+        app.preview_jobs.insert(job);
+    }
 }
 
 /// Fills the side panel when a cell is clicked or reached with the arrows.
@@ -461,23 +563,11 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 copy_files: copy,
                 recursive,
             };
-            match app
+            let job = app
                 .library
-                .import(Path::new(source.as_str()), &options, |_, _| {})
-            {
-                Ok(report) => {
-                    window.set_dialog_result(SharedString::from(import_summary(
-                        report.imported.len(),
-                        &report.skipped,
-                    )));
-                    if let Err(error) = reload(&mut app, &window) {
-                        eprintln!("error: {error}");
-                    }
-                }
-                Err(error) => {
-                    window.set_dialog_result(SharedString::from(format!("Import failed: {error}")));
-                }
-            }
+                .import_async(Path::new(source.as_str()), &options);
+            app.import_job = Some(job);
+            window.set_dialog_result(SharedString::from("Importing…"));
         });
     }
     {
@@ -513,7 +603,7 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             let Some(window) = handle.upgrade() else {
                 return;
             };
-            let app = app.borrow_mut();
+            let mut app = app.borrow_mut();
             let Some(version) = item_at(&app, window.get_selected()).map(|item| item.version_id)
             else {
                 window.set_dialog_result(SharedString::from("Select a photo first."));
@@ -523,26 +613,22 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 window.set_dialog_result(SharedString::from("Enter a destination folder."));
                 return;
             }
-            let destination = Path::new(destination.as_str());
+            let destination = PathBuf::from(destination.as_str());
             let stored = usize::try_from(preset)
                 .ok()
                 .and_then(|i| app.presets.get(i))
                 .map(|preset| preset.preset);
-            let report = match stored {
+            let job = match stored {
                 Some(id) => app
                     .library
-                    .export_with_preset(&[version], id, destination, |_, _| {}),
-                None => app.library.export_batch(
-                    &[version],
-                    &ExportSettings::default(),
-                    destination,
-                    |_, _| {},
-                ),
+                    .export_with_preset_async(vec![version], id, destination),
+                None => {
+                    app.library
+                        .export_async(vec![version], ExportSettings::default(), destination)
+                }
             };
-            window.set_dialog_result(SharedString::from(match report {
-                Ok(report) => export_summary(&report),
-                Err(error) => format!("Export failed: {error}"),
-            }));
+            app.export_job = Some(job);
+            window.set_dialog_result(SharedString::from("Exporting…"));
         });
     }
 }

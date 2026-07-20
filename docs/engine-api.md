@@ -342,16 +342,22 @@ impl Library {
 }
 ```
 
-**Surface livrée** : la forme à `ExportRequest` unique reste à venir ; aujourd'hui l'export existe en synchrone (`export`, `export_batch`, `export_with_preset` — recette ad hoc ou preset) et en job pour la recette ad hoc :
+**Surface livrée** : la forme à `ExportRequest` unique reste à venir ; aujourd'hui l'export existe en synchrone (`export`, `export_batch`, `export_with_preset` — recette ad hoc ou preset) et en job, dans les deux cas :
 
 ```rust
 impl Library {
-    /// Le job : `JobProgress` par version, puis `JobFinished` avec le
-    /// rapport (échecs par version dans le rapport, échec du lot en `Failed`).
+    /// Le job (recette ad hoc) : `JobProgress` par version, puis
+    /// `JobFinished` avec le rapport (échecs par version dans le rapport,
+    /// échec du lot en `Failed`).
     pub fn export_async(&self, versions: Vec<VersionId>,
                         settings: ExportSettings, destination_dir: PathBuf) -> JobId;
+    /// Le job (preset stocké) : même contrat d'événements.
+    pub fn export_with_preset_async(&self, versions: Vec<VersionId>,
+                                    preset: ExportPresetId, destination_dir: PathBuf) -> JobId;
 }
 ```
+
+Studio pilote désormais ses dialogues d'import et d'export ainsi que ses vignettes de grille par ce flux : `import_async`/`export_async`/`export_with_preset_async` pour les dialogues (progression affichée depuis `JobProgress`, résultat depuis `JobFinished`), `preview_async` pour les vignettes (jusqu'à 3 rendus en vol, remplis depuis `PreviewReady`).
 
 L'export rend chaque version à sa révision de tête, avec sa process version (`pipeline.md` §3.3), et journalise dans `export_history`.
 

@@ -443,6 +443,39 @@ impl Library {
         job
     }
 
+    /// Exports several versions with a stored preset, as a job (§3.1,
+    /// §12): same event contract as [`Library::export_async`].
+    pub fn export_with_preset_async(
+        &self,
+        versions: Vec<VersionId>,
+        preset: ExportPresetId,
+        destination_dir: PathBuf,
+    ) -> JobId {
+        let job = self.new_job();
+        let library = self.clone();
+        std::thread::spawn(move || {
+            let exported = library.export_with_preset(&versions, preset, &destination_dir, {
+                let library = library.clone();
+                move |done, total| {
+                    library.emit(Event::JobProgress {
+                        job_id: job,
+                        done,
+                        total,
+                    });
+                }
+            });
+            let result = match exported {
+                Ok(report) => JobResult::Export(report),
+                Err(error) => JobResult::Failed(error.to_string()),
+            };
+            library.emit(Event::JobFinished {
+                job_id: job,
+                result,
+            });
+        });
+        job
+    }
+
     /// Exports several versions with a stored preset (§12): the preset's
     /// recipe drives the batch and each success is journaled against it.
     pub fn export_with_preset(
