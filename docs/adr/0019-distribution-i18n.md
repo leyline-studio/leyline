@@ -28,7 +28,7 @@ Slint a un support natif de traduction : les chaînes de l'UI passent par `@tr(.
 
 ## Conséquences
 
-* Nouveau dossier `packaging/` (configuration `cargo-packager` par OS, pas de code applicatif) — même logique que `docs/adr/0004-libraw.md` : l'outillage de build reste séparé du code métier.
+* Nouveau dossier `packaging/` (icônes, scripts de build par OS, pas de code applicatif) — même logique que `docs/adr/0004-libraw.md` : l'outillage de build reste séparé du code métier. Correction après implémentation : la table `[package.metadata.packager]` elle-même vit dans `crates/leyline-studio/Cargo.toml`, pas dans un fichier autonome sous `packaging/` — `cargo-packager` ne fait le rapprochement automatique avec les métadonnées du crate (binaires, version, out-dir) que lorsqu'il lit cette table depuis un `Cargo.toml` de workspace, pas via un fichier passé en `-c`. Seuls les chemins vers les assets (icônes, `.ico`) et les scripts de build par OS restent sous `packaging/`.
 * Un inventaire des chaînes UI de Leyline Studio à faire passer par `@tr(...)` est un prérequis avant que la traduction soit réellement effective — c'est un chantier propre (Phase 8, voir `docs/roadmap.md`), pas fait d'un coup avec cet ADR.
 * Produire les trois installateurs demande de compiler sur (ou de cross-compiler pour) Windows/macOS/Linux ; les vérifications `fmt`/`clippy`/`test` restent locales comme aujourd'hui (`docs/no-github-ci-yet` reste la décision en vigueur — cet ADR n'y touche pas).
 

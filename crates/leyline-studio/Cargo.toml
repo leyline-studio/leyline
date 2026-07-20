@@ -17,3 +17,47 @@ slint-build.workspace = true
 
 [lints]
 workspace = true
+
+# cargo-packager configuration (ADR 0019 — docs/adr/0019-distribution-i18n.md).
+#
+# cargo-packager only auto-detects binaries/out-dir/version by scanning
+# `[package.metadata.packager]` in workspace Cargo.toml files (it does not do
+# that merge when pointed at a standalone config via `-c`), so the config
+# lives here rather than as a file under `packaging/`. Per the ADR, actual
+# assets (icons, NSIS-specific resources, per-OS build scripts) stay under
+# `packaging/` — only pointers to them live in this table.
+#
+# Relative paths below are resolved by cargo-packager relative to *this*
+# Cargo.toml's directory (`crates/leyline-studio/`), not the repo root or
+# the invoking shell's cwd — cargo-packager chdirs there before reading the
+# config. Hence the `../../` prefix on every path.
+[package.metadata.packager]
+product-name = "Leyline Studio"
+identifier = "org.leyline.studio"
+homepage = "https://github.com/leyline-studio/leyline"
+license-file = "../../LICENSE"
+icons = [
+    "../../packaging/icons/32x32.png",
+    "../../packaging/icons/128x128.png",
+    "../../packaging/icons/128x128@2x.png",
+    "../../packaging/icons/icon.png",
+]
+
+# Linux: portable AppImage is the first deliverable (ADR 0019). `.deb` may
+# come later; no config needed for it yet.
+[package.metadata.packager.linux]
+generate-desktop-entry = true
+
+# Windows: NSIS installer, classic wizard with a folder-choice page. The
+# bundled default `.nsi` template already includes MUI_PAGE_DIRECTORY
+# unconditionally, so no custom template is needed for that requirement.
+[package.metadata.packager.nsis]
+installer-icon = "../../packaging/icons/icon.ico"
+installer-mode = "currentUser"
+
+# macOS: .app bundled into a .dmg, drag-to-/Applications — cargo-packager's
+# default dmg layout already does this; sizing/positions below are cosmetic.
+[package.metadata.packager.dmg]
+window-size = { width = 660, height = 400 }
+app-position = { x = 180, y = 170 }
+application-folder-position = { x = 480, y = 170 }
