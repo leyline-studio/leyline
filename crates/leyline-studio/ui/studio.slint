@@ -224,6 +224,9 @@ export component StudioWindow inherits Window {
     callback run-save-preset(string, bool, bool, bool, bool, bool, bool);
     callback run-import(string, bool, bool);
     callback open-export();
+    // Stops the event loop — the menu bar's File ▸ Quit, equivalent to
+    // closing the window from the OS chrome.
+    callback quit();
     // preset index (-1 = ad-hoc), destination, format index, quality text, max-edge text.
     // Format/quality/max-edge are ignored when a stored preset is chosen.
     callback run-export(int, string, int, string, string);
@@ -270,6 +273,271 @@ export component StudioWindow inherits Window {
             flick.viewport-y = -Math.floor(index / flick.columns) * root.cell-size;
         } else if ((Math.floor(index / flick.columns) + 1) * root.cell-size > -flick.viewport-y + flick.height) {
             flick.viewport-y = flick.height - (Math.floor(index / flick.columns) + 1) * root.cell-size;
+        }
+    }
+
+    // Native menu bar (ADR 0020): a second, discoverable path to the same
+    // callbacks already wired to keyboard shortcuts above — no new
+    // functionality, no new code path. Context-sensitive entries are
+    // disabled outside the context where their shortcut is meaningful.
+    MenuBar {
+        Menu {
+            title: "File";
+            MenuItem {
+                title: "Import…    I";
+                activated => {
+                    root.dialog-result = "";
+                    root.dialog = "import";
+                }
+            }
+            MenuItem {
+                title: "Export…    E";
+                activated => {
+                    root.open-export();
+                }
+            }
+            MenuSeparator { }
+            MenuItem {
+                // ADR 0019 (language preferences) is decided but not yet
+                // implemented: kept visible per the ADR 0020 menu map,
+                // disabled until there is a preferences panel to open.
+                title: "Preferences…";
+                enabled: false;
+            }
+            MenuSeparator { }
+            MenuItem {
+                title: "Quit";
+                activated => {
+                    root.quit();
+                }
+            }
+        }
+        Menu {
+            title: "Library";
+            MenuItem {
+                title: "New Collection…    N";
+                activated => {
+                    root.dialog-result = "";
+                    root.dialog = "collection";
+                }
+            }
+            MenuItem {
+                title: "Add to Collection    B";
+                enabled: root.selected >= 0 && root.active-collection >= 0;
+                activated => {
+                    root.add-to-collection();
+                }
+            }
+            MenuItem {
+                title: "Remove from Collection    Shift+B";
+                enabled: root.selected >= 0 && root.active-collection >= 0;
+                activated => {
+                    root.remove-from-collection();
+                }
+            }
+            MenuSeparator { }
+            MenuItem {
+                title: "Reprocess Library…    Shift+R";
+                activated => {
+                    root.reprocess-library();
+                }
+            }
+        }
+        Menu {
+            title: "Photo";
+            Menu {
+                title: "Rate";
+                MenuItem {
+                    title: "1 star    1";
+                    enabled: root.selected >= 0;
+                    activated => {
+                        root.classify("1");
+                    }
+                }
+                MenuItem {
+                    title: "2 stars    2";
+                    enabled: root.selected >= 0;
+                    activated => {
+                        root.classify("2");
+                    }
+                }
+                MenuItem {
+                    title: "3 stars    3";
+                    enabled: root.selected >= 0;
+                    activated => {
+                        root.classify("3");
+                    }
+                }
+                MenuItem {
+                    title: "4 stars    4";
+                    enabled: root.selected >= 0;
+                    activated => {
+                        root.classify("4");
+                    }
+                }
+                MenuItem {
+                    title: "5 stars    5";
+                    enabled: root.selected >= 0;
+                    activated => {
+                        root.classify("5");
+                    }
+                }
+                MenuSeparator { }
+                MenuItem {
+                    title: "Clear Rating    0";
+                    enabled: root.selected >= 0;
+                    activated => {
+                        root.classify("0");
+                    }
+                }
+            }
+            Menu {
+                title: "Label";
+                MenuItem {
+                    title: "Red    6";
+                    enabled: root.selected >= 0;
+                    activated => {
+                        root.classify("6");
+                    }
+                }
+                MenuItem {
+                    title: "Yellow    7";
+                    enabled: root.selected >= 0;
+                    activated => {
+                        root.classify("7");
+                    }
+                }
+                MenuItem {
+                    title: "Green    8";
+                    enabled: root.selected >= 0;
+                    activated => {
+                        root.classify("8");
+                    }
+                }
+                MenuItem {
+                    title: "Blue    9";
+                    enabled: root.selected >= 0;
+                    activated => {
+                        root.classify("9");
+                    }
+                }
+            }
+            Menu {
+                title: "Flag";
+                MenuItem {
+                    title: "Pick    P";
+                    enabled: root.selected >= 0;
+                    activated => {
+                        root.classify("p");
+                    }
+                }
+                MenuItem {
+                    title: "Reject    X";
+                    enabled: root.selected >= 0;
+                    activated => {
+                        root.classify("x");
+                    }
+                }
+                MenuItem {
+                    title: "Clear    U";
+                    enabled: root.selected >= 0;
+                    activated => {
+                        root.classify("u");
+                    }
+                }
+            }
+            MenuSeparator { }
+            MenuItem {
+                title: "Develop    D";
+                enabled: root.selected >= 0 && !root.develop-mode;
+                activated => {
+                    root.enter-develop();
+                }
+            }
+            MenuItem {
+                // Today `R` only reprocesses the photo open in develop —
+                // same contract here: disabled outside that context rather
+                // than silently acting on something else.
+                title: "Reprocess    R";
+                enabled: root.develop-mode;
+                activated => {
+                    root.develop-reprocess();
+                }
+            }
+        }
+        Menu {
+            title: "Develop";
+            enabled: root.develop-mode;
+            MenuItem {
+                title: "Undo    Ctrl+Z";
+                activated => {
+                    root.develop-undo();
+                }
+            }
+            MenuItem {
+                title: "Redo    Ctrl+Y";
+                activated => {
+                    root.develop-redo();
+                }
+            }
+            MenuSeparator { }
+            MenuItem {
+                title: "Save Preset…    S";
+                activated => {
+                    root.open-preset-dialog();
+                }
+            }
+            Menu {
+                title: "Apply Preset";
+                enabled: root.dev-presets.length > 0;
+                for name[index] in root.dev-presets: MenuItem {
+                    title: name;
+                    activated => {
+                        root.apply-preset(index);
+                    }
+                }
+            }
+            MenuSeparator { }
+            MenuItem {
+                title: "Back to Library    G";
+                activated => {
+                    root.exit-develop();
+                }
+            }
+        }
+        Menu {
+            title: "View";
+            MenuItem {
+                title: "Library    G";
+                enabled: root.develop-mode;
+                activated => {
+                    root.exit-develop();
+                }
+            }
+            MenuItem {
+                title: "Develop    D";
+                enabled: !root.develop-mode && root.selected >= 0;
+                activated => {
+                    root.enter-develop();
+                }
+            }
+        }
+        Menu {
+            title: "Help";
+            MenuItem {
+                title: "Keyboard Shortcuts…";
+                activated => {
+                    root.dialog-result = "";
+                    root.dialog = "shortcuts";
+                }
+            }
+            MenuItem {
+                title: "About Leyline";
+                activated => {
+                    root.dialog-result = "";
+                    root.dialog = "about";
+                }
+            }
         }
     }
 
@@ -1512,6 +1780,64 @@ export component StudioWindow inherits Window {
                                         save-group.g-lens-correction,
                                         save-group.g-detail,
                                         save-group.g-geometry);
+                                }
+                            }
+                        }
+                    }
+
+                    // Help ▸ Keyboard Shortcuts…: the shortcut list already
+                    // in this file, made discoverable outside develop mode
+                    // too. Designing a dedicated panel is out of scope for
+                    // ADR 0020 — this is the minimal read-only stand-in.
+                    if root.dialog == "shortcuts": VerticalLayout {
+                        spacing: 12px;
+                        Text {
+                            text: "Keyboard shortcuts";
+                            color: #f0f0f0;
+                            font-size: 15px;
+                            font-weight: 600;
+                        }
+                        Text {
+                            text: "G / D — library / develop\nI — import · E — export · N — new collection\nB / Shift+B — add / remove from collection\nShift+R — reprocess library · R — reprocess (develop)\nCtrl+Z / Ctrl+Y — undo / redo · S — save preset\n0–5 — rate · 6–9 — color label · P / X / U — pick / reject / clear";
+                            color: #c8c8c8;
+                            font-size: 12px;
+                            wrap: word-wrap;
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: end;
+                            FilterChip {
+                                text: "Close";
+                                active: true;
+                                clicked => {
+                                    root.dialog = "";
+                                }
+                            }
+                        }
+                    }
+
+                    if root.dialog == "about": VerticalLayout {
+                        spacing: 12px;
+                        Text {
+                            text: "Leyline Studio";
+                            color: #f0f0f0;
+                            font-size: 15px;
+                            font-weight: 600;
+                        }
+                        Text {
+                            text: "Local-first, non-destructive RAW development.";
+                            color: #c8c8c8;
+                            font-size: 12px;
+                            wrap: word-wrap;
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: end;
+                            FilterChip {
+                                text: "Close";
+                                active: true;
+                                clicked => {
+                                    root.dialog = "";
                                 }
                             }
                         }

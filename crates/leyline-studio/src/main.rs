@@ -609,6 +609,11 @@ fn reprocess_library(app: &mut App, window: &StudioWindow) {
 
 /// Connects the import and export dialogs.
 fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
+    // File ▸ Quit (ADR 0020): stops the event loop, the same outcome as
+    // closing the window from the OS chrome.
+    window.on_quit(move || {
+        let _ = slint::quit_event_loop();
+    });
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
