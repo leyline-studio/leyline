@@ -35,6 +35,13 @@ pub enum RawError {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct DecodeParams {
     /// Decode at half resolution — much faster, meant for previews.
+    ///
+    /// A hint, not a guarantee: LibRaw honors it for standard Bayer sensor
+    /// data, but some cameras write already-reduced RAW variants (e.g.
+    /// Canon sRAW/mRAW, produced in-camera at a fixed lower resolution)
+    /// that LibRaw cannot halve further — the decode then comes back at
+    /// that variant's native size instead. Never larger than the full
+    /// decode either way.
     pub half_size: bool,
     /// Output 16 bits per channel instead of 8.
     pub sixteen_bit: bool,
@@ -311,7 +318,10 @@ mod tests {
         let again = decode(Path::new(&path), &DecodeParams::default()).unwrap();
         assert_eq!(decoded.image.data, again.image.data);
 
-        // Half-size previews really are smaller.
+        // `half_size` never grows the image, but on some RAW variants
+        // (Canon sRAW/mRAW, already reduced in-camera) LibRaw can't shrink
+        // it further, so an exact half is not guaranteed — see
+        // `DecodeParams::half_size`.
         let half = decode(
             Path::new(&path),
             &DecodeParams {
@@ -320,6 +330,7 @@ mod tests {
             },
         )
         .unwrap();
-        assert!(half.image.width <= decoded.image.width / 2 + 1);
+        assert!(half.image.width <= decoded.image.width);
+        assert!(half.image.height <= decoded.image.height);
     }
 }
