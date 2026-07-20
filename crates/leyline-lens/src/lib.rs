@@ -86,6 +86,7 @@ impl Correction {
             true,
         );
         modifier.enable_distortion_correction(profile.lens);
+        modifier.enable_tca_correction(profile.lens);
         Correction { modifier }
     }
 
@@ -100,6 +101,29 @@ impl Correction {
         self.modifier
             .apply_geometry_distortion(0.0, y as f32, width as usize, 1, &mut coords);
         coords.chunks_exact(2).map(|c| (c[0], c[1])).collect()
+    }
+
+    /// The per-channel source coordinate `[red, green, blue]` to sample for
+    /// each pixel of output row `y` — transverse chromatic aberration shifts
+    /// each channel's true position slightly differently, unlike distortion
+    /// which shifts a pixel's channels together.
+    ///
+    /// When the profile has no TCA calibration for this focal length, every
+    /// channel maps to the same identity coordinate, the same safe no-op
+    /// convention as [`Correction::source_row`]. Intentionally independent of
+    /// distortion: apply after resampling with `source_row` (or after
+    /// [`Correction::source_row`]'s no-op), not fused into one pass — see
+    /// ADR 0018.
+    pub fn tca_row(&self, y: u32, width: u32) -> Vec<[(f32, f32); 3]> {
+        let mut coords: Vec<f32> = (0..width)
+            .flat_map(|x| [x as f32, y as f32, x as f32, y as f32, x as f32, y as f32])
+            .collect();
+        self.modifier
+            .apply_subpixel_distortion(0.0, y as f32, width as usize, 1, &mut coords);
+        coords
+            .chunks_exact(6)
+            .map(|c| [(c[0], c[1]), (c[2], c[3]), (c[4], c[5])])
+            .collect()
     }
 }
 
@@ -213,6 +237,27 @@ mod tests {
         let profile = find_profile(CAMERA_MAKE, CAMERA_MODEL, Some(LENS_MAKE), LENS_MODEL).unwrap();
         let correction = Correction::new(&profile, 20.0, 100, 100);
         assert_eq!(correction.source_row(50, 100).len(), 100);
+    }
+
+    #[test]
+    fn tca_separates_channel_positions_toward_the_frame_edge() {
+        let profile = find_profile(CAMERA_MAKE, CAMERA_MODEL, Some(LENS_MAKE), LENS_MODEL).unwrap();
+        let (width, height) = (6720_u32, 4480_u32);
+        let correction = Correction::new(&profile, 20.0, width, height);
+
+        let corner = correction.tca_row(0, width)[0];
+        let [red, _green, blue] = corner;
+        assert_ne!(
+            red, blue,
+            "TCA should separate the red and blue channel positions at the corner"
+        );
+    }
+
+    #[test]
+    fn tca_row_covers_every_output_pixel() {
+        let profile = find_profile(CAMERA_MAKE, CAMERA_MODEL, Some(LENS_MAKE), LENS_MODEL).unwrap();
+        let correction = Correction::new(&profile, 20.0, 100, 100);
+        assert_eq!(correction.tca_row(50, 100).len(), 100);
     }
 
     #[test]

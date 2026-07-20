@@ -21,7 +21,9 @@ pub const CURRENT_SCHEMA: u32 = 1;
 /// functions computed by lookup table. Process 3 (ADR 0016) additionally
 /// renders `lens_correction` as a Lensfun-backed geometric undistortion.
 /// Process 4 (ADR 0017) additionally de-vignettes using the same profile.
-pub const CURRENT_PROCESS: u32 = 4;
+/// Process 5 (ADR 0018) additionally corrects transverse chromatic
+/// aberration as an independent per-channel geometric pass.
+pub const CURRENT_PROCESS: u32 = 5;
 
 /// White balance override, in physical units.
 ///
