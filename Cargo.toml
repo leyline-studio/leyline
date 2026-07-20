@@ -43,6 +43,7 @@ criterion = "0.5"
 rayon = "1"
 lensfun = "0.7"
 sys-locale = "0.3"
+directories = "6"
 
 [workspace.lints.rust]
 missing_docs = "warn"

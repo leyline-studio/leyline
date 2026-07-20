@@ -140,6 +140,8 @@ impl Library {
 
 Une seule instance en écriture par bibliothèque (verrou fichier) ; plusieurs lecteurs sont libres (WAL).
 
+**Studio, lancement sans argument (ADR 0022).** `leyline-studio` prend en argument facultatif un chemin de bibliothèque (`leyline-studio <library-dir>`), exactement comme un client CLI ferait `Library::open`. Lancé sans argument — ce qui est le cas normal depuis un raccourci graphique (menu Démarrer de l'installeur Windows, AppImage Linux, double-clic sur le `.app` macOS, aucun n'attachant de console) — Studio ne remonte plus une erreur d'usage : il ouvre ou crée, via `Library::create`/`Library::open` selon qu'un `catalog.db` existe déjà, une bibliothèque par défaut sous `<Documents de l'utilisateur>/Leyline Library` (repli sur `<home>/Leyline Library` si le système n'a pas de dossier Documents). Cet emplacement reste visible dans l'app (Aide ▸ À propos de Leyline). Un argument explicite garde le comportement historique à l'identique : `Library::open` seul, donc une erreur franche si le chemin donné n'existe pas.
+
 ---
 
 # 6. Import

@@ -234,6 +234,10 @@ export component StudioWindow inherits Window {
     forward-focus: keys;
 
     in property <string> library-name;
+    // Disk location of the open library's `catalog.db` folder. Shown in
+    // Help ▸ About Leyline — the no-argument fallback location isn't
+    // something the user chose, so it needs to stay discoverable.
+    in property <string> library-path;
     in property <string> status-line;
     // The loaded window of grid cells; cell `i` shows grid row
     // `window-start + i` out of `total-cells` matching rows.
@@ -2153,6 +2157,12 @@ export component StudioWindow inherits Window {
                             text: @tr("Local-first, non-destructive RAW development.");
                             color: #c8c8c8;
                             font-size: 12px;
+                            wrap: word-wrap;
+                        }
+                        Text {
+                            text: @tr("Library: {}", root.library-path);
+                            color: #909090;
+                            font-size: 11px;
                             wrap: word-wrap;
                         }
                         HorizontalLayout {

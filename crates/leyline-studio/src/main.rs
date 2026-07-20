@@ -114,12 +114,61 @@ fn main() -> std::process::ExitCode {
     }
 }
 
+/// The name given to a library created by the no-argument fallback (shown
+/// in the window title and the About dialog, same field a library created
+/// through `leyline-cli new` gets from its own `--name`).
+const DEFAULT_LIBRARY_NAME: &str = "Leyline Library";
+
+/// Where Studio opens a library when launched with no path argument:
+/// `<Documents>/Leyline Library`, falling back to `<home>/Leyline Library`
+/// when the platform (or a minimal container image) has no Documents
+/// folder. Pure and taking the candidate directories as parameters — rather
+/// than calling `directories::UserDirs` itself — so tests can point it at a
+/// scratch `TempDir` instead of the real test runner's home directory;
+/// [`default_library_dir`] is the thin wrapper that resolves the real ones.
+fn default_library_root(documents_dir: Option<&Path>, home_dir: Option<&Path>) -> Option<PathBuf> {
+    documents_dir
+        .or(home_dir)
+        .map(|base| base.join(DEFAULT_LIBRARY_NAME))
+}
+
+/// Resolves [`default_library_root`] against the real user directories.
+fn default_library_dir() -> Result<PathBuf, String> {
+    let user_dirs = directories::UserDirs::new()
+        .ok_or_else(|| "cannot determine the user's home directory".to_owned())?;
+    default_library_root(user_dirs.document_dir(), Some(user_dirs.home_dir()))
+        .ok_or_else(|| "cannot determine a default library location".to_owned())
+}
+
+/// Opens the library at `root`, creating it first if this is the first time
+/// (no `catalog.db` there yet) — used only for the no-argument fallback
+/// location; a library path given explicitly on the command line still goes
+/// through the plain [`Library::open`] below, unchanged, so an explicit
+/// argument that points at a typo'd or missing directory keeps failing
+/// loudly rather than silently creating a new, empty library there.
+fn open_or_create_library(root: &Path) -> Result<Library, String> {
+    std::fs::create_dir_all(root).map_err(|e| e.to_string())?;
+    if root.join("catalog.db").is_file() {
+        Library::open(root).map_err(|e| e.to_string())
+    } else {
+        Library::create(root, DEFAULT_LIBRARY_NAME).map_err(|e| e.to_string())
+    }
+}
+
 fn run() -> Result<(), String> {
-    let Some(root) = std::env::args().nth(1) else {
-        return Err("usage: leyline-studio <library-dir>".to_owned());
+    // No argument: this is how a GUI shortcut launches Studio (the Windows
+    // installer's Start Menu entry, the Linux AppImage, double-clicking the
+    // macOS .app) — none of those attach a console, so the old
+    // `Err("usage: ...")` here used to look like a silent, instant crash.
+    // Fall back to a sensible per-OS default location instead; an explicit
+    // `leyline-studio <library-dir>` argument (scripts, the CLI test
+    // harness, an existing user's shortcut) still behaves exactly as before.
+    let library = match std::env::args().nth(1) {
+        Some(root) => Library::open(Path::new(&root)).map_err(|e| e.to_string())?,
+        None => open_or_create_library(&default_library_dir()?)?,
     };
-    let library = Library::open(Path::new(&root)).map_err(|e| e.to_string())?;
     let info = library.catalog().library().map_err(|e| e.to_string())?;
+    let library_path = library.root().display().to_string();
     let events = library.subscribe();
 
     let app = Rc::new(RefCell::new(App {
@@ -153,6 +202,11 @@ fn run() -> Result<(), String> {
         let _ = slint::select_bundled_translation(&language);
     }
     window.set_library_name(SharedString::from(info.name.as_str()));
+    // Surfaced in Help ▸ About Leyline (ADR 0020): the no-argument fallback
+    // picks a real, disk-backed location on the user's behalf, so it must
+    // stay discoverable — nobody should have to guess where their catalog
+    // ended up. An explicit argument is just as worth showing here.
+    window.set_library_path(SharedString::from(library_path.as_str()));
     window.set_filter_label(-1);
     window.set_filter_pick(-1);
     window.set_sort_label(SharedString::from(sort_label(GridQuery::default().sort)));
@@ -1824,6 +1878,54 @@ mod tests {
         let mut paths = std::collections::HashMap::new();
         collect_keyword_paths(&tree, &mut paths);
         assert_eq!(paths[&KeywordId::new(2)], "Nature/Birds");
+    }
+
+    #[test]
+    fn default_library_root_prefers_documents_over_home() {
+        let documents = Path::new("/scratch/Documents");
+        let home = Path::new("/scratch/home/user");
+        assert_eq!(
+            default_library_root(Some(documents), Some(home)),
+            Some(documents.join(DEFAULT_LIBRARY_NAME))
+        );
+    }
+
+    #[test]
+    fn default_library_root_falls_back_to_home_without_documents() {
+        let home = Path::new("/scratch/home/user");
+        assert_eq!(
+            default_library_root(None, Some(home)),
+            Some(home.join(DEFAULT_LIBRARY_NAME))
+        );
+    }
+
+    #[test]
+    fn default_library_root_is_none_without_any_candidate() {
+        assert_eq!(default_library_root(None, None), None);
+    }
+
+    #[test]
+    fn open_or_create_library_creates_a_real_library_on_first_launch() {
+        // Mirrors what `run()` does for a no-argument launch: the fallback
+        // directory doesn't exist yet, and doesn't even have a parent
+        // directory on disk — `open_or_create_library` must create both and
+        // the catalog inside, exactly as if that path had been passed
+        // explicitly. Uses a scratch `TempDir` so this never touches the
+        // real test runner's home directory.
+        let scratch = tempfile::tempdir().expect("tempdir");
+        let root = scratch.path().join("Documents").join(DEFAULT_LIBRARY_NAME);
+        assert!(!root.exists());
+
+        let library = open_or_create_library(&root).expect("first launch creates the library");
+        assert!(root.join("catalog.db").is_file());
+        let info = library.catalog().library().expect("read library info");
+        assert_eq!(info.name, DEFAULT_LIBRARY_NAME);
+        drop(library);
+
+        // A second launch at the same path must open, not re-create.
+        let reopened = open_or_create_library(&root).expect("second launch opens the library");
+        let info = reopened.catalog().library().expect("read library info");
+        assert_eq!(info.name, DEFAULT_LIBRARY_NAME);
     }
 
     #[test]

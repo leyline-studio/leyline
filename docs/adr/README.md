@@ -27,3 +27,4 @@ Une décision acceptée ne se modifie pas : elle se remplace par un nouvel ADR q
 | [0019](0019-distribution-i18n.md) | Distribution : installateur par plateforme et internationalisation FR/EN |
 | [0020](0020-menu-bar.md) | Barre de menu comme surface de commandes |
 | [0021](0021-context-menus.md) | Menus contextuels (clic droit) |
+| [0022](0022-default-library-fallback.md) | Bibliothèque par défaut au premier lancement |
