@@ -570,6 +570,15 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             }
         });
     }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_reprocess_selected(move || {
+            if let Some(window) = handle.upgrade() {
+                reprocess_selected(&mut app.borrow_mut(), &window);
+            }
+        });
+    }
 }
 
 /// Migrates every version in the library to the current process version
@@ -595,6 +604,26 @@ fn reprocess_library(app: &mut App, window: &StudioWindow) {
         app.library.reprocess(&versions, |_, _| {})
     })();
     match outcome {
+        Ok(report) => {
+            window.set_status_line(SharedString::from(format!(
+                "Reprocessed {} photo(s), {} already current, {} failed",
+                report.reprocessed.len(),
+                report.already_current.len(),
+                report.failed.len()
+            )));
+        }
+        Err(error) => report_error(window, &error.to_string()),
+    }
+}
+
+/// Grid context menu ▸ Reprocess (ADR 0021): the same `Library::reprocess`
+/// call as `reprocess_library`/Shift+R, bounded to the single photo the
+/// context menu was opened on rather than the whole catalog.
+fn reprocess_selected(app: &mut App, window: &StudioWindow) {
+    let Some(version) = item_at(app, window.get_selected()).map(|item| item.version_id) else {
+        return;
+    };
+    match app.library.reprocess(&[version], |_, _| {}) {
         Ok(report) => {
             window.set_status_line(SharedString::from(format!(
                 "Reprocessed {} photo(s), {} already current, {} failed",

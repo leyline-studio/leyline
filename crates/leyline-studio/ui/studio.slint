@@ -215,6 +215,10 @@ export component StudioWindow inherits Window {
     callback develop-redo();
     callback develop-reprocess();
     callback reprocess-library();
+    // Library::reprocess (§10.4) scoped to the currently selected photo —
+    // same call as Shift+R, just bounded to one version instead of the
+    // whole catalog (ADR 0021, grid context menu).
+    callback reprocess-selected();
     // Apply / delete the develop preset at an index of `dev-presets`.
     callback apply-preset(int);
     callback delete-preset(int);
@@ -680,6 +684,43 @@ export component StudioWindow inherits Window {
                         background: #ffffff22;
                         border-width: 1px;
                         border-color: #f0f0f0;
+                    }
+
+                    // Right-click (ADR 0021): every entry is an existing
+                    // callback already wired to a keyboard shortcut or a
+                    // panel control above.
+                    ContextMenuArea {
+                        Menu {
+                            MenuItem {
+                                title: "Reset Crop";
+                                activated => {
+                                    root.develop-edit("crop-reset", 0);
+                                }
+                            }
+                            MenuItem {
+                                // No before/after compare control exists in
+                                // this build yet (kept visible, disabled,
+                                // like File ▸ Preferences… in ADR 0020) —
+                                // wiring one up would be new functionality,
+                                // which ADR 0021 explicitly excludes.
+                                title: "Compare Before/After";
+                                enabled: false;
+                            }
+                            MenuSeparator { }
+                            MenuItem {
+                                title: "Reprocess    R";
+                                activated => {
+                                    root.develop-reprocess();
+                                }
+                            }
+                            MenuSeparator { }
+                            MenuItem {
+                                title: "Back to Library    G";
+                                activated => {
+                                    root.exit-develop();
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1250,6 +1291,175 @@ export component StudioWindow inherits Window {
                                 root.selected = root.window-start + i;
                                 root.select(root.window-start + i);
                                 root.enter-develop();
+                            }
+                        }
+
+                        // Right-click (ADR 0021): a second, per-photo path
+                        // to the same classement/collection/reprocess
+                        // callbacks already wired above and to the
+                        // MenuBar (ADR 0020). No multi-select exists in
+                        // this app yet, so — like every keyboard shortcut
+                        // and menu-bar entry — this acts on the single
+                        // `selected` index, which right-click sets first
+                        // exactly like a left click does.
+                        ContextMenuArea {
+                            Menu {
+                                MenuItem {
+                                    title: "Develop    D";
+                                    activated => {
+                                        root.selected = root.window-start + i;
+                                        root.select(root.window-start + i);
+                                        root.enter-develop();
+                                    }
+                                }
+                                MenuSeparator { }
+                                Menu {
+                                    title: "Rate";
+                                    MenuItem {
+                                        title: "1 star    1";
+                                        activated => {
+                                            root.selected = root.window-start + i;
+                                            root.select(root.window-start + i);
+                                            root.classify("1");
+                                        }
+                                    }
+                                    MenuItem {
+                                        title: "2 stars    2";
+                                        activated => {
+                                            root.selected = root.window-start + i;
+                                            root.select(root.window-start + i);
+                                            root.classify("2");
+                                        }
+                                    }
+                                    MenuItem {
+                                        title: "3 stars    3";
+                                        activated => {
+                                            root.selected = root.window-start + i;
+                                            root.select(root.window-start + i);
+                                            root.classify("3");
+                                        }
+                                    }
+                                    MenuItem {
+                                        title: "4 stars    4";
+                                        activated => {
+                                            root.selected = root.window-start + i;
+                                            root.select(root.window-start + i);
+                                            root.classify("4");
+                                        }
+                                    }
+                                    MenuItem {
+                                        title: "5 stars    5";
+                                        activated => {
+                                            root.selected = root.window-start + i;
+                                            root.select(root.window-start + i);
+                                            root.classify("5");
+                                        }
+                                    }
+                                    MenuSeparator { }
+                                    MenuItem {
+                                        title: "Clear Rating    0";
+                                        activated => {
+                                            root.selected = root.window-start + i;
+                                            root.select(root.window-start + i);
+                                            root.classify("0");
+                                        }
+                                    }
+                                }
+                                Menu {
+                                    title: "Label";
+                                    MenuItem {
+                                        title: "Red    6";
+                                        activated => {
+                                            root.selected = root.window-start + i;
+                                            root.select(root.window-start + i);
+                                            root.classify("6");
+                                        }
+                                    }
+                                    MenuItem {
+                                        title: "Yellow    7";
+                                        activated => {
+                                            root.selected = root.window-start + i;
+                                            root.select(root.window-start + i);
+                                            root.classify("7");
+                                        }
+                                    }
+                                    MenuItem {
+                                        title: "Green    8";
+                                        activated => {
+                                            root.selected = root.window-start + i;
+                                            root.select(root.window-start + i);
+                                            root.classify("8");
+                                        }
+                                    }
+                                    MenuItem {
+                                        title: "Blue    9";
+                                        activated => {
+                                            root.selected = root.window-start + i;
+                                            root.select(root.window-start + i);
+                                            root.classify("9");
+                                        }
+                                    }
+                                }
+                                Menu {
+                                    title: "Flag";
+                                    MenuItem {
+                                        title: "Pick    P";
+                                        activated => {
+                                            root.selected = root.window-start + i;
+                                            root.select(root.window-start + i);
+                                            root.classify("p");
+                                        }
+                                    }
+                                    MenuItem {
+                                        title: "Reject    X";
+                                        activated => {
+                                            root.selected = root.window-start + i;
+                                            root.select(root.window-start + i);
+                                            root.classify("x");
+                                        }
+                                    }
+                                    MenuItem {
+                                        title: "Clear    U";
+                                        activated => {
+                                            root.selected = root.window-start + i;
+                                            root.select(root.window-start + i);
+                                            root.classify("u");
+                                        }
+                                    }
+                                }
+                                MenuSeparator { }
+                                MenuItem {
+                                    title: "Add to Collection    B";
+                                    enabled: root.active-collection >= 0;
+                                    activated => {
+                                        root.selected = root.window-start + i;
+                                        root.select(root.window-start + i);
+                                        root.add-to-collection();
+                                    }
+                                }
+                                MenuItem {
+                                    title: "Remove from Collection    Shift+B";
+                                    enabled: root.active-collection >= 0;
+                                    activated => {
+                                        root.selected = root.window-start + i;
+                                        root.select(root.window-start + i);
+                                        root.remove-from-collection();
+                                    }
+                                }
+                                MenuSeparator { }
+                                MenuItem {
+                                    // Library::reprocess (§10.4) on this photo
+                                    // alone — not the EditSession::reprocess
+                                    // path behind `R`, which needs an open
+                                    // develop session. Same call as
+                                    // Shift+R, scoped to one version.
+                                    title: "Reprocess";
+                                    activated => {
+                                        root.selected = root.window-start + i;
+                                        root.select(root.window-start + i);
+                                        root.reprocess-selected();
+                                    }
+                                }
                             }
                         }
                     }
