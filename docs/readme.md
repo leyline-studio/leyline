@@ -1,5 +1,7 @@
 # Leyline Studio
 
+![Leyline Studio](../assets/leyline-studio.png)
+
 > **Open Source RAW Development Platform**
 >
 > **Code name:** Leyline

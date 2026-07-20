@@ -9,7 +9,14 @@ rust-version.workspace = true
 
 [dependencies]
 leyline-sdk.workspace = true
-slint.workspace = true
+# `unstable-winit-030` is Slint's own escape hatch for exactly this: reaching
+# the underlying winit window to query the primary monitor's resolution so
+# the initial window size can be screen-relative instead of a hardcoded
+# constant (see `size_window_to_screen` in `src/main.rs`). It's marked
+# "unstable" only in the sense that it may move on a future winit major
+# bump, not that the API itself is flaky — it's Slint's documented,
+# officially supported way to reach winit.
+slint = { workspace = true, features = ["unstable-winit-030"] }
 sys-locale.workspace = true
 directories.workspace = true
 rfd.workspace = true
@@ -42,6 +49,11 @@ product-name = "Leyline Studio"
 identifier = "org.leyline.studio"
 homepage = "https://github.com/leyline-studio/leyline"
 license-file = "../../LICENSE"
+# Regenerated from the brand source `assets/leyline-studio-square.png`
+# (trim its padding, then downscale) whenever that master asset changes —
+# see `icon:` on `StudioWindow` in `ui/studio.slint` for the same source
+# used as the in-app window/taskbar icon, and `windows-manifest.rc` /
+# `crates/leyline-cli/windows-icon.rc` for the .exe icon.
 icons = [
     "../../packaging/icons/32x32.png",
     "../../packaging/icons/128x128.png",

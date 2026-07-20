@@ -228,6 +228,11 @@ component EditSlider inherits VerticalLayout {
 
 export component StudioWindow inherits Window {
     title: "Leyline Studio — " + root.library-name;
+    // Taskbar/Alt-Tab/window-manager icon: the square badge, matching the
+    // .exe icon embedded via windows-manifest.rc and the Linux desktop
+    // entry's `packaging/icons` (ADR 0019) — one source of truth for "the
+    // app icon" everywhere it's requested at a fixed square size.
+    icon: @image-url("../../../packaging/icons/icon.png");
     preferred-width: 1280px;
     preferred-height: 800px;
     background: #1b1b1b;
@@ -2361,28 +2366,25 @@ export component StudioWindow inherits Window {
                     if root.dialog == "about": VerticalLayout {
                         spacing: 12px;
                         HorizontalLayout {
-                            spacing: 12px;
-                            alignment: start;
+                            alignment: center;
+                            // The wide wordmark banner, not the square app
+                            // icon: About is the one place in the UI with
+                            // room to show the full brand lockup rather than
+                            // just the badge used everywhere else (window
+                            // icon, taskbar, installer — see `icon:` on
+                            // `StudioWindow`).
                             Image {
-                                source: @image-url("../../../packaging/icons/128x128.png");
-                                width: 48px;
-                                height: 48px;
+                                source: @image-url("../../../assets/leyline-studio.png");
+                                width: 300px;
+                                height: 200px;
+                                image-fit: contain;
                             }
-                            VerticalLayout {
-                                spacing: 2px;
-                                alignment: center;
-                                Text {
-                                    text: "Leyline Studio";
-                                    color: #f0f0f0;
-                                    font-size: 15px;
-                                    font-weight: 600;
-                                }
-                                Text {
-                                    text: @tr("Version {}", root.app-version);
-                                    color: #9a9a9a;
-                                    font-size: 11px;
-                                }
-                            }
+                        }
+                        Text {
+                            text: @tr("Version {}", root.app-version);
+                            color: #9a9a9a;
+                            font-size: 11px;
+                            horizontal-alignment: center;
                         }
                         Text {
                             text: @tr("Local-first, non-destructive RAW development.");

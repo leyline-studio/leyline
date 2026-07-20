@@ -30,6 +30,7 @@ use leyline_sdk::{
     JobResult, KeywordId, KeywordNode, Library, PickState, Preset, PreviewKind, Settings,
     SettingsGroup, SkippedFile, Sort, VersionId,
 };
+use slint::winit_030::WinitWindowAccessor;
 use slint::{ComponentHandle, Global, Model, ModelRc, SharedString, Timer, TimerMode, VecModel};
 
 use ui::{Cell, StudioWindow, Tr};
@@ -102,6 +103,53 @@ fn system_language() -> Option<String> {
     let locale = sys_locale::get_locale()?;
     let primary = locale.split(['-', '_']).next().unwrap_or(&locale);
     Some(primary.to_lowercase())
+}
+
+/// Never size the window below this, in logical pixels, regardless of how
+/// small the screen-relative computation in [`size_window_to_screen`] comes
+/// out — the UI needs at least this much room to stay usable.
+const MIN_WINDOW_WIDTH: f32 = 1024.0;
+const MIN_WINDOW_HEIGHT: f32 = 700.0;
+
+/// Resizes and centers the window at roughly two thirds of the primary
+/// monitor's resolution, instead of the fixed `preferred-width` /
+/// `preferred-height` `studio.slint`'s `StudioWindow` declares (kept there
+/// as the fallback size — see the call site in [`run`]).
+///
+/// The winit window backing a Slint window is created lazily once the event
+/// loop starts (not at `StudioWindow::new()` time), so this only has
+/// anything to act on once called from a `slint::spawn_local` future — see
+/// the call site. If no winit window exists yet, or no monitor can be
+/// identified (headless environment, an unsupported platform, or a
+/// windowing system such as Wayland that doesn't report a primary monitor),
+/// this is a no-op and the `.slint` fallback size stands unchanged.
+fn size_window_to_screen(window: &StudioWindow) {
+    let win = window.window();
+    win.with_winit_window(|winit_window| {
+        let Some(monitor) = winit_window
+            .primary_monitor()
+            .or_else(|| winit_window.current_monitor())
+        else {
+            return;
+        };
+        let scale = monitor.scale_factor() as f32;
+        let monitor_size = monitor.size();
+        let logical_width = monitor_size.width as f32 / scale;
+        let logical_height = monitor_size.height as f32 / scale;
+        let target_width = (logical_width * 2.0 / 3.0).max(MIN_WINDOW_WIDTH);
+        let target_height = (logical_height * 2.0 / 3.0).max(MIN_WINDOW_HEIGHT);
+        win.set_size(slint::LogicalSize::new(target_width, target_height));
+
+        // Center on the monitor: convert the just-chosen logical size back
+        // to physical pixels to match `monitor.size()`/`monitor.position()`,
+        // which are always physical.
+        let monitor_position = monitor.position();
+        let target_physical_width = (target_width * scale) as i32;
+        let target_physical_height = (target_height * scale) as i32;
+        let x = monitor_position.x + (monitor_size.width as i32 - target_physical_width) / 2;
+        let y = monitor_position.y + (monitor_size.height as i32 - target_physical_height) / 2;
+        win.set_position(slint::PhysicalPosition::new(x, y));
+    });
 }
 
 fn main() -> std::process::ExitCode {
@@ -258,6 +306,21 @@ fn run() -> Result<(), String> {
     }
     // Kept alive until the event loop ends: dropping the timer stops it.
     let _events = event_pump(&app, &window);
+
+    // The winit window (and with it, monitor info) only exists once the
+    // event loop is running — see `size_window_to_screen`'s doc comment —
+    // so this is scheduled as a one-shot future rather than called
+    // directly here. It runs once, at the very start of `run()` below,
+    // before the window is ever presented to the user.
+    {
+        let handle = window.as_weak();
+        slint::spawn_local(async move {
+            if let Some(window) = handle.upgrade() {
+                size_window_to_screen(&window);
+            }
+        })
+        .map_err(|e| e.to_string())?;
+    }
 
     window.run().map_err(|e| e.to_string())
 }

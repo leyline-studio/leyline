@@ -1,0 +1,8 @@
+// Embeds the app icon into leyline-cli.exe (Windows target only), so
+// Explorer/taskbar show the Leyline badge instead of the generic console
+// .exe icon — mirrors `crates/leyline-studio/windows-manifest.rc`, minus
+// the DPI-awareness manifest resource: the CLI has no window to negotiate
+// DPI for. Path is relative to this .rc file's own directory
+// (crates/leyline-cli/), matching the "../../packaging/..." prefix used
+// from `leyline-studio`.
+1 ICON "../../packaging/icons/icon.ico"
