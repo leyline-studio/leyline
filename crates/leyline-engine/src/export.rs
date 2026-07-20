@@ -108,7 +108,9 @@ pub fn export_version(
             reason: e.to_string(),
         }
     })?;
-    let rendered = render(&decoded, &develop)?;
+    let meta = catalog.metadata(asset)?;
+    let shot = meta.as_ref().and_then(render::lens_shot);
+    let rendered = render(&decoded, &develop, shot.as_ref())?;
 
     let scaled;
     let image = Rgb8::new(rendered.width, rendered.height, rendered.data)

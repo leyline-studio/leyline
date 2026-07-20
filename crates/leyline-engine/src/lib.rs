@@ -18,6 +18,7 @@ mod presets;
 mod preview;
 mod process1;
 mod process2;
+mod process3;
 mod render;
 mod session;
 mod source;
@@ -30,6 +31,6 @@ pub use import::{ImportOptions, ImportReport, ImportedFile, SkippedFile, import}
 pub use library::{CatalogRead, CatalogWrite, Library};
 pub use presets::{FailedApply, PresetApplyReport, apply_batch, capture};
 pub use preview::{PreviewFile, preview};
-pub use render::{Rendered, render};
+pub use render::{LensShot, Rendered, lens_shot, render};
 pub use session::{DEFAULT_AMEND_WINDOW, EditSession, Param, Value};
 pub use xmp::write_xmp_sidecar;

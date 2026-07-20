@@ -5,12 +5,14 @@
 //! forever; a revision written by a newer engine is refused, never guessed
 //! at (§3.4) — the caller falls back to the best cached preview.
 
+use leyline_catalog::Metadata;
 use leyline_core::{CURRENT_PROCESS, CURRENT_SCHEMA, Settings};
 use leyline_core::{LeylineError, Result};
 use leyline_raw::RawImage;
 
 use crate::process1;
 use crate::process2;
+use crate::process3;
 
 /// A rendered develop result: tightly packed, interleaved 8-bit RGB.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,14 +25,48 @@ pub struct Rendered {
     pub data: Vec<u8>,
 }
 
+/// EXIF identification of one shot, as needed to look up its Lensfun
+/// profile (`leyline_lens::find_profile`) — process 3's lens correction
+/// step. Built from the asset's catalog [`Metadata`] by [`lens_shot`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct LensShot {
+    /// Camera manufacturer, as written by EXIF.
+    pub camera_make: String,
+    /// Camera model, as written by EXIF.
+    pub camera_model: String,
+    /// Lens manufacturer, when recorded.
+    pub lens_make: Option<String>,
+    /// Lens model, when recorded.
+    pub lens_model: Option<String>,
+    /// Focal length in millimeters at capture.
+    pub focal_mm: f32,
+}
+
+/// Builds a [`LensShot`] from an asset's catalog metadata, when it carries
+/// enough to attempt a profile match: a camera body and a focal length.
+/// Missing lens make/model is not disqualifying here — [`LensShot`] simply
+/// carries `None`, and the profile lookup skips correction on its own.
+pub fn lens_shot(meta: &Metadata) -> Option<LensShot> {
+    let camera = meta.camera.as_ref()?;
+    let focal_mm = meta.focal_length?.as_f64() as f32;
+    Some(LensShot {
+        camera_make: camera.manufacturer.clone(),
+        camera_model: camera.model.clone(),
+        lens_make: meta.lens.as_ref().map(|l| l.manufacturer.clone()),
+        lens_model: meta.lens.as_ref().map(|l| l.model.clone()),
+        focal_mm,
+    })
+}
+
 /// Renders a decoded image according to a revision's settings.
 ///
-/// Identical image and identical settings produce identical pixels
+/// Identical image, settings and shot produce identical pixels
 /// (`docs/pipeline.md` §5). Settings declaring a schema or process newer
 /// than this engine are refused with [`LeylineError::NewerSettings`]: a
 /// schema this engine cannot fully read could hide renamed parameters whose
-/// neutral fallback would silently change the rendering.
-pub fn render(image: &RawImage, settings: &Settings) -> Result<Rendered> {
+/// neutral fallback would silently change the rendering. `shot` feeds only
+/// process 3's lens correction; older process versions ignore it.
+pub fn render(image: &RawImage, settings: &Settings, shot: Option<&LensShot>) -> Result<Rendered> {
     if settings.schema > CURRENT_SCHEMA || settings.process > CURRENT_PROCESS {
         return Err(LeylineError::NewerSettings {
             schema: settings.schema,
@@ -41,6 +77,7 @@ pub fn render(image: &RawImage, settings: &Settings) -> Result<Rendered> {
     match settings.process {
         1 => process1::develop(image, settings),
         2 => process2::develop(image, settings),
+        3 => process3::develop(image, settings, shot),
         other => Err(LeylineError::InvalidSettings(format!(
             "process version {other} does not exist"
         ))),
@@ -50,7 +87,68 @@ pub fn render(image: &RawImage, settings: &Settings) -> Result<Rendered> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use leyline_catalog::{CameraInfo, LensInfo, Rational};
     use leyline_core::{Crop, NoiseReduction, Sharpening, WhiteBalance};
+
+    #[test]
+    fn lens_shot_needs_a_camera_and_a_focal_length() {
+        assert_eq!(lens_shot(&Metadata::default()), None);
+        assert_eq!(
+            lens_shot(&Metadata {
+                camera: Some(CameraInfo {
+                    manufacturer: "Canon".to_owned(),
+                    model: "EOS 5D Mark III".to_owned(),
+                }),
+                ..Metadata::default()
+            }),
+            None,
+            "no focal length: no shot"
+        );
+    }
+
+    #[test]
+    fn lens_shot_carries_a_missing_lens_as_none() {
+        let meta = Metadata {
+            camera: Some(CameraInfo {
+                manufacturer: "Canon".to_owned(),
+                model: "EOS 5D Mark III".to_owned(),
+            }),
+            focal_length: Some(Rational {
+                numerator: 20,
+                denominator: 1,
+            }),
+            ..Metadata::default()
+        };
+        let shot = lens_shot(&meta).unwrap();
+        assert_eq!(shot.camera_make, "Canon");
+        assert_eq!(shot.focal_mm, 20.0);
+        assert_eq!(shot.lens_make, None);
+        assert_eq!(shot.lens_model, None);
+    }
+
+    #[test]
+    fn lens_shot_carries_the_lens_when_present() {
+        let meta = Metadata {
+            camera: Some(CameraInfo {
+                manufacturer: "Canon".to_owned(),
+                model: "EOS 5D Mark III".to_owned(),
+            }),
+            lens: Some(LensInfo {
+                manufacturer: "Canon".to_owned(),
+                model: "EF 16-35mm f/2.8L II USM".to_owned(),
+                mount: None,
+            }),
+            focal_length: Some(Rational {
+                numerator: 200,
+                denominator: 10,
+            }),
+            ..Metadata::default()
+        };
+        let shot = lens_shot(&meta).unwrap();
+        assert_eq!(shot.lens_make.as_deref(), Some("Canon"));
+        assert_eq!(shot.lens_model.as_deref(), Some("EF 16-35mm f/2.8L II USM"));
+        assert_eq!(shot.focal_mm, 20.0);
+    }
 
     /// A deterministic 12×8 test card: a gradient with a colored block.
     fn test_image() -> RawImage {
@@ -77,7 +175,7 @@ mod tests {
     #[test]
     fn neutral_settings_render_the_decoded_image_bit_for_bit() {
         let image = test_image();
-        let out = render(&image, &Settings::default()).unwrap();
+        let out = render(&image, &Settings::default(), None).unwrap();
         assert_eq!((out.width, out.height), (image.width, image.height));
         assert_eq!(out.data, image.data);
     }
@@ -115,8 +213,8 @@ mod tests {
             }),
             ..Settings::default()
         };
-        let first = render(&image, &settings).unwrap();
-        let second = render(&image, &settings).unwrap();
+        let first = render(&image, &settings, None).unwrap();
+        let second = render(&image, &settings, None).unwrap();
         assert_eq!(first, second);
     }
 
@@ -129,6 +227,7 @@ mod tests {
                 exposure: 1.0,
                 ..Settings::default()
             },
+            None,
         )
         .unwrap();
         let darker = render(
@@ -137,6 +236,7 @@ mod tests {
                 exposure: -1.0,
                 ..Settings::default()
             },
+            None,
         )
         .unwrap();
         let sum = |data: &[u8]| data.iter().map(|&v| u64::from(v)).sum::<u64>();
@@ -156,6 +256,7 @@ mod tests {
                 }),
                 ..Settings::default()
             },
+            None,
         )
         .unwrap();
         let sum = |data: &[u8], channel: usize| {
@@ -182,6 +283,7 @@ mod tests {
                 }),
                 ..Settings::default()
             },
+            None,
         )
         .unwrap();
         assert_eq!(out.data, image.data);
@@ -195,6 +297,7 @@ mod tests {
                 saturation: -100,
                 ..Settings::default()
             },
+            None,
         )
         .unwrap();
         for px in out.data.chunks_exact(3) {
@@ -220,6 +323,7 @@ mod tests {
                 vibrance: 80,
                 ..Settings::default()
             },
+            None,
         )
         .unwrap();
         let chroma = |px: &[u8]| i32::from(*px.iter().max().unwrap() - *px.iter().min().unwrap());
@@ -258,6 +362,7 @@ mod tests {
                 },
                 ..Settings::default()
             },
+            None,
         )
         .unwrap();
         let spread = |data: &[u8]| {
@@ -293,6 +398,7 @@ mod tests {
                 },
                 ..Settings::default()
             },
+            None,
         )
         .unwrap();
         // Overshoot on both sides of the edge, on the row y=1.
@@ -309,6 +415,7 @@ mod tests {
                 rotation: 90.0,
                 ..Settings::default()
             },
+            None,
         )
         .unwrap();
         assert_eq!((out.width, out.height), (8, 12));
@@ -328,6 +435,7 @@ mod tests {
                 }),
                 ..Settings::default()
             },
+            None,
         )
         .unwrap();
         assert_eq!((out.width, out.height), (6, 2));
@@ -350,8 +458,8 @@ mod tests {
             exposure: 0.4,
             ..Settings::default()
         };
-        let p1 = render(&image, &settings(1)).unwrap();
-        let p2 = render(&image, &settings(2)).unwrap();
+        let p1 = render(&image, &settings(1), None).unwrap();
+        let p2 = render(&image, &settings(2), None).unwrap();
         assert_eq!(p1.data.len(), p2.data.len());
         for (a, b) in p1.data.iter().zip(&p2.data) {
             assert!(a.abs_diff(*b) <= 1, "{a} vs {b}");
@@ -372,7 +480,7 @@ mod tests {
             },
         ] {
             assert!(matches!(
-                render(&image, &settings),
+                render(&image, &settings, None),
                 Err(LeylineError::NewerSettings { .. })
             ));
         }
@@ -386,6 +494,7 @@ mod tests {
                 contrast: 999,
                 ..Settings::default()
             },
+            None,
         )
         .unwrap_err();
         assert!(matches!(err, LeylineError::InvalidSettings(_)));
@@ -396,6 +505,7 @@ mod tests {
                 process: 0,
                 ..Settings::default()
             },
+            None,
         )
         .unwrap_err();
         assert!(matches!(err, LeylineError::InvalidSettings(_)));

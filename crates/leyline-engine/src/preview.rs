@@ -67,7 +67,9 @@ pub fn preview(
             reason: e.to_string(),
         })?;
 
-    let rendered = render(&decoded, &settings)?;
+    let meta = catalog.metadata(asset)?;
+    let shot = meta.as_ref().and_then(render::lens_shot);
+    let rendered = render(&decoded, &settings, shot.as_ref())?;
     let image = Rgb8::new(rendered.width, rendered.height, rendered.data).map_err(preview_err)?;
     let stored = cache
         .store(asset, head, kind, &image)

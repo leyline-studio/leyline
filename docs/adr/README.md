@@ -21,3 +21,4 @@ Une décision acceptée ne se modifie pas : elle se remplace par un nouvel ADR q
 | [0013](0013-process-2-lut-transfer.md) | Process 2 : fonctions de transfert sRGB par table |
 | [0014](0014-develop-presets.md) | Presets de développement : catégories partielles, application par révision normale |
 | [0015](0015-color-management-srgb.md) | Gestion des couleurs V1 : pipeline et export figés en sRGB |
+| [0016](0016-process-3-lens-correction.md) | Process 3 : correction géométrique d'objectif (Lensfun) |
