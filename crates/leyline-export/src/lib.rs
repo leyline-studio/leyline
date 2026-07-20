@@ -8,6 +8,13 @@
 //! [`ExportSettings`] doubles as the `settings_json` of export presets
 //! (`docs/catalog.md` §27), so a preset is exactly a named, stored instance
 //! of what this crate consumes.
+//!
+//! The pixels arrive already in sRGB (`docs/adr/0015-color-management-srgb.md`).
+//! JPEG, PNG and TIFF get an explicit sRGB ICC profile embedded via
+//! [`leyline_color::srgb_icc_profile`] so color-managed viewers render them
+//! correctly instead of relying on convention; WebP and AVIF are written
+//! without one because neither encoder crate supports it, which is the
+//! accepted convention for those formats on the web.
 
 use std::path::Path;
 
@@ -145,7 +152,10 @@ pub fn encode(
                     "JPEG cannot exceed 65535 pixels per edge, got {width}x{height}"
                 )));
             };
-            let encoder = jpeg_encoder::Encoder::new_file(path, settings.quality)
+            let mut encoder = jpeg_encoder::Encoder::new_file(path, settings.quality)
+                .map_err(|e| ExportError::Encode(e.to_string()))?;
+            encoder
+                .add_icc_profile(leyline_color::srgb_icc_profile())
                 .map_err(|e| ExportError::Encode(e.to_string()))?;
             encoder
                 .encode(rgb8, w, h, jpeg_encoder::ColorType::Rgb)
@@ -153,9 +163,12 @@ pub fn encode(
         }
         ExportFormat::Png => {
             let file = std::fs::File::create(path)?;
-            let mut encoder = png::Encoder::new(std::io::BufWriter::new(file), width, height);
-            encoder.set_color(png::ColorType::Rgb);
-            encoder.set_depth(png::BitDepth::Eight);
+            let mut info = png::Info::with_size(width, height);
+            info.color_type = png::ColorType::Rgb;
+            info.bit_depth = png::BitDepth::Eight;
+            info.icc_profile = Some(leyline_color::srgb_icc_profile().into());
+            let encoder = png::Encoder::with_info(std::io::BufWriter::new(file), info)
+                .map_err(|e| ExportError::Encode(e.to_string()))?;
             let mut writer = encoder
                 .write_header()
                 .map_err(|e| ExportError::Encode(e.to_string()))?;
@@ -170,8 +183,18 @@ pub fn encode(
                 .with_compression(tiff::encoder::Compression::Deflate(
                     tiff::encoder::DeflateLevel::default(),
                 ));
-            encoder
-                .write_image::<tiff::encoder::colortype::RGB8>(width, height, rgb8)
+            let mut image = encoder
+                .new_image::<tiff::encoder::colortype::RGB8>(width, height)
+                .map_err(|e| ExportError::Encode(e.to_string()))?;
+            image
+                .encoder()
+                .write_tag(
+                    tiff::tags::Tag::IccProfile,
+                    leyline_color::srgb_icc_profile(),
+                )
+                .map_err(|e| ExportError::Encode(e.to_string()))?;
+            image
+                .write_data(rgb8)
                 .map_err(|e| ExportError::Encode(e.to_string()))?;
         }
         ExportFormat::Webp => {
@@ -255,6 +278,47 @@ mod tests {
         let bytes = std::fs::read(&avif).unwrap();
         assert_eq!(&bytes[4..8], b"ftyp", "ISOBMFF ftyp box");
         assert_eq!(&bytes[8..12], b"avif", "AVIF brand");
+    }
+
+    #[test]
+    fn jpeg_png_and_tiff_embed_the_srgb_icc_profile() {
+        let dir = tempfile::tempdir().unwrap();
+        let pixels = gradient(8, 6);
+        let icc = leyline_color::srgb_icc_profile();
+
+        let jpg = dir.path().join("out.jpg");
+        encode(&jpg, 8, 6, &pixels, &ExportSettings::default()).unwrap();
+        let bytes = std::fs::read(&jpg).unwrap();
+        assert!(
+            bytes.windows(icc.len()).any(|w| w == icc),
+            "JPEG file should contain the ICC_PROFILE APP2 segment payload"
+        );
+
+        let png_path = dir.path().join("out.png");
+        let png_settings = ExportSettings {
+            format: ExportFormat::Png,
+            ..ExportSettings::default()
+        };
+        encode(&png_path, 8, 6, &pixels, &png_settings).unwrap();
+        let file = std::io::BufReader::new(std::fs::File::open(&png_path).unwrap());
+        let reader = png::Decoder::new(file).read_info().unwrap();
+        assert_eq!(
+            reader.info().icc_profile.as_deref(),
+            Some(icc),
+            "PNG iCCP chunk should round-trip the sRGB profile"
+        );
+
+        let tif = dir.path().join("out.tif");
+        let tiff_settings = ExportSettings {
+            format: ExportFormat::Tiff,
+            ..ExportSettings::default()
+        };
+        encode(&tif, 8, 6, &pixels, &tiff_settings).unwrap();
+        let bytes = std::fs::read(&tif).unwrap();
+        assert!(
+            bytes.windows(icc.len()).any(|w| w == icc),
+            "TIFF file should contain the ICCProfile tag payload"
+        );
     }
 
     #[test]

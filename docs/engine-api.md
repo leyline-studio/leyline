@@ -409,7 +409,7 @@ impl Library {
 
 Studio pilote désormais ses dialogues d'import et d'export ainsi que ses vignettes de grille par ce flux : `import_async`/`export_async`/`export_with_preset_async` pour les dialogues (progression affichée depuis `JobProgress`, résultat depuis `JobFinished`), `preview_async` pour les vignettes (jusqu'à 3 rendus en vol, remplis depuis `PreviewReady`).
 
-L'export rend chaque version à sa révision de tête, avec sa process version (`pipeline.md` §3.3), et journalise dans `export_history`.
+L'export rend chaque version à sa révision de tête, avec sa process version (`pipeline.md` §3.3), et journalise dans `export_history`. Les pixels rendus sont en sRGB (`adr/0015-color-management-srgb.md`) ; `leyline-export` embarque le profil ICC sRGB canonique (généré par LittleCMS, `leyline-color::srgb_icc_profile`) dans les fichiers JPEG, PNG et TIFF — WebP et AVIF s'en passent, faute de support ICC dans leurs bibliothèques d'encodage.
 
 ---
 
