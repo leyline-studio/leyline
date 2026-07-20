@@ -7,8 +7,9 @@
 use std::path::{Path, PathBuf};
 
 use leyline_sdk::{
-    AssetId, ColorLabel, ExportFormat, ExportSettings, GridQuery, ImportOptions, Library, Param,
-    PickState, PresetId, PreviewKind, Settings, SettingsGroup, Value, VersionId,
+    AssetId, ColorLabel, Crop, ExportFormat, ExportSettings, GridQuery, ImportOptions,
+    LensCorrection, Library, NoiseReduction, Param, PickState, PresetId, PreviewKind, Settings,
+    SettingsGroup, Sharpening, Value, VersionId, WhiteBalance,
 };
 
 const USAGE: &str = "\
@@ -28,7 +29,8 @@ Usage:
   leyline rate <library> <stars|none> <version-id>...
   leyline pick <library> <pick|reject|none> <version-id>...
   leyline label <library> <red|yellow|green|blue|purple|none> <version-id>...
-  leyline develop <library> <version-id> <param> <value>
+  leyline develop <library> <version-id> <param> <value...>
+  leyline reprocess <library> <version-id>...
   leyline history <library> <version-id>
   leyline preset-save <library> <name> <version-id> --groups <g,g,...>
   leyline preset-list <library>
@@ -44,6 +46,11 @@ Develop params (docs/pipeline.md §3.2, schema 1):
   exposure rotation                 decimal
   contrast highlights shadows whites blacks vibrance saturation
                                     integer in [-100, 100]
+  white-balance <kelvin> <tint>     tint integer, or `white-balance none` for as-shot
+  lens-correction <on|off>
+  noise-reduction <luminance> <color>
+  sharpening <amount> <radius>
+  crop <x> <y> <width> <height>     percent 0-100, or `crop reset`
 
 Preset groups (docs/presets.md §3.1, comma-separated, no spaces):
   white_balance tone presence lens_correction detail geometry
@@ -74,6 +81,7 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("pick") => pick(&args[1..]),
         Some("label") => label(&args[1..]),
         Some("develop") => develop(&args[1..]),
+        Some("reprocess") => reprocess(&args[1..]),
         Some("history") => history(&args[1..]),
         Some("preset-save") => preset_save(&args[1..]),
         Some("preset-list") => preset_list(&args[1..]),
@@ -352,34 +360,89 @@ fn label(args: &[String]) -> Result<(), String> {
 
 fn develop(args: &[String]) -> Result<(), String> {
     let (positional, _) = parse(args, &[])?;
-    let [root, version, param, value] = positional.as_slice() else {
-        return Err("usage: leyline develop <library> <version-id> <param> <value>".to_owned());
+    let [root, version, param, rest @ ..] = positional.as_slice() else {
+        return Err("usage: leyline develop <library> <version-id> <param> <value...>".to_owned());
     };
     let version = VersionId::new(
         version
             .parse()
             .map_err(|_| format!("bad version id {version:?}"))?,
     );
-    let float = |v: &str| -> Result<Value, String> {
-        Ok(Value::Float(
-            v.parse().map_err(|_| format!("bad decimal {v:?}"))?,
-        ))
+    let at = |i: usize| -> Result<&str, String> {
+        rest.get(i)
+            .map(String::as_str)
+            .ok_or_else(|| format!("{param} expects {} value(s)", i + 1))
     };
-    let int = |v: &str| -> Result<Value, String> {
-        Ok(Value::Int(
-            v.parse().map_err(|_| format!("bad integer {v:?}"))?,
-        ))
+    let float_at = |i: usize| -> Result<f64, String> {
+        let v = at(i)?;
+        v.parse().map_err(|_| format!("bad decimal {v:?}"))
+    };
+    let int_at = |i: usize| -> Result<i32, String> {
+        let v = at(i)?;
+        v.parse().map_err(|_| format!("bad integer {v:?}"))
     };
     let (param, value) = match param.as_str() {
-        "exposure" => (Param::Exposure, float(value)?),
-        "rotation" => (Param::Rotation, float(value)?),
-        "contrast" => (Param::Contrast, int(value)?),
-        "highlights" => (Param::Highlights, int(value)?),
-        "shadows" => (Param::Shadows, int(value)?),
-        "whites" => (Param::Whites, int(value)?),
-        "blacks" => (Param::Blacks, int(value)?),
-        "vibrance" => (Param::Vibrance, int(value)?),
-        "saturation" => (Param::Saturation, int(value)?),
+        "exposure" => (Param::Exposure, Value::Float(float_at(0)?)),
+        "rotation" => (Param::Rotation, Value::Float(float_at(0)?)),
+        "contrast" => (Param::Contrast, Value::Int(int_at(0)?)),
+        "highlights" => (Param::Highlights, Value::Int(int_at(0)?)),
+        "shadows" => (Param::Shadows, Value::Int(int_at(0)?)),
+        "whites" => (Param::Whites, Value::Int(int_at(0)?)),
+        "blacks" => (Param::Blacks, Value::Int(int_at(0)?)),
+        "vibrance" => (Param::Vibrance, Value::Int(int_at(0)?)),
+        "saturation" => (Param::Saturation, Value::Int(int_at(0)?)),
+        "white-balance" => {
+            let wb = match at(0)? {
+                "none" => None,
+                _ => Some(WhiteBalance {
+                    temperature: int_at(0)?
+                        .try_into()
+                        .map_err(|_| "temperature must be positive".to_owned())?,
+                    tint: int_at(1)?,
+                }),
+            };
+            (Param::WhiteBalance, Value::WhiteBalance(wb))
+        }
+        "lens-correction" => {
+            let enabled = match at(0)? {
+                "on" => true,
+                "off" => false,
+                other => return Err(format!("expected on/off, got {other:?}")),
+            };
+            (
+                Param::LensCorrection,
+                Value::LensCorrection(LensCorrection {
+                    enabled,
+                    profile: "auto".to_owned(),
+                }),
+            )
+        }
+        "noise-reduction" => (
+            Param::NoiseReduction,
+            Value::NoiseReduction(NoiseReduction {
+                luminance: int_at(0)?,
+                color: int_at(1)?,
+            }),
+        ),
+        "sharpening" => (
+            Param::Sharpening,
+            Value::Sharpening(Sharpening {
+                amount: int_at(0)?,
+                radius: float_at(1)?,
+            }),
+        ),
+        "crop" => {
+            let crop = match at(0)? {
+                "none" | "reset" => None,
+                _ => Some(Crop {
+                    x: float_at(0)? / 100.0,
+                    y: float_at(1)? / 100.0,
+                    width: float_at(2)? / 100.0,
+                    height: float_at(3)? / 100.0,
+                }),
+            };
+            (Param::Crop, Value::Crop(crop))
+        }
         other => return Err(format!("unknown develop parameter {other:?}")),
     };
 
@@ -389,6 +452,42 @@ fn develop(args: &[String]) -> Result<(), String> {
     let revision = session.commit().map_err(|e| e.to_string())?;
     drop(session);
     println!("committed revision {revision}");
+    Ok(())
+}
+
+/// Migrates each version to the engine's current process version
+/// (`docs/engine-api.md` §10.4): same parameter values, re-rendered under a
+/// newer process contract (e.g. picking up lens correction).
+fn reprocess(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root, versions @ ..] = positional.as_slice() else {
+        return Err("usage: leyline reprocess <library> <version-id>...".to_owned());
+    };
+    if versions.is_empty() {
+        return Err("usage: leyline reprocess <library> <version-id>...".to_owned());
+    }
+    let ids = versions
+        .iter()
+        .map(|v| {
+            v.parse()
+                .map(VersionId::new)
+                .map_err(|_| format!("bad version id {v:?}"))
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+
+    let library = open(root)?;
+    let report = library
+        .reprocess(&ids, |_, _| {})
+        .map_err(|e| e.to_string())?;
+    println!(
+        "reprocessed {}, already current {}, failed {}",
+        report.reprocessed.len(),
+        report.already_current.len(),
+        report.failed.len()
+    );
+    for failed in &report.failed {
+        println!("  failed: version {} — {}", failed.version, failed.reason);
+    }
     Ok(())
 }
 
