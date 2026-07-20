@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+  DPI-awareness manifest for leyline-studio.exe (Windows target only).
+
+  Without an embedded manifest, an unmarked process is DPI-unaware by
+  default: Windows negotiates the initial window size/DPI itself and
+  bitmap-stretches the window, which is what produced the "thin horizontal
+  strip on first launch, fixed by any manual resize" symptom reported after
+  the first NSIS install. winit (i-slint-backend-winit's dependency) also
+  calls SetProcessDpiAwarenessContext at runtime early in EventLoop::new(),
+  but that is a best-effort fallback for processes with no manifest — the
+  manifest declaration is the mechanism Microsoft documents as authoritative
+  and is applied before the process's first window is negotiated, so it
+  takes precedence here rather than relying solely on the runtime call.
+
+  Both the modern (Windows 10 1607+) and legacy (Vista/7/8) DPI-awareness
+  declarations are included side by side, as recommended by Microsoft's own
+  manifest examples, so the app gets PerMonitorV2 on modern Windows and
+  still degrades to system-DPI-aware (rather than falling back to
+  DPI-unaware bitmap stretching) on older Windows versions that ignore the
+  asmv3 element.
+-->
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <asmv3:application xmlns:asmv3="urn:schemas-microsoft-com:asm.v3">
+    <asmv3:windowsSettings>
+      <!-- Windows 10 1607+: per-monitor v2, the modern recommended mode. -->
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
+      <!-- Vista/7/8/8.1 fallback: older tag ignored by version-2016-aware
+           Windows, read by everything before it. -->
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true/PM</dpiAware>
+      <!-- Windows 10 1803+: opt out of the ~260-char MAX_PATH limit so the
+           local-first catalog/cache paths under deep AppData trees aren't
+           silently truncated. Low-effort addition alongside the DPI fix. -->
+      <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
+    </asmv3:windowsSettings>
+  </asmv3:application>
+</assembly>

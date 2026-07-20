@@ -1,0 +1,21 @@
+// Embeds windows-manifest.xml as the executable's application manifest
+// (resource type 24 = RT_MANIFEST, resource ID 1 = the well-known
+// CREATEPROCESS_MANIFEST_RESOURCE_ID Windows looks up for an .exe's own
+// manifest). Compiled by embed-resource via `windres` in build.rs, gated
+// on the *target* being windows-gnu — see build.rs for why CARGO_CFG_TARGET_OS
+// is checked instead of cfg!(target_os) when cross-compiling.
+1 24 "windows-manifest.xml"
+
+// Embeds the app icon into leyline-studio.exe itself. `installer-icon` in
+// `Cargo.toml`'s `[package.metadata.packager.nsis]` only sets the icon
+// shown by the NSIS *installer* UI (setup.exe) — it does not put an icon
+// resource into the packaged binary, so without this, Explorer/Start
+// Menu/taskbar all fall back to the generic default .exe icon for the app
+// itself. `windres` reads a multi-resolution .ico and emits both the
+// RT_GROUP_ICON and RT_ICON entries; Explorer picks the icon it shows for
+// the .exe file from the RT_GROUP_ICON resource with the lowest resource
+// ID, so this must be declared first among any icon resources (there is
+// only one here). Path is relative to this .rc file's own directory
+// (crates/leyline-studio/), matching the same "../../packaging/..." prefix
+// used from here in Cargo.toml's `[package.metadata.packager]` icons list.
+1 ICON "../../packaging/icons/icon.ico"

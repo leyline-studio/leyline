@@ -15,6 +15,7 @@ directories.workspace = true
 
 [build-dependencies]
 slint-build.workspace = true
+embed-resource = "3.0"
 
 [dev-dependencies]
 tempfile.workspace = true
