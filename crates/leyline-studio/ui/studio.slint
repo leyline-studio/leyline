@@ -238,6 +238,9 @@ export component StudioWindow inherits Window {
     // Help ▸ About Leyline — the no-argument fallback location isn't
     // something the user chose, so it needs to stay discoverable.
     in property <string> library-path;
+    // App version shown in Help ▸ About Leyline, wired from CARGO_PKG_VERSION
+    // at startup (see main.rs) — kept in sync with Cargo.toml automatically.
+    in property <string> app-version;
     in property <string> status-line;
     // The loaded window of grid cells; cell `i` shows grid row
     // `window-start + i` out of `total-cells` matching rows.
@@ -2357,11 +2360,29 @@ export component StudioWindow inherits Window {
 
                     if root.dialog == "about": VerticalLayout {
                         spacing: 12px;
-                        Text {
-                            text: "Leyline Studio";
-                            color: #f0f0f0;
-                            font-size: 15px;
-                            font-weight: 600;
+                        HorizontalLayout {
+                            spacing: 12px;
+                            alignment: start;
+                            Image {
+                                source: @image-url("../../../packaging/icons/128x128.png");
+                                width: 48px;
+                                height: 48px;
+                            }
+                            VerticalLayout {
+                                spacing: 2px;
+                                alignment: center;
+                                Text {
+                                    text: "Leyline Studio";
+                                    color: #f0f0f0;
+                                    font-size: 15px;
+                                    font-weight: 600;
+                                }
+                                Text {
+                                    text: @tr("Version {}", root.app-version);
+                                    color: #9a9a9a;
+                                    font-size: 11px;
+                                }
+                            }
                         }
                         Text {
                             text: @tr("Local-first, non-destructive RAW development.");
@@ -2372,6 +2393,18 @@ export component StudioWindow inherits Window {
                         Text {
                             text: @tr("Library: {}", root.library-path);
                             color: #909090;
+                            font-size: 11px;
+                            wrap: word-wrap;
+                        }
+                        Text {
+                            text: "https://github.com/leyline-studio/leyline";
+                            color: #c8b06a;
+                            font-size: 11px;
+                            wrap: word-wrap;
+                        }
+                        Text {
+                            text: @tr("Licensed under {}", "GPL-3.0-only");
+                            color: #9a9a9a;
                             font-size: 11px;
                             wrap: word-wrap;
                         }

@@ -723,7 +723,17 @@ msgctxt "StudioWindow"
 msgid "Close"
 msgstr "Fermer"
 
+#: ui/studio.slint:2381
+msgctxt "StudioWindow"
+msgid "Version {}"
+msgstr "Version {}"
+
 #: ui/studio.slint:2153
 msgctxt "StudioWindow"
 msgid "Local-first, non-destructive RAW development."
 msgstr "Développement RAW local et non destructif."
+
+#: ui/studio.slint:2406
+msgctxt "StudioWindow"
+msgid "Licensed under {}"
+msgstr "Sous licence {}"

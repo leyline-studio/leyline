@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: leyline-studio VERSION\n"
-"POT-Creation-Date: 2026-07-20 21:36+0000\n"
+"POT-Creation-Date: 2026-07-20 22:03+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -12,725 +12,735 @@ msgstr ""
 "Language: \n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-#: ui/studio.slint:60
+#: crates/leyline-studio/ui/studio.slint:60
 msgctxt "Tr"
 msgid "{} photo"
 msgid_plural "{} photos"
 msgstr[0] ""
 msgstr[1] ""
 
-#: ui/studio.slint:63
+#: crates/leyline-studio/ui/studio.slint:63
 msgctxt "Tr"
 msgid "Importing {}/{}…"
 msgstr ""
 
-#: ui/studio.slint:66
+#: crates/leyline-studio/ui/studio.slint:66
 msgctxt "Tr"
 msgid "Exporting {}/{}…"
 msgstr ""
 
-#: ui/studio.slint:69
+#: crates/leyline-studio/ui/studio.slint:69
 msgctxt "Tr"
 msgid "Import failed: {}"
 msgstr ""
 
-#: ui/studio.slint:72
+#: crates/leyline-studio/ui/studio.slint:72
 msgctxt "Tr"
 msgid "Export failed: {}"
 msgstr ""
 
-#: ui/studio.slint:75
+#: crates/leyline-studio/ui/studio.slint:75
 msgctxt "Tr"
 msgid "Reprocessed {} photo(s), {} already current, {} failed"
 msgstr ""
 
-#: ui/studio.slint:78
+#: crates/leyline-studio/ui/studio.slint:78
 msgctxt "Tr"
 msgid "Enter a source folder."
 msgstr ""
 
-#: ui/studio.slint:81
+#: crates/leyline-studio/ui/studio.slint:81
 msgctxt "Tr"
 msgid "Importing…"
 msgstr ""
 
-#: ui/studio.slint:84
+#: crates/leyline-studio/ui/studio.slint:84
 msgctxt "Tr"
 msgid "Select a photo first."
 msgstr ""
 
-#: ui/studio.slint:87
+#: crates/leyline-studio/ui/studio.slint:87
 msgctxt "Tr"
 msgid "Enter a destination folder."
 msgstr ""
 
-#: ui/studio.slint:90
+#: crates/leyline-studio/ui/studio.slint:90
 msgctxt "Tr"
 msgid "Exporting…"
 msgstr ""
 
-#: ui/studio.slint:93
+#: crates/leyline-studio/ui/studio.slint:93
 msgctxt "Tr"
 msgid "Enter a name."
 msgstr ""
 
-#: ui/studio.slint:96
+#: crates/leyline-studio/ui/studio.slint:96
 msgctxt "Tr"
 msgid "Creation failed: {}"
 msgstr ""
 
-#: ui/studio.slint:99
+#: crates/leyline-studio/ui/studio.slint:99
 msgctxt "Tr"
 msgid "Open a photo in develop first."
 msgstr ""
 
-#: ui/studio.slint:102
+#: crates/leyline-studio/ui/studio.slint:102
 msgctxt "Tr"
 msgid "Pick at least one group."
 msgstr ""
 
-#: ui/studio.slint:105
+#: crates/leyline-studio/ui/studio.slint:105
 msgctxt "Tr"
 msgid "Save failed: {}"
 msgstr ""
 
-#: ui/studio.slint:108
+#: crates/leyline-studio/ui/studio.slint:108
 msgctxt "Tr"
 msgid "Error: {}"
 msgstr ""
 
-#: ui/studio.slint:111
+#: crates/leyline-studio/ui/studio.slint:111
 msgctxt "Tr"
 msgid "Select a collection in the sidebar first."
 msgstr ""
 
-#: ui/studio.slint:114
+#: crates/leyline-studio/ui/studio.slint:114
 msgctxt "Tr"
 msgid "Preset saved."
 msgstr ""
 
-#: ui/studio.slint:376 ui/studio.slint:1587
+#: crates/leyline-studio/ui/studio.slint:379 crates/leyline-studio/ui/studio.slint:1590
 msgctxt "StudioWindow"
 msgid "File"
 msgstr ""
 
-#: ui/studio.slint:378
+#: crates/leyline-studio/ui/studio.slint:381
 msgctxt "StudioWindow"
 msgid "Import…    I"
 msgstr ""
 
-#: ui/studio.slint:385
+#: crates/leyline-studio/ui/studio.slint:388
 msgctxt "StudioWindow"
 msgid "Export…    E"
 msgstr ""
 
 #. disabled until there is a preferences panel to open.
-#: ui/studio.slint:395
+#: crates/leyline-studio/ui/studio.slint:398
 msgctxt "StudioWindow"
 msgid "Preferences…"
 msgstr ""
 
-#: ui/studio.slint:400
+#: crates/leyline-studio/ui/studio.slint:403
 msgctxt "StudioWindow"
 msgid "Quit"
 msgstr ""
 
-#: ui/studio.slint:407
+#: crates/leyline-studio/ui/studio.slint:410
 msgctxt "StudioWindow"
 msgid "Library"
 msgstr ""
 
-#: ui/studio.slint:409
+#: crates/leyline-studio/ui/studio.slint:412
 msgctxt "StudioWindow"
 msgid "New Collection…    N"
 msgstr ""
 
-#: ui/studio.slint:416 ui/studio.slint:1519
+#: crates/leyline-studio/ui/studio.slint:419 crates/leyline-studio/ui/studio.slint:1522
 msgctxt "StudioWindow"
 msgid "Add to Collection    B"
 msgstr ""
 
-#: ui/studio.slint:423 ui/studio.slint:1528
+#: crates/leyline-studio/ui/studio.slint:426 crates/leyline-studio/ui/studio.slint:1531
 msgctxt "StudioWindow"
 msgid "Remove from Collection    Shift+B"
 msgstr ""
 
-#: ui/studio.slint:431
+#: crates/leyline-studio/ui/studio.slint:434
 msgctxt "StudioWindow"
 msgid "Reprocess Library…    Shift+R"
 msgstr ""
 
-#: ui/studio.slint:438
+#: crates/leyline-studio/ui/studio.slint:441
 msgctxt "StudioWindow"
 msgid "Photo"
 msgstr ""
 
-#: ui/studio.slint:440 ui/studio.slint:1404 ui/studio.slint:2309
+#: crates/leyline-studio/ui/studio.slint:443 crates/leyline-studio/ui/studio.slint:1407 crates/leyline-studio/ui/studio.slint:2312
 msgctxt "StudioWindow"
 msgid "Rate"
 msgstr ""
 
-#: ui/studio.slint:442 ui/studio.slint:1406
+#: crates/leyline-studio/ui/studio.slint:445 crates/leyline-studio/ui/studio.slint:1409
 msgctxt "StudioWindow"
 msgid "1 star    1"
 msgstr ""
 
-#: ui/studio.slint:449 ui/studio.slint:1414
+#: crates/leyline-studio/ui/studio.slint:452 crates/leyline-studio/ui/studio.slint:1417
 msgctxt "StudioWindow"
 msgid "2 stars    2"
 msgstr ""
 
-#: ui/studio.slint:456 ui/studio.slint:1422
+#: crates/leyline-studio/ui/studio.slint:459 crates/leyline-studio/ui/studio.slint:1425
 msgctxt "StudioWindow"
 msgid "3 stars    3"
 msgstr ""
 
-#: ui/studio.slint:463 ui/studio.slint:1430
+#: crates/leyline-studio/ui/studio.slint:466 crates/leyline-studio/ui/studio.slint:1433
 msgctxt "StudioWindow"
 msgid "4 stars    4"
 msgstr ""
 
-#: ui/studio.slint:470 ui/studio.slint:1438
+#: crates/leyline-studio/ui/studio.slint:473 crates/leyline-studio/ui/studio.slint:1441
 msgctxt "StudioWindow"
 msgid "5 stars    5"
 msgstr ""
 
-#: ui/studio.slint:478 ui/studio.slint:1447
+#: crates/leyline-studio/ui/studio.slint:481 crates/leyline-studio/ui/studio.slint:1450
 msgctxt "StudioWindow"
 msgid "Clear Rating    0"
 msgstr ""
 
-#: ui/studio.slint:486 ui/studio.slint:1456
+#: crates/leyline-studio/ui/studio.slint:489 crates/leyline-studio/ui/studio.slint:1459
 msgctxt "StudioWindow"
 msgid "Label"
 msgstr ""
 
-#: ui/studio.slint:488 ui/studio.slint:1458
+#: crates/leyline-studio/ui/studio.slint:491 crates/leyline-studio/ui/studio.slint:1461
 msgctxt "StudioWindow"
 msgid "Red    6"
 msgstr ""
 
-#: ui/studio.slint:495 ui/studio.slint:1466
+#: crates/leyline-studio/ui/studio.slint:498 crates/leyline-studio/ui/studio.slint:1469
 msgctxt "StudioWindow"
 msgid "Yellow    7"
 msgstr ""
 
-#: ui/studio.slint:502 ui/studio.slint:1474
+#: crates/leyline-studio/ui/studio.slint:505 crates/leyline-studio/ui/studio.slint:1477
 msgctxt "StudioWindow"
 msgid "Green    8"
 msgstr ""
 
-#: ui/studio.slint:509 ui/studio.slint:1482
+#: crates/leyline-studio/ui/studio.slint:512 crates/leyline-studio/ui/studio.slint:1485
 msgctxt "StudioWindow"
 msgid "Blue    9"
 msgstr ""
 
-#: ui/studio.slint:517 ui/studio.slint:1491
+#: crates/leyline-studio/ui/studio.slint:520 crates/leyline-studio/ui/studio.slint:1494
 msgctxt "StudioWindow"
 msgid "Flag"
 msgstr ""
 
-#: ui/studio.slint:519 ui/studio.slint:1493
+#: crates/leyline-studio/ui/studio.slint:522 crates/leyline-studio/ui/studio.slint:1496
 msgctxt "StudioWindow"
 msgid "Pick    P"
 msgstr ""
 
-#: ui/studio.slint:526 ui/studio.slint:1501
+#: crates/leyline-studio/ui/studio.slint:529 crates/leyline-studio/ui/studio.slint:1504
 msgctxt "StudioWindow"
 msgid "Reject    X"
 msgstr ""
 
-#: ui/studio.slint:533 ui/studio.slint:1509
+#: crates/leyline-studio/ui/studio.slint:536 crates/leyline-studio/ui/studio.slint:1512
 msgctxt "StudioWindow"
 msgid "Clear    U"
 msgstr ""
 
-#: ui/studio.slint:542 ui/studio.slint:609 ui/studio.slint:1395
+#: crates/leyline-studio/ui/studio.slint:545 crates/leyline-studio/ui/studio.slint:612 crates/leyline-studio/ui/studio.slint:1398
 msgctxt "StudioWindow"
 msgid "Develop    D"
 msgstr ""
 
 #. than silently acting on something else.
-#: ui/studio.slint:552 ui/studio.slint:798
+#: crates/leyline-studio/ui/studio.slint:555 crates/leyline-studio/ui/studio.slint:801
 msgctxt "StudioWindow"
 msgid "Reprocess    R"
 msgstr ""
 
-#: ui/studio.slint:560
+#: crates/leyline-studio/ui/studio.slint:563
 msgctxt "StudioWindow"
 msgid "Develop"
 msgstr ""
 
-#: ui/studio.slint:563
+#: crates/leyline-studio/ui/studio.slint:566
 msgctxt "StudioWindow"
 msgid "Undo    Ctrl+Z"
 msgstr ""
 
-#: ui/studio.slint:569
+#: crates/leyline-studio/ui/studio.slint:572
 msgctxt "StudioWindow"
 msgid "Redo    Ctrl+Y"
 msgstr ""
 
-#: ui/studio.slint:576
+#: crates/leyline-studio/ui/studio.slint:579
 msgctxt "StudioWindow"
 msgid "Save Preset…    S"
 msgstr ""
 
-#: ui/studio.slint:582
+#: crates/leyline-studio/ui/studio.slint:585
 msgctxt "StudioWindow"
 msgid "Apply Preset"
 msgstr ""
 
-#: ui/studio.slint:593 ui/studio.slint:805
+#: crates/leyline-studio/ui/studio.slint:596 crates/leyline-studio/ui/studio.slint:808
 msgctxt "StudioWindow"
 msgid "Back to Library    G"
 msgstr ""
 
-#: ui/studio.slint:600
+#: crates/leyline-studio/ui/studio.slint:603
 msgctxt "StudioWindow"
 msgid "View"
 msgstr ""
 
-#: ui/studio.slint:602
+#: crates/leyline-studio/ui/studio.slint:605
 msgctxt "StudioWindow"
 msgid "Library    G"
 msgstr ""
 
-#: ui/studio.slint:617
+#: crates/leyline-studio/ui/studio.slint:620
 msgctxt "StudioWindow"
 msgid "Help"
 msgstr ""
 
-#: ui/studio.slint:619
+#: crates/leyline-studio/ui/studio.slint:622
 msgctxt "StudioWindow"
 msgid "Keyboard Shortcuts…"
 msgstr ""
 
-#: ui/studio.slint:626
+#: crates/leyline-studio/ui/studio.slint:629
 msgctxt "StudioWindow"
 msgid "About Leyline"
 msgstr ""
 
-#: ui/studio.slint:734
+#: crates/leyline-studio/ui/studio.slint:737
 msgctxt "StudioWindow"
 msgid ""
 "G: library · Ctrl+Z/Y: undo/redo · S: save preset · R: reprocess · drag: crop"
 msgstr ""
 
-#: ui/studio.slint:782
+#: crates/leyline-studio/ui/studio.slint:785
 msgctxt "StudioWindow"
 msgid "Reset Crop"
 msgstr ""
 
 #. which ADR 0021 explicitly excludes.
-#: ui/studio.slint:793
+#: crates/leyline-studio/ui/studio.slint:796
 msgctxt "StudioWindow"
 msgid "Compare Before/After"
 msgstr ""
 
-#: ui/studio.slint:826
+#: crates/leyline-studio/ui/studio.slint:829
 msgctxt "StudioWindow"
 msgid "Presets"
 msgstr ""
 
-#: ui/studio.slint:867
+#: crates/leyline-studio/ui/studio.slint:870
 msgctxt "StudioWindow"
 msgid "Save as preset…"
 msgstr ""
 
-#: ui/studio.slint:876 ui/studio.slint:2078
+#: crates/leyline-studio/ui/studio.slint:879 crates/leyline-studio/ui/studio.slint:2081
 msgctxt "StudioWindow"
 msgid "White balance"
 msgstr ""
 
-#: ui/studio.slint:881
+#: crates/leyline-studio/ui/studio.slint:884
 msgctxt "StudioWindow"
 msgid "Temperature"
 msgstr ""
 
-#: ui/studio.slint:890
+#: crates/leyline-studio/ui/studio.slint:893
 msgctxt "StudioWindow"
 msgid "Tint"
 msgstr ""
 
-#: ui/studio.slint:900 ui/studio.slint:2085
+#: crates/leyline-studio/ui/studio.slint:903 crates/leyline-studio/ui/studio.slint:2088
 msgctxt "StudioWindow"
 msgid "Tone"
 msgstr ""
 
-#: ui/studio.slint:905 ui/studio.slint:1599
+#: crates/leyline-studio/ui/studio.slint:908 crates/leyline-studio/ui/studio.slint:1602
 msgctxt "StudioWindow"
 msgid "Exposure"
 msgstr ""
 
-#: ui/studio.slint:915
+#: crates/leyline-studio/ui/studio.slint:918
 msgctxt "StudioWindow"
 msgid "Contrast"
 msgstr ""
 
-#: ui/studio.slint:924
+#: crates/leyline-studio/ui/studio.slint:927
 msgctxt "StudioWindow"
 msgid "Highlights"
 msgstr ""
 
-#: ui/studio.slint:933
+#: crates/leyline-studio/ui/studio.slint:936
 msgctxt "StudioWindow"
 msgid "Shadows"
 msgstr ""
 
-#: ui/studio.slint:942
+#: crates/leyline-studio/ui/studio.slint:945
 msgctxt "StudioWindow"
 msgid "Whites"
 msgstr ""
 
-#: ui/studio.slint:951
+#: crates/leyline-studio/ui/studio.slint:954
 msgctxt "StudioWindow"
 msgid "Blacks"
 msgstr ""
 
-#: ui/studio.slint:961 ui/studio.slint:2092
+#: crates/leyline-studio/ui/studio.slint:964 crates/leyline-studio/ui/studio.slint:2095
 msgctxt "StudioWindow"
 msgid "Presence"
 msgstr ""
 
-#: ui/studio.slint:966
+#: crates/leyline-studio/ui/studio.slint:969
 msgctxt "StudioWindow"
 msgid "Vibrance"
 msgstr ""
 
-#: ui/studio.slint:975
+#: crates/leyline-studio/ui/studio.slint:978
 msgctxt "StudioWindow"
 msgid "Saturation"
 msgstr ""
 
-#: ui/studio.slint:985 ui/studio.slint:2102
+#: crates/leyline-studio/ui/studio.slint:988 crates/leyline-studio/ui/studio.slint:2105
 msgctxt "StudioWindow"
 msgid "Lens correction"
 msgstr ""
 
-#: ui/studio.slint:991
+#: crates/leyline-studio/ui/studio.slint:994
 msgctxt "StudioWindow"
 msgid "Enabled"
 msgstr ""
 
-#: ui/studio.slint:991
+#: crates/leyline-studio/ui/studio.slint:994
 msgctxt "StudioWindow"
 msgid "Disabled"
 msgstr ""
 
-#: ui/studio.slint:998 ui/studio.slint:2109
+#: crates/leyline-studio/ui/studio.slint:1001 crates/leyline-studio/ui/studio.slint:2112
 msgctxt "StudioWindow"
 msgid "Detail"
 msgstr ""
 
-#: ui/studio.slint:1003
+#: crates/leyline-studio/ui/studio.slint:1006
 msgctxt "StudioWindow"
 msgid "Luminance NR"
 msgstr ""
 
-#: ui/studio.slint:1012
+#: crates/leyline-studio/ui/studio.slint:1015
 msgctxt "StudioWindow"
 msgid "Color NR"
 msgstr ""
 
-#: ui/studio.slint:1021
+#: crates/leyline-studio/ui/studio.slint:1024
 msgctxt "StudioWindow"
 msgid "Sharpen amount"
 msgstr ""
 
-#: ui/studio.slint:1030
+#: crates/leyline-studio/ui/studio.slint:1033
 msgctxt "StudioWindow"
 msgid "Sharpen radius"
 msgstr ""
 
-#: ui/studio.slint:1041 ui/studio.slint:2116
+#: crates/leyline-studio/ui/studio.slint:1044 crates/leyline-studio/ui/studio.slint:2119
 msgctxt "StudioWindow"
 msgid "Geometry"
 msgstr ""
 
-#: ui/studio.slint:1046
+#: crates/leyline-studio/ui/studio.slint:1049
 msgctxt "StudioWindow"
 msgid "Rotation"
 msgstr ""
 
-#: ui/studio.slint:1056
+#: crates/leyline-studio/ui/studio.slint:1059
 msgctxt "StudioWindow"
 msgid "Crop left"
 msgstr ""
 
-#: ui/studio.slint:1065
+#: crates/leyline-studio/ui/studio.slint:1068
 msgctxt "StudioWindow"
 msgid "Crop top"
 msgstr ""
 
-#: ui/studio.slint:1074
+#: crates/leyline-studio/ui/studio.slint:1077
 msgctxt "StudioWindow"
 msgid "Crop width"
 msgstr ""
 
-#: ui/studio.slint:1083
+#: crates/leyline-studio/ui/studio.slint:1086
 msgctxt "StudioWindow"
 msgid "Crop height"
 msgstr ""
 
-#: ui/studio.slint:1094
+#: crates/leyline-studio/ui/studio.slint:1097
 msgctxt "StudioWindow"
 msgid "Reset crop"
 msgstr ""
 
-#: ui/studio.slint:1118
+#: crates/leyline-studio/ui/studio.slint:1121
 msgctxt "StudioWindow"
 msgid "Collections"
 msgstr ""
 
-#: ui/studio.slint:1131
+#: crates/leyline-studio/ui/studio.slint:1134
 msgctxt "StudioWindow"
 msgid "All photos"
 msgstr ""
 
-#: ui/studio.slint:1172
+#: crates/leyline-studio/ui/studio.slint:1175
 msgctxt "StudioWindow"
 msgid "N: new · B: add photo"
 msgstr ""
 
-#: ui/studio.slint:1229
+#: crates/leyline-studio/ui/studio.slint:1232
 msgctxt "StudioWindow"
 msgid "⚑ Picked"
 msgstr ""
 
-#: ui/studio.slint:1236
+#: crates/leyline-studio/ui/studio.slint:1239
 msgctxt "StudioWindow"
 msgid "✕ Rejected"
 msgstr ""
 
-#: ui/studio.slint:1243
+#: crates/leyline-studio/ui/studio.slint:1246
 msgctxt "StudioWindow"
 msgid "– Unflagged"
 msgstr ""
 
-#: ui/studio.slint:1281
+#: crates/leyline-studio/ui/studio.slint:1284
 msgctxt "StudioWindow"
 msgid "Search…"
 msgstr ""
 
-#: ui/studio.slint:1293
+#: crates/leyline-studio/ui/studio.slint:1296
 msgctxt "StudioWindow"
 msgid "Sort: {}"
 msgstr ""
 
 #. Shift+R, scoped to one version.
-#: ui/studio.slint:1543
+#: crates/leyline-studio/ui/studio.slint:1546
 msgctxt "StudioWindow"
 msgid "Reprocess"
 msgstr ""
 
-#: ui/studio.slint:1566
+#: crates/leyline-studio/ui/studio.slint:1569
 msgctxt "StudioWindow"
 msgid "No photo selected"
 msgstr ""
 
-#: ui/studio.slint:1575
+#: crates/leyline-studio/ui/studio.slint:1578
 msgctxt "StudioWindow"
 msgid "Path"
 msgstr ""
 
-#: ui/studio.slint:1579
+#: crates/leyline-studio/ui/studio.slint:1582
 msgctxt "StudioWindow"
 msgid "Captured"
 msgstr ""
 
-#: ui/studio.slint:1583
+#: crates/leyline-studio/ui/studio.slint:1586
 msgctxt "StudioWindow"
 msgid "Size"
 msgstr ""
 
-#: ui/studio.slint:1591
+#: crates/leyline-studio/ui/studio.slint:1594
 msgctxt "StudioWindow"
 msgid "Camera"
 msgstr ""
 
-#: ui/studio.slint:1595
+#: crates/leyline-studio/ui/studio.slint:1598
 msgctxt "StudioWindow"
 msgid "Lens"
 msgstr ""
 
-#: ui/studio.slint:1604
+#: crates/leyline-studio/ui/studio.slint:1607
 msgctxt "StudioWindow"
 msgid "Keywords"
 msgstr ""
 
-#: ui/studio.slint:1665
+#: crates/leyline-studio/ui/studio.slint:1668
 msgctxt "StudioWindow"
 msgid "Add keyword (Nature/Birds)…"
 msgstr ""
 
-#: ui/studio.slint:1702
+#: crates/leyline-studio/ui/studio.slint:1705
 msgctxt "StudioWindow"
 msgid "Import photos"
 msgstr ""
 
-#: ui/studio.slint:1708
+#: crates/leyline-studio/ui/studio.slint:1711
 msgctxt "StudioWindow"
 msgid "Source folder (absolute path)"
 msgstr ""
 
-#: ui/studio.slint:1733 ui/studio.slint:1952
+#: crates/leyline-studio/ui/studio.slint:1736 crates/leyline-studio/ui/studio.slint:1955
 msgctxt "StudioWindow"
 msgid "Browse…"
 msgstr ""
 
-#: ui/studio.slint:1743
+#: crates/leyline-studio/ui/studio.slint:1746
 msgctxt "StudioWindow"
 msgid "Copy into library"
 msgstr ""
 
-#: ui/studio.slint:1750
+#: crates/leyline-studio/ui/studio.slint:1753
 msgctxt "StudioWindow"
 msgid "Recursive"
 msgstr ""
 
-#: ui/studio.slint:1764 ui/studio.slint:1963 ui/studio.slint:2018 ui/studio.slint:2127
+#: crates/leyline-studio/ui/studio.slint:1767 crates/leyline-studio/ui/studio.slint:1966 crates/leyline-studio/ui/studio.slint:2021 crates/leyline-studio/ui/studio.slint:2130
 msgctxt "StudioWindow"
 msgid "Cancel"
 msgstr ""
 
-#: ui/studio.slint:1771 ui/studio.slint:2189
+#: crates/leyline-studio/ui/studio.slint:1774 crates/leyline-studio/ui/studio.slint:2192
 msgctxt "StudioWindow"
 msgid "Import"
 msgstr ""
 
-#: ui/studio.slint:1783
+#: crates/leyline-studio/ui/studio.slint:1786
 msgctxt "StudioWindow"
 msgid "Export selected photo"
 msgstr ""
 
-#: ui/studio.slint:1789
+#: crates/leyline-studio/ui/studio.slint:1792
 msgctxt "StudioWindow"
 msgid "Preset"
 msgstr ""
 
-#: ui/studio.slint:1797
+#: crates/leyline-studio/ui/studio.slint:1800
 msgctxt "StudioWindow"
 msgid "Custom"
 msgstr ""
 
-#: ui/studio.slint:1814
+#: crates/leyline-studio/ui/studio.slint:1817
 msgctxt "StudioWindow"
 msgid "Format"
 msgstr ""
 
-#: ui/studio.slint:1835
+#: crates/leyline-studio/ui/studio.slint:1838
 msgctxt "StudioWindow"
 msgid "Quality (1-100)"
 msgstr ""
 
-#: ui/studio.slint:1861
+#: crates/leyline-studio/ui/studio.slint:1864
 msgctxt "StudioWindow"
 msgid "Max edge px (blank = full size)"
 msgstr ""
 
-#: ui/studio.slint:1890
+#: crates/leyline-studio/ui/studio.slint:1893
 msgctxt "StudioWindow"
 msgid "Save as preset (optional name)"
 msgstr ""
 
-#: ui/studio.slint:1913 ui/studio.slint:2044
+#: crates/leyline-studio/ui/studio.slint:1916 crates/leyline-studio/ui/studio.slint:2047
 msgctxt "StudioWindow"
 msgid "Save as preset"
 msgstr ""
 
-#: ui/studio.slint:1927
+#: crates/leyline-studio/ui/studio.slint:1930
 msgctxt "StudioWindow"
 msgid "Destination folder (absolute path)"
 msgstr ""
 
-#: ui/studio.slint:1970 ui/studio.slint:2204
+#: crates/leyline-studio/ui/studio.slint:1973 crates/leyline-studio/ui/studio.slint:2207
 msgctxt "StudioWindow"
 msgid "Export"
 msgstr ""
 
-#: ui/studio.slint:1988 ui/studio.slint:2219
+#: crates/leyline-studio/ui/studio.slint:1991 crates/leyline-studio/ui/studio.slint:2222
 msgctxt "StudioWindow"
 msgid "New collection"
 msgstr ""
 
-#: ui/studio.slint:1994 ui/studio.slint:2050
+#: crates/leyline-studio/ui/studio.slint:1997 crates/leyline-studio/ui/studio.slint:2053
 msgctxt "StudioWindow"
 msgid "Name"
 msgstr ""
 
-#: ui/studio.slint:2025
+#: crates/leyline-studio/ui/studio.slint:2028
 msgctxt "StudioWindow"
 msgid "Create"
 msgstr ""
 
-#: ui/studio.slint:2071
+#: crates/leyline-studio/ui/studio.slint:2074
 msgctxt "StudioWindow"
 msgid "Groups (geometry is rarely reused across photos)"
 msgstr ""
 
-#: ui/studio.slint:2134
+#: crates/leyline-studio/ui/studio.slint:2137
 msgctxt "StudioWindow"
 msgid "Save"
 msgstr ""
 
-#: ui/studio.slint:2157
+#: crates/leyline-studio/ui/studio.slint:2160
 msgctxt "StudioWindow"
 msgid "Keyboard shortcuts"
 msgstr ""
 
-#: ui/studio.slint:2174
+#: crates/leyline-studio/ui/studio.slint:2177
 msgctxt "StudioWindow"
 msgid "Library / develop"
 msgstr ""
 
-#: ui/studio.slint:2234
+#: crates/leyline-studio/ui/studio.slint:2237
 msgctxt "StudioWindow"
 msgid "Add / remove from collection"
 msgstr ""
 
-#: ui/studio.slint:2249
+#: crates/leyline-studio/ui/studio.slint:2252
 msgctxt "StudioWindow"
 msgid "Reprocess library"
 msgstr ""
 
-#: ui/studio.slint:2264
+#: crates/leyline-studio/ui/studio.slint:2267
 msgctxt "StudioWindow"
 msgid "Reprocess (develop mode)"
 msgstr ""
 
-#: ui/studio.slint:2279
+#: crates/leyline-studio/ui/studio.slint:2282
 msgctxt "StudioWindow"
 msgid "Undo / redo"
 msgstr ""
 
-#: ui/studio.slint:2294
+#: crates/leyline-studio/ui/studio.slint:2297
 msgctxt "StudioWindow"
 msgid "Save preset"
 msgstr ""
 
-#: ui/studio.slint:2324
+#: crates/leyline-studio/ui/studio.slint:2327
 msgctxt "StudioWindow"
 msgid "Color label"
 msgstr ""
 
-#: ui/studio.slint:2339
+#: crates/leyline-studio/ui/studio.slint:2342
 msgctxt "StudioWindow"
 msgid "Pick / reject / clear"
 msgstr ""
 
-#: ui/studio.slint:2349 ui/studio.slint:2382
+#: crates/leyline-studio/ui/studio.slint:2352 crates/leyline-studio/ui/studio.slint:2415
 msgctxt "StudioWindow"
 msgid "Close"
 msgstr ""
 
-#: ui/studio.slint:2367
+#: crates/leyline-studio/ui/studio.slint:2381
+msgctxt "StudioWindow"
+msgid "Version {}"
+msgstr ""
+
+#: crates/leyline-studio/ui/studio.slint:2388
 msgctxt "StudioWindow"
 msgid "Local-first, non-destructive RAW development."
 msgstr ""
 
-#: ui/studio.slint:2373
+#: crates/leyline-studio/ui/studio.slint:2394
 msgctxt "StudioWindow"
 msgid "Library: {}"
+msgstr ""
+
+#: crates/leyline-studio/ui/studio.slint:2406
+msgctxt "StudioWindow"
+msgid "Licensed under {}"
 msgstr ""
 

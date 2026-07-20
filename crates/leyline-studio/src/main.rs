@@ -207,6 +207,9 @@ fn run() -> Result<(), String> {
     // stay discoverable — nobody should have to guess where their catalog
     // ended up. An explicit argument is just as worth showing here.
     window.set_library_path(SharedString::from(library_path.as_str()));
+    // Surfaced in Help ▸ About Leyline: build-time constant from Cargo.toml's
+    // `version.workspace = true`, so it stays in sync without a manual edit.
+    window.set_app_version(SharedString::from(env!("CARGO_PKG_VERSION")));
     window.set_filter_label(-1);
     window.set_filter_pick(-1);
     window.set_sort_label(SharedString::from(sort_label(GridQuery::default().sort)));
