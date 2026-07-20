@@ -142,6 +142,20 @@ impl Library {
         receiver
     }
 
+    /// Closes this handle (`docs/engine-api.md` §5): notifies every
+    /// subscriber with [`Event::LibraryClosed`] so clients can tear down
+    /// their UI before the handle disappears.
+    ///
+    /// `Library` clones share one `Arc`; other clones — and any job thread
+    /// still running against them — stay usable. `close` is the owning
+    /// client's courtesy notice that its session is ending, not a hard
+    /// resource release: the catalog connection closes only once the last
+    /// clone drops, same as any `Arc`-backed handle.
+    pub fn close(self) -> Result<()> {
+        self.emit(Event::LibraryClosed);
+        Ok(())
+    }
+
     /// Sends an event to every live subscriber, dropping dead ones.
     fn emit(&self, event: Event) {
         lock(&self.inner.subscribers).retain(|s| s.send(event.clone()).is_ok());

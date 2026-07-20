@@ -2,7 +2,7 @@
 
 use leyline_catalog::GridQuery;
 use leyline_core::LeylineError;
-use leyline_engine::{ImportOptions, Library, Param, Value};
+use leyline_engine::{Event, ImportOptions, Library, Param, Value};
 
 #[test]
 fn create_open_and_work_end_to_end() {
@@ -77,4 +77,24 @@ fn read_only_handles_refuse_writes() {
         library.catalog_mut().ensure_folder("Photos/New"),
         Err(LeylineError::Db(_))
     ));
+}
+
+#[test]
+fn close_notifies_every_subscriber() {
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::create(&dir.path().join("Closing"), "Closing").unwrap();
+
+    // Two independent subscribers, and a second clone of the handle: all
+    // three still share the one event stream.
+    let first = library.subscribe();
+    let other_clone = library.clone();
+    let second = other_clone.subscribe();
+
+    library.close().unwrap();
+
+    assert_eq!(first.recv().unwrap(), Event::LibraryClosed);
+    assert_eq!(second.recv().unwrap(), Event::LibraryClosed);
+
+    // The other clone survives closing this one: `close` only notifies.
+    assert!(other_clone.catalog().library().is_ok());
 }
