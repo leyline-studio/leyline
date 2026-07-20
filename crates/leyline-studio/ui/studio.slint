@@ -177,6 +177,8 @@ export component StudioWindow inherits Window {
     in property <int> filter-pick; // -1 = off, else PickState encoding
     in property <string> sort-label;
     in property <[color]> label-colors;
+    // Active keyword filter's full path, or "" when off.
+    in property <string> filter-keyword-label;
 
     in property <string> detail-filename;
     in property <string> detail-path;
@@ -229,6 +231,11 @@ export component StudioWindow inherits Window {
     // the keyword at an index of `detail-keywords`.
     callback add-keyword(string);
     callback remove-keyword(int);
+    // Toggles the grid filter to the keyword at an index of
+    // `detail-keywords` (its descendants included); clicking the active
+    // one turns the filter off.
+    callback keyword-filter(int);
+    callback clear-keyword-filter();
     callback search(string);
     // First visible cell and how many cells fit, sent on scroll or resize.
     callback viewport-moved(int, int);
@@ -752,6 +759,14 @@ export component StudioWindow inherits Window {
                         }
                     }
 
+                    if root.filter-keyword-label != "": FilterChip {
+                        text: "🏷 " + root.filter-keyword-label;
+                        active: true;
+                        clicked => {
+                            root.clear-keyword-filter();
+                        }
+                    }
+
                     Rectangle {
                         height: 24px;
                         width: 180px;
@@ -935,12 +950,20 @@ export component StudioWindow inherits Window {
                         }
                         for kw[i] in root.detail-keywords: HorizontalLayout {
                             spacing: 6px;
-                            Text {
-                                text: kw;
-                                color: #e6e6e6;
-                                font-size: 12px;
-                                overflow: elide;
+                            TouchArea {
                                 horizontal-stretch: 1;
+                                Text {
+                                    text: kw;
+                                    color: root.filter-keyword-label == kw ? #6fa8dc : #e6e6e6;
+                                    font-size: 12px;
+                                    overflow: elide;
+                                    width: 100%;
+                                    height: 100%;
+                                    vertical-alignment: center;
+                                }
+                                clicked => {
+                                    root.keyword-filter(i);
+                                }
                             }
                             TouchArea {
                                 width: 16px;

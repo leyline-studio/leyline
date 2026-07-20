@@ -70,6 +70,8 @@ struct App {
     collections: Vec<CollectionId>,
     /// Keywords of the selected photo, parallel to the panel's rows.
     keywords: Vec<KeywordId>,
+    /// The keyword the grid is filtered to, when one is active.
+    keyword_filter: Option<KeywordId>,
     /// The live cell model, so thumbnails can be filled in row by row.
     cells: Rc<VecModel<Cell>>,
     /// Grid rows still waiting for a thumbnail, drained by the event pump.
@@ -118,6 +120,7 @@ fn run() -> Result<(), String> {
         presets: Vec::new(),
         collections: Vec::new(),
         keywords: Vec::new(),
+        keyword_filter: None,
         cells: Rc::new(VecModel::default()),
         pending: VecDeque::new(),
         events,
@@ -746,11 +749,63 @@ fn wire_keywords(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             else {
                 return;
             };
+            if app.keyword_filter == Some(keyword) {
+                app.keyword_filter = None;
+                app.query.keywords.clear();
+            }
             let untagged = app
                 .library
                 .remove_keyword(&[asset], keyword)
                 .map_err(|e| e.to_string());
             if let Err(error) = untagged.and_then(|()| reload(&mut app, &window)) {
+                report_error(&window, &error);
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_keyword_filter(move |index| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let Some(keyword) = usize::try_from(index)
+                .ok()
+                .and_then(|i| app.keywords.get(i))
+                .copied()
+            else {
+                return;
+            };
+            app.keyword_filter = if app.keyword_filter == Some(keyword) {
+                None
+            } else {
+                Some(keyword)
+            };
+            app.query.keywords = app.keyword_filter.into_iter().collect();
+            window.set_filter_keyword_label(
+                app.keyword_filter
+                    .and_then(|k| app.keywords.iter().position(|&x| x == k))
+                    .and_then(|i| window.get_detail_keywords().row_data(i))
+                    .unwrap_or_default(),
+            );
+            if let Err(error) = reload(&mut app, &window) {
+                report_error(&window, &error);
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_clear_keyword_filter(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            app.keyword_filter = None;
+            app.query.keywords.clear();
+            window.set_filter_keyword_label(SharedString::default());
+            if let Err(error) = reload(&mut app, &window) {
                 report_error(&window, &error);
             }
         });
