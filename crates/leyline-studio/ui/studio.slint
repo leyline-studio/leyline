@@ -134,6 +134,27 @@ component DetailRow inherits HorizontalLayout {
     }
 }
 
+// Collapsible section header for the develop panel's setting groups: lets
+// a photo's edit stay focused on the groups actually touched instead of
+// scrolling past sliders for adjustments that were never made.
+component GroupHeader inherits HorizontalLayout {
+    in property <string> label;
+    in-out property <bool> expanded;
+
+    TouchArea {
+        horizontal-stretch: 1;
+        Text {
+            text: (root.expanded ? "▾ " : "▸ ") + root.label;
+            color: #9a9a9a;
+            font-size: 11px;
+            width: 100%;
+        }
+        clicked => {
+            root.expanded = !root.expanded;
+        }
+    }
+}
+
 component FilterChip inherits Rectangle {
     in property <bool> active;
     in property <string> text;
@@ -235,6 +256,11 @@ export component StudioWindow inherits Window {
     icon: @image-url("../../../packaging/icons/icon.png");
     preferred-width: 1280px;
     preferred-height: 800px;
+    // Keeps the window from being resized below a usable size — mirrors
+    // `MIN_WINDOW_WIDTH`/`MIN_WINDOW_HEIGHT` in main.rs, which only clamp
+    // the *initial* screen-relative size and don't constrain later resizes.
+    min-width: 1024px;
+    min-height: 700px;
     background: #1b1b1b;
     forward-focus: keys;
 
@@ -290,6 +316,10 @@ export component StudioWindow inherits Window {
     callback cycle-sort();
     callback enter-develop();
     callback exit-develop();
+    // Moves the develop view to the next/previous photo in the grid
+    // without leaving develop mode.
+    callback develop-next();
+    callback develop-prev();
     callback develop-edit(string, float);
     // Mouse crop: press x/y, release x/y, viewport w/h, preview w/h (px).
     callback develop-crop-drag(float, float, float, float, float, float, float, float);
@@ -360,6 +390,21 @@ export component StudioWindow inherits Window {
     callback viewport-moved(int, int);
 
     property <length> cell-size: 176px;
+
+    // Develop panel accordion state — purely local UI state, not mirrored
+    // to Rust. Basic adjustments start open; the rest start collapsed so a
+    // photo that only needs exposure/white-balance doesn't force scrolling
+    // past groups that weren't touched.
+    property <bool> expand-white-balance: true;
+    property <bool> expand-tone: true;
+    property <bool> expand-presence: false;
+    property <bool> expand-lens: false;
+    property <bool> expand-detail: false;
+    property <bool> expand-geometry: false;
+
+    // Which drag tool the develop image responds to: "select" (default,
+    // dragging does nothing) or "crop" (dragging draws the crop rectangle).
+    property <string> active-tool: "select";
 
     // Moves the selection to `index` and scrolls it into view.
     function select-cell(index: int) {
@@ -669,6 +714,14 @@ export component StudioWindow inherits Window {
                     root.develop-reprocess();
                     return accept;
                 }
+                if (event.text == Key.LeftArrow) {
+                    root.develop-prev();
+                    return accept;
+                }
+                if (event.text == Key.RightArrow) {
+                    root.develop-next();
+                    return accept;
+                }
                 root.classify(event.text);
                 return accept;
             }
@@ -739,9 +792,27 @@ export component StudioWindow inherits Window {
                         horizontal-stretch: 1;
                     }
                     Text {
-                        text: @tr("G: library · Ctrl+Z/Y: undo/redo · S: save preset · R: reprocess · drag: crop");
+                        text: @tr("← →: next/prev photo · G: library · Ctrl+Z/Y: undo/redo · S: save preset · R: reprocess");
                         color: #666666;
                         font-size: 12px;
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 6px;
+                    FilterChip {
+                        text: @tr("Select");
+                        active: root.active-tool == "select";
+                        clicked => {
+                            root.active-tool = "select";
+                        }
+                    }
+                    FilterChip {
+                        text: @tr("Crop");
+                        active: root.active-tool == "crop";
+                        clicked => {
+                            root.active-tool = "crop";
+                        }
                     }
                 }
 
@@ -756,7 +827,11 @@ export component StudioWindow inherits Window {
                         height: 100%;
                     }
 
+                    // Only the Crop tool drags a crop rectangle — the
+                    // default Select tool leaves dragging a no-op so a
+                    // photo can be looked at without accidentally cropping.
                     crop-drag := TouchArea {
+                        enabled: root.active-tool == "crop";
                         mouse-cursor: crosshair;
                         pointer-event(event) => {
                             if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
@@ -880,229 +955,241 @@ export component StudioWindow inherits Window {
                             }
                         }
 
-                        Text {
-                            text: @tr("White balance");
-                            color: #9a9a9a;
-                            font-size: 11px;
+                        GroupHeader {
+                            label: @tr("White balance");
+                            expanded <=> root.expand-white-balance;
                         }
-                        EditSlider {
-                            label: @tr("Temperature");
-                            minimum: 2000;
-                            maximum: 12000;
-                            value: root.dev.wb-temp;
-                            edited(v) => {
-                                root.develop-edit("wb-temp", v);
+                        if root.expand-white-balance: VerticalLayout {
+                            spacing: 12px;
+                            EditSlider {
+                                label: @tr("Temperature");
+                                minimum: 2000;
+                                maximum: 12000;
+                                value: root.dev.wb-temp;
+                                edited(v) => {
+                                    root.develop-edit("wb-temp", v);
+                                }
                             }
-                        }
-                        EditSlider {
-                            label: @tr("Tint");
-                            minimum: -100;
-                            maximum: 100;
-                            value: root.dev.wb-tint;
-                            edited(v) => {
-                                root.develop-edit("wb-tint", v);
-                            }
-                        }
-
-                        Text {
-                            text: @tr("Tone");
-                            color: #9a9a9a;
-                            font-size: 11px;
-                        }
-                        EditSlider {
-                            label: @tr("Exposure");
-                            minimum: -5;
-                            maximum: 5;
-                            decimals: 2;
-                            value: root.dev.exposure;
-                            edited(v) => {
-                                root.develop-edit("exposure", v);
-                            }
-                        }
-                        EditSlider {
-                            label: @tr("Contrast");
-                            minimum: -100;
-                            maximum: 100;
-                            value: root.dev.contrast;
-                            edited(v) => {
-                                root.develop-edit("contrast", v);
-                            }
-                        }
-                        EditSlider {
-                            label: @tr("Highlights");
-                            minimum: -100;
-                            maximum: 100;
-                            value: root.dev.highlights;
-                            edited(v) => {
-                                root.develop-edit("highlights", v);
-                            }
-                        }
-                        EditSlider {
-                            label: @tr("Shadows");
-                            minimum: -100;
-                            maximum: 100;
-                            value: root.dev.shadows;
-                            edited(v) => {
-                                root.develop-edit("shadows", v);
-                            }
-                        }
-                        EditSlider {
-                            label: @tr("Whites");
-                            minimum: -100;
-                            maximum: 100;
-                            value: root.dev.whites;
-                            edited(v) => {
-                                root.develop-edit("whites", v);
-                            }
-                        }
-                        EditSlider {
-                            label: @tr("Blacks");
-                            minimum: -100;
-                            maximum: 100;
-                            value: root.dev.blacks;
-                            edited(v) => {
-                                root.develop-edit("blacks", v);
+                            EditSlider {
+                                label: @tr("Tint");
+                                minimum: -100;
+                                maximum: 100;
+                                value: root.dev.wb-tint;
+                                edited(v) => {
+                                    root.develop-edit("wb-tint", v);
+                                }
                             }
                         }
 
-                        Text {
-                            text: @tr("Presence");
-                            color: #9a9a9a;
-                            font-size: 11px;
+                        GroupHeader {
+                            label: @tr("Tone");
+                            expanded <=> root.expand-tone;
                         }
-                        EditSlider {
-                            label: @tr("Vibrance");
-                            minimum: -100;
-                            maximum: 100;
-                            value: root.dev.vibrance;
-                            edited(v) => {
-                                root.develop-edit("vibrance", v);
+                        if root.expand-tone: VerticalLayout {
+                            spacing: 12px;
+                            EditSlider {
+                                label: @tr("Exposure");
+                                minimum: -5;
+                                maximum: 5;
+                                decimals: 2;
+                                value: root.dev.exposure;
+                                edited(v) => {
+                                    root.develop-edit("exposure", v);
+                                }
                             }
-                        }
-                        EditSlider {
-                            label: @tr("Saturation");
-                            minimum: -100;
-                            maximum: 100;
-                            value: root.dev.saturation;
-                            edited(v) => {
-                                root.develop-edit("saturation", v);
+                            EditSlider {
+                                label: @tr("Contrast");
+                                minimum: -100;
+                                maximum: 100;
+                                value: root.dev.contrast;
+                                edited(v) => {
+                                    root.develop-edit("contrast", v);
+                                }
                             }
-                        }
-
-                        Text {
-                            text: @tr("Lens correction");
-                            color: #9a9a9a;
-                            font-size: 11px;
-                        }
-                        FilterChip {
-                            active: root.dev.lens-correction;
-                            text: root.dev.lens-correction ? @tr("Enabled") : @tr("Disabled");
-                            clicked => {
-                                root.develop-edit("lens-correction", root.dev.lens-correction ? 0 : 1);
+                            EditSlider {
+                                label: @tr("Highlights");
+                                minimum: -100;
+                                maximum: 100;
+                                value: root.dev.highlights;
+                                edited(v) => {
+                                    root.develop-edit("highlights", v);
+                                }
                             }
-                        }
-
-                        Text {
-                            text: @tr("Detail");
-                            color: #9a9a9a;
-                            font-size: 11px;
-                        }
-                        EditSlider {
-                            label: @tr("Luminance NR");
-                            minimum: 0;
-                            maximum: 100;
-                            value: root.dev.nr-luminance;
-                            edited(v) => {
-                                root.develop-edit("nr-luminance", v);
+                            EditSlider {
+                                label: @tr("Shadows");
+                                minimum: -100;
+                                maximum: 100;
+                                value: root.dev.shadows;
+                                edited(v) => {
+                                    root.develop-edit("shadows", v);
+                                }
                             }
-                        }
-                        EditSlider {
-                            label: @tr("Color NR");
-                            minimum: 0;
-                            maximum: 100;
-                            value: root.dev.nr-color;
-                            edited(v) => {
-                                root.develop-edit("nr-color", v);
+                            EditSlider {
+                                label: @tr("Whites");
+                                minimum: -100;
+                                maximum: 100;
+                                value: root.dev.whites;
+                                edited(v) => {
+                                    root.develop-edit("whites", v);
+                                }
                             }
-                        }
-                        EditSlider {
-                            label: @tr("Sharpen amount");
-                            minimum: 0;
-                            maximum: 100;
-                            value: root.dev.sharpen-amount;
-                            edited(v) => {
-                                root.develop-edit("sharpen-amount", v);
-                            }
-                        }
-                        EditSlider {
-                            label: @tr("Sharpen radius");
-                            minimum: 0.5;
-                            maximum: 3;
-                            decimals: 1;
-                            value: root.dev.sharpen-radius;
-                            edited(v) => {
-                                root.develop-edit("sharpen-radius", v);
+                            EditSlider {
+                                label: @tr("Blacks");
+                                minimum: -100;
+                                maximum: 100;
+                                value: root.dev.blacks;
+                                edited(v) => {
+                                    root.develop-edit("blacks", v);
+                                }
                             }
                         }
 
-                        Text {
-                            text: @tr("Geometry");
-                            color: #9a9a9a;
-                            font-size: 11px;
+                        GroupHeader {
+                            label: @tr("Presence");
+                            expanded <=> root.expand-presence;
                         }
-                        EditSlider {
-                            label: @tr("Rotation");
-                            minimum: -45;
-                            maximum: 45;
-                            decimals: 1;
-                            value: root.dev.rotation;
-                            edited(v) => {
-                                root.develop-edit("rotation", v);
+                        if root.expand-presence: VerticalLayout {
+                            spacing: 12px;
+                            EditSlider {
+                                label: @tr("Vibrance");
+                                minimum: -100;
+                                maximum: 100;
+                                value: root.dev.vibrance;
+                                edited(v) => {
+                                    root.develop-edit("vibrance", v);
+                                }
+                            }
+                            EditSlider {
+                                label: @tr("Saturation");
+                                minimum: -100;
+                                maximum: 100;
+                                value: root.dev.saturation;
+                                edited(v) => {
+                                    root.develop-edit("saturation", v);
+                                }
                             }
                         }
-                        EditSlider {
-                            label: @tr("Crop left");
-                            minimum: 0;
-                            maximum: 100;
-                            value: root.dev.crop-left;
-                            edited(v) => {
-                                root.develop-edit("crop-left", v);
-                            }
+
+                        GroupHeader {
+                            label: @tr("Lens correction");
+                            expanded <=> root.expand-lens;
                         }
-                        EditSlider {
-                            label: @tr("Crop top");
-                            minimum: 0;
-                            maximum: 100;
-                            value: root.dev.crop-top;
-                            edited(v) => {
-                                root.develop-edit("crop-top", v);
-                            }
-                        }
-                        EditSlider {
-                            label: @tr("Crop width");
-                            minimum: 1;
-                            maximum: 100;
-                            value: root.dev.crop-width;
-                            edited(v) => {
-                                root.develop-edit("crop-width", v);
-                            }
-                        }
-                        EditSlider {
-                            label: @tr("Crop height");
-                            minimum: 1;
-                            maximum: 100;
-                            value: root.dev.crop-height;
-                            edited(v) => {
-                                root.develop-edit("crop-height", v);
-                            }
-                        }
-                        HorizontalLayout {
-                            alignment: end;
+                        if root.expand-lens: VerticalLayout {
+                            spacing: 12px;
                             FilterChip {
-                                text: @tr("Reset crop");
-                                active: false;
+                                active: root.dev.lens-correction;
+                                text: root.dev.lens-correction ? @tr("Enabled") : @tr("Disabled");
                                 clicked => {
-                                    root.develop-edit("crop-reset", 0);
+                                    root.develop-edit("lens-correction", root.dev.lens-correction ? 0 : 1);
+                                }
+                            }
+                        }
+
+                        GroupHeader {
+                            label: @tr("Detail");
+                            expanded <=> root.expand-detail;
+                        }
+                        if root.expand-detail: VerticalLayout {
+                            spacing: 12px;
+                            EditSlider {
+                                label: @tr("Luminance NR");
+                                minimum: 0;
+                                maximum: 100;
+                                value: root.dev.nr-luminance;
+                                edited(v) => {
+                                    root.develop-edit("nr-luminance", v);
+                                }
+                            }
+                            EditSlider {
+                                label: @tr("Color NR");
+                                minimum: 0;
+                                maximum: 100;
+                                value: root.dev.nr-color;
+                                edited(v) => {
+                                    root.develop-edit("nr-color", v);
+                                }
+                            }
+                            EditSlider {
+                                label: @tr("Sharpen amount");
+                                minimum: 0;
+                                maximum: 100;
+                                value: root.dev.sharpen-amount;
+                                edited(v) => {
+                                    root.develop-edit("sharpen-amount", v);
+                                }
+                            }
+                            EditSlider {
+                                label: @tr("Sharpen radius");
+                                minimum: 0.5;
+                                maximum: 3;
+                                decimals: 1;
+                                value: root.dev.sharpen-radius;
+                                edited(v) => {
+                                    root.develop-edit("sharpen-radius", v);
+                                }
+                            }
+                        }
+
+                        GroupHeader {
+                            label: @tr("Geometry");
+                            expanded <=> root.expand-geometry;
+                        }
+                        if root.expand-geometry: VerticalLayout {
+                            spacing: 12px;
+                            EditSlider {
+                                label: @tr("Rotation");
+                                minimum: -45;
+                                maximum: 45;
+                                decimals: 1;
+                                value: root.dev.rotation;
+                                edited(v) => {
+                                    root.develop-edit("rotation", v);
+                                }
+                            }
+                            EditSlider {
+                                label: @tr("Crop left");
+                                minimum: 0;
+                                maximum: 100;
+                                value: root.dev.crop-left;
+                                edited(v) => {
+                                    root.develop-edit("crop-left", v);
+                                }
+                            }
+                            EditSlider {
+                                label: @tr("Crop top");
+                                minimum: 0;
+                                maximum: 100;
+                                value: root.dev.crop-top;
+                                edited(v) => {
+                                    root.develop-edit("crop-top", v);
+                                }
+                            }
+                            EditSlider {
+                                label: @tr("Crop width");
+                                minimum: 1;
+                                maximum: 100;
+                                value: root.dev.crop-width;
+                                edited(v) => {
+                                    root.develop-edit("crop-width", v);
+                                }
+                            }
+                            EditSlider {
+                                label: @tr("Crop height");
+                                minimum: 1;
+                                maximum: 100;
+                                value: root.dev.crop-height;
+                                edited(v) => {
+                                    root.develop-edit("crop-height", v);
+                                }
+                            }
+                            HorizontalLayout {
+                                alignment: end;
+                                FilterChip {
+                                    text: @tr("Reset crop");
+                                    active: false;
+                                    clicked => {
+                                        root.develop-edit("crop-reset", 0);
+                                    }
                                 }
                             }
                         }

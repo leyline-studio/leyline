@@ -651,6 +651,26 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
+        window.on_develop_prev(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            develop_navigate(&mut app.borrow_mut(), &window, -1);
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_develop_next(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            develop_navigate(&mut app.borrow_mut(), &window, 1);
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
         window.on_develop_edit(move |slider, value| {
             let Some(window) = handle.upgrade() else {
                 return;
@@ -1551,6 +1571,29 @@ fn reprocess_current(app: &mut App, window: &StudioWindow) {
 
 /// Renders the develop preview at the head settings and mirrors those
 /// settings into the sliders.
+/// Moves the develop view to the grid row `delta` away from the currently
+/// selected one (±1), without leaving develop mode. A no-op past either
+/// end of the grid, or if that row isn't in the currently loaded window
+/// (`item_at`) — crossing a virtual-scroll window boundary while develop
+/// is open is rare enough not to warrant reloading the grid for it.
+fn develop_navigate(app: &mut App, window: &StudioWindow, delta: i32) {
+    let next = window.get_selected() + delta;
+    if next < 0 || next >= window.get_total_cells() {
+        return;
+    }
+    let Some((asset, version, filename)) =
+        item_at(app, next).map(|item| (item.asset_id, item.version_id, item.filename.clone()))
+    else {
+        return;
+    };
+    window.set_selected(next);
+    app.develop = Some((asset, version));
+    match refresh_develop(app, window) {
+        Ok(()) => window.set_develop_filename(SharedString::from(filename.as_str())),
+        Err(error) => report_error(window, &error),
+    }
+}
+
 fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<(), String> {
     let Some((asset, version)) = app.develop else {
         return Ok(());
