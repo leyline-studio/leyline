@@ -534,6 +534,16 @@ impl Library {
     }
 
     /// Exports a version at its head revision (§12) and returns the file.
+    ///
+    /// Like [`Library::preview`], this deliberately does *not* hold the
+    /// catalog lock across the render: decode + `process1`–`5` + encode can
+    /// take seconds, and a batch export runs this per version, so holding
+    /// the lock there would freeze all of Studio's navigation, search and
+    /// metadata edits for the whole export instead of just the version at
+    /// hand (ADR 0024). Unlike a preview, an exported file is a one-shot
+    /// artifact the caller asked for — not a revision-keyed cache another
+    /// call might later serve as "current" — so no amendment guard is
+    /// needed: the file is simply journaled once rendered.
     pub fn export(
         &self,
         version: VersionId,
@@ -541,20 +551,21 @@ impl Library {
         preset: Option<ExportPresetId>,
         destination_dir: &Path,
     ) -> Result<PathBuf> {
+        settings.validate().map_err(crate::export::export_err)?;
+        let plan = {
+            let catalog = lock(&self.inner.catalog);
+            crate::export::plan_export(&catalog, &self.inner.root, version)?
+        };
+        let destination = crate::export::render_export(&plan, settings, destination_dir)?;
         let mut catalog = lock(&self.inner.catalog);
-        crate::export::export_version(
-            &mut catalog,
-            &self.inner.root,
-            version,
-            settings,
-            preset,
-            destination_dir,
-        )
+        crate::export::journal_export(&mut catalog, &plan, preset, settings, &destination)?;
+        Ok(destination)
     }
 
     /// Exports several versions with one ad-hoc recipe (§12). `progress`
     /// receives `(done, total)` per version; one failure does not stop the
-    /// batch.
+    /// batch. The catalog lock is narrowed per version, not held for the
+    /// whole batch (ADR 0024) — see [`Library::export`].
     pub fn export_batch(
         &self,
         versions: &[VersionId],
@@ -562,16 +573,37 @@ impl Library {
         destination_dir: &Path,
         progress: impl FnMut(u64, u64),
     ) -> Result<ExportReport> {
-        let mut catalog = lock(&self.inner.catalog);
-        crate::export::export_batch(
-            &mut catalog,
-            &self.inner.root,
-            versions,
-            settings,
-            None,
-            destination_dir,
-            progress,
-        )
+        self.export_batch_with_preset(versions, settings, None, destination_dir, progress)
+    }
+
+    /// Shared core of [`Library::export_batch`] and
+    /// [`Library::export_with_preset`]: exports each version through
+    /// [`Library::export`], so the catalog lock never spans more than one
+    /// version's render (ADR 0024).
+    fn export_batch_with_preset(
+        &self,
+        versions: &[VersionId],
+        settings: &ExportSettings,
+        preset: Option<ExportPresetId>,
+        destination_dir: &Path,
+        mut progress: impl FnMut(u64, u64),
+    ) -> Result<ExportReport> {
+        settings.validate().map_err(crate::export::export_err)?;
+        let total = versions.len() as u64;
+        let mut report = ExportReport::default();
+        for (done, &version) in versions.iter().enumerate() {
+            match self.export(version, settings, preset, destination_dir) {
+                Ok(path) => report
+                    .exported
+                    .push(crate::export::ExportedVersion { version, path }),
+                Err(error) => report.failed.push(crate::export::FailedExport {
+                    version,
+                    reason: error.to_string(),
+                }),
+            }
+            progress(done as u64 + 1, total);
+        }
+        Ok(report)
     }
 
     /// Exports several versions as a job (§3.1, §12): returns immediately,
@@ -643,6 +675,9 @@ impl Library {
 
     /// Exports several versions with a stored preset (§12): the preset's
     /// recipe drives the batch and each success is journaled against it.
+    /// Only the preset lookup holds the catalog lock up front; each
+    /// version's render is narrowed the same way as
+    /// [`Library::export_batch`] (ADR 0024).
     pub fn export_with_preset(
         &self,
         versions: &[VersionId],
@@ -650,19 +685,12 @@ impl Library {
         destination_dir: &Path,
         progress: impl FnMut(u64, u64),
     ) -> Result<ExportReport> {
-        let mut catalog = lock(&self.inner.catalog);
-        let stored = catalog.export_preset(preset)?;
-        let settings =
-            ExportSettings::parse(&stored.settings_json).map_err(crate::export::export_err)?;
-        crate::export::export_batch(
-            &mut catalog,
-            &self.inner.root,
-            versions,
-            &settings,
-            Some(preset),
-            destination_dir,
-            progress,
-        )
+        let settings = {
+            let catalog = lock(&self.inner.catalog);
+            let stored = catalog.export_preset(preset)?;
+            ExportSettings::parse(&stored.settings_json).map_err(crate::export::export_err)?
+        };
+        self.export_batch_with_preset(versions, &settings, Some(preset), destination_dir, progress)
     }
 
     /// Stores a named export preset (§12), validating the recipe first.

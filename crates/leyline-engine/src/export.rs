@@ -8,12 +8,129 @@
 use std::path::{Path, PathBuf};
 
 use leyline_catalog::Catalog;
-use leyline_core::{ExportPresetId, LeylineError, Result, Settings, VersionId};
+use leyline_core::{AssetId, ExportPresetId, LeylineError, Result, Settings, VersionId};
 use leyline_export::{ExportError, ExportSettings};
 use leyline_preview::Rgb8;
 use leyline_raw::DecodeParams;
 
 use crate::render;
+
+/// Everything [`render_export`] needs to decode, develop, scale and encode
+/// one version, gathered from the catalog up front so the catalog itself
+/// doesn't need to stay locked for the render (ADR 0024, mirroring
+/// ADR 0023's preview split).
+pub(crate) struct ExportPlan {
+    asset: AssetId,
+    develop: Settings,
+    source: PathBuf,
+    shot: Option<crate::render::LensShot>,
+    /// Output filename stem, derived from the source's relative path.
+    stem: String,
+}
+
+/// Reads everything needed to render a version, without decoding or
+/// rendering anything itself — the read-only, catalog-bound half of
+/// [`export_version`], split out so a caller can drop the catalog lock
+/// before the slow half (ADR 0024).
+pub(crate) fn plan_export(
+    catalog: &Catalog,
+    library_root: &Path,
+    version: VersionId,
+) -> Result<ExportPlan> {
+    let asset = catalog.version_asset(version)?;
+    let head = catalog.version_head(version)?;
+    let develop = Settings::parse(&catalog.revision(head)?.settings_json)?;
+
+    let relative = catalog.asset_relative_path(asset)?;
+    let source = library_root.join(relative.replace('/', std::path::MAIN_SEPARATOR_STR));
+    let meta = catalog.metadata(asset)?;
+    let shot = meta.as_ref().and_then(render::lens_shot);
+    let stem = Path::new(&relative)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("export")
+        .to_string();
+
+    Ok(ExportPlan {
+        asset,
+        develop,
+        source,
+        shot,
+        stem,
+    })
+}
+
+/// Decodes, develops, scales and encodes an [`ExportPlan`] to disk — the
+/// slow half of [`export_version`], deliberately taking no catalog
+/// reference so it can run with no catalog lock held (ADR 0024).
+///
+/// The file is named after the original (`IMG_0001.CR3` → `IMG_0001.jpg`);
+/// an existing file is refused, never overwritten.
+pub(crate) fn render_export(
+    plan: &ExportPlan,
+    settings: &ExportSettings,
+    destination_dir: &Path,
+) -> Result<PathBuf> {
+    let decoded = crate::source::decode(&plan.source, &DecodeParams::default()).map_err(|e| {
+        LeylineError::DecodeFailed {
+            asset: plan.asset,
+            reason: e.to_string(),
+        }
+    })?;
+    let rendered = render(&decoded, &plan.develop, plan.shot.as_ref())?;
+
+    let scaled;
+    let image = Rgb8::new(rendered.width, rendered.height, rendered.data)
+        .map_err(|e| LeylineError::InvalidImage(e.to_string()))?;
+    let output = match settings.max_edge {
+        Some(edge) if image.width().max(image.height()) > edge => {
+            scaled = image.scaled_to_fit(edge);
+            &scaled
+        }
+        _ => &image,
+    };
+
+    let filename = format!("{}.{}", plan.stem, settings.format.extension());
+    let destination = destination_dir.join(&filename);
+    if destination.exists() {
+        return Err(LeylineError::Io(std::io::Error::new(
+            std::io::ErrorKind::AlreadyExists,
+            format!(
+                "{} already exists; exports never overwrite",
+                destination.display()
+            ),
+        )));
+    }
+    std::fs::create_dir_all(destination_dir)?;
+    leyline_export::encode(
+        &destination,
+        output.width(),
+        output.height(),
+        output.data(),
+        settings,
+    )
+    .map_err(export_err)?;
+
+    Ok(destination)
+}
+
+/// Journals a successful export against its asset — the write half of
+/// [`export_version`], and the only phase that needs the catalog again
+/// after [`render_export`] (ADR 0024).
+pub(crate) fn journal_export(
+    catalog: &mut Catalog,
+    plan: &ExportPlan,
+    preset: Option<ExportPresetId>,
+    settings: &ExportSettings,
+    destination: &Path,
+) -> Result<()> {
+    catalog.record_export(
+        plan.asset,
+        preset,
+        settings.format.extension(),
+        &destination.display().to_string(),
+    )
+}
 
 /// One version a batch wrote to disk.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -87,6 +204,12 @@ pub fn export_batch(
 /// The file is named after the original (`IMG_0001.CR3` → `IMG_0001.jpg`);
 /// an existing file is refused, never overwritten. On success the export is
 /// journaled with the preset that produced it, if any.
+///
+/// This free function drives [`plan_export`], [`render_export`] and
+/// [`journal_export`] over one `&mut Catalog` held throughout — the pattern
+/// this crate's tests use directly. [`crate::Library::export`] instead
+/// sequences the same three phases itself, dropping the catalog lock across
+/// [`render_export`] (ADR 0024).
 pub fn export_version(
     catalog: &mut Catalog,
     library_root: &Path,
@@ -96,64 +219,9 @@ pub fn export_version(
     destination_dir: &Path,
 ) -> Result<PathBuf> {
     settings.validate().map_err(export_err)?;
-    let asset = catalog.version_asset(version)?;
-    let head = catalog.version_head(version)?;
-    let develop = Settings::parse(&catalog.revision(head)?.settings_json)?;
-
-    let relative = catalog.asset_relative_path(asset)?;
-    let source = library_root.join(relative.replace('/', std::path::MAIN_SEPARATOR_STR));
-    let decoded = crate::source::decode(&source, &DecodeParams::default()).map_err(|e| {
-        LeylineError::DecodeFailed {
-            asset,
-            reason: e.to_string(),
-        }
-    })?;
-    let meta = catalog.metadata(asset)?;
-    let shot = meta.as_ref().and_then(render::lens_shot);
-    let rendered = render(&decoded, &develop, shot.as_ref())?;
-
-    let scaled;
-    let image = Rgb8::new(rendered.width, rendered.height, rendered.data)
-        .map_err(|e| LeylineError::InvalidImage(e.to_string()))?;
-    let output = match settings.max_edge {
-        Some(edge) if image.width().max(image.height()) > edge => {
-            scaled = image.scaled_to_fit(edge);
-            &scaled
-        }
-        _ => &image,
-    };
-
-    let stem = Path::new(&relative)
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("export");
-    let filename = format!("{stem}.{}", settings.format.extension());
-    let destination = destination_dir.join(&filename);
-    if destination.exists() {
-        return Err(LeylineError::Io(std::io::Error::new(
-            std::io::ErrorKind::AlreadyExists,
-            format!(
-                "{} already exists; exports never overwrite",
-                destination.display()
-            ),
-        )));
-    }
-    std::fs::create_dir_all(destination_dir)?;
-    leyline_export::encode(
-        &destination,
-        output.width(),
-        output.height(),
-        output.data(),
-        settings,
-    )
-    .map_err(export_err)?;
-
-    catalog.record_export(
-        asset,
-        preset,
-        settings.format.extension(),
-        &destination.display().to_string(),
-    )?;
+    let plan = plan_export(catalog, library_root, version)?;
+    let destination = render_export(&plan, settings, destination_dir)?;
+    journal_export(catalog, &plan, preset, settings, &destination)?;
     Ok(destination)
 }
 

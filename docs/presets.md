@@ -150,4 +150,4 @@ Aucune règle nouvelle : appliquer un preset, un par un ou en lot, c'est écrire
 
 # 8. Suite
 
-Ce document fixe le contrat produit et le modèle de données. Reste à intégrer dans `engine-api.md` (surface `Library`, catégorie requête vs. travail, événements) et dans le moteur (`leyline-engine`, `leyline-catalog`) — objet d'une étape séparée.
+Ce document fixe le contrat produit et le modèle de données. Intégré dans `engine-api.md` (surface `Library`, catégorie requête vs. travail, événements) et dans le moteur (`leyline-engine`, `leyline-catalog`) — voir `adr/0014-develop-presets.md`.

@@ -123,6 +123,72 @@ fn a_failing_version_does_not_stop_the_batch() {
     ));
 }
 
+/// `Library::export_batch` narrows the catalog lock to one version at a time
+/// (ADR 0024) rather than holding it for the whole batch, as the free
+/// `export_batch` function still does. This exercises that facade path
+/// end to end: every version in the batch must still succeed, get journaled
+/// against its own asset, and land under its own filename.
+#[test]
+fn library_export_batch_narrows_the_lock_and_still_exports_every_version() {
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::create(&dir.path().join("Library"), "Batch").unwrap();
+    let source = dir.path().join("Shoot");
+    std::fs::create_dir(&source).unwrap();
+    for (name, shade) in [("a.png", 200u8), ("b.png", 40u8)] {
+        image::save_buffer(
+            source.join(name),
+            &[shade; 4 * 2 * 3],
+            4,
+            2,
+            image::ExtendedColorType::Rgb8,
+        )
+        .unwrap();
+    }
+    let report = library
+        .import(
+            &source,
+            &ImportOptions {
+                copy_files: true,
+                recursive: false,
+            },
+            |_, _| {},
+        )
+        .unwrap();
+    let versions: Vec<VersionId> = report
+        .imported
+        .iter()
+        .map(|f| f.registered.version)
+        .collect();
+    assert_eq!(versions.len(), 2);
+
+    let out = dir.path().join("out");
+    let mut ticks = Vec::new();
+    let batch = library
+        .export_batch(
+            &versions,
+            &ExportSettings::default(),
+            &out,
+            |done, total| ticks.push((done, total)),
+        )
+        .unwrap();
+
+    assert_eq!(batch.failed, vec![]);
+    assert_eq!(batch.exported.len(), 2);
+    assert_eq!(ticks, [(1, 2), (2, 2)]);
+    for exported in &batch.exported {
+        assert!(exported.path.is_file());
+    }
+    // Distinct source names, so no filename collision and both are
+    // journaled against their own asset.
+    let assets: Vec<_> = versions
+        .iter()
+        .map(|&v| library.catalog().version_asset(v).unwrap())
+        .collect();
+    for asset in assets {
+        assert_eq!(library.catalog().export_history(asset).unwrap().len(), 1);
+    }
+}
+
 #[test]
 fn presets_are_validated_stored_and_drive_batches() {
     let dir = tempfile::tempdir().unwrap();
