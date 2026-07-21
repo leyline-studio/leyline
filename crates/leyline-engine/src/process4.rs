@@ -194,6 +194,14 @@ pub(crate) fn develop(
 /// the profile lookup so [`devignette`] can reuse the same match.
 fn undistort(px: &Pixels, profile: &leyline_lens::Profile, focal_mm: f32) -> Pixels {
     let correction = leyline_lens::Correction::new(profile, focal_mm, px.width, px.height);
+    if !correction.distortion_matched() {
+        // No distortion calibration at this focal length: `source_row`
+        // would return the identity map, and resampling at identity
+        // coordinates is bit-identical to the original pixel (integer
+        // coordinates make every bilinear weight exactly 0.0 or 1.0) — so
+        // skip the whole per-pixel pass rather than pay for a no-op.
+        return px.clone();
+    }
 
     let mut data = vec![0.0f32; px.data.len()];
     data.par_chunks_mut(px.width as usize * 3)

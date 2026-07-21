@@ -197,6 +197,14 @@ pub(crate) fn develop(
 /// approximated. `correction` is shared with [`correct_tca`] — one profile
 /// match, one `Correction` built, both geometric passes reuse it.
 fn undistort(px: &Pixels, correction: &leyline_lens::Correction) -> Pixels {
+    if !correction.distortion_matched() {
+        // No distortion calibration at this focal length: `source_row`
+        // would return the identity map, and resampling at identity
+        // coordinates is bit-identical to the original pixel (integer
+        // coordinates make every bilinear weight exactly 0.0 or 1.0) — so
+        // skip the whole per-pixel pass rather than pay for a no-op.
+        return px.clone();
+    }
     let mut data = vec![0.0f32; px.data.len()];
     data.par_chunks_mut(px.width as usize * 3)
         .enumerate()
@@ -224,6 +232,16 @@ fn undistort(px: &Pixels, correction: &leyline_lens::Correction) -> Pixels {
 /// leaves every channel's coordinate at the identity, so `px` comes back
 /// unchanged.
 fn correct_tca(px: &Pixels, correction: &leyline_lens::Correction) -> Pixels {
+    if !correction.tca_matched() {
+        // No TCA calibration at this focal length: `tca_row` would map
+        // every channel to the same identity coordinate, and resampling at
+        // an identity coordinate is bit-identical to the original pixel
+        // (integer coordinates make every bilinear weight exactly 0.0 or
+        // 1.0) — so skip the whole per-channel pass rather than pay for a
+        // no-op that discards nothing new but still costs three independent
+        // resamples per pixel.
+        return px.clone();
+    }
     let mut data = vec![0.0f32; px.data.len()];
     data.par_chunks_mut(px.width as usize * 3)
         .enumerate()

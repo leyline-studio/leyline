@@ -233,6 +233,37 @@ fn benches(c: &mut Criterion) {
         });
     });
 
+    // Same as above, but with a real bundled profile that has distortion
+    // calibration and no TCA calibration at all (Canon EF 17-35mm f/2.8L
+    // USM, `leyline-lens`'s own no-TCA fixture): isolates the cost of the
+    // TCA pass's early-exit vs. running a full identity resample.
+    let no_tca_shot = LensShot {
+        camera_make: "Canon".to_owned(),
+        camera_model: "Canon EOS 5D Mark III".to_owned(),
+        lens_make: Some("Canon".to_owned()),
+        lens_model: Some("Canon EF 17-35mm f/2.8L USM".to_owned()),
+        focal_mm: 20.0,
+        aperture_f: None,
+    };
+    group.bench_function("lens_correction_no_tca", |b| {
+        let settings = Settings {
+            process: 5,
+            lens_correction: LensCorrection {
+                enabled: true,
+                profile: "auto".to_owned(),
+            },
+            ..tone_settings()
+        };
+        b.iter(|| {
+            render(
+                black_box(&image),
+                black_box(&settings),
+                Some(black_box(&no_tca_shot)),
+            )
+            .unwrap()
+        });
+    });
+
     group.finish();
 }
 

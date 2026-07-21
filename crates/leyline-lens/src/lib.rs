@@ -68,6 +68,14 @@ fn contains_ci(haystack: &str, needle: &str) -> bool {
 /// and pixel dimensions).
 pub struct Correction {
     modifier: Modifier,
+    /// Whether a distortion calibration was found; [`Correction::source_row`]
+    /// always returns an identity map otherwise, so callers can skip the
+    /// per-pixel resample up front.
+    distortion_matched: bool,
+    /// Whether a TCA calibration was found; [`Correction::tca_row`] always
+    /// returns an identity map (same coordinate for all three channels)
+    /// otherwise, so callers can skip the per-channel resample up front.
+    tca_matched: bool,
 }
 
 impl Correction {
@@ -85,9 +93,23 @@ impl Correction {
             height,
             true,
         );
-        modifier.enable_distortion_correction(profile.lens);
-        modifier.enable_tca_correction(profile.lens);
-        Correction { modifier }
+        let distortion_matched = modifier.enable_distortion_correction(profile.lens);
+        let tca_matched = modifier.enable_tca_correction(profile.lens);
+        Correction {
+            modifier,
+            distortion_matched,
+            tca_matched,
+        }
+    }
+
+    /// Whether a distortion calibration was found for this shot.
+    pub fn distortion_matched(&self) -> bool {
+        self.distortion_matched
+    }
+
+    /// Whether a TCA calibration was found for this shot.
+    pub fn tca_matched(&self) -> bool {
+        self.tca_matched
     }
 
     /// The source coordinate to sample for each pixel of output row `y`,
@@ -251,6 +273,31 @@ mod tests {
             red, blue,
             "TCA should separate the red and blue channel positions at the corner"
         );
+    }
+
+    #[test]
+    fn distortion_matched_and_tca_matched_reflect_the_calibration() {
+        // The main fixture lens has both distortion and TCA data at 20mm.
+        let profile = find_profile(CAMERA_MAKE, CAMERA_MODEL, Some(LENS_MAKE), LENS_MODEL).unwrap();
+        let correction = Correction::new(&profile, 20.0, 100, 100);
+        assert!(correction.distortion_matched());
+        assert!(correction.tca_matched());
+
+        // This bundled lens has a distortion calibration but no TCA entries
+        // at all: distortion_matched should be true, tca_matched false, and
+        // tca_row should therefore be the identity map (see doc comment).
+        let no_tca_profile = find_profile(
+            CAMERA_MAKE,
+            CAMERA_MODEL,
+            Some(LENS_MAKE),
+            "Canon EF 17-35mm f/2.8L USM",
+        )
+        .unwrap();
+        let no_tca_correction = Correction::new(&no_tca_profile, 20.0, 100, 100);
+        assert!(no_tca_correction.distortion_matched());
+        assert!(!no_tca_correction.tca_matched());
+        let identity = no_tca_correction.tca_row(50, 100)[42];
+        assert_eq!(identity, [(42.0, 50.0), (42.0, 50.0), (42.0, 50.0)]);
     }
 
     #[test]
