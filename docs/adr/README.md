@@ -35,3 +35,9 @@ Une décision acceptée ne se modifie pas : elle se remplace par un nouvel ADR q
 | [0027](0027-color-management-beyond-srgb.md) | Gestion des couleurs au-delà de sRGB : profil de sortie découplé du rendu |
 | [0028](0028-process-version-per-feature.md) | Une process version par fonctionnalité pixel : maintien de la duplication par module |
 | [0029](0029-process-6-local-adjustments.md) | Process 6 : réglages locaux masqués (brosse, radial, gradient), stockés dans `settings_json`, pilotés par `Param::LocalAdjustment` |
+| [0030](0030-tone-curve.md) | Courbe tonale : courbe par points seule, spline cubique monotone, appliquée en luminance via LUT |
+| [0031](0031-hsl-color-grading.md) | Mélangeur TSL et roues de color grading : HSL dérivé du RGB, zones tonales pondérées par luminance |
+| [0032](0032-spot-removal-clone.md) | Suppression de tache : clonage seul (heal coupé de V2), copie bilinéaire déterministe, tôt dans le pipeline |
+| [0033](0033-clarity-texture-dehaze.md) | Clarté/texture (contraste local unifié à deux rayons) et dehaze (dark channel prior en forme close), globaux en V2 |
+| [0034](0034-softproofing-watermark-print.md) | Épreuvage écran (vue seule) et filigrane texte (à l'export) : deux surfaces de sortie, aucun process ; le module d'impression reste hors décision |
+| [0035](0035-camera-profile-dcp.md) | Profil caméra DCP : nouvel étage colorimétrique en tête de pipeline, fichiers fournis par l'utilisateur, référencés par chemin relatif et checksummés (BLAKE3) |

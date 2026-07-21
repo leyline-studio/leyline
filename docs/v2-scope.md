@@ -54,8 +54,8 @@ Aucune courbe paramétrique ni par points. Seuls les curseurs grossiers existent
 | Aspect | Analyse |
 |---|---|
 | Contrat | **Process +1**. **Schema : additif** — `tone_curve` optionnel, absent = courbe identité (neutre) ; pas d'incrément requis. |
-| Pipeline (§3.1) | S'insère dans le bloc tonal, après Blancs/Noirs et avant Vibrance/Saturation. Insertion = événement de process, sans réordonnancement du reste. |
-| Crate | `leyline-engine` : construction d'une LUT 1D depuis les points de contrôle. `leyline-core` porte les champs. Aucun nouveau crate. |
+| Pipeline (§3.1) | **Tranché, [ADR 0030](adr/0030-tone-curve.md)** : étage courbe inséré dans le bloc tonal, après Blancs/Noirs et avant Vibrance/Saturation. Nouvelle process version (le prochain numéro disponible à la sortie, [ADR 0028](adr/0028-process-version-per-feature.md)). Le diagramme §3.1 sera amendé par la PR d'implémentation, pas par l'ADR. |
+| Crate | **Tranché, [ADR 0030](adr/0030-tone-curve.md) : aucun nouveau crate.** `leyline-engine` : construction d'une LUT 1D depuis les points de contrôle (convention [ADR 0013](adr/0013-process-2-lut-transfer.md)). `leyline-core` porte les champs. |
 | Catalogue | Aucun. Tout tient dans `settings_json`. |
 | API moteur | Nouveaux `Param` (points de courbe, mode paramétrique). Rejoint un `SettingsGroup::Tone` élargi ou un groupe dédié. |
 | Complexité | **S/M**. |
@@ -65,13 +65,13 @@ Champs pressentis (`settings_json`, schema inchangé) :
 | Champ | Rôle | Valeur neutre |
 |---|---|---|
 | `tone_curve.points` | Courbe par points, liste `{x, y}` normalisés `[0,1]` | absent — identité |
-| `tone_curve.parametric` | Régions highlights/lights/darks/shadows + points de bascule | absent — 0 partout |
-| `tone_curve.channel` | Cible : `rgb` (luminance) ou `r`/`g`/`b` | `rgb` |
+| ~~`tone_curve.parametric`~~ | ~~Régions highlights/lights/darks/shadows~~ — **coupé, [ADR 0030](adr/0030-tone-curve.md)** : une courbe paramétrique n'est qu'une UI générant des points ; Studio calcule la liste de points côté client si besoin, le moteur n'a qu'un chemin de courbe. | — |
+| ~~`tone_curve.channel`~~ | ~~Cible `rgb`/`r`/`g`/`b`~~ — **luminance seule en V2, [ADR 0030](adr/0030-tone-curve.md)** : courbes par canal retranchées comme fonctionnalité séparée plus lourde. | luminance |
 
 Questions ouvertes :
 
-1. **Interpolation gelée** : la spline (cubique monotone recommandée) fait partie du contrat de rendu — deux moteurs doivent produire les mêmes pixels (`docs/pipeline.md` §5). Le choix se fige avec la process version.
-2. **Courbes par canal RGB** dès la V2 ou luminance seule d'abord.
+1. ~~**Interpolation gelée** : la spline (cubique monotone recommandée) fait partie du contrat de rendu~~ — résolu, [ADR 0030](adr/0030-tone-curve.md) : **spline cubique monotone** (Fritsch–Carlson ou équivalent), choix de modèle gelé avec la process version pour éviter l'overshoot d'une cubique naïve ; constantes numériques exactes laissées à la PR. Précalcul en LUT (convention [ADR 0013](adr/0013-process-2-lut-transfer.md)), pas d'évaluation par pixel.
+2. ~~**Courbes par canal RGB** dès la V2 ou luminance seule d'abord~~ — résolu, [ADR 0030](adr/0030-tone-curve.md) : **luminance seule** en V2 ; les courbes par canal sont une fonctionnalité séparée plus lourde, à concevoir plus tard dans son propre ADR si voulue.
 
 ---
 
@@ -82,8 +82,8 @@ Vibrance et saturation existent (globales). Il manque le mélangeur **TSL par te
 | Aspect | Analyse |
 |---|---|
 | Contrat | **Process +1**. **Schema : additif** — `hsl` et `color_grading` optionnels, absents = neutres. |
-| Pipeline (§3.1) | Bloc couleur, après Vibrance/Saturation. Insertion = événement de process. |
-| Crate | `leyline-engine`. Aucun nouveau crate. |
+| Pipeline (§3.1) | **Tranché, [ADR 0031](adr/0031-hsl-color-grading.md)** : bloc couleur, après Vibrance/Saturation. Nouvelle process version (le prochain numéro disponible à la sortie, [ADR 0028](adr/0028-process-version-per-feature.md)) ; TSL et color grading conçus ensemble mais livrables séparément. Le diagramme §3.1 sera amendé par la PR d'implémentation. |
+| Crate | **Tranché, [ADR 0031](adr/0031-hsl-color-grading.md) : aucun nouveau crate.** `leyline-engine`. |
 | Catalogue | Aucun. Tient dans `settings_json`. |
 | API moteur | Nouveaux `Param` ; un `SettingsGroup` couleur pour les presets. |
 | Complexité | **M**. |
@@ -98,8 +98,8 @@ Champs pressentis :
 
 Questions ouvertes :
 
-1. **Modèle de teinte gelé** : la définition exacte de la teinte et l'espace de calcul font partie du contrat de rendu, à figer avec la process version.
-2. **Color grading régional** : appliquer les roues sous masque (item 2) est une extension naturelle — à considérer dans le référentiel commun, pas à recoder.
+1. ~~**Modèle de teinte gelé** : la définition exacte de la teinte et l'espace de calcul~~ — résolu, [ADR 0031](adr/0031-hsl-color-grading.md) : **HSL dérivé du RGB de travail** (pas d'espace perceptuel/CIE), 8 bandes à centres fixes avec falloff entre bandes adjacentes ; zones de color grading séparées par **pondération de luminance** (smoothstep + `balance`/`blending`), orthogonale au masque spatial d'[ADR 0029](adr/0029-process-6-local-adjustments.md). Constantes numériques exactes laissées à la PR.
+2. ~~**Color grading régional** : appliquer les roues sous masque (item 2)~~ — résolu (hors périmètre V2), [ADR 0031](adr/0031-hsl-color-grading.md) : le color grading régional est déféré à un futur ADR adossé à l'infrastructure de masquage d'[ADR 0029](adr/0029-process-6-local-adjustments.md) ; la version globale (par zone tonale) est autonome et livrée d'abord.
 
 ---
 
@@ -112,18 +112,18 @@ Intrinsèquement local : partage le problème de **référentiel de coordonnées
 | Aspect | Analyse |
 |---|---|
 | Contrat | **Process +1**. **Schema : additif** — `spot_removal` optionnel (liste), absent = vide. |
-| Pipeline (§3.1) | Tôt dans la chaîne (avant le bloc tonal), à la manière de Lightroom, pour opérer sur des données proches du linéaire. Placement à trancher — même référentiel que les masques. |
-| Crate | `leyline-engine` (clonage trivial ; correction *seamless* plus lourde). Un crate dédié n'est pas justifié d'emblée. |
-| Catalogue | Liste de géométries par révision. Tient dans `settings_json` (liste compacte), cohérent avec « état complet et autonome » (§17). Une table par révision est l'alternative si les listes explosent, mais elle casserait l'autonomie de `settings_json` — écarté par défaut. |
-| API moteur | `EditSession` : `Param` d'ajout/déplacement/suppression de taches. |
-| Complexité | **M** (clone) à **L** (heal). |
+| Pipeline (§3.1) | **Tranché, [ADR 0032](adr/0032-spot-removal-clone.md)** : étage **Suppression de tache** inséré immédiatement après Correction d'objectif et avant Balance des blancs — plus tôt que l'étage masqué d'[ADR 0029](adr/0029-process-6-local-adjustments.md), pour opérer sur des données proches du linéaire. Nouvelle process version (le prochain numéro disponible à la sortie, [ADR 0028](adr/0028-process-version-per-feature.md)). Référentiel de `crop` ([ADR 0026](adr/0026-mask-spot-coordinate-referential.md)). Le diagramme §3.1 sera amendé par la PR d'implémentation. |
+| Crate | **Tranché, [ADR 0032](adr/0032-spot-removal-clone.md) : aucun nouveau crate.** `leyline-engine` — clonage seul, copie bilinéaire déterministe réutilisant la fonction `bilinear` existante du module process. Le *heal seamless* est **coupé de V2**. |
+| Catalogue | **Tranché, [ADR 0032](adr/0032-spot-removal-clone.md) : aucune table dédiée.** Liste `spot_removal` compacte dans `settings_json`, cohérent avec « une révision = état complet et autonome » (`docs/catalog.md` §17). Une table par révision reste un problème de futur ADR *avec données réelles* si le volume l'exige un jour. |
+| API moteur | **Tranché, [ADR 0032](adr/0032-spot-removal-clone.md) :** aucune méthode `EditSession` nouvelle — le cycle de vie des taches passe par `set`/`commit` plus l'extension `Param`/`Value` (indice dans le tableau `spot_removal`), même schéma qu'[ADR 0029](adr/0029-process-6-local-adjustments.md). |
+| Complexité | **M** — clonage seul ([ADR 0032](adr/0032-spot-removal-clone.md)) ; le *heal* (**L**) est coupé de V2, plus dans la fourchette. |
 
-Champs pressentis : `spot_removal: [ { target:{x,y}, source:{x,y}, radius, feather, mode: "clone"|"heal", opacity } ]` en coordonnées normalisées.
+Champs pressentis : `spot_removal: [ { target:{x,y}, source:{x,y}, radius, feather, opacity } ]` en coordonnées normalisées — **champ `mode` abandonné, [ADR 0032](adr/0032-spot-removal-clone.md)** : le clonage étant le seul mode V2, aucun champ de mode n'est nécessaire.
 
 Questions ouvertes :
 
-1. **Déterminisme de la correction** : le *heal* (clonage sans couture type Poisson) doit produire les mêmes pixels à chaque rendu (`docs/pipeline.md` §5) — l'algorithme se fige avec la process version.
-2. **Sélection automatique de la source** : si le moteur propose une source, la proposition doit être déterministe et **enregistrée** dans les paramètres (§5 reproductibilité), jamais recalculée à la volée.
+1. ~~**Déterminisme de la correction** : le *heal* (clonage sans couture type Poisson) doit produire les mêmes pixels à chaque rendu~~ — résolu, [ADR 0032](adr/0032-spot-removal-clone.md) : le *heal* est **coupé de V2** (mode, pas drapeau) — un blending de Poisson non validable sans images de référence, esprit d'[ADR 0016](adr/0016-process-3-lens-correction.md) ; seul le clonage (copie bilinéaire déterministe) est livré, et il est reproductible par construction.
+2. ~~**Sélection automatique de la source** : si le moteur propose une source, la proposition doit être déterministe et enregistrée~~ — résolu, [ADR 0032](adr/0032-spot-removal-clone.md) : **source manuelle uniquement** en V2, aucune suggestion moteur ; si elle est ajoutée plus tard, elle s'écrit dans `spot_removal[].source` comme toute autre valeur, jamais recalculée au rendu.
 3. ~~Référentiel de coordonnées~~ — résolu, [ADR 0026](adr/0026-mask-spot-coordinate-referential.md), commun à l'item 2.
 
 ---
@@ -135,19 +135,19 @@ Seul « détail » existe (réduction de bruit + netteté). Pas de contrôles s�
 | Aspect | Analyse |
 |---|---|
 | Contrat | **Process +1**. **Schema : additif** — trois curseurs optionnels, neutre 0. |
-| Pipeline (§3.1) | Clarté/texture (contraste local) dans le bloc tonal/présence ; dehaze après le bloc tonal. Insertion = événement de process. |
-| Crate | `leyline-engine`. Clarté/texture : contraste local multi-échelle (masque flou à grand rayon / filtre guidé). Dehaze : estimation de la lumière atmosphérique (*dark channel prior*), déterminisme à figer. |
+| Pipeline (§3.1) | **Tranché, [ADR 0033](adr/0033-clarity-texture-dehaze.md)** : ordre **clarté → texture → dehaze**, tous **avant Vibrance/Saturation** (donc avant l'étage masqué d'[ADR 0029](adr/0029-process-6-local-adjustments.md), dont la position reste intacte). Nouvelle process version (le prochain numéro disponible à la sortie, [ADR 0028](adr/0028-process-version-per-feature.md)). Le diagramme §3.1 sera amendé par la PR d'implémentation. |
+| Crate | **Tranché, [ADR 0033](adr/0033-clarity-texture-dehaze.md) : aucun nouveau crate.** `leyline-engine`. Clarté/texture : **une seule** fonction de contraste local par masque flou, appelée à deux rayons (flou approché par sous-échantillonnage, pas de grand noyau plein résolution). Dehaze : *dark channel prior*, lumière atmosphérique par percentile en **forme close**, déterminisme figé. |
 | Catalogue | Aucun. |
 | API moteur | Nouveaux `Param` ; rejoignent un groupe présence/détail élargi pour les presets. |
 | Complexité | **M** (clarté/texture) à **L** (dehaze). |
 
-Champs pressentis : `clarity`, `texture`, `dehaze`, curseurs `[-100, +100]`, neutre 0.
+Champs pressentis : `clarity`, `texture`, `dehaze`, curseurs `[-100, +100]`, neutre 0 ([ADR 0033](adr/0033-clarity-texture-dehaze.md)).
 
 Questions ouvertes :
 
-1. **Déterminisme du dehaze** : l'estimation atmosphérique se fige avec la process version.
-2. **Global d'abord, masqué ensuite** : des curseurs globaux sont livrables sans l'item 2 ; leur version masquée s'y adosse ensuite.
-3. **Coût CPU** du contraste local multi-échelle sur les grandes previews (`docs/engine-api.md` §11).
+1. ~~**Déterminisme du dehaze** : l'estimation atmosphérique se fige avec la process version~~ — résolu, [ADR 0033](adr/0033-clarity-texture-dehaze.md) : lumière atmosphérique par **percentile fixe du canal sombre**, sélection en **forme close** (aucune optimisation itérative), gelée avec la process version.
+2. ~~**Global d'abord, masqué ensuite**~~ — résolu, [ADR 0033](adr/0033-clarity-texture-dehaze.md) : les trois curseurs sont livrés **en global** en V2 ; leur version masquée/régionale est déférée à un futur ADR adossé à [ADR 0029](adr/0029-process-6-local-adjustments.md) (même coupe qu'[ADR 0031](adr/0031-hsl-color-grading.md) pour le color grading régional).
+3. ~~**Coût CPU** du contraste local multi-échelle sur les grandes previews~~ — résolu, [ADR 0033](adr/0033-clarity-texture-dehaze.md) : le flou à grand rayon est **approché par sous-échantillonnage** (type pyramide/filtre boîte), jamais un noyau gaussien plein résolution ; facteur exact laissé à la PR.
 
 ---
 
@@ -157,9 +157,9 @@ Aucun des trois n'est implémenté. **Important : c'est l'item le moins « pipel
 
 | Sous-item | Nature réelle | Contrat de rendu |
 |---|---|---|
-| Épreuvage écran (soft proofing) | Simulation **à l'affichage** au travers d'un profil ICC de destination, avec alerte de gamut. Ne modifie **ni** `settings_json` **ni** les pixels de la révision — c'est un mode de vue. | **Aucune** process/schema : transformation non persistée. Touche `leyline-color` (LittleCMS, déjà dépendance) et l'API preview (intention de rendu / profil d'épreuve). |
-| Filigrane | Surimpression **à l'export**, décoration d'étage de sortie au même titre que format/qualité. | **Aucune** process de développement. Vit dans `leyline-export` et `ExportSettings`/`ExportRecipe` (`docs/engine-api.md` §12) ; config dans `export_presets.settings_json` (`docs/catalog.md` §27). |
-| Module d'impression | Sous-système mise en page + sortie (marges, planches, profil imprimante, épreuvage). Surtout Studio + un chemin de rendu d'impression. | **Aucune** process de développement ; large chantier UI + sortie. |
+| Épreuvage écran (soft proofing) | Simulation **à l'affichage** au travers d'un profil ICC de destination, avec alerte de gamut. Ne modifie **ni** `settings_json` **ni** les pixels de la révision — c'est un mode de vue. | **Tranché, [ADR 0034](adr/0034-softproofing-watermark-print.md)** : **aucune** process/schema, transformation non persistée. Paramètre d'épreuvage **optionnel et vue seule** sur un appel de preview (`docs/engine-api.md` §11) — profil de destination + intention + alerte de gamut — jamais écrit au catalogue. Réutilise la primitive ICC d'[ADR 0027](adr/0027-color-management-beyond-srgb.md) dans `leyline-color`. |
+| Filigrane | Surimpression **à l'export**, décoration d'étage de sortie au même titre que format/qualité. | **Tranché, [ADR 0034](adr/0034-softproofing-watermark-print.md)** : **aucune** process de développement. **Texte seul en V2** (image/logo coupée) ; champ `watermark` additif dans `ExportSettings`/`ExportRecipe` ([ADR 0025](adr/0025-unified-export-request.md), `docs/engine-api.md` §12), donc dans `export_presets.settings_json` (`docs/catalog.md` §27). Composité en tout dernier, **après** la transformation ICC de destination d'[ADR 0027](adr/0027-color-management-beyond-srgb.md), avant l'encodage. |
+| Module d'impression | Sous-système mise en page + sortie (marges, planches, profil imprimante, épreuvage). Surtout Studio + un chemin de rendu d'impression. | **Reste hors décision** — [ADR 0034](adr/0034-softproofing-watermark-print.md) défère explicitement l'impression à son propre futur ADR (chantier L/XL, surtout UI + chemin de sortie dédié), sans la stuber. **Aucune** process de développement ; large chantier UI + sortie. |
 
 | Aspect | Analyse |
 |---|---|
@@ -169,6 +169,8 @@ Aucun des trois n'est implémenté. **Important : c'est l'item le moins « pipel
 | Complexité | Filigrane **S/M** ; épreuvage **M** ; impression **L/XL**. |
 
 ~~Question ouverte majeure : épreuvage, impression et export non-sRGB butent tous sur le gel sRGB de V1~~ — résolu, [ADR 0027](adr/0027-color-management-beyond-srgb.md) : le pipeline reste sRGB, la sortie (export, épreuvage) gagne une transformation ICC vers un profil de destination via `leyline-color` élargi. Fil transversal partagé avec l'item 8, voir §8.
+
+~~Forme concrète de l'épreuvage et du filigrane~~ — résolue, [ADR 0034](adr/0034-softproofing-watermark-print.md) : filigrane **texte seul** (image/logo coupée) dans `ExportSettings`, composité après la transformation ICC de destination ; épreuvage = paramètre **vue seule** sur un appel de preview, jamais persisté ; les deux réutilisent la primitive ICC d'[ADR 0027](adr/0027-color-management-beyond-srgb.md). **Le module d'impression reste, lui, explicitement non tranché** : [ADR 0034](adr/0034-softproofing-watermark-print.md) le défère à son propre futur ADR (chantier L/XL, surtout UI + chemin de sortie dédié), sans le concevoir ni le stuber.
 
 ---
 
@@ -180,18 +182,18 @@ Un profil DCP calibre le rendu couleur du capteur (matrices colorimétriques, ta
 
 | Aspect | Analyse |
 |---|---|
-| Contrat | **Process +1**, et **insertion d'un nouvel étage** de profil colorimétrique d'entrée dans §3.1 (aujourd'hui « RAW décodé → Correction d'objectif → Balance des blancs » sans étape colorimétrique explicite) — réordonnancement = événement de process. **Schema : additif** (sélection du profil). |
-| Pipeline (§3.1) | Nouvel étage **profil caméra** entre RAW décodé et Balance des blancs. |
-| Crate | Un **parseur DCP** est nécessaire : LittleCMS gère l'ICC, pas le format DCP (Adobe). Soit extension de `leyline-color`, soit un nouveau crate `leyline-profile`. **Risque de dépendance externe** (parsing DCP + science des couleurs) le plus élevé des huit items. |
-| Catalogue | Le profil sélectionné se référence dans `settings_json` (nom/id). Les fichiers DCP eux-mêmes : dossier de profils de la bibliothèque ou données applicatives, référencés en **chemins relatifs** (`docs/catalog.md` §2.3). Une table `camera_profiles` est une option si l'on veut les cataloguer plutôt que les lire du disque — à trancher. |
+| Contrat | **Process +1** (le prochain numéro disponible à la sortie, [ADR 0028](adr/0028-process-version-per-feature.md)), et **insertion d'un nouvel étage** de profil colorimétrique d'entrée dans §3.1 — réordonnancement = événement de process. **Schema : additif** (référence du profil). Tranché, [ADR 0035](adr/0035-camera-profile-dcp.md). |
+| Pipeline (§3.1) | **Tranché, [ADR 0035](adr/0035-camera-profile-dcp.md)** : nouvel étage **profil caméra** en **tout premier**, entre RAW décodé et **Correction d'objectif** (précision de l'ordre : avant la correction géométrique, puisque DCP calibre la couleur et l'objectif la géométrie — aucune interaction, on opère sur les données les moins traitées, esprit du placement tôt d'[ADR 0032](adr/0032-spot-removal-clone.md)). Le diagramme §3.1 sera amendé par la PR d'implémentation. |
+| Crate | **Tranché, [ADR 0035](adr/0035-camera-profile-dcp.md) : aucun nouveau crate — extension de `leyline-color`.** ADR 0027 en a déjà fait une bibliothèque de transformation couleur générale ; l'application DCP (matrice + LUT appliquées directement, pas via `cmsTransform`) est du travail de domaine couleur parallèle, sans couplage aux tampons du moteur (contraste avec le masquage d'[ADR 0029](adr/0029-process-6-local-adjustments.md), logé dans `leyline-engine` *parce qu'*il est couplé au tampon). Le **parseur DCP** (maison minimal ou crate existant) reste **un risque de dépendance ouvert**, laissé à la PR. |
+| Catalogue | **Tranché, [ADR 0035](adr/0035-camera-profile-dcp.md) :** fichiers **fournis par l'utilisateur uniquement** (aucune base embarquée en V2, contraste avec Lensfun), déposés dans un dossier relatif (`Profiles/Camera/`, `docs/catalog.md` §2.3), **référencés par chemin relatif explicite** (pas d'auto-match EXIF), avec un **checksum BLAKE3** ([ADR 0006](adr/0006-blake3.md)) du fichier `.dcp` dans `settings_json`. Aucune table dédiée. |
 | API moteur | Sélection de profil comme `Param` ; éventuellement une surface d'énumération des profils disponibles. |
 | Complexité | **L/XL**. |
 
 Questions ouvertes :
 
-1. **Dépendance DCP** : parseur à écrire ou à intégrer, correctness colorimétrique à valider sans images de référence Adobe sous la main (même prudence qu'ADR 0016 §Alternatives sur le vignettage/TCA).
-2. ~~Interaction avec le gel sRGB~~ — résolu en partie par [ADR 0027](adr/0027-color-management-beyond-srgb.md) : `leyline-color` sera déjà une bibliothèque de transformation ICC générale au moment où cet item se décide. Reste propre à l'item 8 : l'étage DCP touche le **début** du pipeline (capteur → espace de travail), qu'ADR 0027 ne couvre pas — son propre ADR reste à écrire.
-3. **Reproductibilité** d'un chemin couleur entièrement nouveau, gelé par process version.
+1. **Dépendance DCP** : parseur à écrire ou à intégrer, correctness colorimétrique à valider sans images de référence Adobe sous la main (même prudence qu'ADR 0016 §Alternatives sur le vignettage/TCA). **Reste un risque ouvert, assumé tel quel par [ADR 0035](adr/0035-camera-profile-dcp.md)** : l'ADR fixe le pipeline/architecture (étage, crate, source, reproductibilité) mais laisse le choix de dépendance de parsing à la PR, et exige la validation colorimétrique contre de vrais DCP Adobe avant sortie (barre d'[ADR 0016](adr/0016-process-3-lens-correction.md)).
+2. ~~Interaction avec le gel sRGB~~ — résolu, [ADR 0027](adr/0027-color-management-beyond-srgb.md) puis [ADR 0035](adr/0035-camera-profile-dcp.md) : `leyline-color` est déjà une bibliothèque de transformation couleur générale, et [ADR 0035](adr/0035-camera-profile-dcp.md) y loge l'étage DCP d'entrée (capteur → espace de travail) qu'ADR 0027 ne couvrait pas, en **tout premier** du pipeline.
+3. ~~**Reproductibilité** d'un chemin couleur entièrement nouveau, gelé par process version~~ — résolue, [ADR 0035](adr/0035-camera-profile-dcp.md) : nouvelle process version (le prochain numéro disponible, [ADR 0028](adr/0028-process-version-per-feature.md)) ; le fichier `.dcp` externe référencé est **checksummé en BLAKE3** ([ADR 0006](adr/0006-blake3.md)), un problème genuinely nouveau (les autres ADR stockent leur géométrie inline). Un checksum non concordant déclenche le mode d'échec existant §3.4 (« ne modifie rien, avertis »), pas une catégorie nouvelle — extension du contrat `docs/pipeline.md` §5 à un intrant référencé de l'extérieur.
 
 ---
 
@@ -210,9 +212,9 @@ Un quatrième point, non bloquant mais structurant : **la prolifération des pro
 | Item | ADR propre ? |
 |---|---|
 | 2 — Réglages locaux / masqués | **[ADR 0029](adr/0029-process-6-local-adjustments.md) — le socle est tranché** (process 6, étage masqué, référentiel, stockage, API, presets). D'autres ADR pourront suivre pour des raffinements par type d'outil, mais l'infrastructure ne les attend plus. |
-| 3 — Color grading / TSL | Oui — nouveau process, modèle de teinte gelé. |
-| 4 — Courbe tonale | Oui — nouveau process, interpolation gelée (ADR léger). |
-| 5 — Suppression de tache | Oui — nouveau process, déterminisme du heal, référentiel partagé. |
-| 6 — Dehaze / texture / clarté | Oui — nouveau process ; possiblement un ADR groupé pour les trois. |
-| 7 — Épreuvage / filigrane / impression | Oui, mais **pas** un ADR de développement : filigrane (export), épreuvage/impression (couleur + UI). Dépend d'un ADR préalable d'élargissement couleur (remplaçant ou complétant ADR 0015). |
-| 8 — Profils caméra (DCP) | Oui — nouveau process, nouvel étage pipeline, dépendance externe, chemin couleur. ADR lourd, adossé au même élargissement couleur que l'item 7. |
+| 3 — Courbe tonale | **[ADR 0030](adr/0030-tone-curve.md) — tranché** : courbe par points seule (mode paramétrique coupé), spline cubique monotone gelée, luminance seule, précalcul en LUT. |
+| 4 — Color grading / TSL | **[ADR 0031](adr/0031-hsl-color-grading.md) — tranché** : HSL dérivé du RGB (8 bandes + falloff), zones de color grading pondérées par luminance ; color grading régional déféré. |
+| 5 — Suppression de tache | **[ADR 0032](adr/0032-spot-removal-clone.md) — tranché** : clonage seul (heal coupé de V2), copie bilinéaire déterministe, étage tôt dans le pipeline (après Correction d'objectif), source manuelle, `Param`/`Value` d'[ADR 0029](adr/0029-process-6-local-adjustments.md). |
+| 6 — Dehaze / texture / clarté | **[ADR 0033](adr/0033-clarity-texture-dehaze.md) — tranché** (ADR groupé pour les trois) : clarté/texture en contraste local unifié à deux rayons, dehaze par dark channel prior en forme close ; globaux en V2, masqué déféré. |
+| 7 — Épreuvage / filigrane / impression | **Épreuvage + filigrane tranchés, [ADR 0034](adr/0034-softproofing-watermark-print.md)** — et, comme pressenti, **pas** un ADR de développement (aucun process, aucun étage pipeline) : filigrane texte (export, `ExportSettings`), épreuvage vue seule (preview), les deux sur la primitive couleur d'[ADR 0027](adr/0027-color-management-beyond-srgb.md) qui a complété ADR 0015. **Le module d'impression reste non tranché** : [ADR 0034](adr/0034-softproofing-watermark-print.md) le défère explicitement à son propre futur ADR (L/XL, surtout UI + chemin de sortie dédié), sans le concevoir. |
+| 8 — Profils caméra (DCP) | **[ADR 0035](adr/0035-camera-profile-dcp.md) — tranché** : nouveau process (le prochain disponible, [ADR 0028](adr/0028-process-version-per-feature.md)), nouvel étage colorimétrique en tête de pipeline (avant la correction d'objectif), extension de `leyline-color` (pas de nouveau crate), fichiers utilisateur référencés par chemin relatif et checksummés BLAKE3. La **dépendance de parsing DCP** reste un risque ouvert assumé, laissé à la PR. |
