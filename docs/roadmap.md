@@ -10,7 +10,7 @@ Workspace Cargo, CI, crates.
 
 Phase 2
 
-Lecture RAW + affichage.
+Lecture RAW/JPEG/PNG/TIFF + affichage.
 
 Phase 3
 

@@ -2,7 +2,7 @@
 
 ## Inclus
 
-* Import d'un dossier
+* Import d'un dossier (RAW, DNG, JPEG, PNG, TIFF)
 * Catalogue SQLite
 * Miniatures
 * Lecture EXIF
