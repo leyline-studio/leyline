@@ -328,16 +328,6 @@ fn run() -> Result<(), String> {
         slint::spawn_local(async move {
             if let Some(window) = handle.upgrade() {
                 size_window_to_screen(&window);
-                // The collections sidebar and the grid are populated above,
-                // before the window is ever shown — but observed in the
-                // field: the repeated elements they're bound to (the
-                // collections list, the grid cells) can be missing from the
-                // very first painted frame regardless, staying blank until
-                // some unrelated later repaint (opening a dialog, resizing)
-                // catches them up. Requesting one here, once the event loop
-                // (and with it a real window to redraw) exists, works
-                // around it.
-                window.window().request_redraw();
             }
         })
         .map_err(|e| e.to_string())?;
@@ -363,24 +353,10 @@ fn event_pump(app: &Rc<RefCell<App>>, window: &StudioWindow) -> Timer {
             return;
         };
         let mut app = app.borrow_mut();
-        let mut dirty = false;
         while let Ok(event) = app.events.try_recv() {
             handle_event(&mut app, &window, event);
-            dirty = true;
         }
         dispatch_thumbnails(&mut app);
-        // A freshly rendered thumbnail lands via `VecModel::set_row_data`
-        // on the one already bound to the grid — a content-only change to
-        // an existing row (the model reference and the grid's layout
-        // don't change). Observed in the field: that alone can leave the
-        // window showing its last-painted frame until something else
-        // (opening/closing a dialog, a resize) forces a genuine repaint;
-        // request one explicitly so a batch of thumbnails arriving with no
-        // other UI activity going on doesn't sit invisible until the user
-        // happens to interact with something else.
-        if dirty {
-            window.window().request_redraw();
-        }
     });
     timer
 }
@@ -392,7 +368,7 @@ fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
             asset_id,
             kind: PreviewKind::Thumbnail,
         } => {
-            set_thumbnail_cell(app, window, asset_id);
+            set_thumbnail_cell(app, asset_id);
         }
         Event::JobProgress {
             job_id,
@@ -484,7 +460,7 @@ fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
 }
 
 /// Fills the grid cell of an asset with its freshly cached thumbnail.
-fn set_thumbnail_cell(app: &mut App, window: &StudioWindow, asset: AssetId) {
+fn set_thumbnail_cell(app: &mut App, asset: AssetId) {
     let Some(index) = app.items.iter().position(|item| item.asset_id == asset) else {
         return; // scrolled out of the loaded window meanwhile
     };
@@ -494,22 +470,10 @@ fn set_thumbnail_cell(app: &mut App, window: &StudioWindow, asset: AssetId) {
     let Ok(image) = slint::Image::load_from_path(&file.path) else {
         return;
     };
-    let Some(mut cell) = app.cells.row_data(index) else {
-        return;
-    };
-    cell.thumbnail = image;
-    // `VecModel::set_row_data` on the model already bound to the grid would
-    // be the usual way to update one row, but it left the repeated `Image`
-    // elements never repainted here in practice: the row's content changed
-    // but nothing forced femtovg to actually redraw that image, until an
-    // unrelated full repaint (opening a dialog, resizing) happened to catch
-    // it up. Rebuilding and re-binding the model — the same thing
-    // `load_window` does for the initial paint, which never has this
-    // problem — reliably repaints it instead.
-    let mut cells: Vec<Cell> = app.cells.iter().collect();
-    cells[index] = cell;
-    app.cells = Rc::new(VecModel::from(cells));
-    window.set_cells(ModelRc::from(Rc::clone(&app.cells)));
+    if let Some(mut cell) = app.cells.row_data(index) {
+        cell.thumbnail = image;
+        app.cells.set_row_data(index, cell);
+    }
 }
 
 /// Keeps up to [`MAX_PREVIEW_JOBS`] thumbnail renders in flight, visible
