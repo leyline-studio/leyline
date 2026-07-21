@@ -34,3 +34,4 @@ Une décision acceptée ne se modifie pas : elle se remplace par un nouvel ADR q
 | [0026](0026-mask-spot-coordinate-referential.md) | Référentiel de coordonnées des masques et corrections locales : celui de `crop` |
 | [0027](0027-color-management-beyond-srgb.md) | Gestion des couleurs au-delà de sRGB : profil de sortie découplé du rendu |
 | [0028](0028-process-version-per-feature.md) | Une process version par fonctionnalité pixel : maintien de la duplication par module |
+| [0029](0029-process-6-local-adjustments.md) | Process 6 : réglages locaux masqués (brosse, radial, gradient), stockés dans `settings_json`, pilotés par `Param::LocalAdjustment` |
