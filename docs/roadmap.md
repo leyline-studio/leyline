@@ -39,3 +39,5 @@ Distribution : installateur par plateforme, internationalisation FR/EN (`docs/ad
 Long terme
 
 Plugins, SDK stable, HDR, panorama, IA locale optionnelle.
+
+Fonctionnalités V2 candidates (réglages locaux, courbe, color grading, retouche, dehaze, épreuvage/impression, profils caméra) : `docs/v2-scope.md`.
