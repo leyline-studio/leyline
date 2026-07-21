@@ -7,6 +7,17 @@
 //! slash-separated path), and develops it non-destructively in a
 //! dedicated view (`D` enters, `G` leaves).
 
+// Without this, Windows links the GUI subsystem's exe as a console
+// application: launching it allocates a console window alongside the
+// Slint window, and that console is what's actually hosting the process —
+// closing it kills Studio along with it. `windows_subsystem = "windows"`
+// tells the linker not to allocate one. Kept debug-only-console via
+// `cfg_attr` so a local `cargo run` on Windows still shows `eprintln!`
+// output (`report_error`) in a terminal while developing; the shipped
+// release build (what `packaging/windows/build-nsis.sh` produces) never
+// gets a console. No-op on non-Windows targets.
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod classify;
 mod develop;
 mod format;
