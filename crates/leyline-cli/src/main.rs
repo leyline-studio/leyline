@@ -7,9 +7,9 @@
 use std::path::{Path, PathBuf};
 
 use leyline_sdk::{
-    AssetId, ColorLabel, Crop, ExportFormat, ExportSettings, GridQuery, ImportOptions,
-    LensCorrection, Library, NoiseReduction, Param, PickState, PresetId, PreviewKind, Settings,
-    SettingsGroup, Sharpening, Value, VersionId, WhiteBalance,
+    AssetId, ColorLabel, Crop, ExportFormat, ExportRecipe, ExportRequest, ExportSettings,
+    GridQuery, ImportOptions, LensCorrection, Library, NoiseReduction, Param, PickState, PresetId,
+    PreviewKind, Settings, SettingsGroup, Sharpening, Value, VersionId, WhiteBalance,
 };
 
 const USAGE: &str = "\
@@ -667,7 +667,7 @@ fn export(args: &[String]) -> Result<(), String> {
     let library = open(root)?;
 
     let progress = |done: u64, total: u64| eprint!("\rexporting {done}/{total}");
-    let report = match options.value("preset") {
+    let recipe_kind = match options.value("preset") {
         Some(name) => {
             if options.value("format").is_some()
                 || options.value("quality").is_some()
@@ -683,17 +683,18 @@ fn export(args: &[String]) -> Result<(), String> {
                 .into_iter()
                 .find(|p| p.name == *name)
                 .ok_or_else(|| format!("no export preset named {name:?}"))?;
-            library
-                .export_with_preset(&versions, stored.preset, &destination, progress)
-                .map_err(|e| e.to_string())?
+            ExportRecipe::Preset(stored.preset)
         }
-        None => {
-            let settings = recipe(&options)?;
-            library
-                .export_batch(&versions, &settings, &destination, progress)
-                .map_err(|e| e.to_string())?
-        }
+        None => ExportRecipe::Adhoc(recipe(&options)?),
     };
+    let request = ExportRequest {
+        versions,
+        recipe: recipe_kind,
+        destination_dir: destination,
+    };
+    let report = library
+        .export(&request, progress)
+        .map_err(|e| e.to_string())?;
     eprintln!();
     for exported in &report.exported {
         println!("exported {}", exported.path.display());
@@ -707,7 +708,7 @@ fn export(args: &[String]) -> Result<(), String> {
         Err(format!(
             "{} of {} export(s) failed",
             report.failed.len(),
-            versions.len()
+            report.exported.len() + report.failed.len()
         ))
     }
 }

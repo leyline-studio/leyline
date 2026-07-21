@@ -26,9 +26,9 @@ use std::time::Duration;
 use classify::Action;
 use leyline_sdk::{
     AssetId, CollectionId, CollectionNode, CollectionType, ColorLabel, Event, ExportFormat,
-    ExportPreset, ExportReport, ExportSettings, GridItem, GridQuery, ImportOptions, JobId,
-    JobResult, KeywordId, KeywordNode, Library, PickState, Preset, PreviewKind, Settings,
-    SettingsGroup, SkippedFile, Sort, VersionId,
+    ExportPreset, ExportRecipe, ExportReport, ExportRequest, ExportSettings, GridItem, GridQuery,
+    ImportOptions, JobId, JobResult, KeywordId, KeywordNode, Library, PickState, Preset,
+    PreviewKind, Settings, SettingsGroup, SkippedFile, Sort, VersionId,
 };
 use slint::winit_030::WinitWindowAccessor;
 use slint::{ComponentHandle, Global, Model, ModelRc, SharedString, Timer, TimerMode, VecModel};
@@ -921,10 +921,8 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 .ok()
                 .and_then(|i| app.presets.get(i))
                 .map(|preset| preset.preset);
-            let job = match stored {
-                Some(id) => app
-                    .library
-                    .export_with_preset_async(vec![version], id, destination),
+            let recipe = match stored {
+                Some(id) => ExportRecipe::Preset(id),
                 None => {
                     let settings = match export_settings(format, &quality, &max_edge) {
                         Ok(settings) => settings,
@@ -933,10 +931,14 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                             return;
                         }
                     };
-                    app.library
-                        .export_async(vec![version], settings, destination)
+                    ExportRecipe::Adhoc(settings)
                 }
             };
+            let job = app.library.export_async(ExportRequest {
+                versions: vec![version],
+                recipe,
+                destination_dir: destination,
+            });
             app.export_job = Some(job);
             window.set_dialog_result(Tr::get(&window).invoke_exporting_ellipsis());
         });

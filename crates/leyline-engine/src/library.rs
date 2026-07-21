@@ -29,7 +29,7 @@ use leyline_preview::PreviewCache;
 
 use crate::decode_cache::DecodeCache;
 use crate::events::{Event, JobResult};
-use crate::export::ExportReport;
+use crate::export::{ExportReport, ExportRequest};
 use crate::import::{ImportOptions, ImportReport, ImportedFile};
 use crate::presets::PresetApplyReport;
 use crate::preview::{Preview, PreviewFile};
@@ -533,66 +533,33 @@ impl Library {
         Ok(Preview::Generating(self.preview_async(asset, kind)))
     }
 
-    /// Exports a version at its head revision (§12) and returns the file.
+    /// Exports every version of `request` through its recipe (§12).
+    /// `progress` receives `(done, total)` per version; one failure does
+    /// not stop the rest — it is reported in [`ExportReport::failed`].
     ///
     /// Like [`Library::preview`], this deliberately does *not* hold the
-    /// catalog lock across the render: decode + `process1`–`5` + encode can
-    /// take seconds, and a batch export runs this per version, so holding
-    /// the lock there would freeze all of Studio's navigation, search and
-    /// metadata edits for the whole export instead of just the version at
-    /// hand (ADR 0024). Unlike a preview, an exported file is a one-shot
-    /// artifact the caller asked for — not a revision-keyed cache another
-    /// call might later serve as "current" — so no amendment guard is
-    /// needed: the file is simply journaled once rendered.
+    /// catalog lock across a render: decode + `process1`–`5` + encode can
+    /// take seconds, and this runs once per version, so holding the lock
+    /// for the whole request would freeze all of Studio's navigation,
+    /// search and metadata edits for its full duration instead of just the
+    /// version at hand (ADR 0024). Unlike a preview, an exported file is a
+    /// one-shot artifact the caller asked for — not a revision-keyed cache
+    /// another call might later serve as "current" — so no amendment guard
+    /// is needed: each file is simply journaled once rendered. A
+    /// [`ExportRecipe::Preset`] is resolved once, up front, under its own
+    /// short lock — a preset edited mid-request does not retroactively
+    /// change versions already exported.
     pub fn export(
         &self,
-        version: VersionId,
-        settings: &ExportSettings,
-        preset: Option<ExportPresetId>,
-        destination_dir: &Path,
-    ) -> Result<PathBuf> {
-        settings.validate().map_err(crate::export::export_err)?;
-        let plan = {
-            let catalog = lock(&self.inner.catalog);
-            crate::export::plan_export(&catalog, &self.inner.root, version)?
-        };
-        let destination = crate::export::render_export(&plan, settings, destination_dir)?;
-        let mut catalog = lock(&self.inner.catalog);
-        crate::export::journal_export(&mut catalog, &plan, preset, settings, &destination)?;
-        Ok(destination)
-    }
-
-    /// Exports several versions with one ad-hoc recipe (§12). `progress`
-    /// receives `(done, total)` per version; one failure does not stop the
-    /// batch. The catalog lock is narrowed per version, not held for the
-    /// whole batch (ADR 0024) — see [`Library::export`].
-    pub fn export_batch(
-        &self,
-        versions: &[VersionId],
-        settings: &ExportSettings,
-        destination_dir: &Path,
-        progress: impl FnMut(u64, u64),
-    ) -> Result<ExportReport> {
-        self.export_batch_with_preset(versions, settings, None, destination_dir, progress)
-    }
-
-    /// Shared core of [`Library::export_batch`] and
-    /// [`Library::export_with_preset`]: exports each version through
-    /// [`Library::export`], so the catalog lock never spans more than one
-    /// version's render (ADR 0024).
-    fn export_batch_with_preset(
-        &self,
-        versions: &[VersionId],
-        settings: &ExportSettings,
-        preset: Option<ExportPresetId>,
-        destination_dir: &Path,
+        request: &ExportRequest,
         mut progress: impl FnMut(u64, u64),
     ) -> Result<ExportReport> {
+        let (settings, preset) = self.resolve_export_recipe(&request.recipe)?;
         settings.validate().map_err(crate::export::export_err)?;
-        let total = versions.len() as u64;
+        let total = request.versions.len() as u64;
         let mut report = ExportReport::default();
-        for (done, &version) in versions.iter().enumerate() {
-            match self.export(version, settings, preset, destination_dir) {
+        for (done, &version) in request.versions.iter().enumerate() {
+            match self.export_one(version, &settings, preset, &request.destination_dir) {
                 Ok(path) => report
                     .exported
                     .push(crate::export::ExportedVersion { version, path }),
@@ -606,19 +573,15 @@ impl Library {
         Ok(report)
     }
 
-    /// Exports several versions as a job (§3.1, §12): returns immediately,
+    /// Exports `request` as a job (§3.1, §12): returns immediately,
     /// progresses as `JobProgress` per version, then `JobFinished` with the
-    /// report (per-version failures inside it, batch failures as `Failed`).
-    pub fn export_async(
-        &self,
-        versions: Vec<VersionId>,
-        settings: ExportSettings,
-        destination_dir: PathBuf,
-    ) -> JobId {
+    /// report (per-version failures inside it, request-level failures as
+    /// `Failed`).
+    pub fn export_async(&self, request: ExportRequest) -> JobId {
         let job = self.new_job();
         let library = self.clone();
         self.spawn_job(move || {
-            let exported = library.export_batch(&versions, &settings, &destination_dir, {
+            let exported = library.export(&request, {
                 let library = library.clone();
                 move |done, total| {
                     library.emit(Event::JobProgress {
@@ -640,57 +603,42 @@ impl Library {
         job
     }
 
-    /// Exports several versions with a stored preset, as a job (§3.1,
-    /// §12): same event contract as [`Library::export_async`].
-    pub fn export_with_preset_async(
+    /// Resolves a recipe to the settings that drive the render, and the
+    /// preset id (if any) each export journals against.
+    fn resolve_export_recipe(
         &self,
-        versions: Vec<VersionId>,
-        preset: ExportPresetId,
-        destination_dir: PathBuf,
-    ) -> JobId {
-        let job = self.new_job();
-        let library = self.clone();
-        self.spawn_job(move || {
-            let exported = library.export_with_preset(&versions, preset, &destination_dir, {
-                let library = library.clone();
-                move |done, total| {
-                    library.emit(Event::JobProgress {
-                        job_id: job,
-                        done,
-                        total,
-                    });
-                }
-            });
-            let result = match exported {
-                Ok(report) => JobResult::Export(report),
-                Err(error) => JobResult::Failed(error.to_string()),
-            };
-            library.emit(Event::JobFinished {
-                job_id: job,
-                result,
-            });
-        });
-        job
+        recipe: &crate::export::ExportRecipe,
+    ) -> Result<(ExportSettings, Option<ExportPresetId>)> {
+        match recipe {
+            crate::export::ExportRecipe::Adhoc(settings) => Ok((*settings, None)),
+            crate::export::ExportRecipe::Preset(preset) => {
+                let catalog = lock(&self.inner.catalog);
+                let stored = catalog.export_preset(*preset)?;
+                let settings = ExportSettings::parse(&stored.settings_json)
+                    .map_err(crate::export::export_err)?;
+                Ok((settings, Some(*preset)))
+            }
+        }
     }
 
-    /// Exports several versions with a stored preset (§12): the preset's
-    /// recipe drives the batch and each success is journaled against it.
-    /// Only the preset lookup holds the catalog lock up front; each
-    /// version's render is narrowed the same way as
-    /// [`Library::export_batch`] (ADR 0024).
-    pub fn export_with_preset(
+    /// Exports one version at its head revision and returns the written
+    /// file — the per-version core [`Library::export`] loops over, with the
+    /// catalog lock narrowed to the plan and the journal (ADR 0024).
+    fn export_one(
         &self,
-        versions: &[VersionId],
-        preset: ExportPresetId,
+        version: VersionId,
+        settings: &ExportSettings,
+        preset: Option<ExportPresetId>,
         destination_dir: &Path,
-        progress: impl FnMut(u64, u64),
-    ) -> Result<ExportReport> {
-        let settings = {
+    ) -> Result<PathBuf> {
+        let plan = {
             let catalog = lock(&self.inner.catalog);
-            let stored = catalog.export_preset(preset)?;
-            ExportSettings::parse(&stored.settings_json).map_err(crate::export::export_err)?
+            crate::export::plan_export(&catalog, &self.inner.root, version)?
         };
-        self.export_batch_with_preset(versions, &settings, Some(preset), destination_dir, progress)
+        let destination = crate::export::render_export(&plan, settings, destination_dir)?;
+        let mut catalog = lock(&self.inner.catalog);
+        crate::export::journal_export(&mut catalog, &plan, preset, settings, &destination)?;
+        Ok(destination)
     }
 
     /// Stores a named export preset (§12), validating the recipe first.

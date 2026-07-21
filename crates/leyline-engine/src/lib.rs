@@ -29,7 +29,10 @@ mod xmp;
 
 pub use decode_cache::DecodeCache;
 pub use events::{Event, JobResult};
-pub use export::{ExportReport, ExportedVersion, FailedExport, export_batch, export_version};
+pub use export::{
+    ExportRecipe, ExportReport, ExportRequest, ExportedVersion, FailedExport, export_batch,
+    export_version,
+};
 pub use import::{ImportOptions, ImportReport, ImportedFile, SkippedFile, import};
 pub use library::{CatalogRead, CatalogWrite, Library};
 pub use presets::{FailedApply, PresetApplyReport, apply_batch, capture};

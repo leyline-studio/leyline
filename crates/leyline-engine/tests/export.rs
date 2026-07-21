@@ -2,7 +2,9 @@
 
 use leyline_catalog::Catalog;
 use leyline_core::{ExportPresetId, LeylineError, VersionId};
-use leyline_engine::{ImportOptions, Library, export_batch, export_version, import};
+use leyline_engine::{
+    ExportRecipe, ExportRequest, ImportOptions, Library, export_batch, export_version, import,
+};
 use leyline_export::{ExportFormat, ExportSettings};
 
 fn library(dir: &tempfile::TempDir) -> (Catalog, std::path::PathBuf) {
@@ -123,13 +125,13 @@ fn a_failing_version_does_not_stop_the_batch() {
     ));
 }
 
-/// `Library::export_batch` narrows the catalog lock to one version at a time
-/// (ADR 0024) rather than holding it for the whole batch, as the free
+/// `Library::export` narrows the catalog lock to one version at a time
+/// (ADR 0024) rather than holding it for the whole request, as the free
 /// `export_batch` function still does. This exercises that facade path
-/// end to end: every version in the batch must still succeed, get journaled
-/// against its own asset, and land under its own filename.
+/// end to end: every version in the request must still succeed, get
+/// journaled against its own asset, and land under its own filename.
 #[test]
-fn library_export_batch_narrows_the_lock_and_still_exports_every_version() {
+fn library_export_narrows_the_lock_and_still_exports_every_version() {
     let dir = tempfile::tempdir().unwrap();
     let library = Library::create(&dir.path().join("Library"), "Batch").unwrap();
     let source = dir.path().join("Shoot");
@@ -164,10 +166,12 @@ fn library_export_batch_narrows_the_lock_and_still_exports_every_version() {
     let out = dir.path().join("out");
     let mut ticks = Vec::new();
     let batch = library
-        .export_batch(
-            &versions,
-            &ExportSettings::default(),
-            &out,
+        .export(
+            &ExportRequest {
+                versions: versions.clone(),
+                recipe: ExportRecipe::Adhoc(ExportSettings::default()),
+                destination_dir: out,
+            },
             |done, total| ticks.push((done, total)),
         )
         .unwrap();
@@ -220,13 +224,15 @@ fn presets_are_validated_stored_and_drive_batches() {
         settings
     );
 
-    // The preset drives a batch; an unknown version fails inside the
+    // The preset drives a request; an unknown version fails inside the
     // report, an unknown preset fails the whole call.
     let report = library
-        .export_with_preset(
-            &[VersionId::new(999)],
-            preset,
-            &dir.path().join("out"),
+        .export(
+            &ExportRequest {
+                versions: vec![VersionId::new(999)],
+                recipe: ExportRecipe::Preset(preset),
+                destination_dir: dir.path().join("out"),
+            },
             |_, _| {},
         )
         .unwrap();
@@ -234,10 +240,12 @@ fn presets_are_validated_stored_and_drive_batches() {
     assert_eq!(report.failed.len(), 1);
 
     assert!(matches!(
-        library.export_with_preset(
-            &[VersionId::new(999)],
-            ExportPresetId::new(999),
-            &dir.path().join("out"),
+        library.export(
+            &ExportRequest {
+                versions: vec![VersionId::new(999)],
+                recipe: ExportRecipe::Preset(ExportPresetId::new(999)),
+                destination_dir: dir.path().join("out"),
+            },
             |_, _| {},
         ),
         Err(LeylineError::ExportPresetMissing(_))

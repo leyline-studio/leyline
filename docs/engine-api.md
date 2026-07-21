@@ -416,38 +416,40 @@ La `Library` garde en mémoire les derniers décodages source (cache MRU borné,
 # 12. Export
 
 ```rust
+pub enum ExportRecipe {
+    /// Réglages fournis par l'appelant, non stockés.
+    Adhoc(ExportSettings),
+    /// Un preset stocké (§27), résolu à l'exécution de la requête.
+    Preset(ExportPresetId),
+}
+
 pub struct ExportRequest {
     pub versions: Vec<VersionId>,
-    pub preset: ExportPresetId,
-    pub destination: PathBuf,
+    pub recipe: ExportRecipe,
+    pub destination_dir: PathBuf,
 }
 
 impl Library {
-    pub fn export(&self, request: ExportRequest) -> Result<JobId>;
+    /// Synchrone : `progress` reçoit `(done, total)` par version ; un échec
+    /// individuel ne stoppe pas les autres, il atterrit dans
+    /// `ExportReport::failed`.
+    pub fn export(&self, request: &ExportRequest,
+                  progress: impl FnMut(u64, u64)) -> Result<ExportReport>;
+    /// Le job : `JobProgress` par version, puis `JobFinished` avec le
+    /// rapport (échecs par version dans le rapport, échec de la requête
+    /// entière en `Failed`).
+    pub fn export_async(&self, request: ExportRequest) -> JobId;
     pub fn export_presets(&self) -> Result<Vec<ExportPreset>>;
 }
 ```
 
-**Surface livrée** : la forme à `ExportRequest` unique reste à venir ; aujourd'hui l'export existe en synchrone (`export`, `export_batch`, `export_with_preset` — recette ad hoc ou preset) et en job, dans les deux cas :
+**Surface livrée** — la forme à `ExportRequest` unique décrite ci-dessus, avec deux différences assumées par rapport au brouillon initial de ce document : `recipe` est une union (`Adhoc`/`Preset`) plutôt qu'un `preset: ExportPresetId` forcé — une recette ad hoc est un cas réel (dialogue d'export de Studio, `leyline export` de la CLI sans `--preset`), pas seulement les presets stockés ; et `export` a une forme synchrone en plus du job, nécessaire pour un usage scripté (CLI, SDK) qui n'a pas besoin d'attendre un événement pour un export ponctuel. Une seule requête couvre maintenant ce qui existait avant comme trois entrées synchrones (`export`, `export_batch`, `export_with_preset`) et deux jobs (`export_async`, `export_with_preset_async`).
 
-```rust
-impl Library {
-    /// Le job (recette ad hoc) : `JobProgress` par version, puis
-    /// `JobFinished` avec le rapport (échecs par version dans le rapport,
-    /// échec du lot en `Failed`).
-    pub fn export_async(&self, versions: Vec<VersionId>,
-                        settings: ExportSettings, destination_dir: PathBuf) -> JobId;
-    /// Le job (preset stocké) : même contrat d'événements.
-    pub fn export_with_preset_async(&self, versions: Vec<VersionId>,
-                                    preset: ExportPresetId, destination_dir: PathBuf) -> JobId;
-}
-```
-
-Studio pilote désormais ses dialogues d'import et d'export ainsi que ses vignettes de grille par ce flux : `import_async`/`export_async`/`export_with_preset_async` pour les dialogues (progression affichée depuis `JobProgress`, résultat depuis `JobFinished`), `preview_async` pour les vignettes (jusqu'à 3 rendus en vol, remplis depuis `PreviewReady`).
+Studio pilote désormais ses dialogues d'import et d'export ainsi que ses vignettes de grille par ce flux : `import_async`/`export_async` pour les dialogues (progression affichée depuis `JobProgress`, résultat depuis `JobFinished`), `preview_async` pour les vignettes (jusqu'à 3 rendus en vol, remplis depuis `PreviewReady`).
 
 L'export rend chaque version à sa révision de tête, avec sa process version (`pipeline.md` §3.3), et journalise dans `export_history`. Les pixels rendus sont en sRGB (`adr/0015-color-management-srgb.md`) ; `leyline-export` embarque le profil ICC sRGB canonique (généré par LittleCMS, `leyline-color::srgb_icc_profile`) dans les fichiers JPEG, PNG et TIFF — WebP et AVIF s'en passent, faute de support ICC dans leurs bibliothèques d'encodage.
 
-Comme `Library::preview` (§11, `adr/0023-catalog-lock-narrowing-preview.md`), `Library::export` et les lots qu'il sous-tend (`export_batch`, `export_with_preset`, et leurs jobs) ne tiennent le verrou catalogue que pour la lecture des réglages et l'écriture du journal — jamais pendant le décodage/rendu/encodage d'une version (`adr/0024-catalog-lock-narrowing-export.md`). Un lot ne bloque donc plus la navigation, la recherche ou l'édition de métadonnées pour toute sa durée, seulement version par version.
+Comme `Library::preview` (§11, `adr/0023-catalog-lock-narrowing-preview.md`), `Library::export` ne tient le verrou catalogue que pour la lecture des réglages (résolution du preset le cas échéant) et l'écriture du journal — jamais pendant le décodage/rendu/encodage d'une version (`adr/0024-catalog-lock-narrowing-export.md`). Une requête à plusieurs versions ne bloque donc plus la navigation, la recherche ou l'édition de métadonnées pour toute sa durée, seulement version par version.
 
 ---
 

@@ -15,6 +15,33 @@ use leyline_raw::DecodeParams;
 
 use crate::render;
 
+/// The recipe an [`ExportRequest`] drives an export with: either an ad-hoc
+/// set of settings, or a stored preset resolved (and journaled by id)
+/// at export time.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExportRecipe {
+    /// Settings supplied by the caller, not stored anywhere.
+    Adhoc(ExportSettings),
+    /// A preset stored in the catalog (§27), looked up when the request
+    /// runs — so a preset edited after the request was built is picked up
+    /// at export time, not when the request was constructed.
+    Preset(ExportPresetId),
+}
+
+/// One export call (§12): several versions through one recipe, into one
+/// destination directory. The single request shape [`Library::export`] and
+/// [`Library::export_async`] both take, replacing the former split between
+/// an ad-hoc batch and a preset batch.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExportRequest {
+    /// The versions to export, each at its head revision.
+    pub versions: Vec<VersionId>,
+    /// The recipe driving every version in this request.
+    pub recipe: ExportRecipe,
+    /// Directory the rendered files are written into.
+    pub destination_dir: PathBuf,
+}
+
 /// Everything [`render_export`] needs to decode, develop, scale and encode
 /// one version, gathered from the catalog up front so the catalog itself
 /// doesn't need to stay locked for the render (ADR 0024, mirroring

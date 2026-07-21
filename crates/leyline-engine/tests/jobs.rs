@@ -3,7 +3,9 @@
 use std::time::Duration;
 
 use leyline_core::{JobId, PreviewKind, VersionId};
-use leyline_engine::{Event, ImportOptions, JobResult, Library, Preview};
+use leyline_engine::{
+    Event, ExportRecipe, ExportRequest, ImportOptions, JobResult, Library, Preview,
+};
 use leyline_export::ExportSettings;
 
 /// Events are notifications across threads: the handle must be shareable.
@@ -378,11 +380,11 @@ fn an_export_job_reports_per_version_failures_in_the_report() {
     let events = library.subscribe();
 
     // An unknown version fails inside the report, not the job.
-    let job = library.export_async(
-        vec![VersionId::new(999)],
-        ExportSettings::default(),
-        dir.path().join("out"),
-    );
+    let job = library.export_async(ExportRequest {
+        versions: vec![VersionId::new(999)],
+        recipe: ExportRecipe::Adhoc(ExportSettings::default()),
+        destination_dir: dir.path().join("out"),
+    });
     let received = drain_until_finished(&events, job);
 
     match received.last() {
