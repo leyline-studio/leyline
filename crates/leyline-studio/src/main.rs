@@ -328,6 +328,16 @@ fn run() -> Result<(), String> {
         slint::spawn_local(async move {
             if let Some(window) = handle.upgrade() {
                 size_window_to_screen(&window);
+                // The collections sidebar and the grid are populated above,
+                // before the window is ever shown — but observed in the
+                // field: the repeated elements they're bound to (the
+                // collections list, the grid cells) can be missing from the
+                // very first painted frame regardless, staying blank until
+                // some unrelated later repaint (opening a dialog, resizing)
+                // catches them up. Requesting one here, once the event loop
+                // (and with it a real window to redraw) exists, works
+                // around it.
+                window.window().request_redraw();
             }
         })
         .map_err(|e| e.to_string())?;
