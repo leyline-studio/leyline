@@ -643,24 +643,40 @@ fn many_concurrent_preview_jobs_all_complete_behind_the_bounded_pool() {
         .map(|&asset| (library.preview_async(asset, PreviewKind::Small), asset))
         .collect();
 
+    // Jobs run concurrently behind the pool and can finish in any order, so
+    // draining per job (stopping at that job's own `JobFinished`) would
+    // silently swallow other jobs' events that arrive in between — those
+    // jobs would then starve waiting on events already consumed. Instead,
+    // drain the shared receiver once for everyone and bucket events by
+    // asset/job as they arrive.
+    let mut remaining: std::collections::HashSet<JobId> =
+        jobs.iter().map(|&(job, _)| job).collect();
+    let mut preview_ready: Vec<(leyline_core::AssetId, PreviewKind)> = Vec::new();
+    let mut finished: std::collections::HashMap<JobId, JobResult> =
+        std::collections::HashMap::new();
+
+    while !remaining.is_empty() {
+        let event = events
+            .recv_timeout(Duration::from_secs(30))
+            .expect("every job must finish");
+        match event {
+            Event::PreviewReady { asset_id, kind } => preview_ready.push((asset_id, kind)),
+            Event::JobFinished { job_id, result } if remaining.remove(&job_id) => {
+                finished.insert(job_id, result);
+            }
+            _ => {}
+        }
+    }
+
     for (job, asset) in jobs {
-        let received = drain_until_finished(&events, job);
         assert!(
-            received.iter().any(|e| matches!(
-                e,
-                Event::PreviewReady { asset_id, kind }
-                    if *asset_id == asset && *kind == PreviewKind::Small
-            )),
+            preview_ready
+                .iter()
+                .any(|(id, kind)| *id == asset && *kind == PreviewKind::Small),
             "job {job:?} never emitted its own PreviewReady"
         );
         assert!(
-            matches!(
-                received.last(),
-                Some(Event::JobFinished {
-                    result: JobResult::Preview(_),
-                    ..
-                })
-            ),
+            matches!(finished.get(&job), Some(JobResult::Preview(_))),
             "job {job:?} did not finish with a Preview result"
         );
     }
