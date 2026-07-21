@@ -36,6 +36,7 @@
 //!   (see [`crate::pixels`]); white balance and exposure convert to linear
 //!   light internally.
 
+use std::cell::RefCell;
 use std::sync::OnceLock;
 
 use leyline_core::Result;
@@ -205,17 +206,28 @@ fn undistort(px: &Pixels, correction: &leyline_lens::Correction) -> Pixels {
         // skip the whole per-pixel pass rather than pay for a no-op.
         return px.clone();
     }
+    // Reused per render thread rather than allocated fresh per row: `source_row`
+    // computes the same coordinates either way, this only spares the two Vec
+    // allocations `source_row` would otherwise make on every one of the
+    // image's rows.
+    type SourceRowScratch = RefCell<(Vec<f32>, Vec<(f32, f32)>)>;
+    thread_local! {
+        static SCRATCH: SourceRowScratch = const { RefCell::new((Vec::new(), Vec::new())) };
+    }
     let mut data = vec![0.0f32; px.data.len()];
     data.par_chunks_mut(px.width as usize * 3)
         .enumerate()
         .for_each(|(y, row)| {
-            let sources = correction.source_row(y as u32, px.width);
-            for (x, rgb_out) in row.chunks_exact_mut(3).enumerate() {
-                let (sx, sy) = sources[x];
-                if let Some(rgb) = lens_bilinear(px, sx, sy) {
-                    rgb_out.copy_from_slice(&rgb);
+            SCRATCH.with(|cell| {
+                let (scratch, sources) = &mut *cell.borrow_mut();
+                correction.source_row_into(y as u32, px.width, scratch, sources);
+                for (x, rgb_out) in row.chunks_exact_mut(3).enumerate() {
+                    let (sx, sy) = sources[x];
+                    if let Some(rgb) = lens_bilinear(px, sx, sy) {
+                        rgb_out.copy_from_slice(&rgb);
+                    }
                 }
-            }
+            });
         });
     Pixels {
         width: px.width,
@@ -242,18 +254,26 @@ fn correct_tca(px: &Pixels, correction: &leyline_lens::Correction) -> Pixels {
         // resamples per pixel.
         return px.clone();
     }
+    // Same reuse-per-thread rationale as `undistort`'s scratch buffers above.
+    type TcaRowScratch = RefCell<(Vec<f32>, Vec<[(f32, f32); 3]>)>;
+    thread_local! {
+        static SCRATCH: TcaRowScratch = const { RefCell::new((Vec::new(), Vec::new())) };
+    }
     let mut data = vec![0.0f32; px.data.len()];
     data.par_chunks_mut(px.width as usize * 3)
         .enumerate()
         .for_each(|(y, row)| {
-            let channels = correction.tca_row(y as u32, px.width);
-            for (x, rgb_out) in row.chunks_exact_mut(3).enumerate() {
-                for (c, &(sx, sy)) in channels[x].iter().enumerate() {
-                    if let Some(value) = lens_bilinear_channel(px, sx, sy, c) {
-                        rgb_out[c] = value;
+            SCRATCH.with(|cell| {
+                let (scratch, channels) = &mut *cell.borrow_mut();
+                correction.tca_row_into(y as u32, px.width, scratch, channels);
+                for (x, rgb_out) in row.chunks_exact_mut(3).enumerate() {
+                    for (c, &(sx, sy)) in channels[x].iter().enumerate() {
+                        if let Some(value) = lens_bilinear_channel(px, sx, sy, c) {
+                            rgb_out[c] = value;
+                        }
                     }
                 }
-            }
+            });
         });
     Pixels {
         width: px.width,

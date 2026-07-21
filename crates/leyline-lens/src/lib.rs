@@ -125,6 +125,26 @@ impl Correction {
         coords.chunks_exact(2).map(|c| (c[0], c[1])).collect()
     }
 
+    /// Same result as [`Correction::source_row`], written into caller-owned
+    /// buffers instead of allocating fresh ones. `scratch` and `out` are both
+    /// cleared and refilled — callers that reuse them across many rows (e.g.
+    /// one buffer pair per render thread) turn per-row allocation into a
+    /// one-time capacity grow, with no change to the coordinates produced.
+    pub fn source_row_into(
+        &self,
+        y: u32,
+        width: u32,
+        scratch: &mut Vec<f32>,
+        out: &mut Vec<(f32, f32)>,
+    ) {
+        scratch.clear();
+        scratch.extend((0..width).flat_map(|x| [x as f32, y as f32]));
+        self.modifier
+            .apply_geometry_distortion(0.0, y as f32, width as usize, 1, scratch);
+        out.clear();
+        out.extend(scratch.chunks_exact(2).map(|c| (c[0], c[1])));
+    }
+
     /// The per-channel source coordinate `[red, green, blue]` to sample for
     /// each pixel of output row `y` — transverse chromatic aberration shifts
     /// each channel's true position slightly differently, unlike distortion
@@ -146,6 +166,30 @@ impl Correction {
             .chunks_exact(6)
             .map(|c| [(c[0], c[1]), (c[2], c[3]), (c[4], c[5])])
             .collect()
+    }
+
+    /// Same result as [`Correction::tca_row`], written into caller-owned
+    /// buffers instead of allocating fresh ones — see
+    /// [`Correction::source_row_into`] for why this is worth having.
+    pub fn tca_row_into(
+        &self,
+        y: u32,
+        width: u32,
+        scratch: &mut Vec<f32>,
+        out: &mut Vec<[(f32, f32); 3]>,
+    ) {
+        scratch.clear();
+        scratch.extend(
+            (0..width).flat_map(|x| [x as f32, y as f32, x as f32, y as f32, x as f32, y as f32]),
+        );
+        self.modifier
+            .apply_subpixel_distortion(0.0, y as f32, width as usize, 1, scratch);
+        out.clear();
+        out.extend(
+            scratch
+                .chunks_exact(6)
+                .map(|c| [(c[0], c[1]), (c[2], c[3]), (c[4], c[5])]),
+        );
     }
 }
 
