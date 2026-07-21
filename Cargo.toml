@@ -51,3 +51,15 @@ missing_docs = "warn"
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
+
+# `overflow-checks` and `debug-assertions` default to off in release, same as
+# every other Cargo project — spelled out here so that's a decision, not an
+# accident. The develop pipeline's per-pixel loops (process1-5) are the
+# reason: those checks add a branch to every arithmetic op in code Phase 7
+# spent real effort tightening (ADR 0012), and the values they'd guard —
+# image width/height — come from LibRaw/the `image` crate already clamped to
+# real sensor sizes, nowhere near `usize` overflow territory. Revisit only if
+# a size computation moves to genuinely untrusted input (e.g. a user-supplied
+# dimension) that isn't bounded that way.
+[profile.release]
+overflow-checks = false
