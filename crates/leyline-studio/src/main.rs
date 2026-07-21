@@ -410,7 +410,12 @@ fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
             } else if app.preview_jobs.remove(&job_id)
                 && let JobResult::Failed(reason) = result
             {
-                eprintln!("error: {reason}");
+                // Release builds have no console (`windows_subsystem =
+                // "windows"`) to catch a bare `eprintln!`, so a thumbnail
+                // render failure needs to reach the status line or it's
+                // invisible — e.g. a missing LibRaw DLL dependency would
+                // silently leave every thumbnail blank with no clue why.
+                report_error(window, &reason);
             }
         }
         Event::AssetsChanged { asset_ids } => {
