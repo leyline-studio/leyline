@@ -201,6 +201,117 @@ fn remove_revision_previews_returns_the_paths_to_delete() {
 }
 
 #[test]
+fn record_preview_if_current_writes_when_settings_still_match() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+    let registered = registered_asset(&mut catalog);
+    let settings_json = catalog.revision(registered.revision).unwrap().settings_json;
+
+    let wrote = catalog
+        .record_preview_if_current(&thumbnail(&registered, registered.revision), &settings_json)
+        .unwrap();
+
+    assert!(wrote);
+    assert!(
+        catalog
+            .valid_preview(registered.asset, PreviewKind::Thumbnail)
+            .unwrap()
+            .is_some()
+    );
+}
+
+#[test]
+fn record_preview_if_current_skips_a_revision_amended_in_place() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+    let registered = registered_asset(&mut catalog);
+    // The settings captured before the (simulated) concurrent render started.
+    let stale_settings_json = catalog.revision(registered.revision).unwrap().settings_json;
+
+    // Same revision id rewritten in place — the §17 amendment path, here
+    // done directly over SQL the way `edit()` above simulates a commit,
+    // since `try_amend_head` itself lives in `leyline-engine`.
+    catalog
+        .connection()
+        .execute(
+            "UPDATE develop_revisions SET settings_json = '{\"schema\":1,\"exposure\":1.0}' WHERE id = ?1",
+            [registered.revision.get()],
+        )
+        .unwrap();
+
+    let wrote = catalog
+        .record_preview_if_current(
+            &thumbnail(&registered, registered.revision),
+            &stale_settings_json,
+        )
+        .unwrap();
+
+    assert!(!wrote, "a stale render must never be recorded as valid");
+    assert_eq!(
+        catalog
+            .valid_preview(registered.asset, PreviewKind::Thumbnail)
+            .unwrap(),
+        None
+    );
+}
+
+#[test]
+fn record_preview_if_current_writes_across_a_plain_commit() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+    let registered = registered_asset(&mut catalog);
+    let rendered_revision = registered.revision;
+    let settings_json = catalog.revision(rendered_revision).unwrap().settings_json;
+
+    // A plain commit (not an amendment): a new revision, head moves on, the
+    // rendered revision's own `settings_json` is untouched.
+    edit(&catalog, &registered);
+
+    let wrote = catalog
+        .record_preview_if_current(&thumbnail(&registered, rendered_revision), &settings_json)
+        .unwrap();
+
+    assert!(wrote, "a plain commit must never trip the guard");
+    // Not the head anymore, so not valid yet — but an undo back onto it
+    // revalidates for free, same as `record_preview` today.
+    assert_eq!(
+        catalog
+            .valid_preview(registered.asset, PreviewKind::Thumbnail)
+            .unwrap(),
+        None
+    );
+    catalog
+        .connection()
+        .execute(
+            "UPDATE develop_versions SET head_revision_id = ?1 WHERE id = ?2",
+            rusqlite::params![rendered_revision.get(), registered.version.get()],
+        )
+        .unwrap();
+    assert!(
+        catalog
+            .valid_preview(registered.asset, PreviewKind::Thumbnail)
+            .unwrap()
+            .is_some()
+    );
+}
+
+#[test]
+fn record_preview_if_current_skips_a_missing_revision() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+    let registered = registered_asset(&mut catalog);
+
+    let wrote = catalog
+        .record_preview_if_current(
+            &thumbnail(&registered, RevisionId::new(999_999)),
+            "{\"schema\":1}",
+        )
+        .unwrap();
+
+    assert!(!wrote);
+}
+
+#[test]
 fn preview_queries_report_missing_assets() {
     let dir = tempfile::tempdir().unwrap();
     let catalog = new_catalog(&dir);

@@ -28,3 +28,4 @@ Une décision acceptée ne se modifie pas : elle se remplace par un nouvel ADR q
 | [0020](0020-menu-bar.md) | Barre de menu comme surface de commandes |
 | [0021](0021-context-menus.md) | Menus contextuels (clic droit) |
 | [0022](0022-default-library-fallback.md) | Bibliothèque par défaut au premier lancement |
+| [0023](0023-catalog-lock-narrowing-preview.md) | Ne pas tenir le verrou catalogue pendant un rendu de preview |

@@ -5,6 +5,8 @@
 //! needs no timestamp and no hash — a preview is valid exactly when its
 //! revision is the head of the asset's current version (§20).
 
+use rusqlite::OptionalExtension;
+
 use leyline_core::{AssetId, LeylineError, PreviewKind, Result, RevisionId};
 
 use crate::{Catalog, db_err, now_ms};
@@ -74,6 +76,63 @@ impl Catalog {
             )
             .map_err(db_err)?;
         Ok(())
+    }
+
+    /// Records a generated preview file, but only if `revision` still
+    /// carries exactly `expected_settings_json` — returns `false` and writes
+    /// nothing otherwise.
+    ///
+    /// A render started under a held catalog lock is guaranteed current
+    /// throughout, but the engine's `Library::preview` (`docs/adr/0023-*.md`)
+    /// releases the lock across the render itself, so a
+    /// concurrent amendment (§17) can rewrite `revision`'s `settings_json`
+    /// in place — same id, different meaning — while the render is in
+    /// flight. Comparing the exact settings string inside this same
+    /// transaction, atomically with the write, is what stops that race from
+    /// recording a stale render as the valid preview of the (now different)
+    /// revision it targets. `commit_revision`/`undo`/`redo` never rewrite an
+    /// existing revision's `settings_json`, so they never trip this guard —
+    /// only an in-place amendment can.
+    pub fn record_preview_if_current(
+        &mut self,
+        new: &NewPreview,
+        expected_settings_json: &str,
+    ) -> Result<bool> {
+        self.ensure_writable()?;
+        let tx = self.conn.transaction().map_err(db_err)?;
+        let current: Option<String> = tx
+            .query_row(
+                "SELECT settings_json FROM develop_revisions WHERE id = ?1",
+                [new.revision.get()],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(db_err)?;
+        if current.as_deref() != Some(expected_settings_json) {
+            return Ok(false);
+        }
+        tx.execute(
+            "INSERT INTO previews (asset_id, revision_id, kind, width, height,
+                                   relative_path, generated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+             ON CONFLICT(asset_id, revision_id, kind) DO UPDATE SET
+                 width = excluded.width,
+                 height = excluded.height,
+                 relative_path = excluded.relative_path,
+                 generated_at = excluded.generated_at",
+            rusqlite::params![
+                new.asset.get(),
+                new.revision.get(),
+                new.kind.as_i64(),
+                new.width,
+                new.height,
+                new.relative_path,
+                now_ms(),
+            ],
+        )
+        .map_err(db_err)?;
+        tx.commit().map_err(db_err)?;
+        Ok(true)
     }
 
     /// Returns the head revision of the asset's current version — the only

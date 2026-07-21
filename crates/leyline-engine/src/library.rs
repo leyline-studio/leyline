@@ -434,17 +434,37 @@ impl Library {
 
     /// Returns the preview of the asset's current version, rendering it into
     /// the cache first when nothing valid exists (§11).
+    ///
+    /// Unlike the free `preview::preview` this crate's tests use, this
+    /// method deliberately does *not* hold the catalog lock across the
+    /// render: the render touches no catalog state, so holding it there
+    /// would block every other client's catalog access (grid, search,
+    /// metadata edits) for the render's full duration, including under the
+    /// bounded render pool's concurrent `preview_async` jobs (ADR 0023).
+    /// `preview::record_render`'s settings-match guard is what keeps this
+    /// safe against a concurrent amendment landing while the render is in
+    /// flight.
     pub fn preview(&self, asset: AssetId, kind: PreviewKind) -> Result<PreviewFile> {
+        let plan = {
+            let catalog = lock(&self.inner.catalog);
+            crate::preview::plan_preview(
+                &catalog,
+                &self.inner.cache,
+                &self.inner.root,
+                asset,
+                kind,
+            )?
+        };
+        let plan = match plan {
+            crate::preview::PreviewPlan::Cached(file) => return Ok(file),
+            crate::preview::PreviewPlan::Render(plan) => plan,
+        };
+        let image = {
+            let mut decodes = lock(&self.inner.decodes);
+            crate::preview::render_preview(&mut decodes, asset, &plan)?
+        };
         let mut catalog = lock(&self.inner.catalog);
-        let mut decodes = lock(&self.inner.decodes);
-        crate::preview::preview(
-            &mut catalog,
-            &self.inner.cache,
-            &mut decodes,
-            &self.inner.root,
-            asset,
-            kind,
-        )
+        crate::preview::record_render(&mut catalog, &self.inner.cache, asset, kind, &plan, &image)
     }
 
     /// Renders a preview as a job (§3.1, §11): returns immediately, then
