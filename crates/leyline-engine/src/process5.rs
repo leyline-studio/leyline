@@ -231,8 +231,8 @@ fn correct_tca(px: &Pixels, correction: &leyline_lens::Correction) -> Pixels {
             let channels = correction.tca_row(y as u32, px.width);
             for (x, rgb_out) in row.chunks_exact_mut(3).enumerate() {
                 for (c, &(sx, sy)) in channels[x].iter().enumerate() {
-                    if let Some(rgb) = lens_bilinear(px, sx, sy) {
-                        rgb_out[c] = rgb[c];
+                    if let Some(value) = lens_bilinear_channel(px, sx, sy, c) {
+                        rgb_out[c] = value;
                     }
                 }
             }
@@ -297,6 +297,32 @@ fn lens_bilinear(px: &Pixels, sx: f32, sy: f32) -> Option<[f32; 3]> {
         *value = top * (1.0 - ty) + bottom * ty;
     }
     Some(rgb)
+}
+
+/// Same convention and bounds check as [`lens_bilinear`], but interpolates a
+/// single channel `c` instead of all three. [`correct_tca`] samples each
+/// channel at its own TCA-shifted coordinate and only ever keeps that one
+/// channel's result, so computing (and discarding) the other two via
+/// [`lens_bilinear`] was pure waste. The arithmetic below is copied
+/// byte-for-byte from `lens_bilinear`'s per-channel computation — same
+/// coefficients, same multiply/add order — so the surviving channel is
+/// bit-identical to what `lens_bilinear(px, sx, sy).unwrap()[c]` would have
+/// produced.
+fn lens_bilinear_channel(px: &Pixels, sx: f32, sy: f32, c: usize) -> Option<f32> {
+    let (w, h) = (px.width as f32, px.height as f32);
+    if sx < 0.0 || sy < 0.0 || sx > w - 1.0 || sy > h - 1.0 {
+        return None;
+    }
+    let x0 = sx.floor() as usize;
+    let y0 = sy.floor() as usize;
+    let x1 = (x0 + 1).min(px.width as usize - 1);
+    let y1 = (y0 + 1).min(px.height as usize - 1);
+    let (tx, ty) = (sx - x0 as f32, sy - y0 as f32);
+
+    let at = |x: usize, y: usize| px.data[(y * px.width as usize + x) * 3 + c];
+    let top = at(x0, y0) * (1.0 - tx) + at(x1, y0) * tx;
+    let bottom = at(x0, y1) * (1.0 - tx) + at(x1, y1) * tx;
+    Some(top * (1.0 - ty) + bottom * ty)
 }
 
 // ---------------------------------------------------------------------------
@@ -801,5 +827,59 @@ mod tests {
         let out5 = develop(&image, &enabled_settings(), Some(&shot)).unwrap();
         let out4 = crate::process4::develop(&image, &enabled_settings(), Some(&shot)).unwrap();
         assert_eq!(out5, out4);
+    }
+
+    /// `lens_bilinear_channel` must return, for every channel, exactly the
+    /// value `lens_bilinear` would have computed for that channel — it's an
+    /// in-place optimization ([`correct_tca`] discarded two of the three
+    /// channels `lens_bilinear` computed), not a formula change. Covers
+    /// interior samples, edge/corner clamping, and the out-of-frame `None`
+    /// case.
+    #[test]
+    fn lens_bilinear_channel_matches_the_full_rgb_sampler_bit_for_bit() {
+        let width = 12u32;
+        let height = 9u32;
+        let mut data = Vec::with_capacity(width as usize * height as usize * 3);
+        for y in 0..height {
+            for x in 0..width {
+                data.push((x * 37 % 255) as f32 / 255.0);
+                data.push((y * 53 % 255) as f32 / 255.0);
+                data.push(((x + y) * 29 % 255) as f32 / 255.0);
+            }
+        }
+        let px = Pixels {
+            width,
+            height,
+            data,
+        };
+
+        let samples = [
+            (0.0, 0.0),                                // corner
+            (width as f32 - 1.0, 0.0),                 // corner, x clamp
+            (0.0, height as f32 - 1.0),                // corner, y clamp
+            (5.3, 4.7),                                // interior, fractional
+            (2.999_9, 6.000_1),                        // near-integer fractional
+            (width as f32 - 1.0, height as f32 - 1.0), // far corner
+            (-0.001, 3.0),                             // just out of frame: x
+            (3.0, height as f32),                      // just out of frame: y
+        ];
+
+        for (sx, sy) in samples {
+            let full = lens_bilinear(&px, sx, sy);
+            for c in 0..3 {
+                let single = lens_bilinear_channel(&px, sx, sy, c);
+                match full {
+                    Some(rgb) => assert_eq!(
+                        single,
+                        Some(rgb[c]),
+                        "channel {c} at ({sx}, {sy}) diverged from the full-RGB sampler"
+                    ),
+                    None => assert_eq!(
+                        single, None,
+                        "channel {c} at ({sx}, {sy}) should also be out of frame"
+                    ),
+                }
+            }
+        }
     }
 }
