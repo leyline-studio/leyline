@@ -49,11 +49,14 @@ product-name = "Leyline Studio"
 identifier = "org.leyline.studio"
 homepage = "https://github.com/leyline-studio/leyline"
 license-file = "../../LICENSE"
-# Regenerated from the brand source `assets/leyline-studio-square.png`
-# (trim its padding, then downscale) whenever that master asset changes —
-# see `icon:` on `StudioWindow` in `ui/studio.slint` for the same source
-# used as the in-app window/taskbar icon, and `windows-manifest.rc` /
-# `crates/leyline-cli/windows-icon.rc` for the .exe icon.
+# Regenerated (plain downscale, source already a tight transparent-bg crop)
+# from the brand source `assets/leyline-studio-logo.png` whenever that
+# master asset changes — see `icon:` on `StudioWindow` in `ui/studio.slint`
+# for the same source used as the in-app window/taskbar icon, and
+# `windows-manifest.rc` / `crates/leyline-cli/windows-icon.rc` for the .exe
+# icon. `assets/leyline-studio-square.png` (the wordmark badge) remains the
+# source for marketing/README use, not the icon — it was tried for the icon
+# once and found illegible at 16-32px (see commit 3e704146).
 icons = [
     "../../packaging/icons/32x32.png",
     "../../packaging/icons/128x128.png",
