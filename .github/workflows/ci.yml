@@ -41,7 +41,18 @@ jobs:
 
       - name: Install system dependencies (macOS)
         if: runner.os == 'macOS'
-        run: brew install libraw nasm
+        run: |
+          brew install libraw nasm
+          # Homebrew's libraw_r.pc hardcodes `-lstdc++` in its Libs line
+          # (LibRaw is C++), but current Xcode/macOS SDKs only ship libc++ —
+          # there's no standalone libstdc++.dylib/.tbd anymore, so the
+          # linker fails with "library 'stdc++' not found". Shim it: symlink
+          # libc++'s stub as libstdc++ in a directory added to LIBRARY_PATH,
+          # which clang (the linker driver rustc invokes) reads for extra
+          # library search paths.
+          mkdir -p "$HOME/lib-shim"
+          ln -sf "$(xcrun --show-sdk-path)/usr/lib/libc++.tbd" "$HOME/lib-shim/libstdc++.tbd"
+          echo "LIBRARY_PATH=$HOME/lib-shim:$LIBRARY_PATH" >> "$GITHUB_ENV"
 
       - name: Format
         run: cargo fmt --all --check
