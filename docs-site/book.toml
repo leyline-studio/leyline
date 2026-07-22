@@ -1,0 +1,12 @@
+[book]
+title = "Leyline"
+description = "Leyline Studio & Engine — architecture and crate-by-crate rationale"
+authors = ["Leyline"]
+language = "en"
+src = "src"
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "navy"
+git-repository-url = "https://github.com/leyline-studio/leyline"
+edit-url-template = "https://github.com/leyline-studio/leyline/edit/main/docs-site/{path}"
