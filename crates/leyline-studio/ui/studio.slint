@@ -247,6 +247,119 @@ component EditSlider inherits VerticalLayout {
     }
 }
 
+// Hand-rolled menu bar, replacing Slint's native `MenuBar` (ADR 0020).
+// Bisected 2026-07-22: the native MenuBar's OS-level menu integration
+// (`muda`, pulled in unconditionally by `i-slint-backend-selector`) breaks
+// repaint scheduling for the grid and collections list elsewhere in the
+// window — they can go blank and stay blank, surviving even a real resize,
+// until some other structural change (a dialog opening) forces a repaint.
+// This purely Slint-rendered replacement never touches that native code
+// path. See `StudioWindow.open-menu`/`reset-submenus()` for the state this
+// wires into, and the dropdown panels near the modal dialog overlay for
+// the actual menu contents.
+component TopMenuLabel inherits Rectangle {
+    in property <string> title;
+    in property <bool> active;
+    in property <bool> enabled: true;
+    callback clicked;
+
+    height: 28px;
+    width: label.preferred-width + 20px;
+    background: root.active ? #2f4f6f : transparent;
+
+    label := Text {
+        text: root.title;
+        color: root.enabled ? #e6e6e6 : #666666;
+        font-size: 13px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        width: 100%;
+        height: 100%;
+    }
+    TouchArea {
+        enabled: root.enabled;
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+component MenuDropdown inherits Rectangle {
+    background: #262626;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: #3a3a3a;
+}
+
+component MenuRow inherits Rectangle {
+    in property <string> title;
+    in property <bool> enabled: true;
+    callback activated;
+
+    height: 26px;
+    width: 240px;
+    background: touch.has-hover && root.enabled ? #2f4f6f : transparent;
+
+    Text {
+        x: 12px;
+        width: parent.width - 24px;
+        text: root.title;
+        color: root.enabled ? #e6e6e6 : #666666;
+        font-size: 12px;
+        vertical-alignment: center;
+        height: 100%;
+        overflow: elide;
+    }
+    touch := TouchArea {
+        enabled: root.enabled;
+        clicked => {
+            root.activated();
+        }
+    }
+}
+
+// Inline-expanding submenu (Photo's Rate/Label/Flag, Develop's Apply
+// Preset): a flyout to the side would need a second layer of absolute
+// positioning for little benefit here, so this expands downward in place
+// instead, the same interaction `GroupHeader` already uses for the develop
+// panel's setting groups.
+component SubmenuHeader inherits Rectangle {
+    in property <string> title;
+    in-out property <bool> expanded;
+    in property <bool> enabled: true;
+
+    height: 26px;
+    width: 240px;
+    background: touch.has-hover && root.enabled ? #2f4f6f : transparent;
+
+    Text {
+        x: 12px;
+        text: (root.expanded ? "▾ " : "▸ ") + root.title;
+        color: root.enabled ? #e6e6e6 : #666666;
+        font-size: 12px;
+        vertical-alignment: center;
+        height: 100%;
+    }
+    touch := TouchArea {
+        enabled: root.enabled;
+        clicked => {
+            root.expanded = !root.expanded;
+        }
+    }
+}
+
+component MenuSep inherits Rectangle {
+    height: 9px;
+    width: 240px;
+    Rectangle {
+        x: 8px;
+        y: parent.height / 2;
+        width: parent.width - 16px;
+        height: 1px;
+        background: #3a3a3a;
+    }
+}
+
 export component StudioWindow inherits Window {
     title: "Leyline Studio — " + root.library-name;
     // Taskbar/Alt-Tab/window-manager icon: the square badge, matching the
@@ -406,6 +519,23 @@ export component StudioWindow inherits Window {
     // dragging does nothing) or "crop" (dragging draws the crop rectangle).
     property <string> active-tool: "select";
 
+    // Custom menu bar state (see `TopMenuLabel`/`MenuDropdown` above).
+    // `open-menu` is "" or one of "file"/"library"/"photo"/"develop-menu"/
+    // "view"/"help"; the inline-expand submenus are independent booleans
+    // since at most one of each is ever meaningfully open at a time.
+    property <string> open-menu: "";
+    property <bool> rate-submenu-open: false;
+    property <bool> label-submenu-open: false;
+    property <bool> flag-submenu-open: false;
+    property <bool> apply-preset-submenu-open: false;
+
+    function reset-submenus() {
+        root.rate-submenu-open = false;
+        root.label-submenu-open = false;
+        root.flag-submenu-open = false;
+        root.apply-preset-submenu-open = false;
+    }
+
     // Moves the selection to `index` and scrolls it into view.
     function select-cell(index: int) {
         if (index < 0 || index >= root.total-cells) {
@@ -420,276 +550,19 @@ export component StudioWindow inherits Window {
         }
     }
 
-    // Native menu bar (ADR 0020): a second, discoverable path to the same
-    // callbacks already wired to keyboard shortcuts above — no new
-    // functionality, no new code path. Context-sensitive entries are
-    // disabled outside the context where their shortcut is meaningful.
-    MenuBar {
-        Menu {
-            title: @tr("File");
-            MenuItem {
-                title: @tr("Import…    I");
-                activated => {
-                    root.dialog-result = "";
-                    root.dialog = "import";
-                }
-            }
-            MenuItem {
-                title: @tr("Export…    E");
-                activated => {
-                    root.open-export();
-                }
-            }
-            MenuSeparator { }
-            MenuItem {
-                // ADR 0019 (language preferences) is decided but not yet
-                // implemented: kept visible per the ADR 0020 menu map,
-                // disabled until there is a preferences panel to open.
-                title: @tr("Preferences…");
-                enabled: false;
-            }
-            MenuSeparator { }
-            MenuItem {
-                title: @tr("Quit");
-                activated => {
-                    root.quit();
-                }
-            }
-        }
-        Menu {
-            title: @tr("Library");
-            MenuItem {
-                title: @tr("New Collection…    N");
-                activated => {
-                    root.dialog-result = "";
-                    root.dialog = "collection";
-                }
-            }
-            MenuItem {
-                title: @tr("Add to Collection    B");
-                enabled: root.selected >= 0 && root.active-collection >= 0;
-                activated => {
-                    root.add-to-collection();
-                }
-            }
-            MenuItem {
-                title: @tr("Remove from Collection    Shift+B");
-                enabled: root.selected >= 0 && root.active-collection >= 0;
-                activated => {
-                    root.remove-from-collection();
-                }
-            }
-            MenuSeparator { }
-            MenuItem {
-                title: @tr("Reprocess Library…    Shift+R");
-                activated => {
-                    root.reprocess-library();
-                }
-            }
-        }
-        Menu {
-            title: @tr("Photo");
-            Menu {
-                title: @tr("Rate");
-                MenuItem {
-                    title: @tr("1 star    1");
-                    enabled: root.selected >= 0;
-                    activated => {
-                        root.classify("1");
-                    }
-                }
-                MenuItem {
-                    title: @tr("2 stars    2");
-                    enabled: root.selected >= 0;
-                    activated => {
-                        root.classify("2");
-                    }
-                }
-                MenuItem {
-                    title: @tr("3 stars    3");
-                    enabled: root.selected >= 0;
-                    activated => {
-                        root.classify("3");
-                    }
-                }
-                MenuItem {
-                    title: @tr("4 stars    4");
-                    enabled: root.selected >= 0;
-                    activated => {
-                        root.classify("4");
-                    }
-                }
-                MenuItem {
-                    title: @tr("5 stars    5");
-                    enabled: root.selected >= 0;
-                    activated => {
-                        root.classify("5");
-                    }
-                }
-                MenuSeparator { }
-                MenuItem {
-                    title: @tr("Clear Rating    0");
-                    enabled: root.selected >= 0;
-                    activated => {
-                        root.classify("0");
-                    }
-                }
-            }
-            Menu {
-                title: @tr("Label");
-                MenuItem {
-                    title: @tr("Red    6");
-                    enabled: root.selected >= 0;
-                    activated => {
-                        root.classify("6");
-                    }
-                }
-                MenuItem {
-                    title: @tr("Yellow    7");
-                    enabled: root.selected >= 0;
-                    activated => {
-                        root.classify("7");
-                    }
-                }
-                MenuItem {
-                    title: @tr("Green    8");
-                    enabled: root.selected >= 0;
-                    activated => {
-                        root.classify("8");
-                    }
-                }
-                MenuItem {
-                    title: @tr("Blue    9");
-                    enabled: root.selected >= 0;
-                    activated => {
-                        root.classify("9");
-                    }
-                }
-            }
-            Menu {
-                title: @tr("Flag");
-                MenuItem {
-                    title: @tr("Pick    P");
-                    enabled: root.selected >= 0;
-                    activated => {
-                        root.classify("p");
-                    }
-                }
-                MenuItem {
-                    title: @tr("Reject    X");
-                    enabled: root.selected >= 0;
-                    activated => {
-                        root.classify("x");
-                    }
-                }
-                MenuItem {
-                    title: @tr("Clear    U");
-                    enabled: root.selected >= 0;
-                    activated => {
-                        root.classify("u");
-                    }
-                }
-            }
-            MenuSeparator { }
-            MenuItem {
-                title: @tr("Develop    D");
-                enabled: root.selected >= 0 && !root.develop-mode;
-                activated => {
-                    root.enter-develop();
-                }
-            }
-            MenuItem {
-                // Today `R` only reprocesses the photo open in develop —
-                // same contract here: disabled outside that context rather
-                // than silently acting on something else.
-                title: @tr("Reprocess    R");
-                enabled: root.develop-mode;
-                activated => {
-                    root.develop-reprocess();
-                }
-            }
-        }
-        Menu {
-            title: @tr("Develop");
-            enabled: root.develop-mode;
-            MenuItem {
-                title: @tr("Undo    Ctrl+Z");
-                activated => {
-                    root.develop-undo();
-                }
-            }
-            MenuItem {
-                title: @tr("Redo    Ctrl+Y");
-                activated => {
-                    root.develop-redo();
-                }
-            }
-            MenuSeparator { }
-            MenuItem {
-                title: @tr("Save Preset…    S");
-                activated => {
-                    root.open-preset-dialog();
-                }
-            }
-            Menu {
-                title: @tr("Apply Preset");
-                enabled: root.dev-presets.length > 0;
-                for name[index] in root.dev-presets: MenuItem {
-                    title: name;
-                    activated => {
-                        root.apply-preset(index);
-                    }
-                }
-            }
-            MenuSeparator { }
-            MenuItem {
-                title: @tr("Back to Library    G");
-                activated => {
-                    root.exit-develop();
-                }
-            }
-        }
-        Menu {
-            title: @tr("View");
-            MenuItem {
-                title: @tr("Library    G");
-                enabled: root.develop-mode;
-                activated => {
-                    root.exit-develop();
-                }
-            }
-            MenuItem {
-                title: @tr("Develop    D");
-                enabled: !root.develop-mode && root.selected >= 0;
-                activated => {
-                    root.enter-develop();
-                }
-            }
-        }
-        Menu {
-            title: @tr("Help");
-            MenuItem {
-                title: @tr("Keyboard Shortcuts…");
-                activated => {
-                    root.dialog-result = "";
-                    root.dialog = "shortcuts";
-                }
-            }
-            MenuItem {
-                title: @tr("About Leyline");
-                activated => {
-                    root.dialog-result = "";
-                    root.dialog = "about";
-                }
-            }
-        }
-    }
 
     keys := FocusScope {
         key-pressed(event) => {
             if (root.dialog != "") {
                 if (event.text == Key.Escape) {
                     root.dialog = "";
+                }
+                return accept;
+            }
+            if (root.open-menu != "") {
+                if (event.text == Key.Escape) {
+                    root.open-menu = "";
+                    root.reset-submenus();
                 }
                 return accept;
             }
@@ -781,6 +654,10 @@ export component StudioWindow inherits Window {
                 horizontal-stretch: 1;
                 padding: 12px;
                 spacing: 8px;
+
+                Rectangle {
+                    height: 28px;
+                }
 
                 HorizontalLayout {
                     Text {
@@ -904,6 +781,10 @@ export component StudioWindow inherits Window {
                         padding: 16px;
                         spacing: 12px;
                         alignment: start;
+
+                        Rectangle {
+                            height: 28px;
+                        }
 
                         Text {
                             text: @tr("Presets");
@@ -1209,6 +1090,10 @@ export component StudioWindow inherits Window {
                     padding: 10px;
                     spacing: 4px;
 
+                    Rectangle {
+                        height: 28px;
+                    }
+
                     Text {
                         text: @tr("Collections");
                         color: #9a9a9a;
@@ -1275,6 +1160,10 @@ export component StudioWindow inherits Window {
                 horizontal-stretch: 1;
                 padding: 12px;
                 spacing: 8px;
+
+                Rectangle {
+                    height: 28px;
+                }
 
                 HorizontalLayout {
                     spacing: 10px;
@@ -1656,6 +1545,10 @@ export component StudioWindow inherits Window {
                     padding: 16px;
                     spacing: 10px;
                     alignment: start;
+
+                    Rectangle {
+                        height: 28px;
+                    }
 
                     Text {
                         text: root.selected < 0 ? @tr("No photo selected") : root.detail-filename;
@@ -2517,6 +2410,446 @@ export component StudioWindow inherits Window {
                         wrap: word-wrap;
                     }
                 }
+            }
+        }
+
+        // Custom menu bar's dropdown panels (see `TopMenuLabel` above for
+        // why this isn't Slint's native `MenuBar`). Declared last so they
+        // paint over everything, including the modal dialog overlay above.
+        if root.open-menu != "": Rectangle {
+            // Invisible full-window catcher: clicking outside any dropdown
+            // closes the open menu.
+            TouchArea {
+                clicked => {
+                    root.open-menu = "";
+                    root.reset-submenus();
+                }
+            }
+
+            if root.open-menu == "file": MenuDropdown {
+                x: file-label.x;
+                y: 28px;
+                VerticalLayout {
+                    MenuRow {
+                        title: @tr("Import…    I");
+                        activated => {
+                            root.dialog-result = "";
+                            root.dialog = "import";
+                            root.open-menu = "";
+                        }
+                    }
+                    MenuRow {
+                        title: @tr("Export…    E");
+                        activated => {
+                            root.open-export();
+                            root.open-menu = "";
+                        }
+                    }
+                    MenuSep { }
+                    MenuRow {
+                        // ADR 0019 (language preferences) is decided but not
+                        // yet implemented: kept visible per the ADR 0020 menu
+                        // map, disabled until there is a preferences panel to
+                        // open.
+                        title: @tr("Preferences…");
+                        enabled: false;
+                    }
+                    MenuSep { }
+                    MenuRow {
+                        title: @tr("Quit");
+                        activated => {
+                            root.quit();
+                        }
+                    }
+                }
+            }
+
+            if root.open-menu == "library": MenuDropdown {
+                x: library-label.x;
+                y: 28px;
+                VerticalLayout {
+                    MenuRow {
+                        title: @tr("New Collection…    N");
+                        activated => {
+                            root.dialog-result = "";
+                            root.dialog = "collection";
+                            root.open-menu = "";
+                        }
+                    }
+                    MenuRow {
+                        title: @tr("Add to Collection    B");
+                        enabled: root.selected >= 0 && root.active-collection >= 0;
+                        activated => {
+                            root.add-to-collection();
+                            root.open-menu = "";
+                        }
+                    }
+                    MenuRow {
+                        title: @tr("Remove from Collection    Shift+B");
+                        enabled: root.selected >= 0 && root.active-collection >= 0;
+                        activated => {
+                            root.remove-from-collection();
+                            root.open-menu = "";
+                        }
+                    }
+                    MenuSep { }
+                    MenuRow {
+                        title: @tr("Reprocess Library…    Shift+R");
+                        activated => {
+                            root.reprocess-library();
+                            root.open-menu = "";
+                        }
+                    }
+                }
+            }
+
+            if root.open-menu == "photo": MenuDropdown {
+                x: photo-label.x;
+                y: 28px;
+                VerticalLayout {
+                    SubmenuHeader {
+                        title: @tr("Rate");
+                        expanded <=> root.rate-submenu-open;
+                    }
+                    if root.rate-submenu-open: VerticalLayout {
+                        MenuRow {
+                            title: @tr("1 star    1");
+                            enabled: root.selected >= 0;
+                            activated => {
+                                root.classify("1");
+                                root.open-menu = "";
+                                root.reset-submenus();
+                            }
+                        }
+                        MenuRow {
+                            title: @tr("2 stars    2");
+                            enabled: root.selected >= 0;
+                            activated => {
+                                root.classify("2");
+                                root.open-menu = "";
+                                root.reset-submenus();
+                            }
+                        }
+                        MenuRow {
+                            title: @tr("3 stars    3");
+                            enabled: root.selected >= 0;
+                            activated => {
+                                root.classify("3");
+                                root.open-menu = "";
+                                root.reset-submenus();
+                            }
+                        }
+                        MenuRow {
+                            title: @tr("4 stars    4");
+                            enabled: root.selected >= 0;
+                            activated => {
+                                root.classify("4");
+                                root.open-menu = "";
+                                root.reset-submenus();
+                            }
+                        }
+                        MenuRow {
+                            title: @tr("5 stars    5");
+                            enabled: root.selected >= 0;
+                            activated => {
+                                root.classify("5");
+                                root.open-menu = "";
+                                root.reset-submenus();
+                            }
+                        }
+                        MenuSep { }
+                        MenuRow {
+                            title: @tr("Clear Rating    0");
+                            enabled: root.selected >= 0;
+                            activated => {
+                                root.classify("0");
+                                root.open-menu = "";
+                                root.reset-submenus();
+                            }
+                        }
+                    }
+                    SubmenuHeader {
+                        title: @tr("Label");
+                        expanded <=> root.label-submenu-open;
+                    }
+                    if root.label-submenu-open: VerticalLayout {
+                        MenuRow {
+                            title: @tr("Red    6");
+                            enabled: root.selected >= 0;
+                            activated => {
+                                root.classify("6");
+                                root.open-menu = "";
+                                root.reset-submenus();
+                            }
+                        }
+                        MenuRow {
+                            title: @tr("Yellow    7");
+                            enabled: root.selected >= 0;
+                            activated => {
+                                root.classify("7");
+                                root.open-menu = "";
+                                root.reset-submenus();
+                            }
+                        }
+                        MenuRow {
+                            title: @tr("Green    8");
+                            enabled: root.selected >= 0;
+                            activated => {
+                                root.classify("8");
+                                root.open-menu = "";
+                                root.reset-submenus();
+                            }
+                        }
+                        MenuRow {
+                            title: @tr("Blue    9");
+                            enabled: root.selected >= 0;
+                            activated => {
+                                root.classify("9");
+                                root.open-menu = "";
+                                root.reset-submenus();
+                            }
+                        }
+                    }
+                    SubmenuHeader {
+                        title: @tr("Flag");
+                        expanded <=> root.flag-submenu-open;
+                    }
+                    if root.flag-submenu-open: VerticalLayout {
+                        MenuRow {
+                            title: @tr("Pick    P");
+                            enabled: root.selected >= 0;
+                            activated => {
+                                root.classify("p");
+                                root.open-menu = "";
+                                root.reset-submenus();
+                            }
+                        }
+                        MenuRow {
+                            title: @tr("Reject    X");
+                            enabled: root.selected >= 0;
+                            activated => {
+                                root.classify("x");
+                                root.open-menu = "";
+                                root.reset-submenus();
+                            }
+                        }
+                        MenuRow {
+                            title: @tr("Clear    U");
+                            enabled: root.selected >= 0;
+                            activated => {
+                                root.classify("u");
+                                root.open-menu = "";
+                                root.reset-submenus();
+                            }
+                        }
+                    }
+                    MenuSep { }
+                    MenuRow {
+                        title: @tr("Develop    D");
+                        enabled: root.selected >= 0 && !root.develop-mode;
+                        activated => {
+                            root.enter-develop();
+                            root.open-menu = "";
+                        }
+                    }
+                    MenuRow {
+                        // Today `R` only reprocesses the photo open in
+                        // develop — same contract here: disabled outside
+                        // that context rather than silently acting on
+                        // something else.
+                        title: @tr("Reprocess    R");
+                        enabled: root.develop-mode;
+                        activated => {
+                            root.develop-reprocess();
+                            root.open-menu = "";
+                        }
+                    }
+                }
+            }
+
+            if root.open-menu == "develop-menu" && root.develop-mode: MenuDropdown {
+                x: develop-label.x;
+                y: 28px;
+                VerticalLayout {
+                    MenuRow {
+                        title: @tr("Undo    Ctrl+Z");
+                        activated => {
+                            root.develop-undo();
+                            root.open-menu = "";
+                        }
+                    }
+                    MenuRow {
+                        title: @tr("Redo    Ctrl+Y");
+                        activated => {
+                            root.develop-redo();
+                            root.open-menu = "";
+                        }
+                    }
+                    MenuSep { }
+                    MenuRow {
+                        title: @tr("Save Preset…    S");
+                        activated => {
+                            root.open-preset-dialog();
+                            root.open-menu = "";
+                        }
+                    }
+                    SubmenuHeader {
+                        title: @tr("Apply Preset");
+                        expanded <=> root.apply-preset-submenu-open;
+                        enabled: root.dev-presets.length > 0;
+                    }
+                    if root.apply-preset-submenu-open: VerticalLayout {
+                        for name[index] in root.dev-presets: MenuRow {
+                            title: name;
+                            activated => {
+                                root.apply-preset(index);
+                                root.open-menu = "";
+                                root.reset-submenus();
+                            }
+                        }
+                    }
+                    MenuSep { }
+                    MenuRow {
+                        title: @tr("Back to Library    G");
+                        activated => {
+                            root.exit-develop();
+                            root.open-menu = "";
+                        }
+                    }
+                }
+            }
+
+            if root.open-menu == "view": MenuDropdown {
+                x: view-label.x;
+                y: 28px;
+                VerticalLayout {
+                    MenuRow {
+                        title: @tr("Library    G");
+                        enabled: root.develop-mode;
+                        activated => {
+                            root.exit-develop();
+                            root.open-menu = "";
+                        }
+                    }
+                    MenuRow {
+                        title: @tr("Develop    D");
+                        enabled: !root.develop-mode && root.selected >= 0;
+                        activated => {
+                            root.enter-develop();
+                            root.open-menu = "";
+                        }
+                    }
+                }
+            }
+
+            if root.open-menu == "help": MenuDropdown {
+                x: help-label.x;
+                y: 28px;
+                VerticalLayout {
+                    MenuRow {
+                        title: @tr("Keyboard Shortcuts…");
+                        activated => {
+                            root.dialog-result = "";
+                            root.dialog = "shortcuts";
+                            root.open-menu = "";
+                        }
+                    }
+                    MenuRow {
+                        title: @tr("About Leyline");
+                        activated => {
+                            root.dialog-result = "";
+                            root.dialog = "about";
+                            root.open-menu = "";
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // `MenuBar` was a magic top-level element Slint gives special sizing
+    // treatment (reserving space above the rest of the content natively);
+    // a plain `HorizontalLayout` isn't. `keys` above (and its content)
+    // therefore keeps its untouched, default fill-parent geometry —
+    // giving it (or any ancestor of its repeaters: the grid, the
+    // collections list) an explicit position/size override of any kind,
+    // even a inert-looking one, was enough on its own to reintroduce a
+    // repaint bug extremely similar to the native-`MenuBar` one this whole
+    // rewrite exists to avoid (confirmed repeatedly; see
+    // studio-repaint-bug-unresolved in project memory for the fuller
+    // writeup). Concretely, this means: (1) `menu-row` is declared last —
+    // after `keys` — purely so it paints on top of it (Slint paints
+    // siblings in declaration order); it is not stacked above `keys` via
+    // layout, the two simply overlap, and (2) each content column that
+    // needs to visually clear the menu row's height reserves that space
+    // with a plain spacer `Rectangle` as an extra *child* inside its own
+    // already-existing `VerticalLayout` (adding a sibling element was
+    // safe in testing) — never via a property override on the column
+    // itself or on `keys`.
+    menu-row := HorizontalLayout {
+        // Custom menu bar (ADR 0020): a second, discoverable path to the
+        // same callbacks already wired to keyboard shortcuts above — no
+        // new functionality, no new code path. Context-sensitive entries
+        // are disabled outside the context where their shortcut is
+        // meaningful. Not Slint's native `MenuBar` — see the comment above
+        // `TopMenuLabel` for why. The dropdown panels themselves are
+        // declared later, in the same overlay z-order as the modal
+        // dialogs, so they paint on top of the grid/develop view; only the
+        // row of labels lives here.
+        x: 0;
+        y: 0;
+        height: 28px;
+        alignment: start;
+        padding-left: 4px;
+        spacing: 2px;
+
+        file-label := TopMenuLabel {
+            title: @tr("File");
+            active: root.open-menu == "file";
+            clicked => {
+                root.open-menu = root.open-menu == "file" ? "" : "file";
+                root.reset-submenus();
+            }
+        }
+        library-label := TopMenuLabel {
+            title: @tr("Library");
+            active: root.open-menu == "library";
+            clicked => {
+                root.open-menu = root.open-menu == "library" ? "" : "library";
+                root.reset-submenus();
+            }
+        }
+        photo-label := TopMenuLabel {
+            title: @tr("Photo");
+            active: root.open-menu == "photo";
+            clicked => {
+                root.open-menu = root.open-menu == "photo" ? "" : "photo";
+                root.reset-submenus();
+            }
+        }
+        develop-label := TopMenuLabel {
+            title: @tr("Develop");
+            active: root.open-menu == "develop-menu";
+            enabled: root.develop-mode;
+            clicked => {
+                root.open-menu = root.open-menu == "develop-menu" ? "" : "develop-menu";
+                root.reset-submenus();
+            }
+        }
+        view-label := TopMenuLabel {
+            title: @tr("View");
+            active: root.open-menu == "view";
+            clicked => {
+                root.open-menu = root.open-menu == "view" ? "" : "view";
+                root.reset-submenus();
+            }
+        }
+        help-label := TopMenuLabel {
+            title: @tr("Help");
+            active: root.open-menu == "help";
+            clicked => {
+                root.open-menu = root.open-menu == "help" ? "" : "help";
+                root.reset-submenus();
             }
         }
     }
