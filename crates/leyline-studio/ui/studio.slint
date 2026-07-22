@@ -285,10 +285,20 @@ component TopMenuLabel inherits Rectangle {
 }
 
 component MenuDropdown inherits Rectangle {
+    // Without explicit sizing, a bare `Rectangle` defaults to filling its
+    // parent — here that's the full-window click-catcher, which made every
+    // dropdown's background span the entire page even though its rows are
+    // only 240px wide. Sizing to `content`'s own preferred size instead
+    // makes it hug its rows.
     background: #262626;
     border-radius: 6px;
     border-width: 1px;
     border-color: #3a3a3a;
+    width: content.preferred-width;
+    height: content.preferred-height;
+    content := VerticalLayout {
+        @children
+    }
 }
 
 component MenuRow inherits Rectangle {
@@ -2429,37 +2439,35 @@ export component StudioWindow inherits Window {
             if root.open-menu == "file": MenuDropdown {
                 x: file-label.x;
                 y: 28px;
-                VerticalLayout {
-                    MenuRow {
-                        title: @tr("Import…    I");
-                        activated => {
-                            root.dialog-result = "";
-                            root.dialog = "import";
-                            root.open-menu = "";
-                        }
+                MenuRow {
+                    title: @tr("Import…    I");
+                    activated => {
+                        root.dialog-result = "";
+                        root.dialog = "import";
+                        root.open-menu = "";
                     }
-                    MenuRow {
-                        title: @tr("Export…    E");
-                        activated => {
-                            root.open-export();
-                            root.open-menu = "";
-                        }
+                }
+                MenuRow {
+                    title: @tr("Export…    E");
+                    activated => {
+                        root.open-export();
+                        root.open-menu = "";
                     }
-                    MenuSep { }
-                    MenuRow {
-                        // ADR 0019 (language preferences) is decided but not
-                        // yet implemented: kept visible per the ADR 0020 menu
-                        // map, disabled until there is a preferences panel to
-                        // open.
-                        title: @tr("Preferences…");
-                        enabled: false;
-                    }
-                    MenuSep { }
-                    MenuRow {
-                        title: @tr("Quit");
-                        activated => {
-                            root.quit();
-                        }
+                }
+                MenuSep { }
+                MenuRow {
+                    // ADR 0019 (language preferences) is decided but not
+                    // yet implemented: kept visible per the ADR 0020 menu
+                    // map, disabled until there is a preferences panel to
+                    // open.
+                    title: @tr("Preferences…");
+                    enabled: false;
+                }
+                MenuSep { }
+                MenuRow {
+                    title: @tr("Quit");
+                    activated => {
+                        root.quit();
                     }
                 }
             }
@@ -2467,38 +2475,36 @@ export component StudioWindow inherits Window {
             if root.open-menu == "library": MenuDropdown {
                 x: library-label.x;
                 y: 28px;
-                VerticalLayout {
-                    MenuRow {
-                        title: @tr("New Collection…    N");
-                        activated => {
-                            root.dialog-result = "";
-                            root.dialog = "collection";
-                            root.open-menu = "";
-                        }
+                MenuRow {
+                    title: @tr("New Collection…    N");
+                    activated => {
+                        root.dialog-result = "";
+                        root.dialog = "collection";
+                        root.open-menu = "";
                     }
-                    MenuRow {
-                        title: @tr("Add to Collection    B");
-                        enabled: root.selected >= 0 && root.active-collection >= 0;
-                        activated => {
-                            root.add-to-collection();
-                            root.open-menu = "";
-                        }
+                }
+                MenuRow {
+                    title: @tr("Add to Collection    B");
+                    enabled: root.selected >= 0 && root.active-collection >= 0;
+                    activated => {
+                        root.add-to-collection();
+                        root.open-menu = "";
                     }
-                    MenuRow {
-                        title: @tr("Remove from Collection    Shift+B");
-                        enabled: root.selected >= 0 && root.active-collection >= 0;
-                        activated => {
-                            root.remove-from-collection();
-                            root.open-menu = "";
-                        }
+                }
+                MenuRow {
+                    title: @tr("Remove from Collection    Shift+B");
+                    enabled: root.selected >= 0 && root.active-collection >= 0;
+                    activated => {
+                        root.remove-from-collection();
+                        root.open-menu = "";
                     }
-                    MenuSep { }
-                    MenuRow {
-                        title: @tr("Reprocess Library…    Shift+R");
-                        activated => {
-                            root.reprocess-library();
-                            root.open-menu = "";
-                        }
+                }
+                MenuSep { }
+                MenuRow {
+                    title: @tr("Reprocess Library…    Shift+R");
+                    activated => {
+                        root.reprocess-library();
+                        root.open-menu = "";
                     }
                 }
             }
@@ -2506,163 +2512,161 @@ export component StudioWindow inherits Window {
             if root.open-menu == "photo": MenuDropdown {
                 x: photo-label.x;
                 y: 28px;
-                VerticalLayout {
-                    SubmenuHeader {
-                        title: @tr("Rate");
-                        expanded <=> root.rate-submenu-open;
-                    }
-                    if root.rate-submenu-open: VerticalLayout {
-                        MenuRow {
-                            title: @tr("1 star    1");
-                            enabled: root.selected >= 0;
-                            activated => {
-                                root.classify("1");
-                                root.open-menu = "";
-                                root.reset-submenus();
-                            }
-                        }
-                        MenuRow {
-                            title: @tr("2 stars    2");
-                            enabled: root.selected >= 0;
-                            activated => {
-                                root.classify("2");
-                                root.open-menu = "";
-                                root.reset-submenus();
-                            }
-                        }
-                        MenuRow {
-                            title: @tr("3 stars    3");
-                            enabled: root.selected >= 0;
-                            activated => {
-                                root.classify("3");
-                                root.open-menu = "";
-                                root.reset-submenus();
-                            }
-                        }
-                        MenuRow {
-                            title: @tr("4 stars    4");
-                            enabled: root.selected >= 0;
-                            activated => {
-                                root.classify("4");
-                                root.open-menu = "";
-                                root.reset-submenus();
-                            }
-                        }
-                        MenuRow {
-                            title: @tr("5 stars    5");
-                            enabled: root.selected >= 0;
-                            activated => {
-                                root.classify("5");
-                                root.open-menu = "";
-                                root.reset-submenus();
-                            }
-                        }
-                        MenuSep { }
-                        MenuRow {
-                            title: @tr("Clear Rating    0");
-                            enabled: root.selected >= 0;
-                            activated => {
-                                root.classify("0");
-                                root.open-menu = "";
-                                root.reset-submenus();
-                            }
+                SubmenuHeader {
+                    title: @tr("Rate");
+                    expanded <=> root.rate-submenu-open;
+                }
+                if root.rate-submenu-open: VerticalLayout {
+                    MenuRow {
+                        title: @tr("1 star    1");
+                        enabled: root.selected >= 0;
+                        activated => {
+                            root.classify("1");
+                            root.open-menu = "";
+                            root.reset-submenus();
                         }
                     }
-                    SubmenuHeader {
-                        title: @tr("Label");
-                        expanded <=> root.label-submenu-open;
-                    }
-                    if root.label-submenu-open: VerticalLayout {
-                        MenuRow {
-                            title: @tr("Red    6");
-                            enabled: root.selected >= 0;
-                            activated => {
-                                root.classify("6");
-                                root.open-menu = "";
-                                root.reset-submenus();
-                            }
-                        }
-                        MenuRow {
-                            title: @tr("Yellow    7");
-                            enabled: root.selected >= 0;
-                            activated => {
-                                root.classify("7");
-                                root.open-menu = "";
-                                root.reset-submenus();
-                            }
-                        }
-                        MenuRow {
-                            title: @tr("Green    8");
-                            enabled: root.selected >= 0;
-                            activated => {
-                                root.classify("8");
-                                root.open-menu = "";
-                                root.reset-submenus();
-                            }
-                        }
-                        MenuRow {
-                            title: @tr("Blue    9");
-                            enabled: root.selected >= 0;
-                            activated => {
-                                root.classify("9");
-                                root.open-menu = "";
-                                root.reset-submenus();
-                            }
+                    MenuRow {
+                        title: @tr("2 stars    2");
+                        enabled: root.selected >= 0;
+                        activated => {
+                            root.classify("2");
+                            root.open-menu = "";
+                            root.reset-submenus();
                         }
                     }
-                    SubmenuHeader {
-                        title: @tr("Flag");
-                        expanded <=> root.flag-submenu-open;
+                    MenuRow {
+                        title: @tr("3 stars    3");
+                        enabled: root.selected >= 0;
+                        activated => {
+                            root.classify("3");
+                            root.open-menu = "";
+                            root.reset-submenus();
+                        }
                     }
-                    if root.flag-submenu-open: VerticalLayout {
-                        MenuRow {
-                            title: @tr("Pick    P");
-                            enabled: root.selected >= 0;
-                            activated => {
-                                root.classify("p");
-                                root.open-menu = "";
-                                root.reset-submenus();
-                            }
+                    MenuRow {
+                        title: @tr("4 stars    4");
+                        enabled: root.selected >= 0;
+                        activated => {
+                            root.classify("4");
+                            root.open-menu = "";
+                            root.reset-submenus();
                         }
-                        MenuRow {
-                            title: @tr("Reject    X");
-                            enabled: root.selected >= 0;
-                            activated => {
-                                root.classify("x");
-                                root.open-menu = "";
-                                root.reset-submenus();
-                            }
-                        }
-                        MenuRow {
-                            title: @tr("Clear    U");
-                            enabled: root.selected >= 0;
-                            activated => {
-                                root.classify("u");
-                                root.open-menu = "";
-                                root.reset-submenus();
-                            }
+                    }
+                    MenuRow {
+                        title: @tr("5 stars    5");
+                        enabled: root.selected >= 0;
+                        activated => {
+                            root.classify("5");
+                            root.open-menu = "";
+                            root.reset-submenus();
                         }
                     }
                     MenuSep { }
                     MenuRow {
-                        title: @tr("Develop    D");
-                        enabled: root.selected >= 0 && !root.develop-mode;
+                        title: @tr("Clear Rating    0");
+                        enabled: root.selected >= 0;
                         activated => {
-                            root.enter-develop();
+                            root.classify("0");
                             root.open-menu = "";
+                            root.reset-submenus();
+                        }
+                    }
+                }
+                SubmenuHeader {
+                    title: @tr("Label");
+                    expanded <=> root.label-submenu-open;
+                }
+                if root.label-submenu-open: VerticalLayout {
+                    MenuRow {
+                        title: @tr("Red    6");
+                        enabled: root.selected >= 0;
+                        activated => {
+                            root.classify("6");
+                            root.open-menu = "";
+                            root.reset-submenus();
                         }
                     }
                     MenuRow {
-                        // Today `R` only reprocesses the photo open in
-                        // develop — same contract here: disabled outside
-                        // that context rather than silently acting on
-                        // something else.
-                        title: @tr("Reprocess    R");
-                        enabled: root.develop-mode;
+                        title: @tr("Yellow    7");
+                        enabled: root.selected >= 0;
                         activated => {
-                            root.develop-reprocess();
+                            root.classify("7");
                             root.open-menu = "";
+                            root.reset-submenus();
                         }
+                    }
+                    MenuRow {
+                        title: @tr("Green    8");
+                        enabled: root.selected >= 0;
+                        activated => {
+                            root.classify("8");
+                            root.open-menu = "";
+                            root.reset-submenus();
+                        }
+                    }
+                    MenuRow {
+                        title: @tr("Blue    9");
+                        enabled: root.selected >= 0;
+                        activated => {
+                            root.classify("9");
+                            root.open-menu = "";
+                            root.reset-submenus();
+                        }
+                    }
+                }
+                SubmenuHeader {
+                    title: @tr("Flag");
+                    expanded <=> root.flag-submenu-open;
+                }
+                if root.flag-submenu-open: VerticalLayout {
+                    MenuRow {
+                        title: @tr("Pick    P");
+                        enabled: root.selected >= 0;
+                        activated => {
+                            root.classify("p");
+                            root.open-menu = "";
+                            root.reset-submenus();
+                        }
+                    }
+                    MenuRow {
+                        title: @tr("Reject    X");
+                        enabled: root.selected >= 0;
+                        activated => {
+                            root.classify("x");
+                            root.open-menu = "";
+                            root.reset-submenus();
+                        }
+                    }
+                    MenuRow {
+                        title: @tr("Clear    U");
+                        enabled: root.selected >= 0;
+                        activated => {
+                            root.classify("u");
+                            root.open-menu = "";
+                            root.reset-submenus();
+                        }
+                    }
+                }
+                MenuSep { }
+                MenuRow {
+                    title: @tr("Develop    D");
+                    enabled: root.selected >= 0 && !root.develop-mode;
+                    activated => {
+                        root.enter-develop();
+                        root.open-menu = "";
+                    }
+                }
+                MenuRow {
+                    // Today `R` only reprocesses the photo open in
+                    // develop — same contract here: disabled outside
+                    // that context rather than silently acting on
+                    // something else.
+                    title: @tr("Reprocess    R");
+                    enabled: root.develop-mode;
+                    activated => {
+                        root.develop-reprocess();
+                        root.open-menu = "";
                     }
                 }
             }
@@ -2670,51 +2674,49 @@ export component StudioWindow inherits Window {
             if root.open-menu == "develop-menu" && root.develop-mode: MenuDropdown {
                 x: develop-label.x;
                 y: 28px;
-                VerticalLayout {
-                    MenuRow {
-                        title: @tr("Undo    Ctrl+Z");
+                MenuRow {
+                    title: @tr("Undo    Ctrl+Z");
+                    activated => {
+                        root.develop-undo();
+                        root.open-menu = "";
+                    }
+                }
+                MenuRow {
+                    title: @tr("Redo    Ctrl+Y");
+                    activated => {
+                        root.develop-redo();
+                        root.open-menu = "";
+                    }
+                }
+                MenuSep { }
+                MenuRow {
+                    title: @tr("Save Preset…    S");
+                    activated => {
+                        root.open-preset-dialog();
+                        root.open-menu = "";
+                    }
+                }
+                SubmenuHeader {
+                    title: @tr("Apply Preset");
+                    expanded <=> root.apply-preset-submenu-open;
+                    enabled: root.dev-presets.length > 0;
+                }
+                if root.apply-preset-submenu-open: VerticalLayout {
+                    for name[index] in root.dev-presets: MenuRow {
+                        title: name;
                         activated => {
-                            root.develop-undo();
+                            root.apply-preset(index);
                             root.open-menu = "";
+                            root.reset-submenus();
                         }
                     }
-                    MenuRow {
-                        title: @tr("Redo    Ctrl+Y");
-                        activated => {
-                            root.develop-redo();
-                            root.open-menu = "";
-                        }
-                    }
-                    MenuSep { }
-                    MenuRow {
-                        title: @tr("Save Preset…    S");
-                        activated => {
-                            root.open-preset-dialog();
-                            root.open-menu = "";
-                        }
-                    }
-                    SubmenuHeader {
-                        title: @tr("Apply Preset");
-                        expanded <=> root.apply-preset-submenu-open;
-                        enabled: root.dev-presets.length > 0;
-                    }
-                    if root.apply-preset-submenu-open: VerticalLayout {
-                        for name[index] in root.dev-presets: MenuRow {
-                            title: name;
-                            activated => {
-                                root.apply-preset(index);
-                                root.open-menu = "";
-                                root.reset-submenus();
-                            }
-                        }
-                    }
-                    MenuSep { }
-                    MenuRow {
-                        title: @tr("Back to Library    G");
-                        activated => {
-                            root.exit-develop();
-                            root.open-menu = "";
-                        }
+                }
+                MenuSep { }
+                MenuRow {
+                    title: @tr("Back to Library    G");
+                    activated => {
+                        root.exit-develop();
+                        root.open-menu = "";
                     }
                 }
             }
@@ -2722,22 +2724,20 @@ export component StudioWindow inherits Window {
             if root.open-menu == "view": MenuDropdown {
                 x: view-label.x;
                 y: 28px;
-                VerticalLayout {
-                    MenuRow {
-                        title: @tr("Library    G");
-                        enabled: root.develop-mode;
-                        activated => {
-                            root.exit-develop();
-                            root.open-menu = "";
-                        }
+                MenuRow {
+                    title: @tr("Library    G");
+                    enabled: root.develop-mode;
+                    activated => {
+                        root.exit-develop();
+                        root.open-menu = "";
                     }
-                    MenuRow {
-                        title: @tr("Develop    D");
-                        enabled: !root.develop-mode && root.selected >= 0;
-                        activated => {
-                            root.enter-develop();
-                            root.open-menu = "";
-                        }
+                }
+                MenuRow {
+                    title: @tr("Develop    D");
+                    enabled: !root.develop-mode && root.selected >= 0;
+                    activated => {
+                        root.enter-develop();
+                        root.open-menu = "";
                     }
                 }
             }
@@ -2745,22 +2745,20 @@ export component StudioWindow inherits Window {
             if root.open-menu == "help": MenuDropdown {
                 x: help-label.x;
                 y: 28px;
-                VerticalLayout {
-                    MenuRow {
-                        title: @tr("Keyboard Shortcuts…");
-                        activated => {
-                            root.dialog-result = "";
-                            root.dialog = "shortcuts";
-                            root.open-menu = "";
-                        }
+                MenuRow {
+                    title: @tr("Keyboard Shortcuts…");
+                    activated => {
+                        root.dialog-result = "";
+                        root.dialog = "shortcuts";
+                        root.open-menu = "";
                     }
-                    MenuRow {
-                        title: @tr("About Leyline");
-                        activated => {
-                            root.dialog-result = "";
-                            root.dialog = "about";
-                            root.open-menu = "";
-                        }
+                }
+                MenuRow {
+                    title: @tr("About Leyline");
+                    activated => {
+                        root.dialog-result = "";
+                        root.dialog = "about";
+                        root.open-menu = "";
                     }
                 }
             }
