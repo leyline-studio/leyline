@@ -25,11 +25,19 @@ Leyline est publié sous **GPL-3.0**.
 
 Des licences commerciales seront proposées à terme : Leyline suit un modèle de double licence (type Qt), la version community restant intégralement GPL.
 
-Pour rendre ce modèle possible, toute contribution est soumise à un **CLA** (Contributor License Agreement) : le contributeur accorde au projet le droit de distribuer sa contribution sous d'autres licences.
+Pour rendre ce modèle possible, toute contribution est soumise au **CLA** (Contributor License Agreement) décrit dans [`CLA.md`](../CLA.md) : le contributeur accorde au projet le droit de distribuer sa contribution sous d'autres licences, tout en gardant son copyright.
 
 En soumettant une pull request, vous acceptez les termes du CLA.
 
-Le nom « Leyline », le logo et la marque restent la propriété du projet et ne sont pas couverts par la licence du code.
+Le nom « Leyline », le logo et la marque restent la propriété du projet et ne sont pas couverts par la licence du code — voir [`TRADEMARK.md`](../TRADEMARK.md).
+
+## Code de conduite et sécurité
+
+Les contributeurs et participants aux issues/PR sont tenus au
+[`CODE_OF_CONDUCT.md`](../CODE_OF_CONDUCT.md).
+
+Les vulnérabilités de sécurité se signalent en privé, pas par une issue
+publique — voir [`SECURITY.md`](../SECURITY.md).
 
 ## Dépendances
 
