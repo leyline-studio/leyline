@@ -16,6 +16,7 @@ leyline-catalog = { path = "crates/leyline-catalog" }
 leyline-preview = { path = "crates/leyline-preview" }
 leyline-color = { path = "crates/leyline-color" }
 leyline-lens = { path = "crates/leyline-lens" }
+leyline-tether = { path = "crates/leyline-tether" }
 leyline-export = { path = "crates/leyline-export" }
 leyline-engine = { path = "crates/leyline-engine" }
 leyline-sdk = { path = "crates/leyline-sdk" }
@@ -42,6 +43,7 @@ rgb = "0.8"
 criterion = "0.5"
 rayon = "1"
 lensfun = "0.7"
+gphoto2 = "3"
 sys-locale = "0.3"
 directories = "6"
 rfd = "0.15"

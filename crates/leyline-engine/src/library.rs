@@ -21,8 +21,8 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use leyline_catalog::{Catalog, CollectionNode, ExportPreset, KeywordNode, Preset, SmartRules};
 use leyline_core::{
-    AssetId, CollectionId, ColorLabel, ExportPresetId, JobId, KeywordId, PickState, PresetId,
-    PresetSettings, PreviewKind, Result, SettingsGroup, VersionId,
+    AssetId, CollectionId, ColorLabel, ExportPresetId, JobId, KeywordId, LeylineError, PickState,
+    PresetId, PresetSettings, PreviewKind, Result, SettingsGroup, VersionId,
 };
 use leyline_export::ExportSettings;
 use leyline_preview::PreviewCache;
@@ -78,6 +78,9 @@ struct Inner {
     subscribers: Mutex<Vec<Sender<Event>>>,
     /// Next job id, unique within this process.
     next_job: AtomicU64,
+    /// The running tether session (`docs/adr/0038`), if any. One camera at
+    /// a time per library — connecting while this is `Some` is refused.
+    tether: Mutex<Option<leyline_tether::TetherSession>>,
     /// Feeds the bounded job pool every `*_async` job runs on (§3.3),
     /// instead of each call spawning its own unmanaged OS thread. The
     /// pool's worker threads are plain `std::thread`s reading from this
@@ -183,6 +186,7 @@ impl Library {
                 catalog: Mutex::new(catalog),
                 decodes: Mutex::new(DecodeCache::new(DECODE_CACHE_CAPACITY)),
                 subscribers: Mutex::new(Vec::new()),
+                tether: Mutex::new(None),
                 next_job: AtomicU64::new(1),
                 jobs: job_tx,
             }),
@@ -804,6 +808,85 @@ impl Library {
     /// of `docs/catalog.md` §29 — and returns its path.
     pub fn write_xmp(&self, asset: AssetId) -> Result<PathBuf> {
         crate::xmp::write_xmp_sidecar(&self.catalog(), &self.inner.root, asset)
+    }
+
+    /// Connects to the first USB camera libgphoto2 finds and starts a
+    /// tether session (`docs/adr/0038-tethered-capture.md`): every shot the
+    /// camera reports from here on is downloaded and imported automatically
+    /// — a tethered shot is not a distinct kind of asset, just a different
+    /// import source, so it lands in the catalog exactly like a file
+    /// dropped into a watched folder. Emits `Event::TetherConnected` on
+    /// success, then one `Event::AssetsAdded` per captured shot (the same
+    /// event a normal import fires), then `Event::TetherDisconnected` once
+    /// the session ends (`tether_disconnect`, an unplug, or a transport
+    /// error).
+    ///
+    /// Refuses a second session while one is already open: one camera at a
+    /// time per library in V1 (`docs/adr/0038`).
+    pub fn tether_connect(&self) -> Result<()> {
+        let mut slot = lock(&self.inner.tether);
+        if slot.is_some() {
+            return Err(LeylineError::Tether(
+                "a tether session is already open on this library".to_owned(),
+            ));
+        }
+        let staging = self.inner.root.join("Cache").join("Tether");
+        let library = self.clone();
+        let session = leyline_tether::TetherSession::connect(&staging, move |event| {
+            library.handle_tether_event(event);
+        })
+        .map_err(|error| LeylineError::Tether(error.to_string()))?;
+        *slot = Some(session);
+        drop(slot);
+        self.emit(Event::TetherConnected);
+        Ok(())
+    }
+
+    /// Ends the running tether session, if any (`docs/adr/0038`) — a no-op
+    /// when none is open. Blocks briefly (at most one poll interval) for
+    /// the background thread to actually stop; by the time this returns,
+    /// `Event::TetherDisconnected { reason: None }` has already fired.
+    pub fn tether_disconnect(&self) {
+        if let Some(session) = lock(&self.inner.tether).take() {
+            session.stop();
+        }
+    }
+
+    /// Turns one `leyline_tether::TetherEvent` into catalog state and an
+    /// engine event (`docs/adr/0038`). Runs on the tether session's own
+    /// background thread.
+    fn handle_tether_event(&self, event: leyline_tether::TetherEvent) {
+        match event {
+            leyline_tether::TetherEvent::Captured(file) => {
+                let options = ImportOptions {
+                    copy_files: true,
+                    recursive: false,
+                };
+                // A failed import of one captured shot (e.g. an undecodable
+                // file) is dropped rather than surfaced as a disconnect —
+                // same best-effort stance the import core already takes
+                // for a thumbnail render failing after a successful import.
+                if let Ok(report) = self.import(&file.path, &options, |_, _| {}) {
+                    let asset_ids: Vec<AssetId> = report
+                        .imported
+                        .iter()
+                        .map(|imported| imported.registered.asset)
+                        .collect();
+                    if !asset_ids.is_empty() {
+                        self.emit(Event::AssetsAdded { asset_ids });
+                    }
+                }
+                // The import core already copied the bytes into `Photos/`
+                // (`copy_files: true` above); leaving the staged copy
+                // behind would grow `Cache/Tether/` without bound for the
+                // life of the session.
+                let _ = std::fs::remove_file(&file.path);
+            }
+            leyline_tether::TetherEvent::Disconnected(reason) => {
+                lock(&self.inner.tether).take();
+                self.emit(Event::TetherDisconnected { reason });
+            }
+        }
     }
 }
 

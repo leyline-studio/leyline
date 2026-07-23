@@ -19,6 +19,7 @@ Usage:
   leyline new <library> [--name <name>]
   leyline info <library>
   leyline import <library> <source> [--reference] [--flat]
+  leyline tether <library>
   leyline ls <library> [--text <query>] [--rating <min>]
   leyline preview <library> <asset-id> [--kind <thumbnail|small|medium|large|full>]
   leyline export <library> <dest-dir> <version-id>...
@@ -71,6 +72,7 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("new") => new(&args[1..]),
         Some("info") => info(&args[1..]),
         Some("import") => import(&args[1..]),
+        Some("tether") => tether(&args[1..]),
         Some("ls") => ls(&args[1..]),
         Some("preview") => preview(&args[1..]),
         Some("export") => export(&args[1..]),
@@ -627,6 +629,38 @@ fn preset_rm(args: &[String]) -> Result<(), String> {
     library.delete_preset(preset).map_err(|e| e.to_string())?;
     println!("deleted preset {name:?}");
     Ok(())
+}
+
+/// Connects to a USB camera and imports every shot as it's taken
+/// (`docs/adr/0038-tethered-capture.md`), until the camera disconnects or
+/// the process is interrupted (Ctrl+C).
+fn tether(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root] = positional.as_slice() else {
+        return Err("usage: leyline tether <library>".to_owned());
+    };
+    let library = open(root)?;
+    let events = library.subscribe();
+    library.tether_connect().map_err(|e| e.to_string())?;
+    eprintln!("connected — waiting for shots (Ctrl+C to stop)");
+    loop {
+        match events.recv() {
+            Ok(leyline_sdk::Event::AssetsAdded { asset_ids }) => {
+                for asset in asset_ids {
+                    println!("captured asset {asset}");
+                }
+            }
+            Ok(leyline_sdk::Event::TetherDisconnected { reason }) => {
+                match reason {
+                    Some(reason) => eprintln!("disconnected: {reason}"),
+                    None => eprintln!("disconnected"),
+                }
+                return Ok(());
+            }
+            Ok(_) => {}
+            Err(_) => return Ok(()),
+        }
+    }
 }
 
 /// Builds an [`ExportSettings`] from the shared recipe flags.

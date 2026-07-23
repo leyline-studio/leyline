@@ -92,6 +92,11 @@ pub enum LeylineError {
     /// An underlying database operation failed.
     #[error("database error: {0}")]
     Db(String),
+
+    /// A tether session (`docs/adr/0038-tethered-capture.md`) failed to
+    /// connect, or a session was already open on this library.
+    #[error("tether error: {0}")]
+    Tether(String),
 }
 
 /// Convenience alias used across the whole platform.

@@ -1,0 +1,15 @@
+[package]
+name = "leyline-tether"
+description = "USB tethered capture for the Leyline engine, backed by libgphoto2."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+gphoto2.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

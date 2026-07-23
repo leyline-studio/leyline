@@ -56,6 +56,16 @@ pub enum Event {
     },
     /// The library handle was closed by its owner.
     LibraryClosed,
+    /// A tether session (`docs/adr/0038`) connected to a USB camera.
+    /// Captured shots arrive as ordinary `AssetsAdded` — a tethered import
+    /// is not a distinct kind of event, just a distinct source.
+    TetherConnected,
+    /// The tether session ended: a clean `stop` (`reason: None`) or an
+    /// unplug/transport error (`reason: Some`).
+    TetherDisconnected {
+        /// Human-readable cause, absent for a caller-initiated stop.
+        reason: Option<String>,
+    },
 }
 
 /// What a finished job produced (`docs/engine-api.md` §3.2).

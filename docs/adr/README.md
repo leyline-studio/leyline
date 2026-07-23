@@ -43,3 +43,4 @@ Une décision acceptée ne se modifie pas : elle se remplace par un nouvel ADR q
 | [0035](0035-camera-profile-dcp.md) | Profil caméra DCP : nouvel étage colorimétrique en tête de pipeline, fichiers fournis par l'utilisateur, référencés par chemin relatif et checksummés (BLAKE3) |
 | [0036](0036-print-module.md) | Module d'impression : « export avec dimension physique + profil de destination », une photo par page (planches coupées), hand-off OS laissé à Studio |
 | [0037](0037-dcp-parsing-dependency.md) | Dépendance de parsing DCP : lecteur de tags maison minimal au-dessus du crate `tiff` déjà lié, lecture seule, dans `leyline-color` |
+| [0038](0038-tethered-capture.md) | Capture tethering : import direct depuis l'appareil via USB (libgphoto2), une capture est un import comme un autre |

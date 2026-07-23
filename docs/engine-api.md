@@ -57,6 +57,8 @@ pub enum Event {
     JobProgress { job_id: JobId, done: u64, total: u64 },
     JobFinished { job_id: JobId, result: JobResult },
     LibraryClosed,
+    TetherConnected,
+    TetherDisconnected { reason: Option<String> },
 }
 
 pub enum JobResult {
@@ -72,6 +74,7 @@ pub enum JobResult {
 * Studio branche ce canal sur la boucle Slint ; la CLI le lit en séquence ; un script peut l'ignorer. Un récepteur abandonné se désabonne silencieusement.
 * Les événements sont des **notifications**, jamais des données complètes : le client re-requête ce dont il a besoin. Cela évite tout problème de cohérence entre le flux et la base.
 * `PreviewReady` porte l'asset (pas la version) : la surface preview est asset-based (§11), la preview rendue est toujours celle de la version courante de l'asset.
+* `TetherConnected`/`TetherDisconnected` bornent le cycle de vie d'une session `tether_connect`/`tether_disconnect` (§6bis) — chaque photo capturée pendant la session notifie via `AssetsAdded`, exactement comme un import : ce n'est pas un événement distinct, seulement une source différente pour le même import.
 * **État livré** : `subscribe` et les jobs `import_async`, `preview_async`, `export_async` émettent `JobProgress`, `AssetsAdded`, `PreviewReady` et `JobFinished`. Les écritures de la façade notifient : classement (§8) → un `VersionChanged` par version du lot ; mots-clés (§8) → `AssetsChanged` avec le lot ; chaque écriture d'historique d'une session d'édition (§10.1 — commit, amendement, undo, redo) → `VersionChanged`. L'application d'un preset (§10.3) ne notifie rien de plus : c'est un commit de session par version ciblée, donc les mêmes `VersionChanged` que §10.1, portés par le job `apply_preset_async`. Un client qui écrit via `catalog_mut()` directement contourne les notifications : passer par la façade. `close()` (§5) émet `LibraryClosed` à tous les abonnés du flux partagé ; les autres clones de la `Library` restent utilisables — seule la connexion catalogue ferme, et seulement quand le dernier clone est abandonné.
 
 ## 3.3 Threading
@@ -163,6 +166,30 @@ impl Library {
 ```
 
 L'import est un travail : extraction EXIF, checksum BLAKE3, création de la révision initiale et de la version `Default` (catalogue §18) — en flux, avec `JobProgress` par fichier candidat. Chaque asset importé avec succès reçoit aussi sa miniature (`PreviewKind::Thumbnail`) avant que `import`/`import_async` ne retourne, via le même cœur que `preview_async` (§11) : le client n'a plus besoin de la déclencher lui-même après coup. Un échec de rendu de miniature n'annule jamais l'import de l'asset — il reste importé, sans miniature en cache, et retombe sur le chemin paresseux existant (`cached_preview` puis `preview_async`) la première fois qu'il doit s'afficher. Ce rendu est fait séquentiellement, asset par asset : la miniature partage le verrou du catalogue avec le reste de l'import (§11), le paralléliser demanderait de revoir ce verrouillage, pas seulement d'itérer avec `rayon`.
+
+---
+
+# 6bis. Capture tethering (`docs/adr/0038-tethered-capture.md`)
+
+```rust
+impl Library {
+    /// Se connecte à la première caméra USB détectée (libgphoto2) et
+    /// démarre une session : chaque photo prise à partir de là est
+    /// téléchargée et importée automatiquement, comme un import ordinaire.
+    /// Refuse une deuxième session tant qu'une est déjà ouverte.
+    pub fn tether_connect(&self) -> Result<()>;
+
+    /// Termine la session en cours ; ne fait rien si aucune n'est ouverte.
+    pub fn tether_disconnect(&self);
+}
+```
+
+Une capture tethering n'est pas un chemin de données séparé : le fichier
+reçu de l'appareil passe par le même cœur d'import que `Library::import`
+(checksum, EXIF, révision initiale, vignette), donc émet le même
+`Event::AssetsAdded` (§3.2). Seuls `TetherConnected`/`TetherDisconnected`
+sont nouveaux, pour signaler la connexion elle-même — une caméra à la
+fois par `Library` en V1.
 
 ---
 

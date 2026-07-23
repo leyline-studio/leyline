@@ -12,6 +12,7 @@ leyline/
  │   ├─ leyline-preview
  │   ├─ leyline-color
  │   ├─ leyline-lens
+ │   ├─ leyline-tether
  │   ├─ leyline-export
  │   ├─ leyline-sdk
  │   ├─ leyline-cli
@@ -22,7 +23,7 @@ leyline/
 
 Studio → SDK → Engine → Core
 
-Catalog, RAW, Color, Lens, Preview et Export sont consommés par Engine.
+Catalog, RAW, Color, Lens, Tether, Preview et Export sont consommés par Engine.
 
 ## Choix techniques
 
@@ -32,6 +33,7 @@ Catalog, RAW, Color, Lens, Preview et Export sont consommés par Engine.
 * LibRaw
 * Lensfun
 * LittleCMS
+* libgphoto2 — capture tethering (`docs/adr/0038-tethered-capture.md`)
 * rfd — sélecteurs de dossier natifs (Explorer/GTK/Finder) dans Studio, pour les dialogues d'import et d'export
 * Tests unitaires + intégration + benchmarks.
 
