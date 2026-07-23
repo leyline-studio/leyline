@@ -88,10 +88,11 @@ aucune version de process n'est concernée.
   affiche chaque asset importé, s'arrête proprement à la déconnexion ou à
   un Ctrl+C — la même API que Studio utilisera pour son panneau tethering
   (§13, ADR 0011 : CLI et Studio consomment la même surface SDK).
-* Interface Studio (panneau de connexion, affichage de la dernière photo
-  capturée) : pas encore construite — c'est un client de plus sur l'API
-  ci-dessus, aucune décision d'architecture supplémentaire n'est requise
-  pour l'ajouter.
+* Interface Studio : File ▸ Tethered Capture… (`T`) ouvre un panneau modal
+  qui appelle `tether_connect`/`tether_disconnect`, affiche l'état de la
+  connexion, le compte de prises de la session et le nom du dernier fichier
+  reçu — juste un client de plus sur l'API ci-dessus, aucune décision
+  d'architecture supplémentaire n'a été nécessaire pour l'ajouter.
 * Sans caméra USB branchée (CI, poste de développement courant),
   `TetherSession::connect` échoue proprement avec `TetherError::NoCamera`
   plutôt que de bloquer ou paniquer — c'est le seul comportement testable

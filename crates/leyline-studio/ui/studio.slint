@@ -463,6 +463,15 @@ export component StudioWindow inherits Window {
     callback run-save-preset(string, bool, bool, bool, bool, bool, bool);
     callback run-import(string, bool, bool);
     callback open-export();
+    // Opens the tethered-capture panel (ADR 0038), connects to / disconnects
+    // from the first USB camera libgphoto2 finds.
+    callback open-tether();
+    callback run-tether-connect();
+    callback run-tether-disconnect();
+    in-out property <bool> tether-connected: false;
+    in-out property <string> tether-status: "";
+    in-out property <string> tether-last-captured: "";
+    in-out property <int> tether-captured-count: 0;
     // Opens a native OS folder picker; on a non-cancelled pick, Rust sets
     // `import-source-text` / `export-destination-text` below. Manual typing
     // into the paired TextInput keeps working — the picker is just a
@@ -486,7 +495,7 @@ export component StudioWindow inherits Window {
     in-out property <string> export-max-edge-text: "";
     in-out property <string> export-preset-name: "";
 
-    // Modal dialog state: "" (none), "import" or "export".
+    // Modal dialog state: "" (none), "import", "export" or "tether".
     in-out property <string> dialog;
     in-out property <string> dialog-result;
     in-out property <bool> import-copy: true;
@@ -619,6 +628,10 @@ export component StudioWindow inherits Window {
             }
             if (event.text == "e" || event.text == "E") {
                 root.open-export();
+                return accept;
+            }
+            if (event.text == "t" || event.text == "T") {
+                root.open-tether();
                 return accept;
             }
             if (event.text == "n" || event.text == "N") {
@@ -1980,6 +1993,59 @@ export component StudioWindow inherits Window {
                         }
                     }
 
+                    if root.dialog == "tether": VerticalLayout {
+                        spacing: 12px;
+                        Text {
+                            text: @tr("Tethered capture");
+                            color: #f0f0f0;
+                            font-size: 15px;
+                            font-weight: 600;
+                        }
+                        Text {
+                            text: root.tether-connected ? @tr("Connected — waiting for shots") : (root.tether-status == "" ? @tr("Not connected. Plug in a camera over USB and click Connect.") : root.tether-status);
+                            color: root.tether-connected ? #7fc97f : #9a9a9a;
+                            font-size: 12px;
+                            wrap: word-wrap;
+                        }
+                        if root.tether-connected: Text {
+                            text: @tr("{} captured this session", root.tether-captured-count);
+                            color: #9a9a9a;
+                            font-size: 12px;
+                            wrap: word-wrap;
+                        }
+                        if root.tether-connected && root.tether-last-captured != "": Text {
+                            text: @tr("Last: {}", root.tether-last-captured);
+                            color: #9a9a9a;
+                            font-size: 12px;
+                            wrap: word-wrap;
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: end;
+                            FilterChip {
+                                text: @tr("Close");
+                                active: false;
+                                clicked => {
+                                    root.dialog = "";
+                                }
+                            }
+                            if !root.tether-connected: FilterChip {
+                                text: @tr("Connect");
+                                active: true;
+                                clicked => {
+                                    root.run-tether-connect();
+                                }
+                            }
+                            if root.tether-connected: FilterChip {
+                                text: @tr("Disconnect");
+                                active: true;
+                                clicked => {
+                                    root.run-tether-disconnect();
+                                }
+                            }
+                        }
+                    }
+
                     if root.dialog == "collection": VerticalLayout {
                         spacing: 12px;
                         Text {
@@ -2200,6 +2266,21 @@ export component StudioWindow inherits Window {
                                 }
                                 Text {
                                     text: @tr("Export");
+                                    color: #9a9a9a;
+                                    font-size: 12px;
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Text {
+                                    text: "T";
+                                    color: #e6e6e6;
+                                    font-size: 12px;
+                                    font-weight: 600;
+                                    width: 110px;
+                                }
+                                Text {
+                                    text: @tr("Tethered capture");
                                     color: #9a9a9a;
                                     font-size: 12px;
                                 }
@@ -2451,6 +2532,13 @@ export component StudioWindow inherits Window {
                     title: @tr("Export…    E");
                     activated => {
                         root.open-export();
+                        root.open-menu = "";
+                    }
+                }
+                MenuRow {
+                    title: @tr("Tethered Capture…    T");
+                    activated => {
+                        root.open-tether();
                         root.open-menu = "";
                     }
                 }

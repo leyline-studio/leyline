@@ -100,6 +100,10 @@ struct App {
     export_job: Option<JobId>,
     /// Thumbnail render jobs currently in flight.
     preview_jobs: HashSet<JobId>,
+    /// Whether a tether session (`docs/adr/0038`) is currently open.
+    tether_connected: bool,
+    /// Shots captured by the current tether session, for the panel's counter.
+    tether_captured: u32,
 }
 
 /// Thumbnail render jobs kept in flight at once: enough to hide latency,
@@ -249,6 +253,8 @@ fn run() -> Result<(), String> {
         import_job: None,
         export_job: None,
         preview_jobs: HashSet::new(),
+        tether_connected: false,
+        tether_captured: 0,
     }));
 
     let window = StudioWindow::new().map_err(|e| e.to_string())?;
@@ -445,7 +451,19 @@ fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
                 report_error(window, &error);
             }
         }
-        Event::AssetsAdded { .. } => {
+        Event::AssetsAdded { ref asset_ids } => {
+            // A tethered shot lands here too (`docs/adr/0038`): it's an
+            // ordinary import under the hood, so the panel's "last
+            // captured" line is filled in from the same event rather than
+            // a dedicated one.
+            if app.tether_connected
+                && let Some(&asset) = asset_ids.last()
+                && let Ok(details) = app.library.catalog().asset_details(asset)
+            {
+                app.tether_captured += 1;
+                window.set_tether_captured_count(i32::try_from(app.tether_captured).unwrap_or(0));
+                window.set_tether_last_captured(SharedString::from(details.filename.as_str()));
+            }
             // New assets — our own import, or another writer's — can change
             // both the total count and the visible window; skip while
             // develop is open for the same reason as `VersionChanged`.
@@ -454,6 +472,21 @@ fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
             {
                 report_error(window, &error);
             }
+        }
+        Event::TetherConnected => {
+            app.tether_connected = true;
+            app.tether_captured = 0;
+            window.set_tether_connected(true);
+            window.set_tether_captured_count(0);
+            window.set_tether_last_captured(SharedString::default());
+        }
+        Event::TetherDisconnected { reason } => {
+            app.tether_connected = false;
+            window.set_tether_connected(false);
+            window.set_tether_status(match reason {
+                Some(reason) => SharedString::from(reason),
+                None => SharedString::default(),
+            });
         }
         _ => {}
     }
@@ -1014,6 +1047,44 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                     );
                 }
             }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_open_tether(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let app = app.borrow();
+            window.set_tether_connected(app.tether_connected);
+            window.set_tether_status(SharedString::default());
+            window.set_tether_captured_count(i32::try_from(app.tether_captured).unwrap_or(0));
+            window.set_tether_last_captured(SharedString::default());
+            window.set_dialog(SharedString::from("tether"));
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_run_tether_connect(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            match app.library.tether_connect() {
+                Ok(()) => {
+                    app.tether_captured = 0;
+                    window.set_tether_status(SharedString::default());
+                }
+                Err(error) => window.set_tether_status(SharedString::from(error.to_string())),
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        window.on_run_tether_disconnect(move || {
+            app.borrow().library.tether_disconnect();
         });
     }
 }
