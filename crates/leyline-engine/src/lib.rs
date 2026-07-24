@@ -30,6 +30,7 @@ mod render;
 mod reprocess;
 mod session;
 mod source;
+mod watch;
 mod xmp;
 
 pub use decode_cache::DecodeCache;
@@ -47,4 +48,5 @@ pub use print::{FailedPrint, PrintRecipe, PrintReport, PrintRequest, PrintedVers
 pub use render::{LensShot, Rendered, lens_shot, render};
 pub use reprocess::{FailedReprocess, ReprocessReport, reprocess_batch};
 pub use session::{DEFAULT_AMEND_WINDOW, EditSession, Param, Value};
+pub use watch::{WatchError, WatchSessionEvent, WatchedFile};
 pub use xmp::write_xmp_sidecar;

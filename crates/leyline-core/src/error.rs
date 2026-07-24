@@ -102,6 +102,11 @@ pub enum LeylineError {
     /// connect, or a session was already open on this library.
     #[error("tether error: {0}")]
     Tether(String),
+
+    /// A watched-folder session (`docs/adr/0039-watched-folder-import.md`)
+    /// failed to start, or a session was already running on this library.
+    #[error("watch error: {0}")]
+    Watch(String),
 }
 
 /// Convenience alias used across the whole platform.

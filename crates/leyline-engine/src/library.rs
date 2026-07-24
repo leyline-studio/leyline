@@ -85,6 +85,10 @@ struct Inner {
     /// The running tether session (`docs/adr/0038`), if any. One camera at
     /// a time per library — connecting while this is `Some` is refused.
     tether: Mutex<Option<leyline_tether::TetherSession>>,
+    /// The running watched-folder session (`docs/adr/0039`), if any. One
+    /// watched folder at a time per library — starting while this is
+    /// `Some` is refused.
+    watch: Mutex<Option<crate::watch::WatchSession>>,
     /// Feeds the bounded job pool every `*_async` job runs on (§3.3),
     /// instead of each call spawning its own unmanaged OS thread. The
     /// pool's worker threads are plain `std::thread`s reading from this
@@ -191,6 +195,7 @@ impl Library {
                 decodes: Mutex::new(DecodeCache::new(DECODE_CACHE_CAPACITY)),
                 subscribers: Mutex::new(Vec::new()),
                 tether: Mutex::new(None),
+                watch: Mutex::new(None),
                 next_job: AtomicU64::new(1),
                 jobs: job_tx,
             }),
@@ -1027,7 +1032,17 @@ impl Library {
     /// the background thread to actually stop; by the time this returns,
     /// `Event::TetherDisconnected { reason: None }` has already fired.
     pub fn tether_disconnect(&self) {
-        if let Some(session) = lock(&self.inner.tether).take() {
+        // Deliberately two statements, not `if let Some(s) =
+        // lock(..).take() { s.stop() }`: that form is a real deadlock, not
+        // just a style nit — a `MutexGuard` that is the scrutinee of an
+        // `if let` lives for the *whole* block (Rust's temporary lifetime
+        // extension), so the lock would still be held while `stop()`
+        // blocks joining the session's background thread — and that
+        // thread's own `Disconnected` handler needs the very same lock to
+        // report itself gone. Splitting the `take()` into its own `let`
+        // drops the guard before `stop()` runs.
+        let session = lock(&self.inner.tether).take();
+        if let Some(session) = session {
             session.stop();
         }
     }
@@ -1065,6 +1080,95 @@ impl Library {
             leyline_tether::TetherEvent::Disconnected(reason) => {
                 lock(&self.inner.tether).take();
                 self.emit(Event::TetherDisconnected { reason });
+            }
+        }
+    }
+
+    /// Starts watching `folder` for new files (`docs/adr/0039-watched-
+    /// folder-import.md`): every file that settles there from now on is
+    /// imported automatically — a watched-folder import is not a distinct
+    /// kind of asset, just a different import source, so it lands in the
+    /// catalog exactly like an explicit import or a tethered shot. Emits
+    /// `Event::WatchStarted` on success, then one `Event::AssetsAdded` per
+    /// imported file, then `Event::WatchStopped` once the session ends
+    /// (`watch_stop`, or the OS watcher failing).
+    ///
+    /// Each settled file is imported on its own — never batched — the same
+    /// short-catalog-lock shape `handle_tether_event` uses, so a folder
+    /// receiving many files in a row never holds the catalog mutex for
+    /// longer than one file's import, and interactive develop-mode work
+    /// sharing that mutex is never kept waiting behind the whole batch.
+    ///
+    /// Refuses a second session while one is already open: one watched
+    /// folder at a time per library in V1, same contract as
+    /// `tether_connect`.
+    pub fn watch_start(&self, folder: &Path) -> Result<()> {
+        let mut slot = lock(&self.inner.watch);
+        if slot.is_some() {
+            return Err(LeylineError::Watch(
+                "a watched folder is already active on this library".to_owned(),
+            ));
+        }
+        let library = self.clone();
+        let session = crate::watch::WatchSession::watch(folder, move |event| {
+            library.handle_watch_event(event);
+        })
+        .map_err(|error| LeylineError::Watch(error.to_string()))?;
+        *slot = Some(session);
+        drop(slot);
+        self.emit(Event::WatchStarted {
+            folder: folder.to_owned(),
+        });
+        Ok(())
+    }
+
+    /// Ends the running watched-folder session, if any (`docs/adr/0039`) —
+    /// a no-op when none is active. Blocks briefly (at most one tick
+    /// interval) for the background thread to actually stop; by the time
+    /// this returns, `Event::WatchStopped { reason: None }` has already
+    /// fired.
+    pub fn watch_stop(&self) {
+        // See the comment on `tether_disconnect`: the `take()` must be its
+        // own statement so the mutex guard drops before `stop()` blocks
+        // joining the background thread, which needs this same lock to
+        // report `WatchSessionEvent::Stopped`.
+        let session = lock(&self.inner.watch).take();
+        if let Some(session) = session {
+            session.stop();
+        }
+    }
+
+    /// Turns one `crate::watch::WatchSessionEvent` into catalog state and
+    /// an engine event (`docs/adr/0039`). Runs on the watch session's own
+    /// background thread.
+    fn handle_watch_event(&self, event: crate::watch::WatchSessionEvent) {
+        match event {
+            crate::watch::WatchSessionEvent::Ready(file) => {
+                let options = ImportOptions {
+                    copy_files: true,
+                    recursive: false,
+                };
+                // A failed import of one settled file (e.g. an undecodable
+                // one) is dropped rather than surfaced as a session error —
+                // same best-effort stance `handle_tether_event` takes.
+                if let Ok(report) = self.import(&file.path, &options, |_, _| {}) {
+                    let asset_ids: Vec<AssetId> = report
+                        .imported
+                        .iter()
+                        .map(|imported| imported.registered.asset)
+                        .collect();
+                    if !asset_ids.is_empty() {
+                        self.emit(Event::AssetsAdded { asset_ids });
+                    }
+                }
+                // Unlike the tether staging directory, the watched folder
+                // is a location the caller chose on purpose (their own
+                // "drop zone" or a memory card mount) — the original file
+                // is left in place, never deleted.
+            }
+            crate::watch::WatchSessionEvent::Stopped(reason) => {
+                lock(&self.inner.watch).take();
+                self.emit(Event::WatchStopped { reason });
             }
         }
     }

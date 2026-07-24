@@ -18,7 +18,9 @@ leyline-color.workspace = true
 leyline-lens.workspace = true
 leyline-tether.workspace = true
 leyline-export.workspace = true
+notify.workspace = true
 rayon.workspace = true
+thiserror.workspace = true
 
 [dev-dependencies]
 image.workspace = true
@@ -27,6 +29,10 @@ criterion.workspace = true
 
 [[bench]]
 name = "process1"
+harness = false
+
+[[bench]]
+name = "import"
 harness = false
 
 [lints]

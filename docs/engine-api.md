@@ -59,6 +59,8 @@ pub enum Event {
     LibraryClosed,
     TetherConnected,
     TetherDisconnected { reason: Option<String> },
+    WatchStarted { folder: PathBuf },
+    WatchStopped { reason: Option<String> },
 }
 
 pub enum JobResult {
@@ -75,6 +77,7 @@ pub enum JobResult {
 * Les événements sont des **notifications**, jamais des données complètes : le client re-requête ce dont il a besoin. Cela évite tout problème de cohérence entre le flux et la base.
 * `PreviewReady` porte l'asset (pas la version) : la surface preview est asset-based (§11), la preview rendue est toujours celle de la version courante de l'asset.
 * `TetherConnected`/`TetherDisconnected` bornent le cycle de vie d'une session `tether_connect`/`tether_disconnect` (§6bis) — chaque photo capturée pendant la session notifie via `AssetsAdded`, exactement comme un import : ce n'est pas un événement distinct, seulement une source différente pour le même import.
+* `WatchStarted`/`WatchStopped` suivent le même principe pour `watch_start`/`watch_stop` (§6ter, `docs/adr/0039-watched-folder-import.md`) : chaque fichier stabilisé dans le dossier surveillé notifie via `AssetsAdded`.
 * **État livré** : `subscribe` et les jobs `import_async`, `preview_async`, `export_async` émettent `JobProgress`, `AssetsAdded`, `PreviewReady` et `JobFinished`. Les écritures de la façade notifient : classement (§8) → un `VersionChanged` par version du lot ; mots-clés (§8) → `AssetsChanged` avec le lot ; chaque écriture d'historique d'une session d'édition (§10.1 — commit, amendement, undo, redo) → `VersionChanged`. L'application d'un preset (§10.3) ne notifie rien de plus : c'est un commit de session par version ciblée, donc les mêmes `VersionChanged` que §10.1, portés par le job `apply_preset_async`. Un client qui écrit via `catalog_mut()` directement contourne les notifications : passer par la façade. `close()` (§5) émet `LibraryClosed` à tous les abonnés du flux partagé ; les autres clones de la `Library` restent utilisables — seule la connexion catalogue ferme, et seulement quand le dernier clone est abandonné.
 
 ## 3.3 Threading
@@ -190,6 +193,36 @@ reçu de l'appareil passe par le même cœur d'import que `Library::import`
 `Event::AssetsAdded` (§3.2). Seuls `TetherConnected`/`TetherDisconnected`
 sont nouveaux, pour signaler la connexion elle-même — une caméra à la
 fois par `Library` en V1.
+
+---
+
+# 6ter. Import automatique par dossier surveillé (`docs/adr/0039-watched-folder-import.md`)
+
+```rust
+impl Library {
+    /// Démarre la surveillance de `folder` : chaque fichier qui s'y
+    /// stabilise à partir de là est importé automatiquement, comme un
+    /// import ordinaire. Refuse une deuxième session tant qu'une est déjà
+    /// active.
+    pub fn watch_start(&self, folder: &Path) -> Result<()>;
+
+    /// Termine la session en cours ; ne fait rien si aucune n'est active.
+    pub fn watch_stop(&self);
+}
+```
+
+Même principe que le tethering (§6bis) : un fichier stabilisé dans le
+dossier surveillé passe par le même cœur d'import que `Library::import`
+(checksum, EXIF, révision initiale, vignette), donc émet le même
+`Event::AssetsAdded` (§3.2). Seuls `WatchStarted`/`WatchStopped` sont
+nouveaux, pour signaler la session elle-même — un dossier surveillé à la
+fois par `Library` en V1. Contrairement au tethering, chaque fichier est
+importé individuellement au fil de l'eau (jamais en lot), pour que le
+verrou du catalogue que `Library::import` tient pendant tout son appel
+(§3.3) ne reste jamais bloqué plus longtemps qu'un seul fichier, même si le
+dossier en reçoit beaucoup d'un coup — sinon toute opération interactive en
+mode développement partageant ce même verrou attendrait derrière le lot
+entier.
 
 ---
 

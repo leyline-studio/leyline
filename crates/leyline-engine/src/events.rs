@@ -5,6 +5,8 @@
 //! subscriber owns a standard mpsc channel; a dropped receiver silently
 //! unsubscribes at the next emission.
 
+use std::path::PathBuf;
+
 use leyline_core::{AssetId, JobId, PreviewKind, VersionId};
 
 use crate::export::ExportReport;
@@ -64,6 +66,19 @@ pub enum Event {
     /// The tether session ended: a clean `stop` (`reason: None`) or an
     /// unplug/transport error (`reason: Some`).
     TetherDisconnected {
+        /// Human-readable cause, absent for a caller-initiated stop.
+        reason: Option<String>,
+    },
+    /// A watched-folder session (`docs/adr/0039`) started on `folder`.
+    /// Settled files arrive as ordinary `AssetsAdded` — a watched-folder
+    /// import is not a distinct kind of event, just a distinct source.
+    WatchStarted {
+        /// The folder now being watched.
+        folder: PathBuf,
+    },
+    /// The watched-folder session ended: a clean `watch_stop`
+    /// (`reason: None`) or the OS watcher failing unexpectedly (`Some`).
+    WatchStopped {
         /// Human-readable cause, absent for a caller-initiated stop.
         reason: Option<String>,
     },

@@ -558,6 +558,17 @@ export component StudioWindow inherits Window {
     in-out property <string> tether-status: "";
     in-out property <string> tether-last-captured: "";
     in-out property <int> tether-captured-count: 0;
+    // Opens the watched-folder auto-import panel (ADR 0039): starts/stops
+    // watching a folder, importing every file that settles there.
+    callback open-watch();
+    callback browse-watch-folder();
+    callback run-watch-start();
+    callback run-watch-stop();
+    in-out property <bool> watch-active: false;
+    in-out property <string> watch-status: "";
+    in-out property <string> watch-folder-text: "";
+    in-out property <string> watch-last-imported: "";
+    in-out property <int> watch-imported-count: 0;
     // Opens a native OS folder picker; on a non-cancelled pick, Rust sets
     // `import-source-text` / `export-destination-text` below. Manual typing
     // into the paired TextInput keeps working — the picker is just a
@@ -607,7 +618,8 @@ export component StudioWindow inherits Window {
     in property <[string]> print-presets;
     in-out property <int> print-preset: -1;
 
-    // Modal dialog state: "" (none), "import", "export", "print" or "tether".
+    // Modal dialog state: "" (none), "import", "export", "print", "tether"
+    // or "watch".
     in-out property <string> dialog;
     in-out property <string> dialog-result;
     in-out property <bool> import-copy: true;
@@ -2925,6 +2937,74 @@ export component StudioWindow inherits Window {
                         }
                     }
 
+                    if root.dialog == "watch": VerticalLayout {
+                        spacing: 12px;
+                        Text {
+                            text: @tr("Auto import");
+                            color: #f0f0f0;
+                            font-size: 15px;
+                            font-weight: 600;
+                        }
+                        Text {
+                            text: root.watch-active ? @tr("Watching — waiting for files") : (root.watch-status == "" ? @tr("Not watching. Pick a folder and click Start.") : root.watch-status);
+                            color: root.watch-active ? #7fc97f : #9a9a9a;
+                            font-size: 12px;
+                            wrap: word-wrap;
+                        }
+                        if !root.watch-active: HorizontalLayout {
+                            spacing: 8px;
+                            watch-folder-input := TextInput {
+                                text <=> root.watch-folder-text;
+                                color: #f0f0f0;
+                                font-size: 12px;
+                            }
+                            FilterChip {
+                                text: @tr("Browse…");
+                                active: false;
+                                clicked => {
+                                    root.browse-watch-folder();
+                                }
+                            }
+                        }
+                        if root.watch-active: Text {
+                            text: @tr("{} imported this session", root.watch-imported-count);
+                            color: #9a9a9a;
+                            font-size: 12px;
+                            wrap: word-wrap;
+                        }
+                        if root.watch-active && root.watch-last-imported != "": Text {
+                            text: @tr("Last: {}", root.watch-last-imported);
+                            color: #9a9a9a;
+                            font-size: 12px;
+                            wrap: word-wrap;
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: end;
+                            FilterChip {
+                                text: @tr("Close");
+                                active: false;
+                                clicked => {
+                                    root.dialog = "";
+                                }
+                            }
+                            if !root.watch-active: FilterChip {
+                                text: @tr("Start");
+                                active: true;
+                                clicked => {
+                                    root.run-watch-start();
+                                }
+                            }
+                            if root.watch-active: FilterChip {
+                                text: @tr("Stop");
+                                active: true;
+                                clicked => {
+                                    root.run-watch-stop();
+                                }
+                            }
+                        }
+                    }
+
                     if root.dialog == "collection": VerticalLayout {
                         spacing: 12px;
                         Text {
@@ -3449,6 +3529,13 @@ export component StudioWindow inherits Window {
                     title: @tr("Tethered Capture…    T");
                     activated => {
                         root.open-tether();
+                        root.open-menu = "";
+                    }
+                }
+                MenuRow {
+                    title: @tr("Auto Import…");
+                    activated => {
+                        root.open-watch();
                         root.open-menu = "";
                     }
                 }

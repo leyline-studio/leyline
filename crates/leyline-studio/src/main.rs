@@ -141,6 +141,12 @@ struct App {
     tether_connected: bool,
     /// Shots captured by the current tether session, for the panel's counter.
     tether_captured: u32,
+    /// Whether a watched-folder session (`docs/adr/0039`) is currently
+    /// active.
+    watch_active: bool,
+    /// Files imported by the current watch session, for the panel's
+    /// counter.
+    watch_imported: u32,
 }
 
 /// Thumbnail render jobs kept in flight at once: enough to hide latency,
@@ -357,6 +363,8 @@ fn run() -> Result<(), String> {
         preview_jobs: HashSet::new(),
         tether_connected: false,
         tether_captured: 0,
+        watch_active: false,
+        watch_imported: 0,
     }));
 
     let window = StudioWindow::new().map_err(|e| e.to_string())?;
@@ -571,10 +579,10 @@ fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
             }
         }
         Event::AssetsAdded { ref asset_ids } => {
-            // A tethered shot lands here too (`docs/adr/0038`): it's an
-            // ordinary import under the hood, so the panel's "last
-            // captured" line is filled in from the same event rather than
-            // a dedicated one.
+            // A tethered shot or a watched-folder import lands here too
+            // (`docs/adr/0038`, `docs/adr/0039`): both are ordinary imports
+            // under the hood, so each panel's "last" line is filled in from
+            // this same event rather than a dedicated one.
             if app.tether_connected
                 && let Some(&asset) = asset_ids.last()
                 && let Ok(details) = app.library.catalog().asset_details(asset)
@@ -582,6 +590,14 @@ fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
                 app.tether_captured += 1;
                 window.set_tether_captured_count(i32::try_from(app.tether_captured).unwrap_or(0));
                 window.set_tether_last_captured(SharedString::from(details.filename.as_str()));
+            }
+            if app.watch_active
+                && let Some(&asset) = asset_ids.last()
+                && let Ok(details) = app.library.catalog().asset_details(asset)
+            {
+                app.watch_imported += 1;
+                window.set_watch_imported_count(i32::try_from(app.watch_imported).unwrap_or(0));
+                window.set_watch_last_imported(SharedString::from(details.filename.as_str()));
             }
             // New assets — our own import, or another writer's — can change
             // both the total count and the visible window; skip while
@@ -603,6 +619,21 @@ fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
             app.tether_connected = false;
             window.set_tether_connected(false);
             window.set_tether_status(match reason {
+                Some(reason) => SharedString::from(reason),
+                None => SharedString::default(),
+            });
+        }
+        Event::WatchStarted { .. } => {
+            app.watch_active = true;
+            app.watch_imported = 0;
+            window.set_watch_active(true);
+            window.set_watch_imported_count(0);
+            window.set_watch_last_imported(SharedString::default());
+        }
+        Event::WatchStopped { reason } => {
+            app.watch_active = false;
+            window.set_watch_active(false);
+            window.set_watch_status(match reason {
                 Some(reason) => SharedString::from(reason),
                 None => SharedString::default(),
             });
@@ -1780,6 +1811,57 @@ fn wire_dialogs(
         let app = Rc::clone(app);
         window.on_run_tether_disconnect(move || {
             app.borrow().library.tether_disconnect();
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_open_watch(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let app = app.borrow();
+            window.set_watch_active(app.watch_active);
+            window.set_watch_status(SharedString::default());
+            window.set_watch_imported_count(i32::try_from(app.watch_imported).unwrap_or(0));
+            window.set_watch_last_imported(SharedString::default());
+            window.set_dialog(SharedString::from("watch"));
+        });
+    }
+    {
+        let handle = window.as_weak();
+        window.on_browse_watch_folder(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            if let Some(folder) = rfd::FileDialog::new().pick_folder() {
+                window.set_watch_folder_text(SharedString::from(folder.to_string_lossy().as_ref()));
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_run_watch_start(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let app = app.borrow_mut();
+            let folder = window.get_watch_folder_text();
+            if folder.is_empty() {
+                window.set_watch_status(Tr::get(&window).invoke_enter_source_folder());
+                return;
+            }
+            match app.library.watch_start(Path::new(folder.as_str())) {
+                Ok(()) => window.set_watch_status(SharedString::default()),
+                Err(error) => window.set_watch_status(SharedString::from(error.to_string())),
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        window.on_run_watch_stop(move || {
+            app.borrow().library.watch_stop();
         });
     }
 }

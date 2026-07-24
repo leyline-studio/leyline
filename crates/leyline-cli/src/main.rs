@@ -22,6 +22,7 @@ Usage:
   leyline info <library>
   leyline import <library> <source> [--reference] [--flat]
   leyline tether <library>
+  leyline watch <library> <folder>
   leyline ls <library> [--text <query>] [--rating <min>]
   leyline preview <library> <asset-id> [--kind <thumbnail|small|medium|large|full>]
   leyline export <library> <dest-dir> <version-id>...
@@ -85,6 +86,7 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("info") => info(&args[1..]),
         Some("import") => import(&args[1..]),
         Some("tether") => tether(&args[1..]),
+        Some("watch") => watch(&args[1..]),
         Some("ls") => ls(&args[1..]),
         Some("preview") => preview(&args[1..]),
         Some("export") => export(&args[1..]),
@@ -712,6 +714,40 @@ fn tether(args: &[String]) -> Result<(), String> {
                 match reason {
                     Some(reason) => eprintln!("disconnected: {reason}"),
                     None => eprintln!("disconnected"),
+                }
+                return Ok(());
+            }
+            Ok(_) => {}
+            Err(_) => return Ok(()),
+        }
+    }
+}
+
+/// Watches a folder and imports every file that settles there
+/// (`docs/adr/0039-watched-folder-import.md`), until the process is
+/// interrupted (Ctrl+C).
+fn watch(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root, folder] = positional.as_slice() else {
+        return Err("usage: leyline watch <library> <folder>".to_owned());
+    };
+    let library = open(root)?;
+    let events = library.subscribe();
+    library
+        .watch_start(Path::new(folder))
+        .map_err(|e| e.to_string())?;
+    eprintln!("watching {folder} — waiting for files (Ctrl+C to stop)");
+    loop {
+        match events.recv() {
+            Ok(leyline_sdk::Event::AssetsAdded { asset_ids }) => {
+                for asset in asset_ids {
+                    println!("imported asset {asset}");
+                }
+            }
+            Ok(leyline_sdk::Event::WatchStopped { reason }) => {
+                match reason {
+                    Some(reason) => eprintln!("stopped: {reason}"),
+                    None => eprintln!("stopped"),
                 }
                 return Ok(());
             }
