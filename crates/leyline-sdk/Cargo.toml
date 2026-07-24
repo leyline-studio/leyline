@@ -13,6 +13,7 @@ leyline-color.workspace = true
 leyline-core.workspace = true
 leyline-engine.workspace = true
 leyline-export.workspace = true
+leyline-map.workspace = true
 
 [lints]
 workspace = true

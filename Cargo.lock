@@ -3212,11 +3212,13 @@ dependencies = [
  "leyline-core",
  "leyline-export",
  "leyline-lens",
+ "leyline-map",
  "leyline-preview",
  "leyline-raw",
  "leyline-tether",
  "notify",
  "rayon",
+ "rusqlite",
  "tempfile",
  "thiserror 2.0.18",
 ]
@@ -3246,6 +3248,15 @@ version = "0.1.0"
 dependencies = [
  "lensfun",
  "leyline-core",
+]
+
+[[package]]
+name = "leyline-map"
+version = "0.1.0"
+dependencies = [
+ "rusqlite",
+ "tempfile",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -3280,6 +3291,7 @@ dependencies = [
  "leyline-core",
  "leyline-engine",
  "leyline-export",
+ "leyline-map",
 ]
 
 [[package]]
@@ -3288,6 +3300,7 @@ version = "0.1.0"
 dependencies = [
  "directories",
  "embed-resource",
+ "image",
  "leyline-sdk",
  "rfd",
  "serde_json",

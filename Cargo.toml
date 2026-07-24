@@ -17,6 +17,7 @@ leyline-preview = { path = "crates/leyline-preview" }
 leyline-color = { path = "crates/leyline-color" }
 leyline-lens = { path = "crates/leyline-lens" }
 leyline-tether = { path = "crates/leyline-tether" }
+leyline-map = { path = "crates/leyline-map" }
 leyline-export = { path = "crates/leyline-export" }
 leyline-engine = { path = "crates/leyline-engine" }
 leyline-sdk = { path = "crates/leyline-sdk" }

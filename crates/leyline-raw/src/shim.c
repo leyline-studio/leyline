@@ -40,6 +40,44 @@ int leyline_shim_flip(const libraw_data_t *d) { return d->sizes.flip; }
 int leyline_shim_raw_width(const libraw_data_t *d) { return d->sizes.width; }
 int leyline_shim_raw_height(const libraw_data_t *d) { return d->sizes.height; }
 
+/* --- GPS (ADR 0040) ---------------------------------------------------- */
+
+int leyline_shim_gps_parsed(const libraw_data_t *d) {
+    return (int)d->other.parsed_gps.gpsparsed;
+}
+float leyline_shim_gps_lat_deg(const libraw_data_t *d) {
+    return d->other.parsed_gps.latitude[0];
+}
+float leyline_shim_gps_lat_min(const libraw_data_t *d) {
+    return d->other.parsed_gps.latitude[1];
+}
+float leyline_shim_gps_lat_sec(const libraw_data_t *d) {
+    return d->other.parsed_gps.latitude[2];
+}
+float leyline_shim_gps_lon_deg(const libraw_data_t *d) {
+    return d->other.parsed_gps.longitude[0];
+}
+float leyline_shim_gps_lon_min(const libraw_data_t *d) {
+    return d->other.parsed_gps.longitude[1];
+}
+float leyline_shim_gps_lon_sec(const libraw_data_t *d) {
+    return d->other.parsed_gps.longitude[2];
+}
+float leyline_shim_gps_altitude(const libraw_data_t *d) {
+    return d->other.parsed_gps.altitude;
+}
+/* EXIF GPSAltitudeRef is a byte (0 = above sea level, 1 = below), not an
+ * ASCII character like lat/longref — `altref` carries that raw byte. */
+int leyline_shim_gps_altitude_below_sea_level(const libraw_data_t *d) {
+    return d->other.parsed_gps.altref != 0;
+}
+int leyline_shim_gps_lat_south(const libraw_data_t *d) {
+    return d->other.parsed_gps.latref == 'S';
+}
+int leyline_shim_gps_lon_west(const libraw_data_t *d) {
+    return d->other.parsed_gps.longref == 'W';
+}
+
 /* --- processed image accessors ---------------------------------------- */
 
 int leyline_shim_image_type(const libraw_processed_image_t *img) {

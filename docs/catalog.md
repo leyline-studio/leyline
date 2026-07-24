@@ -416,6 +416,8 @@ Le checksum porte sur le fichier complet.
 
 Les métadonnées sont séparées des assets afin de conserver la table principale compacte et optimisée pour les recherches fréquentes.
 
+`gps_latitude`/`gps_longitude`/`gps_altitude` sont peuplées à l'import pour les fichiers RAW dont l'appareil a enregistré une position (LibRaw `parsed_gps`, degrés décimaux) — voir `docs/adr/0040-gps-map-view.md` pour la vue carte qui les consomme (`Catalog::map_pins`). Les JPEG/TIFF n'ont pour l'instant aucune extraction EXIF (caméra, objectif compris) : même limite préexistante que le reste de cette table, pas une régression du GPS spécifiquement.
+
 ```sql
 CREATE TABLE metadata (
 

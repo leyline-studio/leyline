@@ -59,6 +59,18 @@ unsafe extern "C" {
     pub(crate) fn leyline_shim_raw_width(data: *const LibrawData) -> c_int;
     pub(crate) fn leyline_shim_raw_height(data: *const LibrawData) -> c_int;
 
+    pub(crate) fn leyline_shim_gps_parsed(data: *const LibrawData) -> c_int;
+    pub(crate) fn leyline_shim_gps_lat_deg(data: *const LibrawData) -> f32;
+    pub(crate) fn leyline_shim_gps_lat_min(data: *const LibrawData) -> f32;
+    pub(crate) fn leyline_shim_gps_lat_sec(data: *const LibrawData) -> f32;
+    pub(crate) fn leyline_shim_gps_lon_deg(data: *const LibrawData) -> f32;
+    pub(crate) fn leyline_shim_gps_lon_min(data: *const LibrawData) -> f32;
+    pub(crate) fn leyline_shim_gps_lon_sec(data: *const LibrawData) -> f32;
+    pub(crate) fn leyline_shim_gps_altitude(data: *const LibrawData) -> f32;
+    pub(crate) fn leyline_shim_gps_altitude_below_sea_level(data: *const LibrawData) -> c_int;
+    pub(crate) fn leyline_shim_gps_lat_south(data: *const LibrawData) -> c_int;
+    pub(crate) fn leyline_shim_gps_lon_west(data: *const LibrawData) -> c_int;
+
     pub(crate) fn leyline_shim_image_type(image: *const LibrawProcessedImage) -> c_int;
     pub(crate) fn leyline_shim_image_width(image: *const LibrawProcessedImage) -> c_int;
     pub(crate) fn leyline_shim_image_height(image: *const LibrawProcessedImage) -> c_int;

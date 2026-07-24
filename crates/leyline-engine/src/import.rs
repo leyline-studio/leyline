@@ -333,6 +333,9 @@ fn exif_metadata(raw: &RawMetadata) -> Metadata {
         shutter: raw.shutter_s.and_then(shutter_rational),
         aperture: raw.aperture_f.map(|f| tenths(f64::from(f))),
         focal_length: raw.focal_mm.map(|mm| tenths(f64::from(mm))),
+        gps_latitude: raw.gps_latitude,
+        gps_longitude: raw.gps_longitude,
+        gps_altitude: raw.gps_altitude,
         ..Metadata::default()
     }
 }
@@ -378,12 +381,39 @@ mod tests {
             focal_mm: None,
             capture_ms: None,
             flip: 0,
+            gps_latitude: None,
+            gps_longitude: None,
+            gps_altitude: None,
         }
     }
 
     #[test]
     fn no_lens_data_leaves_lens_unset() {
         assert_eq!(exif_metadata(&raw()).lens, None);
+    }
+
+    #[test]
+    fn no_gps_data_leaves_coordinates_unset() {
+        let meta = exif_metadata(&raw());
+        assert_eq!(meta.gps_latitude, None);
+        assert_eq!(meta.gps_longitude, None);
+        assert_eq!(meta.gps_altitude, None);
+    }
+
+    #[test]
+    fn gps_data_passes_through_as_decimal_degrees() {
+        // Southern/western hemisphere: LibRaw's parsed_gps already carries
+        // the sign convention (`leyline-raw`'s dms_to_decimal), so
+        // exif_metadata is a plain pass-through, nothing to re-derive here.
+        let meta = exif_metadata(&RawMetadata {
+            gps_latitude: Some(-33.865),
+            gps_longitude: Some(151.209),
+            gps_altitude: Some(42.0),
+            ..raw()
+        });
+        assert_eq!(meta.gps_latitude, Some(-33.865));
+        assert_eq!(meta.gps_longitude, Some(151.209));
+        assert_eq!(meta.gps_altitude, Some(42.0));
     }
 
     #[test]

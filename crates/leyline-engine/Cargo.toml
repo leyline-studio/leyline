@@ -17,6 +17,7 @@ leyline-preview.workspace = true
 leyline-color.workspace = true
 leyline-lens.workspace = true
 leyline-tether.workspace = true
+leyline-map.workspace = true
 leyline-export.workspace = true
 notify.workspace = true
 rayon.workspace = true
@@ -26,6 +27,7 @@ thiserror.workspace = true
 image.workspace = true
 tempfile.workspace = true
 criterion.workspace = true
+rusqlite.workspace = true
 
 [[bench]]
 name = "process1"

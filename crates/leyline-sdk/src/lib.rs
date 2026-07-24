@@ -23,11 +23,12 @@ pub use leyline_engine::{
 
 pub use leyline_catalog::{
     CameraInfo, CollectionNode, ExportPreset, ExportRecord, GridItem, GridQuery, KeywordNode,
-    LensInfo, LibraryInfo, Metadata, Preset, PrintPreset, RatingRule, Rational, RevisionRow,
-    SmartRules, Sort, VersionInfo,
+    LensInfo, LibraryInfo, MapPin, Metadata, Preset, PrintPreset, RatingRule, Rational,
+    RevisionRow, SmartRules, Sort, VersionInfo,
 };
 
 pub use leyline_color::RenderingIntent;
 pub use leyline_export::{
     ExportFormat, ExportSettings, Margins, Orientation, PaperSize, PrintSettings,
 };
+pub use leyline_map::TilePackInfo;

@@ -13,6 +13,7 @@ leyline/
  │   ├─ leyline-color
  │   ├─ leyline-lens
  │   ├─ leyline-tether
+ │   ├─ leyline-map
  │   ├─ leyline-export
  │   ├─ leyline-sdk
  │   ├─ leyline-cli
@@ -23,7 +24,7 @@ leyline/
 
 Studio → SDK → Engine → Core
 
-Catalog, RAW, Color, Lens, Tether, Preview et Export sont consommés par Engine.
+Catalog, RAW, Color, Lens, Tether, Map, Preview et Export sont consommés par Engine.
 
 ## Choix techniques
 

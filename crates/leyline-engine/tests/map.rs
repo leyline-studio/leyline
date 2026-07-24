@@ -1,0 +1,100 @@
+//! Integration tests: the GPS map facade (`docs/adr/0040-gps-map-view.md`).
+
+use leyline_core::LeylineError;
+use leyline_engine::Library;
+use rusqlite::Connection;
+
+fn open_test_library(name: &str) -> (tempfile::TempDir, Library) {
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::create(&dir.path().join("Library"), name).unwrap();
+    (dir, library)
+}
+
+/// A minimal spec-compliant MBTiles file with one tile at `z=0`.
+fn sample_pack(path: &std::path::Path) {
+    let conn = Connection::open(path).unwrap();
+    conn.execute_batch(
+        "CREATE TABLE metadata (name TEXT, value TEXT);
+         CREATE TABLE tiles (
+             zoom_level INTEGER, tile_column INTEGER, tile_row INTEGER, tile_data BLOB
+         );
+         INSERT INTO metadata VALUES ('attribution', '© OpenStreetMap contributors');
+         INSERT INTO tiles (zoom_level, tile_column, tile_row, tile_data)
+         VALUES (0, 0, 0, X'010203');",
+    )
+    .unwrap();
+}
+
+#[test]
+fn without_a_pack_the_map_facade_returns_none_not_an_error() {
+    let (_dir, library) = open_test_library("MapNoPack");
+    assert_eq!(library.map_pack_info().unwrap(), None);
+    assert_eq!(library.map_tile(0, 0, 0).unwrap(), None);
+}
+
+#[test]
+fn an_imported_pack_serves_tiles_and_info() {
+    let (dir, library) = open_test_library("MapWithPack");
+    let source = dir.path().join("region.mbtiles");
+    sample_pack(&source);
+
+    library.import_map_pack(&source).unwrap();
+
+    let info = library.map_pack_info().unwrap().unwrap();
+    assert_eq!(
+        info.attribution.as_deref(),
+        Some("© OpenStreetMap contributors")
+    );
+    assert_eq!(library.map_tile(0, 0, 0).unwrap(), Some(vec![1, 2, 3]));
+    assert_eq!(library.map_tile(0, 5, 5).unwrap(), None);
+}
+
+#[test]
+fn reimporting_a_pack_replaces_the_cached_handle() {
+    // Regression guard for the `map_pack` cache: without invalidating it on
+    // re-import, this would keep serving tiles from the first pack.
+    let (dir, library) = open_test_library("MapReimport");
+    let first = dir.path().join("first.mbtiles");
+    sample_pack(&first);
+    library.import_map_pack(&first).unwrap();
+    assert_eq!(library.map_tile(0, 0, 0).unwrap(), Some(vec![1, 2, 3]));
+
+    let second = dir.path().join("second.mbtiles");
+    let conn = Connection::open(&second).unwrap();
+    conn.execute_batch(
+        "CREATE TABLE metadata (name TEXT, value TEXT);
+         CREATE TABLE tiles (
+             zoom_level INTEGER, tile_column INTEGER, tile_row INTEGER, tile_data BLOB
+         );
+         INSERT INTO tiles (zoom_level, tile_column, tile_row, tile_data)
+         VALUES (0, 0, 0, X'0A0B0C');",
+    )
+    .unwrap();
+    drop(conn);
+    library.import_map_pack(&second).unwrap();
+
+    assert_eq!(library.map_tile(0, 0, 0).unwrap(), Some(vec![10, 11, 12]));
+}
+
+#[test]
+fn map_pins_reads_through_the_catalog() {
+    let (_dir, library) = open_test_library("MapPins");
+    assert_eq!(library.map_pins().unwrap(), vec![]);
+}
+
+#[test]
+fn a_read_only_handle_refuses_to_import_a_pack() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("RO");
+    drop(Library::create(&root, "RO").unwrap());
+
+    let library = Library::open_read_only(&root).unwrap();
+    let source = dir.path().join("region.mbtiles");
+    sample_pack(&source);
+
+    assert!(matches!(
+        library.import_map_pack(&source),
+        Err(LeylineError::Db(_))
+    ));
+    assert!(!root.join("Map").join("pack.mbtiles").exists());
+}

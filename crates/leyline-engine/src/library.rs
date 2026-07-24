@@ -89,6 +89,12 @@ struct Inner {
     /// watched folder at a time per library — starting while this is
     /// `Some` is refused.
     watch: Mutex<Option<crate::watch::WatchSession>>,
+    /// The active map pack (`docs/adr/0040`), opened lazily on first
+    /// access and cached — `None` covers both "never opened yet" and "no
+    /// pack file exists", cheap to tell apart with one `is_file` check.
+    /// `import_map_pack` resets this to force a reopen against the new
+    /// file.
+    map_pack: Mutex<Option<leyline_map::TilePack>>,
     /// Feeds the bounded job pool every `*_async` job runs on (§3.3),
     /// instead of each call spawning its own unmanaged OS thread. The
     /// pool's worker threads are plain `std::thread`s reading from this
@@ -196,6 +202,7 @@ impl Library {
                 subscribers: Mutex::new(Vec::new()),
                 tether: Mutex::new(None),
                 watch: Mutex::new(None),
+                map_pack: Mutex::new(None),
                 next_job: AtomicU64::new(1),
                 jobs: job_tx,
             }),
@@ -1172,6 +1179,89 @@ impl Library {
             }
         }
     }
+
+    /// The library-relative path of the active map pack file (ADR 0040) —
+    /// a convention, not a catalog row: presence of the file is what makes
+    /// a pack "active", one at a time in V1.
+    fn map_pack_path(&self) -> PathBuf {
+        self.inner.root.join("Map").join("pack.mbtiles")
+    }
+
+    /// Imports `source` as the library's active map pack (ADR 0040): copies
+    /// it to the conventional `Map/pack.mbtiles` location, overwriting
+    /// whatever pack (if any) was active before. Refused on a read-only
+    /// handle (`Library::open_read_only`) — same contract as every catalog
+    /// write, even though a map pack is filesystem state, not a catalog
+    /// row.
+    pub fn import_map_pack(&self, source: &Path) -> Result<()> {
+        if self.catalog().is_read_only() {
+            return Err(LeylineError::Db(
+                "library opened read-only; writes are refused".to_owned(),
+            ));
+        }
+        let destination = self.map_pack_path();
+        if let Some(parent) = destination.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        // Invalidate the cached handle *before* touching the file: with the
+        // old order, a pack already opened once (any prior `map_tile`/
+        // `map_pack_info` call) still had a live SQLite connection to
+        // `destination` while it got overwritten out from under it — risky
+        // on every platform if the copy is interrupted partway, outright
+        // liable to fail on Windows where replacing an open file needs
+        // share-delete cooperation SQLite doesn't request.
+        lock(&self.inner.map_pack).take();
+        // Copy to a sibling temp file first, then rename into place: a
+        // reader that opens the pack mid-copy must never see a half-written
+        // file, and `rename` within the same directory is atomic on both
+        // POSIX and Windows.
+        let temp = destination.with_extension("mbtiles.tmp");
+        std::fs::copy(source, &temp)?;
+        std::fs::rename(&temp, &destination)?;
+        Ok(())
+    }
+
+    /// Opens (or returns the cached handle to) the active map pack, or
+    /// `None` when none has been imported yet.
+    fn with_map_pack<T>(&self, f: impl FnOnce(&leyline_map::TilePack) -> T) -> Result<Option<T>> {
+        let mut slot = lock(&self.inner.map_pack);
+        if slot.is_none() {
+            let path = self.map_pack_path();
+            if !path.is_file() {
+                return Ok(None);
+            }
+            let pack = leyline_map::TilePack::open(&path).map_err(map_err)?;
+            *slot = Some(pack);
+        }
+        Ok(slot.as_ref().map(f))
+    }
+
+    /// The active map pack's declared coverage (ADR 0040), or `None` if
+    /// none has been imported yet.
+    pub fn map_pack_info(&self) -> Result<Option<leyline_map::TilePackInfo>> {
+        self.with_map_pack(|pack| pack.info().map_err(map_err))?
+            .transpose()
+    }
+
+    /// One tile's raw bytes (whatever image format the pack stores), or
+    /// `None` when no pack is imported or the tile is outside its
+    /// coverage.
+    pub fn map_tile(&self, zoom: u8, x: u32, y: u32) -> Result<Option<Vec<u8>>> {
+        Ok(self
+            .with_map_pack(|pack| pack.tile(zoom, x, y).map_err(map_err))?
+            .transpose()?
+            .flatten())
+    }
+
+    /// Every current version with recorded GPS coordinates (ADR 0040).
+    pub fn map_pins(&self) -> Result<Vec<leyline_catalog::MapPin>> {
+        self.catalog().map_pins()
+    }
+}
+
+/// Maps a `leyline_map` error onto the platform error type.
+fn map_err(error: leyline_map::MapError) -> LeylineError {
+    LeylineError::Db(error.to_string())
 }
 
 /// Locks a mutex, recovering the data if a previous holder panicked: the

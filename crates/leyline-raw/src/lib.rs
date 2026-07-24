@@ -78,6 +78,13 @@ pub struct RawMetadata {
     pub capture_ms: Option<i64>,
     /// dcraw flip code (0 none, 3 = 180°, 5 = 90° CCW, 6 = 90° CW).
     pub flip: i32,
+    /// GPS latitude in decimal degrees, `[-90, 90]`, when recorded
+    /// (`docs/adr/0040-gps-map-view.md`).
+    pub gps_latitude: Option<f64>,
+    /// GPS longitude in decimal degrees, `[-180, 180]`, when recorded.
+    pub gps_longitude: Option<f64>,
+    /// GPS altitude in meters, when recorded.
+    pub gps_altitude: Option<f64>,
 }
 
 /// A decoded image: interleaved RGB, tightly packed, orientation applied.
@@ -136,6 +143,29 @@ impl Handle {
         // are copied before the borrow ends.
         unsafe {
             let seconds = ffi::leyline_shim_timestamp(self.0);
+            let (gps_latitude, gps_longitude, gps_altitude) =
+                if ffi::leyline_shim_gps_parsed(self.0) != 0 {
+                    (
+                        Some(dms_to_decimal(
+                            ffi::leyline_shim_gps_lat_deg(self.0),
+                            ffi::leyline_shim_gps_lat_min(self.0),
+                            ffi::leyline_shim_gps_lat_sec(self.0),
+                            ffi::leyline_shim_gps_lat_south(self.0) != 0,
+                        )),
+                        Some(dms_to_decimal(
+                            ffi::leyline_shim_gps_lon_deg(self.0),
+                            ffi::leyline_shim_gps_lon_min(self.0),
+                            ffi::leyline_shim_gps_lon_sec(self.0),
+                            ffi::leyline_shim_gps_lon_west(self.0) != 0,
+                        )),
+                        Some(signed_altitude(
+                            ffi::leyline_shim_gps_altitude(self.0),
+                            ffi::leyline_shim_gps_altitude_below_sea_level(self.0) != 0,
+                        )),
+                    )
+                } else {
+                    (None, None, None)
+                };
             RawMetadata {
                 make: shim_string(ffi::leyline_shim_make(self.0)),
                 model: shim_string(ffi::leyline_shim_model(self.0)),
@@ -149,6 +179,9 @@ impl Handle {
                 focal_mm: positive(ffi::leyline_shim_focal_len(self.0)),
                 capture_ms: (seconds > 0).then(|| seconds * 1000),
                 flip: ffi::leyline_shim_flip(self.0),
+                gps_latitude,
+                gps_longitude,
+                gps_altitude,
             }
         }
     }
@@ -262,6 +295,23 @@ fn non_empty(value: String) -> Option<String> {
     (!value.trim().is_empty()).then_some(value)
 }
 
+/// Degrees/minutes/seconds (LibRaw's `parsed_gps` convention) to a signed
+/// decimal degree, negative for south latitudes / west longitudes.
+fn dms_to_decimal(deg: f32, min: f32, sec: f32, negative: bool) -> f64 {
+    let value = f64::from(deg) + f64::from(min) / 60.0 + f64::from(sec) / 3600.0;
+    if negative { -value } else { value }
+}
+
+/// LibRaw (and the EXIF `GPSAltitudeRef` tag it reads) always reports
+/// altitude as a positive magnitude plus a separate above/below-sea-level
+/// reference — never a signed value on its own. Below sea level (a valid
+/// EXIF case: Death Valley, below-grade locations) needs the sign applied
+/// here, or every such photo would silently import above sea level.
+fn signed_altitude(magnitude: f32, below_sea_level: bool) -> f64 {
+    let value = f64::from(magnitude);
+    if below_sea_level { -value } else { value }
+}
+
 /// Converts a path for `libraw_open_file`.
 fn path_to_cstring(path: &Path) -> Result<CString, RawError> {
     #[cfg(unix)]
@@ -280,6 +330,32 @@ fn path_to_cstring(path: &Path) -> Result<CString, RawError> {
 mod tests {
     use super::*;
     use std::io::Write;
+
+    #[test]
+    fn dms_to_decimal_matches_a_known_coordinate() {
+        // Sydney Opera House, roughly: 33°51'54"S 151°12'32"E.
+        let lat = dms_to_decimal(33.0, 51.0, 54.0, true);
+        let lon = dms_to_decimal(151.0, 12.0, 32.0, false);
+        assert!((lat - -33.865).abs() < 0.001, "got {lat}");
+        assert!((lon - 151.209).abs() < 0.001, "got {lon}");
+    }
+
+    #[test]
+    fn dms_to_decimal_north_and_east_stay_positive() {
+        assert_eq!(dms_to_decimal(10.0, 0.0, 0.0, false), 10.0);
+    }
+
+    #[test]
+    fn signed_altitude_above_sea_level_stays_positive() {
+        assert_eq!(signed_altitude(42.0, false), 42.0);
+    }
+
+    #[test]
+    fn signed_altitude_below_sea_level_is_negated() {
+        // GPSAltitudeRef = 1 (below sea level) is a real EXIF case — Death
+        // Valley, below-grade locations — not just a theoretical bit.
+        assert_eq!(signed_altitude(42.0, true), -42.0);
+    }
 
     #[test]
     fn missing_file_is_an_io_error() {
