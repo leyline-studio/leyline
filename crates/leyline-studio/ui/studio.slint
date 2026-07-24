@@ -479,6 +479,11 @@ export component StudioWindow inherits Window {
     // Revision history, head first, formatted timestamps — a browsable
     // history panel beyond linear undo/redo.
     in property <[string]> dev-history;
+    // Index within `dev-history` of the currently-checked-out revision —
+    // not always 0: the list is stable across a jump (see the Rust-side
+    // `dev_history` field doc), so "current" moves within it instead of
+    // always being the top row.
+    in property <int> dev-history-current: 0;
     callback checkout-history-row(int);
     // Paths of other libraries opened before, most recent first (never
     // includes the currently open one) — File ▸ Open Recent.
@@ -1619,11 +1624,11 @@ export component StudioWindow inherits Window {
                                 Rectangle {
                                     width: 100%;
                                     height: 100%;
-                                    background: index == 0 ? #2f4f6f : (touch.has-hover ? #2a2a2a : transparent);
+                                    background: index == root.dev-history-current ? #2f4f6f : (touch.has-hover ? #2a2a2a : transparent);
                                     border-radius: 4px;
                                     Text {
                                         x: 8px;
-                                        text: index == 0 ? @tr("{} (current)", entry) : entry;
+                                        text: index == root.dev-history-current ? @tr("{} (current)", entry) : entry;
                                         color: #d0d0d0;
                                         font-size: 12px;
                                         vertical-alignment: center;

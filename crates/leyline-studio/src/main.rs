@@ -40,8 +40,8 @@ use leyline_sdk::{
     ExportPreset, ExportRecipe, ExportReport, ExportRequest, ExportSettings, GridItem, GridQuery,
     ImportOptions, JobId, JobResult, KeywordId, KeywordNode, Library, Margins, Orientation,
     PaperSize, PickState, Preset, PresetSettings, PreviewKind, PrintPreset, PrintRecipe,
-    PrintReport, PrintRequest, PrintSettings, RenderingIntent, RevisionId, Settings, SettingsGroup,
-    SkippedFile, Sort, VersionId,
+    PrintReport, PrintRequest, PrintSettings, RenderingIntent, RevisionRow, Settings,
+    SettingsGroup, SkippedFile, Sort, VersionId,
 };
 use slint::winit_030::WinitWindowAccessor;
 use slint::{ComponentHandle, Global, Model, ModelRc, SharedString, Timer, TimerMode, VecModel};
@@ -96,10 +96,19 @@ struct App {
     /// captures, Geometry excluded), waiting to be pasted onto the current
     /// grid selection.
     dev_clipboard: Option<PresetSettings>,
-    /// Revision ids of the develop history panel's rows, head first,
-    /// parallel to the `dev-history` display model — `history()`'s own
-    /// return, kept so a row click can jump straight to that id.
-    dev_history: Vec<RevisionId>,
+    /// Rows of the develop history panel, parallel to the `dev-history`
+    /// display model, sorted by `created_at` ascending — merged across
+    /// refreshes rather than replaced by each one, since
+    /// `EditSession::history()` only walks *backward* from the current head
+    /// (`docs/catalog.md` §16): after jumping back and browsing, a plain
+    /// replace would make already-shown rows vanish from the panel just
+    /// because the fresh backward walk from the new head doesn't reach them
+    /// (they're still real, still reachable by redo — just not *behind* the
+    /// new head). Reset to just the fresh fetch when the develop target
+    /// itself changes (`dev_history_version`).
+    dev_history: Vec<RevisionRow>,
+    /// Which version `dev_history` was accumulated for.
+    dev_history_version: Option<VersionId>,
     /// Stored export presets, parallel to the dialog's preset chips.
     presets: Vec<ExportPreset>,
     /// Stored print presets (ADR 0036), parallel to the print dialog's
@@ -332,6 +341,7 @@ fn run() -> Result<(), String> {
         dev_before: None,
         dev_clipboard: None,
         dev_history: Vec::new(),
+        dev_history_version: None,
         presets: Vec::new(),
         print_presets: Vec::new(),
         dev_presets: Vec::new(),
@@ -2439,7 +2449,7 @@ fn checkout_history_row(app: &mut App, window: &StudioWindow, index: usize) {
     let Some((_, version)) = app.develop else {
         return;
     };
-    let Some(&revision) = app.dev_history.get(index) else {
+    let Some(revision) = app.dev_history.get(index).map(|row| row.revision) else {
         return;
     };
     let moved = (|| {
@@ -2516,12 +2526,36 @@ fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<(), String> {
         (session.settings().clone(), history)
     };
     window.set_dev(dev_model(&settings));
-    let rows: Vec<SharedString> = history
+    if app.dev_history_version != Some(version) {
+        app.dev_history.clear();
+        app.dev_history_version = Some(version);
+    }
+    for row in history.iter() {
+        if !app
+            .dev_history
+            .iter()
+            .any(|existing| existing.revision == row.revision)
+        {
+            app.dev_history.push(row.clone());
+        }
+    }
+    app.dev_history.sort_by_key(|row| row.created_at);
+    let current = history.first().map(|row| row.revision);
+    let rows: Vec<SharedString> = app
+        .dev_history
         .iter()
         .map(|row| SharedString::from(format::capture_date(row.created_at)))
         .collect();
-    app.dev_history = history.into_iter().map(|row| row.revision).collect();
     window.set_dev_history(ModelRc::from(Rc::new(VecModel::from(rows))));
+    window.set_dev_history_current(
+        i32::try_from(
+            app.dev_history
+                .iter()
+                .position(|row| Some(row.revision) == current)
+                .unwrap_or(0),
+        )
+        .unwrap_or(0),
+    );
     let (path, markers) = develop::curve_layout(&settings.tone_curve.points, CURVE_CANVAS_SIZE);
     window.set_dev_curve_path(SharedString::from(path));
     window.set_dev_curve_points(ModelRc::from(Rc::new(VecModel::from(
