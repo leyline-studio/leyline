@@ -49,6 +49,10 @@ Correction d'objectif
 
 ↓
 
+Suppression de tache
+
+↓
+
 Balance des blancs
 
 ↓
@@ -66,6 +70,10 @@ Hautes lumières / Ombres
 ↓
 
 Blancs / Noirs
+
+↓
+
+Courbe tonale
 
 ↓
 
@@ -116,6 +124,24 @@ Jamais un delta.
     "blacks": -5,
     "vibrance": 18,
     "saturation": 0,
+
+    "tone_curve": {
+        "points": [
+            { "x": 0.0,  "y": 0.0 },
+            { "x": 0.25, "y": 0.30 },
+            { "x": 0.75, "y": 0.70 },
+            { "x": 1.0,  "y": 1.0 }
+        ]
+    },
+    "spot_removal": [
+        {
+            "target": { "x": 0.62, "y": 0.31 },
+            "source": { "x": 0.55, "y": 0.29 },
+            "radius": 0.03,
+            "feather": 0.40,
+            "opacity": 1.0
+        }
+    ],
 
     "lens_correction": { "enabled": true, "profile": "auto" },
     "noise_reduction": { "luminance": 15, "color": 25 },
@@ -187,6 +213,11 @@ Versions connues :
 |---|---|
 | 1 | Pipeline initial (`process1.rs`) : fonctions de transfert sRGB exactes (`powf` par échantillon) |
 | 2 | Identique à 1, fonctions de transfert par table de 4096 intervalles avec interpolation linéaire (ADR 0013) — écart < 2·10⁻⁵, invisible en 8 bits mais pas bit-identique |
+| 3 | Identique à 2, plus `lens_correction` : correction de distorsion géométrique via un profil Lensfun (ADR 0016) |
+| 4 | Identique à 3, plus le dévignettage (correction du vignettage) avec le même profil (ADR 0017) |
+| 5 | Identique à 4, plus la correction d'aberration chromatique transversale (TCA), un second passage géométrique indépendant par canal (ADR 0018) |
+| 6 | Identique à 5, plus `tone_curve` : courbe par points interpolée par une spline cubique monotone (Fritsch–Carlson), précalculée en table de correspondance, appliquée en luminance après Blancs/Noirs et avant Vibrance/Saturation (ADR 0030) |
+| 7 | Identique à 6, plus `spot_removal` : clonage déterministe par copie bilinéaire adoucie (falloff radial + opacité), sans mode *heal*, immédiatement après Correction d'objectif et avant Balance des blancs (ADR 0032) |
 
 Une révision éditée hérite du process de son parent ; seules les nouvelles révisions par défaut (imports) écrivent la version courante.
 

@@ -23,7 +23,13 @@ pub const CURRENT_SCHEMA: u32 = 1;
 /// Process 4 (ADR 0017) additionally de-vignettes using the same profile.
 /// Process 5 (ADR 0018) additionally corrects transverse chromatic
 /// aberration as an independent per-channel geometric pass.
-pub const CURRENT_PROCESS: u32 = 5;
+/// Process 6 (ADR 0030) additionally applies `tone_curve` as a monotone
+/// cubic spline through a precomputed lookup table, after Whites/Blacks and
+/// before Vibrance/Saturation.
+/// Process 7 (ADR 0032) additionally applies `spot_removal`: deterministic
+/// bilinear clone patches, immediately after lens correction and before
+/// white balance.
+pub const CURRENT_PROCESS: u32 = 7;
 
 /// White balance override, in physical units.
 ///
@@ -95,6 +101,55 @@ impl Default for Sharpening {
     }
 }
 
+/// One control point of a [`ToneCurve`], normalized coordinates in [0, 1].
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct CurvePoint {
+    /// Input level, in [0, 1].
+    pub x: f64,
+    /// Output level, in [0, 1].
+    pub y: f64,
+}
+
+/// Tone curve step (ADR 0030): a point curve applied in luminance, i.e. the
+/// same curve to every channel of the working buffer. Neutral: no points,
+/// which renders bit-for-bit identical to the previous process version.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ToneCurve {
+    /// Control points, ordered by strictly increasing `x`. Empty = identity.
+    pub points: Vec<CurvePoint>,
+}
+
+/// A point in the local-correction coordinate frame (ADR 0026): normalized
+/// `[0, 1]`, relative to the image *after* rotation, *before* crop — the
+/// same referential as [`Crop`].
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Point {
+    /// Horizontal position, in [0, 1].
+    pub x: f64,
+    /// Vertical position, in [0, 1].
+    pub y: f64,
+}
+
+/// One spot removal clone (ADR 0032): copies the disk around `source` onto
+/// the disk around `target`, feathered at the edge and modulated by
+/// `opacity`. Clone only — no *heal* mode in V2.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct SpotRemoval {
+    /// Center of the disk to paint into.
+    pub target: Point,
+    /// Center of the disk to copy from.
+    pub source: Point,
+    /// Radius of the copied disk, normalized coordinates. Strictly positive.
+    pub radius: f64,
+    /// Radial falloff at the disk's edge, in [0, 1]: 0 = hard edge, 1 = the
+    /// feather spans the whole disk.
+    pub feather: f64,
+    /// Overall blend strength, in [0, 1]. Neutral value for a spot would be
+    /// 1.0, but there is no neutral *entry* — an empty list is neutral.
+    pub opacity: f64,
+}
+
 /// Crop rectangle in normalized [0, 1] coordinates, relative to the image
 /// *after* rotation. Neutral state is the absence of a crop (`None`).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -140,6 +195,13 @@ pub struct Settings {
     /// Saturation, slider in [-100, +100]. Neutral: 0.
     pub saturation: i32,
 
+    /// Tone curve step. Neutral: no points.
+    pub tone_curve: ToneCurve,
+
+    /// Spot removal clones, applied in list order. Neutral: empty (ADR 0032).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub spot_removal: Vec<SpotRemoval>,
+
     /// Lens correction step.
     pub lens_correction: LensCorrection,
     /// Noise reduction step.
@@ -173,6 +235,8 @@ impl Default for Settings {
             blacks: 0,
             vibrance: 0,
             saturation: 0,
+            tone_curve: ToneCurve::default(),
+            spot_removal: Vec::new(),
             lens_correction: LensCorrection::default(),
             noise_reduction: NoiseReduction::default(),
             sharpening: Sharpening::default(),
@@ -231,6 +295,66 @@ impl Settings {
         slider("blacks", self.blacks, -100, 100)?;
         slider("vibrance", self.vibrance, -100, 100)?;
         slider("saturation", self.saturation, -100, 100)?;
+        if !self.tone_curve.points.is_empty() {
+            if self.tone_curve.points.len() < 2 {
+                return Err(LeylineError::InvalidSettings(
+                    "tone_curve.points must have at least 2 points, or be empty".to_owned(),
+                ));
+            }
+            let mut previous_x = None;
+            for point in &self.tone_curve.points {
+                for (name, value) in [
+                    ("tone_curve.points.x", point.x),
+                    ("tone_curve.points.y", point.y),
+                ] {
+                    if !(0.0..=1.0).contains(&value) {
+                        return Err(LeylineError::InvalidSettings(format!(
+                            "{name} must be in [0, 1], got {value}"
+                        )));
+                    }
+                }
+                if let Some(previous_x) = previous_x {
+                    if point.x <= previous_x {
+                        return Err(LeylineError::InvalidSettings(
+                            "tone_curve.points must have strictly increasing x".to_owned(),
+                        ));
+                    }
+                }
+                previous_x = Some(point.x);
+            }
+        }
+        for (i, spot) in self.spot_removal.iter().enumerate() {
+            for (name, value) in [
+                (format!("spot_removal[{i}].target.x"), spot.target.x),
+                (format!("spot_removal[{i}].target.y"), spot.target.y),
+                (format!("spot_removal[{i}].source.x"), spot.source.x),
+                (format!("spot_removal[{i}].source.y"), spot.source.y),
+            ] {
+                if !(0.0..=1.0).contains(&value) {
+                    return Err(LeylineError::InvalidSettings(format!(
+                        "{name} must be in [0, 1], got {value}"
+                    )));
+                }
+            }
+            if !(spot.radius > 0.0 && spot.radius <= 1.0) {
+                return Err(LeylineError::InvalidSettings(format!(
+                    "spot_removal[{i}].radius must be in (0, 1], got {}",
+                    spot.radius
+                )));
+            }
+            if !(0.0..=1.0).contains(&spot.feather) {
+                return Err(LeylineError::InvalidSettings(format!(
+                    "spot_removal[{i}].feather must be in [0, 1], got {}",
+                    spot.feather
+                )));
+            }
+            if !(0.0..=1.0).contains(&spot.opacity) {
+                return Err(LeylineError::InvalidSettings(format!(
+                    "spot_removal[{i}].opacity must be in [0, 1], got {}",
+                    spot.opacity
+                )));
+            }
+        }
         slider(
             "noise_reduction.luminance",
             self.noise_reduction.luminance,
@@ -530,6 +654,165 @@ mod tests {
             s.validate(),
             Err(LeylineError::InvalidSettings(_))
         ));
+    }
+
+    #[test]
+    fn tone_curve_accepts_empty_or_well_formed_points() {
+        let mut s = Settings::default();
+        s.validate().unwrap();
+
+        s.tone_curve = ToneCurve {
+            points: vec![
+                CurvePoint { x: 0.0, y: 0.0 },
+                CurvePoint { x: 0.5, y: 0.6 },
+                CurvePoint { x: 1.0, y: 1.0 },
+            ],
+        };
+        s.validate().unwrap();
+    }
+
+    #[test]
+    fn tone_curve_rejects_a_single_point() {
+        let s = Settings {
+            tone_curve: ToneCurve {
+                points: vec![CurvePoint { x: 0.5, y: 0.5 }],
+            },
+            ..Settings::default()
+        };
+        assert!(matches!(
+            s.validate(),
+            Err(LeylineError::InvalidSettings(_))
+        ));
+    }
+
+    #[test]
+    fn tone_curve_rejects_out_of_range_coordinates() {
+        let s = Settings {
+            tone_curve: ToneCurve {
+                points: vec![CurvePoint { x: 0.0, y: 0.0 }, CurvePoint { x: 1.5, y: 1.0 }],
+            },
+            ..Settings::default()
+        };
+        assert!(matches!(
+            s.validate(),
+            Err(LeylineError::InvalidSettings(_))
+        ));
+    }
+
+    #[test]
+    fn tone_curve_rejects_non_increasing_x() {
+        let s = Settings {
+            tone_curve: ToneCurve {
+                points: vec![CurvePoint { x: 0.5, y: 0.0 }, CurvePoint { x: 0.5, y: 1.0 }],
+            },
+            ..Settings::default()
+        };
+        assert!(matches!(
+            s.validate(),
+            Err(LeylineError::InvalidSettings(_))
+        ));
+    }
+
+    #[test]
+    fn spot_removal_accepts_a_well_formed_spot() {
+        let s = Settings {
+            spot_removal: vec![SpotRemoval {
+                target: Point { x: 0.62, y: 0.31 },
+                source: Point { x: 0.55, y: 0.29 },
+                radius: 0.03,
+                feather: 0.4,
+                opacity: 1.0,
+            }],
+            ..Settings::default()
+        };
+        s.validate().unwrap();
+    }
+
+    #[test]
+    fn spot_removal_rejects_out_of_range_points() {
+        let s = Settings {
+            spot_removal: vec![SpotRemoval {
+                target: Point { x: 1.5, y: 0.31 },
+                source: Point { x: 0.55, y: 0.29 },
+                radius: 0.03,
+                feather: 0.4,
+                opacity: 1.0,
+            }],
+            ..Settings::default()
+        };
+        assert!(matches!(
+            s.validate(),
+            Err(LeylineError::InvalidSettings(_))
+        ));
+    }
+
+    #[test]
+    fn spot_removal_rejects_non_positive_radius() {
+        let s = Settings {
+            spot_removal: vec![SpotRemoval {
+                target: Point { x: 0.5, y: 0.5 },
+                source: Point { x: 0.4, y: 0.4 },
+                radius: 0.0,
+                feather: 0.4,
+                opacity: 1.0,
+            }],
+            ..Settings::default()
+        };
+        assert!(matches!(
+            s.validate(),
+            Err(LeylineError::InvalidSettings(_))
+        ));
+    }
+
+    #[test]
+    fn spot_removal_rejects_out_of_range_feather_and_opacity() {
+        let base = SpotRemoval {
+            target: Point { x: 0.5, y: 0.5 },
+            source: Point { x: 0.4, y: 0.4 },
+            radius: 0.03,
+            feather: 0.4,
+            opacity: 1.0,
+        };
+        let mut s = Settings {
+            spot_removal: vec![SpotRemoval {
+                feather: 1.5,
+                ..base
+            }],
+            ..Settings::default()
+        };
+        assert!(matches!(
+            s.validate(),
+            Err(LeylineError::InvalidSettings(_))
+        ));
+
+        s.spot_removal = vec![SpotRemoval {
+            opacity: -0.1,
+            ..base
+        }];
+        assert!(matches!(
+            s.validate(),
+            Err(LeylineError::InvalidSettings(_))
+        ));
+    }
+
+    #[test]
+    fn spot_removal_round_trips_and_is_omitted_when_empty() {
+        let s = Settings {
+            spot_removal: vec![SpotRemoval {
+                target: Point { x: 0.62, y: 0.31 },
+                source: Point { x: 0.55, y: 0.29 },
+                radius: 0.03,
+                feather: 0.4,
+                opacity: 1.0,
+            }],
+            ..Settings::default()
+        };
+        let reparsed = Settings::parse(&s.to_json()).unwrap();
+        assert_eq!(s, reparsed);
+
+        let neutral = Settings::default();
+        let value: serde_json::Value = serde_json::from_str(&neutral.to_json()).unwrap();
+        assert!(value.get("spot_removal").is_none());
     }
 
     #[test]

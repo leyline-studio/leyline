@@ -21,6 +21,8 @@ mod process2;
 mod process3;
 mod process4;
 mod process5;
+mod process6;
+mod process7;
 mod render;
 mod reprocess;
 mod session;
