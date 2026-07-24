@@ -233,6 +233,68 @@ fn undo_and_redo_move_the_head_without_deleting_anything() {
 }
 
 #[test]
+fn checkout_revision_jumps_directly_without_stepping() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+    let reg = registered_asset(&mut catalog);
+
+    let r1 = catalog
+        .commit_revision(reg.version, &exposure(0.5))
+        .unwrap();
+    let r2 = catalog
+        .commit_revision(reg.version, &exposure(1.0))
+        .unwrap();
+    catalog
+        .commit_revision(reg.version, &exposure(1.5))
+        .unwrap();
+
+    catalog.checkout_revision(reg.version, r1).unwrap();
+    assert_eq!(catalog.version_head(reg.version).unwrap(), r1);
+
+    // Jumping forward again to a revision ahead of the current head works
+    // too — unlike `version_history`, which only walks backward from
+    // wherever the head currently sits.
+    catalog.checkout_revision(reg.version, r2).unwrap();
+    assert_eq!(catalog.version_head(reg.version).unwrap(), r2);
+
+    // Nothing was created or deleted: r2's own backward chain still has its
+    // 3 entries (initial, r1, r2) — the 4th commit is a forward descendant
+    // of r2, correctly excluded by `version_history`'s backward walk.
+    assert_eq!(catalog.version_history(reg.version).unwrap().len(), 3);
+}
+
+#[test]
+fn checkout_revision_refuses_a_revision_of_a_different_asset() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+    let reg = registered_asset(&mut catalog);
+    let folder = catalog.ensure_folder("Photos").unwrap();
+    let other = catalog
+        .add_asset(&NewAsset {
+            folder,
+            filename: "IMG_0002.CR3".to_owned(),
+            extension: "CR3".to_owned(),
+            media_type: MediaType::Raw,
+            file_size: 32_000_000,
+            checksum: [0xCD; 32],
+            width: Some(6000),
+            height: Some(4000),
+            capture_date: None,
+            capture_offset_minutes: None,
+        })
+        .unwrap();
+
+    let foreign = catalog
+        .commit_revision(other.version, &exposure(0.5))
+        .unwrap();
+
+    assert!(matches!(
+        catalog.checkout_revision(reg.version, foreign),
+        Err(LeylineError::RevisionMissing(id)) if id == foreign
+    ));
+}
+
+#[test]
 fn redo_follows_the_most_recent_branch() {
     let dir = tempfile::tempdir().unwrap();
     let mut catalog = new_catalog(&dir);

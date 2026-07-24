@@ -160,6 +160,33 @@ fn undo_and_redo_reload_the_session_state() {
 }
 
 #[test]
+fn checkout_jumps_directly_to_a_revision_and_commits_pending_state_first() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut catalog, reg) = catalog_with_asset(&dir);
+
+    let mut session = EditSession::open(&mut catalog, reg.version).unwrap();
+    session.set(Param::Exposure, Value::Float(0.5)).unwrap();
+    let r1 = session.commit().unwrap();
+    session.set(Param::Contrast, Value::Int(25)).unwrap();
+    let r2 = session.commit().unwrap();
+
+    // A pending change is committed before jumping: nothing lost.
+    session.set(Param::Vibrance, Value::Int(10)).unwrap();
+    session.checkout(r1).unwrap();
+    // history() walks backward from the head: r2 and the committed vibrance
+    // edit are forward descendants of r1, correctly excluded.
+    assert_eq!(session.history().unwrap().len(), 2); // initial, r1
+    assert_eq!(session.settings().exposure, 0.5);
+    assert_eq!(session.settings().contrast, 0);
+
+    // Jumping forward again to r2 works too, unlike undo/redo's one-step
+    // movement — `checkout` isn't limited to adjacent revisions.
+    let jumped = session.checkout(r2).unwrap();
+    assert_eq!(jumped, r2);
+    assert_eq!(session.settings().contrast, 25);
+}
+
+#[test]
 fn dropping_the_session_commits_pending_state() {
     let dir = tempfile::tempdir().unwrap();
     let (mut catalog, reg) = catalog_with_asset(&dir);

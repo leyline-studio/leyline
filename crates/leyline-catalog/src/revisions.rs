@@ -224,6 +224,34 @@ impl Catalog {
         Ok(Some(RevisionId::new(child)))
     }
 
+    /// Moves the version's head directly to any revision of the same asset
+    /// — the "jump to a specific revision" a browsable history panel needs,
+    /// beyond `undo_version`/`redo_version`'s one-link-at-a-time movement.
+    /// Like those two, this only moves the pointer: no revision is created
+    /// or deleted, and the revision jumped away from stays reachable.
+    ///
+    /// Deliberately validated against the *asset*, not `version_history`
+    /// (which only walks backward from the *current* head and would refuse
+    /// jumping forward again after a jump back): `create_version`'s own
+    /// `at` parameter uses this exact same asset-scoped check, since a
+    /// virtual copy's revisions are already reachable across every version
+    /// of that asset by design.
+    pub fn checkout_revision(&mut self, version: VersionId, revision: RevisionId) -> Result<()> {
+        self.ensure_writable()?;
+        let (asset, _) = version_row(&self.conn, version)?;
+        let target = self.revision(revision)?;
+        if target.asset != asset {
+            return Err(LeylineError::RevisionMissing(revision));
+        }
+        self.conn
+            .execute(
+                "UPDATE develop_versions SET head_revision_id = ?1 WHERE id = ?2",
+                rusqlite::params![revision.get(), version.get()],
+            )
+            .map_err(db_err)?;
+        Ok(())
+    }
+
     /// Returns the head revision of a version.
     pub fn version_head(&self, version: VersionId) -> Result<RevisionId> {
         version_row(&self.conn, version).map(|(_, head)| head)

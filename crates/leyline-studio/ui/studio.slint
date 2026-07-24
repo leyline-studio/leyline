@@ -177,6 +177,7 @@ component GroupHeader inherits HorizontalLayout {
 
 component FilterChip inherits Rectangle {
     in property <bool> active;
+    in property <bool> enabled: true;
     in property <string> text;
     callback clicked;
 
@@ -186,6 +187,7 @@ component FilterChip inherits Rectangle {
     background: root.active ? #2f4f6f : #242424;
     border-width: 1px;
     border-color: root.active ? #6fa8dc : #333333;
+    opacity: root.enabled ? 1.0 : 0.4;
 
     chip-text := Text {
         text: root.text;
@@ -197,6 +199,7 @@ component FilterChip inherits Rectangle {
         height: 100%;
     }
     TouchArea {
+        enabled: root.enabled;
         clicked => {
             root.clicked();
         }
@@ -446,6 +449,12 @@ export component StudioWindow inherits Window {
     // Develop view state, mirrored from Rust.
     in property <bool> develop-mode;
     in property <image> develop-image;
+    // A new photo's image just loaded (entered develop, or navigated):
+    // loupe zoom is per-photo UI state, so it resets like Compare
+    // Before/After does (in Rust, for `dev-compare`).
+    changed develop-image => {
+        root.dev-zoomed = false;
+    }
     // The neutral (as-shot) render of the same photo, fetched once per
     // develop session — the "before" half of Compare Before/After.
     in property <image> develop-image-before;
@@ -456,10 +465,21 @@ export component StudioWindow inherits Window {
     in property <string> dev-histogram-r;
     in property <string> dev-histogram-g;
     in property <string> dev-histogram-b;
+
+    // Copy/paste develop settings between photos (distinct from named
+    // presets): captures White Balance/Tone/Presence/Lens/Detail from one
+    // photo, pastes onto the current grid selection.
+    callback copy-settings();
+    callback paste-settings();
+    in property <bool> has-settings-clipboard: false;
     in property <string> develop-filename;
     in property <DevSettings> dev;
     // Stored develop preset names, already ordered by Rust.
     in property <[string]> dev-presets;
+    // Revision history, head first, formatted timestamps — a browsable
+    // history panel beyond linear undo/redo.
+    in property <[string]> dev-history;
+    callback checkout-history-row(int);
     // Paths of other libraries opened before, most recent first (never
     // includes the currently open one) — File ▸ Open Recent.
     in property <[string]> recent-libraries;
@@ -622,11 +642,17 @@ export component StudioWindow inherits Window {
     property <bool> expand-tone-curve: false;
     property <bool> expand-spot-removal: false;
     property <bool> expand-geometry: false;
+    property <bool> expand-history: false;
 
     // Which drag tool the develop image responds to: "select" (default,
     // dragging does nothing), "crop" (dragging draws the crop rectangle),
     // or "spot" (two clicks place a spot-removal clone, ADR 0032).
     property <string> active-tool: "select";
+    // Loupe zoom: fit-to-window (false) or 100%-with-pan (true). Only
+    // meaningful for the Select tool — Crop/Spot's coordinate mapping
+    // assumes the fit-to-window letterbox, so switching tools drops back to
+    // fit rather than making every drag tool zoom-aware.
+    property <bool> dev-zoomed: false;
     // Spot tool's two-click gesture: true between the first (source) click
     // and the second (target) one, with the first click's viewport
     // position held here so a pending-source marker can be drawn.
@@ -687,6 +713,14 @@ export component StudioWindow inherits Window {
                 root.open-print();
                 return accept;
             }
+            if (event.modifiers.control && (event.text == "c" || event.text == "C")) {
+                root.copy-settings();
+                return accept;
+            }
+            if (event.modifiers.control && (event.text == "v" || event.text == "V")) {
+                root.paste-settings();
+                return accept;
+            }
             if (root.develop-mode) {
                 if (event.text == "g" || event.text == "G" || event.text == Key.Escape) {
                     root.exit-develop();
@@ -710,6 +744,10 @@ export component StudioWindow inherits Window {
                 }
                 if (event.text == "\\") {
                     root.toggle-compare();
+                    return accept;
+                }
+                if ((event.text == "z" || event.text == "Z") && root.active-tool == "select") {
+                    root.dev-zoomed = !root.dev-zoomed;
                     return accept;
                 }
                 if (event.text == Key.LeftArrow) {
@@ -820,6 +858,7 @@ export component StudioWindow inherits Window {
                         clicked => {
                             root.active-tool = "crop";
                             root.spot-pending = false;
+                            root.dev-zoomed = false;
                         }
                     }
                     FilterChip {
@@ -827,6 +866,17 @@ export component StudioWindow inherits Window {
                         active: root.active-tool == "spot";
                         clicked => {
                             root.active-tool = "spot";
+                            root.dev-zoomed = false;
+                        }
+                    }
+                    FilterChip {
+                        // Loupe zoom (Z): 100%-with-pan vs fit-to-window,
+                        // Select tool only (see `dev-zoomed`'s declaration).
+                        text: root.dev-zoomed ? @tr("Fit") : @tr("100%    Z");
+                        active: root.dev-zoomed;
+                        enabled: root.active-tool == "select";
+                        clicked => {
+                            root.dev-zoomed = !root.dev-zoomed;
                         }
                     }
                 }
@@ -835,11 +885,27 @@ export component StudioWindow inherits Window {
                     vertical-stretch: 1;
                     clip: true;
 
-                    Image {
+                    if !root.dev-zoomed: Image {
                         source: root.dev-compare ? root.develop-image-before : root.develop-image;
                         image-fit: contain;
                         width: 100%;
                         height: 100%;
+                    }
+
+                    // 100%-with-pan: the image at its native pixel size
+                    // inside a scrollable viewport, instead of scaled to
+                    // fit — for judging sharpening/noise reduction at the
+                    // pixel level, which fit-to-window can't show.
+                    if root.dev-zoomed: Flickable {
+                        width: 100%;
+                        height: 100%;
+                        viewport-width: root.develop-image.width * 1px;
+                        viewport-height: root.develop-image.height * 1px;
+                        Image {
+                            source: root.dev-compare ? root.develop-image-before : root.develop-image;
+                            width: root.develop-image.width * 1px;
+                            height: root.develop-image.height * 1px;
+                        }
                     }
 
                     if root.dev-compare: Rectangle {
@@ -1500,6 +1566,36 @@ export component StudioWindow inherits Window {
                                 }
                             }
                         }
+
+                        GroupHeader {
+                            label: @tr("History");
+                            expanded <=> root.expand-history;
+                        }
+                        // Browsable revision list beyond linear undo/redo
+                        // (Ctrl+Z/Y): head first, click any row to jump
+                        // straight to it (`checkout-history-row`).
+                        if root.expand-history: VerticalLayout {
+                            for entry[index] in root.dev-history: touch := TouchArea {
+                                height: 26px;
+                                clicked => {
+                                    root.checkout-history-row(index);
+                                }
+                                Rectangle {
+                                    width: 100%;
+                                    height: 100%;
+                                    background: index == 0 ? #2f4f6f : (touch.has-hover ? #2a2a2a : transparent);
+                                    border-radius: 4px;
+                                    Text {
+                                        x: 8px;
+                                        text: index == 0 ? @tr("{} (current)", entry) : entry;
+                                        color: #d0d0d0;
+                                        font-size: 12px;
+                                        vertical-alignment: center;
+                                        height: 100%;
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1795,11 +1891,13 @@ export component StudioWindow inherits Window {
                         // Right-click (ADR 0021): a second, per-photo path
                         // to the same classement/collection/reprocess
                         // callbacks already wired above and to the
-                        // MenuBar (ADR 0020). No multi-select exists in
-                        // this app yet, so — like every keyboard shortcut
-                        // and menu-bar entry — this acts on the single
-                        // `selected` index, which right-click sets first
-                        // exactly like a left click does.
+                        // MenuBar (ADR 0020). Rate/Label/Flag/Reprocess/Copy
+                        // Settings reset to a plain single selection here
+                        // (`root.selected = ...; root.select(...)`), like
+                        // every keyboard shortcut and menu-bar entry —
+                        // *Paste* Settings is the one exception, acting on
+                        // whatever multi-selection is already current
+                        // instead (see its own comment below).
                         ContextMenuArea {
                             Menu {
                                 MenuItem {
@@ -1956,6 +2054,31 @@ export component StudioWindow inherits Window {
                                         root.selected = root.window-start + i;
                                         root.select(root.window-start + i);
                                         root.reprocess-selected();
+                                    }
+                                }
+                                MenuSeparator { }
+                                MenuItem {
+                                    // Copies from this one cell — reset to a
+                                    // plain single selection is fine, the
+                                    // source of a copy is always singular.
+                                    title: @tr("Copy Settings");
+                                    activated => {
+                                        root.selected = root.window-start + i;
+                                        root.select(root.window-start + i);
+                                        root.copy-settings();
+                                    }
+                                }
+                                MenuItem {
+                                    // Deliberately does *not* touch
+                                    // `selected`/`select` first: pasting must
+                                    // act on whatever multi-selection is
+                                    // already current (right-clicking one of
+                                    // several already-selected photos), not
+                                    // collapse it down to this one cell.
+                                    title: @tr("Paste Settings");
+                                    enabled: root.has-settings-clipboard;
+                                    activated => {
+                                        root.paste-settings();
                                     }
                                 }
                             }

@@ -39,8 +39,9 @@ use leyline_sdk::{
     AssetId, CollectionId, CollectionNode, CollectionType, ColorLabel, Event, ExportFormat,
     ExportPreset, ExportRecipe, ExportReport, ExportRequest, ExportSettings, GridItem, GridQuery,
     ImportOptions, JobId, JobResult, KeywordId, KeywordNode, Library, Margins, Orientation,
-    PaperSize, PickState, Preset, PreviewKind, PrintPreset, PrintRecipe, PrintReport, PrintRequest,
-    PrintSettings, RenderingIntent, Settings, SettingsGroup, SkippedFile, Sort, VersionId,
+    PaperSize, PickState, Preset, PresetSettings, PreviewKind, PrintPreset, PrintRecipe,
+    PrintReport, PrintRequest, PrintSettings, RenderingIntent, RevisionId, Settings, SettingsGroup,
+    SkippedFile, Sort, VersionId,
 };
 use slint::winit_030::WinitWindowAccessor;
 use slint::{ComponentHandle, Global, Model, ModelRc, SharedString, Timer, TimerMode, VecModel};
@@ -90,6 +91,15 @@ struct App {
     /// Before/After toggle — `None` until the first toggle actually needs
     /// it, reset back to `None` whenever the develop target changes.
     dev_before: Option<slint::Image>,
+    /// Develop settings copied from one photo (White Balance/Tone/Presence/
+    /// Lens Correction/Detail — the same default groups a saved preset
+    /// captures, Geometry excluded), waiting to be pasted onto the current
+    /// grid selection.
+    dev_clipboard: Option<PresetSettings>,
+    /// Revision ids of the develop history panel's rows, head first,
+    /// parallel to the `dev-history` display model — `history()`'s own
+    /// return, kept so a row click can jump straight to that id.
+    dev_history: Vec<RevisionId>,
     /// Stored export presets, parallel to the dialog's preset chips.
     presets: Vec<ExportPreset>,
     /// Stored print presets (ADR 0036), parallel to the print dialog's
@@ -320,6 +330,8 @@ fn run() -> Result<(), String> {
         multi_selected: std::collections::BTreeSet::new(),
         develop: None,
         dev_before: None,
+        dev_clipboard: None,
+        dev_history: Vec::new(),
         presets: Vec::new(),
         print_presets: Vec::new(),
         dev_presets: Vec::new(),
@@ -378,6 +390,7 @@ fn run() -> Result<(), String> {
 
     wire_select(&app, &window);
     wire_classify(&app, &window);
+    wire_settings_clipboard(&app, &window);
     wire_filters(&app, &window);
     wire_develop(&app, &window);
     wire_dialogs(&app, &window, other_recent_libraries);
@@ -733,6 +746,91 @@ fn wire_classify(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             report_error(&window, &error);
         }
     });
+}
+
+/// Develop settings groups copy/paste captures and applies — the same
+/// default set a saved preset captures (`docs/presets.md` §3.1), Geometry
+/// excluded since a crop/rotation is a per-photo judgment, not a
+/// transferable style.
+const CLIPBOARD_GROUPS: &[SettingsGroup] = &[
+    SettingsGroup::WhiteBalance,
+    SettingsGroup::Tone,
+    SettingsGroup::Presence,
+    SettingsGroup::LensCorrection,
+    SettingsGroup::Detail,
+];
+
+/// Copy/paste develop settings between photos (distinct from named
+/// presets, item 4 of the Lightroom/Darktable workflow-gap survey).
+fn wire_settings_clipboard(app: &Rc<RefCell<App>>, window: &StudioWindow) {
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_copy_settings(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let Some(version) = item_at(&app, window.get_selected()).map(|item| item.version_id)
+            else {
+                return;
+            };
+            match app.library.capture_settings(version, CLIPBOARD_GROUPS) {
+                Ok(settings) => {
+                    app.dev_clipboard = Some(settings);
+                    window.set_has_settings_clipboard(true);
+                }
+                Err(error) => report_error(&window, &error.to_string()),
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_paste_settings(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let Some(clipboard) = app.dev_clipboard.clone() else {
+                return;
+            };
+            let versions = selected_versions(&app, window.get_selected());
+            if versions.is_empty() {
+                return;
+            }
+            let applied = app
+                .library
+                .apply_settings(&clipboard, &versions, |_, _| {})
+                .map_err(|e| e.to_string())
+                .and_then(|report| {
+                    if report.failed.is_empty() {
+                        Ok(())
+                    } else {
+                        Err(report
+                            .failed
+                            .iter()
+                            .map(|f| f.reason.as_str())
+                            .collect::<Vec<_>>()
+                            .join("; "))
+                    }
+                })
+                .and_then(|()| reload(&mut app, &window));
+            if let Err(error) = applied {
+                report_error(&window, &error);
+            }
+            // Re-render the develop canvas too when the pasted-onto set
+            // includes the photo currently open there.
+            if app
+                .develop
+                .is_some_and(|(_, version)| versions.contains(&version))
+            {
+                if let Err(error) = refresh_develop(&mut app, &window) {
+                    report_error(&window, &error);
+                }
+            }
+        });
+    }
 }
 
 /// Connects the filter bar: stars, label dots, pick chips, sort cycling.
@@ -1149,6 +1247,18 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
         window.on_develop_redo(move || {
             if let Some(window) = handle.upgrade() {
                 history_step(&mut app.borrow_mut(), &window, false);
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_checkout_history_row(move |index| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            if let Ok(index) = usize::try_from(index) {
+                checkout_history_row(&mut app.borrow_mut(), &window, index);
             }
         });
     }
@@ -2312,6 +2422,28 @@ fn history_step(app: &mut App, window: &StudioWindow, undo: bool) {
     }
 }
 
+/// Jumps the open photo's develop history directly to `dev_history[index]`
+/// — the history panel's click-to-jump, beyond undo/redo's one-step
+/// movement.
+fn checkout_history_row(app: &mut App, window: &StudioWindow, index: usize) {
+    let Some((_, version)) = app.develop else {
+        return;
+    };
+    let Some(&revision) = app.dev_history.get(index) else {
+        return;
+    };
+    let moved = (|| {
+        let mut session = app.library.edit(version)?;
+        session.checkout(revision)
+    })();
+    if let Err(error) = moved
+        .map_err(|e| e.to_string())
+        .and_then(|_| refresh_develop(app, window))
+    {
+        report_error(window, &error);
+    }
+}
+
 /// Migrates the open photo to the engine's current process version
 /// (`docs/engine-api.md` §10.4) — a new revision with the same parameter
 /// values, so a photo imported before a rendering feature existed (e.g.
@@ -2362,11 +2494,18 @@ fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<(), String> {
     let Some((asset, version)) = app.develop else {
         return Ok(());
     };
-    let settings = {
+    let (settings, history) = {
         let session = app.library.edit(version).map_err(|e| e.to_string())?;
-        session.settings().clone()
+        let history = session.history().map_err(|e| e.to_string())?;
+        (session.settings().clone(), history)
     };
     window.set_dev(dev_model(&settings));
+    let rows: Vec<SharedString> = history
+        .iter()
+        .map(|row| SharedString::from(format::capture_date(row.created_at)))
+        .collect();
+    app.dev_history = history.into_iter().map(|row| row.revision).collect();
+    window.set_dev_history(ModelRc::from(Rc::new(VecModel::from(rows))));
     let (path, markers) = develop::curve_layout(&settings.tone_curve.points, CURVE_CANVAS_SIZE);
     window.set_dev_curve_path(SharedString::from(path));
     window.set_dev_curve_points(ModelRc::from(Rc::new(VecModel::from(

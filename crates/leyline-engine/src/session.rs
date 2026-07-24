@@ -282,6 +282,19 @@ impl<C: DerefMut<Target = Catalog>> EditSession<C> {
         self.catalog.version_history(self.version)
     }
 
+    /// Commits any pending state, then jumps the head directly to `revision`
+    /// — a browsable history panel's "jump to this point", beyond
+    /// [`EditSession::undo`]/[`EditSession::redo`]'s one-link-at-a-time
+    /// movement. Like those two, no revision is created or deleted, and
+    /// jumping away from a revision keeps it reachable.
+    pub fn checkout(&mut self, revision: RevisionId) -> Result<RevisionId> {
+        self.commit()?;
+        self.catalog.checkout_revision(self.version, revision)?;
+        self.reload_head(Some(revision))?;
+        self.notify_write();
+        Ok(revision)
+    }
+
     /// Migrates the version's head to the engine's current process version
     /// (`docs/pipeline.md` §4.5): a new revision with the exact same
     /// parameter values, re-rendered under a newer process contract — e.g.

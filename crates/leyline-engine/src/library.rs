@@ -830,6 +830,39 @@ impl Library {
         self.catalog_mut().create_preset(name, &captured.to_json())
     }
 
+    /// Captures the fields of `groups` from `from`'s head, without
+    /// persisting anything — the read half of [`Library::create_preset`],
+    /// used for a one-shot "copy settings" (Studio's copy/paste, as opposed
+    /// to a named, stored preset).
+    pub fn capture_settings(
+        &self,
+        from: VersionId,
+        groups: &[SettingsGroup],
+    ) -> Result<PresetSettings> {
+        crate::presets::capture(&self.catalog(), from, groups)
+    }
+
+    /// Applies an ad-hoc, unsaved [`PresetSettings`] to several versions —
+    /// the "paste settings" half of copy/paste, sharing
+    /// [`Library::apply_preset`]'s mechanics without requiring the fields be
+    /// stored as a named preset first.
+    pub fn apply_settings(
+        &self,
+        settings: &PresetSettings,
+        versions: &[VersionId],
+        mut progress: impl FnMut(u64, u64),
+    ) -> Result<PresetApplyReport> {
+        let mut catalog = lock(&self.inner.catalog);
+        let report = crate::presets::apply_batch(&mut catalog, settings, versions, &mut progress);
+        drop(catalog);
+        for &version in &report.applied {
+            self.emit(Event::VersionChanged {
+                version_id: version,
+            });
+        }
+        Ok(report)
+    }
+
     /// Lists every stored develop preset, ordered by name (§10.3).
     pub fn presets(&self) -> Result<Vec<Preset>> {
         self.catalog().presets()
