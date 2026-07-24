@@ -72,6 +72,23 @@ impl Rgb8 {
         self.box_scaled(scale(self.width), scale(self.height))
     }
 
+    /// Returns the image scaled to fit inside a `max_width` x `max_height`
+    /// box, preserving aspect ratio (the print module's paper-size
+    /// dimensioning, ADR 0036 — a box constraint rather than
+    /// [`scaled_to_fit`](Self::scaled_to_fit)'s single longest-edge one).
+    /// Never upscales: an image already small enough on both axes is
+    /// returned unchanged.
+    pub fn scaled_to_fit_box(&self, max_width: u32, max_height: u32) -> Rgb8 {
+        if self.width <= max_width && self.height <= max_height {
+            return self.clone();
+        }
+        let scale = (f64::from(max_width) / f64::from(self.width))
+            .min(f64::from(max_height) / f64::from(self.height));
+        let out_width = ((f64::from(self.width) * scale).round() as u32).max(1);
+        let out_height = ((f64::from(self.height) * scale).round() as u32).max(1);
+        self.box_scaled(out_width, out_height)
+    }
+
     /// Box-filter downscale to exactly `out_width` x `out_height`: each
     /// destination pixel is the average of its source rectangle. Output
     /// rows are independent integer sums, so they run in parallel with a
@@ -162,6 +179,22 @@ mod tests {
     fn a_uniform_image_stays_uniform() {
         let scaled = uniform(999, 501, [10, 200, 45]).scaled_to_fit(64);
         assert!(scaled.data().chunks(3).all(|px| px == [10, 200, 45]));
+    }
+
+    #[test]
+    fn box_fit_bounds_both_dimensions_and_preserves_aspect_ratio() {
+        let scaled = uniform(6000, 4000, [10, 20, 30]).scaled_to_fit_box(1000, 500);
+        assert_eq!((scaled.width(), scaled.height()), (750, 500));
+
+        let portrait = uniform(4000, 6000, [0, 0, 0]).scaled_to_fit_box(1000, 500);
+        assert_eq!((portrait.width(), portrait.height()), (333, 500));
+    }
+
+    #[test]
+    fn box_fit_never_upscales() {
+        let image = uniform(200, 100, [1, 2, 3]);
+        assert_eq!(image.scaled_to_fit_box(1000, 1000), image);
+        assert_eq!(image.scaled_to_fit_box(200, 100), image);
     }
 
     #[test]

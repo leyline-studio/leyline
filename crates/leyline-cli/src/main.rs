@@ -8,8 +8,9 @@ use std::path::{Path, PathBuf};
 
 use leyline_sdk::{
     AssetId, ColorLabel, Crop, CurvePoint, ExportFormat, ExportRecipe, ExportRequest,
-    ExportSettings, GridQuery, ImportOptions, LensCorrection, Library, NoiseReduction, Param,
-    PickState, Point, PresetId, PreviewKind, Settings, SettingsGroup, Sharpening, SpotRemoval,
+    ExportSettings, GridQuery, ImportOptions, LensCorrection, Library, Margins, NoiseReduction,
+    Orientation, PaperSize, Param, PickState, Point, PresetId, PreviewKind, PrintRecipe,
+    PrintRequest, PrintSettings, RenderingIntent, Settings, SettingsGroup, Sharpening, SpotRemoval,
     ToneCurve, Value, VersionId, WhiteBalance,
 };
 
@@ -28,6 +29,11 @@ Usage:
   leyline preset <library> <name> [--format <f>] [--quality <1-100>] [--max-edge <px>]
   leyline presets <library>
   leyline exports <library> <asset-id>
+  leyline print <library> <dest-dir> <version-id>...
+                [--preset <name>] [--paper <a4|a3|letter|<w>x<h>mm>] [--orientation <portrait|landscape>]
+                [--margins <mm>] [--dpi <n>] [--profile <path>] [--intent <intent>] [--copies <n>]
+  leyline print-preset <library> <name> [print options above, minus --preset]
+  leyline print-presets <library>
   leyline rate <library> <stars|none> <version-id>...
   leyline pick <library> <pick|reject|none> <version-id>...
   leyline label <library> <red|yellow|green|blue|purple|none> <version-id>...
@@ -43,6 +49,7 @@ Options:
   --reference   Reference files in place instead of copying into Photos/
   --flat        Do not descend into subdirectories
   --format <f>  Export format: jpeg (default), png, tiff, webp, avif
+  --intent <i>  Print rendering intent: perceptual, relative (default), saturation, absolute
 
 Develop params (docs/pipeline.md §3.2, schema 1):
   exposure rotation                 decimal
@@ -84,6 +91,9 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("preset") => preset(&args[1..]),
         Some("presets") => presets(&args[1..]),
         Some("exports") => exports(&args[1..]),
+        Some("print") => print_cmd(&args[1..]),
+        Some("print-preset") => print_preset(&args[1..]),
+        Some("print-presets") => print_presets(&args[1..]),
         Some("rate") => rate(&args[1..]),
         Some("pick") => pick(&args[1..]),
         Some("label") => label(&args[1..]),
@@ -793,6 +803,182 @@ fn export(args: &[String]) -> Result<(), String> {
             report.exported.len() + report.failed.len()
         ))
     }
+}
+
+const PRINT_FLAGS: &[&str] = &[
+    "preset",
+    "paper",
+    "orientation",
+    "margins",
+    "dpi",
+    "profile",
+    "intent",
+    "copies",
+];
+
+/// Builds a [`PrintSettings`] from the shared recipe flags.
+fn print_recipe(options: &Options) -> Result<PrintSettings, String> {
+    let mut settings = PrintSettings::default();
+    if let Some(paper) = options.value("paper") {
+        settings.paper = match paper {
+            "a4" => PaperSize::A4,
+            "a3" => PaperSize::A3,
+            "letter" => PaperSize::Letter,
+            custom => {
+                let (w, h) = custom
+                    .strip_suffix("mm")
+                    .and_then(|wh| wh.split_once('x'))
+                    .ok_or_else(|| format!("unknown paper size {custom:?}"))?;
+                PaperSize::Custom {
+                    width_mm: w.parse().map_err(|_| format!("bad paper width {w:?}"))?,
+                    height_mm: h.parse().map_err(|_| format!("bad paper height {h:?}"))?,
+                }
+            }
+        };
+    }
+    if let Some(orientation) = options.value("orientation") {
+        settings.orientation = match orientation {
+            "portrait" => Orientation::Portrait,
+            "landscape" => Orientation::Landscape,
+            other => return Err(format!("unknown orientation {other:?}")),
+        };
+    }
+    if let Some(margin) = options.value("margins") {
+        let mm: f32 = margin
+            .parse()
+            .map_err(|_| format!("bad margins {margin:?}"))?;
+        settings.margins_mm = Margins {
+            top_mm: mm,
+            right_mm: mm,
+            bottom_mm: mm,
+            left_mm: mm,
+        };
+    }
+    if let Some(dpi) = options.value("dpi") {
+        settings.dpi = dpi.parse().map_err(|_| format!("bad dpi {dpi:?}"))?;
+    }
+    if let Some(profile) = options.value("profile") {
+        settings.profile = Some(PathBuf::from(profile));
+    }
+    if let Some(intent) = options.value("intent") {
+        settings.intent = match intent {
+            "perceptual" => RenderingIntent::Perceptual,
+            "relative" => RenderingIntent::RelativeColorimetric,
+            "saturation" => RenderingIntent::Saturation,
+            "absolute" => RenderingIntent::AbsoluteColorimetric,
+            other => return Err(format!("unknown rendering intent {other:?}")),
+        };
+    }
+    Ok(settings)
+}
+
+fn print_cmd(args: &[String]) -> Result<(), String> {
+    let (positional, options) = parse(args, PRINT_FLAGS)?;
+    let [root, destination, ids @ ..] = positional.as_slice() else {
+        return Err("usage: leyline print <library> <dest-dir> <version-id>... \
+             [--preset <name>] [--paper <p>] [--orientation <o>] [--margins <mm>] \
+             [--dpi <n>] [--profile <path>] [--intent <i>] [--copies <n>]"
+            .to_owned());
+    };
+    let versions = version_ids(ids)?;
+    let destination = PathBuf::from(destination);
+    let library = open(root)?;
+
+    let progress = |done: u64, total: u64| eprint!("\rprinting {done}/{total}");
+    let recipe_kind = match options.value("preset") {
+        Some(name) => {
+            if PRINT_FLAGS
+                .iter()
+                .filter(|f| **f != "preset" && **f != "copies")
+                .any(|f| options.value(f).is_some())
+            {
+                return Err(
+                    "--preset already defines the recipe; drop the other print options".to_owned(),
+                );
+            }
+            let stored = library
+                .print_presets()
+                .map_err(|e| e.to_string())?
+                .into_iter()
+                .find(|p| p.name == *name)
+                .ok_or_else(|| format!("no print preset named {name:?}"))?;
+            PrintRecipe::Preset(stored.preset)
+        }
+        None => PrintRecipe::Adhoc(print_recipe(&options)?),
+    };
+    let copies = options
+        .value("copies")
+        .map(|c| c.parse().map_err(|_| format!("bad copies {c:?}")))
+        .transpose()?
+        .unwrap_or(1);
+    let request = PrintRequest {
+        versions,
+        recipe: recipe_kind,
+        destination_dir: destination,
+        copies,
+    };
+    let report = library
+        .print(&request, progress)
+        .map_err(|e| e.to_string())?;
+    eprintln!();
+    for printed in &report.printed {
+        println!("printed  {}", printed.path.display());
+    }
+    for failed in &report.failed {
+        println!("failed   v{}: {}", failed.version, failed.reason);
+    }
+    if report.failed.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "{} of {} print(s) failed",
+            report.failed.len(),
+            report.printed.len() + report.failed.len()
+        ))
+    }
+}
+
+fn print_preset(args: &[String]) -> Result<(), String> {
+    let (positional, options) = parse(
+        args,
+        &[
+            "paper",
+            "orientation",
+            "margins",
+            "dpi",
+            "profile",
+            "intent",
+        ],
+    )?;
+    let [root, name] = positional.as_slice() else {
+        return Err("usage: leyline print-preset <library> <name> \
+             [--paper <p>] [--orientation <o>] [--margins <mm>] [--dpi <n>] \
+             [--profile <path>] [--intent <i>]"
+            .to_owned());
+    };
+    let settings = print_recipe(&options)?;
+    let library = open(root)?;
+    let id = library
+        .create_print_preset(name, &settings)
+        .map_err(|e| e.to_string())?;
+    println!("created print preset {name:?} (p{id})");
+    Ok(())
+}
+
+fn print_presets(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root] = positional.as_slice() else {
+        return Err("usage: leyline print-presets <library>".to_owned());
+    };
+    let stored = open(root)?.print_presets().map_err(|e| e.to_string())?;
+    for preset in &stored {
+        println!(
+            "p{:<6} {:20} {}",
+            preset.preset, preset.name, preset.settings_json
+        );
+    }
+    println!("{} preset(s)", stored.len());
+    Ok(())
 }
 
 fn preset(args: &[String]) -> Result<(), String> {

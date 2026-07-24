@@ -16,6 +16,7 @@ mod library;
 mod pixels;
 mod presets;
 mod preview;
+mod print;
 mod process1;
 mod process2;
 mod process3;
@@ -39,6 +40,7 @@ pub use import::{ImportOptions, ImportReport, ImportedFile, SkippedFile, import}
 pub use library::{CatalogRead, CatalogWrite, Library};
 pub use presets::{FailedApply, PresetApplyReport, apply_batch, capture};
 pub use preview::{Preview, PreviewFile, preview};
+pub use print::{FailedPrint, PrintRecipe, PrintReport, PrintRequest, PrintedVersion};
 pub use render::{LensShot, Rendered, lens_shot, render};
 pub use reprocess::{FailedReprocess, ReprocessReport, reprocess_batch};
 pub use session::{DEFAULT_AMEND_WINDOW, EditSession, Param, Value};

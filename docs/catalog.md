@@ -1596,3 +1596,27 @@ CREATE TABLE develop_presets (
 Presets de développement (`docs/presets.md`) : un jeu **partiel** de réglages, jamais un `settings_json` complet (§17). Le catalogue traite `preset_json` comme une chaîne opaque, au même titre qu'`export_presets.settings_json` (§27) — c'est le moteur (`leyline-core::PresetSettings`) qui en interprète la structure.
 
 Aucune clé étrangère vers `develop_revisions` : une révision créée par l'application d'un preset est une révision ordinaire, sans trace de son origine, conformément à la règle « une révision représente une intention utilisateur, jamais un événement d'interface » (§17). Renommer ou supprimer un preset n'a donc aucun effet rétroactif sur l'historique déjà écrit avec lui.
+
+---
+
+# 42. Print Presets (ADR 0036)
+
+```sql
+CREATE TABLE print_presets (
+
+    id INTEGER PRIMARY KEY,
+
+    uuid TEXT NOT NULL UNIQUE,
+
+    name TEXT NOT NULL,
+
+    settings_json TEXT NOT NULL,
+
+    created_at INTEGER NOT NULL
+
+);
+```
+
+Parallèle exact d'`export_presets` (§27) : `settings_json` est opaque ici aussi, c'est `leyline_export::PrintSettings` qui en interprète la structure (papier, orientation, marges, DPI, profil ICC de destination, intention de rendu).
+
+Contrairement à l'export, l'impression n'a pas de table d'historique : imprimer ne modifie aucune révision et ne produit aucun artefact que le catalogue doive pouvoir retrouver plus tard (ADR 0036) — le fichier PDF rendu est un artefact ponctuel, pas un état à journaliser. Les données de job (quelles versions, combien de copies) ne sont jamais stockées, exactement comme `ExportRequest.versions` reste séparé d'`export_presets`.

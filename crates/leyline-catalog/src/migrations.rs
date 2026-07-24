@@ -269,6 +269,15 @@ CREATE TABLE export_presets (
     created_at INTEGER NOT NULL
 );
 
+-- ADR 0036 Print presets, parallel to export_presets
+CREATE TABLE print_presets (
+    id INTEGER PRIMARY KEY,
+    uuid TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    settings_json TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+);
+
 -- docs/presets.md §4 Develop presets
 CREATE TABLE develop_presets (
     id INTEGER PRIMARY KEY,

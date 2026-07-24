@@ -6,7 +6,8 @@
 use std::path::PathBuf;
 
 use crate::id::{
-    AssetId, CollectionId, ExportPresetId, KeywordId, PresetId, RevisionId, VersionId,
+    AssetId, CollectionId, ExportPresetId, KeywordId, PresetId, PrintPresetId, RevisionId,
+    VersionId,
 };
 
 /// Errors produced by the Leyline engine and its components (`docs/engine-api.md` §4).
@@ -57,6 +58,10 @@ pub enum LeylineError {
     /// The referenced develop preset does not exist in the catalog.
     #[error("develop preset {0} does not exist")]
     PresetMissing(PresetId),
+
+    /// The referenced print preset does not exist in the catalog.
+    #[error("print preset {0} does not exist")]
+    PrintPresetMissing(PrintPresetId),
 
     /// The asset's file could not be decoded.
     #[error("failed to decode asset {asset}: {reason}")]

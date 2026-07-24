@@ -18,6 +18,7 @@ mod metadata;
 mod migrations;
 mod presets;
 mod previews;
+mod prints;
 mod revisions;
 mod search;
 mod versions;
@@ -31,6 +32,7 @@ pub use keywords::KeywordNode;
 pub use metadata::{CameraInfo, LensInfo, Metadata, Rational};
 pub use presets::Preset;
 pub use previews::{NewPreview, PreviewRow};
+pub use prints::PrintPreset;
 pub use revisions::{Amendment, RevisionRow};
 pub use versions::VersionInfo;
 

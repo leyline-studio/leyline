@@ -19,12 +19,14 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use leyline_catalog::{Catalog, CollectionNode, ExportPreset, KeywordNode, Preset, SmartRules};
+use leyline_catalog::{
+    Catalog, CollectionNode, ExportPreset, KeywordNode, Preset, PrintPreset, SmartRules,
+};
 use leyline_core::{
     AssetId, CollectionId, ColorLabel, ExportPresetId, JobId, KeywordId, LeylineError, PickState,
-    PresetId, PresetSettings, PreviewKind, Result, SettingsGroup, VersionId,
+    PresetId, PresetSettings, PreviewKind, PrintPresetId, Result, SettingsGroup, VersionId,
 };
-use leyline_export::ExportSettings;
+use leyline_export::{ExportSettings, PrintSettings};
 use leyline_preview::PreviewCache;
 
 use crate::decode_cache::DecodeCache;
@@ -33,6 +35,7 @@ use crate::export::{ExportReport, ExportRequest};
 use crate::import::{ImportOptions, ImportReport, ImportedFile};
 use crate::presets::PresetApplyReport;
 use crate::preview::{Preview, PreviewFile};
+use crate::print::{PrintRecipe, PrintReport, PrintRequest};
 use crate::reprocess::ReprocessReport;
 use crate::session::EditSession;
 
@@ -659,6 +662,110 @@ impl Library {
     /// Lists every stored export preset, ordered by name (§12).
     pub fn export_presets(&self) -> Result<Vec<ExportPreset>> {
         self.catalog().export_presets()
+    }
+
+    /// Prints every version of `request` through its recipe (ADR 0036) —
+    /// same shape and same catalog-lock discipline as [`Library::export`]:
+    /// decode+render+scale+encode never holds the catalog lock, one failing
+    /// version doesn't stop the batch, and a [`PrintRecipe::Preset`] is
+    /// resolved once up front. Unlike export there is no journal step: a
+    /// print has no history table (ADR 0036).
+    pub fn print(
+        &self,
+        request: &PrintRequest,
+        mut progress: impl FnMut(u64, u64),
+    ) -> Result<PrintReport> {
+        let settings = self.resolve_print_recipe(&request.recipe)?;
+        settings.validate().map_err(crate::print::print_err)?;
+        let total = request.versions.len() as u64;
+        let mut report = PrintReport::default();
+        for (done, &version) in request.versions.iter().enumerate() {
+            match self.print_one(version, &settings, &request.destination_dir) {
+                Ok(path) => report
+                    .printed
+                    .push(crate::print::PrintedVersion { version, path }),
+                Err(error) => report.failed.push(crate::print::FailedPrint {
+                    version,
+                    reason: error.to_string(),
+                }),
+            }
+            progress(done as u64 + 1, total);
+        }
+        Ok(report)
+    }
+
+    /// Prints `request` as a job (§3.1): returns immediately, progresses as
+    /// `JobProgress` per version, then `JobFinished` with the report
+    /// (per-version failures inside it, request-level failures as `Failed`).
+    pub fn print_async(&self, request: PrintRequest) -> JobId {
+        let job = self.new_job();
+        let library = self.clone();
+        self.spawn_job(move || {
+            let printed = library.print(&request, {
+                let library = library.clone();
+                move |done, total| {
+                    library.emit(Event::JobProgress {
+                        job_id: job,
+                        done,
+                        total,
+                    });
+                }
+            });
+            let result = match printed {
+                Ok(report) => JobResult::Print(report),
+                Err(error) => JobResult::Failed(error.to_string()),
+            };
+            library.emit(Event::JobFinished {
+                job_id: job,
+                result,
+            });
+        });
+        job
+    }
+
+    /// Resolves a recipe to the settings that drive the render.
+    fn resolve_print_recipe(&self, recipe: &PrintRecipe) -> Result<PrintSettings> {
+        match recipe {
+            PrintRecipe::Adhoc(settings) => Ok(settings.clone()),
+            PrintRecipe::Preset(preset) => {
+                let catalog = lock(&self.inner.catalog);
+                let stored = catalog.print_preset(*preset)?;
+                PrintSettings::parse(&stored.settings_json).map_err(crate::print::print_err)
+            }
+        }
+    }
+
+    /// Prints one version at its head revision and returns the written PDF
+    /// — the per-version core [`Library::print`] loops over, with the
+    /// catalog lock narrowed to the plan (ADR 0024). No journal write: a
+    /// print has no history table (ADR 0036).
+    fn print_one(
+        &self,
+        version: VersionId,
+        settings: &PrintSettings,
+        destination_dir: &Path,
+    ) -> Result<PathBuf> {
+        let plan = {
+            let catalog = lock(&self.inner.catalog);
+            crate::print::plan_print(&catalog, &self.inner.root, version)?
+        };
+        crate::print::render_print(&plan, settings, destination_dir)
+    }
+
+    /// Stores a named print preset (ADR 0036), validating the recipe first.
+    pub fn create_print_preset(
+        &self,
+        name: &str,
+        settings: &PrintSettings,
+    ) -> Result<PrintPresetId> {
+        settings.validate().map_err(crate::print::print_err)?;
+        self.catalog_mut()
+            .create_print_preset(name, &settings.to_json())
+    }
+
+    /// Lists every stored print preset, ordered by name (ADR 0036).
+    pub fn print_presets(&self) -> Result<Vec<PrintPreset>> {
+        self.catalog().print_presets()
     }
 
     /// Opens an edit session on a version (§10.1). The session holds the

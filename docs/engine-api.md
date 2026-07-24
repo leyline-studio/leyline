@@ -478,6 +478,40 @@ L'export rend chaque version à sa révision de tête, avec sa process version (
 
 Comme `Library::preview` (§11, `adr/0023-catalog-lock-narrowing-preview.md`), `Library::export` ne tient le verrou catalogue que pour la lecture des réglages (résolution du preset le cas échéant) et l'écriture du journal — jamais pendant le décodage/rendu/encodage d'une version (`adr/0024-catalog-lock-narrowing-export.md`). Une requête à plusieurs versions ne bloque donc plus la navigation, la recherche ou l'édition de métadonnées pour toute sa durée, seulement version par version.
 
+## 12.1 Impression (ADR 0036)
+
+```rust
+pub enum PrintRecipe {
+    /// Réglages fournis par l'appelant, non stockés.
+    Adhoc(PrintSettings),
+    /// Un preset stocké (catalog.md §42), résolu à l'exécution de la requête.
+    Preset(PrintPresetId),
+}
+
+pub struct PrintRequest {
+    pub versions: Vec<VersionId>,
+    pub recipe: PrintRecipe,
+    pub destination_dir: PathBuf,
+    /// Donnée de job, jamais dans le preset — comme `ExportRequest.versions`
+    /// l'est d'`ExportRecipe`.
+    pub copies: u32,
+}
+
+impl Library {
+    /// Synchrone, même discipline que `Library::export`.
+    pub fn print(&self, request: &PrintRequest,
+                 progress: impl FnMut(u64, u64)) -> Result<PrintReport>;
+    /// Le job : `JobProgress` par version, puis `JobFinished`.
+    pub fn print_async(&self, request: PrintRequest) -> JobId;
+    pub fn create_print_preset(&self, name: &str, settings: &PrintSettings) -> Result<PrintPresetId>;
+    pub fn print_presets(&self) -> Result<Vec<PrintPreset>>;
+}
+```
+
+L'impression n'est ni une process version ni un étage de pipeline (ADR 0036) : c'est « un export avec une dimension physique et un profil de destination ». Le moteur rend exactement comme pour un export (décodage → `render` → `process1`-`7`), puis met à l'échelle dans la zone imprimable en pixels (`PrintSettings::target_pixels`, papier × DPI, à la place du `max_edge` d'un export) au lieu de mettre à l'échelle vers un bord le plus long, transforme optionnellement vers un profil ICC de destination (`leyline_color::OutputTransform`, ADR 0027) si `PrintSettings.profile` est renseigné, et encode le résultat en PDF une page (`leyline_export::encode_print`) — le hand-off le plus portable vers un flux d'impression OS (le risque explicitement nommé et différé par ADR 0036) : le PDF porte déjà sa taille physique et ses pixels dans le profil de destination, prêt à être remis tel quel au dialogue d'impression du système. Ce hand-off (Studio invoquant effectivement ce dialogue sur le fichier rendu) reste à câbler dans `leyline-studio`, sans nouvelle surface moteur (même patron que la barre de menu, ADR 0020).
+
+Contrairement à l'export, il n'y a pas de journalisation : pas de table `print_history` (catalog.md §42) — un print ne modifie aucune révision et n'a pas besoin d'être retrouvé plus tard depuis le catalogue.
+
 ---
 
 # 13. Stabilité de l'API

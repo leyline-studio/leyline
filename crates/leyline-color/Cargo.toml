@@ -10,6 +10,9 @@ rust-version.workspace = true
 [dependencies]
 lcms2.workspace = true
 leyline-core.workspace = true
+bytemuck.workspace = true
+thiserror.workspace = true
+serde.workspace = true
 
 [lints]
 workspace = true

@@ -13,6 +13,7 @@ jpeg-encoder.workspace = true
 leyline-color.workspace = true
 leyline-core.workspace = true
 png.workspace = true
+printpdf.workspace = true
 ravif.workspace = true
 rgb.workspace = true
 tiff.workspace = true

@@ -8,22 +8,26 @@
 pub use leyline_core::{
     AssetId, CURRENT_PROCESS, CURRENT_SCHEMA, CollectionId, CollectionType, ColorLabel, Crop,
     CurvePoint, ExportPresetId, FolderId, JobId, KeywordId, LensCorrection, LeylineError,
-    MediaType, NoiseReduction, PickState, Point, PresetId, PresetSettings, PreviewKind, Result,
-    RevisionId, Settings, SettingsGroup, Sharpening, SpotRemoval, ToneCurve, VersionId,
-    WhiteBalance,
+    MediaType, NoiseReduction, PickState, Point, PresetId, PresetSettings, PreviewKind,
+    PrintPresetId, Result, RevisionId, Settings, SettingsGroup, Sharpening, SpotRemoval, ToneCurve,
+    VersionId, WhiteBalance,
 };
 
 pub use leyline_engine::{
     CatalogRead, CatalogWrite, DEFAULT_AMEND_WINDOW, EditSession, Event, ExportRecipe,
-    ExportReport, ExportRequest, ExportedVersion, FailedApply, FailedExport, FailedReprocess,
-    ImportOptions, ImportReport, ImportedFile, JobResult, Library, Param, PresetApplyReport,
-    PreviewFile, ReprocessReport, SkippedFile, Value,
+    ExportReport, ExportRequest, ExportedVersion, FailedApply, FailedExport, FailedPrint,
+    FailedReprocess, ImportOptions, ImportReport, ImportedFile, JobResult, Library, Param,
+    PresetApplyReport, PreviewFile, PrintRecipe, PrintReport, PrintRequest, PrintedVersion,
+    ReprocessReport, SkippedFile, Value,
 };
 
 pub use leyline_catalog::{
     CameraInfo, CollectionNode, ExportPreset, ExportRecord, GridItem, GridQuery, KeywordNode,
-    LensInfo, LibraryInfo, Metadata, Preset, RatingRule, Rational, RevisionRow, SmartRules, Sort,
-    VersionInfo,
+    LensInfo, LibraryInfo, Metadata, Preset, PrintPreset, RatingRule, Rational, RevisionRow,
+    SmartRules, Sort, VersionInfo,
 };
 
-pub use leyline_export::{ExportFormat, ExportSettings};
+pub use leyline_color::RenderingIntent;
+pub use leyline_export::{
+    ExportFormat, ExportSettings, Margins, Orientation, PaperSize, PrintSettings,
+};

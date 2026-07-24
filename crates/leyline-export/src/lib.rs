@@ -20,6 +20,9 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+mod print;
+pub use print::{Margins, Orientation, PaperSize, PrintSettings, encode_print};
+
 /// Errors produced while encoding an export file.
 #[derive(Debug, thiserror::Error)]
 pub enum ExportError {

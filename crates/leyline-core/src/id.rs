@@ -71,6 +71,10 @@ id_type!(
     ExportPresetId(i64)
 );
 id_type!(
+    /// Identifier of a print preset.
+    PrintPresetId(i64)
+);
+id_type!(
     /// Identifier of a develop preset.
     PresetId(i64)
 );
