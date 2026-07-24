@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 use leyline_catalog::{Catalog, RevisionRow};
 use leyline_core::{
     CURRENT_PROCESS, CURRENT_SCHEMA, Crop, LensCorrection, LeylineError, NoiseReduction, Result,
-    RevisionId, Settings, Sharpening, VersionId, WhiteBalance,
+    RevisionId, Settings, Sharpening, SpotRemoval, ToneCurve, VersionId, WhiteBalance,
 };
 
 /// Default amendment window of `docs/catalog.md` §17.
@@ -46,6 +46,10 @@ pub enum Param {
     Vibrance,
     /// Saturation slider.
     Saturation,
+    /// Tone curve step.
+    ToneCurve,
+    /// Spot removal clones (the whole list, replaced atomically).
+    SpotRemoval,
     /// Lens correction step.
     LensCorrection,
     /// Noise reduction step.
@@ -68,6 +72,10 @@ pub enum Value {
     Int(i32),
     /// For [`Param::WhiteBalance`]; `None` returns to as-shot.
     WhiteBalance(Option<WhiteBalance>),
+    /// For [`Param::ToneCurve`].
+    ToneCurve(ToneCurve),
+    /// For [`Param::SpotRemoval`].
+    SpotRemoval(Vec<SpotRemoval>),
     /// For [`Param::LensCorrection`].
     LensCorrection(LensCorrection),
     /// For [`Param::NoiseReduction`].
@@ -327,6 +335,8 @@ fn apply(settings: &mut Settings, param: Param, value: Value) -> Result<()> {
         (Param::Blacks, Value::Int(v)) => settings.blacks = v,
         (Param::Vibrance, Value::Int(v)) => settings.vibrance = v,
         (Param::Saturation, Value::Int(v)) => settings.saturation = v,
+        (Param::ToneCurve, Value::ToneCurve(v)) => settings.tone_curve = v,
+        (Param::SpotRemoval, Value::SpotRemoval(v)) => settings.spot_removal = v,
         (Param::WhiteBalance, Value::WhiteBalance(v)) => settings.white_balance = v,
         (Param::LensCorrection, Value::LensCorrection(v)) => settings.lens_correction = v,
         (Param::NoiseReduction, Value::NoiseReduction(v)) => settings.noise_reduction = v,

@@ -7,9 +7,10 @@
 use std::path::{Path, PathBuf};
 
 use leyline_sdk::{
-    AssetId, ColorLabel, Crop, ExportFormat, ExportRecipe, ExportRequest, ExportSettings,
-    GridQuery, ImportOptions, LensCorrection, Library, NoiseReduction, Param, PickState, PresetId,
-    PreviewKind, Settings, SettingsGroup, Sharpening, Value, VersionId, WhiteBalance,
+    AssetId, ColorLabel, Crop, CurvePoint, ExportFormat, ExportRecipe, ExportRequest,
+    ExportSettings, GridQuery, ImportOptions, LensCorrection, Library, NoiseReduction, Param,
+    PickState, Point, PresetId, PreviewKind, Settings, SettingsGroup, Sharpening, SpotRemoval,
+    ToneCurve, Value, VersionId, WhiteBalance,
 };
 
 const USAGE: &str = "\
@@ -52,6 +53,10 @@ Develop params (docs/pipeline.md §3.2, schema 1):
   noise-reduction <luminance> <color>
   sharpening <amount> <radius>
   crop <x> <y> <width> <height>     percent 0-100, or `crop reset`
+  tone-curve <x,y> <x,y>...         points in [0,1], strictly increasing x, or `tone-curve reset`
+  spot-removal <tx> <ty> <sx> <sy> <radius> <feather> <opacity>
+                                    positions/radius percent 0-100, feather/opacity 0-1;
+                                    appends one spot, or `spot-removal reset` to clear all
 
 Preset groups (docs/presets.md §3.1, comma-separated, no spaces):
   white_balance tone presence lens_correction detail geometry
@@ -383,6 +388,10 @@ fn develop(args: &[String]) -> Result<(), String> {
         let v = at(i)?;
         v.parse().map_err(|_| format!("bad integer {v:?}"))
     };
+
+    let library = open(root)?;
+    let mut session = library.edit(version).map_err(|e| e.to_string())?;
+
     let (param, value) = match param.as_str() {
         "exposure" => (Param::Exposure, Value::Float(float_at(0)?)),
         "rotation" => (Param::Rotation, Value::Float(float_at(0)?)),
@@ -445,11 +454,50 @@ fn develop(args: &[String]) -> Result<(), String> {
             };
             (Param::Crop, Value::Crop(crop))
         }
+        "tone-curve" => {
+            let points = if at(0)? == "reset" {
+                Vec::new()
+            } else {
+                rest.iter()
+                    .map(|p| {
+                        let (x, y) = p
+                            .split_once(',')
+                            .ok_or_else(|| format!("bad point {p:?}, expected x,y"))?;
+                        Ok(CurvePoint {
+                            x: x.parse().map_err(|_| format!("bad decimal {x:?}"))?,
+                            y: y.parse().map_err(|_| format!("bad decimal {y:?}"))?,
+                        })
+                    })
+                    .collect::<Result<Vec<_>, String>>()?
+            };
+            (Param::ToneCurve, Value::ToneCurve(ToneCurve { points }))
+        }
+        "spot-removal" => {
+            let spots = if at(0)? == "reset" {
+                Vec::new()
+            } else {
+                let spot = SpotRemoval {
+                    target: Point {
+                        x: float_at(0)? / 100.0,
+                        y: float_at(1)? / 100.0,
+                    },
+                    source: Point {
+                        x: float_at(2)? / 100.0,
+                        y: float_at(3)? / 100.0,
+                    },
+                    radius: float_at(4)? / 100.0,
+                    feather: float_at(5)?,
+                    opacity: float_at(6)?,
+                };
+                let mut spots = session.settings().spot_removal.clone();
+                spots.push(spot);
+                spots
+            };
+            (Param::SpotRemoval, Value::SpotRemoval(spots))
+        }
         other => return Err(format!("unknown develop parameter {other:?}")),
     };
 
-    let library = open(root)?;
-    let mut session = library.edit(version).map_err(|e| e.to_string())?;
     session.set(param, value).map_err(|e| e.to_string())?;
     let revision = session.commit().map_err(|e| e.to_string())?;
     drop(session);

@@ -7,9 +7,10 @@
 
 pub use leyline_core::{
     AssetId, CURRENT_PROCESS, CURRENT_SCHEMA, CollectionId, CollectionType, ColorLabel, Crop,
-    ExportPresetId, FolderId, JobId, KeywordId, LensCorrection, LeylineError, MediaType,
-    NoiseReduction, PickState, PresetId, PresetSettings, PreviewKind, Result, RevisionId, Settings,
-    SettingsGroup, Sharpening, VersionId, WhiteBalance,
+    CurvePoint, ExportPresetId, FolderId, JobId, KeywordId, LensCorrection, LeylineError,
+    MediaType, NoiseReduction, PickState, Point, PresetId, PresetSettings, PreviewKind, Result,
+    RevisionId, Settings, SettingsGroup, Sharpening, SpotRemoval, ToneCurve, VersionId,
+    WhiteBalance,
 };
 
 pub use leyline_engine::{
