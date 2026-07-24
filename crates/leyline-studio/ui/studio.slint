@@ -25,6 +25,13 @@ export struct CollectionRow {
     smart: bool,
 }
 
+// One tone-curve control point marker, already mapped into the curve
+// canvas' own pixel space by `develop::curve_layout`.
+export struct CurveMarker {
+    x: float,
+    y: float,
+}
+
 // Develop slider values, mirrored from the Settings held in Rust.
 export struct DevSettings {
     exposure: float,
@@ -70,6 +77,15 @@ export global Tr {
     }
     public pure function export-failed(reason: string) -> string {
         return @tr("Export failed: {}", reason);
+    }
+    public pure function printing-progress(done: int, total: int) -> string {
+        return @tr("Printing {}/{}…", done, total);
+    }
+    public pure function print-failed(reason: string) -> string {
+        return @tr("Print failed: {}", reason);
+    }
+    public pure function printing-ellipsis() -> string {
+        return @tr("Printing…");
     }
     public pure function reprocessed(reprocessed: int, already-current: int, failed: int) -> string {
         return @tr("Reprocessed {} photo(s), {} already current, {} failed", reprocessed, already-current, failed);
@@ -446,6 +462,27 @@ export component StudioWindow inherits Window {
     callback develop-edit(string, float);
     // Mouse crop: press x/y, release x/y, viewport w/h, preview w/h (px).
     callback develop-crop-drag(float, float, float, float, float, float, float, float);
+    // Tone curve graph (ADR 0030): click position in the curve canvas'
+    // own pixel space (0..width, 0..height, y already screen-down).
+    callback develop-curve-click(float, float, float, float);
+    callback develop-curve-reset();
+    // Spot removal (ADR 0032): source click x/y, target click x/y,
+    // viewport w/h, preview w/h (px) — same letterbox convention as
+    // `develop-crop-drag`.
+    callback develop-spot-click(float, float, float, float, float, float, float, float);
+    callback develop-spot-undo();
+    callback develop-spot-reset();
+    // Tone-curve graph state, mirrored from the current revision's
+    // settings: line commands and marker positions, both already in the
+    // canvas' own pixel space (`develop::curve_layout`).
+    in property <string> dev-curve-path;
+    in property <[CurveMarker]> dev-curve-points;
+    in property <int> dev-spot-count;
+    // Defaults applied to the *next* placed spot — dialog-local text
+    // fields, not part of any stored revision until a spot is placed.
+    in-out property <string> spot-radius-text: "5";
+    in-out property <string> spot-feather-text: "50";
+    in-out property <string> spot-opacity-text: "100";
     callback develop-undo();
     callback develop-redo();
     callback develop-reprocess();
@@ -463,6 +500,7 @@ export component StudioWindow inherits Window {
     callback run-save-preset(string, bool, bool, bool, bool, bool, bool);
     callback run-import(string, bool, bool);
     callback open-export();
+    callback open-print();
     // Opens the tethered-capture panel (ADR 0038), connects to / disconnects
     // from the first USB camera libgphoto2 finds.
     callback open-tether();
@@ -479,8 +517,12 @@ export component StudioWindow inherits Window {
     // same property so either input path stays in sync).
     callback browse-import-source();
     callback browse-export-destination();
+    callback browse-print-destination();
+    callback browse-print-profile();
     in-out property <string> import-source-text: "";
     in-out property <string> export-destination-text: "";
+    in-out property <string> print-destination-text: "";
+    in-out property <string> print-profile-text: "";
     // Stops the event loop — the menu bar's File ▸ Quit, equivalent to
     // closing the window from the OS chrome.
     callback quit();
@@ -495,7 +537,24 @@ export component StudioWindow inherits Window {
     in-out property <string> export-max-edge-text: "";
     in-out property <string> export-preset-name: "";
 
-    // Modal dialog state: "" (none), "import", "export" or "tether".
+    // Print (ADR 0036): preset index (-1 = ad-hoc), destination, paper
+    // index, orientation index, margins text (mm, all four edges), dpi
+    // text, ICC profile path (blank = sRGB), intent index, copies text.
+    // Paper/orientation/margins/dpi/profile/intent are ignored when a
+    // stored preset is chosen — same pattern as `run-export`.
+    callback run-print(int, string, int, int, string, string, string, int, string);
+    callback run-save-print-preset(string, int, int, string, string, string, int);
+    in-out property <int> print-paper: 0;
+    in-out property <int> print-orientation: 0;
+    in-out property <string> print-margins-text: "10";
+    in-out property <string> print-dpi-text: "300";
+    in-out property <int> print-intent: 1;
+    in-out property <string> print-copies-text: "1";
+    in-out property <string> print-preset-name: "";
+    in property <[string]> print-presets;
+    in-out property <int> print-preset: -1;
+
+    // Modal dialog state: "" (none), "import", "export", "print" or "tether".
     in-out property <string> dialog;
     in-out property <string> dialog-result;
     in-out property <bool> import-copy: true;
@@ -532,11 +591,20 @@ export component StudioWindow inherits Window {
     property <bool> expand-presence: false;
     property <bool> expand-lens: false;
     property <bool> expand-detail: false;
+    property <bool> expand-tone-curve: false;
+    property <bool> expand-spot-removal: false;
     property <bool> expand-geometry: false;
 
     // Which drag tool the develop image responds to: "select" (default,
-    // dragging does nothing) or "crop" (dragging draws the crop rectangle).
+    // dragging does nothing), "crop" (dragging draws the crop rectangle),
+    // or "spot" (two clicks place a spot-removal clone, ADR 0032).
     property <string> active-tool: "select";
+    // Spot tool's two-click gesture: true between the first (source) click
+    // and the second (target) one, with the first click's viewport
+    // position held here so a pending-source marker can be drawn.
+    property <bool> spot-pending: false;
+    property <float> spot-pending-vx: 0;
+    property <float> spot-pending-vy: 0;
 
     // Custom menu bar state (see `TopMenuLabel`/`MenuDropdown` above).
     // `open-menu` is "" or one of "file"/"library"/"photo"/"develop-menu"/
@@ -583,6 +651,10 @@ export component StudioWindow inherits Window {
                     root.open-menu = "";
                     root.reset-submenus();
                 }
+                return accept;
+            }
+            if (event.modifiers.control && (event.text == "p" || event.text == "P")) {
+                root.open-print();
                 return accept;
             }
             if (root.develop-mode) {
@@ -692,7 +764,7 @@ export component StudioWindow inherits Window {
                         horizontal-stretch: 1;
                     }
                     Text {
-                        text: @tr("← →: next/prev photo · G: library · Ctrl+Z/Y: undo/redo · S: save preset · R: reprocess");
+                        text: @tr("← →: next/prev photo · G: library · Ctrl+Z/Y: undo/redo · S: save preset · R: reprocess · Ctrl+P: print");
                         color: #666666;
                         font-size: 12px;
                     }
@@ -705,6 +777,7 @@ export component StudioWindow inherits Window {
                         active: root.active-tool == "select";
                         clicked => {
                             root.active-tool = "select";
+                            root.spot-pending = false;
                         }
                     }
                     FilterChip {
@@ -712,6 +785,14 @@ export component StudioWindow inherits Window {
                         active: root.active-tool == "crop";
                         clicked => {
                             root.active-tool = "crop";
+                            root.spot-pending = false;
+                        }
+                    }
+                    FilterChip {
+                        text: @tr("Spot Removal");
+                        active: root.active-tool == "spot";
+                        clicked => {
+                            root.active-tool = "spot";
                         }
                     }
                 }
@@ -756,6 +837,46 @@ export component StudioWindow inherits Window {
                         border-color: #f0f0f0;
                     }
 
+                    // Spot removal (ADR 0032): two clicks place one spot —
+                    // the first sets the source pin (shown as a marker
+                    // until the second click), the second sets the target
+                    // and commits the clone in one `develop-spot-click`
+                    // call, mirroring `develop-crop-drag`'s single-call
+                    // shape.
+                    spot-click := TouchArea {
+                        enabled: root.active-tool == "spot";
+                        mouse-cursor: crosshair;
+                        pointer-event(event) => {
+                            if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
+                                if (!root.spot-pending) {
+                                    root.spot-pending = true;
+                                    root.spot-pending-vx = self.mouse-x / 1px;
+                                    root.spot-pending-vy = self.mouse-y / 1px;
+                                } else {
+                                    root.develop-spot-click(
+                                        root.spot-pending-vx, root.spot-pending-vy,
+                                        self.mouse-x / 1px, self.mouse-y / 1px,
+                                        self.width / 1px, self.height / 1px,
+                                        root.develop-image.width, root.develop-image.height);
+                                    root.spot-pending = false;
+                                }
+                            }
+                        }
+                    }
+
+                    // Pending source pin, shown between the two spot clicks.
+                    Rectangle {
+                        visible: root.spot-pending;
+                        x: root.spot-pending-vx * 1px - 5px;
+                        y: root.spot-pending-vy * 1px - 5px;
+                        width: 10px;
+                        height: 10px;
+                        border-radius: 5px;
+                        background: #ffcc0055;
+                        border-width: 1px;
+                        border-color: #ffcc00;
+                    }
+
                     // Right-click (ADR 0021): every entry is an existing
                     // callback already wired to a keyboard shortcut or a
                     // panel control above.
@@ -765,6 +886,20 @@ export component StudioWindow inherits Window {
                                 title: @tr("Reset Crop");
                                 activated => {
                                     root.develop-edit("crop-reset", 0);
+                                }
+                            }
+                            MenuItem {
+                                title: @tr("Undo Last Spot");
+                                enabled: root.dev-spot-count > 0;
+                                activated => {
+                                    root.develop-spot-undo();
+                                }
+                            }
+                            MenuItem {
+                                title: @tr("Clear All Spots");
+                                enabled: root.dev-spot-count > 0;
+                                activated => {
+                                    root.develop-spot-reset();
                                 }
                             }
                             MenuItem {
@@ -1030,6 +1165,192 @@ export component StudioWindow inherits Window {
                                 value: root.dev.sharpen-radius;
                                 edited(v) => {
                                     root.develop-edit("sharpen-radius", v);
+                                }
+                            }
+                        }
+
+                        GroupHeader {
+                            label: @tr("Tone Curve");
+                            expanded <=> root.expand-tone-curve;
+                        }
+                        if root.expand-tone-curve: VerticalLayout {
+                            spacing: 8px;
+                            Text {
+                                text: @tr("Click to add a point, click a point to remove it.");
+                                color: #666666;
+                                font-size: 11px;
+                                wrap: word-wrap;
+                            }
+                            Rectangle {
+                                width: 220px;
+                                height: 220px;
+                                background: #1b1b1b;
+                                border-width: 1px;
+                                border-color: #3a3a3a;
+
+                                // Diagonal reference line: the identity curve.
+                                Path {
+                                    width: 220px;
+                                    height: 220px;
+                                    viewbox-width: 220;
+                                    viewbox-height: 220;
+                                    commands: "M0 220 L220 0";
+                                    stroke: #444444;
+                                    stroke-width: 1px;
+                                }
+                                // The actual curve, empty when there are no
+                                // points (the identity curve above already
+                                // shows that case).
+                                Path {
+                                    width: 220px;
+                                    height: 220px;
+                                    viewbox-width: 220;
+                                    viewbox-height: 220;
+                                    commands: root.dev-curve-path;
+                                    stroke: #6fa8dc;
+                                    stroke-width: 2px;
+                                }
+                                for point in root.dev-curve-points: Rectangle {
+                                    x: point.x * 1px - 4px;
+                                    y: point.y * 1px - 4px;
+                                    width: 8px;
+                                    height: 8px;
+                                    border-radius: 4px;
+                                    background: #6fa8dc;
+                                }
+                                curve-click := TouchArea {
+                                    mouse-cursor: crosshair;
+                                    pointer-event(event) => {
+                                        if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
+                                            root.develop-curve-click(self.mouse-x / 1px, self.mouse-y / 1px, self.width / 1px, self.height / 1px);
+                                        }
+                                    }
+                                }
+                            }
+                            FilterChip {
+                                text: @tr("Reset Curve");
+                                active: false;
+                                clicked => {
+                                    root.develop-curve-reset();
+                                }
+                            }
+                        }
+
+                        GroupHeader {
+                            label: @tr("Spot Removal");
+                            expanded <=> root.expand-spot-removal;
+                        }
+                        if root.expand-spot-removal: VerticalLayout {
+                            spacing: 8px;
+                            Text {
+                                text: @tr("Pick the Spot Removal tool above, click a clean source, then the spot to fix.");
+                                color: #666666;
+                                font-size: 11px;
+                                wrap: word-wrap;
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                VerticalLayout {
+                                    spacing: 4px;
+                                    horizontal-stretch: 1;
+                                    Text {
+                                        text: @tr("Radius %");
+                                        color: #9a9a9a;
+                                        font-size: 12px;
+                                    }
+                                    Rectangle {
+                                        height: 26px;
+                                        background: #1b1b1b;
+                                        border-radius: 4px;
+                                        border-width: 1px;
+                                        border-color: #3a3a3a;
+                                        TextInput {
+                                            x: 6px;
+                                            width: parent.width - 12px;
+                                            height: 100%;
+                                            text <=> root.spot-radius-text;
+                                            color: #e6e6e6;
+                                            font-size: 12px;
+                                            vertical-alignment: center;
+                                            single-line: true;
+                                        }
+                                    }
+                                }
+                                VerticalLayout {
+                                    spacing: 4px;
+                                    horizontal-stretch: 1;
+                                    Text {
+                                        text: @tr("Feather %");
+                                        color: #9a9a9a;
+                                        font-size: 12px;
+                                    }
+                                    Rectangle {
+                                        height: 26px;
+                                        background: #1b1b1b;
+                                        border-radius: 4px;
+                                        border-width: 1px;
+                                        border-color: #3a3a3a;
+                                        TextInput {
+                                            x: 6px;
+                                            width: parent.width - 12px;
+                                            height: 100%;
+                                            text <=> root.spot-feather-text;
+                                            color: #e6e6e6;
+                                            font-size: 12px;
+                                            vertical-alignment: center;
+                                            single-line: true;
+                                        }
+                                    }
+                                }
+                                VerticalLayout {
+                                    spacing: 4px;
+                                    horizontal-stretch: 1;
+                                    Text {
+                                        text: @tr("Opacity %");
+                                        color: #9a9a9a;
+                                        font-size: 12px;
+                                    }
+                                    Rectangle {
+                                        height: 26px;
+                                        background: #1b1b1b;
+                                        border-radius: 4px;
+                                        border-width: 1px;
+                                        border-color: #3a3a3a;
+                                        TextInput {
+                                            x: 6px;
+                                            width: parent.width - 12px;
+                                            height: 100%;
+                                            text <=> root.spot-opacity-text;
+                                            color: #e6e6e6;
+                                            font-size: 12px;
+                                            vertical-alignment: center;
+                                            single-line: true;
+                                        }
+                                    }
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Text {
+                                    text: @tr("{} spot(s)", root.dev-spot-count);
+                                    color: #9a9a9a;
+                                    font-size: 12px;
+                                    vertical-alignment: center;
+                                    horizontal-stretch: 1;
+                                }
+                                FilterChip {
+                                    text: @tr("Undo Last");
+                                    active: false;
+                                    clicked => {
+                                        root.develop-spot-undo();
+                                    }
+                                }
+                                FilterChip {
+                                    text: @tr("Clear All");
+                                    active: false;
+                                    clicked => {
+                                        root.develop-spot-reset();
+                                    }
                                 }
                             }
                         }
@@ -1993,6 +2314,315 @@ export component StudioWindow inherits Window {
                         }
                     }
 
+                    if root.dialog == "print": VerticalLayout {
+                        spacing: 12px;
+                        Text {
+                            text: @tr("Print selected photo");
+                            color: #f0f0f0;
+                            font-size: 15px;
+                            font-weight: 600;
+                        }
+                        Text {
+                            text: @tr("Preset");
+                            color: #9a9a9a;
+                            font-size: 12px;
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: start;
+                            FilterChip {
+                                text: @tr("Custom");
+                                active: root.print-preset == -1;
+                                clicked => {
+                                    root.print-preset = -1;
+                                }
+                            }
+                            for name[i] in root.print-presets: FilterChip {
+                                text: name;
+                                active: root.print-preset == i;
+                                clicked => {
+                                    root.print-preset = i;
+                                }
+                            }
+                        }
+                        if root.print-preset == -1: VerticalLayout {
+                            spacing: 8px;
+                            Text {
+                                text: @tr("Paper");
+                                color: #9a9a9a;
+                                font-size: 12px;
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                alignment: start;
+                                for name[i] in ["A4", "A3", "Letter"]: FilterChip {
+                                    text: name;
+                                    active: root.print-paper == i;
+                                    clicked => {
+                                        root.print-paper = i;
+                                    }
+                                }
+                            }
+                            Text {
+                                text: @tr("Orientation");
+                                color: #9a9a9a;
+                                font-size: 12px;
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                alignment: start;
+                                for name[i] in ["Portrait", "Landscape"]: FilterChip {
+                                    text: name;
+                                    active: root.print-orientation == i;
+                                    clicked => {
+                                        root.print-orientation = i;
+                                    }
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 12px;
+                                VerticalLayout {
+                                    spacing: 4px;
+                                    horizontal-stretch: 1;
+                                    Text {
+                                        text: @tr("Margins (mm, all sides)");
+                                        color: #9a9a9a;
+                                        font-size: 12px;
+                                    }
+                                    Rectangle {
+                                        height: 28px;
+                                        background: #1b1b1b;
+                                        border-radius: 4px;
+                                        border-width: 1px;
+                                        border-color: #3a3a3a;
+                                        TextInput {
+                                            x: 8px;
+                                            width: parent.width - 16px;
+                                            height: 100%;
+                                            text <=> root.print-margins-text;
+                                            color: #e6e6e6;
+                                            font-size: 12px;
+                                            vertical-alignment: center;
+                                            single-line: true;
+                                        }
+                                    }
+                                }
+                                VerticalLayout {
+                                    spacing: 4px;
+                                    horizontal-stretch: 1;
+                                    Text {
+                                        text: @tr("DPI");
+                                        color: #9a9a9a;
+                                        font-size: 12px;
+                                    }
+                                    Rectangle {
+                                        height: 28px;
+                                        background: #1b1b1b;
+                                        border-radius: 4px;
+                                        border-width: 1px;
+                                        border-color: #3a3a3a;
+                                        TextInput {
+                                            x: 8px;
+                                            width: parent.width - 16px;
+                                            height: 100%;
+                                            text <=> root.print-dpi-text;
+                                            color: #e6e6e6;
+                                            font-size: 12px;
+                                            vertical-alignment: center;
+                                            single-line: true;
+                                        }
+                                    }
+                                }
+                            }
+                            Text {
+                                text: @tr("Destination ICC profile (blank = sRGB)");
+                                color: #9a9a9a;
+                                font-size: 12px;
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Rectangle {
+                                    height: 28px;
+                                    horizontal-stretch: 1;
+                                    background: #1b1b1b;
+                                    border-radius: 4px;
+                                    border-width: 1px;
+                                    border-color: #3a3a3a;
+                                    TextInput {
+                                        x: 8px;
+                                        width: parent.width - 16px;
+                                        height: 100%;
+                                        text <=> root.print-profile-text;
+                                        color: #e6e6e6;
+                                        font-size: 12px;
+                                        vertical-alignment: center;
+                                        single-line: true;
+                                    }
+                                }
+                                FilterChip {
+                                    text: @tr("Browse…");
+                                    active: false;
+                                    clicked => {
+                                        root.browse-print-profile();
+                                    }
+                                }
+                            }
+                            Text {
+                                text: @tr("Rendering intent");
+                                color: #9a9a9a;
+                                font-size: 12px;
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                alignment: start;
+                                for name[i] in ["Perceptual", "Relative", "Saturation", "Absolute"]: FilterChip {
+                                    text: name;
+                                    active: root.print-intent == i;
+                                    clicked => {
+                                        root.print-intent = i;
+                                    }
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                VerticalLayout {
+                                    spacing: 4px;
+                                    horizontal-stretch: 1;
+                                    Text {
+                                        text: @tr("Save as preset (optional name)");
+                                        color: #9a9a9a;
+                                        font-size: 12px;
+                                    }
+                                    Rectangle {
+                                        height: 28px;
+                                        background: #1b1b1b;
+                                        border-radius: 4px;
+                                        border-width: 1px;
+                                        border-color: #3a3a3a;
+                                        TextInput {
+                                            x: 8px;
+                                            width: parent.width - 16px;
+                                            height: 100%;
+                                            text <=> root.print-preset-name;
+                                            color: #e6e6e6;
+                                            font-size: 12px;
+                                            vertical-alignment: center;
+                                            single-line: true;
+                                        }
+                                    }
+                                }
+                                FilterChip {
+                                    text: @tr("Save as preset");
+                                    active: false;
+                                    clicked => {
+                                        root.run-save-print-preset(
+                                            root.print-preset-name,
+                                            root.print-paper,
+                                            root.print-orientation,
+                                            root.print-margins-text,
+                                            root.print-dpi-text,
+                                            root.print-profile-text,
+                                            root.print-intent,
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                        Text {
+                            text: @tr("Destination folder (absolute path)");
+                            color: #9a9a9a;
+                            font-size: 12px;
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Rectangle {
+                                height: 28px;
+                                horizontal-stretch: 1;
+                                background: #1b1b1b;
+                                border-radius: 4px;
+                                border-width: 1px;
+                                border-color: #3a3a3a;
+                                print-destination := TextInput {
+                                    x: 8px;
+                                    width: parent.width - 16px;
+                                    height: 100%;
+                                    text <=> root.print-destination-text;
+                                    color: #e6e6e6;
+                                    font-size: 12px;
+                                    vertical-alignment: center;
+                                    single-line: true;
+                                }
+                            }
+                            FilterChip {
+                                text: @tr("Browse…");
+                                active: false;
+                                clicked => {
+                                    root.browse-print-destination();
+                                }
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            VerticalLayout {
+                                spacing: 4px;
+                                horizontal-stretch: 1;
+                                Text {
+                                    text: @tr("Copies");
+                                    color: #9a9a9a;
+                                    font-size: 12px;
+                                }
+                                Rectangle {
+                                    height: 28px;
+                                    background: #1b1b1b;
+                                    border-radius: 4px;
+                                    border-width: 1px;
+                                    border-color: #3a3a3a;
+                                    TextInput {
+                                        x: 8px;
+                                        width: parent.width - 16px;
+                                        height: 100%;
+                                        text <=> root.print-copies-text;
+                                        color: #e6e6e6;
+                                        font-size: 12px;
+                                        vertical-alignment: center;
+                                        single-line: true;
+                                    }
+                                }
+                            }
+                            Rectangle {
+                                horizontal-stretch: 1;
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: end;
+                            FilterChip {
+                                text: @tr("Cancel");
+                                active: false;
+                                clicked => {
+                                    root.dialog = "";
+                                }
+                            }
+                            FilterChip {
+                                text: @tr("Print");
+                                active: true;
+                                clicked => {
+                                    root.run-print(
+                                        root.print-preset,
+                                        print-destination.text,
+                                        root.print-paper,
+                                        root.print-orientation,
+                                        root.print-margins-text,
+                                        root.print-dpi-text,
+                                        root.print-profile-text,
+                                        root.print-intent,
+                                        root.print-copies-text,
+                                    );
+                                }
+                            }
+                        }
+                    }
+
                     if root.dialog == "tether": VerticalLayout {
                         spacing: 12px;
                         Text {
@@ -2532,6 +3162,13 @@ export component StudioWindow inherits Window {
                     title: @tr("Export…    E");
                     activated => {
                         root.open-export();
+                        root.open-menu = "";
+                    }
+                }
+                MenuRow {
+                    title: @tr("Print…    Ctrl+P");
+                    activated => {
+                        root.open-print();
                         root.open-menu = "";
                     }
                 }

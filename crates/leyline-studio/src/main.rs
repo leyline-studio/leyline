@@ -38,13 +38,14 @@ use classify::Action;
 use leyline_sdk::{
     AssetId, CollectionId, CollectionNode, CollectionType, ColorLabel, Event, ExportFormat,
     ExportPreset, ExportRecipe, ExportReport, ExportRequest, ExportSettings, GridItem, GridQuery,
-    ImportOptions, JobId, JobResult, KeywordId, KeywordNode, Library, PickState, Preset,
-    PreviewKind, Settings, SettingsGroup, SkippedFile, Sort, VersionId,
+    ImportOptions, JobId, JobResult, KeywordId, KeywordNode, Library, Margins, Orientation,
+    PaperSize, PickState, Preset, PreviewKind, PrintPreset, PrintRecipe, PrintReport, PrintRequest,
+    PrintSettings, RenderingIntent, Settings, SettingsGroup, SkippedFile, Sort, VersionId,
 };
 use slint::winit_030::WinitWindowAccessor;
 use slint::{ComponentHandle, Global, Model, ModelRc, SharedString, Timer, TimerMode, VecModel};
 
-use ui::{Cell, StudioWindow, Tr};
+use ui::{Cell, CurveMarker, StudioWindow, Tr};
 
 /// Sort orders the header button cycles through, with their labels.
 const SORTS: [(Sort, &str); 8] = [
@@ -79,6 +80,9 @@ struct App {
     develop: Option<(AssetId, VersionId)>,
     /// Stored export presets, parallel to the dialog's preset chips.
     presets: Vec<ExportPreset>,
+    /// Stored print presets (ADR 0036), parallel to the print dialog's
+    /// preset chips.
+    print_presets: Vec<PrintPreset>,
     /// Stored develop presets, parallel to the develop sidebar's rows.
     dev_presets: Vec<Preset>,
     /// Flattened collection ids, parallel to the sidebar rows.
@@ -98,6 +102,8 @@ struct App {
     import_job: Option<JobId>,
     /// The export job the dialog is waiting on, when one runs.
     export_job: Option<JobId>,
+    /// The print job the dialog is waiting on, when one runs (ADR 0036).
+    print_job: Option<JobId>,
     /// Thumbnail render jobs currently in flight.
     preview_jobs: HashSet<JobId>,
     /// Whether a tether session (`docs/adr/0038`) is currently open.
@@ -243,6 +249,7 @@ fn run() -> Result<(), String> {
         viewport: (0, 0),
         develop: None,
         presets: Vec::new(),
+        print_presets: Vec::new(),
         dev_presets: Vec::new(),
         collections: Vec::new(),
         keywords: Vec::new(),
@@ -252,6 +259,7 @@ fn run() -> Result<(), String> {
         events,
         import_job: None,
         export_job: None,
+        print_job: None,
         preview_jobs: HashSet::new(),
         tether_connected: false,
         tether_captured: 0,
@@ -387,6 +395,8 @@ fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
                 window.set_dialog_result(Tr::get(window).invoke_importing_progress(done, total));
             } else if app.export_job == Some(job_id) {
                 window.set_dialog_result(Tr::get(window).invoke_exporting_progress(done, total));
+            } else if app.print_job == Some(job_id) {
+                window.set_dialog_result(Tr::get(window).invoke_printing_progress(done, total));
             }
         }
         Event::JobFinished { job_id, result } => {
@@ -410,6 +420,15 @@ fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
                     JobResult::Export(report) => SharedString::from(export_summary(&report)),
                     JobResult::Failed(reason) => {
                         Tr::get(window).invoke_export_failed(SharedString::from(reason))
+                    }
+                    _ => return,
+                });
+            } else if app.print_job == Some(job_id) {
+                app.print_job = None;
+                window.set_dialog_result(match result {
+                    JobResult::Print(report) => SharedString::from(print_summary(&report)),
+                    JobResult::Failed(reason) => {
+                        Tr::get(window).invoke_print_failed(SharedString::from(reason))
                     }
                     _ => return,
                 });
@@ -782,6 +801,165 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
+        window.on_develop_curve_click(move |mx, my, w, h| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let Some((_, version)) = app.develop else {
+                return;
+            };
+            let committed = (|| {
+                let mut session = app.library.edit(version)?;
+                // The curve canvas isn't letterboxed — it's its own square
+                // widget — so this is a plain axis flip, not `letterbox_unit`.
+                let click = (
+                    f64::from(mx) / f64::from(w),
+                    1.0 - f64::from(my) / f64::from(h),
+                );
+                let Some((param, value)) =
+                    develop::curve_point(click, &session.settings().tone_curve.points)
+                else {
+                    return Ok(());
+                };
+                session.set(param, value)?;
+                session.commit().map(|_| ())
+            })();
+            if let Err(error) = committed
+                .map_err(|e| e.to_string())
+                .and_then(|()| refresh_develop(&mut app, &window))
+            {
+                report_error(&window, &error);
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_develop_curve_reset(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let Some((_, version)) = app.develop else {
+                return;
+            };
+            let (param, value) = develop::reset_curve();
+            let committed = (|| {
+                let mut session = app.library.edit(version)?;
+                session.set(param, value)?;
+                session.commit().map(|_| ())
+            })();
+            if let Err(error) = committed
+                .map_err(|e| e.to_string())
+                .and_then(|()| refresh_develop(&mut app, &window))
+            {
+                report_error(&window, &error);
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_develop_spot_click(move |sx, sy, tx, ty, vw, vh, iw, ih| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let Some((_, version)) = app.develop else {
+                return;
+            };
+            let radius_feather_opacity = match spot_defaults(
+                window.get_spot_radius_text().as_str(),
+                window.get_spot_feather_text().as_str(),
+                window.get_spot_opacity_text().as_str(),
+            ) {
+                Ok(defaults) => defaults,
+                Err(error) => {
+                    report_error(&window, &error);
+                    return;
+                }
+            };
+            let committed = (|| {
+                let mut session = app.library.edit(version)?;
+                let Some((param, value)) = develop::place_spot(
+                    (f64::from(sx), f64::from(sy)),
+                    (f64::from(tx), f64::from(ty)),
+                    (f64::from(vw), f64::from(vh)),
+                    (f64::from(iw), f64::from(ih)),
+                    radius_feather_opacity,
+                    &session.settings().spot_removal,
+                ) else {
+                    return Ok(());
+                };
+                session.set(param, value)?;
+                session.commit().map(|_| ())
+            })();
+            if let Err(error) = committed
+                .map_err(|e| e.to_string())
+                .and_then(|()| refresh_develop(&mut app, &window))
+            {
+                report_error(&window, &error);
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_develop_spot_undo(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let Some((_, version)) = app.develop else {
+                return;
+            };
+            let committed = (|| {
+                let mut session = app.library.edit(version)?;
+                let Some((param, value)) =
+                    develop::undo_last_spot(&session.settings().spot_removal)
+                else {
+                    return Ok(());
+                };
+                session.set(param, value)?;
+                session.commit().map(|_| ())
+            })();
+            if let Err(error) = committed
+                .map_err(|e| e.to_string())
+                .and_then(|()| refresh_develop(&mut app, &window))
+            {
+                report_error(&window, &error);
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_develop_spot_reset(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let Some((_, version)) = app.develop else {
+                return;
+            };
+            let (param, value) = develop::reset_spots();
+            let committed = (|| {
+                let mut session = app.library.edit(version)?;
+                session.set(param, value)?;
+                session.commit().map(|_| ())
+            })();
+            if let Err(error) = committed
+                .map_err(|e| e.to_string())
+                .and_then(|()| refresh_develop(&mut app, &window))
+            {
+                report_error(&window, &error);
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
         window.on_develop_undo(move || {
             if let Some(window) = handle.upgrade() {
                 history_step(&mut app.borrow_mut(), &window, true);
@@ -1050,6 +1228,186 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
         });
     }
     {
+        let handle = window.as_weak();
+        window.on_browse_print_destination(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            if let Some(folder) = rfd::FileDialog::new().pick_folder() {
+                window.set_print_destination_text(SharedString::from(
+                    folder.to_string_lossy().as_ref(),
+                ));
+            }
+        });
+    }
+    {
+        let handle = window.as_weak();
+        window.on_browse_print_profile(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            if let Some(file) = rfd::FileDialog::new()
+                .add_filter("ICC profile", &["icc", "icm"])
+                .pick_file()
+            {
+                window.set_print_profile_text(SharedString::from(file.to_string_lossy().as_ref()));
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_open_print(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let presets = match app.library.print_presets() {
+                Ok(presets) => presets,
+                Err(error) => {
+                    report_error(&window, &error.to_string());
+                    return;
+                }
+            };
+            let names: Vec<SharedString> = presets
+                .iter()
+                .map(|preset| SharedString::from(preset.name.as_str()))
+                .collect();
+            app.print_presets = presets;
+            window.set_print_presets(ModelRc::from(Rc::new(VecModel::from(names))));
+            window.set_print_preset(-1);
+            window.set_print_paper(0);
+            window.set_print_orientation(0);
+            window.set_print_margins_text(SharedString::from("10"));
+            window.set_print_dpi_text(SharedString::from("300"));
+            window.set_print_profile_text(SharedString::default());
+            window.set_print_intent(1);
+            window.set_print_copies_text(SharedString::from("1"));
+            window.set_print_preset_name(SharedString::default());
+            window.set_dialog_result(SharedString::default());
+            window.set_dialog(SharedString::from("print"));
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_run_print(
+            move |preset,
+                  destination,
+                  paper,
+                  orientation,
+                  margins,
+                  dpi,
+                  profile,
+                  intent,
+                  copies| {
+                let Some(window) = handle.upgrade() else {
+                    return;
+                };
+                let mut app = app.borrow_mut();
+                let Some(version) =
+                    item_at(&app, window.get_selected()).map(|item| item.version_id)
+                else {
+                    window.set_dialog_result(Tr::get(&window).invoke_select_photo_first());
+                    return;
+                };
+                if destination.is_empty() {
+                    window.set_dialog_result(Tr::get(&window).invoke_enter_destination_folder());
+                    return;
+                }
+                let destination_dir = PathBuf::from(destination.as_str());
+                let stored = usize::try_from(preset)
+                    .ok()
+                    .and_then(|i| app.print_presets.get(i))
+                    .map(|preset| preset.preset);
+                let recipe = match stored {
+                    Some(id) => PrintRecipe::Preset(id),
+                    None => {
+                        let settings = match print_settings(
+                            paper,
+                            orientation,
+                            &margins,
+                            &dpi,
+                            &profile,
+                            intent,
+                        ) {
+                            Ok(settings) => settings,
+                            Err(message) => {
+                                window.set_dialog_result(SharedString::from(message));
+                                return;
+                            }
+                        };
+                        PrintRecipe::Adhoc(settings)
+                    }
+                };
+                let copies: u32 = match copies.parse() {
+                    Ok(copies) => copies,
+                    Err(_) => {
+                        window.set_dialog_result(SharedString::from(format!(
+                            "bad copies {copies:?}"
+                        )));
+                        return;
+                    }
+                };
+                let job = app.library.print_async(PrintRequest {
+                    versions: vec![version],
+                    recipe,
+                    destination_dir,
+                    copies,
+                });
+                app.print_job = Some(job);
+                window.set_dialog_result(Tr::get(&window).invoke_printing_ellipsis());
+            },
+        );
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_run_save_print_preset(
+            move |name, paper, orientation, margins, dpi, profile, intent| {
+                let Some(window) = handle.upgrade() else {
+                    return;
+                };
+                if name.trim().is_empty() {
+                    window.set_dialog_result(Tr::get(&window).invoke_enter_a_name());
+                    return;
+                }
+                let (name, settings) = match print_preset_request(
+                    &name,
+                    paper,
+                    orientation,
+                    &margins,
+                    &dpi,
+                    &profile,
+                    intent,
+                ) {
+                    Ok(request) => request,
+                    Err(message) => {
+                        window.set_dialog_result(SharedString::from(message));
+                        return;
+                    }
+                };
+                let mut app = app.borrow_mut();
+                let saved = app
+                    .library
+                    .create_print_preset(&name, &settings)
+                    .map_err(|e| e.to_string())
+                    .and_then(|_| refresh_print_presets(&mut app, &window));
+                match saved {
+                    Ok(()) => {
+                        window.set_print_preset_name(SharedString::default());
+                        window.set_dialog_result(Tr::get(&window).invoke_preset_saved());
+                    }
+                    Err(error) => {
+                        window.set_dialog_result(
+                            Tr::get(&window).invoke_save_failed(SharedString::from(error)),
+                        );
+                    }
+                }
+            },
+        );
+    }
+    {
         let app = Rc::clone(app);
         let handle = window.as_weak();
         window.on_open_tether(move || {
@@ -1102,6 +1460,22 @@ fn refresh_export_presets(app: &mut App, window: &StudioWindow) -> Result<(), St
     Ok(())
 }
 
+/// Parses the spot-removal panel's radius/feather/opacity percent fields
+/// into the `[0, 1]` units `SpotRemoval` stores — the defaults applied to
+/// the *next* spot placed, not part of any stored revision themselves.
+fn spot_defaults(radius: &str, feather: &str, opacity: &str) -> Result<(f64, f64, f64), String> {
+    let radius: f64 = radius
+        .parse()
+        .map_err(|_| format!("bad radius {radius:?}"))?;
+    let feather: f64 = feather
+        .parse()
+        .map_err(|_| format!("bad feather {feather:?}"))?;
+    let opacity: f64 = opacity
+        .parse()
+        .map_err(|_| format!("bad opacity {opacity:?}"))?;
+    Ok((radius / 100.0, feather / 100.0, opacity / 100.0))
+}
+
 /// Builds an ad-hoc `ExportSettings` from the export dialog's custom fields
 /// (the `Custom` chip, as opposed to a stored preset).
 fn export_settings(format: i32, quality: &str, max_edge: &str) -> Result<ExportSettings, String> {
@@ -1146,6 +1520,93 @@ fn export_preset_request(
         return Err("name is empty".to_owned());
     }
     let settings = export_settings(format, quality, max_edge)?;
+    Ok((name.to_owned(), settings))
+}
+
+/// Reloads the print dialog's preset picker from the catalog (ADR 0036,
+/// mirrors `refresh_export_presets`).
+fn refresh_print_presets(app: &mut App, window: &StudioWindow) -> Result<(), String> {
+    let presets = app.library.print_presets().map_err(|e| e.to_string())?;
+    let names: Vec<SharedString> = presets
+        .iter()
+        .map(|preset| SharedString::from(preset.name.as_str()))
+        .collect();
+    app.print_presets = presets;
+    window.set_print_presets(ModelRc::from(Rc::new(VecModel::from(names))));
+    Ok(())
+}
+
+/// Builds an ad-hoc `PrintSettings` from the print dialog's custom fields
+/// (ADR 0036, mirrors `export_settings`). `margins` is a single mm value
+/// applied to all four edges — the dialog's simplification of the CLI's
+/// `--margins <mm>` flag.
+fn print_settings(
+    paper: i32,
+    orientation: i32,
+    margins: &str,
+    dpi: &str,
+    profile: &str,
+    intent: i32,
+) -> Result<PrintSettings, String> {
+    let paper = match paper {
+        0 => PaperSize::A4,
+        1 => PaperSize::A3,
+        2 => PaperSize::Letter,
+        other => return Err(format!("unknown paper index {other}")),
+    };
+    let orientation = match orientation {
+        0 => Orientation::Portrait,
+        1 => Orientation::Landscape,
+        other => return Err(format!("unknown orientation index {other}")),
+    };
+    let margin: f32 = margins
+        .parse()
+        .map_err(|_| format!("bad margins {margins:?}"))?;
+    let dpi: u32 = dpi.parse().map_err(|_| format!("bad dpi {dpi:?}"))?;
+    let profile = if profile.trim().is_empty() {
+        None
+    } else {
+        Some(PathBuf::from(profile))
+    };
+    let intent = match intent {
+        0 => RenderingIntent::Perceptual,
+        1 => RenderingIntent::RelativeColorimetric,
+        2 => RenderingIntent::Saturation,
+        3 => RenderingIntent::AbsoluteColorimetric,
+        other => return Err(format!("unknown rendering intent index {other}")),
+    };
+    Ok(PrintSettings {
+        paper,
+        orientation,
+        margins_mm: Margins {
+            top_mm: margin,
+            right_mm: margin,
+            bottom_mm: margin,
+            left_mm: margin,
+        },
+        dpi,
+        profile,
+        intent,
+    })
+}
+
+/// Builds a `(name, PrintSettings)` request for saving the print dialog's
+/// custom fields as a reusable preset (ADR 0036, mirrors
+/// `export_preset_request`).
+fn print_preset_request(
+    name: &str,
+    paper: i32,
+    orientation: i32,
+    margins: &str,
+    dpi: &str,
+    profile: &str,
+    intent: i32,
+) -> Result<(String, PrintSettings), String> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err("name is empty".to_owned());
+    }
+    let settings = print_settings(paper, orientation, margins, dpi, profile, intent)?;
     Ok((name.to_owned(), settings))
 }
 
@@ -1618,6 +2079,15 @@ fn export_summary(report: &ExportReport) -> String {
     }
 }
 
+/// One line summing up a print batch for the dialog (ADR 0036).
+fn print_summary(report: &PrintReport) -> String {
+    match (report.printed.first(), report.failed.first()) {
+        (Some(done), _) => format!("Printed to {}.", done.path.display()),
+        (None, Some(failed)) => format!("Print failed: {}", failed.reason),
+        (None, None) => "Nothing to print.".to_owned(),
+    }
+}
+
 /// Moves the develop head one revision back or forward, then refreshes.
 fn history_step(app: &mut App, window: &StudioWindow, undo: bool) {
     let Some((_, version)) = app.develop else {
@@ -1690,6 +2160,18 @@ fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<(), String> {
         session.settings().clone()
     };
     window.set_dev(dev_model(&settings));
+    let (path, markers) = develop::curve_layout(&settings.tone_curve.points, CURVE_CANVAS_SIZE);
+    window.set_dev_curve_path(SharedString::from(path));
+    window.set_dev_curve_points(ModelRc::from(Rc::new(VecModel::from(
+        markers
+            .into_iter()
+            .map(|(x, y)| CurveMarker {
+                x: x as f32,
+                y: y as f32,
+            })
+            .collect::<Vec<_>>(),
+    ))));
+    window.set_dev_spot_count(i32::try_from(settings.spot_removal.len()).unwrap_or(i32::MAX));
     let file = app
         .library
         .preview(asset, PreviewKind::Small)
@@ -1699,6 +2181,11 @@ fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<(), String> {
     window.set_develop_image(image);
     Ok(())
 }
+
+/// The tone-curve graph's canvas size, pixels square — matches the fixed
+/// `220px` `Rectangle`/`Path` dimensions in `ui/studio.slint`'s Tone Curve
+/// section.
+const CURVE_CANVAS_SIZE: f64 = 220.0;
 
 /// Mirrors pipeline settings into the develop slider model.
 fn dev_model(settings: &Settings) -> ui::DevSettings {
@@ -2015,6 +2502,80 @@ mod tests {
     fn export_preset_request_still_validates_the_recipe() {
         assert!(export_preset_request("Web", 0, "not a number", "").is_err());
         assert!(export_preset_request("Web", 5, "80", "").is_err());
+    }
+
+    #[test]
+    fn print_settings_parses_paper_orientation_and_intent() {
+        let settings = print_settings(1, 1, "15", "600", "", 2).unwrap();
+        assert_eq!(
+            settings,
+            PrintSettings {
+                paper: PaperSize::A3,
+                orientation: Orientation::Landscape,
+                margins_mm: Margins {
+                    top_mm: 15.0,
+                    right_mm: 15.0,
+                    bottom_mm: 15.0,
+                    left_mm: 15.0,
+                },
+                dpi: 600,
+                profile: None,
+                intent: RenderingIntent::Saturation,
+            }
+        );
+    }
+
+    #[test]
+    fn print_settings_treats_a_blank_profile_as_srgb() {
+        let settings = print_settings(0, 0, "10", "300", "  ", 1).unwrap();
+        assert_eq!(settings.profile, None);
+    }
+
+    #[test]
+    fn print_settings_carries_a_non_blank_profile_path() {
+        let settings = print_settings(0, 0, "10", "300", "Profiles/Baryta.icc", 1).unwrap();
+        assert_eq!(settings.profile, Some(PathBuf::from("Profiles/Baryta.icc")));
+    }
+
+    #[test]
+    fn print_settings_rejects_bad_input() {
+        assert!(print_settings(9, 0, "10", "300", "", 1).is_err());
+        assert!(print_settings(0, 9, "10", "300", "", 1).is_err());
+        assert!(print_settings(0, 0, "not a number", "300", "", 1).is_err());
+        assert!(print_settings(0, 0, "10", "not a number", "", 1).is_err());
+        assert!(print_settings(0, 0, "10", "300", "", 9).is_err());
+    }
+
+    #[test]
+    fn print_preset_request_trims_the_name_and_reuses_print_settings() {
+        let (name, settings) =
+            print_preset_request("  Postcard  ", 2, 0, "5", "300", "", 1).unwrap();
+        assert_eq!(name, "Postcard");
+        assert_eq!(settings.paper, PaperSize::Letter);
+    }
+
+    #[test]
+    fn print_preset_request_rejects_a_blank_or_whitespace_only_name() {
+        assert!(print_preset_request("", 0, 0, "10", "300", "", 1).is_err());
+        assert!(print_preset_request("   ", 0, 0, "10", "300", "", 1).is_err());
+    }
+
+    #[test]
+    fn print_preset_request_still_validates_the_recipe() {
+        assert!(print_preset_request("Web", 0, 0, "not a number", "300", "", 1).is_err());
+        assert!(print_preset_request("Web", 9, 0, "10", "300", "", 1).is_err());
+    }
+
+    #[test]
+    fn spot_defaults_converts_percent_to_unit_range() {
+        assert_eq!(spot_defaults("5", "50", "100").unwrap(), (0.05, 0.5, 1.0));
+    }
+
+    #[test]
+    fn spot_defaults_rejects_bad_input() {
+        assert!(spot_defaults("not a number", "50", "100").is_err());
+        assert!(spot_defaults("5", "not a number", "100").is_err());
+        assert!(spot_defaults("5", "50", "not a number").is_err());
     }
 
     #[test]
