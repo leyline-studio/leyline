@@ -39,6 +39,7 @@ pub use export::{
     export_version,
 };
 pub use import::{ImportOptions, ImportReport, ImportedFile, SkippedFile, import};
+pub use leyline_preview::Rgb8;
 pub use library::{CatalogRead, CatalogWrite, Library};
 pub use presets::{FailedApply, PresetApplyReport, apply_batch, capture};
 pub use preview::{Preview, PreviewFile, preview};

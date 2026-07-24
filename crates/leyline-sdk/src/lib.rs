@@ -18,7 +18,7 @@ pub use leyline_engine::{
     ExportReport, ExportRequest, ExportedVersion, FailedApply, FailedExport, FailedPrint,
     FailedReprocess, ImportOptions, ImportReport, ImportedFile, JobResult, Library, Param,
     PresetApplyReport, PreviewFile, PrintRecipe, PrintReport, PrintRequest, PrintedVersion,
-    ReprocessReport, SkippedFile, Value,
+    ReprocessReport, Rgb8, SkippedFile, Value,
 };
 
 pub use leyline_catalog::{

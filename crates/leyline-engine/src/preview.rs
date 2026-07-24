@@ -142,6 +142,64 @@ pub(crate) fn render_preview(
     Rgb8::new(rendered.width, rendered.height, rendered.data).map_err(preview_err)
 }
 
+/// Everything a settings-scoped render needs from the catalog: the asset's
+/// source path and lens shot — the same two `plan_preview` reads, but
+/// without its head-revision lookup, since the caller supplies its own
+/// `Settings` instead of "whatever the head currently is."
+pub(crate) struct SettingsRenderPlan {
+    source_path: PathBuf,
+    half_size: bool,
+    shot: Option<crate::render::LensShot>,
+}
+
+/// Reads what [`render_with_settings`] needs for an ad-hoc render — used for
+/// the develop view's before/after comparison, which renders a fixed
+/// `Settings` (e.g. neutral) rather than the head revision. Deliberately
+/// separate from [`plan_preview`]: this never touches (or is recorded into)
+/// the preview cache, so it also never needs `plan_preview`'s
+/// `settings`/`settings_json` guard pair.
+pub(crate) fn plan_settings_render(
+    catalog: &Catalog,
+    library_root: &Path,
+    asset: AssetId,
+    kind: PreviewKind,
+) -> Result<SettingsRenderPlan> {
+    let relative = catalog.asset_relative_path(asset)?;
+    let source_path = library_root.join(relative.replace('/', std::path::MAIN_SEPARATOR_STR));
+    let meta = catalog.metadata(asset)?;
+    let shot = meta.as_ref().and_then(render::lens_shot);
+    Ok(SettingsRenderPlan {
+        source_path,
+        half_size: matches!(kind, PreviewKind::Thumbnail | PreviewKind::Small),
+        shot,
+    })
+}
+
+/// Decodes and develops `plan` under `settings` — never cached, never
+/// recorded, unlike [`render_preview`]'s revision-scoped counterpart. Used
+/// once per develop session for the before/after comparison's "before" half.
+pub(crate) fn render_with_settings(
+    decodes: &mut DecodeCache,
+    asset: AssetId,
+    plan: &SettingsRenderPlan,
+    settings: &Settings,
+) -> Result<Rgb8> {
+    let params = DecodeParams {
+        half_size: plan.half_size,
+        ..DecodeParams::default()
+    };
+    let decoded = decodes
+        .get_or_insert_with(asset, &params, || {
+            crate::source::decode(&plan.source_path, &params)
+        })
+        .map_err(|e| LeylineError::DecodeFailed {
+            asset,
+            reason: e.to_string(),
+        })?;
+    let rendered = render(&decoded, settings, plan.shot.as_ref())?;
+    Rgb8::new(rendered.width, rendered.height, rendered.data).map_err(preview_err)
+}
+
 /// Stores a rendered image and records it in the catalog, but only if
 /// `plan`'s revision still carries the exact settings it was rendered from
 /// — the write half of [`preview`], and the guard that makes narrowing the

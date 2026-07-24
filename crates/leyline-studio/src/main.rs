@@ -76,8 +76,20 @@ struct App {
     total: u64,
     /// Last viewport reported by the UI: first visible cell, cell capacity.
     viewport: (usize, usize),
+    /// Grid indices additionally selected via Ctrl/Shift-click, beyond the
+    /// single `selected` focus/anchor the UI tracks itself. Empty means
+    /// "just `selected`" — batch actions (rate/label/flag/export) fall back
+    /// to the lone focused photo whenever this is empty. Indices scroll out
+    /// of the loaded window are simply dropped from any batch action, since
+    /// only currently-loaded `items` can resolve to a `VersionId`.
+    multi_selected: std::collections::BTreeSet<usize>,
     /// The photo open in the develop view, when in develop mode.
     develop: Option<(AssetId, VersionId)>,
+    /// The neutral-settings render of the photo currently open in develop,
+    /// fetched once per develop session and reused for every Compare
+    /// Before/After toggle — `None` until the first toggle actually needs
+    /// it, reset back to `None` whenever the develop target changes.
+    dev_before: Option<slint::Image>,
     /// Stored export presets, parallel to the dialog's preset chips.
     presets: Vec<ExportPreset>,
     /// Stored print presets (ADR 0036), parallel to the print dialog's
@@ -305,7 +317,9 @@ fn run() -> Result<(), String> {
         window_start: 0,
         total: 0,
         viewport: (0, 0),
+        multi_selected: std::collections::BTreeSet::new(),
         develop: None,
+        dev_before: None,
         presets: Vec::new(),
         print_presets: Vec::new(),
         dev_presets: Vec::new(),
@@ -608,17 +622,85 @@ fn dispatch_thumbnails(app: &mut App) {
 
 /// Fills the side panel when a cell is clicked or reached with the arrows.
 fn wire_select(app: &Rc<RefCell<App>>, window: &StudioWindow) {
-    let app = Rc::clone(app);
-    let handle = window.as_weak();
-    window.on_select(move |index| {
-        let Some(window) = handle.upgrade() else {
-            return;
-        };
-        show_details(&mut app.borrow_mut(), &window, index);
-    });
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_select(move |index| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            // Every other path to `select` (arrow keys, double-click,
+            // right-click menu actions) is a single-photo intention: it
+            // always replaces whatever was multi-selected, exactly like
+            // clicking a cell plainly does.
+            {
+                let mut app = app.borrow_mut();
+                app.multi_selected.clear();
+                refresh_multi_selected_cells(&app);
+            }
+            show_details(&mut app.borrow_mut(), &window, index);
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_cell_clicked(move |index, ctrl, shift| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let focused = window.get_selected();
+            {
+                let mut app = app.borrow_mut();
+                if ctrl {
+                    if let Ok(index) = usize::try_from(index) {
+                        // The previously lone focus joins the set it's
+                        // about to be toggled within, so a first Ctrl-click
+                        // right after a plain click still keeps that photo.
+                        if let Ok(focused) = usize::try_from(focused) {
+                            app.multi_selected.insert(focused);
+                        }
+                        if !app.multi_selected.remove(&index) {
+                            app.multi_selected.insert(index);
+                        }
+                    }
+                } else if shift {
+                    if let (Ok(from), Ok(to)) = (usize::try_from(focused), usize::try_from(index)) {
+                        let (from, to) = (from.min(to), from.max(to));
+                        app.multi_selected.extend(from..=to);
+                    }
+                } else {
+                    app.multi_selected.clear();
+                }
+                refresh_multi_selected_cells(&app);
+            }
+            window.set_selected(index);
+            show_details(&mut app.borrow_mut(), &window, index);
+        });
+    }
 }
 
-/// Applies a classement key (`0`–`9`, `p`, `x`, `u`) to the selection.
+/// Re-marks every loaded cell's `multi-selected` flag from
+/// `app.multi_selected`, without refetching anything from the catalog —
+/// called after every Ctrl/Shift-click.
+fn refresh_multi_selected_cells(app: &App) {
+    for i in 0..app.cells.row_count() {
+        let Some(mut cell) = app.cells.row_data(i) else {
+            continue;
+        };
+        let selected = app.multi_selected.contains(&(app.window_start + i));
+        if cell.multi_selected != selected {
+            cell.multi_selected = selected;
+            app.cells.set_row_data(i, cell);
+        }
+    }
+}
+
+/// Applies a classement key (`0`–`9`, `p`, `x`, `u`) to the selection — every
+/// multi-selected photo when there is one, otherwise just the focused photo.
+/// The *toggle* direction (e.g. re-rating 3 stars clears it) is decided from
+/// the focused photo's own current label/pick alone, then that one resulting
+/// value is applied to the whole selection — the same "last-active item
+/// decides the toggle, batch gets the result" rule Lightroom uses.
 fn wire_classify(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     let app = Rc::clone(app);
     let handle = window.as_weak();
@@ -627,18 +709,22 @@ fn wire_classify(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             return;
         };
         let mut app = app.borrow_mut();
-        let Some((version, label, pick)) = item_at(&app, window.get_selected())
-            .map(|item| (item.version_id, item.color_label, item.pick))
+        let focused = window.get_selected();
+        let Some((label, pick)) = item_at(&app, focused).map(|item| (item.color_label, item.pick))
         else {
             return;
         };
         let Some(action) = classify::from_key(key.as_str(), label, pick) else {
             return;
         };
+        let versions = selected_versions(&app, focused);
+        if versions.is_empty() {
+            return;
+        }
         let applied = match action {
-            Action::Rate(rating) => app.library.set_rating(&[version], rating),
-            Action::Label(label) => app.library.set_color_label(&[version], label),
-            Action::Flag(pick) => app.library.set_pick(&[version], pick),
+            Action::Rate(rating) => app.library.set_rating(&versions, rating),
+            Action::Label(label) => app.library.set_color_label(&versions, label),
+            Action::Flag(pick) => app.library.set_pick(&versions, pick),
         };
         if let Err(error) = applied
             .map_err(|e| e.to_string())
@@ -761,6 +847,34 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                     report_error(&window, &error);
                 }
             }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_toggle_compare(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let Some((asset, _version)) = app.develop else {
+                return;
+            };
+            let showing_before = !window.get_dev_compare();
+            if showing_before && app.dev_before.is_none() {
+                match app.library.preview_before(asset, PreviewKind::Small) {
+                    Ok(rendered) => {
+                        let image = rgb8_to_slint_image(&rendered);
+                        window.set_develop_image_before(image.clone());
+                        app.dev_before = Some(image);
+                    }
+                    Err(error) => {
+                        report_error(&window, &error.to_string());
+                        return;
+                    }
+                }
+            }
+            window.set_dev_compare(showing_before);
         });
     }
     {
@@ -1227,6 +1341,9 @@ fn wire_dialogs(
                 .collect();
             app.presets = presets;
             window.set_export_presets(ModelRc::from(Rc::new(VecModel::from(names))));
+            window.set_export_photo_count(
+                i32::try_from(selected_indices(&app, window.get_selected()).len()).unwrap_or(0),
+            );
             window.set_export_preset(-1);
             window.set_export_format(0);
             window.set_export_quality_text(SharedString::from("90"));
@@ -1244,11 +1361,11 @@ fn wire_dialogs(
                 return;
             };
             let mut app = app.borrow_mut();
-            let Some(version) = item_at(&app, window.get_selected()).map(|item| item.version_id)
-            else {
+            let versions = selected_versions(&app, window.get_selected());
+            if versions.is_empty() {
                 window.set_dialog_result(Tr::get(&window).invoke_select_photo_first());
                 return;
-            };
+            }
             if destination.is_empty() {
                 window.set_dialog_result(Tr::get(&window).invoke_enter_destination_folder());
                 return;
@@ -1272,7 +1389,7 @@ fn wire_dialogs(
                 }
             };
             let job = app.library.export_async(ExportRequest {
-                versions: vec![version],
+                versions,
                 recipe,
                 destination_dir: destination,
             });
@@ -2269,7 +2386,39 @@ fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<(), String> {
     let image = slint::Image::load_from_path(&file.path)
         .map_err(|_| format!("cannot load preview {}", file.path.display()))?;
     window.set_develop_image(image);
+    if let Ok(bins) = app.library.histogram(asset, PreviewKind::Small) {
+        const CANVAS: (f64, f64) = (256.0, 90.0);
+        let scale_max = bins.iter().flatten().copied().max().unwrap_or(0);
+        window.set_dev_histogram_r(SharedString::from(develop::histogram_layout(
+            &bins[0], scale_max, CANVAS.0, CANVAS.1,
+        )));
+        window.set_dev_histogram_g(SharedString::from(develop::histogram_layout(
+            &bins[1], scale_max, CANVAS.0, CANVAS.1,
+        )));
+        window.set_dev_histogram_b(SharedString::from(develop::histogram_layout(
+            &bins[2], scale_max, CANVAS.0, CANVAS.1,
+        )));
+    }
+    // The develop target just changed (entered develop, or navigated to a
+    // neighboring photo): any cached "before" render is for the wrong photo
+    // now, and Compare Before/After starts back on "after" each time.
+    app.dev_before = None;
+    window.set_dev_compare(false);
+    window.set_develop_image_before(slint::Image::default());
     Ok(())
+}
+
+/// Converts an in-memory RGB8 render into a displayable Slint image, without
+/// going through a file — used only for the before/after comparison's
+/// "before" half, which [`leyline_sdk::Library::preview_before`]
+/// deliberately never writes to the preview cache.
+fn rgb8_to_slint_image(image: &leyline_sdk::Rgb8) -> slint::Image {
+    let buffer = slint::SharedPixelBuffer::<slint::Rgb8Pixel>::clone_from_slice(
+        image.data(),
+        image.width(),
+        image.height(),
+    );
+    slint::Image::from_rgb8(buffer)
 }
 
 /// The tone-curve graph's canvas size, pixels square — matches the fixed
@@ -2373,6 +2522,32 @@ fn item_at(app: &App, index: i32) -> Option<&GridItem> {
         .and_then(|i| app.items.get(i))
 }
 
+/// The whole-grid indices a batch action should act on: `multi_selected`
+/// when it holds more than the lone `focused` index, otherwise just
+/// `focused` alone — so every existing single-photo call site keeps working
+/// unchanged when nothing is multi-selected.
+fn selected_indices(app: &App, focused: i32) -> Vec<usize> {
+    if app.multi_selected.len() > 1 {
+        return app.multi_selected.iter().copied().collect();
+    }
+    match usize::try_from(focused) {
+        Ok(index) => vec![index],
+        Err(_) => Vec::new(),
+    }
+}
+
+/// The version ids of [`selected_indices`], silently dropping any index that
+/// has since scrolled out of the loaded window (see [`App::multi_selected`]).
+fn selected_versions(app: &App, focused: i32) -> Vec<VersionId> {
+    selected_indices(app, focused)
+        .into_iter()
+        .filter_map(|index| {
+            let signed = i32::try_from(index).ok()?;
+            item_at(app, signed).map(|item| item.version_id)
+        })
+        .collect()
+}
+
 /// Fetches the window of rows serving the current viewport and rebuilds
 /// the cell model from it (virtual scrolling: the rest of the grid only
 /// exists as the scrollbar's extent).
@@ -2408,6 +2583,7 @@ fn load_window(app: &mut App, window: &StudioWindow) -> Result<(), String> {
             stars: SharedString::from(format::stars(item.rating)),
             label: label_color(item.color_label),
             has_label: item.color_label.is_some(),
+            multi_selected: app.multi_selected.contains(&(range.start + index)),
         });
     }
     let (visible, above): (VecDeque<usize>, VecDeque<usize>) = missing

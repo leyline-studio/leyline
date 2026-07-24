@@ -36,6 +36,15 @@ impl From<png::EncodingError> for PreviewError {
     }
 }
 
+impl From<png::DecodingError> for PreviewError {
+    fn from(error: png::DecodingError) -> Self {
+        match error {
+            png::DecodingError::IoError(e) => PreviewError::Io(e),
+            other => PreviewError::InvalidImage(other.to_string()),
+        }
+    }
+}
+
 /// Longest edge, in pixels, of each preview size class (`docs/catalog.md`
 /// §19). `None` means native resolution.
 pub const fn max_edge(kind: PreviewKind) -> Option<u32> {

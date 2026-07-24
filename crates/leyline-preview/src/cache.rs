@@ -121,7 +121,7 @@ impl PreviewCache {
 }
 
 /// Writes an image as an 8-bit RGB PNG.
-fn write_png(path: &Path, image: &Rgb8) -> Result<(), PreviewError> {
+pub(crate) fn write_png(path: &Path, image: &Rgb8) -> Result<(), PreviewError> {
     let file = fs::File::create(path)?;
     let mut encoder = png::Encoder::new(BufWriter::new(file), image.width(), image.height());
     encoder.set_color(png::ColorType::Rgb);

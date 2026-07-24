@@ -16,6 +16,10 @@ export struct Cell {
     stars: string,
     label: color,
     has-label: bool,
+    // Part of a multi-selection (Ctrl/Shift-click), independent of `selected`
+    // — the single-index focus/anchor kept for keyboard nav and the detail
+    // panel.
+    multi-selected: bool,
 }
 
 // One row of the collections sidebar, already flattened by Rust.
@@ -442,6 +446,16 @@ export component StudioWindow inherits Window {
     // Develop view state, mirrored from Rust.
     in property <bool> develop-mode;
     in property <image> develop-image;
+    // The neutral (as-shot) render of the same photo, fetched once per
+    // develop session — the "before" half of Compare Before/After.
+    in property <image> develop-image-before;
+    in-out property <bool> dev-compare: false;
+    callback toggle-compare();
+    // Filled-area SVG paths, one per channel, in a 256x90 viewbox — see
+    // `develop::histogram_layout` in main.rs.
+    in property <string> dev-histogram-r;
+    in property <string> dev-histogram-g;
+    in property <string> dev-histogram-b;
     in property <string> develop-filename;
     in property <DevSettings> dev;
     // Stored develop preset names, already ordered by Rust.
@@ -451,6 +465,9 @@ export component StudioWindow inherits Window {
     in property <[string]> recent-libraries;
 
     callback select(int);
+    // A grid cell was clicked: index, then whether Ctrl/Shift was held
+    // (multi-select) — plain clicks (both false) behave like `select`.
+    callback cell-clicked(int, bool, bool);
     callback classify(string);
     callback rating-filter(int);
     callback label-filter(int);
@@ -569,6 +586,9 @@ export component StudioWindow inherits Window {
     in-out property <bool> import-recursive: true;
     in property <[string]> export-presets;
     in-out property <int> export-preset: -1;
+    // How many photos `run-export` will act on — the multi-selection when
+    // there is one, otherwise 1 for the lone focused photo.
+    in-out property <int> export-photo-count: 1;
     in property <[CollectionRow]> collections;
     in-out property <int> active-collection: -1;
     callback select-collection(int);
@@ -686,6 +706,10 @@ export component StudioWindow inherits Window {
                 }
                 if (event.text == "r" || event.text == "R") {
                     root.develop-reprocess();
+                    return accept;
+                }
+                if (event.text == "\\") {
+                    root.toggle-compare();
                     return accept;
                 }
                 if (event.text == Key.LeftArrow) {
@@ -812,10 +836,26 @@ export component StudioWindow inherits Window {
                     clip: true;
 
                     Image {
-                        source: root.develop-image;
+                        source: root.dev-compare ? root.develop-image-before : root.develop-image;
                         image-fit: contain;
                         width: 100%;
                         height: 100%;
+                    }
+
+                    if root.dev-compare: Rectangle {
+                        x: 8px;
+                        y: 8px;
+                        width: label.preferred-width + 16px;
+                        height: label.preferred-height + 8px;
+                        background: #000000aa;
+                        border-radius: 4px;
+                        label := Text {
+                            x: 8px;
+                            y: 4px;
+                            text: @tr("Before");
+                            color: #f0f0f0;
+                            font-size: 12px;
+                        }
                     }
 
                     // Only the Crop tool drags a crop rectangle — the
@@ -913,13 +953,10 @@ export component StudioWindow inherits Window {
                                 }
                             }
                             MenuItem {
-                                // No before/after compare control exists in
-                                // this build yet (kept visible, disabled,
-                                // like File ▸ Preferences… in ADR 0020) —
-                                // wiring one up would be new functionality,
-                                // which ADR 0021 explicitly excludes.
-                                title: @tr("Compare Before/After");
-                                enabled: false;
+                                title: root.dev-compare ? @tr("Show After    \\") : @tr("Compare Before/After    \\");
+                                activated => {
+                                    root.toggle-compare();
+                                }
                             }
                             MenuSeparator { }
                             MenuItem {
@@ -1001,6 +1038,41 @@ export component StudioWindow inherits Window {
                                 clicked => {
                                     root.open-preset-dialog();
                                 }
+                            }
+                        }
+
+                        // Histogram (RGB, sqrt-scaled so one dominant bin
+                        // doesn't flatten the rest, `develop::histogram_layout`):
+                        // read-only, refreshed whenever the develop preview
+                        // itself refreshes (i.e. at each commit point, the
+                        // same cadence the image updates at).
+                        Rectangle {
+                            height: 90px;
+                            background: #1a1a1a;
+                            border-radius: 4px;
+                            Path {
+                                width: 100%;
+                                height: 100%;
+                                viewbox-width: 256;
+                                viewbox-height: 90;
+                                fill: #ff444455;
+                                commands: root.dev-histogram-r;
+                            }
+                            Path {
+                                width: 100%;
+                                height: 100%;
+                                viewbox-width: 256;
+                                viewbox-height: 90;
+                                fill: #44ff4455;
+                                commands: root.dev-histogram-g;
+                            }
+                            Path {
+                                width: 100%;
+                                height: 100%;
+                                viewbox-width: 256;
+                                viewbox-height: 90;
+                                fill: #4444ff55;
+                                commands: root.dev-histogram-b;
                             }
                         }
 
@@ -1668,10 +1740,10 @@ export component StudioWindow inherits Window {
                             y: 4px;
                             width: parent.width - 8px;
                             height: parent.height - 8px;
-                            background: root.window-start + i == root.selected ? #2f4f6f : #242424;
+                            background: (root.window-start + i == root.selected || cell.multi-selected) ? #2f4f6f : #242424;
                             border-radius: 4px;
-                            border-width: root.window-start + i == root.selected ? 2px : 1px;
-                            border-color: root.window-start + i == root.selected ? #6fa8dc : #333333;
+                            border-width: (root.window-start + i == root.selected || cell.multi-selected) ? 2px : 1px;
+                            border-color: root.window-start + i == root.selected ? #6fa8dc : (cell.multi-selected ? #4a7aa8 : #333333);
 
                             VerticalLayout {
                                 padding: 6px;
@@ -1708,14 +1780,15 @@ export component StudioWindow inherits Window {
                         }
 
                         TouchArea {
-                            clicked => {
-                                root.selected = root.window-start + i;
-                                root.select(root.window-start + i);
-                            }
                             double-clicked => {
                                 root.selected = root.window-start + i;
                                 root.select(root.window-start + i);
                                 root.enter-develop();
+                            }
+                            pointer-event(event) => {
+                                if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
+                                    root.cell-clicked(root.window-start + i, event.modifiers.control, event.modifiers.shift);
+                                }
                             }
                         }
 
@@ -2122,7 +2195,9 @@ export component StudioWindow inherits Window {
                     if root.dialog == "export": VerticalLayout {
                         spacing: 12px;
                         Text {
-                            text: @tr("Export selected photo");
+                            text: root.export-photo-count > 1
+                                ? @tr("Export {} selected photos", root.export-photo-count)
+                                : @tr("Export selected photo");
                             color: #f0f0f0;
                             font-size: 15px;
                             font-weight: 600;

@@ -24,7 +24,8 @@ use leyline_catalog::{
 };
 use leyline_core::{
     AssetId, CollectionId, ColorLabel, ExportPresetId, JobId, KeywordId, LeylineError, PickState,
-    PresetId, PresetSettings, PreviewKind, PrintPresetId, Result, SettingsGroup, VersionId,
+    PresetId, PresetSettings, PreviewKind, PrintPresetId, Result, Settings, SettingsGroup,
+    VersionId,
 };
 use leyline_export::{ExportSettings, PrintSettings};
 use leyline_preview::PreviewCache;
@@ -472,6 +473,45 @@ impl Library {
         };
         let mut catalog = lock(&self.inner.catalog);
         crate::preview::record_render(&mut catalog, &self.inner.cache, asset, kind, &plan, &image)
+    }
+
+    /// Per-channel 8-bit histogram (`[R, G, B]`, 256 bins each) of the
+    /// asset's current develop preview at `kind` — reads back whatever
+    /// [`Library::preview`] already rendered/cached rather than re-running
+    /// the develop pipeline a second time.
+    pub fn histogram(&self, asset: AssetId, kind: PreviewKind) -> Result<[[u32; 256]; 3]> {
+        let file = self.preview(asset, kind)?;
+        let image = leyline_preview::Rgb8::load_png(&file.path).map_err(|e| {
+            LeylineError::DecodeFailed {
+                asset,
+                reason: e.to_string(),
+            }
+        })?;
+        Ok(image.histogram())
+    }
+
+    /// Renders the asset's image at neutral (as-shot) settings, scaled like
+    /// `kind` — the "before" half of develop's before/after comparison. A
+    /// one-off render: unlike [`Library::preview`], this never touches the
+    /// preview cache and is never recorded as any revision's valid preview,
+    /// since it deliberately isn't the head's settings.
+    pub fn preview_before(
+        &self,
+        asset: AssetId,
+        kind: PreviewKind,
+    ) -> Result<leyline_preview::Rgb8> {
+        let plan = {
+            let catalog = lock(&self.inner.catalog);
+            crate::preview::plan_settings_render(&catalog, &self.inner.root, asset, kind)?
+        };
+        let image = {
+            let mut decodes = lock(&self.inner.decodes);
+            crate::preview::render_with_settings(&mut decodes, asset, &plan, &Settings::default())?
+        };
+        Ok(match leyline_preview::max_edge(kind) {
+            Some(edge) => image.scaled_to_fit(edge),
+            None => image,
+        })
     }
 
     /// Renders a preview as a job (§3.1, §11): returns immediately, then

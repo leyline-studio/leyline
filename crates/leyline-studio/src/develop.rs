@@ -211,6 +211,27 @@ pub fn curve_layout(points: &[CurvePoint], size: f64) -> (String, Vec<(f64, f64)
     (path, markers)
 }
 
+/// Builds one channel's filled-area histogram path in a `width` x `height`
+/// viewbox, `sqrt`-scaled against `scale_max` (the tallest bin *across all
+/// three channels*, so R/G/B stay on the same vertical scale — passing each
+/// channel's own max instead would make every channel look equally tall no
+/// matter its actual weight). `sqrt` rather than linear: a single dominant
+/// bin (a large flat sky, a black border) would otherwise flatten every
+/// other bin to near-zero height. Pure so the scaling math is unit-tested
+/// without a live Slint canvas.
+pub fn histogram_layout(bins: &[u32; 256], scale_max: u32, width: f64, height: f64) -> String {
+    let scale = (scale_max as f64).sqrt().max(1.0);
+    let step = width / 255.0;
+    let mut path = format!("M0 {height}");
+    for (i, &count) in bins.iter().enumerate() {
+        let x = i as f64 * step;
+        let bar_height = (count as f64).sqrt() / scale * height;
+        path.push_str(&format!(" L{x} {}", height - bar_height));
+    }
+    path.push_str(&format!(" L{width} {height} Z"));
+    path
+}
+
 /// Decodes a two-click spot-removal placement over the develop preview
 /// (ADR 0032): `source_click`/`target_click` are the first and second
 /// clicks in view pixels, mapped through the same letterbox as
@@ -682,6 +703,37 @@ mod tests {
         let (path, markers) = curve_layout(&points, 200.0);
         assert_eq!(markers, vec![(0.0, 0.0), (200.0, 200.0)]);
         assert_eq!(path, "M0 0 L200 200");
+    }
+
+    #[test]
+    fn histogram_layout_starts_and_ends_on_the_baseline() {
+        let mut bins = [0u32; 256];
+        bins[128] = 100;
+        let path = histogram_layout(&bins, 100, 256.0, 90.0);
+        assert!(path.starts_with("M0 90"));
+        assert!(path.ends_with("L256 90 Z"));
+    }
+
+    #[test]
+    fn histogram_layout_the_tallest_bin_reaches_the_top_when_it_is_the_scale_max() {
+        let mut bins = [0u32; 256];
+        bins[0] = 400; // sqrt(400) = 20 = scale, so this bin fills the full height
+        let path = histogram_layout(&bins, 400, 256.0, 90.0);
+        assert!(
+            path.contains("L0 0 "),
+            "expected bin 0 to reach the top: {path}"
+        );
+    }
+
+    #[test]
+    fn histogram_layout_handles_an_all_empty_scale_without_dividing_by_zero() {
+        let bins = [0u32; 256];
+        // scale_max of 0 (nothing rendered yet) must not divide by zero or
+        // produce NaN/negative coordinates.
+        let path = histogram_layout(&bins, 0, 256.0, 90.0);
+        assert!(!path.contains("NaN"));
+        assert!(path.starts_with("M0 90"));
+        assert!(path.ends_with("L256 90 Z"));
     }
 
     #[test]

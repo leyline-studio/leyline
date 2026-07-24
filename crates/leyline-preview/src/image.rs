@@ -6,6 +6,8 @@
 //! and free of sampling artefacts when shrinking, which is the only
 //! direction previews ever go.
 
+use std::path::Path;
+
 use rayon::prelude::*;
 
 use crate::PreviewError;
@@ -54,6 +56,34 @@ impl Rgb8 {
     /// Pixel data, `width * height * 3` samples.
     pub fn data(&self) -> &[u8] {
         &self.data
+    }
+
+    /// Reads back a PNG this crate previously wrote (always 8-bit RGB, see
+    /// `cache::write_png`) — used to compute a histogram from an
+    /// already-rendered/cached preview file without re-running the develop
+    /// pipeline.
+    pub fn load_png(path: &Path) -> Result<Rgb8, PreviewError> {
+        let file = std::io::BufReader::new(std::fs::File::open(path)?);
+        let mut reader = png::Decoder::new(file).read_info()?;
+        let size = reader.output_buffer_size().ok_or_else(|| {
+            PreviewError::InvalidImage("cannot size the PNG output buffer".to_owned())
+        })?;
+        let mut data = vec![0u8; size];
+        let info = reader.next_frame(&mut data)?;
+        data.truncate(info.buffer_size());
+        Rgb8::new(info.width, info.height, data)
+    }
+
+    /// Per-channel 8-bit histogram: bin `[c][v]` counts samples of channel
+    /// `c` (0=R, 1=G, 2=B) equal to `v`.
+    pub fn histogram(&self) -> [[u32; 256]; 3] {
+        let mut bins = [[0u32; 256]; 3];
+        for pixel in self.data.chunks_exact(3) {
+            for (channel, &sample) in pixel.iter().enumerate() {
+                bins[channel][sample as usize] += 1;
+            }
+        }
+        bins
     }
 
     /// Returns the image scaled so its longest edge is at most `max_edge`,
@@ -195,6 +225,33 @@ mod tests {
         let image = uniform(200, 100, [1, 2, 3]);
         assert_eq!(image.scaled_to_fit_box(1000, 1000), image);
         assert_eq!(image.scaled_to_fit_box(200, 100), image);
+    }
+
+    #[test]
+    fn histogram_counts_every_sample_once() {
+        let image = Rgb8::new(2, 1, vec![0, 128, 255, 0, 128, 255]).unwrap();
+        let bins = image.histogram();
+        assert_eq!(bins[0][0], 2);
+        assert_eq!(bins[1][128], 2);
+        assert_eq!(bins[2][255], 2);
+        assert_eq!(bins[0].iter().sum::<u32>(), 2);
+    }
+
+    #[test]
+    fn load_png_round_trips_what_write_png_wrote() {
+        let scratch = tempfile::tempdir().unwrap();
+        let path = scratch.path().join("test.png");
+        let image = Rgb8::new(
+            3,
+            2,
+            vec![
+                10, 20, 30, 40, 50, 60, 70, 80, 90, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+            ],
+        )
+        .unwrap();
+        crate::cache::write_png(&path, &image).unwrap();
+        let loaded = Rgb8::load_png(&path).unwrap();
+        assert_eq!(loaded, image);
     }
 
     #[test]
