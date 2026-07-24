@@ -446,6 +446,9 @@ export component StudioWindow inherits Window {
     in property <DevSettings> dev;
     // Stored develop preset names, already ordered by Rust.
     in property <[string]> dev-presets;
+    // Paths of other libraries opened before, most recent first (never
+    // includes the currently open one) — File ▸ Open Recent.
+    in property <[string]> recent-libraries;
 
     callback select(int);
     callback classify(string);
@@ -519,6 +522,11 @@ export component StudioWindow inherits Window {
     callback browse-export-destination();
     callback browse-print-destination();
     callback browse-print-profile();
+    // File ▸ Open Library…: native folder picker, then Rust relaunches
+    // Studio pointed at the chosen path (see `relaunch_into` in main.rs).
+    callback open-library-requested();
+    // File ▸ Open Recent: relaunches into `recent-libraries[index]`.
+    callback open-recent-library(int);
     in-out property <string> import-source-text: "";
     in-out property <string> export-destination-text: "";
     in-out property <string> print-destination-text: "";
@@ -615,12 +623,14 @@ export component StudioWindow inherits Window {
     property <bool> label-submenu-open: false;
     property <bool> flag-submenu-open: false;
     property <bool> apply-preset-submenu-open: false;
+    property <bool> open-recent-submenu-open: false;
 
     function reset-submenus() {
         root.rate-submenu-open = false;
         root.label-submenu-open = false;
         root.flag-submenu-open = false;
         root.apply-preset-submenu-open = false;
+        root.open-recent-submenu-open = false;
     }
 
     // Moves the selection to `index` and scrolls it into view.
@@ -3165,6 +3175,30 @@ export component StudioWindow inherits Window {
                         root.open-menu = "";
                     }
                 }
+                MenuSep { }
+                MenuRow {
+                    title: @tr("Open Library…");
+                    activated => {
+                        root.open-library-requested();
+                        root.open-menu = "";
+                    }
+                }
+                SubmenuHeader {
+                    title: @tr("Open Recent");
+                    expanded <=> root.open-recent-submenu-open;
+                    enabled: root.recent-libraries.length > 0;
+                }
+                if root.open-recent-submenu-open: VerticalLayout {
+                    for path[index] in root.recent-libraries: MenuRow {
+                        title: path;
+                        activated => {
+                            root.open-recent-library(index);
+                            root.open-menu = "";
+                            root.reset-submenus();
+                        }
+                    }
+                }
+                MenuSep { }
                 MenuRow {
                     title: @tr("Print…    Ctrl+P");
                     activated => {

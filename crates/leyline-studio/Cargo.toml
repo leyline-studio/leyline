@@ -20,6 +20,7 @@ slint = { workspace = true, features = ["unstable-winit-030"] }
 sys-locale.workspace = true
 directories.workspace = true
 rfd.workspace = true
+serde_json.workspace = true
 
 [build-dependencies]
 slint-build.workspace = true

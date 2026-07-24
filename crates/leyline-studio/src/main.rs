@@ -224,6 +224,50 @@ fn open_or_create_library(root: &Path) -> Result<Library, String> {
     }
 }
 
+/// Where the "Open Recent" library list is persisted: a small JSON array of
+/// paths, one per user, next to other per-user app config rather than inside
+/// any single library folder (a library is portable/self-contained per
+/// `docs/catalog.md` §37 — it must not gain a side file recording other
+/// libraries' locations).
+fn recent_libraries_path() -> Result<PathBuf, String> {
+    let dirs = directories::ProjectDirs::from("", "", "Leyline")
+        .ok_or_else(|| "cannot determine the user's config directory".to_owned())?;
+    Ok(dirs.config_dir().join("recent_libraries.json"))
+}
+
+/// Reads the recent-libraries list, tolerating a missing or corrupt file
+/// (first launch, or a manually edited/truncated file) by returning an empty
+/// list rather than failing Studio's startup over a non-essential feature.
+fn load_recent_libraries(path: &Path) -> Vec<PathBuf> {
+    let Ok(contents) = std::fs::read_to_string(path) else {
+        return Vec::new();
+    };
+    serde_json::from_str::<Vec<String>>(&contents)
+        .unwrap_or_default()
+        .into_iter()
+        .map(PathBuf::from)
+        .collect()
+}
+
+fn save_recent_libraries(path: &Path, libraries: &[PathBuf]) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let strings: Vec<String> = libraries.iter().map(|p| p.display().to_string()).collect();
+    let json = serde_json::to_string_pretty(&strings).map_err(|e| e.to_string())?;
+    std::fs::write(path, json).map_err(|e| e.to_string())
+}
+
+/// Moves `opened` to the front of `existing`, de-duplicates, and caps the
+/// list — pure so it's testable without touching the real config directory.
+fn record_recent_library(existing: &[PathBuf], opened: &Path) -> Vec<PathBuf> {
+    const MAX_RECENT: usize = 8;
+    let mut updated = vec![opened.to_path_buf()];
+    updated.extend(existing.iter().filter(|p| p.as_path() != opened).cloned());
+    updated.truncate(MAX_RECENT);
+    updated
+}
+
 fn run() -> Result<(), String> {
     // No argument: this is how a GUI shortcut launches Studio (the Windows
     // installer's Start Menu entry, the Linux AppImage, double-clicking the
@@ -239,6 +283,20 @@ fn run() -> Result<(), String> {
     let info = library.catalog().library().map_err(|e| e.to_string())?;
     let library_path = library.root().display().to_string();
     let events = library.subscribe();
+
+    // "Open Recent" (File menu): record this library, then keep the rest of
+    // the list (the ones other than the one we're opening right now) around
+    // for the callback below to relaunch into. A failure to read/write this
+    // file is never fatal to opening the library itself.
+    let recent_path = recent_libraries_path()?;
+    let recent_libraries =
+        record_recent_library(&load_recent_libraries(&recent_path), library.root());
+    save_recent_libraries(&recent_path, &recent_libraries)?;
+    let other_recent_libraries: Vec<PathBuf> = recent_libraries
+        .iter()
+        .filter(|p| p.as_path() != library.root())
+        .cloned()
+        .collect();
 
     let app = Rc::new(RefCell::new(App {
         library,
@@ -280,6 +338,11 @@ fn run() -> Result<(), String> {
     // stay discoverable — nobody should have to guess where their catalog
     // ended up. An explicit argument is just as worth showing here.
     window.set_library_path(SharedString::from(library_path.as_str()));
+    let recent_library_names: Vec<SharedString> = other_recent_libraries
+        .iter()
+        .map(|p| SharedString::from(p.display().to_string()))
+        .collect();
+    window.set_recent_libraries(ModelRc::from(Rc::new(VecModel::from(recent_library_names))));
     // Surfaced in Help ▸ About Leyline: build-time constant from Cargo.toml's
     // `version.workspace = true`, so it stays in sync without a manual edit.
     window.set_app_version(SharedString::from(env!("CARGO_PKG_VERSION")));
@@ -303,7 +366,7 @@ fn run() -> Result<(), String> {
     wire_classify(&app, &window);
     wire_filters(&app, &window);
     wire_develop(&app, &window);
-    wire_dialogs(&app, &window);
+    wire_dialogs(&app, &window, other_recent_libraries);
     wire_collections(&app, &window);
     wire_keywords(&app, &window);
     wire_presets(&app, &window);
@@ -1058,12 +1121,39 @@ fn reprocess_selected(app: &mut App, window: &StudioWindow) {
 }
 
 /// Connects the import and export dialogs.
-fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
+fn wire_dialogs(
+    app: &Rc<RefCell<App>>,
+    window: &StudioWindow,
+    other_recent_libraries: Vec<PathBuf>,
+) {
     // File ▸ Quit (ADR 0020): stops the event loop, the same outcome as
     // closing the window from the OS chrome.
     window.on_quit(move || {
         let _ = slint::quit_event_loop();
     });
+    {
+        let handle = window.as_weak();
+        window.on_open_library_requested(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            if let Some(folder) = rfd::FileDialog::new().pick_folder() {
+                relaunch_into(&window, &folder);
+            }
+        });
+    }
+    {
+        let handle = window.as_weak();
+        window.on_open_recent_library(move |index| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let Some(path) = other_recent_libraries.get(index as usize) else {
+                return;
+            };
+            relaunch_into(&window, path);
+        });
+    }
     {
         let handle = window.as_weak();
         window.on_browse_import_source(move || {
@@ -2222,6 +2312,28 @@ fn dev_model(settings: &Settings) -> ui::DevSettings {
 
 /// Surfaces a callback failure in the status line, where a GUI user can
 /// see it; stderr keeps a copy for terminal logs.
+/// Switches to a different library the same way Lightroom's "Open Catalog…"
+/// does: spawn a fresh Studio process pointed at the new library path, then
+/// quit this one. In-place switching would mean tearing down and rebuilding
+/// every piece of `App` state (grid query, develop session, event
+/// subscription…) that `run()` currently only ever sets up once; relaunching
+/// reuses that same one-time startup path instead of duplicating it.
+fn relaunch_into(window: &StudioWindow, library_root: &Path) {
+    let exe = match std::env::current_exe() {
+        Ok(exe) => exe,
+        Err(error) => {
+            report_error(window, &error.to_string());
+            return;
+        }
+    };
+    match std::process::Command::new(exe).arg(library_root).spawn() {
+        Ok(_) => {
+            let _ = slint::quit_event_loop();
+        }
+        Err(error) => report_error(window, &error.to_string()),
+    }
+}
+
 fn report_error(window: &StudioWindow, message: &str) {
     eprintln!("error: {message}");
     window.set_status_line(Tr::get(window).invoke_error_prefix(SharedString::from(message)));
@@ -2714,6 +2826,56 @@ mod tests {
         let reopened = open_or_create_library(&root).expect("second launch opens the library");
         let info = reopened.catalog().library().expect("read library info");
         assert_eq!(info.name, DEFAULT_LIBRARY_NAME);
+    }
+
+    #[test]
+    fn record_recent_library_puts_the_opened_path_first() {
+        let existing = vec![PathBuf::from("/libs/b"), PathBuf::from("/libs/c")];
+        let updated = record_recent_library(&existing, Path::new("/libs/a"));
+        assert_eq!(
+            updated,
+            vec![
+                PathBuf::from("/libs/a"),
+                PathBuf::from("/libs/b"),
+                PathBuf::from("/libs/c"),
+            ]
+        );
+    }
+
+    #[test]
+    fn record_recent_library_deduplicates_and_moves_to_front() {
+        let existing = vec![PathBuf::from("/libs/a"), PathBuf::from("/libs/b")];
+        let updated = record_recent_library(&existing, Path::new("/libs/b"));
+        assert_eq!(
+            updated,
+            vec![PathBuf::from("/libs/b"), PathBuf::from("/libs/a")]
+        );
+    }
+
+    #[test]
+    fn record_recent_library_caps_the_list() {
+        let existing: Vec<PathBuf> = (0..10)
+            .map(|i| PathBuf::from(format!("/libs/{i}")))
+            .collect();
+        let updated = record_recent_library(&existing, Path::new("/libs/new"));
+        assert_eq!(updated.len(), 8);
+        assert_eq!(updated[0], PathBuf::from("/libs/new"));
+    }
+
+    #[test]
+    fn load_recent_libraries_returns_empty_when_file_is_missing() {
+        let scratch = tempfile::tempdir().expect("tempdir");
+        let path = scratch.path().join("does-not-exist.json");
+        assert!(load_recent_libraries(&path).is_empty());
+    }
+
+    #[test]
+    fn save_then_load_recent_libraries_round_trips() {
+        let scratch = tempfile::tempdir().expect("tempdir");
+        let path = scratch.path().join("recent_libraries.json");
+        let libraries = vec![PathBuf::from("/libs/a"), PathBuf::from("/libs/b")];
+        save_recent_libraries(&path, &libraries).expect("save");
+        assert_eq!(load_recent_libraries(&path), libraries);
     }
 
     #[test]

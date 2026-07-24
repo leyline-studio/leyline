@@ -3239,6 +3239,7 @@ dependencies = [
  "embed-resource",
  "leyline-sdk",
  "rfd",
+ "serde_json",
  "slint",
  "slint-build",
  "sys-locale",
