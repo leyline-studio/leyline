@@ -1014,6 +1014,16 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
+        window.on_develop_switch(move |index| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            develop_switch_to(&mut app.borrow_mut(), &window, index);
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
         window.on_develop_edit(move |slider, value| {
             let Some(window) = handle.upgrade() else {
                 return;
@@ -2473,7 +2483,13 @@ fn reprocess_current(app: &mut App, window: &StudioWindow) {
 /// (`item_at`) — crossing a virtual-scroll window boundary while develop
 /// is open is rare enough not to warrant reloading the grid for it.
 fn develop_navigate(app: &mut App, window: &StudioWindow, delta: i32) {
-    let next = window.get_selected() + delta;
+    develop_switch_to(app, window, window.get_selected() + delta);
+}
+
+/// Switches develop to whole-grid index `next` directly, without leaving
+/// develop mode — the filmstrip's click-to-switch, and what
+/// [`develop_navigate`]'s ±1 arrow-key steps reduce to.
+fn develop_switch_to(app: &mut App, window: &StudioWindow, next: i32) {
     if next < 0 || next >= window.get_total_cells() {
         return;
     }

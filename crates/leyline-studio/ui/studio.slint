@@ -499,6 +499,9 @@ export component StudioWindow inherits Window {
     // without leaving develop mode.
     callback develop-next();
     callback develop-prev();
+    // Filmstrip click: switches develop to the clicked whole-grid index
+    // directly, without leaving develop mode.
+    callback develop-switch(int);
     callback develop-edit(string, float);
     // Mouse crop: press x/y, release x/y, viewport w/h, preview w/h (px).
     callback develop-crop-drag(float, float, float, float, float, float, float, float);
@@ -1036,6 +1039,39 @@ export component StudioWindow inherits Window {
                                 title: @tr("Back to Library    G");
                                 activated => {
                                     root.exit-develop();
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Filmstrip: the loaded grid window's thumbnails, so
+                // switching photos doesn't require leaving develop mode.
+                // Reuses `root.cells` (already populated for the grid) —
+                // no separate data path.
+                Flickable {
+                    height: 64px;
+                    viewport-width: root.cells.length * 64px;
+                    HorizontalLayout {
+                        for cell[i] in root.cells: TouchArea {
+                            width: 64px;
+                            height: 64px;
+                            clicked => {
+                                root.develop-switch(root.window-start + i);
+                            }
+                            Rectangle {
+                                x: 2px;
+                                y: 2px;
+                                width: parent.width - 4px;
+                                height: parent.height - 4px;
+                                border-radius: 3px;
+                                border-width: root.window-start + i == root.selected ? 2px : 0px;
+                                border-color: #6fa8dc;
+                                Image {
+                                    source: cell.thumbnail;
+                                    image-fit: contain;
+                                    width: 100%;
+                                    height: 100%;
                                 }
                             }
                         }
