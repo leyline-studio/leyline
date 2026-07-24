@@ -4,7 +4,10 @@
 use std::time::Duration;
 
 use leyline_catalog::{CHECKSUM_LEN, Catalog, NewAsset, RegisteredAsset};
-use leyline_core::{CURRENT_PROCESS, LeylineError, MediaType, Settings, VersionId};
+use leyline_core::{
+    CURRENT_PROCESS, LeylineError, LocalAdjustment, LocalAdjustmentValues, Mask, MediaType,
+    Settings, VersionId,
+};
 use leyline_engine::{EditSession, Param, Value};
 
 fn catalog_with_asset(dir: &tempfile::TempDir) -> (Catalog, RegisteredAsset) {
@@ -275,6 +278,100 @@ fn reprocess_commits_pending_state_first() {
     // The pending contrast edit and the reprocess are separate intentions:
     // two new revisions on top of the initial one.
     assert_eq!(session.history().unwrap().len(), 3);
+}
+
+fn a_radial_adjustment() -> LocalAdjustment {
+    LocalAdjustment {
+        mask: Mask::Radial {
+            cx: 0.5,
+            cy: 0.5,
+            rx: 0.2,
+            ry: 0.2,
+            angle: 0.0,
+            feather: 0.3,
+            inverted: false,
+        },
+        opacity: 1.0,
+        adjustments: LocalAdjustmentValues {
+            exposure: Some(0.5),
+            ..LocalAdjustmentValues::default()
+        },
+    }
+}
+
+#[test]
+fn local_adjustment_appends_at_the_current_length_and_commits_as_one_tool() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut catalog, reg) = catalog_with_asset(&dir);
+
+    let mut session = EditSession::open(&mut catalog, reg.version).unwrap();
+    session
+        .set(
+            Param::LocalAdjustment(0),
+            Value::LocalAdjustment(Some(a_radial_adjustment())),
+        )
+        .unwrap();
+    assert_eq!(session.settings().local_adjustments.len(), 1);
+    session.commit().unwrap();
+    assert_eq!(session.history().unwrap().len(), 2);
+}
+
+#[test]
+fn local_adjustment_replaces_the_entry_at_an_existing_index() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut catalog, reg) = catalog_with_asset(&dir);
+
+    let mut session = EditSession::open(&mut catalog, reg.version).unwrap();
+    session
+        .set(
+            Param::LocalAdjustment(0),
+            Value::LocalAdjustment(Some(a_radial_adjustment())),
+        )
+        .unwrap();
+    let mut replacement = a_radial_adjustment();
+    replacement.opacity = 0.4;
+    session
+        .set(
+            Param::LocalAdjustment(0),
+            Value::LocalAdjustment(Some(replacement)),
+        )
+        .unwrap();
+    assert_eq!(session.settings().local_adjustments.len(), 1);
+    assert_eq!(session.settings().local_adjustments[0].opacity, 0.4);
+}
+
+#[test]
+fn local_adjustment_none_removes_the_entry() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut catalog, reg) = catalog_with_asset(&dir);
+
+    let mut session = EditSession::open(&mut catalog, reg.version).unwrap();
+    session
+        .set(
+            Param::LocalAdjustment(0),
+            Value::LocalAdjustment(Some(a_radial_adjustment())),
+        )
+        .unwrap();
+    session
+        .set(Param::LocalAdjustment(0), Value::LocalAdjustment(None))
+        .unwrap();
+    assert!(session.settings().local_adjustments.is_empty());
+}
+
+#[test]
+fn local_adjustment_out_of_bounds_index_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut catalog, reg) = catalog_with_asset(&dir);
+
+    let mut session = EditSession::open(&mut catalog, reg.version).unwrap();
+    assert!(matches!(
+        session.set(
+            Param::LocalAdjustment(1),
+            Value::LocalAdjustment(Some(a_radial_adjustment())),
+        ),
+        Err(LeylineError::InvalidSettings(_))
+    ));
+    assert!(session.settings().local_adjustments.is_empty());
 }
 
 #[test]

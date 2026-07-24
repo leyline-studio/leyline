@@ -29,7 +29,16 @@ pub const CURRENT_SCHEMA: u32 = 1;
 /// Process 7 (ADR 0032) additionally applies `spot_removal`: deterministic
 /// bilinear clone patches, immediately after lens correction and before
 /// white balance.
-pub const CURRENT_PROCESS: u32 = 7;
+/// Process 8 (ADR 0029) additionally applies `local_adjustments`: masked
+/// (brush/radial/gradient) re-parameterizations of white balance, exposure,
+/// contrast, highlights, shadows, whites, blacks, vibrance and saturation,
+/// immediately after Vibrance/Saturation and before Noise Reduction. ADR
+/// 0029 was accepted while `CURRENT_PROCESS` was still 5 and calls this
+/// stage "process 6" throughout — by the time it was implemented, ADR 0030
+/// and ADR 0032 had already claimed process 6 and 7, so it lands as process
+/// 8 instead; the ADR's pipeline placement and design are otherwise applied
+/// unchanged (ADRs are never edited after acceptance, `docs/adr/README.md`).
+pub const CURRENT_PROCESS: u32 = 8;
 
 /// White balance override, in physical units.
 ///
@@ -150,6 +159,129 @@ pub struct SpotRemoval {
     pub opacity: f64,
 }
 
+/// One point of a [`Mask::Brush`] stroke (ADR 0029): a single dab in the
+/// brush's path, in the same post-rotation, pre-crop referential as
+/// [`Point`].
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct BrushStroke {
+    /// Horizontal position, in [0, 1].
+    pub x: f64,
+    /// Vertical position, in [0, 1].
+    pub y: f64,
+    /// Dab radius, normalized against the image's larger dimension. Strictly
+    /// positive.
+    pub radius: f64,
+    /// Opacity build-up per dab, in [0, 1].
+    pub flow: f64,
+    /// Fraction of the radius with full coverage before the edge feathers
+    /// out, in [0, 1]: 0 = soft throughout, 1 = a hard disk.
+    pub hardness: f64,
+}
+
+/// Mask geometry of one [`LocalAdjustment`] (ADR 0029): a spatial coverage
+/// `[0, 1]` per pixel, in the same post-rotation, pre-crop referential as
+/// [`Crop`]/[`SpotRemoval`] (ADR 0026). Exactly three kinds are in scope for
+/// V2: a brush's traced strokes, a radial (elliptical) filter, and a linear
+/// gradient — Lightroom's "graduated filter" and "linear gradient" are the
+/// same mechanism under two names, so there is no separate fourth type.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum Mask {
+    /// A feathered ellipse.
+    Radial {
+        /// Center, horizontal.
+        cx: f64,
+        /// Center, vertical.
+        cy: f64,
+        /// Horizontal radius, in [0, 1] of the image width.
+        rx: f64,
+        /// Vertical radius, in [0, 1] of the image height.
+        ry: f64,
+        /// Clockwise rotation of the ellipse, in degrees.
+        angle: f64,
+        /// Radial falloff at the rim, in [0, 1]: 0 = hard edge, 1 = the
+        /// feather spans the whole ellipse.
+        feather: f64,
+        /// `true` applies the adjustment *outside* the ellipse instead of
+        /// inside it.
+        inverted: bool,
+    },
+    /// A linear gradient: full coverage at `(x0, y0)`, easing to none at
+    /// `(x1, y1)`, constant along lines perpendicular to that axis.
+    Gradient {
+        /// Full-coverage end, horizontal.
+        x0: f64,
+        /// Full-coverage end, vertical.
+        y0: f64,
+        /// Zero-coverage end, horizontal.
+        x1: f64,
+        /// Zero-coverage end, vertical.
+        y1: f64,
+    },
+    /// A traced brush path: the union of every dab's soft-edged disk.
+    Brush {
+        /// Ordered dabs, one per recorded point of the stroke.
+        strokes: Vec<BrushStroke>,
+    },
+}
+
+/// The restricted subset of [`Settings`]' global tonal/color fields a
+/// [`LocalAdjustment`] may re-parameterize (ADR 0029): exactly the fields
+/// that have a spatially-restricted meaning. Lens correction, noise
+/// reduction, sharpening and rotation/crop are deliberately out of scope —
+/// see ADR 0029's *Alternatives écartées*. `None` in any field means "no
+/// change from the global value" for that operator within the mask, unlike
+/// [`Settings`] where the same fields are always-present sliders.
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct LocalAdjustmentValues {
+    /// Same unit and meaning as [`WhiteBalance::temperature`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub temperature: Option<u32>,
+    /// Same unit and meaning as [`WhiteBalance::tint`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tint: Option<i32>,
+    /// Same unit and meaning as [`Settings::exposure`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exposure: Option<f64>,
+    /// Same unit and meaning as [`Settings::contrast`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contrast: Option<i32>,
+    /// Same unit and meaning as [`Settings::highlights`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub highlights: Option<i32>,
+    /// Same unit and meaning as [`Settings::shadows`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shadows: Option<i32>,
+    /// Same unit and meaning as [`Settings::whites`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub whites: Option<i32>,
+    /// Same unit and meaning as [`Settings::blacks`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blacks: Option<i32>,
+    /// Same unit and meaning as [`Settings::vibrance`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vibrance: Option<i32>,
+    /// Same unit and meaning as [`Settings::saturation`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub saturation: Option<i32>,
+}
+
+/// One masked, locally re-parameterized adjustment (ADR 0029): a mask plus
+/// the subset of tonal/color values it applies, faded in by `opacity` and
+/// the mask's own coverage.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LocalAdjustment {
+    /// The spatial coverage this adjustment applies through.
+    pub mask: Mask,
+    /// Overall blend strength, in [0, 1]. 1.0 is the neutral "fully applied"
+    /// value for an *entry*; there is no neutral value for the list itself
+    /// other than being empty.
+    pub opacity: f64,
+    /// The values re-parameterized within `mask`'s coverage.
+    pub adjustments: LocalAdjustmentValues,
+}
+
 /// Crop rectangle in normalized [0, 1] coordinates, relative to the image
 /// *after* rotation. Neutral state is the absence of a crop (`None`).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -202,6 +334,11 @@ pub struct Settings {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub spot_removal: Vec<SpotRemoval>,
 
+    /// Masked local adjustments, applied in list order. Neutral: empty (ADR
+    /// 0029).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub local_adjustments: Vec<LocalAdjustment>,
+
     /// Lens correction step.
     pub lens_correction: LensCorrection,
     /// Noise reduction step.
@@ -237,6 +374,7 @@ impl Default for Settings {
             saturation: 0,
             tone_curve: ToneCurve::default(),
             spot_removal: Vec::new(),
+            local_adjustments: Vec::new(),
             lens_correction: LensCorrection::default(),
             noise_reduction: NoiseReduction::default(),
             sharpening: Sharpening::default(),
@@ -353,6 +491,114 @@ impl Settings {
                     "spot_removal[{i}].opacity must be in [0, 1], got {}",
                     spot.opacity
                 )));
+            }
+        }
+        for (i, adjustment) in self.local_adjustments.iter().enumerate() {
+            if !(0.0..=1.0).contains(&adjustment.opacity) {
+                return Err(LeylineError::InvalidSettings(format!(
+                    "local_adjustments[{i}].opacity must be in [0, 1], got {}",
+                    adjustment.opacity
+                )));
+            }
+            let unit = |name: &str, value: f64| -> Result<()> {
+                if (0.0..=1.0).contains(&value) {
+                    Ok(())
+                } else {
+                    Err(LeylineError::InvalidSettings(format!(
+                        "local_adjustments[{i}].{name} must be in [0, 1], got {value}"
+                    )))
+                }
+            };
+            match &adjustment.mask {
+                Mask::Radial {
+                    cx,
+                    cy,
+                    rx,
+                    ry,
+                    angle,
+                    feather,
+                    inverted: _,
+                } => {
+                    unit("mask.cx", *cx)?;
+                    unit("mask.cy", *cy)?;
+                    if *rx <= 0.0 || *ry <= 0.0 {
+                        return Err(LeylineError::InvalidSettings(format!(
+                            "local_adjustments[{i}].mask.rx/ry must be strictly positive, got {rx}/{ry}"
+                        )));
+                    }
+                    finite("mask.angle", *angle)?;
+                    unit("mask.feather", *feather)?;
+                }
+                Mask::Gradient { x0, y0, x1, y1 } => {
+                    unit("mask.x0", *x0)?;
+                    unit("mask.y0", *y0)?;
+                    unit("mask.x1", *x1)?;
+                    unit("mask.y1", *y1)?;
+                    if (x1 - x0).hypot(y1 - y0) <= 0.0 {
+                        return Err(LeylineError::InvalidSettings(format!(
+                            "local_adjustments[{i}].mask: gradient endpoints must differ"
+                        )));
+                    }
+                }
+                Mask::Brush { strokes } => {
+                    if strokes.is_empty() {
+                        return Err(LeylineError::InvalidSettings(format!(
+                            "local_adjustments[{i}].mask.strokes must not be empty"
+                        )));
+                    }
+                    for (j, stroke) in strokes.iter().enumerate() {
+                        unit(&format!("mask.strokes[{j}].x"), stroke.x)?;
+                        unit(&format!("mask.strokes[{j}].y"), stroke.y)?;
+                        if stroke.radius <= 0.0 {
+                            return Err(LeylineError::InvalidSettings(format!(
+                                "local_adjustments[{i}].mask.strokes[{j}].radius must be strictly positive, got {}",
+                                stroke.radius
+                            )));
+                        }
+                        unit(&format!("mask.strokes[{j}].flow"), stroke.flow)?;
+                        unit(&format!("mask.strokes[{j}].hardness"), stroke.hardness)?;
+                    }
+                }
+            }
+            let values = &adjustment.adjustments;
+            if let Some(temperature) = values.temperature {
+                if temperature == 0 {
+                    return Err(LeylineError::InvalidSettings(format!(
+                        "local_adjustments[{i}].adjustments.temperature must be strictly positive"
+                    )));
+                }
+            }
+            if let Some(tint) = values.tint {
+                slider(
+                    &format!("local_adjustments[{i}].adjustments.tint"),
+                    tint,
+                    -100,
+                    100,
+                )?;
+            }
+            if let Some(exposure) = values.exposure {
+                finite(
+                    &format!("local_adjustments[{i}].adjustments.exposure"),
+                    exposure,
+                )?;
+            }
+            for (name, value) in [
+                ("contrast", values.contrast),
+                ("highlights", values.highlights),
+                ("shadows", values.shadows),
+                ("whites", values.whites),
+                ("blacks", values.blacks),
+                ("vibrance", values.vibrance),
+                ("saturation", values.saturation),
+            ] {
+                if let Some(value) = value {
+                    slider(
+                        &format!("local_adjustments[{i}].adjustments.{name}"),
+                        value,
+                        -100,
+                        100,
+                    )?;
+                }
             }
         }
         slider(
@@ -813,6 +1059,224 @@ mod tests {
         let neutral = Settings::default();
         let value: serde_json::Value = serde_json::from_str(&neutral.to_json()).unwrap();
         assert!(value.get("spot_removal").is_none());
+    }
+
+    // -------------------------------------------------------------------
+    // Local adjustments (ADR 0029)
+    // -------------------------------------------------------------------
+
+    fn radial_adjustment() -> LocalAdjustment {
+        LocalAdjustment {
+            mask: Mask::Radial {
+                cx: 0.5,
+                cy: 0.42,
+                rx: 0.30,
+                ry: 0.22,
+                angle: 0.0,
+                feather: 0.40,
+                inverted: false,
+            },
+            opacity: 1.0,
+            adjustments: LocalAdjustmentValues {
+                exposure: Some(0.6),
+                contrast: Some(15),
+                highlights: Some(-20),
+                ..LocalAdjustmentValues::default()
+            },
+        }
+    }
+
+    #[test]
+    fn local_adjustments_round_trip_and_are_omitted_when_empty() {
+        let s = Settings {
+            local_adjustments: vec![radial_adjustment()],
+            ..Settings::default()
+        };
+        s.validate().unwrap();
+        let reparsed = Settings::parse(&s.to_json()).unwrap();
+        assert_eq!(s, reparsed);
+
+        let neutral = Settings::default();
+        let value: serde_json::Value = serde_json::from_str(&neutral.to_json()).unwrap();
+        assert!(value.get("local_adjustments").is_none());
+    }
+
+    #[test]
+    fn parses_the_adr_0029_example_json() {
+        let json = r#"{
+            "schema": 1,
+            "process": 8,
+            "exposure": 0.35,
+            "vibrance": 18,
+            "local_adjustments": [
+                {
+                    "mask": {
+                        "type": "radial",
+                        "cx": 0.5, "cy": 0.42,
+                        "rx": 0.30, "ry": 0.22,
+                        "angle": 0.0,
+                        "feather": 0.40,
+                        "inverted": false
+                    },
+                    "opacity": 1.0,
+                    "adjustments": { "exposure": 0.6, "contrast": 15, "highlights": -20 }
+                },
+                {
+                    "mask": {
+                        "type": "gradient",
+                        "x0": 0.5, "y0": 0.0,
+                        "x1": 0.5, "y1": 0.35
+                    },
+                    "opacity": 0.8,
+                    "adjustments": { "exposure": -0.8, "whites": -10, "temperature": 5200, "tint": 6 }
+                },
+                {
+                    "mask": {
+                        "type": "brush",
+                        "strokes": [
+                            { "x": 0.20, "y": 0.60, "radius": 0.04, "flow": 1.0, "hardness": 0.5 },
+                            { "x": 0.23, "y": 0.61, "radius": 0.04, "flow": 1.0, "hardness": 0.5 },
+                            { "x": 0.26, "y": 0.62, "radius": 0.04, "flow": 1.0, "hardness": 0.5 }
+                        ]
+                    },
+                    "opacity": 1.0,
+                    "adjustments": { "saturation": -30, "shadows": 20 }
+                }
+            ]
+        }"#;
+        let s = Settings::parse(json).unwrap();
+        assert_eq!(s.local_adjustments.len(), 3);
+        s.validate().unwrap();
+        match &s.local_adjustments[1].mask {
+            Mask::Gradient { x0, y0, x1, y1 } => {
+                assert_eq!((*x0, *y0, *x1, *y1), (0.5, 0.0, 0.5, 0.35));
+            }
+            other => panic!("expected a gradient mask, got {other:?}"),
+        }
+        assert_eq!(s.local_adjustments[1].adjustments.temperature, Some(5200));
+        match &s.local_adjustments[2].mask {
+            Mask::Brush { strokes } => assert_eq!(strokes.len(), 3),
+            other => panic!("expected a brush mask, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn local_adjustments_rejects_out_of_range_opacity() {
+        let mut adjustment = radial_adjustment();
+        adjustment.opacity = 1.5;
+        let s = Settings {
+            local_adjustments: vec![adjustment],
+            ..Settings::default()
+        };
+        assert!(matches!(
+            s.validate(),
+            Err(LeylineError::InvalidSettings(_))
+        ));
+    }
+
+    #[test]
+    fn radial_mask_rejects_non_positive_radii() {
+        let mut adjustment = radial_adjustment();
+        adjustment.mask = Mask::Radial {
+            cx: 0.5,
+            cy: 0.5,
+            rx: 0.0,
+            ry: 0.2,
+            angle: 0.0,
+            feather: 0.4,
+            inverted: false,
+        };
+        let s = Settings {
+            local_adjustments: vec![adjustment],
+            ..Settings::default()
+        };
+        assert!(matches!(
+            s.validate(),
+            Err(LeylineError::InvalidSettings(_))
+        ));
+    }
+
+    #[test]
+    fn gradient_mask_rejects_coincident_endpoints() {
+        let mut adjustment = radial_adjustment();
+        adjustment.mask = Mask::Gradient {
+            x0: 0.5,
+            y0: 0.5,
+            x1: 0.5,
+            y1: 0.5,
+        };
+        let s = Settings {
+            local_adjustments: vec![adjustment],
+            ..Settings::default()
+        };
+        assert!(matches!(
+            s.validate(),
+            Err(LeylineError::InvalidSettings(_))
+        ));
+    }
+
+    #[test]
+    fn brush_mask_rejects_an_empty_stroke_list() {
+        let mut adjustment = radial_adjustment();
+        adjustment.mask = Mask::Brush { strokes: vec![] };
+        let s = Settings {
+            local_adjustments: vec![adjustment],
+            ..Settings::default()
+        };
+        assert!(matches!(
+            s.validate(),
+            Err(LeylineError::InvalidSettings(_))
+        ));
+    }
+
+    #[test]
+    fn brush_mask_rejects_a_non_positive_stroke_radius() {
+        let mut adjustment = radial_adjustment();
+        adjustment.mask = Mask::Brush {
+            strokes: vec![BrushStroke {
+                x: 0.2,
+                y: 0.6,
+                radius: 0.0,
+                flow: 1.0,
+                hardness: 0.5,
+            }],
+        };
+        let s = Settings {
+            local_adjustments: vec![adjustment],
+            ..Settings::default()
+        };
+        assert!(matches!(
+            s.validate(),
+            Err(LeylineError::InvalidSettings(_))
+        ));
+    }
+
+    #[test]
+    fn local_adjustments_rejects_out_of_range_slider_values() {
+        let mut adjustment = radial_adjustment();
+        adjustment.adjustments.saturation = Some(200);
+        let s = Settings {
+            local_adjustments: vec![adjustment],
+            ..Settings::default()
+        };
+        assert!(matches!(
+            s.validate(),
+            Err(LeylineError::InvalidSettings(_))
+        ));
+    }
+
+    #[test]
+    fn local_adjustments_rejects_zero_temperature() {
+        let mut adjustment = radial_adjustment();
+        adjustment.adjustments.temperature = Some(0);
+        let s = Settings {
+            local_adjustments: vec![adjustment],
+            ..Settings::default()
+        };
+        assert!(matches!(
+            s.validate(),
+            Err(LeylineError::InvalidSettings(_))
+        ));
     }
 
     #[test]

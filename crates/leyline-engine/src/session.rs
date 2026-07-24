@@ -15,8 +15,9 @@ use std::time::{Duration, Instant};
 
 use leyline_catalog::{Catalog, RevisionRow};
 use leyline_core::{
-    CURRENT_PROCESS, CURRENT_SCHEMA, Crop, LensCorrection, LeylineError, NoiseReduction, Result,
-    RevisionId, Settings, Sharpening, SpotRemoval, ToneCurve, VersionId, WhiteBalance,
+    CURRENT_PROCESS, CURRENT_SCHEMA, Crop, LensCorrection, LeylineError, LocalAdjustment,
+    NoiseReduction, Result, RevisionId, Settings, Sharpening, SpotRemoval, ToneCurve, VersionId,
+    WhiteBalance,
 };
 
 /// Default amendment window of `docs/catalog.md` §17.
@@ -50,6 +51,11 @@ pub enum Param {
     ToneCurve,
     /// Spot removal clones (the whole list, replaced atomically).
     SpotRemoval,
+    /// One local adjustment (ADR 0029): geometry and re-parameterized
+    /// values together as one tool, addressed by its index in
+    /// `local_adjustments` — the same grouping [`Param::WhiteBalance`]
+    /// already applies to temperature + tint.
+    LocalAdjustment(usize),
     /// Lens correction step.
     LensCorrection,
     /// Noise reduction step.
@@ -76,6 +82,11 @@ pub enum Value {
     ToneCurve(ToneCurve),
     /// For [`Param::SpotRemoval`].
     SpotRemoval(Vec<SpotRemoval>),
+    /// For [`Param::LocalAdjustment`]: `Some` replaces the whole entry at
+    /// that index (or appends, if the index equals the current length —
+    /// there is no separate `add_mask` method, ADR 0029); `None` removes
+    /// the entry at that index.
+    LocalAdjustment(Option<LocalAdjustment>),
     /// For [`Param::LensCorrection`].
     LensCorrection(LensCorrection),
     /// For [`Param::NoiseReduction`].
@@ -337,6 +348,22 @@ fn apply(settings: &mut Settings, param: Param, value: Value) -> Result<()> {
         (Param::Saturation, Value::Int(v)) => settings.saturation = v,
         (Param::ToneCurve, Value::ToneCurve(v)) => settings.tone_curve = v,
         (Param::SpotRemoval, Value::SpotRemoval(v)) => settings.spot_removal = v,
+        (Param::LocalAdjustment(index), Value::LocalAdjustment(v)) => match v {
+            Some(adjustment) if index < settings.local_adjustments.len() => {
+                settings.local_adjustments[index] = adjustment;
+            }
+            Some(adjustment) if index == settings.local_adjustments.len() => {
+                settings.local_adjustments.push(adjustment);
+            }
+            None if index < settings.local_adjustments.len() => {
+                settings.local_adjustments.remove(index);
+            }
+            _ => {
+                return Err(LeylineError::InvalidSettings(format!(
+                    "local_adjustments index {index} out of bounds"
+                )));
+            }
+        },
         (Param::WhiteBalance, Value::WhiteBalance(v)) => settings.white_balance = v,
         (Param::LensCorrection, Value::LensCorrection(v)) => settings.lens_correction = v,
         (Param::NoiseReduction, Value::NoiseReduction(v)) => settings.noise_reduction = v,

@@ -81,6 +81,10 @@ Vibrance / Saturation
 
 ↓
 
+Réglages locaux (masqués)
+
+↓
+
 Réduction du bruit
 
 ↓
@@ -140,6 +144,20 @@ Jamais un delta.
             "radius": 0.03,
             "feather": 0.40,
             "opacity": 1.0
+        }
+    ],
+    "local_adjustments": [
+        {
+            "mask": {
+                "type": "radial",
+                "cx": 0.5, "cy": 0.42,
+                "rx": 0.30, "ry": 0.22,
+                "angle": 0.0,
+                "feather": 0.40,
+                "inverted": false
+            },
+            "opacity": 1.0,
+            "adjustments": { "exposure": 0.6, "contrast": 15, "highlights": -20 }
         }
     ],
 
@@ -218,6 +236,7 @@ Versions connues :
 | 5 | Identique à 4, plus la correction d'aberration chromatique transversale (TCA), un second passage géométrique indépendant par canal (ADR 0018) |
 | 6 | Identique à 5, plus `tone_curve` : courbe par points interpolée par une spline cubique monotone (Fritsch–Carlson), précalculée en table de correspondance, appliquée en luminance après Blancs/Noirs et avant Vibrance/Saturation (ADR 0030) |
 | 7 | Identique à 6, plus `spot_removal` : clonage déterministe par copie bilinéaire adoucie (falloff radial + opacité), sans mode *heal*, immédiatement après Correction d'objectif et avant Balance des blancs (ADR 0032) |
+| 8 | Identique à 7, plus `local_adjustments` : réglages locaux masqués (brosse/radial/gradient), ré-appliquant les mêmes formules d'opérateur que leurs équivalents globaux (balance des blancs, exposition, contraste, hautes lumières, ombres, blancs, noirs, vibrance, saturation) restreintes à une couverture `[0, 1]` par masque, immédiatement après Vibrance/Saturation et avant Réduction du bruit (ADR 0029 — accepté sous le nom « process 6 », livré en process 8 une fois les process 6 et 7 déjà pris par ADR 0030/0032) |
 
 Une révision éditée hérite du process de son parent ; seules les nouvelles révisions par défaut (imports) écrivent la version courante.
 
