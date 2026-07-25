@@ -1117,6 +1117,70 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
+        window.on_develop_edit_hsl_band(move |index, field, value| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let Some((_, version)) = app.develop else {
+                return;
+            };
+            let committed = (|| {
+                let mut session = app.library.edit(version)?;
+                let Some((param, value)) = develop::hsl_band_action(
+                    index as usize,
+                    field.as_str(),
+                    f64::from(value),
+                    session.settings(),
+                ) else {
+                    return Ok(());
+                };
+                session.set(param, value)?;
+                session.commit().map(|_| ())
+            })();
+            if let Err(error) = committed
+                .map_err(|e| e.to_string())
+                .and_then(|()| refresh_develop(&mut app, &window))
+            {
+                report_error(&window, &error);
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        window.on_develop_edit_color_grading_zone(move |zone, field, value| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let Some((_, version)) = app.develop else {
+                return;
+            };
+            let committed = (|| {
+                let mut session = app.library.edit(version)?;
+                let Some((param, value)) = develop::color_grading_zone_action(
+                    zone.as_str(),
+                    field.as_str(),
+                    f64::from(value),
+                    session.settings(),
+                ) else {
+                    return Ok(());
+                };
+                session.set(param, value)?;
+                session.commit().map(|_| ())
+            })();
+            if let Err(error) = committed
+                .map_err(|e| e.to_string())
+                .and_then(|()| refresh_develop(&mut app, &window))
+            {
+                report_error(&window, &error);
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
         window.on_develop_crop_drag(move |px, py, rx, ry, vw, vh, iw, ih| {
             let Some(window) = handle.upgrade() else {
                 return;
@@ -2954,6 +3018,31 @@ fn dev_model(settings: &Settings) -> ui::DevSettings {
         sharpen_amount: settings.sharpening.amount as f32,
         sharpen_radius: settings.sharpening.radius as f32,
         lens_correction: settings.lens_correction.enabled,
+        hsl: ModelRc::from(Rc::new(VecModel::from(
+            settings
+                .hsl
+                .iter()
+                .map(|band| ui::HslBandValues {
+                    hue: band.hue as f32,
+                    saturation: band.saturation as f32,
+                    luminance: band.luminance as f32,
+                })
+                .collect::<Vec<_>>(),
+        ))),
+        color_grading_shadows: zone_model(&settings.color_grading.shadows),
+        color_grading_midtones: zone_model(&settings.color_grading.midtones),
+        color_grading_highlights: zone_model(&settings.color_grading.highlights),
+        color_grading_balance: settings.color_grading.balance as f32,
+        color_grading_blending: settings.color_grading.blending as f32,
+    }
+}
+
+/// Mirrors one color grading zone into the Slint model.
+fn zone_model(zone: &leyline_sdk::ColorGradingZone) -> ui::ColorGradingZoneValues {
+    ui::ColorGradingZoneValues {
+        hue: zone.hue as f32,
+        saturation: zone.saturation as f32,
+        luminance: zone.luminance as f32,
     }
 }
 

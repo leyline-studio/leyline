@@ -5,8 +5,8 @@ use std::time::Duration;
 
 use leyline_catalog::{CHECKSUM_LEN, Catalog, NewAsset, RegisteredAsset};
 use leyline_core::{
-    CURRENT_PROCESS, LeylineError, LocalAdjustment, LocalAdjustmentValues, Mask, MediaType,
-    Settings, VersionId,
+    CURRENT_PROCESS, ColorGrading, HslBand, LeylineError, LocalAdjustment, LocalAdjustmentValues,
+    Mask, MediaType, Settings, VersionId,
 };
 use leyline_engine::{EditSession, Param, Value};
 
@@ -399,6 +399,71 @@ fn local_adjustment_out_of_bounds_index_is_refused() {
         Err(LeylineError::InvalidSettings(_))
     ));
     assert!(session.settings().local_adjustments.is_empty());
+}
+
+#[test]
+fn hsl_band_out_of_bounds_index_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut catalog, reg) = catalog_with_asset(&dir);
+
+    let mut session = EditSession::open(&mut catalog, reg.version).unwrap();
+    assert!(matches!(
+        session.set(
+            Param::HslBand(8),
+            Value::HslBand(HslBand {
+                hue: 10,
+                saturation: 0,
+                luminance: 0,
+            }),
+        ),
+        Err(LeylineError::InvalidSettings(_))
+    ));
+    assert_eq!(session.settings().hsl, [HslBand::default(); 8]);
+}
+
+#[test]
+fn hsl_band_commits_at_its_index_only() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut catalog, reg) = catalog_with_asset(&dir);
+
+    let mut session = EditSession::open(&mut catalog, reg.version).unwrap();
+    session
+        .set(
+            Param::HslBand(3),
+            Value::HslBand(HslBand {
+                hue: 0,
+                saturation: 40,
+                luminance: 0,
+            }),
+        )
+        .unwrap();
+    session.commit().unwrap();
+
+    assert_eq!(session.settings().hsl[3].saturation, 40);
+    for (i, band) in session.settings().hsl.iter().enumerate() {
+        if i != 3 {
+            assert_eq!(*band, HslBand::default());
+        }
+    }
+}
+
+#[test]
+fn color_grading_commits_as_one_tool() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut catalog, reg) = catalog_with_asset(&dir);
+
+    let mut session = EditSession::open(&mut catalog, reg.version).unwrap();
+    let grading = ColorGrading {
+        balance: 20,
+        blending: 60,
+        ..ColorGrading::default()
+    };
+    session
+        .set(Param::ColorGrading, Value::ColorGrading(grading))
+        .unwrap();
+    session.commit().unwrap();
+
+    assert_eq!(session.settings().color_grading, grading);
 }
 
 #[test]

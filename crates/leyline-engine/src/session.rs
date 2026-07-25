@@ -15,9 +15,9 @@ use std::time::{Duration, Instant};
 
 use leyline_catalog::{Catalog, RevisionRow};
 use leyline_core::{
-    CURRENT_PROCESS, CURRENT_SCHEMA, Crop, LensCorrection, LeylineError, LocalAdjustment,
-    NoiseReduction, Result, RevisionId, Settings, Sharpening, SpotRemoval, ToneCurve, VersionId,
-    WhiteBalance,
+    CURRENT_PROCESS, CURRENT_SCHEMA, ColorGrading, Crop, HslBand, LensCorrection, LeylineError,
+    LocalAdjustment, NoiseReduction, Result, RevisionId, Settings, Sharpening, SpotRemoval,
+    ToneCurve, VersionId, WhiteBalance,
 };
 
 /// Default amendment window of `docs/catalog.md` §17.
@@ -58,6 +58,13 @@ pub enum Param {
     LocalAdjustment(usize),
     /// Lens correction step.
     LensCorrection,
+    /// One band of the 8-band HSL mixer (ADR 0031), addressed by its index
+    /// in `hsl` (always `0..8`) — the same per-index coalescing
+    /// [`Param::LocalAdjustment`] applies.
+    HslBand(usize),
+    /// Shadows/midtones/highlights color grading (ADR 0031): the whole
+    /// struct as one commit unit, like [`Param::LensCorrection`].
+    ColorGrading,
     /// Noise reduction step.
     NoiseReduction,
     /// Sharpening step.
@@ -89,6 +96,10 @@ pub enum Value {
     LocalAdjustment(Option<LocalAdjustment>),
     /// For [`Param::LensCorrection`].
     LensCorrection(LensCorrection),
+    /// For [`Param::HslBand`].
+    HslBand(HslBand),
+    /// For [`Param::ColorGrading`].
+    ColorGrading(ColorGrading),
     /// For [`Param::NoiseReduction`].
     NoiseReduction(NoiseReduction),
     /// For [`Param::Sharpening`].
@@ -379,6 +390,15 @@ fn apply(settings: &mut Settings, param: Param, value: Value) -> Result<()> {
         },
         (Param::WhiteBalance, Value::WhiteBalance(v)) => settings.white_balance = v,
         (Param::LensCorrection, Value::LensCorrection(v)) => settings.lens_correction = v,
+        (Param::HslBand(index), Value::HslBand(band)) => {
+            if index >= settings.hsl.len() {
+                return Err(LeylineError::InvalidSettings(format!(
+                    "hsl band index {index} out of bounds"
+                )));
+            }
+            settings.hsl[index] = band;
+        }
+        (Param::ColorGrading, Value::ColorGrading(v)) => settings.color_grading = v,
         (Param::NoiseReduction, Value::NoiseReduction(v)) => settings.noise_reduction = v,
         (Param::Sharpening, Value::Sharpening(v)) => settings.sharpening = v,
         (Param::Crop, Value::Crop(v)) => settings.crop = v,

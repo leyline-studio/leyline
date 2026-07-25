@@ -38,7 +38,10 @@ pub const CURRENT_SCHEMA: u32 = 1;
 /// and ADR 0032 had already claimed process 6 and 7, so it lands as process
 /// 8 instead; the ADR's pipeline placement and design are otherwise applied
 /// unchanged (ADRs are never edited after acceptance, `docs/adr/README.md`).
-pub const CURRENT_PROCESS: u32 = 8;
+/// Process 9 (ADR 0031) additionally applies an 8-band HSL mixer and
+/// shadows/midtones/highlights color grading, immediately after
+/// Vibrance/Saturation and before local adjustments.
+pub const CURRENT_PROCESS: u32 = 9;
 
 /// White balance override, in physical units.
 ///
@@ -127,6 +130,63 @@ pub struct CurvePoint {
 pub struct ToneCurve {
     /// Control points, ordered by strictly increasing `x`. Empty = identity.
     pub points: Vec<CurvePoint>,
+}
+
+/// One band of the 8-band HSL mixer (ADR 0031): hue/saturation/luminance
+/// offsets, sliders in [-100, 100]. Neutral: all zero. The band a pixel
+/// belongs to is decided by its own hue at render time (with falloff
+/// between adjacent bands) — this struct is just the three sliders for one
+/// band, not a selector.
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct HslBand {
+    /// Hue shift for pixels in this band.
+    pub hue: i32,
+    /// Saturation offset for pixels in this band.
+    pub saturation: i32,
+    /// Luminance offset for pixels in this band.
+    pub luminance: i32,
+}
+
+/// One zone of [`ColorGrading`] (ADR 0031): the color (hue + saturation)
+/// blended into pixels weighted by luminance zone membership, plus a
+/// luminance offset. Neutral: all zero (no coloring, no offset).
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ColorGradingZone {
+    /// Hue of the color mixed into this zone, degrees in [0, 360).
+    pub hue: i32,
+    /// Saturation (strength) of the color mixed into this zone, in [0, 100].
+    pub saturation: i32,
+    /// Luminance offset for this zone, in [-100, 100].
+    pub luminance: i32,
+}
+
+/// Shadows/midtones/highlights color grading (ADR 0031): a luminance-
+/// weighted fondu between three tonal zones, each with its own color —
+/// Lightroom's Color Grading panel / Darktable's color balance rgb.
+///
+/// **Not a spatial mask.** This weights every pixel by its own luminance
+/// value, wherever it sits in the frame — orthogonal to
+/// [`LocalAdjustment`]'s spatial coverage (ADR 0029). The two never share
+/// infrastructure; combining them (regional color grading) is deferred to
+/// a future ADR. Neutral: every zone at its default and `balance`/
+/// `blending` at zero.
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ColorGrading {
+    /// Low-luminance zone.
+    pub shadows: ColorGradingZone,
+    /// Mid-luminance zone.
+    pub midtones: ColorGradingZone,
+    /// High-luminance zone.
+    pub highlights: ColorGradingZone,
+    /// Shifts the shadows/highlights zone boundary, in [-100, 100]. 0 =
+    /// centered.
+    pub balance: i32,
+    /// Width of the smoothstep blend between adjacent zones, in [0, 100].
+    /// Meaningless (and harmless) when every zone is neutral.
+    pub blending: i32,
 }
 
 /// A point in the local-correction coordinate frame (ADR 0026): normalized
@@ -330,6 +390,13 @@ pub struct Settings {
     /// Tone curve step. Neutral: no points.
     pub tone_curve: ToneCurve,
 
+    /// 8-band HSL mixer (ADR 0031), fixed band order: red, orange, yellow,
+    /// green, aqua, blue, purple, magenta. Neutral: every band zero.
+    pub hsl: [HslBand; 8],
+    /// Shadows/midtones/highlights color grading (ADR 0031). Neutral:
+    /// default.
+    pub color_grading: ColorGrading,
+
     /// Spot removal clones, applied in list order. Neutral: empty (ADR 0032).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub spot_removal: Vec<SpotRemoval>,
@@ -373,6 +440,8 @@ impl Default for Settings {
             vibrance: 0,
             saturation: 0,
             tone_curve: ToneCurve::default(),
+            hsl: [HslBand::default(); 8],
+            color_grading: ColorGrading::default(),
             spot_removal: Vec::new(),
             local_adjustments: Vec::new(),
             lens_correction: LensCorrection::default(),
@@ -601,6 +670,55 @@ impl Settings {
                 }
             }
         }
+        const HSL_BAND_NAMES: [&str; 8] = [
+            "red", "orange", "yellow", "green", "aqua", "blue", "purple", "magenta",
+        ];
+        for (band, name) in self.hsl.iter().zip(HSL_BAND_NAMES) {
+            slider(&format!("hsl.{name}.hue"), band.hue, -100, 100)?;
+            slider(
+                &format!("hsl.{name}.saturation"),
+                band.saturation,
+                -100,
+                100,
+            )?;
+            slider(&format!("hsl.{name}.luminance"), band.luminance, -100, 100)?;
+        }
+        for (zone, name) in [
+            (&self.color_grading.shadows, "shadows"),
+            (&self.color_grading.midtones, "midtones"),
+            (&self.color_grading.highlights, "highlights"),
+        ] {
+            if !(0..360).contains(&zone.hue) {
+                return Err(LeylineError::InvalidSettings(format!(
+                    "color_grading.{name}.hue must be in [0, 360), got {}",
+                    zone.hue
+                )));
+            }
+            slider(
+                &format!("color_grading.{name}.saturation"),
+                zone.saturation,
+                0,
+                100,
+            )?;
+            slider(
+                &format!("color_grading.{name}.luminance"),
+                zone.luminance,
+                -100,
+                100,
+            )?;
+        }
+        slider(
+            "color_grading.balance",
+            self.color_grading.balance,
+            -100,
+            100,
+        )?;
+        slider(
+            "color_grading.blending",
+            self.color_grading.blending,
+            0,
+            100,
+        )?;
         slider(
             "noise_reduction.luminance",
             self.noise_reduction.luminance,
@@ -896,6 +1014,49 @@ mod tests {
             width: 0.8,
             height: 1.0,
         });
+        assert!(matches!(
+            s.validate(),
+            Err(LeylineError::InvalidSettings(_))
+        ));
+    }
+
+    #[test]
+    fn neutral_hsl_and_color_grading_validate() {
+        Settings::default().validate().unwrap();
+    }
+
+    #[test]
+    fn hsl_band_out_of_range_is_rejected() {
+        let mut s = Settings::default();
+        s.hsl[0].hue = 150;
+        assert!(matches!(
+            s.validate(),
+            Err(LeylineError::InvalidSettings(_))
+        ));
+    }
+
+    #[test]
+    fn color_grading_hue_must_be_a_full_degree_circle() {
+        let mut s = Settings::default();
+        s.color_grading.shadows.hue = 360;
+        assert!(matches!(
+            s.validate(),
+            Err(LeylineError::InvalidSettings(_))
+        ));
+        s.color_grading.shadows.hue = 359;
+        s.validate().unwrap();
+    }
+
+    #[test]
+    fn color_grading_balance_and_blending_are_range_checked() {
+        let mut s = Settings::default();
+        s.color_grading.blending = -1;
+        assert!(matches!(
+            s.validate(),
+            Err(LeylineError::InvalidSettings(_))
+        ));
+        s.color_grading.blending = 0;
+        s.color_grading.balance = 200;
         assert!(matches!(
             s.validate(),
             Err(LeylineError::InvalidSettings(_))

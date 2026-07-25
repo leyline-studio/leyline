@@ -5,8 +5,8 @@
 //! the session applies whatever comes back.
 
 use leyline_sdk::{
-    Crop, CurvePoint, LensCorrection, NoiseReduction, Param, Point, Settings, Sharpening,
-    SpotRemoval, ToneCurve, Value,
+    ColorGrading, Crop, CurvePoint, HslBand, LensCorrection, NoiseReduction, Param, Point,
+    Settings, Sharpening, SpotRemoval, ToneCurve, Value,
 };
 
 /// Decodes a slider release into an engine parameter update.
@@ -77,8 +77,71 @@ pub fn action(slider: &str, value: f64, current: &Settings) -> Option<(Param, Va
                 ..current.sharpening.clone()
             }),
         ),
+        "color-grading-balance" => (
+            Param::ColorGrading,
+            Value::ColorGrading(ColorGrading {
+                balance: value.round() as i32,
+                ..current.color_grading
+            }),
+        ),
+        "color-grading-blending" => (
+            Param::ColorGrading,
+            Value::ColorGrading(ColorGrading {
+                blending: value.round() as i32,
+                ..current.color_grading
+            }),
+        ),
         _ => return None,
     })
+}
+
+/// Decodes one HSL mixer band's slider release (ADR 0031). `index` is the
+/// band's position in `current.hsl` (fixed order: red, orange, yellow,
+/// green, aqua, blue, purple, magenta); `field` is `"hue"`/`"saturation"`/
+/// `"luminance"`. Reads the band's other two fields from `current` so
+/// moving one slider never resets its siblings — the same merge pattern
+/// `action`'s `wb-temp`/`nr-luminance` cases use.
+pub fn hsl_band_action(
+    index: usize,
+    field: &str,
+    value: f64,
+    current: &Settings,
+) -> Option<(Param, Value)> {
+    let mut band: HslBand = *current.hsl.get(index)?;
+    match field {
+        "hue" => band.hue = value.round() as i32,
+        "saturation" => band.saturation = value.round() as i32,
+        "luminance" => band.luminance = value.round() as i32,
+        _ => return None,
+    }
+    Some((Param::HslBand(index), Value::HslBand(band)))
+}
+
+/// Decodes one color grading zone's slider release (ADR 0031). `zone` is
+/// `"shadows"`/`"midtones"`/`"highlights"`, `field` is `"hue"`/
+/// `"saturation"`/`"luminance"`. `Param::ColorGrading` commits the whole
+/// struct as one tool, so this merges into `current.color_grading` rather
+/// than replacing it, same reasoning as [`hsl_band_action`].
+pub fn color_grading_zone_action(
+    zone: &str,
+    field: &str,
+    value: f64,
+    current: &Settings,
+) -> Option<(Param, Value)> {
+    let mut grading: ColorGrading = current.color_grading;
+    let target = match zone {
+        "shadows" => &mut grading.shadows,
+        "midtones" => &mut grading.midtones,
+        "highlights" => &mut grading.highlights,
+        _ => return None,
+    };
+    match field {
+        "hue" => target.hue = value.round() as i32,
+        "saturation" => target.saturation = value.round() as i32,
+        "luminance" => target.luminance = value.round() as i32,
+        _ => return None,
+    }
+    Some((Param::ColorGrading, Value::ColorGrading(grading)))
 }
 
 /// Decodes a mouse drag over the develop preview into a crop update.
@@ -805,6 +868,93 @@ mod tests {
         assert_eq!(
             reset_spots(),
             (Param::SpotRemoval, Value::SpotRemoval(Vec::new()))
+        );
+    }
+
+    #[test]
+    fn color_grading_balance_and_blending_merge_into_the_current_grading() {
+        let current = Settings {
+            color_grading: ColorGrading {
+                blending: 40,
+                ..ColorGrading::default()
+            },
+            ..Settings::default()
+        };
+        assert_eq!(
+            action("color-grading-balance", 25.0, &current),
+            Some((
+                Param::ColorGrading,
+                Value::ColorGrading(ColorGrading {
+                    balance: 25,
+                    blending: 40,
+                    ..ColorGrading::default()
+                })
+            ))
+        );
+    }
+
+    #[test]
+    fn hsl_band_action_merges_one_field_and_leaves_its_siblings() {
+        let mut current = Settings::default();
+        current.hsl[2] = HslBand {
+            hue: 10,
+            saturation: 20,
+            luminance: 30,
+        };
+        assert_eq!(
+            hsl_band_action(2, "luminance", -15.0, &current),
+            Some((
+                Param::HslBand(2),
+                Value::HslBand(HslBand {
+                    hue: 10,
+                    saturation: 20,
+                    luminance: -15,
+                })
+            ))
+        );
+    }
+
+    #[test]
+    fn hsl_band_action_rejects_an_out_of_range_index_or_unknown_field() {
+        let current = Settings::default();
+        assert_eq!(hsl_band_action(8, "hue", 10.0, &current), None);
+        assert_eq!(hsl_band_action(0, "bogus", 10.0, &current), None);
+    }
+
+    #[test]
+    fn color_grading_zone_action_merges_one_field_and_leaves_its_siblings() {
+        let mut current = Settings::default();
+        current.color_grading.midtones = leyline_sdk::ColorGradingZone {
+            hue: 200,
+            saturation: 50,
+            luminance: 0,
+        };
+        assert_eq!(
+            color_grading_zone_action("midtones", "hue", 90.0, &current),
+            Some((
+                Param::ColorGrading,
+                Value::ColorGrading(ColorGrading {
+                    midtones: leyline_sdk::ColorGradingZone {
+                        hue: 90,
+                        saturation: 50,
+                        luminance: 0,
+                    },
+                    ..ColorGrading::default()
+                })
+            ))
+        );
+    }
+
+    #[test]
+    fn color_grading_zone_action_rejects_an_unknown_zone_or_field() {
+        let current = Settings::default();
+        assert_eq!(
+            color_grading_zone_action("bogus", "hue", 10.0, &current),
+            None
+        );
+        assert_eq!(
+            color_grading_zone_action("shadows", "bogus", 10.0, &current),
+            None
         );
     }
 }

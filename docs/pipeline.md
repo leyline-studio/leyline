@@ -81,6 +81,14 @@ Vibrance / Saturation
 
 ↓
 
+Mélangeur TSL (HSL)
+
+↓
+
+Color Grading (ombres/tons moyens/hautes lumières)
+
+↓
+
 Réglages locaux (masqués)
 
 ↓
@@ -146,6 +154,23 @@ Jamais un delta.
             "opacity": 1.0
         }
     ],
+    "hsl": [
+        { "hue": 0,  "saturation": -20, "luminance": 0 },
+        { "hue": 5,  "saturation": 0,   "luminance": 0 },
+        { "hue": 0,  "saturation": 0,   "luminance": 0 },
+        { "hue": -10, "saturation": 15, "luminance": 8 },
+        { "hue": 0,  "saturation": 0,   "luminance": 0 },
+        { "hue": 8,  "saturation": 25,  "luminance": 0 },
+        { "hue": 0,  "saturation": 0,   "luminance": 0 },
+        { "hue": 0,  "saturation": 0,   "luminance": 0 }
+    ],
+    "color_grading": {
+        "shadows":    { "hue": 220, "saturation": 15, "luminance": 0 },
+        "midtones":   { "hue": 0,   "saturation": 0,  "luminance": 0 },
+        "highlights": { "hue": 45,  "saturation": 10, "luminance": 0 },
+        "balance": 0,
+        "blending": 50
+    },
     "local_adjustments": [
         {
             "mask": {
@@ -194,6 +219,8 @@ Valeurs neutres du schéma 1 :
 | `white_balance` | absent — balance des blancs « telle que prise » du boîtier |
 | `exposure` | 0.0 EV |
 | `contrast`, `highlights`, `shadows`, `whites`, `blacks`, `vibrance`, `saturation` | 0 |
+| `hsl` | absent — 8 bandes à `{ "hue": 0, "saturation": 0, "luminance": 0 }` |
+| `color_grading` | absent — chaque zone à `{ "hue": 0, "saturation": 0, "luminance": 0 }`, `balance`/`blending` à 0 |
 | `lens_correction` | `{ "enabled": false, "profile": "auto" }` |
 | `noise_reduction` | `{ "luminance": 0, "color": 0 }` |
 | `sharpening` | `{ "amount": 0, "radius": 1.0 }` |
@@ -206,7 +233,10 @@ Valeurs neutres du schéma 1 :
 * `exposure` : EV ;
 * `rotation` : degrés, sens horaire ;
 * `crop` : coordonnées normalisées [0, 1] relatives à l'image **après** rotation ;
-* les curseurs sans unité physique (`contrast`, `vibrance`...) : entiers dans [-100, +100], 0 = neutre.
+* les curseurs sans unité physique (`contrast`, `vibrance`...) : entiers dans [-100, +100], 0 = neutre ;
+* `hsl[].hue`, `color_grading.{shadows,midtones,highlights}.luminance`, `color_grading.balance` : entiers dans [-100, +100], 0 = neutre ;
+* `color_grading.{shadows,midtones,highlights}.hue` : degrés, entier dans [0, 360) ;
+* `color_grading.{shadows,midtones,highlights}.saturation`, `color_grading.blending` : entiers dans [0, 100], 0 = neutre.
 
 ---
 
@@ -237,6 +267,7 @@ Versions connues :
 | 6 | Identique à 5, plus `tone_curve` : courbe par points interpolée par une spline cubique monotone (Fritsch–Carlson), précalculée en table de correspondance, appliquée en luminance après Blancs/Noirs et avant Vibrance/Saturation (ADR 0030) |
 | 7 | Identique à 6, plus `spot_removal` : clonage déterministe par copie bilinéaire adoucie (falloff radial + opacité), sans mode *heal*, immédiatement après Correction d'objectif et avant Balance des blancs (ADR 0032) |
 | 8 | Identique à 7, plus `local_adjustments` : réglages locaux masqués (brosse/radial/gradient), ré-appliquant les mêmes formules d'opérateur que leurs équivalents globaux (balance des blancs, exposition, contraste, hautes lumières, ombres, blancs, noirs, vibrance, saturation) restreintes à une couverture `[0, 1]` par masque, immédiatement après Vibrance/Saturation et avant Réduction du bruit (ADR 0029 — accepté sous le nom « process 6 », livré en process 8 une fois les process 6 et 7 déjà pris par ADR 0030/0032) |
+| 9 | Identique à 8, plus le mélangeur TSL (`hsl`, 8 bandes de teinte à centres fixes avec fondu entre bandes adjacentes, en HSL dérivé du tampon RGB de travail) et le Color Grading (`color_grading`, trois zones ombres/tons moyens/hautes lumières pondérées par la luminance Rec. 709 du pixel, `balance`/`blending` réglant la frontière et la largeur de fondu entre zones), tous deux immédiatement après Vibrance/Saturation et avant les réglages locaux (ADR 0031) |
 
 Une révision éditée hérite du process de son parent ; seules les nouvelles révisions par défaut (imports) écrivent la version courante.
 

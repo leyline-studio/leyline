@@ -43,6 +43,22 @@ export struct MapPinMarker {
     y: float,
 }
 
+// One HSL mixer band's current values (ADR 0031), mirrored from
+// `Settings::hsl[i]`.
+export struct HslBandValues {
+    hue: float,
+    saturation: float,
+    luminance: float,
+}
+
+// One color grading zone's current values (ADR 0031), mirrored from
+// `Settings::color_grading.{shadows,midtones,highlights}`.
+export struct ColorGradingZoneValues {
+    hue: float,
+    saturation: float,
+    luminance: float,
+}
+
 // Develop slider values, mirrored from the Settings held in Rust.
 export struct DevSettings {
     exposure: float,
@@ -65,6 +81,14 @@ export struct DevSettings {
     sharpen-amount: float,
     sharpen-radius: float,
     lens-correction: bool,
+    // Fixed order: red, orange, yellow, green, aqua, blue, purple, magenta
+    // (ADR 0031) — always exactly 8 entries.
+    hsl: [HslBandValues],
+    color-grading-shadows: ColorGradingZoneValues,
+    color-grading-midtones: ColorGradingZoneValues,
+    color-grading-highlights: ColorGradingZoneValues,
+    color-grading-balance: float,
+    color-grading-blending: float,
 }
 
 // Translated templates for the status-line and dialog messages Rust builds
@@ -515,6 +539,15 @@ export component StudioWindow inherits Window {
     // directly, without leaving develop mode.
     callback develop-switch(int);
     callback develop-edit(string, float);
+    // HSL mixer band edit (ADR 0031): band index (0..8, fixed order red..
+    // magenta), field ("hue"/"saturation"/"luminance"), released value.
+    callback develop-edit-hsl-band(int, string, float);
+    // Color grading zone edit (ADR 0031): zone ("shadows"/"midtones"/
+    // "highlights"), field ("hue"/"saturation"/"luminance"), released
+    // value. `balance`/`blending` go through the plain `develop-edit`
+    // above (`"color-grading-balance"`/`"color-grading-blending"`) since
+    // they don't need a zone.
+    callback develop-edit-color-grading-zone(string, string, float);
     // Mouse crop: press x/y, release x/y, viewport w/h, preview w/h (px).
     callback develop-crop-drag(float, float, float, float, float, float, float, float);
     // Tone curve graph (ADR 0030): click position in the curve canvas'
@@ -689,6 +722,13 @@ export component StudioWindow inherits Window {
     property <bool> expand-lens: false;
     property <bool> expand-detail: false;
     property <bool> expand-tone-curve: false;
+    property <bool> expand-hsl: false;
+    property <bool> expand-color-grading: false;
+    // Fixed band order (ADR 0031), parallel to `DevSettings::hsl`.
+    property <[string]> hsl-band-names: [
+        @tr("Red"), @tr("Orange"), @tr("Yellow"), @tr("Green"),
+        @tr("Aqua"), @tr("Blue"), @tr("Purple"), @tr("Magenta"),
+    ];
     property <bool> expand-spot-removal: false;
     property <bool> expand-geometry: false;
     property <bool> expand-history: false;
@@ -1472,6 +1512,184 @@ export component StudioWindow inherits Window {
                                 active: false;
                                 clicked => {
                                     root.develop-curve-reset();
+                                }
+                            }
+                        }
+
+                        GroupHeader {
+                            label: @tr("HSL Mixer");
+                            expanded <=> root.expand-hsl;
+                        }
+                        if root.expand-hsl: VerticalLayout {
+                            spacing: 14px;
+                            for band[i] in root.dev.hsl: VerticalLayout {
+                                spacing: 6px;
+                                Text {
+                                    text: root.hsl-band-names[i];
+                                    color: #c0c0c0;
+                                    font-size: 12px;
+                                    font-weight: 600;
+                                }
+                                EditSlider {
+                                    label: @tr("Hue");
+                                    minimum: -100;
+                                    maximum: 100;
+                                    value: band.hue;
+                                    edited(v) => {
+                                        root.develop-edit-hsl-band(i, "hue", v);
+                                    }
+                                }
+                                EditSlider {
+                                    label: @tr("Saturation");
+                                    minimum: -100;
+                                    maximum: 100;
+                                    value: band.saturation;
+                                    edited(v) => {
+                                        root.develop-edit-hsl-band(i, "saturation", v);
+                                    }
+                                }
+                                EditSlider {
+                                    label: @tr("Luminance");
+                                    minimum: -100;
+                                    maximum: 100;
+                                    value: band.luminance;
+                                    edited(v) => {
+                                        root.develop-edit-hsl-band(i, "luminance", v);
+                                    }
+                                }
+                            }
+                        }
+
+                        GroupHeader {
+                            label: @tr("Color Grading");
+                            expanded <=> root.expand-color-grading;
+                        }
+                        if root.expand-color-grading: VerticalLayout {
+                            spacing: 14px;
+                            VerticalLayout {
+                                spacing: 6px;
+                                Text {
+                                    text: @tr("Shadows");
+                                    color: #c0c0c0;
+                                    font-size: 12px;
+                                    font-weight: 600;
+                                }
+                                EditSlider {
+                                    label: @tr("Hue");
+                                    minimum: 0;
+                                    maximum: 359;
+                                    value: root.dev.color-grading-shadows.hue;
+                                    edited(v) => {
+                                        root.develop-edit-color-grading-zone("shadows", "hue", v);
+                                    }
+                                }
+                                EditSlider {
+                                    label: @tr("Saturation");
+                                    minimum: 0;
+                                    maximum: 100;
+                                    value: root.dev.color-grading-shadows.saturation;
+                                    edited(v) => {
+                                        root.develop-edit-color-grading-zone("shadows", "saturation", v);
+                                    }
+                                }
+                                EditSlider {
+                                    label: @tr("Luminance");
+                                    minimum: -100;
+                                    maximum: 100;
+                                    value: root.dev.color-grading-shadows.luminance;
+                                    edited(v) => {
+                                        root.develop-edit-color-grading-zone("shadows", "luminance", v);
+                                    }
+                                }
+                            }
+                            VerticalLayout {
+                                spacing: 6px;
+                                Text {
+                                    text: @tr("Midtones");
+                                    color: #c0c0c0;
+                                    font-size: 12px;
+                                    font-weight: 600;
+                                }
+                                EditSlider {
+                                    label: @tr("Hue");
+                                    minimum: 0;
+                                    maximum: 359;
+                                    value: root.dev.color-grading-midtones.hue;
+                                    edited(v) => {
+                                        root.develop-edit-color-grading-zone("midtones", "hue", v);
+                                    }
+                                }
+                                EditSlider {
+                                    label: @tr("Saturation");
+                                    minimum: 0;
+                                    maximum: 100;
+                                    value: root.dev.color-grading-midtones.saturation;
+                                    edited(v) => {
+                                        root.develop-edit-color-grading-zone("midtones", "saturation", v);
+                                    }
+                                }
+                                EditSlider {
+                                    label: @tr("Luminance");
+                                    minimum: -100;
+                                    maximum: 100;
+                                    value: root.dev.color-grading-midtones.luminance;
+                                    edited(v) => {
+                                        root.develop-edit-color-grading-zone("midtones", "luminance", v);
+                                    }
+                                }
+                            }
+                            VerticalLayout {
+                                spacing: 6px;
+                                Text {
+                                    text: @tr("Highlights");
+                                    color: #c0c0c0;
+                                    font-size: 12px;
+                                    font-weight: 600;
+                                }
+                                EditSlider {
+                                    label: @tr("Hue");
+                                    minimum: 0;
+                                    maximum: 359;
+                                    value: root.dev.color-grading-highlights.hue;
+                                    edited(v) => {
+                                        root.develop-edit-color-grading-zone("highlights", "hue", v);
+                                    }
+                                }
+                                EditSlider {
+                                    label: @tr("Saturation");
+                                    minimum: 0;
+                                    maximum: 100;
+                                    value: root.dev.color-grading-highlights.saturation;
+                                    edited(v) => {
+                                        root.develop-edit-color-grading-zone("highlights", "saturation", v);
+                                    }
+                                }
+                                EditSlider {
+                                    label: @tr("Luminance");
+                                    minimum: -100;
+                                    maximum: 100;
+                                    value: root.dev.color-grading-highlights.luminance;
+                                    edited(v) => {
+                                        root.develop-edit-color-grading-zone("highlights", "luminance", v);
+                                    }
+                                }
+                            }
+                            EditSlider {
+                                label: @tr("Balance");
+                                minimum: -100;
+                                maximum: 100;
+                                value: root.dev.color-grading-balance;
+                                edited(v) => {
+                                    root.develop-edit("color-grading-balance", v);
+                                }
+                            }
+                            EditSlider {
+                                label: @tr("Blending");
+                                minimum: 0;
+                                maximum: 100;
+                                value: root.dev.color-grading-blending;
+                                edited(v) => {
+                                    root.develop-edit("color-grading-blending", v);
                                 }
                             }
                         }

@@ -6,11 +6,11 @@
 //! V1). The core types (ids, errors, [`Settings`]) are part of it.
 
 pub use leyline_core::{
-    AssetId, CURRENT_PROCESS, CURRENT_SCHEMA, CollectionId, CollectionType, ColorLabel, Crop,
-    CurvePoint, ExportPresetId, FolderId, JobId, KeywordId, LensCorrection, LeylineError,
-    MediaType, NoiseReduction, PickState, Point, PresetId, PresetSettings, PreviewKind,
-    PrintPresetId, Result, RevisionId, Settings, SettingsGroup, Sharpening, SpotRemoval, ToneCurve,
-    VersionId, WhiteBalance,
+    AssetId, CURRENT_PROCESS, CURRENT_SCHEMA, CollectionId, CollectionType, ColorGrading,
+    ColorGradingZone, ColorLabel, Crop, CurvePoint, ExportPresetId, FolderId, HslBand, JobId,
+    KeywordId, LensCorrection, LeylineError, MediaType, NoiseReduction, PickState, Point, PresetId,
+    PresetSettings, PreviewKind, PrintPresetId, Result, RevisionId, Settings, SettingsGroup,
+    Sharpening, SpotRemoval, ToneCurve, VersionId, WhiteBalance,
 };
 
 pub use leyline_engine::{

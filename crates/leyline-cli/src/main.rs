@@ -7,11 +7,11 @@
 use std::path::{Path, PathBuf};
 
 use leyline_sdk::{
-    AssetId, ColorLabel, Crop, CurvePoint, ExportFormat, ExportRecipe, ExportRequest,
-    ExportSettings, GridQuery, ImportOptions, LensCorrection, Library, Margins, NoiseReduction,
-    Orientation, PaperSize, Param, PickState, Point, PresetId, PreviewKind, PrintRecipe,
-    PrintRequest, PrintSettings, RenderingIntent, Settings, SettingsGroup, Sharpening, SpotRemoval,
-    ToneCurve, Value, VersionId, WhiteBalance,
+    AssetId, ColorGrading, ColorGradingZone, ColorLabel, Crop, CurvePoint, ExportFormat,
+    ExportRecipe, ExportRequest, ExportSettings, GridQuery, HslBand, ImportOptions, LensCorrection,
+    Library, Margins, NoiseReduction, Orientation, PaperSize, Param, PickState, Point, PresetId,
+    PreviewKind, PrintRecipe, PrintRequest, PrintSettings, RenderingIntent, Settings,
+    SettingsGroup, Sharpening, SpotRemoval, ToneCurve, Value, VersionId, WhiteBalance,
 };
 
 const USAGE: &str = "\
@@ -65,6 +65,14 @@ Develop params (docs/pipeline.md §3.2, schema 1):
   spot-removal <tx> <ty> <sx> <sy> <radius> <feather> <opacity>
                                     positions/radius percent 0-100, feather/opacity 0-1;
                                     appends one spot, or `spot-removal reset` to clear all
+  hsl-band <band> <hue> <saturation> <luminance>
+                                    band is one of red/orange/yellow/green/aqua/blue/purple/magenta,
+                                    each value integer in [-100, 100]
+  color-grading <shadows|midtones|highlights> <hue> <saturation> <luminance>
+                                    hue integer in [0, 360), saturation in [0, 100], luminance in [-100, 100]
+  color-grading balance <n>        integer in [-100, 100]
+  color-grading blending <n>       integer in [0, 100]
+  color-grading reset              clears every zone and balance/blending
 
 Preset groups (docs/presets.md §3.1, comma-separated, no spaces):
   white_balance tone presence lens_correction detail geometry
@@ -506,6 +514,53 @@ fn develop(args: &[String]) -> Result<(), String> {
                 spots
             };
             (Param::SpotRemoval, Value::SpotRemoval(spots))
+        }
+        "hsl-band" => {
+            const HSL_BAND_NAMES: [&str; 8] = [
+                "red", "orange", "yellow", "green", "aqua", "blue", "purple", "magenta",
+            ];
+            let name = at(0)?;
+            let index = HSL_BAND_NAMES
+                .iter()
+                .position(|&n| n == name)
+                .ok_or_else(|| {
+                    format!(
+                        "unknown hsl band {name:?}, expected one of {}",
+                        HSL_BAND_NAMES.join("/")
+                    )
+                })?;
+            let band = HslBand {
+                hue: int_at(1)?,
+                saturation: int_at(2)?,
+                luminance: int_at(3)?,
+            };
+            (Param::HslBand(index), Value::HslBand(band))
+        }
+        "color-grading" => {
+            let mut grading = session.settings().color_grading;
+            match at(0)? {
+                "reset" => grading = ColorGrading::default(),
+                "balance" => grading.balance = int_at(1)?,
+                "blending" => grading.blending = int_at(1)?,
+                zone_name @ ("shadows" | "midtones" | "highlights") => {
+                    let zone = ColorGradingZone {
+                        hue: int_at(1)?,
+                        saturation: int_at(2)?,
+                        luminance: int_at(3)?,
+                    };
+                    match zone_name {
+                        "shadows" => grading.shadows = zone,
+                        "midtones" => grading.midtones = zone,
+                        _ => grading.highlights = zone,
+                    }
+                }
+                other => {
+                    return Err(format!(
+                        "unknown color-grading target {other:?}, expected shadows/midtones/highlights/balance/blending/reset"
+                    ));
+                }
+            }
+            (Param::ColorGrading, Value::ColorGrading(grading))
         }
         other => return Err(format!("unknown develop parameter {other:?}")),
     };
