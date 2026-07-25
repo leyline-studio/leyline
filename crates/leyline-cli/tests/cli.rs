@@ -90,6 +90,59 @@ fn develop_covers_every_param_kind() {
 }
 
 #[test]
+fn camera_profile_import_list_and_reference_round_trip() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = library_with_a_photo(&dir);
+    // Import and listing never parse the profile — only rendering does —
+    // so any bytes exercise this path (ADR 0035).
+    let source = dir.path().join("Canon 60D.dcp");
+    std::fs::write(&source, b"profile bytes").unwrap();
+
+    let out = run(&["camera-profile", &root, source.to_str().unwrap()]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(stdout(&out).contains("Profiles/Camera/Canon 60D.dcp"));
+    assert!(stdout(&out).contains("blake3:"));
+
+    // Importing the same name twice is refused, never overwritten.
+    let out = run(&["camera-profile", &root, source.to_str().unwrap()]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("never overwritten"));
+
+    let out = run(&["camera-profiles", &root]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(stdout(&out).contains("1 camera profile(s)"));
+
+    for args in [
+        vec![
+            "develop",
+            &root,
+            "1",
+            "camera-profile",
+            "Profiles/Camera/Canon 60D.dcp",
+        ],
+        vec!["develop", &root, "1", "camera-profile", "off"],
+        vec!["develop", &root, "1", "camera-profile", "on"],
+        vec!["develop", &root, "1", "camera-profile", "none"],
+    ] {
+        let out = run(&args);
+        assert!(out.status.success(), "{args:?}: {}", stderr(&out));
+        assert!(stdout(&out).starts_with("committed revision"));
+    }
+
+    // A path that was never imported is refused rather than committed with
+    // a checksum nothing on disk matches.
+    let out = run(&["develop", &root, "1", "camera-profile", "Nope.dcp"]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("unknown camera profile"));
+
+    // `on`/`off` need something to toggle: the last committed state above
+    // cleared the reference.
+    let out = run(&["develop", &root, "1", "camera-profile", "on"]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("no camera profile referenced"));
+}
+
+#[test]
 fn develop_rejects_bad_input_without_writing_a_revision() {
     let dir = tempfile::tempdir().unwrap();
     let root = library_with_a_photo(&dir);

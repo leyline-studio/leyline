@@ -84,6 +84,9 @@ export struct DevSettings {
     sharpen-amount: float,
     sharpen-radius: float,
     lens-correction: bool,
+    // Whether the referenced camera profile is applied (ADR 0035); its
+    // name lives in `camera-profile-name`, empty when none is referenced.
+    camera-profile: bool,
     // Fixed order: red, orange, yellow, green, aqua, blue, purple, magenta
     // (ADR 0031) — always exactly 8 entries.
     hsl: [HslBandValues],
@@ -643,6 +646,12 @@ export component StudioWindow inherits Window {
     callback browse-export-destination();
     callback browse-print-destination();
     callback browse-print-profile();
+    // Camera profile (ADR 0035): native `.dcp` picker, immediately followed
+    // by the import into `Profiles/Camera/` and the reference being stored
+    // on the edited version — one click, same shape as `browse-map-pack`.
+    // The file name of the referenced profile, empty when none is set.
+    callback browse-camera-profile();
+    in property <string> camera-profile-name;
     // File ▸ Open Library…: native folder picker, then Rust relaunches
     // Studio pointed at the chosen path (see `relaunch_into` in main.rs).
     callback open-library-requested();
@@ -722,6 +731,7 @@ export component StudioWindow inherits Window {
     property <bool> expand-white-balance: true;
     property <bool> expand-tone: true;
     property <bool> expand-presence: false;
+    property <bool> expand-camera-profile: false;
     property <bool> expand-lens: false;
     property <bool> expand-detail: false;
     property <bool> expand-tone-curve: false;
@@ -1415,6 +1425,40 @@ export component StudioWindow inherits Window {
                                 value: root.dev.saturation;
                                 edited(v) => {
                                     root.develop-edit("saturation", v);
+                                }
+                            }
+                        }
+
+                        GroupHeader {
+                            label: @tr("Camera profile");
+                            expanded <=> root.expand-camera-profile;
+                        }
+                        if root.expand-camera-profile: VerticalLayout {
+                            spacing: 8px;
+                            Text {
+                                text: root.camera-profile-name == ""
+                                    ? @tr("No profile — the decoder's own colors")
+                                    : root.camera-profile-name;
+                                color: #9a9a9a;
+                                font-size: 12px;
+                                wrap: word-wrap;
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                alignment: start;
+                                FilterChip {
+                                    text: @tr("Choose .dcp…");
+                                    active: false;
+                                    clicked => {
+                                        root.browse-camera-profile();
+                                    }
+                                }
+                                if root.camera-profile-name != "": FilterChip {
+                                    active: root.dev.camera-profile;
+                                    text: root.dev.camera-profile ? @tr("Enabled") : @tr("Disabled");
+                                    clicked => {
+                                        root.develop-edit("camera-profile", root.dev.camera-profile ? 0 : 1);
+                                    }
                                 }
                             }
                         }

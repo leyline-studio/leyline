@@ -48,6 +48,13 @@ pub struct DecodeParams {
     /// Apply LibRaw's histogram-based auto-brightening. Off by default:
     /// the neutral rendering must not depend on image content.
     pub auto_brighten: bool,
+    /// Decode to raw camera color space, linear (no color matrix, no gamma
+    /// curve), instead of LibRaw's own built-in sRGB conversion (ADR 0035).
+    /// Needed only when a camera profile (DCP) will replace that
+    /// conversion with its own matrices — the reference rendering
+    /// (`Default`) leaves this off and gets LibRaw's ordinary gamma-
+    /// encoded sRGB.
+    pub camera_native: bool,
 }
 
 /// Identification metadata read from a RAW file's header, without decoding.
@@ -224,6 +231,7 @@ pub fn decode(path: &Path, params: &DecodeParams) -> Result<Decoded, RawError> {
             c_int::from(params.half_size),
             if params.sixteen_bit { 16 } else { 8 },
             c_int::from(!params.auto_brighten),
+            c_int::from(params.camera_native),
         );
         check(ffi::libraw_unpack(handle.0))?;
         check(ffi::libraw_dcraw_process(handle.0))?;

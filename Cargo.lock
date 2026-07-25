@@ -3188,7 +3188,9 @@ dependencies = [
  "lcms2",
  "leyline-core",
  "serde",
+ "tempfile",
  "thiserror 2.0.18",
+ "tiff",
 ]
 
 [[package]]
@@ -3221,6 +3223,7 @@ dependencies = [
  "rusqlite",
  "tempfile",
  "thiserror 2.0.18",
+ "tiff",
 ]
 
 [[package]]

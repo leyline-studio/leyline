@@ -13,6 +13,10 @@ leyline-core.workspace = true
 bytemuck.workspace = true
 thiserror.workspace = true
 serde.workspace = true
+tiff.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
 
 [lints]
 workspace = true

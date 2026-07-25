@@ -8,6 +8,7 @@
 //! Editing goes through [`EditSession`], which owns the coalescence policy
 //! of `docs/engine-api.md` §10.1 on top of the catalog's revision mechanics.
 
+mod camera_profile;
 mod decode_cache;
 mod events;
 mod export;
@@ -20,6 +21,7 @@ mod preview;
 mod print;
 mod process1;
 mod process10;
+mod process11;
 mod process2;
 mod process3;
 mod process4;
@@ -43,7 +45,7 @@ pub use export::{
 };
 pub use import::{ImportOptions, ImportReport, ImportedFile, SkippedFile, import};
 pub use leyline_preview::Rgb8;
-pub use library::{CatalogRead, CatalogWrite, Library};
+pub use library::{CatalogRead, CatalogWrite, ImportedCameraProfile, Library};
 pub use presets::{FailedApply, PresetApplyReport, apply_batch, capture};
 pub use preview::{Preview, PreviewFile, preview};
 pub use print::{FailedPrint, PrintRecipe, PrintReport, PrintRequest, PrintedVersion};

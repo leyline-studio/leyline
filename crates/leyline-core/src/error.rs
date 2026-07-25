@@ -90,6 +90,21 @@ pub enum LeylineError {
     #[error("invalid image: {0}")]
     InvalidImage(String),
 
+    /// A revision references a camera profile (`.dcp`, ADR 0035) that is
+    /// missing, unreadable, fails to parse, or whose BLAKE3 checksum no
+    /// longer matches what the revision recorded. Same fail-closed
+    /// contract as [`LeylineError::NewerSettings`]: show the best cached
+    /// preview instead, never render with a silently different profile,
+    /// never edit the revision.
+    #[error("camera profile at {path} failed: {reason}")]
+    CameraProfileFailed {
+        /// Library-relative path of the referenced `.dcp` file.
+        path: String,
+        /// Human-readable diagnostic (missing file, checksum mismatch,
+        /// parse failure).
+        reason: String,
+    },
+
     /// An underlying I/O operation failed.
     #[error("i/o error: {0}")]
     Io(#[from] std::io::Error),

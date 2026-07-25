@@ -45,6 +45,10 @@ RAW décodé
 
 ↓
 
+Profil d'appareil (DCP)
+
+↓
+
 Correction d'objectif
 
 ↓
@@ -131,6 +135,11 @@ Jamais un delta.
     "schema": 1,
     "process": 1,
 
+    "camera_profile": {
+        "enabled": true,
+        "path": "Profiles/Camera/Canon EOS 60D.dcp",
+        "checksum": "blake3:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    },
     "white_balance": { "temperature": 5400, "tint": 4 },
     "exposure": 0.35,
     "contrast": 12,
@@ -223,6 +232,7 @@ Valeurs neutres du schéma 1 :
 
 | Paramètre | Valeur neutre |
 |---|---|
+| `camera_profile` | absent — conversion sRGB propre au décodeur, aucun profil appliqué |
 | `white_balance` | absent — balance des blancs « telle que prise » du boîtier |
 | `exposure` | 0.0 EV |
 | `contrast`, `highlights`, `shadows`, `whites`, `blacks`, `vibrance`, `saturation` | 0 |
@@ -244,7 +254,9 @@ Valeurs neutres du schéma 1 :
 * les curseurs sans unité physique (`contrast`, `vibrance`...) : entiers dans [-100, +100], 0 = neutre ;
 * `hsl[].hue`, `color_grading.{shadows,midtones,highlights}.luminance`, `color_grading.balance` : entiers dans [-100, +100], 0 = neutre ;
 * `color_grading.{shadows,midtones,highlights}.hue` : degrés, entier dans [0, 360) ;
-* `color_grading.{shadows,midtones,highlights}.saturation`, `color_grading.blending` : entiers dans [0, 100], 0 = neutre.
+* `color_grading.{shadows,midtones,highlights}.saturation`, `color_grading.blending` : entiers dans [0, 100], 0 = neutre ;
+* `camera_profile.path` : chemin relatif à la racine de la bibliothèque, séparateur `/`, par convention sous `Profiles/Camera/` ;
+* `camera_profile.checksum` : `"blake3:"` suivi des 64 chiffres hexadécimaux du hachage BLAKE3 du fichier `.dcp` (ADR 0006, appliqué ici à une entrée référencée et non à une photo). Une empreinte qui ne correspond plus au fichier sur disque **échoue le rendu** (`CameraProfileFailed`) au lieu de rendre d'autres couleurs en silence — même posture que `NewerSettings` (§3.4).
 
 ---
 
@@ -277,6 +289,8 @@ Versions connues :
 | 8 | Identique à 7, plus `local_adjustments` : réglages locaux masqués (brosse/radial/gradient), ré-appliquant les mêmes formules d'opérateur que leurs équivalents globaux (balance des blancs, exposition, contraste, hautes lumières, ombres, blancs, noirs, vibrance, saturation) restreintes à une couverture `[0, 1]` par masque, immédiatement après Vibrance/Saturation et avant Réduction du bruit (ADR 0029 — accepté sous le nom « process 6 », livré en process 8 une fois les process 6 et 7 déjà pris par ADR 0030/0032) |
 | 9 | Identique à 8, plus le mélangeur TSL (`hsl`, 8 bandes de teinte à centres fixes avec fondu entre bandes adjacentes, en HSL dérivé du tampon RGB de travail) et le Color Grading (`color_grading`, trois zones ombres/tons moyens/hautes lumières pondérées par la luminance Rec. 709 du pixel, `balance`/`blending` réglant la frontière et la largeur de fondu entre zones), tous deux immédiatement après Vibrance/Saturation et avant les réglages locaux (ADR 0031) |
 | 10 | Identique à 9, plus `clarity`/`texture` (contraste local par masque flou — même fonction que `sharpen`, appelée à deux rayons, flou grand rayon approché par sous-échantillonnage pour la clarté) et `dehaze` (suppression de voile par *dark channel prior* : lumière atmosphérique par percentile fixe du canal sombre, transmission dérivée en forme close, aucune itération), tous trois immédiatement après la courbe tonale et avant Vibrance/Saturation (ADR 0033) |
+
+| 11 | Identique à 10, plus `camera_profile` : conversion des échantillons RGB natifs boîtier (décodage LibRaw en mode *camera native*, sans conversion sRGB intégrée) vers le sRGB linéaire via la matrice `ColorMatrix1`/`ForwardMatrix1` d'un profil DCP fourni par l'utilisateur, en passant par l'espace de connexion CIE XYZ (D50) — **tout premier étage**, avant même la correction d'objectif, puisqu'il établit l'espace colorimétrique du tampon de travail au lieu d'y retoucher des pixels (ADR 0035, conteneur lu selon ADR 0037). Quand les deux illuminants de calibration sont présents, leurs matrices sont **moyennées** et non interpolées selon la température de couleur estimée ; `ProfileHueSatMapData`/`ProfileLookTableData`/`ProfileToneCurve` sont analysés mais pas encore appliqués. La justesse colorimétrique de ce chemin matriciel **n'a pas encore été validée** contre de vrais `.dcp` Adobe et leurs rendus de référence |
 
 Une révision éditée hérite du process de son parent ; seules les nouvelles révisions par défaut (imports) écrivent la version courante.
 

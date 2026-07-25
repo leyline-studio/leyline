@@ -35,6 +35,15 @@ pub fn action(slider: &str, value: f64, current: &Settings) -> Option<(Param, Va
         "dehaze" => (Param::Dehaze, int),
         "vibrance" => (Param::Vibrance, int),
         "saturation" => (Param::Saturation, int),
+        // Toggling only ever flips `enabled` on a profile the user has
+        // already chosen (ADR 0035): the path and checksum come from the
+        // engine's import, never from this pure mapping, so a toggle with
+        // nothing referenced is a no-op rather than an invented reference.
+        "camera-profile" => {
+            let mut profile = current.camera_profile.clone()?;
+            profile.enabled = value != 0.0;
+            (Param::CameraProfile, Value::CameraProfile(Some(profile)))
+        }
         "lens-correction" => (
             Param::LensCorrection,
             Value::LensCorrection(LensCorrection {
@@ -385,7 +394,7 @@ const FULL_FRAME: Crop = Crop {
 
 #[cfg(test)]
 mod tests {
-    use leyline_sdk::WhiteBalance;
+    use leyline_sdk::{CameraProfile, WhiteBalance};
 
     use super::*;
 
@@ -505,6 +514,30 @@ mod tests {
                 })
             ))
         );
+    }
+
+    #[test]
+    fn camera_profile_toggles_the_referenced_profile_and_never_invents_one() {
+        let neutral = settings(None, None);
+        assert_eq!(action("camera-profile", 1.0, &neutral), None);
+
+        let referenced = Settings {
+            camera_profile: Some(CameraProfile {
+                enabled: true,
+                path: "Profiles/Camera/mine.dcp".to_owned(),
+                checksum: format!("blake3:{}", "a".repeat(64)),
+            }),
+            ..neutral
+        };
+        let Some((Param::CameraProfile, Value::CameraProfile(Some(off)))) =
+            action("camera-profile", 0.0, &referenced)
+        else {
+            panic!("expected a camera profile update");
+        };
+        assert!(!off.enabled);
+        // The path and checksum are carried through untouched.
+        assert_eq!(off.path, "Profiles/Camera/mine.dcp");
+        assert_eq!(off.checksum, referenced.camera_profile.unwrap().checksum);
     }
 
     #[test]

@@ -15,9 +15,9 @@ use std::time::{Duration, Instant};
 
 use leyline_catalog::{Catalog, RevisionRow};
 use leyline_core::{
-    CURRENT_PROCESS, CURRENT_SCHEMA, ColorGrading, Crop, HslBand, LensCorrection, LeylineError,
-    LocalAdjustment, NoiseReduction, Result, RevisionId, Settings, Sharpening, SpotRemoval,
-    ToneCurve, VersionId, WhiteBalance,
+    CURRENT_PROCESS, CURRENT_SCHEMA, CameraProfile, ColorGrading, Crop, HslBand, LensCorrection,
+    LeylineError, LocalAdjustment, NoiseReduction, Result, RevisionId, Settings, Sharpening,
+    SpotRemoval, ToneCurve, VersionId, WhiteBalance,
 };
 
 /// Default amendment window of `docs/catalog.md` §17.
@@ -79,6 +79,10 @@ pub enum Param {
     Rotation,
     /// Crop rectangle; `None` clears it.
     Crop,
+    /// Camera profile (ADR 0035): the referenced `.dcp` file, its
+    /// checksum, and whether it's enabled, all as one commit unit — the
+    /// same whole-struct grouping [`Param::LensCorrection`] applies.
+    CameraProfile,
 }
 
 /// A value for one [`Param`]. The pairing is type-checked by
@@ -112,6 +116,9 @@ pub enum Value {
     Sharpening(Sharpening),
     /// For [`Param::Crop`]; `None` returns to the full frame.
     Crop(Option<Crop>),
+    /// For [`Param::CameraProfile`]; `None` returns to no camera profile
+    /// (the decoder's default sRGB rendering).
+    CameraProfile(Option<CameraProfile>),
 }
 
 /// What changed since the last commit point.
@@ -411,6 +418,7 @@ fn apply(settings: &mut Settings, param: Param, value: Value) -> Result<()> {
         (Param::NoiseReduction, Value::NoiseReduction(v)) => settings.noise_reduction = v,
         (Param::Sharpening, Value::Sharpening(v)) => settings.sharpening = v,
         (Param::Crop, Value::Crop(v)) => settings.crop = v,
+        (Param::CameraProfile, Value::CameraProfile(v)) => settings.camera_profile = v,
         (param, value) => {
             return Err(LeylineError::InvalidSettings(format!(
                 "value {value:?} does not fit parameter {param:?}"

@@ -73,6 +73,10 @@ pub(crate) struct PrintPlan {
     source: PathBuf,
     shot: Option<crate::render::LensShot>,
     stem: String,
+    /// Library root `develop.camera_profile`'s path (if any) is relative
+    /// to — resolved in [`render_print`], mirroring
+    /// [`crate::export::ExportPlan`].
+    library_root: PathBuf,
 }
 
 /// Reads everything needed to render a version, without decoding or
@@ -102,6 +106,7 @@ pub(crate) fn plan_print(
         source,
         shot,
         stem,
+        library_root: library_root.to_path_buf(),
     })
 }
 
@@ -117,13 +122,24 @@ pub(crate) fn render_print(
     settings: &PrintSettings,
     destination_dir: &Path,
 ) -> Result<PathBuf> {
-    let decoded = crate::source::decode(&plan.source, &DecodeParams::default()).map_err(|e| {
+    let camera_profile =
+        crate::camera_profile::resolve_from_settings(&plan.library_root, &plan.develop)?;
+    let decode_params = DecodeParams {
+        camera_native: camera_profile.is_some(),
+        ..DecodeParams::default()
+    };
+    let decoded = crate::source::decode(&plan.source, &decode_params).map_err(|e| {
         LeylineError::DecodeFailed {
             asset: plan.asset,
             reason: e.to_string(),
         }
     })?;
-    let rendered = render(&decoded, &plan.develop, plan.shot.as_ref())?;
+    let rendered = render(
+        &decoded,
+        &plan.develop,
+        plan.shot.as_ref(),
+        camera_profile.as_ref(),
+    )?;
 
     let image = Rgb8::new(rendered.width, rendered.height, rendered.data)
         .map_err(|e| LeylineError::InvalidImage(e.to_string()))?;

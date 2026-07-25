@@ -11,12 +11,23 @@
 
 void leyline_shim_set_options(libraw_data_t *d, int use_camera_wb,
                               int half_size, int output_bps,
-                              int no_auto_bright) {
+                              int no_auto_bright, int camera_native) {
     d->params.use_camera_wb = use_camera_wb;
     d->params.half_size = half_size;
     d->params.output_bps = output_bps;
     d->params.no_auto_bright = no_auto_bright;
-    d->params.output_color = 1; /* sRGB */
+    if (camera_native) {
+        /* Raw camera color space (ADR 0035): no color matrix applied, so a
+         * camera profile (DCP) can operate on genuinely camera-native
+         * data instead of LibRaw's own built-in sRGB conversion. Gamma
+         * 1/1 = linear output — DNG color matrices are defined on linear
+         * camera data, never a gamma-curved one. */
+        d->params.output_color = 0;
+        d->params.gamm[0] = 1.0;
+        d->params.gamm[1] = 1.0;
+    } else {
+        d->params.output_color = 1; /* sRGB */
+    }
 }
 
 /* --- identification metadata ----------------------------------------- */

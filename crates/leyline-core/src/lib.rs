@@ -16,8 +16,9 @@ pub use id::{
     RevisionId, VersionId,
 };
 pub use settings::{
-    BrushStroke, CURRENT_PROCESS, CURRENT_SCHEMA, ColorGrading, ColorGradingZone, Crop, CurvePoint,
-    HslBand, LensCorrection, LocalAdjustment, LocalAdjustmentValues, Mask, NoiseReduction, Point,
-    PresetSettings, Settings, SettingsGroup, Sharpening, SpotRemoval, ToneCurve, WhiteBalance,
+    BrushStroke, CURRENT_PROCESS, CURRENT_SCHEMA, CameraProfile, ColorGrading, ColorGradingZone,
+    Crop, CurvePoint, HslBand, LensCorrection, LocalAdjustment, LocalAdjustmentValues, Mask,
+    NoiseReduction, Point, PresetSettings, Settings, SettingsGroup, Sharpening, SpotRemoval,
+    ToneCurve, WhiteBalance,
 };
 pub use types::{CollectionType, ColorLabel, MediaType, PickState, PreviewKind};

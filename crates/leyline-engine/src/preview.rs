@@ -74,6 +74,10 @@ pub(crate) struct RenderPlan {
     source_path: PathBuf,
     half_size: bool,
     shot: Option<crate::render::LensShot>,
+    /// Library root `settings.camera_profile`'s path (if any) is relative
+    /// to — resolved in [`render_preview`], mirroring
+    /// [`crate::export::ExportPlan`].
+    library_root: PathBuf,
 }
 
 /// Reads everything needed to serve or render a preview, without decoding
@@ -115,6 +119,7 @@ pub(crate) fn plan_preview(
         // decoding is much faster and still ≥ 2× the target edge.
         half_size: matches!(kind, PreviewKind::Thumbnail | PreviewKind::Small),
         shot,
+        library_root: library_root.to_path_buf(),
     })))
 }
 
@@ -126,8 +131,11 @@ pub(crate) fn render_preview(
     asset: AssetId,
     plan: &RenderPlan,
 ) -> Result<Rgb8> {
+    let camera_profile =
+        crate::camera_profile::resolve_from_settings(&plan.library_root, &plan.settings)?;
     let params = DecodeParams {
         half_size: plan.half_size,
+        camera_native: camera_profile.is_some(),
         ..DecodeParams::default()
     };
     let decoded = decodes
@@ -138,7 +146,12 @@ pub(crate) fn render_preview(
             asset,
             reason: e.to_string(),
         })?;
-    let rendered = render(&decoded, &plan.settings, plan.shot.as_ref())?;
+    let rendered = render(
+        &decoded,
+        &plan.settings,
+        plan.shot.as_ref(),
+        camera_profile.as_ref(),
+    )?;
     Rgb8::new(rendered.width, rendered.height, rendered.data).map_err(preview_err)
 }
 
@@ -150,6 +163,9 @@ pub(crate) struct SettingsRenderPlan {
     source_path: PathBuf,
     half_size: bool,
     shot: Option<crate::render::LensShot>,
+    /// Library root the render's own `settings.camera_profile` path (if
+    /// any) is relative to — resolved in [`render_with_settings`].
+    library_root: PathBuf,
 }
 
 /// Reads what [`render_with_settings`] needs for an ad-hoc render — used for
@@ -172,6 +188,7 @@ pub(crate) fn plan_settings_render(
         source_path,
         half_size: matches!(kind, PreviewKind::Thumbnail | PreviewKind::Small),
         shot,
+        library_root: library_root.to_path_buf(),
     })
 }
 
@@ -184,8 +201,11 @@ pub(crate) fn render_with_settings(
     plan: &SettingsRenderPlan,
     settings: &Settings,
 ) -> Result<Rgb8> {
+    let camera_profile =
+        crate::camera_profile::resolve_from_settings(&plan.library_root, settings)?;
     let params = DecodeParams {
         half_size: plan.half_size,
+        camera_native: camera_profile.is_some(),
         ..DecodeParams::default()
     };
     let decoded = decodes
@@ -196,7 +216,12 @@ pub(crate) fn render_with_settings(
             asset,
             reason: e.to_string(),
         })?;
-    let rendered = render(&decoded, settings, plan.shot.as_ref())?;
+    let rendered = render(
+        &decoded,
+        settings,
+        plan.shot.as_ref(),
+        camera_profile.as_ref(),
+    )?;
     Rgb8::new(rendered.width, rendered.height, rendered.data).map_err(preview_err)
 }
 

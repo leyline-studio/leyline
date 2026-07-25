@@ -141,6 +141,18 @@ impl DerefMut for CatalogWrite<'_> {
     }
 }
 
+/// Where [`Library::import_camera_profile`] copied a `.dcp` file to, and
+/// its checksum — everything a caller needs to build the
+/// `leyline_core::CameraProfile` it stores in a revision's settings.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImportedCameraProfile {
+    /// Library-relative path, e.g. `Profiles/Camera/Canon EOS 5D Mark III.dcp`.
+    pub relative_path: String,
+    /// `"blake3:"` followed by 64 hex digits — ready to store as
+    /// [`leyline_core::CameraProfile::checksum`].
+    pub checksum: String,
+}
+
 impl Library {
     /// Creates a new library: the §3 directory skeleton and its catalog.
     /// The root may exist (empty or not); the catalog must not.
@@ -1219,6 +1231,80 @@ impl Library {
         std::fs::copy(source, &temp)?;
         std::fs::rename(&temp, &destination)?;
         Ok(())
+    }
+
+    /// Imports `source` as a camera profile (ADR 0035): copies it, under
+    /// its own filename, to `Profiles/Camera/`, and returns the
+    /// library-relative path and BLAKE3 checksum to store in a revision's
+    /// `camera_profile` (`leyline_core::CameraProfile`). Unlike the single
+    /// active map pack, several camera profiles coexist — one per camera —
+    /// so an existing file at the destination is refused, never
+    /// overwritten (the same never-overwrite posture `render_export` takes
+    /// for its output files): silently replacing it would change what
+    /// every revision that already references it renders to.
+    /// Refused on a read-only handle, same as every catalog write.
+    pub fn import_camera_profile(&self, source: &Path) -> Result<ImportedCameraProfile> {
+        if self.catalog().is_read_only() {
+            return Err(LeylineError::Db(
+                "library opened read-only; writes are refused".to_owned(),
+            ));
+        }
+        let file_name = source.file_name().ok_or_else(|| {
+            LeylineError::InvalidSettings("camera profile source has no file name".to_owned())
+        })?;
+        let dir = self.inner.root.join("Profiles").join("Camera");
+        std::fs::create_dir_all(&dir)?;
+        let destination = dir.join(file_name);
+        if destination.exists() {
+            return Err(LeylineError::Io(std::io::Error::new(
+                std::io::ErrorKind::AlreadyExists,
+                format!(
+                    "{} already exists; camera profiles are never overwritten",
+                    destination.display()
+                ),
+            )));
+        }
+        std::fs::copy(source, &destination)?;
+        let bytes = std::fs::read(&destination)?;
+        let checksum = format!("blake3:{}", blake3::hash(&bytes).to_hex());
+        let relative_path = format!("Profiles/Camera/{}", file_name.to_string_lossy());
+        Ok(ImportedCameraProfile {
+            relative_path,
+            checksum,
+        })
+    }
+
+    /// Lists the camera profiles already imported under `Profiles/Camera/`,
+    /// each with the current BLAKE3 checksum of its bytes on disk, sorted by
+    /// path. This is how a client turns "the user picked this profile" into
+    /// the `leyline_core::CameraProfile` a revision stores, without ever
+    /// hashing files itself; an empty list when nothing has been imported.
+    /// Non-`.dcp` files in the directory are ignored.
+    pub fn camera_profiles(&self) -> Result<Vec<ImportedCameraProfile>> {
+        let dir = self.inner.root.join("Profiles").join("Camera");
+        if !dir.is_dir() {
+            return Ok(Vec::new());
+        }
+        let mut profiles = Vec::new();
+        for entry in std::fs::read_dir(&dir)? {
+            let path = entry?.path();
+            let is_dcp = path
+                .extension()
+                .is_some_and(|e| e.eq_ignore_ascii_case("dcp"));
+            if !path.is_file() || !is_dcp {
+                continue;
+            }
+            let Some(file_name) = path.file_name() else {
+                continue;
+            };
+            let bytes = std::fs::read(&path)?;
+            profiles.push(ImportedCameraProfile {
+                relative_path: format!("Profiles/Camera/{}", file_name.to_string_lossy()),
+                checksum: format!("blake3:{}", blake3::hash(&bytes).to_hex()),
+            });
+        }
+        profiles.sort_by(|a, b| a.relative_path.cmp(&b.relative_path));
+        Ok(profiles)
     }
 
     /// Opens (or returns the cached handle to) the active map pack, or

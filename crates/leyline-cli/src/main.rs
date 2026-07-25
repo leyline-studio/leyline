@@ -7,11 +7,11 @@
 use std::path::{Path, PathBuf};
 
 use leyline_sdk::{
-    AssetId, ColorGrading, ColorGradingZone, ColorLabel, Crop, CurvePoint, ExportFormat,
-    ExportRecipe, ExportRequest, ExportSettings, GridQuery, HslBand, ImportOptions, LensCorrection,
-    Library, Margins, NoiseReduction, Orientation, PaperSize, Param, PickState, Point, PresetId,
-    PreviewKind, PrintRecipe, PrintRequest, PrintSettings, RenderingIntent, Settings,
-    SettingsGroup, Sharpening, SpotRemoval, ToneCurve, Value, VersionId, WhiteBalance,
+    AssetId, CameraProfile, ColorGrading, ColorGradingZone, ColorLabel, Crop, CurvePoint,
+    ExportFormat, ExportRecipe, ExportRequest, ExportSettings, GridQuery, HslBand, ImportOptions,
+    LensCorrection, Library, Margins, NoiseReduction, Orientation, PaperSize, Param, PickState,
+    Point, PresetId, PreviewKind, PrintRecipe, PrintRequest, PrintSettings, RenderingIntent,
+    Settings, SettingsGroup, Sharpening, SpotRemoval, ToneCurve, Value, VersionId, WhiteBalance,
 };
 
 const USAGE: &str = "\
@@ -35,6 +35,8 @@ Usage:
                 [--margins <mm>] [--dpi <n>] [--profile <path>] [--intent <intent>] [--copies <n>]
   leyline print-preset <library> <name> [print options above, minus --preset]
   leyline print-presets <library>
+  leyline camera-profile <library> <file.dcp>
+  leyline camera-profiles <library>
   leyline rate <library> <stars|none> <version-id>...
   leyline pick <library> <pick|reject|none> <version-id>...
   leyline label <library> <red|yellow|green|blue|purple|none> <version-id>...
@@ -73,6 +75,10 @@ Develop params (docs/pipeline.md §3.2, schema 1):
   color-grading balance <n>        integer in [-100, 100]
   color-grading blending <n>       integer in [0, 100]
   color-grading reset              clears every zone and balance/blending
+  camera-profile <path|on|off|none>
+                                    path is library-relative, as listed by
+                                    `leyline camera-profiles`; on/off toggles the
+                                    profile already referenced, none removes it
 
 Preset groups (docs/presets.md §3.1, comma-separated, no spaces):
   white_balance tone presence lens_correction detail geometry
@@ -104,6 +110,8 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("print") => print_cmd(&args[1..]),
         Some("print-preset") => print_preset(&args[1..]),
         Some("print-presets") => print_presets(&args[1..]),
+        Some("camera-profile") => camera_profile(&args[1..]),
+        Some("camera-profiles") => camera_profiles(&args[1..]),
         Some("rate") => rate(&args[1..]),
         Some("pick") => pick(&args[1..]),
         Some("label") => label(&args[1..]),
@@ -321,6 +329,34 @@ fn version_ids(ids: &[String]) -> Result<Vec<VersionId>, String> {
         .collect()
 }
 
+/// Imports a `.dcp` camera profile into the library (ADR 0035). The
+/// library-relative path it prints is what `develop <v> camera-profile
+/// <path>` takes.
+fn camera_profile(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root, source] = positional.as_slice() else {
+        return Err("usage: leyline camera-profile <library> <file.dcp>".to_owned());
+    };
+    let imported = open(root)?
+        .import_camera_profile(Path::new(source))
+        .map_err(|e| e.to_string())?;
+    println!("{}  {}", imported.relative_path, imported.checksum);
+    Ok(())
+}
+
+fn camera_profiles(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root] = positional.as_slice() else {
+        return Err("usage: leyline camera-profiles <library>".to_owned());
+    };
+    let profiles = open(root)?.camera_profiles().map_err(|e| e.to_string())?;
+    for profile in &profiles {
+        println!("{}  {}", profile.relative_path, profile.checksum);
+    }
+    println!("{} camera profile(s)", profiles.len());
+    Ok(())
+}
+
 fn rate(args: &[String]) -> Result<(), String> {
     let (positional, _) = parse(args, &[])?;
     let [root, stars, ids @ ..] = positional.as_slice() else {
@@ -436,6 +472,42 @@ fn develop(args: &[String]) -> Result<(), String> {
                 }),
             };
             (Param::WhiteBalance, Value::WhiteBalance(wb))
+        }
+        "camera-profile" => {
+            let profile = match at(0)? {
+                "none" | "reset" => None,
+                state @ ("on" | "off") => {
+                    let mut profile =
+                        session.settings().camera_profile.clone().ok_or_else(|| {
+                            "no camera profile referenced yet; pass a library-relative path first"
+                                .to_owned()
+                        })?;
+                    profile.enabled = state == "on";
+                    Some(profile)
+                }
+                // The checksum is never typed by hand: it comes from the
+                // engine's own listing of what has been imported, so the
+                // revision records the bytes that are on disk right now.
+                path => {
+                    let imported = library
+                        .camera_profiles()
+                        .map_err(|e| e.to_string())?
+                        .into_iter()
+                        .find(|p| p.relative_path == path)
+                        .ok_or_else(|| {
+                            format!(
+                                "unknown camera profile {path:?}; \
+                                 run `leyline camera-profiles <library>` to list them"
+                            )
+                        })?;
+                    Some(CameraProfile {
+                        enabled: true,
+                        path: imported.relative_path,
+                        checksum: imported.checksum,
+                    })
+                }
+            };
+            (Param::CameraProfile, Value::CameraProfile(profile))
         }
         "lens-correction" => {
             let enabled = match at(0)? {

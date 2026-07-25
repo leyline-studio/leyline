@@ -20,6 +20,7 @@ use crate::process7;
 use crate::process8;
 use crate::process9;
 use crate::process10;
+use crate::process11;
 
 /// A rendered develop result: tightly packed, interleaved 8-bit RGB.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -73,13 +74,23 @@ pub fn lens_shot(meta: &Metadata) -> Option<LensShot> {
 
 /// Renders a decoded image according to a revision's settings.
 ///
-/// Identical image, settings and shot produce identical pixels
-/// (`docs/pipeline.md` §5). Settings declaring a schema or process newer
-/// than this engine are refused with [`LeylineError::NewerSettings`]: a
-/// schema this engine cannot fully read could hide renamed parameters whose
-/// neutral fallback would silently change the rendering. `shot` feeds only
-/// process 3's lens correction; older process versions ignore it.
-pub fn render(image: &RawImage, settings: &Settings, shot: Option<&LensShot>) -> Result<Rendered> {
+/// Identical image, settings, shot and camera profile produce identical
+/// pixels (`docs/pipeline.md` §5). Settings declaring a schema or process
+/// newer than this engine are refused with [`LeylineError::NewerSettings`]:
+/// a schema this engine cannot fully read could hide renamed parameters
+/// whose neutral fallback would silently change the rendering. `shot`
+/// feeds only process 3's lens correction; older process versions ignore
+/// it. `camera_profile` feeds only process 11's camera profile stage
+/// (ADR 0035) — already resolved, checksummed and parsed by the caller
+/// (`crate::camera_profile::resolve_from_settings`), since reading a file
+/// from disk has no place in this otherwise pure function; older process
+/// versions ignore it too.
+pub fn render(
+    image: &RawImage,
+    settings: &Settings,
+    shot: Option<&LensShot>,
+    camera_profile: Option<&leyline_color::DcpProfile>,
+) -> Result<Rendered> {
     if settings.schema > CURRENT_SCHEMA || settings.process > CURRENT_PROCESS {
         return Err(LeylineError::NewerSettings {
             schema: settings.schema,
@@ -98,6 +109,7 @@ pub fn render(image: &RawImage, settings: &Settings, shot: Option<&LensShot>) ->
         8 => process8::develop(image, settings, shot),
         9 => process9::develop(image, settings, shot),
         10 => process10::develop(image, settings, shot),
+        11 => process11::develop(image, settings, shot, camera_profile),
         other => Err(LeylineError::InvalidSettings(format!(
             "process version {other} does not exist"
         ))),
@@ -195,7 +207,7 @@ mod tests {
     #[test]
     fn neutral_settings_render_the_decoded_image_bit_for_bit() {
         let image = test_image();
-        let out = render(&image, &Settings::default(), None).unwrap();
+        let out = render(&image, &Settings::default(), None, None).unwrap();
         assert_eq!((out.width, out.height), (image.width, image.height));
         assert_eq!(out.data, image.data);
     }
@@ -233,8 +245,8 @@ mod tests {
             }),
             ..Settings::default()
         };
-        let first = render(&image, &settings, None).unwrap();
-        let second = render(&image, &settings, None).unwrap();
+        let first = render(&image, &settings, None, None).unwrap();
+        let second = render(&image, &settings, None, None).unwrap();
         assert_eq!(first, second);
     }
 
@@ -248,6 +260,7 @@ mod tests {
                 ..Settings::default()
             },
             None,
+            None,
         )
         .unwrap();
         let darker = render(
@@ -256,6 +269,7 @@ mod tests {
                 exposure: -1.0,
                 ..Settings::default()
             },
+            None,
             None,
         )
         .unwrap();
@@ -276,6 +290,7 @@ mod tests {
                 }),
                 ..Settings::default()
             },
+            None,
             None,
         )
         .unwrap();
@@ -304,6 +319,7 @@ mod tests {
                 ..Settings::default()
             },
             None,
+            None,
         )
         .unwrap();
         assert_eq!(out.data, image.data);
@@ -317,6 +333,7 @@ mod tests {
                 saturation: -100,
                 ..Settings::default()
             },
+            None,
             None,
         )
         .unwrap();
@@ -343,6 +360,7 @@ mod tests {
                 vibrance: 80,
                 ..Settings::default()
             },
+            None,
             None,
         )
         .unwrap();
@@ -383,6 +401,7 @@ mod tests {
                 ..Settings::default()
             },
             None,
+            None,
         )
         .unwrap();
         let spread = |data: &[u8]| {
@@ -419,6 +438,7 @@ mod tests {
                 ..Settings::default()
             },
             None,
+            None,
         )
         .unwrap();
         // Overshoot on both sides of the edge, on the row y=1.
@@ -435,6 +455,7 @@ mod tests {
                 rotation: 90.0,
                 ..Settings::default()
             },
+            None,
             None,
         )
         .unwrap();
@@ -455,6 +476,7 @@ mod tests {
                 }),
                 ..Settings::default()
             },
+            None,
             None,
         )
         .unwrap();
@@ -478,8 +500,8 @@ mod tests {
             exposure: 0.4,
             ..Settings::default()
         };
-        let p1 = render(&image, &settings(1), None).unwrap();
-        let p2 = render(&image, &settings(2), None).unwrap();
+        let p1 = render(&image, &settings(1), None, None).unwrap();
+        let p2 = render(&image, &settings(2), None, None).unwrap();
         assert_eq!(p1.data.len(), p2.data.len());
         for (a, b) in p1.data.iter().zip(&p2.data) {
             assert!(a.abs_diff(*b) <= 1, "{a} vs {b}");
@@ -500,7 +522,7 @@ mod tests {
             },
         ] {
             assert!(matches!(
-                render(&image, &settings, None),
+                render(&image, &settings, None, None),
                 Err(LeylineError::NewerSettings { .. })
             ));
         }
@@ -515,6 +537,7 @@ mod tests {
                 ..Settings::default()
             },
             None,
+            None,
         )
         .unwrap_err();
         assert!(matches!(err, LeylineError::InvalidSettings(_)));
@@ -525,6 +548,7 @@ mod tests {
                 process: 0,
                 ..Settings::default()
             },
+            None,
             None,
         )
         .unwrap_err();

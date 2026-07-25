@@ -14,6 +14,10 @@
 //! export, screen soft-proofing, and the print module (ADR 0036), which all
 //! share this one primitive instead of each inventing their own.
 
+mod dcp;
+
+pub use dcp::{DcpError, DcpProfile, Matrix3};
+
 use std::path::Path;
 use std::sync::OnceLock;
 

@@ -45,7 +45,11 @@ pub const CURRENT_SCHEMA: u32 = 1;
 /// contrast at a large/small blur radius, the same operator called twice)
 /// and `dehaze` (dark-channel-prior haze removal), immediately after the
 /// tone curve and before Vibrance/Saturation.
-pub const CURRENT_PROCESS: u32 = 10;
+/// Process 11 (ADR 0035) additionally applies `camera_profile` (a DCP
+/// camera-to-linear-sRGB matrix transform), as the very first stage —
+/// before even lens correction — since it establishes the working buffer's
+/// color space rather than adjusting pixels already in it.
+pub const CURRENT_PROCESS: u32 = 11;
 
 /// White balance override, in physical units.
 ///
@@ -86,6 +90,30 @@ impl Default for LensCorrection {
             profile: "auto".to_owned(),
         }
     }
+}
+
+/// A camera profile (DCP) reference (ADR 0035): a user-supplied `.dcp`
+/// file, matched by an **explicit stored path** (never EXIF auto-match,
+/// unlike [`LensCorrection::profile`]'s `"auto"` — a DCP is one file the
+/// user made for their own camera body, not a community database to
+/// fuzzy-match against). Neutral: absent — [`Settings::camera_profile`] is
+/// `None`, LibRaw's own built-in sRGB conversion applies unchanged.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CameraProfile {
+    /// Whether the profile is applied. Kept distinct from the field being
+    /// absent so a reference can be turned off without losing it, the same
+    /// UX [`LensCorrection::enabled`] gives.
+    pub enabled: bool,
+    /// Library-relative path to the `.dcp` file (`docs/catalog.md` §2.3),
+    /// conventionally under `Profiles/Camera/`.
+    pub path: String,
+    /// BLAKE3 checksum of the `.dcp` file's bytes at the time this
+    /// revision was written, `"blake3:<hex>"` (ADR 0006's algorithm,
+    /// applied to a new kind of referenced input rather than a photo
+    /// asset). A mismatch at render time means the file changed since —
+    /// [`leyline_core::LeylineError::CameraProfileFailed`], never a
+    /// silent re-render with different colors.
+    pub checksum: String,
 }
 
 /// Noise reduction strengths, unitless sliders in [0, 100]. Neutral: 0.
@@ -371,6 +399,11 @@ pub struct Settings {
     /// Version of the *rendering* (algorithms producing the pixels).
     pub process: u32,
 
+    /// Camera profile (DCP, ADR 0035): the very first pipeline stage, even
+    /// before lens correction. `None` = neutral, LibRaw's own built-in
+    /// sRGB conversion.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub camera_profile: Option<CameraProfile>,
     /// White balance override; `None` = as-shot (neutral).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub white_balance: Option<WhiteBalance>,
@@ -444,6 +477,7 @@ impl Default for Settings {
         Self {
             schema: CURRENT_SCHEMA,
             process: CURRENT_PROCESS,
+            camera_profile: None,
             white_balance: None,
             exposure: 0.0,
             contrast: 0,
@@ -754,6 +788,24 @@ impl Settings {
                 self.sharpening.radius
             )));
         }
+        if let Some(profile) = &self.camera_profile {
+            if profile.path.trim().is_empty() {
+                return Err(LeylineError::InvalidSettings(
+                    "camera_profile.path must not be empty".to_owned(),
+                ));
+            }
+            let hex = profile.checksum.strip_prefix("blake3:").ok_or_else(|| {
+                LeylineError::InvalidSettings(
+                    "camera_profile.checksum must start with \"blake3:\"".to_owned(),
+                )
+            })?;
+            if hex.len() != 64 || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+                return Err(LeylineError::InvalidSettings(
+                    "camera_profile.checksum must be \"blake3:\" followed by 64 hex digits"
+                        .to_owned(),
+                ));
+            }
+        }
         if let Some(wb) = &self.white_balance {
             slider("white_balance.tint", wb.tint, -100, 100)?;
             if wb.temperature == 0 {
@@ -1042,6 +1094,58 @@ mod tests {
             s.validate(),
             Err(LeylineError::InvalidSettings(_))
         ));
+    }
+
+    #[test]
+    fn absent_camera_profile_validates() {
+        Settings::default().validate().unwrap();
+    }
+
+    #[test]
+    fn camera_profile_rejects_an_empty_path() {
+        let s = Settings {
+            camera_profile: Some(CameraProfile {
+                enabled: true,
+                path: "  ".to_owned(),
+                checksum: format!("blake3:{}", "a".repeat(64)),
+            }),
+            ..Settings::default()
+        };
+        assert!(matches!(
+            s.validate(),
+            Err(LeylineError::InvalidSettings(_))
+        ));
+    }
+
+    #[test]
+    fn camera_profile_rejects_a_malformed_checksum() {
+        for checksum in ["", "not-blake3:abcd", "blake3:tooshort", "blake3:zz"] {
+            let s = Settings {
+                camera_profile: Some(CameraProfile {
+                    enabled: true,
+                    path: "Profiles/Camera/mine.dcp".to_owned(),
+                    checksum: checksum.to_owned(),
+                }),
+                ..Settings::default()
+            };
+            assert!(
+                matches!(s.validate(), Err(LeylineError::InvalidSettings(_))),
+                "{checksum:?} should be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn camera_profile_accepts_a_well_formed_reference() {
+        let s = Settings {
+            camera_profile: Some(CameraProfile {
+                enabled: true,
+                path: "Profiles/Camera/mine.dcp".to_owned(),
+                checksum: format!("blake3:{}", "a".repeat(64)),
+            }),
+            ..Settings::default()
+        };
+        s.validate().unwrap();
     }
 
     #[test]

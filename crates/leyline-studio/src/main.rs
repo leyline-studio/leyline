@@ -37,12 +37,12 @@ use std::time::Duration;
 
 use classify::Action;
 use leyline_sdk::{
-    AssetId, CollectionId, CollectionNode, CollectionType, ColorLabel, Event, ExportFormat,
-    ExportPreset, ExportRecipe, ExportReport, ExportRequest, ExportSettings, GridItem, GridQuery,
-    ImportOptions, JobId, JobResult, KeywordId, KeywordNode, Library, MapPin, Margins, Orientation,
-    PaperSize, PickState, Preset, PresetSettings, PreviewKind, PrintPreset, PrintRecipe,
-    PrintReport, PrintRequest, PrintSettings, RenderingIntent, RevisionRow, Settings,
-    SettingsGroup, SkippedFile, Sort, VersionId,
+    AssetId, CameraProfile, CollectionId, CollectionNode, CollectionType, ColorLabel, Event,
+    ExportFormat, ExportPreset, ExportRecipe, ExportReport, ExportRequest, ExportSettings,
+    GridItem, GridQuery, ImportOptions, JobId, JobResult, KeywordId, KeywordNode, Library, MapPin,
+    Margins, Orientation, PaperSize, Param, PickState, Preset, PresetSettings, PreviewKind,
+    PrintPreset, PrintRecipe, PrintReport, PrintRequest, PrintSettings, RenderingIntent,
+    RevisionRow, Settings, SettingsGroup, SkippedFile, Sort, Value, VersionId,
 };
 use slint::winit_030::WinitWindowAccessor;
 use slint::{ComponentHandle, Global, Model, ModelRc, SharedString, Timer, TimerMode, VecModel};
@@ -2462,6 +2462,47 @@ fn wire_map(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
+        window.on_browse_camera_profile(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let Some((_, version)) = app.develop else {
+                return;
+            };
+            let Some(path) = rfd::FileDialog::new()
+                .add_filter("DCP camera profile", &["dcp"])
+                .pick_file()
+            else {
+                return;
+            };
+            let referenced = (|| {
+                // Importing copies the file into `Profiles/Camera/` and
+                // hands back the checksum of the bytes it copied — the
+                // reference is never built from a path the user typed.
+                let imported = app.library.import_camera_profile(&path)?;
+                let mut session = app.library.edit(version)?;
+                session.set(
+                    Param::CameraProfile,
+                    Value::CameraProfile(Some(CameraProfile {
+                        enabled: true,
+                        path: imported.relative_path,
+                        checksum: imported.checksum,
+                    })),
+                )?;
+                session.commit().map(|_| ())
+            })();
+            if let Err(error) = referenced
+                .map_err(|e| e.to_string())
+                .and_then(|()| refresh_develop(&mut app, &window))
+            {
+                report_error(&window, &error);
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
         window.on_browse_map_pack(move || {
             let Some(window) = handle.upgrade() else {
                 return;
@@ -2874,6 +2915,21 @@ fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<(), String> {
         (session.settings().clone(), history)
     };
     window.set_dev(dev_model(&settings));
+    // Only the file name: the panel has no room for `Profiles/Camera/…`,
+    // and that prefix is the same for every imported profile anyway.
+    window.set_camera_profile_name(SharedString::from(
+        settings
+            .camera_profile
+            .as_ref()
+            .map_or("", |profile| {
+                profile
+                    .path
+                    .rsplit('/')
+                    .next()
+                    .unwrap_or(profile.path.as_str())
+            })
+            .to_owned(),
+    ));
     if app.dev_history_version != Some(version) {
         app.dev_history.clear();
         app.dev_history_version = Some(version);
@@ -3021,6 +3077,10 @@ fn dev_model(settings: &Settings) -> ui::DevSettings {
         sharpen_amount: settings.sharpening.amount as f32,
         sharpen_radius: settings.sharpening.radius as f32,
         lens_correction: settings.lens_correction.enabled,
+        camera_profile: settings
+            .camera_profile
+            .as_ref()
+            .is_some_and(|profile| profile.enabled),
         hsl: ModelRc::from(Rc::new(VecModel::from(
             settings
                 .hsl
