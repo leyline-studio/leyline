@@ -10,6 +10,7 @@
 
 mod camera_profile;
 mod decode_cache;
+mod downscale;
 mod events;
 mod export;
 mod import;
@@ -49,7 +50,7 @@ pub use library::{CatalogRead, CatalogWrite, ImportedCameraProfile, Library};
 pub use presets::{FailedApply, PresetApplyReport, apply_batch, capture};
 pub use preview::{Preview, PreviewFile, preview};
 pub use print::{FailedPrint, PrintRecipe, PrintReport, PrintRequest, PrintedVersion};
-pub use render::{LensShot, Rendered, lens_shot, render};
+pub use render::{LensShot, Rendered, lens_shot, render, render_scaled};
 pub use reprocess::{FailedReprocess, ReprocessReport, reprocess_batch};
 pub use session::{DEFAULT_AMEND_WINDOW, EditSession, Param, Value};
 pub use watch::{WatchError, WatchSessionEvent, WatchedFile};

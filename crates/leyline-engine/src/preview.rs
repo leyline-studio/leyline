@@ -12,10 +12,10 @@ use std::path::{Path, PathBuf};
 use leyline_catalog::{Catalog, NewPreview};
 use leyline_core::{AssetId, LeylineError, PreviewKind, Result, Settings};
 use leyline_preview::{PreviewCache, PreviewError, Rgb8};
-use leyline_raw::DecodeParams;
+use leyline_raw::{DecodeParams, RawImage};
 
 use crate::decode_cache::DecodeCache;
-use crate::render;
+use crate::render::{self, render_scaled};
 
 /// Fuses `preview`, `cached_preview` and `preview_async` (§11) into one
 /// call: the client always gets something to show immediately (`Ready` or
@@ -73,6 +73,9 @@ pub(crate) struct RenderPlan {
     settings_json: String,
     source_path: PathBuf,
     half_size: bool,
+    /// Longest edge of the size class being rendered, `None` for full
+    /// resolution — the proxy target (ADR 0041).
+    max_edge: Option<u32>,
     shot: Option<crate::render::LensShot>,
     /// Library root `settings.camera_profile`'s path (if any) is relative
     /// to — resolved in [`render_preview`], mirroring
@@ -118,6 +121,7 @@ pub(crate) fn plan_preview(
         // Small size classes never need full resolution: half-size
         // decoding is much faster and still ≥ 2× the target edge.
         half_size: matches!(kind, PreviewKind::Thumbnail | PreviewKind::Small),
+        max_edge: leyline_preview::max_edge(kind),
         shot,
         library_root: library_root.to_path_buf(),
     })))
@@ -149,13 +153,35 @@ pub(crate) fn render_preview(
             asset,
             reason: e.to_string(),
         })?;
-    let rendered = render(
+    let (decoded, scale) = proxy(&decoded, plan.max_edge);
+    let rendered = render_scaled(
         &decoded,
         &plan.settings,
         plan.shot.as_ref(),
         camera_profile.as_ref(),
+        scale,
     )?;
     Rgb8::new(rendered.width, rendered.height, rendered.data).map_err(preview_err)
+}
+
+/// Reduces a decoded image to the size class actually being displayed
+/// before it enters the pipeline, returning it with the scale factor the
+/// render must apply to its pixel-denominated radii (ADR 0041).
+///
+/// `None` — `PreviewKind::Full` — develops at full resolution, as does an
+/// image already small enough.
+fn proxy(decoded: &RawImage, max_edge: Option<u32>) -> (std::borrow::Cow<'_, RawImage>, f32) {
+    match max_edge {
+        Some(edge) => {
+            let (scaled, scale) = crate::downscale::downscale_to_fit(decoded, edge);
+            if scale == 1.0 {
+                (std::borrow::Cow::Borrowed(decoded), 1.0)
+            } else {
+                (std::borrow::Cow::Owned(scaled), scale)
+            }
+        }
+        None => (std::borrow::Cow::Borrowed(decoded), 1.0),
+    }
 }
 
 /// Everything a settings-scoped render needs from the catalog: the asset's
@@ -165,6 +191,9 @@ pub(crate) fn render_preview(
 pub(crate) struct SettingsRenderPlan {
     source_path: PathBuf,
     half_size: bool,
+    /// Longest edge of the size class being rendered, `None` for full
+    /// resolution — the proxy target (ADR 0041).
+    max_edge: Option<u32>,
     shot: Option<crate::render::LensShot>,
     /// Library root the render's own `settings.camera_profile` path (if
     /// any) is relative to — resolved in [`render_with_settings`].
@@ -190,6 +219,7 @@ pub(crate) fn plan_settings_render(
     Ok(SettingsRenderPlan {
         source_path,
         half_size: matches!(kind, PreviewKind::Thumbnail | PreviewKind::Small),
+        max_edge: leyline_preview::max_edge(kind),
         shot,
         library_root: library_root.to_path_buf(),
     })
@@ -222,11 +252,13 @@ pub(crate) fn render_with_settings(
             asset,
             reason: e.to_string(),
         })?;
-    let rendered = render(
+    let (decoded, scale) = proxy(&decoded, plan.max_edge);
+    let rendered = render_scaled(
         &decoded,
         settings,
         plan.shot.as_ref(),
         camera_profile.as_ref(),
+        scale,
     )?;
     Rgb8::new(rendered.width, rendered.height, rendered.data).map_err(preview_err)
 }

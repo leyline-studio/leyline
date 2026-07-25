@@ -150,11 +150,23 @@ fn par_rows(px: &mut Pixels, op: impl Fn(&mut [f32]) + Send + Sync) {
 /// `camera_profile` is the already-resolved DCP matrix (ADR 0035) to apply
 /// as the very first stage; `None` when no profile is referenced, disabled,
 /// or the settings predate this process version.
-pub(crate) fn develop(
+///
+/// `scale` reports that the image was already reduced by that factor
+/// for a preview (ADR 0041): every radius this module expresses in
+/// *pixels* is multiplied by it, so a blur covers the same share of the
+/// subject on the proxy as it would at full size. `scale == 1.0` is the
+/// full-resolution path export and print take, bit-identical to what
+/// this module produced before the parameter existed.
+///
+/// Only radii denominated in pixels are touched. Crop, rotation, masks,
+/// spots and lens geometry are all normalized to `[0, 1]` already and so
+/// are scale-invariant by construction.
+pub(crate) fn develop_scaled(
     image: &RawImage,
     settings: &Settings,
     shot: Option<&LensShot>,
     camera_profile: Option<&DcpProfile>,
+    scale: f32,
 ) -> Result<Rendered> {
     let mut px = Pixels::from_raw(image)?;
 
@@ -201,13 +213,13 @@ pub(crate) fn develop(
         tone_curve(&mut px, &settings.tone_curve.points);
     }
     if settings.clarity != 0 {
-        local_contrast(&mut px, settings.clarity, CLARITY_RADIUS);
+        local_contrast(&mut px, settings.clarity, CLARITY_RADIUS * scale);
     }
     if settings.texture != 0 {
-        local_contrast(&mut px, settings.texture, TEXTURE_RADIUS);
+        local_contrast(&mut px, settings.texture, TEXTURE_RADIUS * scale);
     }
     if settings.dehaze != 0 {
-        dehaze(&mut px, settings.dehaze);
+        dehaze(&mut px, settings.dehaze, scale);
     }
     if settings.vibrance != 0 {
         saturate(&mut px, settings.vibrance, true);
@@ -225,16 +237,16 @@ pub(crate) fn develop(
         local_adjustments(&mut px, &settings.local_adjustments, settings.rotation);
     }
     if settings.noise_reduction.luminance != 0 {
-        luminance_noise_reduction(&mut px, settings.noise_reduction.luminance);
+        luminance_noise_reduction(&mut px, settings.noise_reduction.luminance, scale);
     }
     if settings.noise_reduction.color != 0 {
-        color_noise_reduction(&mut px, settings.noise_reduction.color);
+        color_noise_reduction(&mut px, settings.noise_reduction.color, scale);
     }
     if settings.sharpening.amount != 0 {
         sharpen(
             &mut px,
             settings.sharpening.amount,
-            settings.sharpening.radius,
+            settings.sharpening.radius * f64::from(scale),
         );
     }
     if settings.rotation.rem_euclid(360.0) != 0.0 {
@@ -808,17 +820,22 @@ const DEHAZE_MIN_TRANSMISSION: f32 = 0.1;
 /// transmission estimate — is closed-form and deterministic: no iterative
 /// solver, nothing whose result depends on an initial guess or a
 /// convergence tolerance (`docs/pipeline.md` §5).
-fn dehaze(px: &mut Pixels, amount: i32) {
+fn dehaze(px: &mut Pixels, amount: i32, scale: f32) {
     let width = px.width as usize;
     let height = px.height as usize;
     let k = f32::from(amount as i16) / 100.0;
+    // The dark channel's local-minimum window is a pixel neighbourhood:
+    // on a proxy it must cover the same share of the subject, but never
+    // collapse to zero, which would make the min-filter a no-op and the
+    // transmission map degenerate (ADR 0041).
+    let patch = ((DEHAZE_PATCH_RADIUS as f32) * scale).round().max(1.0) as usize;
 
     let per_pixel_min: Vec<f32> = px
         .data
         .chunks_exact(3)
         .map(|rgb| rgb[0].min(rgb[1]).min(rgb[2]))
         .collect();
-    let dark = min_filter(&per_pixel_min, width, height, DEHAZE_PATCH_RADIUS);
+    let dark = min_filter(&per_pixel_min, width, height, patch);
     let atmosphere = atmospheric_light(px, &dark);
 
     let normalized_min: Vec<f32> = px
@@ -830,7 +847,7 @@ fn dehaze(px: &mut Pixels, amount: i32) {
                 .min(rgb[2] / atmosphere[2].max(1e-3))
         })
         .collect();
-    let normalized_dark = min_filter(&normalized_min, width, height, DEHAZE_PATCH_RADIUS);
+    let normalized_dark = min_filter(&normalized_min, width, height, patch);
 
     let row_bytes = width * 3;
     px.data
@@ -1213,16 +1230,23 @@ fn apply_local_adjustment(px: &mut Pixels, adjustment: &LocalAdjustment, rotatio
 // ---------------------------------------------------------------------------
 
 /// Blends the luma plane toward its Gaussian blur; chroma is untouched.
-fn luminance_noise_reduction(px: &mut Pixels, strength: i32) {
+/// `scale` is the proxy reduction factor (ADR 0041): the sigma is in
+/// pixels, so it shrinks with the buffer.
+fn luminance_noise_reduction(px: &mut Pixels, strength: i32, scale: f32) {
     let k = f32::from(strength as i16) / 100.0;
     let plane = luma_plane(px);
-    let blurred = gaussian_blur(&plane, px.width as usize, px.height as usize, k * 2.0);
+    let blurred = gaussian_blur(
+        &plane,
+        px.width as usize,
+        px.height as usize,
+        k * 2.0 * scale,
+    );
     add_luma_delta(px, |i| k * (blurred[i] - plane[i]));
 }
 
 /// Blends the chroma planes (per-channel deviation from luma) toward their
 /// Gaussian blur.
-fn color_noise_reduction(px: &mut Pixels, strength: i32) {
+fn color_noise_reduction(px: &mut Pixels, strength: i32, scale: f32) {
     let k = f32::from(strength as i16) / 100.0;
     let (w, h) = (px.width as usize, px.height as usize);
     let plane = luma_plane(px);
@@ -1230,7 +1254,7 @@ fn color_noise_reduction(px: &mut Pixels, strength: i32) {
         let chroma: Vec<f32> = (0..w * h)
             .map(|i| px.data[i * 3 + channel] - plane[i])
             .collect();
-        let blurred = gaussian_blur(&chroma, w, h, k * 3.0);
+        let blurred = gaussian_blur(&chroma, w, h, k * 3.0 * scale);
         px.data
             .par_chunks_mut(w * 3)
             .enumerate()
@@ -1530,6 +1554,18 @@ mod tests {
     use super::*;
     use leyline_core::LensCorrection;
 
+    /// Full-resolution [`develop_scaled`], the shape every test here
+    /// exercises: the proxy factor (ADR 0041) is a preview-path concern,
+    /// not a pipeline-math one.
+    fn develop(
+        image: &RawImage,
+        settings: &Settings,
+        shot: Option<&LensShot>,
+        camera_profile: Option<&DcpProfile>,
+    ) -> Result<Rendered> {
+        super::develop_scaled(image, settings, shot, camera_profile, 1.0)
+    }
+
     #[test]
     fn lookup_tables_track_the_exact_transfer_functions() {
         let (to_linear, to_srgb) = tables();
@@ -1599,7 +1635,8 @@ mod tests {
         };
         let with_process_8 = develop(&image, &settings, Some(&canon_shot(20.0)), None).unwrap();
         let with_process_7 =
-            crate::process7::develop(&image, &settings, Some(&canon_shot(20.0))).unwrap();
+            crate::process7::develop_scaled(&image, &settings, Some(&canon_shot(20.0)), 1.0)
+                .unwrap();
         assert_eq!(with_process_8, with_process_7);
     }
 
@@ -1661,7 +1698,7 @@ mod tests {
             ..Settings::default()
         };
         let out8 = develop(&image, &settings, None, None).unwrap();
-        let out7 = crate::process7::develop(&image, &settings, None).unwrap();
+        let out7 = crate::process7::develop_scaled(&image, &settings, None, 1.0).unwrap();
         assert_eq!(out8, out7);
     }
 
@@ -1779,7 +1816,7 @@ mod tests {
             ..Settings::default()
         };
         let out8 = develop(&image, &settings, None, None).unwrap();
-        let out7 = crate::process7::develop(&image, &settings, None).unwrap();
+        let out7 = crate::process7::develop_scaled(&image, &settings, None, 1.0).unwrap();
         assert_eq!(out8, out7);
     }
 
@@ -2032,7 +2069,7 @@ mod tests {
             ..Settings::default()
         };
         let out8 = develop(&image, &settings, None, None).unwrap();
-        let out7 = crate::process7::develop(&image, &settings, None).unwrap();
+        let out7 = crate::process7::develop_scaled(&image, &settings, None, 1.0).unwrap();
         assert_eq!(out8, out7);
     }
 
@@ -2200,7 +2237,7 @@ mod tests {
             ..Settings::default()
         };
         let out9 = develop(&image, &settings, None, None).unwrap();
-        let out8 = crate::process8::develop(&image, &settings, None).unwrap();
+        let out8 = crate::process8::develop_scaled(&image, &settings, None, 1.0).unwrap();
         assert_eq!(out9, out8);
     }
 
@@ -2395,7 +2432,7 @@ mod tests {
             ..Settings::default()
         };
         let out10 = develop(&image, &settings, None, None).unwrap();
-        let out9 = crate::process9::develop(&image, &settings, None).unwrap();
+        let out9 = crate::process9::develop_scaled(&image, &settings, None, 1.0).unwrap();
         assert_eq!(out10, out9);
     }
 

@@ -112,7 +112,22 @@ fn par_rows(px: &mut Pixels, op: impl Fn(&mut [f32]) + Send + Sync) {
 
 /// Renders a decoded image according to `settings`, which the caller has
 /// already validated and confirmed to declare `process: 2`.
-pub(crate) fn develop(image: &RawImage, settings: &Settings) -> Result<Rendered> {
+///
+/// `scale` reports that the image was already reduced by that factor
+/// for a preview (ADR 0041): every radius this module expresses in
+/// *pixels* is multiplied by it, so a blur covers the same share of the
+/// subject on the proxy as it would at full size. `scale == 1.0` is the
+/// full-resolution path export and print take, bit-identical to what
+/// this module produced before the parameter existed.
+///
+/// Only radii denominated in pixels are touched. Crop, rotation, masks,
+/// spots and lens geometry are all normalized to `[0, 1]` already and so
+/// are scale-invariant by construction.
+pub(crate) fn develop_scaled(
+    image: &RawImage,
+    settings: &Settings,
+    scale: f32,
+) -> Result<Rendered> {
     let mut px = Pixels::from_raw(image)?;
 
     // Lens correction: declared, not rendered (see module docs).
@@ -136,16 +151,16 @@ pub(crate) fn develop(image: &RawImage, settings: &Settings) -> Result<Rendered>
         saturate(&mut px, settings.saturation, false);
     }
     if settings.noise_reduction.luminance != 0 {
-        luminance_noise_reduction(&mut px, settings.noise_reduction.luminance);
+        luminance_noise_reduction(&mut px, settings.noise_reduction.luminance, scale);
     }
     if settings.noise_reduction.color != 0 {
-        color_noise_reduction(&mut px, settings.noise_reduction.color);
+        color_noise_reduction(&mut px, settings.noise_reduction.color, scale);
     }
     if settings.sharpening.amount != 0 {
         sharpen(
             &mut px,
             settings.sharpening.amount,
-            settings.sharpening.radius,
+            settings.sharpening.radius * f64::from(scale),
         );
     }
     if settings.rotation.rem_euclid(360.0) != 0.0 {
@@ -321,16 +336,21 @@ fn saturate(px: &mut Pixels, amount: i32, vibrance: bool) {
 /// Blends the luma plane toward its Gaussian blur; chroma is untouched.
 /// Strength 0–100 maps linearly to both the blur radius (σ up to 2 px) and
 /// the blend factor.
-fn luminance_noise_reduction(px: &mut Pixels, strength: i32) {
+fn luminance_noise_reduction(px: &mut Pixels, strength: i32, scale: f32) {
     let k = f32::from(strength as i16) / 100.0;
     let plane = luma_plane(px);
-    let blurred = gaussian_blur(&plane, px.width as usize, px.height as usize, k * 2.0);
+    let blurred = gaussian_blur(
+        &plane,
+        px.width as usize,
+        px.height as usize,
+        k * 2.0 * scale,
+    );
     add_luma_delta(px, |i| k * (blurred[i] - plane[i]));
 }
 
 /// Blends the chroma planes (per-channel deviation from luma) toward their
 /// Gaussian blur. Strength 0–100 maps to σ up to 3 px and to the blend.
-fn color_noise_reduction(px: &mut Pixels, strength: i32) {
+fn color_noise_reduction(px: &mut Pixels, strength: i32, scale: f32) {
     let k = f32::from(strength as i16) / 100.0;
     let (w, h) = (px.width as usize, px.height as usize);
     let plane = luma_plane(px);
@@ -338,7 +358,7 @@ fn color_noise_reduction(px: &mut Pixels, strength: i32) {
         let chroma: Vec<f32> = (0..w * h)
             .map(|i| px.data[i * 3 + channel] - plane[i])
             .collect();
-        let blurred = gaussian_blur(&chroma, w, h, k * 3.0);
+        let blurred = gaussian_blur(&chroma, w, h, k * 3.0 * scale);
         px.data
             .par_chunks_mut(w * 3)
             .enumerate()

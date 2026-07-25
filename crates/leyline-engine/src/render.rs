@@ -91,6 +91,30 @@ pub fn render(
     shot: Option<&LensShot>,
     camera_profile: Option<&leyline_color::DcpProfile>,
 ) -> Result<Rendered> {
+    render_scaled(image, settings, shot, camera_profile, 1.0)
+}
+
+/// [`render`] of an image already reduced by `scale` (ADR 0041).
+///
+/// The preview path shrinks the decoded image to the requested size class
+/// *before* developing it, rather than developing millions of pixels it is
+/// about to throw away. Every process module expresses some radii in
+/// pixels — noise reduction and sharpening in all versions, clarity,
+/// texture and dehaze from process 10 — so the same factor has to reach
+/// them, or a blur would cover several times more of the subject on the
+/// proxy than at full size.
+///
+/// `scale == 1.0` is exactly [`render`]: that is the path export and print
+/// take, and it is bit-identical to what this engine produced before the
+/// parameter existed. The reproducibility contract (`docs/pipeline.md` §5)
+/// therefore does not move, and no new process version is needed.
+pub fn render_scaled(
+    image: &RawImage,
+    settings: &Settings,
+    shot: Option<&LensShot>,
+    camera_profile: Option<&leyline_color::DcpProfile>,
+    scale: f32,
+) -> Result<Rendered> {
     if settings.schema > CURRENT_SCHEMA || settings.process > CURRENT_PROCESS {
         return Err(LeylineError::NewerSettings {
             schema: settings.schema,
@@ -99,17 +123,17 @@ pub fn render(
     }
     settings.validate()?;
     match settings.process {
-        1 => process1::develop(image, settings),
-        2 => process2::develop(image, settings),
-        3 => process3::develop(image, settings, shot),
-        4 => process4::develop(image, settings, shot),
-        5 => process5::develop(image, settings, shot),
-        6 => process6::develop(image, settings, shot),
-        7 => process7::develop(image, settings, shot),
-        8 => process8::develop(image, settings, shot),
-        9 => process9::develop(image, settings, shot),
-        10 => process10::develop(image, settings, shot),
-        11 => process11::develop(image, settings, shot, camera_profile),
+        1 => process1::develop_scaled(image, settings, scale),
+        2 => process2::develop_scaled(image, settings, scale),
+        3 => process3::develop_scaled(image, settings, shot, scale),
+        4 => process4::develop_scaled(image, settings, shot, scale),
+        5 => process5::develop_scaled(image, settings, shot, scale),
+        6 => process6::develop_scaled(image, settings, shot, scale),
+        7 => process7::develop_scaled(image, settings, shot, scale),
+        8 => process8::develop_scaled(image, settings, shot, scale),
+        9 => process9::develop_scaled(image, settings, shot, scale),
+        10 => process10::develop_scaled(image, settings, shot, scale),
+        11 => process11::develop_scaled(image, settings, shot, camera_profile, scale),
         other => Err(LeylineError::InvalidSettings(format!(
             "process version {other} does not exist"
         ))),
