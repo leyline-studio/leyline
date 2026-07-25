@@ -61,6 +61,18 @@ rétro-ingénieré ou non documenté :
   HSV du profil),
 * la **look table** (table de rendu esthétique du profil).
 
+**État de livraison (process 11, 2026-07-25).** Seules les trois premières
+familles sont **effectivement lues** : `ColorMatrix1/2`, `ForwardMatrix1/2`,
+les deux illuminants de calibration, plus le nom du profil. La **courbe
+tonale**, la **hue/sat map** et la **look table** ne sont **ni analysées ni
+appliquées** — `DcpProfile` ne porte à ce jour que le nom et la matrice
+camera→XYZ(D50) résolue. Ce n'est pas un abandon de portée : la liste
+ci-dessus reste la cible de cet ADR, et un profil dont le rendu repose
+surtout sur ces tables donnera un résultat différent de celui d'Adobe tant
+qu'elles manquent. La distinction est signalée ici plutôt que laissée
+implicite, pour qu'aucun lecteur ne déduise du présent ADR une complétude
+que le code n'a pas encore.
+
 *(Les familles de tags sont nommées au niveau de détail que la DNG
 Specification garantit ; les identifiants numériques exacts de chaque tag sont
 laissés à la PR, qui les lira dans la spec plutôt que de les inventer ici —
@@ -122,6 +134,11 @@ pas ce choix ; il remplit le seul détail qu'ADR 0035 avait laissé blanc.
 * **La portée reste petite et gelée** : lecture seule, sous-ensemble de tags de
   rendu, aucun *authoring*. Pas de glissement vers une boîte à outils DCP
   générale.
+* **Le parseur livré est un sous-ensemble de cette portée** : matrices,
+  illuminants et nom du profil seulement ; courbe tonale, hue/sat map et look
+  table restent à faire (voir « État de livraison » ci-dessus). Les
+  documenter comme lues alors qu'elles ne le sont pas ferait passer
+  l'implémentation pour plus complète qu'elle n'est.
 * **La correctness colorimétrique reste un risque ouvert, inchangé depuis
   ADR 0035** : cet ADR résout le parsing du conteneur (documenté, borné, faible
   risque), **pas** la fidélité de la math couleur au rendu d'Adobe. La validation
