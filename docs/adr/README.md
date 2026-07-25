@@ -46,3 +46,4 @@ Une décision acceptée ne se modifie pas : elle se remplace par un nouvel ADR q
 | [0038](0038-tethered-capture.md) | Capture tethering : import direct depuis l'appareil via USB (libgphoto2), une capture est un import comme un autre |
 | [0039](0039-watched-folder-import.md) | Import automatique par dossier surveillé (`notify`), un fichier stabilisé à la fois, même cœur d'import que le tethering |
 | [0040](0040-gps-map-view.md) | Vue carte GPS : tuiles MBTiles hors-ligne fournies par l'utilisateur, aucun appel réseau, GPS extrait des RAW via LibRaw |
+| [0041](0041-interactive-preview-rendering.md) | Rendu interactif : preview développée à la résolution d'affichage (rayons pixel mis à l'échelle) et cache d'étages de pipeline ; export inchangé, aucune nouvelle process version |
