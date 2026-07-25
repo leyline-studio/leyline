@@ -3186,7 +3186,6 @@ version = "0.1.0"
 dependencies = [
  "bytemuck",
  "lcms2",
- "leyline-core",
  "serde",
  "tempfile",
  "thiserror 2.0.18",
@@ -3233,7 +3232,6 @@ dependencies = [
  "image-webp",
  "jpeg-encoder",
  "leyline-color",
- "leyline-core",
  "png 0.18.1",
  "printpdf",
  "ravif 0.11.20",
@@ -3250,7 +3248,6 @@ name = "leyline-lens"
 version = "0.1.0"
 dependencies = [
  "lensfun",
- "leyline-core",
 ]
 
 [[package]]

@@ -6,3 +6,8 @@ CLAUDE.md
 /packaging/windows/vendor/
 # mdBook build output (docs-site/src is the tracked source)
 /docs-site/book/
+
+# Local test photographs (RAW + camera JPEG pairs) — hundreds of MB of
+# personal images, useful for benchmarking and eyeballing renders, never
+# part of the repository.
+/assets/try_images/
