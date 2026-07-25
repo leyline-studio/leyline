@@ -1,6 +1,13 @@
 # ADR 0028 — Une process version par fonctionnalité pixel : maintien de la duplication par module
 
-**Statut :** Accepté — 2026-07
+**Statut :** Remplacé par [ADR 0042](0042-versioned-stage-pipeline.md) — 2026-07
+
+> Ce document décrivait la convention en vigueur jusqu'en juillet 2026 : une
+> process version par fonctionnalité, chacune dans un `processN.rs` copie
+> intégrale du précédent. Sa dernière conséquence prévoyait sa réouverture « avec
+> des données réelles » ; ADR 0042 le fait, sur la base de 14 968 lignes
+> cumulées et de 70–93 % de duplication entre modules consécutifs. Conservé tel
+> quel pour la trace du raisonnement.
 
 ## Contexte
 
