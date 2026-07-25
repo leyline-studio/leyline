@@ -77,6 +77,10 @@ Courbe tonale
 
 ↓
 
+Clarté / Texture / Dehaze
+
+↓
+
 Vibrance / Saturation
 
 ↓
@@ -134,6 +138,9 @@ Jamais un delta.
     "shadows": 25,
     "whites": 0,
     "blacks": -5,
+    "clarity": 25,
+    "texture": 15,
+    "dehaze": 30,
     "vibrance": 18,
     "saturation": 0,
 
@@ -219,6 +226,7 @@ Valeurs neutres du schéma 1 :
 | `white_balance` | absent — balance des blancs « telle que prise » du boîtier |
 | `exposure` | 0.0 EV |
 | `contrast`, `highlights`, `shadows`, `whites`, `blacks`, `vibrance`, `saturation` | 0 |
+| `clarity`, `texture`, `dehaze` | 0 |
 | `hsl` | absent — 8 bandes à `{ "hue": 0, "saturation": 0, "luminance": 0 }` |
 | `color_grading` | absent — chaque zone à `{ "hue": 0, "saturation": 0, "luminance": 0 }`, `balance`/`blending` à 0 |
 | `lens_correction` | `{ "enabled": false, "profile": "auto" }` |
@@ -268,6 +276,7 @@ Versions connues :
 | 7 | Identique à 6, plus `spot_removal` : clonage déterministe par copie bilinéaire adoucie (falloff radial + opacité), sans mode *heal*, immédiatement après Correction d'objectif et avant Balance des blancs (ADR 0032) |
 | 8 | Identique à 7, plus `local_adjustments` : réglages locaux masqués (brosse/radial/gradient), ré-appliquant les mêmes formules d'opérateur que leurs équivalents globaux (balance des blancs, exposition, contraste, hautes lumières, ombres, blancs, noirs, vibrance, saturation) restreintes à une couverture `[0, 1]` par masque, immédiatement après Vibrance/Saturation et avant Réduction du bruit (ADR 0029 — accepté sous le nom « process 6 », livré en process 8 une fois les process 6 et 7 déjà pris par ADR 0030/0032) |
 | 9 | Identique à 8, plus le mélangeur TSL (`hsl`, 8 bandes de teinte à centres fixes avec fondu entre bandes adjacentes, en HSL dérivé du tampon RGB de travail) et le Color Grading (`color_grading`, trois zones ombres/tons moyens/hautes lumières pondérées par la luminance Rec. 709 du pixel, `balance`/`blending` réglant la frontière et la largeur de fondu entre zones), tous deux immédiatement après Vibrance/Saturation et avant les réglages locaux (ADR 0031) |
+| 10 | Identique à 9, plus `clarity`/`texture` (contraste local par masque flou — même fonction que `sharpen`, appelée à deux rayons, flou grand rayon approché par sous-échantillonnage pour la clarté) et `dehaze` (suppression de voile par *dark channel prior* : lumière atmosphérique par percentile fixe du canal sombre, transmission dérivée en forme close, aucune itération), tous trois immédiatement après la courbe tonale et avant Vibrance/Saturation (ADR 0033) |
 
 Une révision éditée hérite du process de son parent ; seules les nouvelles révisions par défaut (imports) écrivent la version courante.
 

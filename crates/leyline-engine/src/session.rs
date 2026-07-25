@@ -43,6 +43,12 @@ pub enum Param {
     Whites,
     /// Black point slider.
     Blacks,
+    /// Local contrast at a large blur radius (ADR 0033).
+    Clarity,
+    /// Local contrast at a small blur radius (ADR 0033).
+    Texture,
+    /// Dark-channel-prior haze removal (ADR 0033).
+    Dehaze,
     /// Vibrance slider.
     Vibrance,
     /// Saturation slider.
@@ -368,6 +374,9 @@ fn apply(settings: &mut Settings, param: Param, value: Value) -> Result<()> {
         (Param::Shadows, Value::Int(v)) => settings.shadows = v,
         (Param::Whites, Value::Int(v)) => settings.whites = v,
         (Param::Blacks, Value::Int(v)) => settings.blacks = v,
+        (Param::Clarity, Value::Int(v)) => settings.clarity = v,
+        (Param::Texture, Value::Int(v)) => settings.texture = v,
+        (Param::Dehaze, Value::Int(v)) => settings.dehaze = v,
         (Param::Vibrance, Value::Int(v)) => settings.vibrance = v,
         (Param::Saturation, Value::Int(v)) => settings.saturation = v,
         (Param::ToneCurve, Value::ToneCurve(v)) => settings.tone_curve = v,

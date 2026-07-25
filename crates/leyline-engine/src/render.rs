@@ -19,6 +19,7 @@ use crate::process6;
 use crate::process7;
 use crate::process8;
 use crate::process9;
+use crate::process10;
 
 /// A rendered develop result: tightly packed, interleaved 8-bit RGB.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -96,6 +97,7 @@ pub fn render(image: &RawImage, settings: &Settings, shot: Option<&LensShot>) ->
         7 => process7::develop(image, settings, shot),
         8 => process8::develop(image, settings, shot),
         9 => process9::develop(image, settings, shot),
+        10 => process10::develop(image, settings, shot),
         other => Err(LeylineError::InvalidSettings(format!(
             "process version {other} does not exist"
         ))),

@@ -55,7 +55,7 @@ Options:
 Develop params (docs/pipeline.md §3.2, schema 1):
   exposure rotation                 decimal
   contrast highlights shadows whites blacks vibrance saturation
-                                    integer in [-100, 100]
+  clarity texture dehaze           integer in [-100, 100]
   white-balance <kelvin> <tint>     tint integer, or `white-balance none` for as-shot
   lens-correction <on|off>
   noise-reduction <luminance> <color>
@@ -420,6 +420,9 @@ fn develop(args: &[String]) -> Result<(), String> {
         "shadows" => (Param::Shadows, Value::Int(int_at(0)?)),
         "whites" => (Param::Whites, Value::Int(int_at(0)?)),
         "blacks" => (Param::Blacks, Value::Int(int_at(0)?)),
+        "clarity" => (Param::Clarity, Value::Int(int_at(0)?)),
+        "texture" => (Param::Texture, Value::Int(int_at(0)?)),
+        "dehaze" => (Param::Dehaze, Value::Int(int_at(0)?)),
         "vibrance" => (Param::Vibrance, Value::Int(int_at(0)?)),
         "saturation" => (Param::Saturation, Value::Int(int_at(0)?)),
         "white-balance" => {

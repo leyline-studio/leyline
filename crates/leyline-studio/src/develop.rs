@@ -30,6 +30,9 @@ pub fn action(slider: &str, value: f64, current: &Settings) -> Option<(Param, Va
         "shadows" => (Param::Shadows, int),
         "whites" => (Param::Whites, int),
         "blacks" => (Param::Blacks, int),
+        "clarity" => (Param::Clarity, int),
+        "texture" => (Param::Texture, int),
+        "dehaze" => (Param::Dehaze, int),
         "vibrance" => (Param::Vibrance, int),
         "saturation" => (Param::Saturation, int),
         "lens-correction" => (

@@ -67,6 +67,9 @@ export struct DevSettings {
     shadows: float,
     whites: float,
     blacks: float,
+    clarity: float,
+    texture: float,
+    dehaze: float,
     vibrance: float,
     saturation: float,
     wb-temp: float,
@@ -1369,6 +1372,33 @@ export component StudioWindow inherits Window {
                         }
                         if root.expand-presence: VerticalLayout {
                             spacing: 12px;
+                            EditSlider {
+                                label: @tr("Clarity");
+                                minimum: -100;
+                                maximum: 100;
+                                value: root.dev.clarity;
+                                edited(v) => {
+                                    root.develop-edit("clarity", v);
+                                }
+                            }
+                            EditSlider {
+                                label: @tr("Texture");
+                                minimum: -100;
+                                maximum: 100;
+                                value: root.dev.texture;
+                                edited(v) => {
+                                    root.develop-edit("texture", v);
+                                }
+                            }
+                            EditSlider {
+                                label: @tr("Dehaze");
+                                minimum: -100;
+                                maximum: 100;
+                                value: root.dev.dehaze;
+                                edited(v) => {
+                                    root.develop-edit("dehaze", v);
+                                }
+                            }
                             EditSlider {
                                 label: @tr("Vibrance");
                                 minimum: -100;

@@ -41,7 +41,11 @@ pub const CURRENT_SCHEMA: u32 = 1;
 /// Process 9 (ADR 0031) additionally applies an 8-band HSL mixer and
 /// shadows/midtones/highlights color grading, immediately after
 /// Vibrance/Saturation and before local adjustments.
-pub const CURRENT_PROCESS: u32 = 9;
+/// Process 10 (ADR 0033) additionally applies `clarity`/`texture` (local
+/// contrast at a large/small blur radius, the same operator called twice)
+/// and `dehaze` (dark-channel-prior haze removal), immediately after the
+/// tone curve and before Vibrance/Saturation.
+pub const CURRENT_PROCESS: u32 = 10;
 
 /// White balance override, in physical units.
 ///
@@ -382,6 +386,16 @@ pub struct Settings {
     pub whites: i32,
     /// Black point, slider in [-100, +100]. Neutral: 0.
     pub blacks: i32,
+    /// Local contrast at a large blur radius (ADR 0033), slider in
+    /// [-100, +100]. Neutral: 0. Same algorithm family as [`Settings::texture`],
+    /// a different radius constant.
+    pub clarity: i32,
+    /// Local contrast at a small blur radius (ADR 0033), slider in
+    /// [-100, +100]. Neutral: 0.
+    pub texture: i32,
+    /// Dark-channel-prior haze removal (ADR 0033), slider in [-100, +100].
+    /// Neutral: 0. Positive removes atmospheric haze; negative re-adds it.
+    pub dehaze: i32,
     /// Vibrance, slider in [-100, +100]. Neutral: 0.
     pub vibrance: i32,
     /// Saturation, slider in [-100, +100]. Neutral: 0.
@@ -437,6 +451,9 @@ impl Default for Settings {
             shadows: 0,
             whites: 0,
             blacks: 0,
+            clarity: 0,
+            texture: 0,
+            dehaze: 0,
             vibrance: 0,
             saturation: 0,
             tone_curve: ToneCurve::default(),
@@ -500,6 +517,9 @@ impl Settings {
         slider("shadows", self.shadows, -100, 100)?;
         slider("whites", self.whites, -100, 100)?;
         slider("blacks", self.blacks, -100, 100)?;
+        slider("clarity", self.clarity, -100, 100)?;
+        slider("texture", self.texture, -100, 100)?;
+        slider("dehaze", self.dehaze, -100, 100)?;
         slider("vibrance", self.vibrance, -100, 100)?;
         slider("saturation", self.saturation, -100, 100)?;
         if !self.tone_curve.points.is_empty() {
@@ -986,13 +1006,17 @@ mod tests {
 
     #[test]
     fn preserves_unknown_fields_verbatim() {
-        let json = r#"{ "schema": 2, "process": 1, "clarity": 30, "exposure": 1.5 }"#;
+        // A placeholder name for a field this engine doesn't know yet —
+        // picked to stay clear of any real `Settings` field, past or
+        // future (`clarity` used to fill this role until ADR 0033 made it
+        // a real one).
+        let json = r#"{ "schema": 2, "process": 1, "vignette_style": 30, "exposure": 1.5 }"#;
         let s = Settings::parse(json).unwrap();
         assert_eq!(s.schema, 2);
-        assert_eq!(s.extra.get("clarity"), Some(&serde_json::json!(30)));
+        assert_eq!(s.extra.get("vignette_style"), Some(&serde_json::json!(30)));
 
         let round_tripped: serde_json::Value = serde_json::from_str(&s.to_json()).unwrap();
-        assert_eq!(round_tripped["clarity"], serde_json::json!(30));
+        assert_eq!(round_tripped["vignette_style"], serde_json::json!(30));
         assert_eq!(round_tripped["exposure"], serde_json::json!(1.5));
     }
 
@@ -1018,6 +1042,22 @@ mod tests {
             s.validate(),
             Err(LeylineError::InvalidSettings(_))
         ));
+    }
+
+    #[test]
+    fn clarity_texture_dehaze_out_of_range_are_rejected() {
+        for field in ["clarity", "texture", "dehaze"] {
+            let mut s = Settings::default();
+            match field {
+                "clarity" => s.clarity = 101,
+                "texture" => s.texture = -101,
+                _ => s.dehaze = 200,
+            }
+            assert!(
+                matches!(s.validate(), Err(LeylineError::InvalidSettings(_))),
+                "{field} should be rejected"
+            );
+        }
     }
 
     #[test]
