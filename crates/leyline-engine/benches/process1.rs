@@ -15,7 +15,12 @@
 //! with `cargo bench -p leyline-engine`.
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use leyline_core::{Crop, LensCorrection, NoiseReduction, Settings, Sharpening, WhiteBalance};
+use leyline_color::{DcpProfile, Matrix3};
+use leyline_core::{
+    BrushStroke, ColorGrading, ColorGradingZone, Crop, CurvePoint, HslBand, LensCorrection,
+    LocalAdjustment, LocalAdjustmentValues, Mask, NoiseReduction, Point, Settings, Sharpening,
+    SpotRemoval, ToneCurve, WhiteBalance,
+};
 use leyline_engine::{LensShot, render};
 use leyline_raw::RawImage;
 use std::hint::black_box;
@@ -268,6 +273,335 @@ fn benches(c: &mut Criterion) {
     });
 
     group.finish();
+
+    // Every parameter family the current process version exposes, each one
+    // alone on top of the process-11 neutral floor: this is the "what does
+    // moving *this* slider cost" table, the one an interactive UI budget is
+    // built from. `neutral` is the floor to subtract; `full` is everything
+    // at once, the worst case a single edit can reach.
+    let mut group = c.benchmark_group("process11");
+    group.sample_size(10);
+    let profile = sample_profile();
+
+    for (name, settings) in process11_cases() {
+        group.bench_function(name, |b| {
+            b.iter(|| {
+                render(
+                    black_box(&image),
+                    black_box(&settings),
+                    Some(black_box(&shot)),
+                    Some(black_box(&profile)),
+                )
+                .unwrap()
+            });
+        });
+    }
+
+    group.finish();
+}
+
+/// One entry per parameter family, each isolated on the process-11 neutral
+/// base so the delta against `neutral` is that family's own cost.
+fn process11_cases() -> Vec<(&'static str, Settings)> {
+    let base = Settings {
+        process: 11,
+        ..Settings::default()
+    };
+    vec![
+        ("neutral", base.clone()),
+        (
+            "white_balance",
+            Settings {
+                white_balance: Some(WhiteBalance {
+                    temperature: 5200,
+                    tint: 8,
+                }),
+                ..base.clone()
+            },
+        ),
+        (
+            "exposure",
+            Settings {
+                exposure: 0.7,
+                ..base.clone()
+            },
+        ),
+        (
+            "tone_sliders",
+            Settings {
+                contrast: 25,
+                highlights: -40,
+                shadows: 35,
+                whites: 10,
+                blacks: -10,
+                ..base.clone()
+            },
+        ),
+        (
+            "tone_curve",
+            Settings {
+                tone_curve: ToneCurve {
+                    points: vec![
+                        CurvePoint { x: 0.0, y: 0.02 },
+                        CurvePoint { x: 0.25, y: 0.18 },
+                        CurvePoint { x: 0.75, y: 0.82 },
+                        CurvePoint { x: 1.0, y: 0.98 },
+                    ],
+                },
+                ..base.clone()
+            },
+        ),
+        (
+            "clarity",
+            Settings {
+                clarity: 40,
+                ..base.clone()
+            },
+        ),
+        (
+            "texture",
+            Settings {
+                texture: 40,
+                ..base.clone()
+            },
+        ),
+        (
+            "dehaze",
+            Settings {
+                dehaze: 40,
+                ..base.clone()
+            },
+        ),
+        (
+            "vibrance_saturation",
+            Settings {
+                vibrance: 30,
+                saturation: 10,
+                ..base.clone()
+            },
+        ),
+        (
+            "hsl",
+            Settings {
+                hsl: [HslBand {
+                    hue: 10,
+                    saturation: 20,
+                    luminance: -10,
+                }; 8],
+                ..base.clone()
+            },
+        ),
+        (
+            "color_grading",
+            Settings {
+                color_grading: ColorGrading {
+                    shadows: ColorGradingZone {
+                        hue: 220,
+                        saturation: 30,
+                        luminance: -5,
+                    },
+                    midtones: ColorGradingZone {
+                        hue: 40,
+                        saturation: 15,
+                        luminance: 0,
+                    },
+                    highlights: ColorGradingZone {
+                        hue: 55,
+                        saturation: 25,
+                        luminance: 5,
+                    },
+                    balance: 10,
+                    blending: 50,
+                },
+                ..base.clone()
+            },
+        ),
+        (
+            "camera_profile",
+            Settings {
+                camera_profile: Some(leyline_core::CameraProfile {
+                    enabled: true,
+                    path: "Profiles/Camera/bench.dcp".to_owned(),
+                    checksum: format!("blake3:{}", "00".repeat(32)),
+                }),
+                ..base.clone()
+            },
+        ),
+        (
+            "spot_removal_8",
+            Settings {
+                spot_removal: (0..8)
+                    .map(|i| {
+                        let t = f64::from(i) / 16.0 + 0.1;
+                        SpotRemoval {
+                            target: Point { x: t, y: 0.4 },
+                            source: Point { x: t, y: 0.6 },
+                            radius: 0.03,
+                            feather: 0.5,
+                            opacity: 1.0,
+                        }
+                    })
+                    .collect(),
+                ..base.clone()
+            },
+        ),
+        (
+            "local_radial",
+            Settings {
+                local_adjustments: vec![LocalAdjustment {
+                    mask: Mask::Radial {
+                        cx: 0.5,
+                        cy: 0.5,
+                        rx: 0.3,
+                        ry: 0.25,
+                        angle: 15.0,
+                        feather: 0.5,
+                        inverted: false,
+                    },
+                    opacity: 1.0,
+                    adjustments: local_values(),
+                }],
+                ..base.clone()
+            },
+        ),
+        (
+            "local_gradient",
+            Settings {
+                local_adjustments: vec![LocalAdjustment {
+                    mask: Mask::Gradient {
+                        x0: 0.0,
+                        y0: 0.0,
+                        x1: 0.0,
+                        y1: 0.6,
+                    },
+                    opacity: 1.0,
+                    adjustments: local_values(),
+                }],
+                ..base.clone()
+            },
+        ),
+        (
+            "local_brush_64_dabs",
+            Settings {
+                local_adjustments: vec![LocalAdjustment {
+                    mask: Mask::Brush {
+                        strokes: (0..64)
+                            .map(|i| BrushStroke {
+                                x: 0.1 + f64::from(i) / 80.0,
+                                y: 0.5,
+                                radius: 0.05,
+                                flow: 0.6,
+                                hardness: 0.4,
+                            })
+                            .collect(),
+                    },
+                    opacity: 1.0,
+                    adjustments: local_values(),
+                }],
+                ..base.clone()
+            },
+        ),
+        (
+            "noise_reduction",
+            Settings {
+                noise_reduction: NoiseReduction {
+                    luminance: 40,
+                    color: 30,
+                },
+                ..base.clone()
+            },
+        ),
+        (
+            "sharpening",
+            Settings {
+                sharpening: Sharpening {
+                    amount: 60,
+                    radius: 1.2,
+                },
+                ..base.clone()
+            },
+        ),
+        (
+            "geometry",
+            Settings {
+                rotation: 2.0,
+                crop: Some(Crop {
+                    x: 0.1,
+                    y: 0.1,
+                    width: 0.8,
+                    height: 0.8,
+                }),
+                ..base.clone()
+            },
+        ),
+        (
+            "lens_correction",
+            Settings {
+                lens_correction: LensCorrection {
+                    enabled: true,
+                    profile: "auto".to_owned(),
+                },
+                ..base.clone()
+            },
+        ),
+        (
+            "full",
+            Settings {
+                process: 11,
+                ..full_settings()
+            },
+        ),
+    ]
+}
+
+/// The tonal/color values a local adjustment re-parameterizes, all set so
+/// no per-pixel branch inside the masked path gets skipped.
+fn local_values() -> LocalAdjustmentValues {
+    LocalAdjustmentValues {
+        temperature: Some(6500),
+        tint: Some(5),
+        exposure: Some(0.5),
+        contrast: Some(20),
+        highlights: Some(-20),
+        shadows: Some(20),
+        whites: Some(5),
+        blacks: Some(-5),
+        vibrance: Some(15),
+        saturation: Some(10),
+    }
+}
+
+/// A minimal in-memory DCP profile (identity `ColorMatrix1`): the matrix's
+/// *values* do not change the per-pixel cost, only that a profile is
+/// applied at all.
+fn sample_profile() -> DcpProfile {
+    use std::io::Cursor;
+    use tiff::encoder::{TiffEncoder, colortype::Gray8};
+    use tiff::tags::Tag;
+
+    const IDENTITY: Matrix3 = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
+    /// DNG `ColorMatrix1`.
+    const COLOR_MATRIX_1: u16 = 50721;
+
+    let mut buffer = Cursor::new(Vec::new());
+    {
+        let mut encoder = TiffEncoder::new(&mut buffer).unwrap();
+        let mut image = encoder.new_image::<Gray8>(1, 1).unwrap();
+        let values: Vec<tiff::encoder::SRational> = IDENTITY
+            .into_iter()
+            .flatten()
+            .map(|v| tiff::encoder::SRational {
+                n: (v * 10000.0).round() as i32,
+                d: 10000,
+            })
+            .collect();
+        image
+            .encoder()
+            .write_tag(Tag::Unknown(COLOR_MATRIX_1), values.as_slice())
+            .unwrap();
+        image.write_data(&[0u8]).unwrap();
+    }
+    DcpProfile::parse(&buffer.into_inner()).unwrap()
 }
 
 #[allow(missing_docs)]
