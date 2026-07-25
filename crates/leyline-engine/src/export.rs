@@ -104,8 +104,11 @@ pub(crate) fn render_export(
     settings: &ExportSettings,
     destination_dir: &Path,
 ) -> Result<PathBuf> {
-    let camera_profile =
-        crate::camera_profile::resolve_from_settings(&plan.library_root, &plan.develop)?;
+    let camera_profile = crate::camera_profile::resolve_from_settings(
+        &plan.library_root,
+        &plan.develop,
+        &plan.source,
+    )?;
     let decode_params = DecodeParams {
         camera_native: camera_profile.is_some(),
         ..DecodeParams::default()

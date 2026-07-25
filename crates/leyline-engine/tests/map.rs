@@ -77,6 +77,36 @@ fn reimporting_a_pack_replaces_the_cached_handle() {
 }
 
 #[test]
+fn reimporting_leaves_no_temporary_file_behind() {
+    // The pack is published by copy-to-temp then move, because
+    // `std::fs::rename` will not replace an existing destination on
+    // Windows. Whatever the platform, the temp file must not survive: a
+    // stray `pack.mbtiles.*.tmp` in `Map/` is both clutter and a thing a
+    // later import could trip over.
+    let (dir, library) = open_test_library("MapReimportTemp");
+    let first = dir.path().join("first.mbtiles");
+    sample_pack(&first);
+    library.import_map_pack(&first).unwrap();
+    // Open the pack so the cached SQLite handle is live during the second
+    // import — the case the ordering fix exists for.
+    assert!(library.map_pack_info().unwrap().is_some());
+
+    let second = dir.path().join("second.mbtiles");
+    sample_pack(&second);
+    library.import_map_pack(&second).unwrap();
+
+    let map_dir = library.root().join("Map");
+    let leftovers: Vec<_> = std::fs::read_dir(&map_dir)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .filter(|name| name.to_string_lossy().ends_with(".tmp"))
+        .collect();
+    assert!(leftovers.is_empty(), "left behind {leftovers:?}");
+    assert!(map_dir.join("pack.mbtiles").is_file());
+    assert_eq!(library.map_tile(0, 0, 0).unwrap(), Some(vec![1, 2, 3]));
+}
+
+#[test]
 fn map_pins_reads_through_the_catalog() {
     let (_dir, library) = open_test_library("MapPins");
     assert_eq!(library.map_pins().unwrap(), vec![]);

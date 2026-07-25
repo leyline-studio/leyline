@@ -131,8 +131,11 @@ pub(crate) fn render_preview(
     asset: AssetId,
     plan: &RenderPlan,
 ) -> Result<Rgb8> {
-    let camera_profile =
-        crate::camera_profile::resolve_from_settings(&plan.library_root, &plan.settings)?;
+    let camera_profile = crate::camera_profile::resolve_from_settings(
+        &plan.library_root,
+        &plan.settings,
+        &plan.source_path,
+    )?;
     let params = DecodeParams {
         half_size: plan.half_size,
         camera_native: camera_profile.is_some(),
@@ -201,8 +204,11 @@ pub(crate) fn render_with_settings(
     plan: &SettingsRenderPlan,
     settings: &Settings,
 ) -> Result<Rgb8> {
-    let camera_profile =
-        crate::camera_profile::resolve_from_settings(&plan.library_root, settings)?;
+    let camera_profile = crate::camera_profile::resolve_from_settings(
+        &plan.library_root,
+        settings,
+        &plan.source_path,
+    )?;
     let params = DecodeParams {
         half_size: plan.half_size,
         camera_native: camera_profile.is_some(),

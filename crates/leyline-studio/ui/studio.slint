@@ -1435,6 +1435,16 @@ export component StudioWindow inherits Window {
                         }
                         if root.expand-camera-profile: VerticalLayout {
                             spacing: 8px;
+                            // The matrix path has not been validated against
+                            // Adobe's own renders yet (`docs/pipeline.md`
+                            // process 11): say so where the user chooses,
+                            // not only in the ADR.
+                            Text {
+                                text: @tr("Experimental: colors are not yet validated against reference renders.");
+                                color: #c8a45a;
+                                font-size: 11px;
+                                wrap: word-wrap;
+                            }
                             Text {
                                 text: root.camera-profile-name == ""
                                     ? @tr("No profile — the decoder's own colors")
@@ -2037,7 +2047,7 @@ export component StudioWindow inherits Window {
                 if !root.map-pack-imported: VerticalLayout {
                     alignment: center;
                     Text {
-                        text: root.map-status == "" ? @tr("No map pack imported yet. Import an offline MBTiles pack (ADR 0040) to place GPS-tagged photos on a map.") : root.map-status;
+                        text: root.map-status == "" ? @tr("No map pack imported yet. Import an offline MBTiles map pack to place GPS-tagged photos on a map.") : root.map-status;
                         color: #9a9a9a;
                         font-size: 13px;
                         horizontal-alignment: center;

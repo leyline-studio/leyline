@@ -18,12 +18,27 @@ use leyline_core::{CameraProfile, LeylineError, Result, Settings};
 pub(crate) fn resolve_from_settings(
     library_root: &Path,
     settings: &Settings,
+    source: &Path,
 ) -> Result<Option<leyline_color::DcpProfile>> {
     let Some(profile) = &settings.camera_profile else {
         return Ok(None);
     };
     if !profile.enabled {
         return Ok(None);
+    }
+    // A DCP matrix converts *camera-native* linear RGB to sRGB (ADR 0035,
+    // `docs/pipeline.md` §3.2). A JPEG/PNG/TIFF decodes to sRGB already,
+    // so applying the matrix to it would silently mangle color rather than
+    // manage it. Fail closed instead of ignoring the field: a stored
+    // setting that changes nothing is exactly the reproducibility hole
+    // `CameraProfileFailed` exists to prevent.
+    if !crate::source::is_camera_native(source) {
+        return Err(LeylineError::CameraProfileFailed {
+            path: profile.path.clone(),
+            reason: "camera profiles apply only to RAW/DNG sources; this asset decodes to sRGB \
+                     already"
+                .to_owned(),
+        });
     }
     let path = library_root.join(profile.path.replace('/', std::path::MAIN_SEPARATOR_STR));
     resolve(&path, profile).map(Some)
@@ -58,7 +73,10 @@ mod tests {
     fn absent_camera_profile_resolves_to_none() {
         let dir = tempfile::tempdir().unwrap();
         let settings = Settings::default();
-        assert_eq!(resolve_from_settings(dir.path(), &settings).unwrap(), None);
+        assert_eq!(
+            resolve_from_settings(dir.path(), &settings, Path::new("shot.cr2")).unwrap(),
+            None
+        );
     }
 
     #[test]
@@ -74,7 +92,10 @@ mod tests {
         };
         // The referenced file does not exist on disk; a disabled profile
         // must never even try to read it.
-        assert_eq!(resolve_from_settings(dir.path(), &settings).unwrap(), None);
+        assert_eq!(
+            resolve_from_settings(dir.path(), &settings, Path::new("shot.cr2")).unwrap(),
+            None
+        );
     }
 
     #[test]
@@ -89,7 +110,7 @@ mod tests {
             ..Settings::default()
         };
         assert!(matches!(
-            resolve_from_settings(dir.path(), &settings),
+            resolve_from_settings(dir.path(), &settings, Path::new("shot.cr2")),
             Err(LeylineError::CameraProfileFailed { .. })
         ));
     }
@@ -114,7 +135,7 @@ mod tests {
             ..Settings::default()
         };
         assert!(matches!(
-            resolve_from_settings(dir.path(), &settings),
+            resolve_from_settings(dir.path(), &settings, Path::new("shot.cr2")),
             Err(LeylineError::CameraProfileFailed { .. })
         ));
     }
@@ -135,8 +156,71 @@ mod tests {
             ..Settings::default()
         };
         assert!(matches!(
-            resolve_from_settings(dir.path(), &settings),
+            resolve_from_settings(dir.path(), &settings, Path::new("shot.cr2")),
             Err(LeylineError::CameraProfileFailed { .. })
         ));
+    }
+
+    #[test]
+    fn a_non_raw_source_refuses_a_camera_profile_instead_of_mangling_its_colors() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("Profiles/Camera")).unwrap();
+        let bytes = b"contents never read: the source type is refused first";
+        std::fs::write(dir.path().join("Profiles/Camera/mine.dcp"), bytes).unwrap();
+        let settings = Settings {
+            camera_profile: Some(CameraProfile {
+                enabled: true,
+                path: "Profiles/Camera/mine.dcp".to_owned(),
+                checksum: format!("blake3:{}", blake3::hash(bytes).to_hex()),
+            }),
+            ..Settings::default()
+        };
+        // These decode to sRGB already; a camera→sRGB matrix applied on top
+        // would be a second, wrong conversion.
+        for source in ["shot.jpg", "shot.jpeg", "shot.png", "shot.tif", "shot.tiff"] {
+            assert!(
+                matches!(
+                    resolve_from_settings(dir.path(), &settings, Path::new(source)),
+                    Err(LeylineError::CameraProfileFailed { .. })
+                ),
+                "{source} should refuse a camera profile"
+            );
+        }
+        // RAW and DNG decode camera-native, and so does an unknown
+        // extension — only LibRaw can judge those, and `source::decode`
+        // hands them to it. These still fail here, but on the file's
+        // contents (it isn't a real DCP), never on the source's type: that
+        // is what distinguishes "gate passed" from "gate refused".
+        for source in ["shot.cr2", "shot.dng", "shot.nef", "shot.weird"] {
+            let Err(LeylineError::CameraProfileFailed { reason, .. }) =
+                resolve_from_settings(dir.path(), &settings, Path::new(source))
+            else {
+                panic!("{source}: expected the unparseable fixture to fail");
+            };
+            assert!(
+                !reason.contains("RAW/DNG"),
+                "{source} should pass the source-type gate, got {reason:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_disabled_profile_is_none_even_on_a_non_raw_source() {
+        // Refusing is about *applying* the matrix: a stored-but-off profile
+        // changes no pixels, so it stays the same no-op it is everywhere
+        // else rather than turning a JPEG into an error.
+        let dir = tempfile::tempdir().unwrap();
+        let settings = Settings {
+            camera_profile: Some(CameraProfile {
+                enabled: false,
+                path: "Profiles/Camera/mine.dcp".to_owned(),
+                checksum: format!("blake3:{}", "a".repeat(64)),
+            }),
+            ..Settings::default()
+        };
+        assert_eq!(
+            resolve_from_settings(dir.path(), &settings, Path::new("shot.jpg")).unwrap(),
+            None
+        );
     }
 }

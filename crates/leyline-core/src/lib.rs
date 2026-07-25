@@ -7,6 +7,7 @@
 
 mod error;
 mod id;
+mod path;
 mod settings;
 mod types;
 
@@ -15,6 +16,7 @@ pub use id::{
     AssetId, CollectionId, ExportPresetId, FolderId, JobId, KeywordId, PresetId, PrintPresetId,
     RevisionId, VersionId,
 };
+pub use path::validate_library_relative_path;
 pub use settings::{
     BrushStroke, CURRENT_PROCESS, CURRENT_SCHEMA, CameraProfile, ColorGrading, ColorGradingZone,
     Crop, CurvePoint, HslBand, LensCorrection, LocalAdjustment, LocalAdjustmentValues, Mask,

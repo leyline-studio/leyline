@@ -18,6 +18,37 @@ pub const HEIGHT: u32 = 480;
 /// MBTiles/OSM tile edge length — the size every tile source in practice
 /// uses.
 const TILE_SIZE: f64 = 256.0;
+/// Deepest zoom this renderer supports.
+///
+/// The Web Mercator grid is `2^zoom` tiles wide, so a zoom of 32 or more
+/// overflows the `1u32 << zoom` shift the projection is built on (a panic
+/// in debug, a wrapped grid in release). Real tile sources stop around
+/// 19–24; the ceiling sits at 24 so the whole tile grid also stays well
+/// inside `f64`'s exact-integer range. Zoom values reaching this module
+/// come from MBTiles `metadata`, which is a user-supplied file and
+/// therefore untrusted — [`normalize_zoom_range`] is what keeps a
+/// malformed pack from reaching the shift at all.
+pub const MAX_ZOOM: u8 = 24;
+
+/// The world's edge length in pixels at `zoom`, the scale factor the whole
+/// Web Mercator projection is expressed in. Saturates at [`MAX_ZOOM`] so
+/// no caller can drive the shift out of range.
+fn world_size(zoom: u8) -> f64 {
+    TILE_SIZE * f64::from(1u32 << zoom.min(MAX_ZOOM))
+}
+
+/// Turns a pack's declared `(min_zoom, max_zoom)` into a range this
+/// renderer can actually honor: clamped to [`MAX_ZOOM`], and with an
+/// inverted range (a pack declaring `minzoom = 12, maxzoom = 3`) treated
+/// as absent metadata rather than trusted — `u8::clamp` panics outright
+/// when `min > max`, and MBTiles metadata is user input.
+pub fn normalize_zoom_range(min_zoom: Option<u8>, max_zoom: Option<u8>) -> (u8, u8) {
+    let (min, max) = match (min_zoom, max_zoom) {
+        (Some(min), Some(max)) if min > max => (0, MAX_ZOOM),
+        (min, max) => (min.unwrap_or(0), max.unwrap_or(19)),
+    };
+    (min.min(MAX_ZOOM), max.min(MAX_ZOOM))
+}
 
 /// Pan/zoom state of the map view: purely local UI state, never mirrored
 /// to the catalog, reset every time the map is opened.
@@ -34,10 +65,15 @@ pub struct View {
 impl View {
     /// Centers on the mean of `pins` at a reasonably close-in zoom, or a
     /// neutral whole-world view when there are no pins yet.
-    pub fn initial(pins: &[MapPin]) -> View {
+    ///
+    /// `min`/`max` are the active pack's normalized zoom range
+    /// ([`normalize_zoom_range`]): the preferred zoom is clamped into it,
+    /// because opening at a level the pack has no tiles for renders a
+    /// blank base map with no hint that zooming out would fix it.
+    pub fn initial(pins: &[MapPin], min: u8, max: u8) -> View {
         if pins.is_empty() {
             return View {
-                zoom: 2,
+                zoom: 2.clamp(min, max),
                 center_lon: 0.0,
                 center_lat: 20.0,
             };
@@ -46,7 +82,7 @@ impl View {
         let center_lon = pins.iter().map(|p| p.longitude).sum::<f64>() / count;
         let center_lat = pins.iter().map(|p| p.latitude).sum::<f64>() / count;
         View {
-            zoom: 10,
+            zoom: 10.clamp(min, max),
             center_lon,
             center_lat,
         }
@@ -65,8 +101,12 @@ impl View {
 
     /// Adjusts the zoom level by `delta`, clamped to `[min, max]` — the
     /// pack's own declared range (`TilePackInfo::min_zoom`/`max_zoom`) when
-    /// it has one, a generous default otherwise.
+    /// it has one, a generous default otherwise. Pass a range that has been
+    /// through [`normalize_zoom_range`]; this re-clamps it anyway so a
+    /// caller that forgets cannot turn malformed pack metadata into a
+    /// `clamp` panic.
     pub fn zoom_by(&mut self, delta: i8, min: u8, max: u8) {
+        let (min, max) = normalize_zoom_range(Some(min), Some(max));
         let clamped =
             (i16::from(self.zoom) + i16::from(delta)).clamp(i16::from(min), i16::from(max));
         self.zoom = clamped as u8;
@@ -93,11 +133,15 @@ pub struct ProjectedPin {
 /// same best-effort stance as a missing thumbnail elsewhere in the app.
 pub fn render(library: &Library, view: &View, pins: &[MapPin]) -> (RgbImage, Vec<ProjectedPin>) {
     let mut canvas: RgbImage = ImageBuffer::from_pixel(WIDTH, HEIGHT, Rgb([222, 220, 214]));
-    let (center_x, center_y) = lonlat_to_pixel(view.center_lon, view.center_lat, view.zoom);
+    // Every shift below is driven by this, never by `view.zoom` directly:
+    // the view can be handed any `u8`, but the grid only exists up to
+    // `MAX_ZOOM`.
+    let zoom = view.zoom.min(MAX_ZOOM);
+    let (center_x, center_y) = lonlat_to_pixel(view.center_lon, view.center_lat, zoom);
     let origin_x = center_x - f64::from(WIDTH) / 2.0;
     let origin_y = center_y - f64::from(HEIGHT) / 2.0;
 
-    let side = 1i64 << view.zoom;
+    let side = 1i64 << zoom;
     let first_tile_x = (origin_x / TILE_SIZE).floor() as i64;
     let first_tile_y = (origin_y / TILE_SIZE).floor() as i64;
     let last_tile_x = ((origin_x + f64::from(WIDTH)) / TILE_SIZE).floor() as i64;
@@ -111,7 +155,7 @@ pub fn render(library: &Library, view: &View, pins: &[MapPin]) -> (RgbImage, Vec
             // Longitude wraps around the antimeridian; latitude (rows)
             // never does — out-of-range rows were already skipped above.
             let wrapped_x = tile_x.rem_euclid(side) as u32;
-            let Ok(Some(bytes)) = library.map_tile(view.zoom, wrapped_x, tile_y as u32) else {
+            let Ok(Some(bytes)) = library.map_tile(zoom, wrapped_x, tile_y as u32) else {
                 continue;
             };
             let Ok(tile_image) = image::load_from_memory(&bytes) else {
@@ -126,7 +170,7 @@ pub fn render(library: &Library, view: &View, pins: &[MapPin]) -> (RgbImage, Vec
     let pins = pins
         .iter()
         .filter_map(|pin| {
-            let (px, py) = lonlat_to_pixel(pin.longitude, pin.latitude, view.zoom);
+            let (px, py) = lonlat_to_pixel(pin.longitude, pin.latitude, zoom);
             let x = px - origin_x;
             let y = py - origin_y;
             (x >= 0.0 && y >= 0.0 && x <= f64::from(WIDTH) && y <= f64::from(HEIGHT)).then_some(
@@ -146,7 +190,7 @@ pub fn render(library: &Library, view: &View, pins: &[MapPin]) -> (RgbImage, Vec
 /// (EPSG:3857 tiling — the convention every XYZ tile source, including
 /// MBTiles packs built from OpenStreetMap data, uses).
 fn lonlat_to_pixel(lon: f64, lat: f64, zoom: u8) -> (f64, f64) {
-    let scale = TILE_SIZE * f64::from(1u32 << zoom);
+    let scale = world_size(zoom);
     let x = (lon + 180.0) / 360.0 * scale;
     let lat_rad = lat.to_radians();
     let y = (1.0 - (lat_rad.tan() + 1.0 / lat_rad.cos()).ln() / std::f64::consts::PI) / 2.0 * scale;
@@ -155,7 +199,7 @@ fn lonlat_to_pixel(lon: f64, lat: f64, zoom: u8) -> (f64, f64) {
 
 /// Inverse of [`lonlat_to_pixel`].
 fn pixel_to_lonlat(x: f64, y: f64, zoom: u8) -> (f64, f64) {
-    let scale = TILE_SIZE * f64::from(1u32 << zoom);
+    let scale = world_size(zoom);
     let lon = x / scale * 360.0 - 180.0;
     let n = std::f64::consts::PI - 2.0 * std::f64::consts::PI * y / scale;
     let lat = n.sinh().atan().to_degrees();
@@ -241,8 +285,66 @@ mod tests {
     }
 
     #[test]
+    fn a_zoom_past_the_renderer_maximum_saturates_instead_of_overflowing_the_shift() {
+        // `1u32 << 32` is undefined; a pack declaring `maxzoom = 255`, or
+        // any caller handing over a raw `u8`, must not reach it.
+        let dir = tempfile::tempdir().unwrap();
+        let library = Library::create(&dir.path().join("Library"), "MapViewZoom").unwrap();
+        for zoom in [MAX_ZOOM, 31, 32, 64, 255] {
+            let view = View {
+                zoom,
+                center_lon: 2.3522,
+                center_lat: 48.8566,
+            };
+            let (canvas, _) = render(&library, &view, &[]);
+            assert_eq!((canvas.width(), canvas.height()), (WIDTH, HEIGHT));
+        }
+    }
+
+    #[test]
+    fn an_inverted_pack_zoom_range_is_treated_as_absent_metadata() {
+        // `u8::clamp` panics when min > max, and MBTiles metadata is a
+        // user-supplied file: `minzoom = 12, maxzoom = 3` must normalize,
+        // not crash.
+        assert_eq!(normalize_zoom_range(Some(12), Some(3)), (0, MAX_ZOOM));
+        let mut view = View {
+            zoom: 5,
+            center_lon: 0.0,
+            center_lat: 0.0,
+        };
+        view.zoom_by(1, 12, 3);
+        assert!(view.zoom <= MAX_ZOOM);
+    }
+
+    #[test]
+    fn a_pack_zoom_range_is_clamped_to_what_the_renderer_supports() {
+        assert_eq!(normalize_zoom_range(Some(0), Some(32)), (0, MAX_ZOOM));
+        assert_eq!(
+            normalize_zoom_range(Some(200), Some(255)),
+            (MAX_ZOOM, MAX_ZOOM)
+        );
+        assert_eq!(normalize_zoom_range(None, None), (0, 19));
+        assert_eq!(normalize_zoom_range(Some(3), Some(8)), (3, 8));
+    }
+
+    #[test]
+    fn the_initial_view_never_opens_deeper_than_the_pack_goes() {
+        // A pack that stops at zoom 3 opened at the preferred zoom 10
+        // would render flat fill with no hint that zooming out fixes it.
+        let pins = vec![MapPin {
+            version_id: VersionId::new(1),
+            asset_id: leyline_sdk::AssetId::new(1),
+            latitude: 48.8566,
+            longitude: 2.3522,
+        }];
+        assert_eq!(View::initial(&pins, 0, 3).zoom, 3);
+        assert_eq!(View::initial(&[], 5, 12).zoom, 5);
+        assert_eq!(View::initial(&pins, 0, 19).zoom, 10);
+    }
+
+    #[test]
     fn initial_view_with_no_pins_is_a_neutral_world_view() {
-        let view = View::initial(&[]);
+        let view = View::initial(&[], 0, 19);
         assert_eq!(view.center_lon, 0.0);
     }
 
@@ -262,7 +364,7 @@ mod tests {
                 longitude: 30.0,
             },
         ];
-        let view = View::initial(&pins);
+        let view = View::initial(&pins, 0, 19);
         assert_eq!(view.center_lat, 15.0);
         assert_eq!(view.center_lon, 20.0);
     }
@@ -271,7 +373,7 @@ mod tests {
     fn render_produces_a_canvas_of_the_fixed_size_even_without_a_pack() {
         let dir = tempfile::tempdir().unwrap();
         let library = Library::create(&dir.path().join("Library"), "MapView").unwrap();
-        let view = View::initial(&[]);
+        let view = View::initial(&[], 0, 19);
         let (canvas, pins) = render(&library, &view, &[]);
         assert_eq!((canvas.width(), canvas.height()), (WIDTH, HEIGHT));
         assert!(pins.is_empty());

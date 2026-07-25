@@ -630,6 +630,13 @@ fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
             {
                 report_error(window, &error);
             }
+            // Map mode fetches pins once on entry, but tethered capture
+            // and watched-folder import both add assets while it stays
+            // open (`docs/adr/0038`, `docs/adr/0039`) — and a GPS-tagged
+            // one belongs on the map right away, not on the next entry.
+            if app.map.is_some() {
+                refresh_map_pins(app, window);
+            }
         }
         Event::TetherConnected => {
             app.tether_connected = true;
@@ -2440,10 +2447,19 @@ fn wire_map(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 return;
             };
             let mut app = app.borrow_mut();
-            let pins = app.library.map_pins().unwrap_or_default();
+            // A failed pin query must not look like "no GPS photos": an
+            // empty map is a legitimate state, so a silent fallback to it
+            // makes a catalog problem indistinguishable from a normal
+            // library.
+            let (pins, status) = match app.library.map_pins() {
+                Ok(pins) => (pins, None),
+                Err(error) => (Vec::new(), Some(error.to_string())),
+            };
             app.map = Some(new_map_state(pins, &app.library));
-            apply_pack_info(&app, &window);
-            window.set_map_status(SharedString::default());
+            let unsupported = apply_pack_info(&app, &window);
+            window.set_map_status(SharedString::from(
+                status.or(unsupported).unwrap_or_default(),
+            ));
             window.set_map_mode(true);
             render_map(&mut app, &window);
         });
@@ -2516,11 +2532,17 @@ fn wire_map(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             let mut app = app.borrow_mut();
             match app.library.import_map_pack(&path) {
                 Ok(()) => {
-                    apply_pack_info(&app, &window);
-                    window.set_map_status(SharedString::default());
-                    if let Some(state) = &mut app.map {
-                        state.view = map_view::View::initial(&state.pins);
-                    }
+                    let unsupported = apply_pack_info(&app, &window);
+                    window.set_map_status(SharedString::from(unsupported.unwrap_or_default()));
+                    // The new pack brings its own zoom range: re-derive the
+                    // whole map state rather than keep a view centered at a
+                    // zoom the new pack may not cover.
+                    let pins = app
+                        .map
+                        .as_mut()
+                        .map(|state| std::mem::take(&mut state.pins))
+                        .unwrap_or_default();
+                    app.map = Some(new_map_state(pins, &app.library));
                     render_map(&mut app, &window);
                 }
                 Err(error) => window.set_map_status(SharedString::from(error.to_string())),
@@ -2595,10 +2617,15 @@ fn wire_map(app: &Rc<RefCell<App>>, window: &StudioWindow) {
 /// none, or there is no pack yet).
 fn new_map_state(pins: Vec<MapPin>, library: &Library) -> MapState {
     let info = library.map_pack_info().ok().flatten();
-    let min_zoom = info.as_ref().and_then(|i| i.min_zoom).unwrap_or(0);
-    let max_zoom = info.as_ref().and_then(|i| i.max_zoom).unwrap_or(19);
+    // MBTiles metadata is whatever the pack's author wrote: normalize it
+    // into a range this renderer can honor before anything projects with
+    // it (`map_view::normalize_zoom_range`).
+    let (min_zoom, max_zoom) = map_view::normalize_zoom_range(
+        info.as_ref().and_then(|i| i.min_zoom),
+        info.as_ref().and_then(|i| i.max_zoom),
+    );
     MapState {
-        view: map_view::View::initial(&pins),
+        view: map_view::View::initial(&pins, min_zoom, max_zoom),
         pins,
         min_zoom,
         max_zoom,
@@ -2606,13 +2633,54 @@ fn new_map_state(pins: Vec<MapPin>, library: &Library) -> MapState {
     }
 }
 
-/// Mirrors the active pack's presence/attribution into the map panel.
-fn apply_pack_info(app: &App, window: &StudioWindow) {
+/// The message to show for a pack whose tiles this renderer cannot draw,
+/// or `None` when the pack is fine.
+///
+/// ADR 0040 chose pre-rendered *raster* tiles. A vector pack (`format =
+/// pbf`, the other common MBTiles flavor) opens, reads and imports without
+/// complaint — its tiles simply fail to decode as images, one by one, and
+/// the map renders as flat empty fill. Saying so beats an unexplained
+/// blank map.
+fn unsupported_pack_message(info: Option<&leyline_sdk::TilePackInfo>) -> Option<String> {
+    // A pack that declares no format at all is left alone: plenty of
+    // real raster packs omit the key, and the tiles either decode or
+    // they don't.
+    let format = info?.format.as_deref()?.to_ascii_lowercase();
+    match format.as_str() {
+        "png" | "jpg" | "jpeg" | "webp" => None,
+        other => Some(format!(
+            "this pack stores \"{other}\" tiles; Leyline displays pre-rendered raster packs \
+             (png, jpg, webp) only"
+        )),
+    }
+}
+
+/// Re-queries the map's pins and recomposes the canvas, keeping the
+/// current pan/zoom — unlike entering map mode, which re-centers.
+fn refresh_map_pins(app: &mut App, window: &StudioWindow) {
+    match app.library.map_pins() {
+        Ok(pins) => {
+            if let Some(state) = &mut app.map {
+                state.pins = pins;
+            }
+            render_map(app, window);
+        }
+        Err(error) => window.set_map_status(SharedString::from(error.to_string())),
+    }
+}
+
+/// Mirrors the active pack's presence/attribution into the map panel, and
+/// returns the pack's unsupported-format message if it has one so the
+/// caller can decide whether it outranks whatever status it was about to
+/// show.
+fn apply_pack_info(app: &App, window: &StudioWindow) -> Option<String> {
     let info = app.library.map_pack_info().ok().flatten();
     window.set_map_pack_imported(info.is_some());
+    let unsupported = unsupported_pack_message(info.as_ref());
     window.set_map_pack_attribution(SharedString::from(
         info.and_then(|i| i.attribution).unwrap_or_default(),
     ));
+    unsupported
 }
 
 /// Recomposes the map canvas for the current pan/zoom state and updates
@@ -3359,6 +3427,34 @@ mod tests {
     use leyline_sdk::{ExportedVersion, FailedExport};
 
     use super::*;
+
+    #[test]
+    fn a_vector_tile_pack_is_reported_rather_than_rendered_blank() {
+        // ADR 0040 chose raster tiles. A `pbf` pack imports and activates
+        // fine, then every tile fails to decode and the map shows flat
+        // fill — the user needs to be told why.
+        let vector = leyline_sdk::TilePackInfo {
+            format: Some("pbf".to_owned()),
+            ..Default::default()
+        };
+        let message = unsupported_pack_message(Some(&vector)).expect("pbf is unsupported");
+        assert!(message.contains("pbf"), "{message}");
+
+        for raster in ["png", "jpg", "jpeg", "webp", "PNG"] {
+            let info = leyline_sdk::TilePackInfo {
+                format: Some(raster.to_owned()),
+                ..Default::default()
+            };
+            assert_eq!(unsupported_pack_message(Some(&info)), None, "{raster}");
+        }
+        // Plenty of real raster packs declare no format at all; leave them
+        // to succeed or fail on their tiles.
+        assert_eq!(
+            unsupported_pack_message(Some(&leyline_sdk::TilePackInfo::default())),
+            None
+        );
+        assert_eq!(unsupported_pack_message(None), None);
+    }
 
     #[test]
     fn import_summaries_count_and_explain() {

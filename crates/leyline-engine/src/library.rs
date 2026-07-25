@@ -1223,13 +1223,27 @@ impl Library {
         // liable to fail on Windows where replacing an open file needs
         // share-delete cooperation SQLite doesn't request.
         lock(&self.inner.map_pack).take();
-        // Copy to a sibling temp file first, then rename into place: a
+        // Copy to a sibling temp file first, then move it into place: a
         // reader that opens the pack mid-copy must never see a half-written
-        // file, and `rename` within the same directory is atomic on both
-        // POSIX and Windows.
-        let temp = destination.with_extension("mbtiles.tmp");
+        // file. The temp name carries the process id so two Leyline
+        // instances importing at once cannot collide on it, and so a
+        // crashed import leaves an obviously-stale file rather than one the
+        // next import might mistake for its own.
+        let temp = destination.with_extension(format!("mbtiles.{}.tmp", std::process::id()));
         std::fs::copy(source, &temp)?;
-        std::fs::rename(&temp, &destination)?;
+        // `std::fs::rename` replaces the destination on POSIX but *fails*
+        // on Windows when it already exists, so a re-import has to unlink
+        // first. That leaves a brief window with no active pack; it is the
+        // narrowest one available without platform-specific APIs, and the
+        // cached handle is already dropped by this point either way.
+        if destination.exists() {
+            std::fs::remove_file(&destination)?;
+        }
+        if let Err(error) = std::fs::rename(&temp, &destination) {
+            // Don't leave the copy behind to be mistaken for a pack.
+            let _ = std::fs::remove_file(&temp);
+            return Err(error.into());
+        }
         Ok(())
     }
 
@@ -1252,6 +1266,17 @@ impl Library {
         let file_name = source.file_name().ok_or_else(|| {
             LeylineError::InvalidSettings("camera profile source has no file name".to_owned())
         })?;
+        // The relative path ends up in `settings_json`, which is UTF-8 by
+        // construction. A lossily-converted name would be recorded with
+        // replacement characters and never resolve back to the file that
+        // was actually copied, so refuse the import instead of creating a
+        // revision that cannot be rendered.
+        let file_name = file_name.to_str().ok_or_else(|| {
+            LeylineError::InvalidSettings(format!(
+                "camera profile file name is not valid UTF-8: {}",
+                source.display()
+            ))
+        })?;
         let dir = self.inner.root.join("Profiles").join("Camera");
         std::fs::create_dir_all(&dir)?;
         let destination = dir.join(file_name);
@@ -1267,7 +1292,7 @@ impl Library {
         std::fs::copy(source, &destination)?;
         let bytes = std::fs::read(&destination)?;
         let checksum = format!("blake3:{}", blake3::hash(&bytes).to_hex());
-        let relative_path = format!("Profiles/Camera/{}", file_name.to_string_lossy());
+        let relative_path = format!("Profiles/Camera/{file_name}");
         Ok(ImportedCameraProfile {
             relative_path,
             checksum,

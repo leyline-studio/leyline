@@ -525,6 +525,8 @@ impl Settings {
     /// Only meaningful before *writing* a schema-1 revision; documents from
     /// newer schemas are not covered by these rules.
     pub fn validate(&self) -> Result<()> {
+        use crate::validate_library_relative_path;
+
         fn slider(name: &str, value: i32, min: i32, max: i32) -> Result<()> {
             if (min..=max).contains(&value) {
                 Ok(())
@@ -789,11 +791,7 @@ impl Settings {
             )));
         }
         if let Some(profile) = &self.camera_profile {
-            if profile.path.trim().is_empty() {
-                return Err(LeylineError::InvalidSettings(
-                    "camera_profile.path must not be empty".to_owned(),
-                ));
-            }
+            validate_library_relative_path("camera_profile.path", &profile.path)?;
             let hex = profile.checksum.strip_prefix("blake3:").ok_or_else(|| {
                 LeylineError::InvalidSettings(
                     "camera_profile.checksum must start with \"blake3:\"".to_owned(),
@@ -1115,6 +1113,36 @@ mod tests {
             s.validate(),
             Err(LeylineError::InvalidSettings(_))
         ));
+    }
+
+    #[test]
+    fn camera_profile_rejects_a_path_that_escapes_the_library() {
+        // `settings_json` is user-editable and the path is joined onto the
+        // library root: traversal and absolute paths would turn a revision
+        // into an arbitrary-file read (`validate_library_relative_path`).
+        for path in [
+            "../outside.dcp",
+            "Profiles/../../outside.dcp",
+            "/tmp/x.dcp",
+            "/etc/passwd",
+            "C:\\x.dcp",
+            "C:/x.dcp",
+            "Profiles\\Camera\\mine.dcp",
+            "./mine.dcp",
+        ] {
+            let s = Settings {
+                camera_profile: Some(CameraProfile {
+                    enabled: true,
+                    path: path.to_owned(),
+                    checksum: format!("blake3:{}", "a".repeat(64)),
+                }),
+                ..Settings::default()
+            };
+            assert!(
+                matches!(s.validate(), Err(LeylineError::InvalidSettings(_))),
+                "{path:?} should be rejected"
+            );
+        }
     }
 
     #[test]

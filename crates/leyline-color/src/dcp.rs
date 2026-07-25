@@ -24,14 +24,19 @@
 //! full DNG spec describes — a deliberate simplification, not a
 //! misreading of the spec. `ProfileHueSatMapData`/`ProfileLookTableData`
 //! (the 3D hue/saturation/value correction tables) and `ProfileToneCurve`
-//! are parsed into [`DcpProfile`] but **not yet applied** — future work,
-//! not a silently-dropped requirement. **Colorimetric correctness of the
-//! matrix path has not been validated against real Adobe-generated `.dcp`
-//! files and their reference renders** — the validation bar ADR 0035/0037
-//! themselves set before this can be considered release-ready. Container
-//! parsing is well-tested (round-trips against self-constructed fixtures);
-//! the color science is implemented to the documented spec in good faith,
-//! not verified against Adobe's own output.
+//! are **neither parsed nor applied**: ADR 0037 scopes the eventual parser
+//! to include them, but [`DcpProfile`] currently carries only the profile
+//! name and the resolved camera→XYZ matrix, and [`tag_id`] lists only the
+//! tags that matrix is built from. A profile whose look is largely carried
+//! by those tables will therefore render differently here than in Adobe's
+//! own converter — a known gap, not a silently-dropped requirement.
+//! **Colorimetric correctness of the matrix path has not been validated
+//! against real Adobe-generated `.dcp` files and their reference renders**
+//! — the validation bar ADR 0035/0037 themselves set before this can be
+//! considered release-ready. Container parsing is well-tested for the tags
+//! it does read (round-trips against self-constructed fixtures); the color
+//! science is implemented to the documented spec in good faith, not
+//! verified against Adobe's own output.
 //!
 //! [`ColorMatrix1`]: https://helpx.adobe.com/camera-raw/digital-negative.html
 //! [`ForwardMatrix1`]: https://helpx.adobe.com/camera-raw/digital-negative.html

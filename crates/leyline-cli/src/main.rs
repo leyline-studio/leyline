@@ -79,6 +79,8 @@ Develop params (docs/pipeline.md §3.2, schema 1):
                                     path is library-relative, as listed by
                                     `leyline camera-profiles`; on/off toggles the
                                     profile already referenced, none removes it
+                                    EXPERIMENTAL: DCP colors are not yet validated
+                                    against reference renders
 
 Preset groups (docs/presets.md §3.1, comma-separated, no spaces):
   white_balance tone presence lens_correction detail geometry
@@ -341,6 +343,13 @@ fn camera_profile(args: &[String]) -> Result<(), String> {
         .import_camera_profile(Path::new(source))
         .map_err(|e| e.to_string())?;
     println!("{}  {}", imported.relative_path, imported.checksum);
+    // The matrix path is implemented to spec but unvalidated against
+    // Adobe's own renders (`docs/pipeline.md` process 11) — say so at the
+    // point the user opts in, not only in the docs.
+    eprintln!(
+        "warning: camera profiles are experimental; their colors have not been validated \
+         against reference renders"
+    );
     Ok(())
 }
 

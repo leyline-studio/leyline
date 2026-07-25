@@ -63,6 +63,31 @@ pub(crate) fn decode(path: &Path, params: &DecodeParams) -> Result<RawImage, Sou
     }
 }
 
+/// Whether `path` is a source [`decode`] hands to LibRaw — the only kind
+/// whose samples are camera-native, and therefore the only kind a DCP
+/// camera profile (ADR 0035) may be applied to. Mirrors [`decode`]'s own
+/// dispatch: everything LibRaw judges by content (unknown extensions
+/// included) counts, everything the `image` crate decodes to ready-made
+/// sRGB does not.
+pub(crate) fn is_camera_native(path: &Path) -> bool {
+    let media_type = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .and_then(|e| crate::import::media_type(&e));
+    !matches!(
+        media_type,
+        Some(
+            MediaType::Jpeg
+                | MediaType::Png
+                | MediaType::Tiff
+                | MediaType::Heif
+                | MediaType::Psd
+                | MediaType::Other
+        )
+    )
+}
+
 /// Reads a non-RAW image's pixel dimensions from its header, without a
 /// full decode. The import pipeline records them when available.
 pub(crate) fn probe_dimensions(path: &Path) -> Result<(u32, u32), SourceError> {

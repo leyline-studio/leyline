@@ -1,4 +1,4 @@
-//! Integration tests: the camera-profile facade (`docs/adr/0035-camera-profiles.md`).
+//! Integration tests: the camera-profile facade (`docs/adr/0035-camera-profile-dcp.md`).
 
 use leyline_engine::Library;
 
