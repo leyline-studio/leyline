@@ -3220,6 +3220,8 @@ dependencies = [
  "notify",
  "rayon",
  "rusqlite",
+ "serde",
+ "serde_json",
  "tempfile",
  "thiserror 2.0.18",
  "tiff",
@@ -3292,6 +3294,8 @@ dependencies = [
  "leyline-engine",
  "leyline-export",
  "leyline-map",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]
