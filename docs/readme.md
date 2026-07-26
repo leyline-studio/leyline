@@ -1,470 +1,94 @@
-# Leyline Studio
+# Leyline
 
 ![Leyline Studio](../assets/leyline-studio.png)
 
 > **Open Source RAW Development Platform**
 >
-> **Code name:** Leyline
->
-> **Desktop application:** Leyline Studio
->
 > *Fast. Local. Open.*
 
----
+Leyline est une plateforme de développement photographique RAW : un moteur, et les applications construites autour de lui.
 
-# Introduction
+* **Leyline** — la plateforme (le dépôt, les crates, la documentation).
+* **Leyline Engine** — le moteur de rendu et de catalogue. Indépendant de toute interface.
+* **Leyline Studio** — l'application de bureau. Un client du moteur parmi d'autres, au même titre que la CLI et le SDK.
 
-Leyline est un projet de logiciel de développement photographique RAW nouvelle génération.
-
-L'objectif n'est **pas** de reproduire Adobe Lightroom fonctionnalité par fonctionnalité.
-
-L'objectif est de concevoir une plateforme moderne, durable et ouverte permettant de développer des photographies RAW sans abonnement, sans cloud obligatoire et sans compromis sur les performances.
-
-Le projet est développé en Open Source, avec une architecture pensée dès le départ pour durer plusieurs décennies.
+L'objectif n'est pas de reproduire Lightroom fonctionnalité par fonctionnalité, mais de bâtir une plateforme sans abonnement, sans cloud et sans format propriétaire, dont l'architecture reste maintenable dans vingt ans. Le *pourquoi* est développé dans [`vision.md`](vision.md).
 
 ---
 
-# Pourquoi ce projet ?
+## État du projet — juillet 2026
 
-Aujourd'hui, la plupart des photographes amateurs ou passionnés disposent principalement de deux solutions :
+**Le périmètre V1 est intégralement livré**, sur les trois clients (Studio, CLI, SDK) : import, catalogue, miniatures, EXIF, pipeline de développement non destructif complet, correction d'objectif, gestion des couleurs, presets, retraitement, export JPEG/TIFF/WebP/AVIF, impression, tethering, dossier surveillé, vue carte, installateurs et interface multilingue.
 
-* Adobe Lightroom, performant mais basé sur un abonnement.
-* Quelques alternatives Open Source souvent très puissantes mais parfois difficiles d'accès ou héritées d'architectures anciennes.
+**Une bonne partie du périmètre V2 l'est aussi** : courbe tonale, suppression de tache, réglages locaux masqués, mélangeur TSL et color grading, clarté/texture/dehaze, profils caméra DCP (expérimental).
 
-Leyline souhaite proposer une troisième voie.
+Ce qui reste ouvert :
 
-Un logiciel :
+| Sujet | État |
+|---|---|
+| Épreuvage écran et filigrane | Décidé ([ADR 0034](adr/0034-softproofing-watermark-print.md)), non implémenté |
+| Pipeline d'étages versionnés | Migration en cours ([ADR 0042](adr/0042-versioned-stage-pipeline.md)) |
+| Justesse colorimétrique des profils DCP | Non validée contre de vrais `.dcp` Adobe — fonctionnalité signalée comme expérimentale |
 
-* rapide
-* moderne
-* local
-* multiplateforme
-* agréable à utiliser
-* entièrement non destructif
-* conçu dès le départ avec une architecture propre.
+Le reste du travail est de la robustesse, de la performance et du polissage, non des fonctionnalités manquantes.
 
 ---
 
-# Notre philosophie
+## Par où commencer
 
-## Les photographes restent propriétaires de leurs données.
+**Pour comprendre le projet** — lire dans cet ordre, environ trente minutes :
 
-Aucun cloud obligatoire.
+1. [`vision.md`](vision.md) — *pourquoi* le projet existe, pour qui, et ce qu'il refuse d'être.
+2. [`architecture.md`](architecture.md) — *comment* il est découpé : les crates, leurs dépendances, les choix techniques et leurs raisons.
+3. [`specification.md`](specification.md) — *quoi* : le périmètre livré, et ce qui est volontairement exclu.
 
-Aucun abonnement.
+**Pour contribuer au code** — enchaîner avec :
 
-Aucun verrou propriétaire.
+4. [`contributing.md`](contributing.md) — style, commits, licence, CLA.
+5. [`pipeline.md`](pipeline.md) — le contrat de rendu. À lire **avant** de toucher au moteur : il définit ce qu'est une process version et ce que le projet promet sur la reproductibilité d'un rendu (§5).
+6. [`adr/`](adr/README.md) — 43 décisions structurantes, chacune avec son contexte, ses alternatives écartées et ses conséquences. C'est là que se trouve le *pourquoi* de presque tout ce qui surprend dans le code.
 
-Toutes les données sont stockées localement.
-
----
-
-## Le RAW appartient au photographe.
-
-Un fichier RAW ne sera **jamais** modifié.
-
-Toutes les corrections seront enregistrées séparément.
+**Pour intégrer le moteur** — [`engine-api.md`](engine-api.md), puis le crate `leyline-sdk`, qui est la surface publique stable.
 
 ---
 
-## Local First
+## Carte de la documentation
 
-Le logiciel fonctionne totalement hors connexion.
+Les documents **de lecture** se lisent d'un bout à l'autre. Les documents **de référence** se consultent : on y cherche une réponse précise, on ne les lit pas linéairement.
 
-Internet ne sera utilisé que pour :
-
-* vérifier les nouvelles versions (optionnel)
-* télécharger les mises à jour
-* éventuellement partager volontairement des presets.
-
----
-
-## Open Source
-
-Le cœur du projet sera publié sous licence libre.
-
-L'objectif est de créer une plateforme durable pouvant continuer à évoluer indépendamment d'une entreprise.
-
----
-
-# Ce que Leyline n'est pas
-
-Leyline n'est pas :
-
-* un clone de Lightroom
-* un clone de Darktable
-* un clone de Capture One
-
-Le projet possède sa propre vision.
+| Document | Répond à | Nature |
+|---|---|---|
+| [`vision.md`](vision.md) | Pourquoi ce projet, pour qui, avec quels principes | Lecture |
+| [`architecture.md`](architecture.md) | Quels crates, quelles dépendances, quelles briques externes | Lecture |
+| [`specification.md`](specification.md) | Qu'est-ce qui est livré, qu'est-ce qui est exclu | Lecture |
+| [`roadmap.md`](roadmap.md) | Où en est le projet, phase par phase | Lecture |
+| [`contributing.md`](contributing.md) | Comment contribuer, sous quelle licence | Lecture |
+| [`pipeline.md`](pipeline.md) | Ordre des opérations, `settings_json`, process versions, reproductibilité | Référence |
+| [`catalog.md`](catalog.md) | Schéma SQLite complet du catalogue | Référence |
+| [`engine-api.md`](engine-api.md) | Surface Rust du moteur, modèle d'exécution, sessions d'édition | Référence |
+| [`presets.md`](presets.md) | Presets de développement : modèle et comportement | Référence |
+| [`v2-scope.md`](v2-scope.md) | Cadrage des fonctionnalités post-V1 | Référence |
+| [`v2-implementation-plan.md`](v2-implementation-plan.md) | Séquencement recommandé de ces fonctionnalités | Référence |
+| [`adr/`](adr/README.md) | Pourquoi telle décision plutôt qu'une autre | Référence |
 
 ---
 
-# Les grands principes
+## Une seule source par sujet
 
-* Architecture avant implémentation.
-* Vision avant architecture.
-* Documentation avant code.
-* API avant interface graphique.
-* Simplicité avant accumulation de fonctionnalités.
+Chaque sujet a **un** document propriétaire, et lui seul fait foi. Les autres y renvoient au lieu de recopier — une information dupliquée finit toujours par diverger, et le lecteur n'a alors aucun moyen de savoir quelle copie est à jour.
 
-Notre devise est :
-
-> **No code before architecture. No architecture before vision.**
+En cas de désaccord entre un document et le code, c'est le document qui fait foi : la règle du projet est que le code suit la spécification, et qu'une divergence assumée se règle en modifiant la spécification dans le même changement (plus un ADR si la décision est structurante).
 
 ---
 
-# Les objectifs
-
-Leyline doit permettre :
-
-* d'importer une bibliothèque de photos ;
-* d'organiser un catalogue ;
-* de développer des RAW de manière non destructive ;
-* d'exporter rapidement différents formats ;
-* de gérer plusieurs centaines de milliers de photographies.
-
----
-
-# Les utilisateurs visés
-
-## Amateur passionné
-
-* quelques milliers de photos par an ;
-* souhaite arrêter de payer un abonnement ;
-* recherche un workflow simple et rapide.
-
----
-
-## Amateur expert
-
-* bibliothèque importante ;
-* notation ;
-* collections ;
-* mots-clés ;
-* traitement par lots.
-
----
-
-## Développeur
-
-Le moteur pourra être utilisé comme SDK Rust.
-
----
-
-# Les choix techniques
-
-## Langage
-
-Rust
-
-Pourquoi ?
-
-* performances proches du C++
-* sécurité mémoire
-* excellent écosystème
-* très bonne portabilité
-* pérennité
-
----
-
-## Interface graphique
-
-Slint
-
-Pourquoi ?
-
-* multiplateforme
-* moderne
-* parfaitement intégré à Rust
-* léger
-* performant
-
----
-
-## Base de données
-
-SQLite
-
-Pourquoi ?
-
-* aucun serveur
-* un simple fichier
-* extrêmement rapide
-* robuste
-* utilisé par de nombreux logiciels photo
-
-Le catalogue ne contient jamais les photos.
-
-Uniquement :
-
-* les références
-* les métadonnées
-* les réglages
-* les collections
-* les index
-
----
-
-## Cache
-
-Les aperçus seront stockés dans un cache dédié.
-
-Par exemple :
-
-```
-catalog.db
-
-cache/
-
-preview/
-
-thumbs/
-```
-
-Les RAW ne seront relus que lorsque cela est nécessaire.
-
----
-
-# L'architecture
-
-Le projet sera composé de plusieurs crates Rust.
-
-```
-Leyline
-
-├── leyline-core
-├── leyline-engine
-├── leyline-raw
-├── leyline-catalog
-├── leyline-preview
-├── leyline-color
-├── leyline-lens
-├── leyline-export
-├── leyline-sdk
-├── leyline-cli
-└── leyline-studio
-```
-
-Chaque crate possède une responsabilité unique.
-
----
-
-# Le moteur
-
-Le moteur est indépendant de l'interface graphique.
-
-Il pourra être utilisé :
-
-* par Leyline Studio ;
-* par un outil CLI ;
-* par des scripts ;
-* par d'autres applications.
-
-L'interface graphique n'est qu'un client du moteur.
-
----
-
-# Le pipeline
-
-Toutes les corrections sont appliquées sous forme de pipeline.
-
-```
-RAW
-
-↓
-
-Balance des blancs
-
-↓
-
-Exposition
-
-↓
-
-Contraste
-
-↓
-
-Ombres
-
-↓
-
-Hautes lumières
-
-↓
-
-Correction optique
-
-↓
-
-Netteté
-
-↓
-
-Export
-```
-
-Chaque étape est indépendante.
-
----
-
-# Le catalogue
-
-Le catalogue repose sur SQLite.
-
-Il gère :
-
-* bibliothèques ;
-* collections ;
-* mots-clés ;
-* notes ;
-* couleurs ;
-* EXIF ;
-* historique ;
-* recherches.
-
----
-
-# Le développement RAW
-
-La première version proposera notamment :
-
-* exposition
-* contraste
-* balance des blancs
-* noirs
-* blancs
-* ombres
-* hautes lumières
-* vibrance
-* saturation
-* rotation
-* recadrage
-* correction d'objectif
-* réduction du bruit
-* netteté
-
----
-
-# Export
-
-Formats prévus :
-
-* JPEG
-* TIFF
-* PNG
-* WebP
-* AVIF
-
----
-
-# Ce qui ne sera pas présent en V1
-
-Volontairement :
-
-* cloud
-* compte utilisateur
-* abonnement
-* intelligence artificielle
-* HDR
-* panorama
-* reconnaissance faciale
-* synchronisation automatique
-
-Ces fonctionnalités pourront être étudiées plus tard si elles apportent une réelle valeur.
-
----
-
-# Licence
+## Licence
 
 Leyline est publié sous **GPL-3.0**.
 
-* moteur et application Open Source (GPL-3.0) ;
-* fonctionnement totalement hors ligne ;
-* aucune expiration de licence ;
-* vérification des mises à jour uniquement pour proposer une nouvelle version ;
-* des licences commerciales seront proposées à terme (modèle double licence, type Qt) — la version community reste intégralement GPL ;
-* les contributions sont soumises à un CLA (voir `contributing.md`).
+* Moteur et application intégralement Open Source, fonctionnement hors ligne, aucune expiration de licence.
+* Des licences commerciales sont prévues à terme (modèle double licence, type Qt) ; la version *community* reste intégralement GPL.
+* Les contributions sont soumises à un CLA — voir [`contributing.md`](contributing.md) et [ADR 0009](adr/0009-gpl3-cla-dual-license.md).
 
 ---
 
-# Pourquoi "Leyline" ?
-
-Le nom est inspiré des **Ley Lines**, ces lignes théoriques reliant différents lieux remarquables.
-
-Cette idée représente parfaitement le fonctionnement interne du logiciel :
-
-Une photographie suit un chemin composé de plusieurs transformations.
-
-Chaque opération est reliée à la suivante.
-
-Le développement d'une photo devient un parcours.
-
-Le nom de l'application est donc :
-
-# Leyline Studio
-
-Le moteur :
-
-# Leyline Engine
-
-La plateforme :
-
-# Leyline
-
----
-
-# Notre ambition
-
-Nous ne voulons pas simplement développer un logiciel.
-
-Nous voulons construire une plateforme photographique moderne.
-
-Une architecture suffisamment propre pour être encore maintenable dans dix ou vingt ans.
-
-Une plateforme où chaque décision est documentée.
-
-Où chaque choix technique est justifié.
-
-Où chaque module est indépendant.
-
-Où les photographes restent propriétaires de leurs images.
-
----
-
-# Une vision à long terme
-
-Leyline est pensé comme un projet Open Source de référence.
-
-Avant la première ligne de Rust, toute l'architecture sera documentée :
-
-* vision
-* principes
-* architecture
-* modèle métier
-* pipeline
-* catalogue
-* API
-* moteur
-* SDK
-* interface
-* conventions
-* tests
-* ADR (Architecture Decision Records)
-
-Cette documentation constituera la base du projet pendant toute sa durée de vie.
-
----
-
-# Conclusion
-
-Leyline n'a pas vocation à remplacer Lightroom du jour au lendemain.
-
-Son objectif est beaucoup plus ambitieux sur le long terme :
-
-Construire une plateforme ouverte, performante, durable et élégante permettant aux photographes de développer leurs images sans dépendre d'un abonnement, d'un cloud ou d'un format propriétaire.
-
-Le premier utilisateur de Leyline sera son créateur.
-
-Mais si cette vision est partagée par d'autres photographes et développeurs, le projet pourra devenir une véritable référence Open Source dans le domaine du développement RAW.
-
+> **No code before architecture. No architecture before vision.**

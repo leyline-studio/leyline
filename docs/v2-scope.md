@@ -2,15 +2,31 @@
 
 **Document :** `docs/v2-scope.md`
 **Version :** 0.1
-**Statut :** Exploration
+**Statut :** Exploration — **cadrage largement réalisé depuis** (voir l'état ci-dessous)
+
+---
+
+## État de ce document
+
+> **Attention au temps des verbes.** Ce document a été écrit lorsque les sept fonctionnalités ci-dessous étaient absentes, et il en parle au présent (« aucun réglage local aujourd'hui »). Six d'entre elles ont depuis été décidées **et implémentées**. Son analyse reste utile — c'est le raisonnement qui a mené aux ADR correspondants — mais il ne décrit plus l'état du produit. Pour cet état, voir [`specification.md`](specification.md).
+
+| § | Fonctionnalité | État |
+|---|---|---|
+| 2 | Réglages locaux / masqués | ✅ Livré — process 8, [ADR 0029](adr/0029-process-6-local-adjustments.md) |
+| 3 | Courbe tonale | ✅ Livré — process 6, [ADR 0030](adr/0030-tone-curve.md) |
+| 4 | Color grading / mélangeur TSL | ✅ Livré — process 9, [ADR 0031](adr/0031-hsl-color-grading.md) |
+| 5 | Suppression de tache | ✅ Livré — process 7, clonage seul, [ADR 0032](adr/0032-spot-removal-clone.md) |
+| 6 | Dehaze / texture / clarté | ✅ Livré — process 10, [ADR 0033](adr/0033-clarity-texture-dehaze.md) |
+| 7 | Épreuvage, filigrane, impression | ⚠️ Partiel — impression livrée ([ADR 0036](adr/0036-print-module.md)) ; épreuvage et filigrane décidés ([ADR 0034](adr/0034-softproofing-watermark-print.md)) mais **non implémentés** |
+| 8 | Profils caméra au-delà de Lensfun | ✅ Livré — process 11, **expérimental**, [ADR 0035](adr/0035-camera-profile-dcp.md) / [ADR 0037](adr/0037-dcp-parsing-dependency.md) |
 
 ---
 
 # 1. Objectif
 
-Le périmètre V1 (`docs/specification.md` §Inclus) est **livré et clos**.
+Le périmètre V1 (`docs/specification.md` §1) est **livré et clos**.
 
-Ce document ne rouvre pas la V1. Il cadre, au niveau architecture, sept fonctionnalités qui **manquent** aujourd'hui — sans être exclues par conception. Les exclusions volontaires de V1 (`docs/specification.md` §Exclus volontairement : cloud, comptes, IA, HDR, panorama, reconnaissance faciale, synchronisation) restent hors sujet ici. Les sept items ci-dessous sont d'une autre nature : ce sont des attentes classiques d'un développeur RAW (parité Lightroom/Darktable/Capture One) simplement pas encore construites.
+Ce document ne rouvre pas la V1. Il cadre, au niveau architecture, sept fonctionnalités qui **manquaient** au moment de sa rédaction — sans être exclues par conception. Les exclusions volontaires de V1 (`docs/specification.md` §4 (Exclusions volontaires) : cloud, comptes, IA, HDR, panorama, reconnaissance faciale, synchronisation) restent hors sujet ici. Les sept items ci-dessous sont d'une autre nature : ce sont des attentes classiques d'un développeur RAW (parité Lightroom/Darktable/Capture One) simplement pas encore construites.
 
 Chaque section décrit ce que l'item exige du **contrat de rendu** (`docs/pipeline.md` §3.2/§3.3 : `schema` de format vs `process` de rendu), sa place dans l'**ordre du pipeline** (§3.1), le ou les **crates** propriétaires, les implications **catalogue** (`docs/catalog.md`) et **API moteur** (`docs/engine-api.md`), une lecture de complexité (S/M/L/XL) et les questions ouvertes.
 

@@ -1,8 +1,22 @@
 # Architecture Decision Records
 
-Chaque décision structurante est consignée ici : contexte, décision, conséquences, alternatives écartées.
+Chaque décision structurante est consignée ici, selon le même plan : **contexte**, **décision**, **conséquences**, **alternatives écartées**. C'est la dernière rubrique qui fait la valeur d'un ADR — elle dit ce qui a été envisagé puis rejeté, et pourquoi, ce qu'aucune lecture du code ne permet de reconstituer.
 
-Une décision acceptée ne se modifie pas : elle se remplace par un nouvel ADR qui la référence.
+## Comment lire ce dossier
+
+Il n'est pas fait pour être lu d'un bout à l'autre. Trois usages :
+
+* **Comprendre une brique externe** — 0001 à 0005 (Rust, Slint, SQLite, LibRaw, Lensfun/LittleCMS).
+* **Comprendre le modèle de données** — 0007 (modèle inspiré de Git), 0008 (la version comme unité), 0010 (chemins relatifs).
+* **Comprendre le rendu** — 0012 (parallélisme), 0028 puis **0042** (versionnage du rendu), et les ADR de fonctionnalité pixel 0013, 0016–0018, 0029–0035.
+
+## Règle d'édition
+
+**Avant la première publication publique, un ADR reste librement modifiable** : un ADR qui ne correspond plus à l'implémentation est corrigé sur place, et non remplacé. Cette souplesse s'arrête le jour de l'ouverture au monde — les décisions acceptées gèlent alors, et sont remplacées par de nouveaux ADR qui les référencent, jamais éditées.
+
+Ce qui ne se relâche d'aucun côté de cette ligne : **décider et documenter avant de coder**.
+
+Un ADR remplacé n'est jamais supprimé : il reste lisible, avec sa raison d'époque. [ADR 0028](0028-process-version-per-feature.md) en est l'exemple — son raisonnement était correct pour les données dont il disposait, et il avait lui-même prévu sa réouverture.
 
 | ADR | Décision |
 |---|---|
@@ -33,7 +47,7 @@ Une décision acceptée ne se modifie pas : elle se remplace par un nouvel ADR q
 | [0025](0025-unified-export-request.md) | Une seule requête d'export : `ExportRequest`/`ExportRecipe` |
 | [0026](0026-mask-spot-coordinate-referential.md) | Référentiel de coordonnées des masques et corrections locales : celui de `crop` |
 | [0027](0027-color-management-beyond-srgb.md) | Gestion des couleurs au-delà de sRGB : profil de sortie découplé du rendu |
-| [0028](0028-process-version-per-feature.md) | Une process version par fonctionnalité pixel : maintien de la duplication par module |
+| [0028](0028-process-version-per-feature.md) | ~~Une process version par fonctionnalité pixel : duplication par module~~ — **remplacé par [0042](0042-versioned-stage-pipeline.md)** |
 | [0029](0029-process-6-local-adjustments.md) | Process 6 : réglages locaux masqués (brosse, radial, gradient), stockés dans `settings_json`, pilotés par `Param::LocalAdjustment` |
 | [0030](0030-tone-curve.md) | Courbe tonale : courbe par points seule, spline cubique monotone, appliquée en luminance via LUT |
 | [0031](0031-hsl-color-grading.md) | Mélangeur TSL et roues de color grading : HSL dérivé du RGB, zones tonales pondérées par luminance |

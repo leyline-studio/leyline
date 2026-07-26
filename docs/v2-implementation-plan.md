@@ -2,7 +2,15 @@
 
 **Document :** `docs/v2-implementation-plan.md`
 **Version :** 0.1
-**Statut :** Recommandation (entrée de planification, pas une décision)
+**Statut :** Recommandation (entrée de planification, pas une décision) — **séquencement exécuté**
+
+---
+
+## État de ce document
+
+> Ce document recommandait un ordre de construction pour les sept items de [`v2-scope.md`](v2-scope.md). **Cet ordre a été suivi et le travail est fait**, à une exception près : l'épreuvage écran et le filigrane (item 7) restent décidés mais non implémentés. Il se lit désormais comme une archive de planification, utile pour comprendre les arbitrages retenus, et non comme une liste de tâches. L'état réel est dans [`specification.md`](specification.md) et [`roadmap.md`](roadmap.md).
+>
+> Une réserve de lecture : ce document raisonne sur la garantie posée par [ADR 0028](adr/0028-process-version-per-feature.md) (une process version par fonctionnalité, duplication par module). [ADR 0042](adr/0042-versioned-stage-pipeline.md) a depuis **remplacé** ADR 0028. La garantie de fond est inchangée — un rendu figé le reste — mais son implémentation ne l'est plus.
 
 ---
 
