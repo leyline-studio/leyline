@@ -503,7 +503,9 @@ Deux exécutions produisent le **même résultat, bit pour bit**, si et seulemen
 * la ressource d'entrée est identique (même `checksum`) ;
 * la plateforme et la chaîne de compilation sont les mêmes (§5.2).
 
-Cette garantie ne dépend **ni de la version de l'application, ni du profil de compilation**. Leyline 1.0.3 et Leyline 7.2.0 rendent `sharpen::v1` à l'identique, parce qu'il s'agit littéralement du même code gelé dans les deux binaires ; un build `debug` et un build `release` également, ce que les rendus de référence (`crates/leyline-engine/tests/golden_renders.rs`) vérifient dans les deux profils.
+Cette garantie ne dépend **ni de la version de l'application, ni du profil de compilation**. Leyline 1.0.3 et Leyline 7.2.0 rendent `sharpen::v1` à l'identique, parce qu'il s'agit littéralement du même code gelé dans les deux binaires ; un build `debug` et un build `release` également, ce que les rendus de référence (`crates/leyline-engine/src/stages/golden.rs`, manifeste dans `tests/golden/renders.json`) vérifient dans les deux profils.
+
+Ces rendus de référence épinglent, avec chaque empreinte, **la carte `stages` qui l'a produite**, et rejouent chaque entrée à travers cette carte-là. Une nouvelle version d'étage ne peut donc pas déplacer une empreinte existante : elle en ajoute une. Trois gardes tiennent ensemble — les entrées épinglées rendent toujours les mêmes pixels, ce que le moteur épingle *aujourd'hui* figure au manifeste, et aucune paire `(étage, version)` publiée n'échappe au manifeste.
 
 C'est la bonne échelle pour énoncer la promesse : un utilisateur sait quelles versions d'étages sa photo cite — elles sont écrites dans sa révision — alors qu'il ignore quel build a produit ses pixels.
 

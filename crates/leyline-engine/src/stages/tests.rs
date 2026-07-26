@@ -2,8 +2,8 @@
 //!
 //! These are the unit tests the eleven `processN.rs` modules used to carry,
 //! kept once instead of eleven times. They assert what each operator *does*;
-//! that every historical process version still does it byte for byte is the
-//! separate job of `tests/golden_renders.rs`.
+//! that every published stage version still does it byte for byte is the
+//! separate job of `stages/golden.rs`.
 
 use leyline_core::LensCorrection;
 use leyline_core::{

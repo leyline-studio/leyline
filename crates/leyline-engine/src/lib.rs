@@ -1,9 +1,10 @@
 //! Leyline orchestration engine: jobs, events and rendering.
 //!
 //! The develop renderer lives here: [`render`] turns a decoded RAW image and
-//! a revision's settings into pixels, honoring the process version contract
-//! of `docs/pipeline.md` §3.3 — every past process version stays rendable
-//! forever, each one frozen in its own module (`process1` being the first).
+//! a revision's settings into pixels, honoring the freeze contract of
+//! `docs/pipeline.md` §5.1 — a revision names the version of each stage it
+//! renders through (ADR 0042, ADR 0043), and every published stage version
+//! stays rendable forever, frozen in its own module.
 //!
 //! Editing goes through [`EditSession`], which owns the coalescence policy
 //! of `docs/engine-api.md` §10.1 on top of the catalog's revision mechanics.

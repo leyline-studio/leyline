@@ -7,30 +7,50 @@
 //! images, fixed settings, no clock, no file system, no thread-count
 //! dependence (the pipeline's parallelism is over disjoint rows).
 //!
-//! These fixtures were what proved the ADR 0042 migration pixel-exact
-//! across the eleven `processN.rs` modules it replaced. ADR 0043 then
-//! collapsed that pre-publication history onto one version per operator,
-//! and the manifest was regenerated once, under that decision — the only
-//! time it may ever be. From here on a changed digest means a revision
-//! somewhere now renders differently, which is a defect, not a diff to
-//! bless:
+//! # What an entry is pinned *to*
+//!
+//! An entry records the `stages` map it rendered through, and the replay
+//! feeds that exact map back to [`render`]. This is what makes the fixture a
+//! freeze rather than a snapshot: the day a `sharpen::v2` ships, the entries
+//! citing `sharpen::v1` keep rendering v1 and must stay bit-identical —
+//! precisely the promise. Nothing about a new version can move them, so
+//! nothing about a new version can pressure anyone into re-blessing.
+//!
+//! What a new version *does* trigger is a missing-coverage failure: the
+//! versions this engine would pin today ([`super::pin`]) must themselves
+//! appear in the manifest, and so must every published `(stage, version)`
+//! pair in the registry. Blessing then *adds* the new entries:
 //!
 //! ```text
-//! LEYLINE_BLESS_GOLDEN=1 cargo test -p leyline-engine --test golden_renders
+//! LEYLINE_BLESS_GOLDEN=1 cargo test -p leyline-engine --lib golden
 //! ```
+//!
+//! Blessing is additive by construction: it never rewrites an entry it
+//! finds. These fixtures were what proved the ADR 0042 migration pixel-exact
+//! across the eleven `processN.rs` modules it replaced; ADR 0043 then
+//! collapsed that pre-publication history and the manifest was regenerated
+//! once, under that decision — the only time it ever was. A digest that
+//! moves now is a defect, and the only way to move one on purpose is to edit
+//! `renders.json` by hand.
+//!
+//! For the same reason the settings fragments below are frozen too: an entry
+//! can only be replayed if its case still means what it meant. Exercising an
+//! operator differently is a *new* case, never an edit of one that ships.
 
 use std::collections::BTreeMap;
 use std::io::Cursor;
 
 use leyline_color::DcpProfile;
 use leyline_core::{
-    BrushStroke, ColorGrading, ColorGradingZone, Crop, CurvePoint, HslBand, LensCorrection,
-    LocalAdjustment, LocalAdjustmentValues, Mask, NoiseReduction, Point, Settings, Sharpening,
-    SpotRemoval, ToneCurve, WhiteBalance,
+    BrushStroke, CameraProfile, ColorGrading, ColorGradingZone, Crop, CurvePoint, HslBand,
+    LensCorrection, LocalAdjustment, LocalAdjustmentValues, Mask, NoiseReduction, Point, Settings,
+    Sharpening, SpotRemoval, StageVersions, ToneCurve, WhiteBalance,
 };
-use leyline_engine::{LensShot, render};
 use leyline_raw::RawImage;
 use serde::{Deserialize, Serialize};
+
+use super::{fixture, pin, registry};
+use crate::render::{LensShot, render};
 
 /// Path of the committed manifest, relative to the crate root.
 const MANIFEST: &str = "tests/golden/renders.json";
@@ -38,6 +58,9 @@ const MANIFEST: &str = "tests/golden/renders.json";
 /// One pinned render.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 struct Golden {
+    /// The stage versions this render went through — and the ones it is
+    /// replayed through forever after.
+    stages: StageVersions,
     width: u32,
     height: u32,
     /// BLAKE3 of the RGB8 output — the bit-identity assertion itself.
@@ -46,6 +69,10 @@ struct Golden {
     /// digest doesn't, but when a digest moves they say *how* it moved.
     samples: Vec<[u8; 3]>,
 }
+
+/// The manifest: every pinned variant of every case. A case gets a second
+/// entry the day one of the operators it exercises gets a second version.
+type Manifest = BTreeMap<String, Vec<Golden>>;
 
 /// Deterministic stand-in for a decoded RAW: smooth ramps so tone
 /// operators have something continuous to act on, a per-pixel hash so the
@@ -185,6 +212,21 @@ fn lens(settings: Settings) -> Settings {
             enabled: true,
             profile: "auto".to_owned(),
         },
+        ..settings
+    }
+}
+
+/// The camera profile stage needs two things: a resolved `DcpProfile` —
+/// every case is rendered with [`sample_profile`] — and a revision that
+/// says it wants one. Path and checksum only have to satisfy
+/// `Settings::validate`; the stage itself reads neither.
+fn camera_profile(settings: Settings) -> Settings {
+    Settings {
+        camera_profile: Some(CameraProfile {
+            enabled: true,
+            path: "Profiles/Camera/sample.dcp".to_owned(),
+            checksum: format!("blake3:{}", "0".repeat(64)),
+        }),
         ..settings
     }
 }
@@ -362,6 +404,22 @@ fn presence(settings: Settings) -> Settings {
     }
 }
 
+/// Activates the two-version fixture stage of ADR 0043 §7 at `version`.
+/// These two cases are what keep the manifest carrying, at all times, a
+/// stage whose older version stays pinned while a newer one exists — the
+/// shape every real operator takes the day it gets a `v2`.
+fn fixture_stage(settings: Settings, version: u16) -> Settings {
+    let mut settings = Settings {
+        exposure: 0.3,
+        ..settings
+    };
+    settings
+        .extra
+        .insert(fixture::MARKER.to_owned(), serde_json::Value::Bool(true));
+    settings.stages.insert(fixture::NAME.to_owned(), version);
+    settings
+}
+
 // ---------------------------------------------------------------------------
 // The case matrix
 // ---------------------------------------------------------------------------
@@ -380,13 +438,20 @@ fn cases() -> Vec<(String, Settings)> {
         ("detail", detail(base.clone())),
         ("geometry", geometry(base.clone())),
         ("lens", lens(base.clone())),
+        ("camera_profile", camera_profile(base.clone())),
         ("tone_curve", tone_curve(base.clone())),
         ("spots", spots(base.clone())),
         ("locals", locals(base.clone())),
         ("hsl_grading", hsl_grading(base.clone())),
         ("presence", presence(base.clone())),
+        ("fixture_v1", fixture_stage(base.clone(), 1)),
+        ("fixture_v2", fixture_stage(base.clone(), 2)),
     ];
 
+    // The composite deliberately leaves `camera_profile` out: it is pinned
+    // as it was the day it was captured, and a fragment a manifest entry
+    // already cites is frozen with it. The profile stage runs first, at rank
+    // 10, so its own case is where it is exercised.
     let all = presence(hsl_grading(locals(spots(tone_curve(lens(detail(color(
         tone(base.clone()),
     ))))))));
@@ -398,14 +463,26 @@ fn cases() -> Vec<(String, Settings)> {
         .collect()
 }
 
-/// Renders one case and reduces it to its pinned form.
-fn capture(settings: &Settings) -> Golden {
+/// The stage map this engine pins for `settings` today: what a revision
+/// written now would record, and therefore what a new entry must cover.
+fn current_stages(settings: &Settings) -> StageVersions {
+    let mut settings = settings.clone();
+    pin(&mut settings);
+    settings.stages
+}
+
+/// Renders one case through `stages` and reduces it to its pinned form.
+fn capture(settings: &Settings, stages: &StageVersions) -> Golden {
     // Small enough to keep the suite fast, large enough that the blur and
     // resampling stages have real neighbourhoods to work with.
     let image = synthetic_image(96, 64);
     let shot = canon_shot();
     let profile = sample_profile();
-    let rendered = render(&image, settings, Some(&shot), Some(&profile))
+    let settings = Settings {
+        stages: stages.clone(),
+        ..settings.clone()
+    };
+    let rendered = render(&image, &settings, Some(&shot), Some(&profile))
         .unwrap_or_else(|e| panic!("render failed: {e}"));
 
     let digest = blake3::hash(&rendered.data).to_hex().to_string();
@@ -420,6 +497,7 @@ fn capture(settings: &Settings) -> Golden {
         })
         .collect();
     Golden {
+        stages: stages.clone(),
         width: rendered.width,
         height: rendered.height,
         digest,
@@ -427,65 +505,160 @@ fn capture(settings: &Settings) -> Golden {
     }
 }
 
-#[test]
-fn the_pipeline_still_renders_exactly_what_it_rendered_before() {
-    let current: BTreeMap<String, Golden> = cases()
-        .into_iter()
-        .map(|(key, settings)| (key, capture(&settings)))
-        .collect();
+fn manifest_path() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(MANIFEST)
+}
 
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(MANIFEST);
-
-    if std::env::var_os("LEYLINE_BLESS_GOLDEN").is_some() {
-        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-        let json = serde_json::to_string_pretty(&current).unwrap();
-        std::fs::write(&path, format!("{json}\n")).unwrap();
-        eprintln!(
-            "blessed {} golden renders -> {}",
-            current.len(),
-            path.display()
-        );
-        return;
-    }
-
+fn read_manifest() -> Manifest {
+    let path = manifest_path();
     let raw = std::fs::read_to_string(&path).unwrap_or_else(|e| {
         panic!(
             "cannot read {}: {e}\nrun with LEYLINE_BLESS_GOLDEN=1 to capture it",
             path.display()
         )
     });
-    let expected: BTreeMap<String, Golden> = serde_json::from_str(&raw).unwrap();
+    serde_json::from_str(&raw).unwrap()
+}
+
+/// Adds the entries this engine needs and the manifest does not have yet,
+/// leaving every entry it finds exactly as it is.
+fn bless() {
+    let path = manifest_path();
+    let mut manifest: Manifest = std::fs::read_to_string(&path)
+        .ok()
+        .map(|raw| serde_json::from_str(&raw).expect("the manifest is valid JSON"))
+        .unwrap_or_default();
+
+    let mut added = 0;
+    for (key, settings) in cases() {
+        let stages = current_stages(&settings);
+        let entries = manifest.entry(key).or_default();
+        if entries.iter().any(|entry| entry.stages == stages) {
+            continue;
+        }
+        entries.push(capture(&settings, &stages));
+        entries.sort_by(|a, b| a.stages.iter().cmp(b.stages.iter()));
+        added += 1;
+    }
+
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    let json = serde_json::to_string_pretty(&manifest).unwrap();
+    std::fs::write(&path, format!("{json}\n")).unwrap();
+    eprintln!("blessed {added} new golden renders -> {}", path.display());
+}
+
+/// The freeze itself: every entry in the manifest still renders, through the
+/// stage versions it records, exactly the pixels it recorded.
+#[test]
+fn every_pinned_render_is_still_bit_identical() {
+    if std::env::var_os("LEYLINE_BLESS_GOLDEN").is_some() {
+        bless();
+        return;
+    }
+
+    let expected = read_manifest();
+    let cases: BTreeMap<String, Settings> = cases().into_iter().collect();
 
     let mut drifted = Vec::new();
-    for (key, want) in &expected {
-        match current.get(key) {
-            None => drifted.push(format!("{key}: case disappeared")),
-            Some(got) if got != want => drifted.push(format!(
-                "{key}: {}x{} {} -> {}x{} {}\n    expected samples {:?}\n    actual   samples {:?}",
-                want.width,
-                want.height,
-                &want.digest[..16],
-                got.width,
-                got.height,
-                &got.digest[..16],
-                &want.samples[..4.min(want.samples.len())],
-                &got.samples[..4.min(got.samples.len())],
-            )),
-            Some(_) => {}
-        }
-    }
-    for key in current.keys() {
-        if !expected.contains_key(key) {
-            drifted.push(format!("{key}: new case, not yet pinned"));
+    let mut pinned = 0;
+    for (key, entries) in &expected {
+        let Some(settings) = cases.get(key) else {
+            drifted.push(format!("{key}: case disappeared"));
+            continue;
+        };
+        for want in entries {
+            pinned += 1;
+            let got = capture(settings, &want.stages);
+            if got != *want {
+                drifted.push(format!(
+                    "{key} {:?}: {}x{} {} -> {}x{} {}\n    expected samples {:?}\n    \
+                     actual   samples {:?}",
+                    want.stages,
+                    want.width,
+                    want.height,
+                    &want.digest[..16],
+                    got.width,
+                    got.height,
+                    &got.digest[..16],
+                    &want.samples[..4.min(want.samples.len())],
+                    &got.samples[..4.min(got.samples.len())],
+                ));
+            }
         }
     }
 
     assert!(
         drifted.is_empty(),
-        "{} of {} golden renders drifted — a revision somewhere now renders \
-         differently (docs/pipeline.md §3.3):\n  {}",
+        "{} of {pinned} golden renders drifted — a revision somewhere now renders \
+         differently (docs/pipeline.md §5.1):\n  {}",
         drifted.len(),
-        expected.len(),
         drifted.join("\n  ")
+    );
+}
+
+/// The coverage half: what this engine renders *today* is pinned too.
+///
+/// A case whose current stage map has no entry is a rendering nobody has
+/// frozen — either a new case, or an operator that just got a new version
+/// and now runs unpinned. Blessing adds that entry without disturbing the
+/// older ones, which is the whole difference with re-blessing.
+#[test]
+fn every_case_pins_the_versions_this_engine_renders_today() {
+    if std::env::var_os("LEYLINE_BLESS_GOLDEN").is_some() {
+        return;
+    }
+
+    let expected = read_manifest();
+    let missing: Vec<String> = cases()
+        .into_iter()
+        .filter_map(|(key, settings)| {
+            let stages = current_stages(&settings);
+            let pinned = expected
+                .get(&key)
+                .is_some_and(|entries| entries.iter().any(|entry| entry.stages == stages));
+            (!pinned).then(|| format!("{key}: {stages:?}"))
+        })
+        .collect();
+
+    assert!(
+        missing.is_empty(),
+        "{} case(s) render through versions no golden pins — bless to add them \
+         (LEYLINE_BLESS_GOLDEN=1), which leaves the existing entries untouched:\n  {}",
+        missing.len(),
+        missing.join("\n  ")
+    );
+}
+
+/// No published `(stage, version)` pair may sit outside the manifest.
+///
+/// The two tests above pin what the cases exercise; this one notices a
+/// version that shipped without any case reaching it, since a stage nothing
+/// renders is a stage nothing freezes.
+#[test]
+fn every_published_stage_version_is_pinned_by_some_case() {
+    if std::env::var_os("LEYLINE_BLESS_GOLDEN").is_some() {
+        return;
+    }
+
+    let expected = read_manifest();
+    let mut unpinned = Vec::new();
+    for stage in registry() {
+        for version in stage.versions {
+            let covered = expected
+                .values()
+                .flatten()
+                .any(|entry| entry.stages.get(stage.name) == Some(&version.version));
+            if !covered {
+                unpinned.push(format!("{}::v{}", stage.name, version.version));
+            }
+        }
+    }
+
+    assert!(
+        unpinned.is_empty(),
+        "{} published stage version(s) are frozen by nothing — add a case to \
+         `cases()` that activates them:\n  {}",
+        unpinned.len(),
+        unpinned.join("\n  ")
     );
 }

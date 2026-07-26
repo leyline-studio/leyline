@@ -20,7 +20,7 @@ l'ordre des opérations *pour un échantillon donné*. Chaque ligne est calculé
 indépendamment, aucune réduction flottante inter-threads n'est autorisée —
 le résultat reste bit-pour-bit identique à l'exécution mono-thread, ce que
 les tests de rendu existants vérifient — et, depuis ADR 0042 §7, les rendus
-de référence de `golden_renders.rs`, dont aucune empreinte ne dépend du
+de référence de `stages/golden.rs`, dont aucune empreinte ne dépend du
 nombre de threads.
 
 Un process version gelé peut donc être parallélisé après coup : ce n'est pas

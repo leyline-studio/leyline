@@ -30,8 +30,10 @@
 //!    `develop_scaled` used to spell out. Adding entries is allowed;
 //!    editing published ones is not.
 //!
-//! What proves all of this is not review but `tests/golden_renders.rs`,
-//! which pins the digest of one render per operator family (ADR 0042 §7).
+//! What proves all of this is not review but [`golden`], which pins the
+//! digest of one render per operator family (ADR 0042 §7) *together with the
+//! stage versions it rendered through* — so a new version adds an entry
+//! there instead of moving the existing ones.
 //!
 //! # Rank, not order of statements
 //!
@@ -572,6 +574,9 @@ pub(crate) fn develop_scaled(
 
 #[cfg(test)]
 mod fixture;
+
+#[cfg(test)]
+mod golden;
 
 #[cfg(test)]
 mod tests;
