@@ -79,7 +79,7 @@ Un preset suit la compatibilité de `pipeline.md` §3.4, sur le même schéma qu
 * un moteur qui rencontre un `schema` plus récent que ce qu'il connaît refuse l'application (même famille d'erreur que `NewerSettings`, `engine-api.md` §4) plutôt que d'appliquer un sous-ensemble mal interprété ;
 * le renommage ou la suppression d'un champ dans une nouvelle version de schéma rend les presets de l'ancien schéma toujours lisibles (aucune migration automatique), au même titre que les révisions historiques.
 
-Un preset ne référence jamais un `process` : il reste valide à travers les évolutions de rendu (`process` 1, 2, ...), seul le `schema` des champs le concerne.
+Un preset ne référence jamais une version d'étage : il reste valide à travers les évolutions de rendu, seul le `schema` des champs le concerne. Les versions d'étages viennent de la révision à laquelle il est appliqué (`pipeline.md` §3.3).
 
 ---
 

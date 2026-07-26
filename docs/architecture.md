@@ -98,9 +98,9 @@ Le schéma complet est spécifié dans [`catalog.md`](catalog.md).
 
 Toutes les corrections sont appliquées sous forme d'un pipeline d'étapes indépendantes, du RAW décodé jusqu'à l'encodage de sortie. L'ordre des opérations n'est pas un détail d'implémentation : il fait partie du contrat de rendu, au même titre que les formules.
 
-L'ordre exact, le format `settings_json`, les process versions et la promesse de reproductibilité sont spécifiés dans [`pipeline.md`](pipeline.md) — à lire avant toute intervention sur le moteur.
+L'ordre exact, le format `settings_json`, les versions d'étages et la promesse de reproductibilité sont spécifiés dans [`pipeline.md`](pipeline.md) — à lire avant toute intervention sur le moteur.
 
-Côté code, chaque opérateur vit dans son propre module versionné et gelé (`leyline-engine/src/stages/`, un dossier par opérateur, un fichier par version), et le registre `stages.rs` dit à quel rang chaque version s'insère et vers quelles versions chaque `process: N` s'étend ([ADR 0042](adr/0042-versioned-stage-pipeline.md)).
+Côté code, chaque opérateur vit dans son propre module versionné et gelé (`leyline-engine/src/stages/`, un dossier par opérateur, un fichier par version), et le registre `stages.rs` dit à quel rang chaque version s'insère ([ADR 0042](adr/0042-versioned-stage-pipeline.md), [ADR 0043](adr/0043-collapse-prerelease-render-history.md)).
 
 ---
 

@@ -33,7 +33,7 @@ rusqlite.workspace = true
 tiff.workspace = true
 
 [[bench]]
-name = "process1"
+name = "pipeline"
 harness = false
 
 [[bench]]

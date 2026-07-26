@@ -5,12 +5,16 @@
 //! that every historical process version still does it byte for byte is the
 //! separate job of `tests/golden_renders.rs`.
 
-use leyline_core::{CURRENT_PROCESS, LensCorrection};
-use leyline_core::{ColorGradingZone, CurvePoint, Point, SpotRemoval};
+use leyline_core::LensCorrection;
+use leyline_core::{
+    ColorGradingZone, CurvePoint, LocalAdjustment, LocalAdjustmentValues, Mask, NoiseReduction,
+    Point, Sharpening, SpotRemoval,
+};
 
 use super::clarity::v1::CLARITY_RADIUS;
 use super::color_grading::v1::{zone_tint, zone_weights};
 use super::dehaze::v1::{DEHAZE_PATCH_RADIUS, atmospheric_light, min_filter};
+use super::fixture;
 use super::hsl::v1::{HSL_BAND_CENTERS_DEG, hue_band_neighbors};
 use super::kernel::v1::{
     approx_blur, exact_linear_to_srgb, exact_srgb_to_linear, gaussian_blur, hsl_to_rgb,
@@ -83,7 +87,6 @@ fn canon_shot(focal_mm: f32) -> LensShot {
 
 fn enabled_settings() -> Settings {
     Settings {
-        process: 11,
         lens_correction: LensCorrection {
             enabled: true,
             profile: "auto".to_owned(),
@@ -93,28 +96,29 @@ fn enabled_settings() -> Settings {
 }
 
 #[test]
-fn disabled_lens_correction_matches_process_7_bit_for_bit() {
+fn a_disabled_lens_correction_is_not_recorded_and_does_not_run() {
+    // What the old "process N+1 matches process N bit for bit" tests
+    // proved is now structural: a stage at its neutral value is not
+    // recorded by `pin`, so there is nothing to run and nothing to
+    // compare against (ADR 0043 §3).
     let image = test_image(64, 48);
-    let settings = Settings {
-        process: 11,
+    let mut settings = Settings {
         exposure: 0.3,
         contrast: 20,
         ..Settings::default()
     };
-    let with_process_8 = develop(&image, &settings, Some(&canon_shot(20.0)), None).unwrap();
-    let with_process_7 = develop(
-        &image,
-        &Settings {
-            process: 7,
-            ..settings.clone()
-        },
-        Some(&canon_shot(20.0)),
-        None,
-    )
-    .unwrap();
-    assert_eq!(with_process_8, with_process_7);
+    let before = develop(&image, &settings, Some(&canon_shot(20.0)), None).unwrap();
+    crate::stages::pin(&mut settings);
+    assert!(
+        !settings.stages.contains_key("lens"),
+        "a neutral lens must not be recorded: {:?}",
+        settings.stages
+    );
+    assert_eq!(
+        develop(&image, &settings, Some(&canon_shot(20.0)), None).unwrap(),
+        before
+    );
 }
-
 #[test]
 fn no_shot_leaves_the_image_unchanged_even_when_enabled() {
     let image = test_image(64, 48);
@@ -152,7 +156,6 @@ fn a_matched_profile_undistorts_the_image() {
 fn disabled_setting_ignores_a_matched_profile() {
     let image = test_image(64, 48);
     let settings = Settings {
-        process: 11,
         ..Settings::default()
     };
     let out = develop(&image, &settings, Some(&canon_shot(20.0)), None).unwrap();
@@ -164,40 +167,36 @@ fn disabled_setting_ignores_a_matched_profile() {
 // -------------------------------------------------------------------
 
 #[test]
-fn no_points_matches_process_7_bit_for_bit() {
+fn an_empty_tone_curve_is_not_recorded_and_does_not_run() {
+    // What the old "process N+1 matches process N bit for bit" tests
+    // proved is now structural: a stage at its neutral value is not
+    // recorded by `pin`, so there is nothing to run and nothing to
+    // compare against (ADR 0043 §3).
     let image = test_image(64, 48);
-    let settings = Settings {
-        process: 11,
+    let mut settings = Settings {
         exposure: 0.2,
         contrast: 15,
         ..Settings::default()
     };
-    let out8 = develop(&image, &settings, None, None).unwrap();
-    let out7 = develop(
-        &image,
-        &Settings {
-            process: 7,
-            ..settings.clone()
-        },
-        None,
-        None,
-    )
-    .unwrap();
-    assert_eq!(out8, out7);
+    let before = develop(&image, &settings, None, None).unwrap();
+    crate::stages::pin(&mut settings);
+    assert!(
+        !settings.stages.contains_key("tone_curve"),
+        "a neutral tone_curve must not be recorded: {:?}",
+        settings.stages
+    );
+    assert_eq!(develop(&image, &settings, None, None).unwrap(), before);
 }
-
 #[test]
 fn identity_curve_matches_no_points_bit_for_bit() {
     let image = test_image(64, 48);
     let with_points = Settings {
-        process: 11,
         tone_curve: leyline_core::ToneCurve {
             points: vec![CurvePoint { x: 0.0, y: 0.0 }, CurvePoint { x: 1.0, y: 1.0 }],
         },
         ..Settings::default()
     };
     let without_points = Settings {
-        process: 11,
         ..Settings::default()
     };
     let out_with = develop(&image, &with_points, None, None).unwrap();
@@ -209,7 +208,6 @@ fn identity_curve_matches_no_points_bit_for_bit() {
 fn s_curve_raises_shadows_and_lowers_highlights() {
     // The ADR 0030 example: a soft S-curve.
     let settings = Settings {
-        process: 11,
         tone_curve: leyline_core::ToneCurve {
             points: vec![
                 CurvePoint { x: 0.0, y: 0.0 },
@@ -292,27 +290,26 @@ fn spot_test_image(width: u32, height: u32) -> RawImage {
 }
 
 #[test]
-fn no_spots_matches_process_7_bit_for_bit() {
-    let image = spot_test_image(32, 24);
-    let settings = Settings {
-        process: 11,
-        exposure: 0.1,
+fn an_empty_spot_list_is_not_recorded_and_does_not_run() {
+    // What the old "process N+1 matches process N bit for bit" tests
+    // proved is now structural: a stage at its neutral value is not
+    // recorded by `pin`, so there is nothing to run and nothing to
+    // compare against (ADR 0043 §3).
+    let image = test_image(64, 48);
+    let mut settings = Settings {
+        exposure: 0.2,
+        contrast: 15,
         ..Settings::default()
     };
-    let out8 = develop(&image, &settings, None, None).unwrap();
-    let out7 = develop(
-        &image,
-        &Settings {
-            process: 7,
-            ..settings.clone()
-        },
-        None,
-        None,
-    )
-    .unwrap();
-    assert_eq!(out8, out7);
+    let before = develop(&image, &settings, None, None).unwrap();
+    crate::stages::pin(&mut settings);
+    assert!(
+        !settings.stages.contains_key("spot_removal"),
+        "a neutral spot_removal must not be recorded: {:?}",
+        settings.stages
+    );
+    assert_eq!(develop(&image, &settings, None, None).unwrap(), before);
 }
-
 #[test]
 fn a_full_opacity_hard_edged_clone_copies_the_source_disk_onto_the_target() {
     let width = 32u32;
@@ -320,7 +317,6 @@ fn a_full_opacity_hard_edged_clone_copies_the_source_disk_onto_the_target() {
     let image = spot_test_image(width, height);
     // Source disk centered on the marker block at (4, 4); target far away.
     let settings = Settings {
-        process: 11,
         spot_removal: vec![SpotRemoval {
             target: Point {
                 x: 20.0 / width as f64,
@@ -386,17 +382,24 @@ fn sample_dcp_profile(color_matrix: [[f64; 3]; 3]) -> DcpProfile {
 
 #[test]
 fn a_camera_profile_changes_the_pixels_and_stays_deterministic() {
-    // The stage is the only difference between process 10 and 11
-    // (ADR 0035): with no profile the neutral rendering is the decoded
-    // image bit for bit, with one it is not.
+    // With no profile the neutral rendering is the decoded image bit for
+    // bit (ADR 0035); with one, it is not.
     let image = test_image(16, 12);
-    let settings = Settings {
-        process: 11,
-        ..Settings::default()
-    };
-    let neutral = develop(&image, &settings, None, None).unwrap();
+    let neutral = develop(&image, &Settings::default(), None, None).unwrap();
     assert_eq!(neutral.data, image.data);
 
+    // The revision declares the profile; the caller resolves it. Both are
+    // needed — a declared-but-unresolvable profile fails the render before
+    // reaching here (`crate::camera_profile`), and a resolved profile the
+    // revision never declared is not this revision's business.
+    let settings = Settings {
+        camera_profile: Some(leyline_core::CameraProfile {
+            enabled: true,
+            path: "Profiles/Camera/test.dcp".to_owned(),
+            checksum: format!("blake3:{}", "0".repeat(64)),
+        }),
+        ..Settings::default()
+    };
     let profile = sample_dcp_profile([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]);
     let profiled = develop(&image, &settings, None, Some(&profile)).unwrap();
     assert_ne!(profiled.data, neutral.data);
@@ -407,27 +410,11 @@ fn a_camera_profile_changes_the_pixels_and_stays_deterministic() {
 }
 
 #[test]
-fn older_process_versions_ignore_a_camera_profile() {
-    // Process 10 renders identically whether or not a profile is
-    // passed: a revision written before ADR 0035 keeps its pixels.
-    let image = test_image(16, 12);
-    let profile = sample_dcp_profile([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]);
-    let settings = Settings {
-        process: 10,
-        ..Settings::default()
-    };
-    let with_profile = crate::render::render(&image, &settings, None, Some(&profile)).unwrap();
-    let without = crate::render::render(&image, &settings, None, None).unwrap();
-    assert_eq!(with_profile.data, without.data);
-}
-
-#[test]
 fn zero_opacity_leaves_the_image_unchanged() {
     let width = 32u32;
     let height = 24u32;
     let image = spot_test_image(width, height);
     let settings = Settings {
-        process: 11,
         spot_removal: vec![SpotRemoval {
             target: Point { x: 0.6, y: 0.6 },
             source: Point { x: 0.1, y: 0.1 },
@@ -550,36 +537,31 @@ fn lens_bilinear_channel_matches_the_full_rgb_sampler_bit_for_bit() {
 // Local adjustments (ADR 0029)
 // -------------------------------------------------------------------
 
-use leyline_core::{LocalAdjustment, LocalAdjustmentValues, Mask};
-
 #[test]
-fn no_local_adjustments_matches_process_7_bit_for_bit() {
+fn an_empty_local_adjustment_list_is_not_recorded_and_does_not_run() {
+    // What the old "process N+1 matches process N bit for bit" tests
+    // proved is now structural: a stage at its neutral value is not
+    // recorded by `pin`, so there is nothing to run and nothing to
+    // compare against (ADR 0043 §3).
     let image = test_image(64, 48);
-    let settings = Settings {
-        process: 11,
+    let mut settings = Settings {
         exposure: 0.2,
         contrast: 15,
         ..Settings::default()
     };
-    let out8 = develop(&image, &settings, None, None).unwrap();
-    let out7 = develop(
-        &image,
-        &Settings {
-            process: 7,
-            ..settings.clone()
-        },
-        None,
-        None,
-    )
-    .unwrap();
-    assert_eq!(out8, out7);
+    let before = develop(&image, &settings, None, None).unwrap();
+    crate::stages::pin(&mut settings);
+    assert!(
+        !settings.stages.contains_key("local_adjustments"),
+        "a neutral local_adjustments must not be recorded: {:?}",
+        settings.stages
+    );
+    assert_eq!(develop(&image, &settings, None, None).unwrap(), before);
 }
-
 #[test]
 fn a_radial_mask_darkens_only_its_covered_area() {
     let image = test_image(200, 150);
     let settings = Settings {
-        process: 11,
         local_adjustments: vec![LocalAdjustment {
             mask: Mask::Radial {
                 cx: 0.5,
@@ -602,7 +584,6 @@ fn a_radial_mask_darkens_only_its_covered_area() {
     let plain = develop(
         &image,
         &Settings {
-            process: 11,
             ..Settings::default()
         },
         None,
@@ -624,7 +605,6 @@ fn a_radial_mask_darkens_only_its_covered_area() {
 fn zero_opacity_local_adjustment_leaves_the_image_unchanged() {
     let image = test_image(64, 48);
     let settings = Settings {
-        process: 11,
         local_adjustments: vec![LocalAdjustment {
             mask: Mask::Radial {
                 cx: 0.5,
@@ -647,7 +627,6 @@ fn zero_opacity_local_adjustment_leaves_the_image_unchanged() {
     let plain = develop(
         &image,
         &Settings {
-            process: 11,
             ..Settings::default()
         },
         None,
@@ -661,7 +640,6 @@ fn zero_opacity_local_adjustment_leaves_the_image_unchanged() {
 fn an_empty_local_adjustments_list_is_neutral() {
     let image = test_image(64, 48);
     let settings = Settings {
-        process: 11,
         local_adjustments: vec![],
         exposure: 0.1,
         ..Settings::default()
@@ -670,7 +648,6 @@ fn an_empty_local_adjustments_list_is_neutral() {
     let without_field = develop(
         &image,
         &Settings {
-            process: 11,
             exposure: 0.1,
             ..Settings::default()
         },
@@ -706,12 +683,10 @@ fn local_adjustments_apply_in_list_order_on_top_of_each_other() {
         },
     };
     let stacked = Settings {
-        process: 11,
         local_adjustments: vec![full_frame_radial(0.5), full_frame_radial(0.5)],
         ..Settings::default()
     };
     let single = Settings {
-        process: 11,
         local_adjustments: vec![full_frame_radial(0.5)],
         ..Settings::default()
     };
@@ -730,28 +705,26 @@ fn local_adjustments_apply_in_list_order_on_top_of_each_other() {
 // -----------------------------------------------------------------
 
 #[test]
-fn neutral_hsl_and_color_grading_match_process_8_bit_for_bit() {
+fn a_neutral_hsl_mixer_is_not_recorded_and_does_not_run() {
+    // What the old "process N+1 matches process N bit for bit" tests
+    // proved is now structural: a stage at its neutral value is not
+    // recorded by `pin`, so there is nothing to run and nothing to
+    // compare against (ADR 0043 §3).
     let image = test_image(64, 48);
-    let settings = Settings {
-        process: 11,
-        exposure: 0.3,
-        vibrance: 20,
+    let mut settings = Settings {
+        exposure: 0.2,
+        contrast: 15,
         ..Settings::default()
     };
-    let out9 = develop(&image, &settings, None, None).unwrap();
-    let out8 = develop(
-        &image,
-        &Settings {
-            process: 8,
-            ..settings.clone()
-        },
-        None,
-        None,
-    )
-    .unwrap();
-    assert_eq!(out9, out8);
+    let before = develop(&image, &settings, None, None).unwrap();
+    crate::stages::pin(&mut settings);
+    assert!(
+        !settings.stages.contains_key("hsl"),
+        "a neutral hsl must not be recorded: {:?}",
+        settings.stages
+    );
+    assert_eq!(develop(&image, &settings, None, None).unwrap(), before);
 }
-
 #[test]
 fn rgb_hsl_round_trips_within_float_error() {
     let samples: [[f32; 3]; 6] = [
@@ -871,7 +844,6 @@ fn hsl_mixer_boosts_saturation_of_a_matched_band_only() {
     let mut bands = [HslBand::default(); 8];
     bands[0].saturation = 100;
     let settings = Settings {
-        process: 11,
         hsl: bands,
         ..Settings::default()
     };
@@ -898,7 +870,6 @@ fn color_grading_tints_shadows_without_touching_highlights() {
         px[2] = v;
     }
     let settings = Settings {
-        process: 11,
         color_grading: ColorGrading {
             shadows: ColorGradingZone {
                 hue: 220,
@@ -934,28 +905,26 @@ fn color_grading_tints_shadows_without_touching_highlights() {
 // -----------------------------------------------------------------
 
 #[test]
-fn neutral_clarity_texture_dehaze_match_process_9_bit_for_bit() {
+fn neutral_clarity_texture_and_dehaze_are_not_recorded() {
+    // What the old "process N+1 matches process N bit for bit" tests
+    // proved is now structural: a stage at its neutral value is not
+    // recorded by `pin`, so there is nothing to run and nothing to
+    // compare against (ADR 0043 §3).
     let image = test_image(64, 48);
-    let settings = Settings {
-        process: 11,
+    let mut settings = Settings {
         exposure: 0.2,
-        vibrance: 10,
+        contrast: 15,
         ..Settings::default()
     };
-    let out10 = develop(&image, &settings, None, None).unwrap();
-    let out9 = develop(
-        &image,
-        &Settings {
-            process: 9,
-            ..settings.clone()
-        },
-        None,
-        None,
-    )
-    .unwrap();
-    assert_eq!(out10, out9);
+    let before = develop(&image, &settings, None, None).unwrap();
+    crate::stages::pin(&mut settings);
+    assert!(
+        !settings.stages.contains_key("dehaze"),
+        "a neutral dehaze must not be recorded: {:?}",
+        settings.stages
+    );
+    assert_eq!(develop(&image, &settings, None, None).unwrap(), before);
 }
-
 #[test]
 fn min_filter_matches_a_naive_2d_minimum() {
     let width = 6;
@@ -1127,7 +1096,6 @@ fn dehaze_positive_amount_widens_the_tonal_range() {
     let neutral = develop(
         &image,
         &Settings {
-            process: 11,
             ..Settings::default()
         },
         None,
@@ -1139,7 +1107,6 @@ fn dehaze_positive_amount_widens_the_tonal_range() {
         &Settings {
             dehaze: 80,
             ..Settings {
-                process: 11,
                 ..Settings::default()
             }
         },
@@ -1161,7 +1128,6 @@ fn dehaze_negative_amount_narrows_the_tonal_range() {
     let neutral = develop(
         &image,
         &Settings {
-            process: 11,
             ..Settings::default()
         },
         None,
@@ -1173,7 +1139,6 @@ fn dehaze_negative_amount_narrows_the_tonal_range() {
         &Settings {
             dehaze: -80,
             ..Settings {
-                process: 11,
                 ..Settings::default()
             }
         },
@@ -1190,7 +1155,7 @@ fn dehaze_negative_amount_narrows_the_tonal_range() {
 }
 
 // ---------------------------------------------------------------------------
-// The registry and the expansion table
+// The registry, the stage map, and the guarantee it carries
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -1208,72 +1173,265 @@ fn lookup_matches_the_exact_functions_at_the_domain_endpoints() {
     assert_eq!(lookup(to_srgb, 1.5), lookup(to_srgb, 1.0));
 }
 
+/// Settings that take every stage of the registry away from its neutral
+/// value, so a plan built from them exercises the whole pipeline.
+fn everything() -> Settings {
+    let mut settings = Settings {
+        camera_profile: Some(leyline_core::CameraProfile {
+            enabled: true,
+            path: "Profiles/Camera/x.dcp".to_owned(),
+            checksum: format!("blake3:{}", "0".repeat(64)),
+        }),
+        lens_correction: LensCorrection {
+            enabled: true,
+            profile: "auto".to_owned(),
+        },
+        spot_removal: vec![SpotRemoval {
+            target: Point { x: 0.5, y: 0.5 },
+            source: Point { x: 0.6, y: 0.6 },
+            radius: 0.05,
+            feather: 0.5,
+            opacity: 1.0,
+        }],
+        exposure: 0.2,
+        contrast: 10,
+        highlights: -10,
+        whites: 5,
+        clarity: 10,
+        texture: 10,
+        dehaze: 10,
+        vibrance: 10,
+        saturation: 10,
+        rotation: 5.0,
+        crop: Some(leyline_core::Crop {
+            x: 0.1,
+            y: 0.1,
+            width: 0.8,
+            height: 0.8,
+        }),
+        ..Settings::default()
+    };
+    settings.tone_curve.points = vec![CurvePoint { x: 0.0, y: 0.0 }, CurvePoint { x: 1.0, y: 1.0 }];
+    settings.hsl[0].saturation = 20;
+    settings.color_grading.shadows.saturation = 20;
+    settings.local_adjustments = vec![LocalAdjustment {
+        mask: Mask::Radial {
+            cx: 0.5,
+            cy: 0.5,
+            rx: 0.3,
+            ry: 0.3,
+            angle: 0.0,
+            feather: 0.4,
+            inverted: false,
+        },
+        opacity: 1.0,
+        adjustments: LocalAdjustmentValues {
+            exposure: Some(0.5),
+            ..LocalAdjustmentValues::default()
+        },
+    }];
+    settings.noise_reduction = NoiseReduction {
+        luminance: 20,
+        color: 20,
+    };
+    settings.sharpening = Sharpening {
+        amount: 30,
+        radius: 1.0,
+    };
+    settings
+        .extra
+        .insert(fixture::MARKER.to_owned(), serde_json::Value::Bool(true));
+    settings
+}
+
 #[test]
-fn every_process_version_expands_to_registered_stage_versions() {
-    for process in 1..=CURRENT_PROCESS {
-        let plan = super::plan(process).unwrap();
-        assert!(!plan.is_empty(), "process {process} expands to nothing");
+fn a_fully_loaded_edit_activates_every_stage_of_the_registry() {
+    // Guards the test below: it only proves anything about ranks if it
+    // actually plans the whole registry.
+    let mut settings = everything();
+    crate::stages::pin(&mut settings);
+    for stage in crate::stages::registry() {
+        assert!(
+            settings.stages.contains_key(stage.name),
+            "{} is missing from `everything()`",
+            stage.name
+        );
     }
 }
 
 #[test]
-fn no_process_version_runs_two_stages_at_the_same_rank() {
-    // Two stages sharing a rank would make their relative order depend on
+fn no_two_stages_of_one_plan_share_a_rank() {
+    // Two stages at the same rank would make their relative order depend on
     // the sort's stability rather than on a declared decision.
-    for process in 1..=CURRENT_PROCESS {
-        let plan = super::plan(process).unwrap();
-        let mut ranks: Vec<u16> = plan.iter().map(|(_, v)| v.rank).collect();
-        let count = ranks.len();
-        ranks.sort_unstable();
-        ranks.dedup();
-        assert_eq!(ranks.len(), count, "duplicate rank in process {process}");
-    }
-}
-
-#[test]
-fn a_process_version_never_names_the_same_stage_twice() {
-    for process in 1..=CURRENT_PROCESS {
-        let plan = super::plan(process).unwrap();
-        let mut names: Vec<&str> = plan.iter().map(|(stage, _)| stage.name).collect();
-        let count = names.len();
-        names.sort_unstable();
-        names.dedup();
-        assert_eq!(names.len(), count, "duplicate stage in process {process}");
-    }
+    let plan = super::plan(&everything()).unwrap();
+    let mut ranks: Vec<u16> = plan.iter().map(|(_, v)| v.rank).collect();
+    let count = ranks.len();
+    ranks.sort_unstable();
+    ranks.dedup();
+    assert_eq!(ranks.len(), count, "duplicate rank in {ranks:?}");
 }
 
 #[test]
 fn the_plan_runs_in_rank_order() {
-    let plan = super::plan(CURRENT_PROCESS).unwrap();
+    let plan = super::plan(&everything()).unwrap();
     assert!(plan.windows(2).all(|w| w[0].1.rank < w[1].1.rank));
 }
 
 #[test]
-fn every_registered_stage_version_is_reachable_from_some_process_version() {
-    // A version no expansion names is a version nothing can render — either
-    // a typo in the table or dead frozen code.
-    let reachable: Vec<(&str, u16)> = (1..=CURRENT_PROCESS)
-        .flat_map(|process| super::plan(process).unwrap())
-        .map(|(stage, version)| (stage.name, version.version))
-        .collect();
-    for stage in STAGES {
-        for version in stage.versions {
-            assert!(
-                reachable.contains(&(stage.name, version.version)),
-                "{}::v{} is not reachable",
-                stage.name,
-                version.version
-            );
-        }
-    }
+fn a_neutral_edit_records_and_runs_nothing() {
+    let mut settings = Settings::default();
+    crate::stages::pin(&mut settings);
+    assert!(settings.stages.is_empty());
+    assert!(super::plan(&settings).unwrap().is_empty());
 }
 
 #[test]
-fn an_unknown_process_version_is_refused() {
-    for process in [0, CURRENT_PROCESS + 1] {
+fn pin_records_the_current_version_of_a_stage_that_just_became_active() {
+    let mut settings = Settings {
+        exposure: 0.5,
+        ..Settings::default()
+    };
+    crate::stages::pin(&mut settings);
+    assert_eq!(settings.stages.get("gains"), Some(&1));
+    assert_eq!(settings.stages.len(), 1, "{:?}", settings.stages);
+}
+
+#[test]
+fn pin_never_moves_a_version_already_recorded() {
+    // The promise itself: editing a revision does not re-render it through
+    // newer code.
+    let mut settings = Settings {
+        exposure: 0.5,
+        stages: leyline_core::StageVersions::from([(fixture::NAME.to_owned(), 1)]),
+        ..Settings::default()
+    };
+    settings
+        .extra
+        .insert(fixture::MARKER.to_owned(), serde_json::Value::Bool(true));
+    crate::stages::pin(&mut settings);
+    assert_eq!(
+        settings.stages.get(fixture::NAME),
+        Some(&1),
+        "v2 exists, but this revision records v1"
+    );
+}
+
+#[test]
+fn pin_drops_a_stage_that_went_back_to_neutral() {
+    let mut settings = Settings {
+        exposure: 0.5,
+        ..Settings::default()
+    };
+    crate::stages::pin(&mut settings);
+    assert!(settings.stages.contains_key("gains"));
+
+    settings.exposure = 0.0;
+    crate::stages::pin(&mut settings);
+    assert!(
+        !settings.stages.contains_key("gains"),
+        "a stage that no longer runs pins nothing"
+    );
+}
+
+#[test]
+fn an_unrecorded_active_stage_renders_at_the_current_version() {
+    // Settings built in memory — through the SDK, a preset, a test — carry
+    // no map until they are written. They must still render.
+    let image = test_image(16, 12);
+    let settings = Settings {
+        exposure: 0.5,
+        ..Settings::default()
+    };
+    let mut pinned = settings.clone();
+    crate::stages::pin(&mut pinned);
+    assert_eq!(
+        develop(&image, &settings, None, None).unwrap(),
+        develop(&image, &pinned, None, None).unwrap()
+    );
+}
+
+#[test]
+fn a_stage_this_engine_does_not_implement_is_refused() {
+    for stages in [
+        leyline_core::StageVersions::from([("sharpen".to_owned(), 99)]),
+        leyline_core::StageVersions::from([("no_such_stage".to_owned(), 1)]),
+    ] {
+        let settings = Settings {
+            stages,
+            ..Settings::default()
+        };
         assert!(matches!(
-            super::plan(process),
-            Err(LeylineError::InvalidSettings(_))
+            super::plan(&settings),
+            Err(LeylineError::UnknownStage { .. })
         ));
     }
+}
+
+// ---------------------------------------------------------------------------
+// The guarantee itself, on the two-version fixture stage (ADR 0043 §7)
+// ---------------------------------------------------------------------------
+
+/// Settings that activate the fixture stage and nothing else.
+fn fixture_settings(version: Option<u16>) -> Settings {
+    let mut settings = Settings::default();
+    settings
+        .extra
+        .insert(fixture::MARKER.to_owned(), serde_json::Value::Bool(true));
+    if let Some(version) = version {
+        settings.stages.insert(fixture::NAME.to_owned(), version);
+    }
+    settings
+}
+
+#[test]
+fn a_revision_renders_through_the_stage_version_it_records() {
+    // The whole point of the machinery: v2 exists, and a revision citing v1
+    // still gets v1's pixels.
+    let image = test_image(16, 12);
+    let v1 = develop(&image, &fixture_settings(Some(1)), None, None).unwrap();
+    let v2 = develop(&image, &fixture_settings(Some(2)), None, None).unwrap();
+    assert_ne!(v1.data, v2.data, "the two versions must be tellable apart");
+
+    let expected_v1 = (255.0 * fixture::V1_LIFT).round() as u8;
+    let expected_v2 = (255.0 * fixture::V2_LIFT).round() as u8;
+    let black = crate::render::render(
+        &RawImage {
+            width: 16,
+            height: 12,
+            bits: 8,
+            data: vec![0; 16 * 12 * 3],
+        },
+        &fixture_settings(Some(1)),
+        None,
+        None,
+    )
+    .unwrap();
+    assert_eq!(black.data[0], expected_v1);
+    assert!(expected_v2 > expected_v1);
+}
+
+#[test]
+fn a_fresh_revision_records_the_newest_version_of_the_fixture_stage() {
+    let mut settings = fixture_settings(None);
+    crate::stages::pin(&mut settings);
+    assert_eq!(settings.stages.get(fixture::NAME), Some(&2));
+}
+
+#[test]
+fn each_version_of_a_stage_carries_its_own_rank() {
+    // ADR 0042 §3: moving a stage is a new version declaring another rank,
+    // never an edit of an existing one.
+    let stage = crate::stages::registry()
+        .find(|stage| stage.name == fixture::NAME)
+        .unwrap();
+    let ranks: Vec<u16> = stage.versions.iter().map(|v| v.rank).collect();
+    assert_eq!(ranks, vec![65, 66]);
+}
+
+#[test]
+fn an_unknown_version_of_a_known_stage_is_refused() {
+    assert!(matches!(
+        super::plan(&fixture_settings(Some(3))),
+        Err(LeylineError::UnknownStage { version: 3, .. })
+    ));
 }

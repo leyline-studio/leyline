@@ -16,40 +16,20 @@ use crate::error::{LeylineError, Result};
 /// Most recent settings format version this engine knows how to write.
 pub const CURRENT_SCHEMA: u32 = 1;
 
-/// Most recent process (rendering) version this engine implements.
-/// Process 2 (ADR 0013) renders like process 1 with the sRGB transfer
-/// functions computed by lookup table. Process 3 (ADR 0016) additionally
-/// renders `lens_correction` as a Lensfun-backed geometric undistortion.
-/// Process 4 (ADR 0017) additionally de-vignettes using the same profile.
-/// Process 5 (ADR 0018) additionally corrects transverse chromatic
-/// aberration as an independent per-channel geometric pass.
-/// Process 6 (ADR 0030) additionally applies `tone_curve` as a monotone
-/// cubic spline through a precomputed lookup table, after Whites/Blacks and
-/// before Vibrance/Saturation.
-/// Process 7 (ADR 0032) additionally applies `spot_removal`: deterministic
-/// bilinear clone patches, immediately after lens correction and before
-/// white balance.
-/// Process 8 (ADR 0029) additionally applies `local_adjustments`: masked
-/// (brush/radial/gradient) re-parameterizations of white balance, exposure,
-/// contrast, highlights, shadows, whites, blacks, vibrance and saturation,
-/// immediately after Vibrance/Saturation and before Noise Reduction. ADR
-/// 0029 was accepted while `CURRENT_PROCESS` was still 5 and calls this
-/// stage "process 6" throughout — by the time it was implemented, ADR 0030
-/// and ADR 0032 had already claimed process 6 and 7, so it lands as process
-/// 8 instead; the ADR's pipeline placement and design are otherwise applied
-/// unchanged (ADRs are never edited after acceptance, `docs/adr/README.md`).
-/// Process 9 (ADR 0031) additionally applies an 8-band HSL mixer and
-/// shadows/midtones/highlights color grading, immediately after
-/// Vibrance/Saturation and before local adjustments.
-/// Process 10 (ADR 0033) additionally applies `clarity`/`texture` (local
-/// contrast at a large/small blur radius, the same operator called twice)
-/// and `dehaze` (dark-channel-prior haze removal), immediately after the
-/// tone curve and before Vibrance/Saturation.
-/// Process 11 (ADR 0035) additionally applies `camera_profile` (a DCP
-/// camera-to-linear-sRGB matrix transform), as the very first stage —
-/// before even lens correction — since it establishes the working buffer's
-/// color space rather than adjusting pixels already in it.
-pub const CURRENT_PROCESS: u32 = 11;
+/// The version of each pipeline stage a revision renders through
+/// (`docs/pipeline.md` §3.3, ADR 0042 §2 and ADR 0043).
+///
+/// Keys are stage names as the engine registry spells them (`gains`,
+/// `tone_curve`, `sharpen`, …); values are the version of that stage frozen
+/// into this revision. A stage sitting at its neutral value does not run, has
+/// therefore no behavior to pin, and **is absent** from the map — which makes
+/// the map proportional to the actual edit rather than to the engine's stage
+/// count.
+///
+/// The engine writes it when a revision is written, keeping any version
+/// already recorded and adding the current version for a stage that just left
+/// its neutral value. Nothing is ever inferred at read time.
+pub type StageVersions = std::collections::BTreeMap<String, u16>;
 
 /// White balance override, in physical units.
 ///
@@ -156,7 +136,7 @@ pub struct CurvePoint {
 
 /// Tone curve step (ADR 0030): a point curve applied in luminance, i.e. the
 /// same curve to every channel of the working buffer. Neutral: no points,
-/// which renders bit-for-bit identical to the previous process version.
+/// in which case the stage does not run at all.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ToneCurve {
@@ -396,8 +376,12 @@ pub struct Crop {
 pub struct Settings {
     /// Version of the settings *format* (JSON structure).
     pub schema: u32,
-    /// Version of the *rendering* (algorithms producing the pixels).
-    pub process: u32,
+    /// Version of each stage that renders this revision — the *rendering*
+    /// axis, replacing the single `process` counter of ADR 0028 (ADR 0043).
+    /// Empty when every stage is neutral, which is exactly when nothing
+    /// runs.
+    #[serde(default, skip_serializing_if = "StageVersions::is_empty")]
+    pub stages: StageVersions,
 
     /// Camera profile (DCP, ADR 0035): the very first pipeline stage, even
     /// before lens correction. `None` = neutral, LibRaw's own built-in
@@ -476,7 +460,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             schema: CURRENT_SCHEMA,
-            process: CURRENT_PROCESS,
+            stages: StageVersions::new(),
             camera_profile: None,
             white_balance: None,
             exposure: 0.0,
@@ -526,6 +510,20 @@ impl Settings {
     /// newer schemas are not covered by these rules.
     pub fn validate(&self) -> Result<()> {
         use crate::validate_library_relative_path;
+
+        // `process` was removed by ADR 0043, so it now falls through to
+        // `extra` like any unknown field — which is exactly wrong for it.
+        // The lossless-unknown-fields rule exists to protect a *newer*
+        // engine's work; a *removed* field means the document predates the
+        // stage map, and rendering it as if it did not would silently give
+        // it another engine's pixels. Refuse it instead.
+        if self.extra.contains_key("process") {
+            return Err(LeylineError::InvalidSettings(
+                "settings carry `process`, removed by ADR 0043: this revision \
+                 predates the stage map and cannot be rendered"
+                    .to_owned(),
+            ));
+        }
 
         fn slider(name: &str, value: i32, min: i32, max: i32) -> Result<()> {
             if (min..=max).contains(&value) {
@@ -864,8 +862,9 @@ pub enum SettingsGroup {
 /// A field is `Some` if and only if its [`SettingsGroup`] is in `groups` —
 /// that list is the source of truth for what the preset touches; an absent
 /// field means "leave untouched", never "neutral value" (the opposite rule
-/// from [`Settings`], `docs/presets.md` §3.2). No `process` field: a preset
-/// never fixes a rendering version, only values.
+/// from [`Settings`], `docs/presets.md` §3.2). No stage versions: a preset
+/// never fixes a rendering version, only values — the stages come from the
+/// revision it is applied to (ADR 0043 §3).
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct PresetSettings {
@@ -983,7 +982,7 @@ mod tests {
     /// The exact example of `docs/pipeline.md` §3.2.
     const SPEC_EXAMPLE: &str = r#"{
         "schema": 1,
-        "process": 1,
+        "stages": { "gains": 1, "contrast": 1, "crop": 1 },
 
         "white_balance": { "temperature": 5400, "tint": 4 },
         "exposure": 0.35,
@@ -1007,7 +1006,8 @@ mod tests {
     fn parses_the_spec_example() {
         let s = Settings::parse(SPEC_EXAMPLE).unwrap();
         assert_eq!(s.schema, 1);
-        assert_eq!(s.process, 1);
+        assert_eq!(s.stages["gains"], 1);
+        assert_eq!(s.stages.len(), 3);
         assert_eq!(
             s.white_balance,
             Some(WhiteBalance {
@@ -1042,16 +1042,28 @@ mod tests {
 
     #[test]
     fn omitted_values_are_neutral() {
-        let s = Settings::parse(r#"{ "schema": 1, "process": 1 }"#).unwrap();
+        let s = Settings::parse(r#"{ "schema": 1, "stages": { "gains": 1 } }"#).unwrap();
         assert_eq!(
             s,
             Settings {
                 schema: 1,
-                process: 1,
+                stages: StageVersions::from([("gains".to_owned(), 1)]),
                 ..Settings::default()
             }
         );
         assert_eq!(Settings::parse("{}").unwrap(), Settings::default());
+    }
+
+    #[test]
+    fn a_document_still_carrying_process_is_refused() {
+        // Not the same case as an unknown field from a newer schema: this
+        // one is a *removed* field, so the document predates ADR 0043 and
+        // rendering it would silently give it another engine's pixels.
+        let s = Settings::parse(r#"{ "schema": 1, "process": 8, "exposure": 0.5 }"#).unwrap();
+        assert!(matches!(
+            s.validate(),
+            Err(LeylineError::InvalidSettings(_))
+        ));
     }
 
     #[test]
@@ -1060,7 +1072,7 @@ mod tests {
         // picked to stay clear of any real `Settings` field, past or
         // future (`clarity` used to fill this role until ADR 0033 made it
         // a real one).
-        let json = r#"{ "schema": 2, "process": 1, "vignette_style": 30, "exposure": 1.5 }"#;
+        let json = r#"{ "schema": 2, "vignette_style": 30, "exposure": 1.5 }"#;
         let s = Settings::parse(json).unwrap();
         assert_eq!(s.schema, 2);
         assert_eq!(s.extra.get("vignette_style"), Some(&serde_json::json!(30)));
@@ -1438,7 +1450,7 @@ mod tests {
     fn parses_the_adr_0029_example_json() {
         let json = r#"{
             "schema": 1,
-            "process": 8,
+            "stages": { "gains": 1, "vibrance": 1, "local_adjustments": 1 },
             "exposure": 0.35,
             "vibrance": 18,
             "local_adjustments": [

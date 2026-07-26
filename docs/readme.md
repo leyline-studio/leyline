@@ -45,7 +45,7 @@ Le reste du travail est de la robustesse, de la performance et du polissage, non
 **Pour contribuer au code** — enchaîner avec :
 
 4. [`contributing.md`](contributing.md) — style, commits, licence, CLA.
-5. [`pipeline.md`](pipeline.md) — le contrat de rendu. À lire **avant** de toucher au moteur : il définit ce qu'est une process version et ce que le projet promet sur la reproductibilité d'un rendu (§5).
+5. [`pipeline.md`](pipeline.md) — le contrat de rendu. À lire **avant** de toucher au moteur : il définit ce qu'est une version d'étage et ce que le projet promet sur la reproductibilité d'un rendu (§5).
 6. [`adr/`](adr/README.md) — 43 décisions structurantes, chacune avec son contexte, ses alternatives écartées et ses conséquences. C'est là que se trouve le *pourquoi* de presque tout ce qui surprend dans le code.
 
 **Pour intégrer le moteur** — [`engine-api.md`](engine-api.md), puis le crate `leyline-sdk`, qui est la surface publique stable.
@@ -63,7 +63,7 @@ Les documents **de lecture** se lisent d'un bout à l'autre. Les documents **de 
 | [`specification.md`](specification.md) | Qu'est-ce qui est livré, qu'est-ce qui est exclu | Lecture |
 | [`roadmap.md`](roadmap.md) | Où en est le projet, phase par phase | Lecture |
 | [`contributing.md`](contributing.md) | Comment contribuer, sous quelle licence | Lecture |
-| [`pipeline.md`](pipeline.md) | Ordre des opérations, `settings_json`, process versions, reproductibilité | Référence |
+| [`pipeline.md`](pipeline.md) | Ordre des opérations, `settings_json`, versions d'étages, reproductibilité | Référence |
 | [`catalog.md`](catalog.md) | Schéma SQLite complet du catalogue | Référence |
 | [`engine-api.md`](engine-api.md) | Surface Rust du moteur, modèle d'exécution, sessions d'édition | Référence |
 | [`presets.md`](presets.md) | Presets de développement : modèle et comportement | Référence |

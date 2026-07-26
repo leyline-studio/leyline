@@ -1,14 +1,14 @@
-//! Entry point of the develop renderer: process version dispatch.
+//! Entry point of the develop renderer.
 //!
-//! A revision is always rendered with the process version it declares
-//! (`docs/pipeline.md` §3.3). Since ADR 0042 that version is an
-//! abbreviation: it expands to a fixed set of individually versioned stages
-//! ([`crate::stages`]), and the engine keeps every stage version forever. A
-//! revision written by a newer engine is refused, never guessed at (§3.4) —
-//! the caller falls back to the best cached preview.
+//! A revision is always rendered through the stage versions it declares
+//! (`docs/pipeline.md` §3.3), and the engine keeps every published stage
+//! version forever ([`crate::stages`]). A revision written by a newer engine
+//! — newer format, or a stage version this one does not implement — is
+//! refused, never guessed at (§3.4): the caller falls back to the best
+//! cached preview.
 
 use leyline_catalog::Metadata;
-use leyline_core::{CURRENT_PROCESS, CURRENT_SCHEMA, Settings};
+use leyline_core::{CURRENT_SCHEMA, Settings};
 use leyline_core::{LeylineError, Result};
 use leyline_raw::RawImage;
 
@@ -26,9 +26,9 @@ pub struct Rendered {
 }
 
 /// EXIF identification of one shot, as needed to look up its Lensfun
-/// profile (`leyline_lens::find_profile`) — the lens correction step of
-/// process 3 (distortion) and process 4 (vignetting). Built from the
-/// asset's catalog [`Metadata`] by [`lens_shot`].
+/// profile (`leyline_lens::find_profile`) — the input of the lens
+/// correction stage. Built from the asset's catalog [`Metadata`] by
+/// [`lens_shot`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct LensShot {
     /// Camera manufacturer, as written by EXIF.
@@ -42,7 +42,7 @@ pub struct LensShot {
     /// Focal length in millimeters at capture.
     pub focal_mm: f32,
     /// Aperture f-number at capture, when recorded — needed for
-    /// vignetting correction (process 4); distortion doesn't use it.
+    /// vignetting correction; distortion doesn't use it.
     pub aperture_f: Option<f32>,
 }
 
@@ -67,16 +67,18 @@ pub fn lens_shot(meta: &Metadata) -> Option<LensShot> {
 /// Renders a decoded image according to a revision's settings.
 ///
 /// Identical image, settings, shot and camera profile produce identical
-/// pixels (`docs/pipeline.md` §5). Settings declaring a schema or process
-/// newer than this engine are refused with [`LeylineError::NewerSettings`]:
-/// a schema this engine cannot fully read could hide renamed parameters
-/// whose neutral fallback would silently change the rendering. `shot`
-/// feeds only process 3's lens correction; older process versions ignore
-/// it. `camera_profile` feeds only process 11's camera profile stage
-/// (ADR 0035) — already resolved, checksummed and parsed by the caller
-/// (`crate::camera_profile::resolve_from_settings`), since reading a file
-/// from disk has no place in this otherwise pure function; older process
-/// versions ignore it too.
+/// pixels (`docs/pipeline.md` §5). Settings declaring a schema newer than
+/// this engine are refused with [`LeylineError::NewerSettings`]: a schema
+/// this engine cannot fully read could hide renamed parameters whose
+/// neutral fallback would silently change the rendering. A stage version it
+/// does not implement is refused the same way
+/// ([`LeylineError::UnknownStage`]).
+///
+/// `shot` feeds only the lens stage. `camera_profile` feeds only the camera
+/// profile stage (ADR 0035) — already resolved, checksummed and parsed by
+/// the caller (`crate::camera_profile::resolve_from_settings`), since
+/// reading a file from disk has no place in this otherwise pure function.
+/// Either being `None` leaves its stage with nothing to do.
 pub fn render(
     image: &RawImage,
     settings: &Settings,
@@ -90,16 +92,15 @@ pub fn render(
 ///
 /// The preview path shrinks the decoded image to the requested size class
 /// *before* developing it, rather than developing millions of pixels it is
-/// about to throw away. Every process module expresses some radii in
-/// pixels — noise reduction and sharpening in all versions, clarity,
-/// texture and dehaze from process 10 — so the same factor has to reach
-/// them, or a blur would cover several times more of the subject on the
-/// proxy than at full size.
+/// about to throw away. Several stages express a radius in pixels — noise
+/// reduction, sharpening, clarity, texture, dehaze — so the same factor has
+/// to reach them, or a blur would cover several times more of the subject
+/// on the proxy than at full size.
 ///
 /// `scale == 1.0` is exactly [`render`]: that is the path export and print
 /// take, and it is bit-identical to what this engine produced before the
 /// parameter existed. The reproducibility contract (`docs/pipeline.md` §5)
-/// therefore does not move, and no new process version is needed.
+/// therefore does not move, and no new stage version is needed.
 pub fn render_scaled(
     image: &RawImage,
     settings: &Settings,
@@ -107,10 +108,9 @@ pub fn render_scaled(
     camera_profile: Option<&leyline_color::DcpProfile>,
     scale: f32,
 ) -> Result<Rendered> {
-    if settings.schema > CURRENT_SCHEMA || settings.process > CURRENT_PROCESS {
+    if settings.schema > CURRENT_SCHEMA {
         return Err(LeylineError::NewerSettings {
             schema: settings.schema,
-            process: settings.process,
         });
     }
     settings.validate()?;
@@ -488,45 +488,34 @@ mod tests {
     }
 
     #[test]
-    fn process_2_matches_process_1_within_one_8bit_step() {
-        // The LUT approximation (ADR 0013) may move a sample across a
-        // rounding boundary, never further.
-        let image = test_image();
-        let settings = |process| Settings {
-            process,
-            white_balance: Some(WhiteBalance {
-                temperature: 5000,
-                tint: 10,
-            }),
-            exposure: 0.4,
+    fn a_newer_schema_is_refused() {
+        let settings = Settings {
+            schema: CURRENT_SCHEMA + 1,
             ..Settings::default()
         };
-        let p1 = render(&image, &settings(1), None, None).unwrap();
-        let p2 = render(&image, &settings(2), None, None).unwrap();
-        assert_eq!(p1.data.len(), p2.data.len());
-        for (a, b) in p1.data.iter().zip(&p2.data) {
-            assert!(a.abs_diff(*b) <= 1, "{a} vs {b}");
-        }
+        assert!(matches!(
+            render(&test_image(), &settings, None, None),
+            Err(LeylineError::NewerSettings { .. })
+        ));
     }
 
     #[test]
-    fn newer_schema_or_process_is_refused() {
-        let image = test_image();
-        for settings in [
-            Settings {
-                schema: CURRENT_SCHEMA + 1,
-                ..Settings::default()
+    fn a_stage_version_this_engine_does_not_implement_is_refused() {
+        // The rendering half of the §3.4 guard: a revision written by a
+        // newer engine is refused, never rendered without the stage its
+        // author saw.
+        let settings = Settings {
+            stages: leyline_core::StageVersions::from([("sharpen".to_owned(), 99)]),
+            sharpening: Sharpening {
+                amount: 40,
+                radius: 1.0,
             },
-            Settings {
-                process: CURRENT_PROCESS + 1,
-                ..Settings::default()
-            },
-        ] {
-            assert!(matches!(
-                render(&image, &settings, None, None),
-                Err(LeylineError::NewerSettings { .. })
-            ));
-        }
+            ..Settings::default()
+        };
+        assert!(matches!(
+            render(&test_image(), &settings, None, None),
+            Err(LeylineError::UnknownStage { version: 99, .. })
+        ));
     }
 
     #[test]
@@ -535,18 +524,6 @@ mod tests {
             &test_image(),
             &Settings {
                 contrast: 999,
-                ..Settings::default()
-            },
-            None,
-            None,
-        )
-        .unwrap_err();
-        assert!(matches!(err, LeylineError::InvalidSettings(_)));
-
-        let err = render(
-            &test_image(),
-            &Settings {
-                process: 0,
                 ..Settings::default()
             },
             None,

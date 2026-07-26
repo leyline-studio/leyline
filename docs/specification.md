@@ -28,7 +28,7 @@ Toutes les fonctionnalités listées comme livrées le sont sur les **trois clie
 * Correction d'objectif via Lensfun : distorsion, vignettage, aberration chromatique transversale ([ADR 0016](adr/0016-process-3-lens-correction.md), [0017](adr/0017-process-4-vignetting.md), [0018](adr/0018-process-5-tca.md))
 * Gestion des couleurs via LittleCMS ([ADR 0015](adr/0015-color-management-srgb.md), [ADR 0027](adr/0027-color-management-beyond-srgb.md))
 * Presets de développement : créer, appliquer, appliquer en lot ([`presets.md`](presets.md), [ADR 0014](adr/0014-develop-presets.md))
-* Retraitement d'une photo vers une process version récente
+* Retraitement d'une photo vers les versions d'étages courantes
 
 **Sortie**
 
@@ -46,14 +46,14 @@ Toutes les fonctionnalités listées comme livrées le sont sur les **trois clie
 
 Ces fonctionnalités étaient cadrées comme candidates post-V1 dans [`v2-scope.md`](v2-scope.md). Elles sont implémentées.
 
-| Fonctionnalité | Process | Décision |
-|---|---|---|
-| Courbe tonale (spline cubique monotone, appliquée en luminance) | 6 | [ADR 0030](adr/0030-tone-curve.md) |
-| Suppression de tache (clonage déterministe, sans mode *heal*) | 7 | [ADR 0032](adr/0032-spot-removal-clone.md) |
-| Réglages locaux masqués — brosse, radial, gradué | 8 | [ADR 0029](adr/0029-process-6-local-adjustments.md) |
-| Mélangeur TSL et color grading | 9 | [ADR 0031](adr/0031-hsl-color-grading.md) |
-| Clarté, texture, dehaze | 10 | [ADR 0033](adr/0033-clarity-texture-dehaze.md) |
-| Profils caméra DCP — **expérimental** | 11 | [ADR 0035](adr/0035-camera-profile-dcp.md), [ADR 0037](adr/0037-dcp-parsing-dependency.md) |
+| Fonctionnalité | Décision |
+|---|---|
+| Courbe tonale (spline cubique monotone, appliquée en luminance) | [ADR 0030](adr/0030-tone-curve.md) |
+| Suppression de tache (clonage déterministe, sans mode *heal*) | [ADR 0032](adr/0032-spot-removal-clone.md) |
+| Réglages locaux masqués — brosse, radial, gradué | [ADR 0029](adr/0029-process-6-local-adjustments.md) |
+| Mélangeur TSL et color grading | [ADR 0031](adr/0031-hsl-color-grading.md) |
+| Clarté, texture, dehaze | [ADR 0033](adr/0033-clarity-texture-dehaze.md) |
+| Profils caméra DCP — **expérimental** | [ADR 0035](adr/0035-camera-profile-dcp.md), [ADR 0037](adr/0037-dcp-parsing-dependency.md) |
 
 La mention *expérimental* est littérale : la justesse colorimétrique du chemin matriciel DCP n'a pas été validée contre de vrais `.dcp` Adobe et leurs rendus de référence, et les tables `ProfileHueSatMapData` / `ProfileLookTableData` / `ProfileToneCurve` ne sont pas appliquées. Studio et la CLI le signalent à l'utilisateur.
 

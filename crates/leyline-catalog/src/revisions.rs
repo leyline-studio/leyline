@@ -81,9 +81,11 @@ impl Catalog {
     /// amendable; the caller then falls back to [`Catalog::commit_revision`].
     /// The §17 guards: the head must have no child revision, must not be the
     /// head of any other version, and must not be the initial revision. As a
-    /// §3.4 safety net, a head written by a newer engine (newer `schema` or
-    /// `process`) is refused with [`LeylineError::NewerSettings`] rather than
-    /// silently overwritten.
+    /// §3.4 safety net, a head whose *format* was written by a newer engine
+    /// (newer `schema`) is refused with [`LeylineError::NewerSettings`]
+    /// rather than silently overwritten. The rendering axis — the `stages`
+    /// map — is the engine's to check, since only it holds the stage
+    /// registry (ADR 0043 §4).
     ///
     /// The previews of the amended revision are invalidated: their rows are
     /// deleted and their cache paths returned for removal from disk.
@@ -111,12 +113,9 @@ impl Catalog {
         }
 
         let stored = Settings::parse(&stored_json)?;
-        if stored.schema > leyline_core::CURRENT_SCHEMA
-            || stored.process > leyline_core::CURRENT_PROCESS
-        {
+        if stored.schema > leyline_core::CURRENT_SCHEMA {
             return Err(LeylineError::NewerSettings {
                 schema: stored.schema,
-                process: stored.process,
             });
         }
 

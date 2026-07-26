@@ -15,13 +15,13 @@
 use std::path::PathBuf;
 
 use leyline_sdk::{
-    AssetId, BrushStroke, CURRENT_PROCESS, CameraProfile, ColorGrading, ColorGradingZone,
-    ColorLabel, Crop, CurvePoint, EditSession, Event, ExportFormat, ExportRecipe, ExportRequest,
-    ExportSettings, GridItem, GridQuery, HslBand, ImportOptions, ImportReport, ImportedFile, JobId,
-    LensCorrection, LeylineError, Library, LocalAdjustment, LocalAdjustmentValues, Margins, Mask,
-    NoiseReduction, Orientation, PaperSize, PickState, Point, Preview, PreviewKind, PrintRecipe,
-    PrintRequest, PrintSettings, RegisteredAsset, RenderingIntent, RevisionId, Settings,
-    Sharpening, SkippedFile, SpotRemoval, ToneCurve, VersionId, WatchSessionEvent, WatchedFile,
+    AssetId, BrushStroke, CameraProfile, ColorGrading, ColorGradingZone, ColorLabel, Crop,
+    CurvePoint, EditSession, Event, ExportFormat, ExportRecipe, ExportRequest, ExportSettings,
+    GridItem, GridQuery, HslBand, ImportOptions, ImportReport, ImportedFile, JobId, LensCorrection,
+    LeylineError, Library, LocalAdjustment, LocalAdjustmentValues, Margins, Mask, NoiseReduction,
+    Orientation, PaperSize, PickState, Point, Preview, PreviewKind, PrintRecipe, PrintRequest,
+    PrintSettings, RegisteredAsset, RenderingIntent, RevisionId, Settings, Sharpening, SkippedFile,
+    SpotRemoval, StageVersions, ToneCurve, VersionId, WatchSessionEvent, WatchedFile,
 };
 
 /// A `Settings` built field by field, every nested type named through the
@@ -34,7 +34,7 @@ fn fully_specified_settings() -> Settings {
         ..LocalAdjustmentValues::default()
     };
     Settings {
-        process: CURRENT_PROCESS,
+        stages: StageVersions::from([("gains".to_owned(), 1), ("crop".to_owned(), 1)]),
         exposure: 0.3,
         crop: Some(Crop {
             x: 0.05,
@@ -235,7 +235,7 @@ fn a_library_round_trip_needs_nothing_but_the_sdk() {
 fn settings_round_trip_through_the_sdk_surface() {
     let settings = fully_specified_settings();
     assert_eq!(settings.local_adjustments.len(), 3);
-    assert_eq!(settings.process, CURRENT_PROCESS);
+    assert_eq!(settings.stages.get("gains"), Some(&1));
 
     // `Settings` is the reproducibility contract; the SDK must expose it in
     // a form that survives the same serialization the catalog stores.

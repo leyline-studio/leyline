@@ -46,7 +46,6 @@ pub fn capture(
     if settings.schema > CURRENT_SCHEMA {
         return Err(LeylineError::NewerSettings {
             schema: settings.schema,
-            process: settings.process,
         });
     }
     Ok(PresetSettings::capture(&settings, groups))

@@ -2,8 +2,10 @@
 //!
 //! The develop pipeline operates on gamma-encoded sRGB samples stored as
 //! `f32` in [0, 1]. Operators that are defined in linear light (white
-//! balance, exposure) convert per sample and convert back, so the buffer
-//! invariant — gamma-encoded, clamped — holds between every step.
+//! balance, exposure) convert per sample and convert back — through the
+//! transfer tables of `stages::kernel::v1`, which own those conversions
+//! because they are part of a frozen rendering — so the buffer invariant
+//! (gamma-encoded, clamped) holds between every step.
 
 use leyline_core::{LeylineError, Result};
 use leyline_raw::RawImage;
@@ -88,24 +90,6 @@ fn bad_length(image: &RawImage, expected: usize) -> LeylineError {
     ))
 }
 
-/// sRGB electro-optical transfer function: gamma-encoded → linear light.
-pub(crate) fn srgb_to_linear(v: f32) -> f32 {
-    if v <= 0.04045 {
-        v / 12.92
-    } else {
-        ((v + 0.055) / 1.055).powf(2.4)
-    }
-}
-
-/// sRGB opto-electronic transfer function: linear light → gamma-encoded.
-pub(crate) fn linear_to_srgb(v: f32) -> f32 {
-    if v <= 0.003_130_8 {
-        v * 12.92
-    } else {
-        1.055 * v.powf(1.0 / 2.4) - 0.055
-    }
-}
-
 /// Rec. 709 luma of a gamma-encoded RGB triple.
 pub(crate) fn luma(rgb: &[f32]) -> f32 {
     0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]
@@ -165,14 +149,6 @@ mod tests {
                 Pixels::from_raw(&image),
                 Err(LeylineError::InvalidImage(_))
             ));
-        }
-    }
-
-    #[test]
-    fn transfer_functions_are_inverses() {
-        for i in 0..=1000 {
-            let v = i as f32 / 1000.0;
-            assert!((linear_to_srgb(srgb_to_linear(v)) - v).abs() < 1e-5);
         }
     }
 }

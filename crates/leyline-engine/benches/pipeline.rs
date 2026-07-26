@@ -2,17 +2,18 @@
 //! phase 7).
 //!
 //! A synthetic 3 MP gradient image stands in for a decoded RAW so the
-//! numbers isolate the operators from LibRaw and the disk. The `process1`
+//! numbers isolate the operators from LibRaw and the disk. The `sections`
 //! group follows the pipeline sections: `neutral` is the pass-through
 //! floor, `tone`, `color` and `detail` exercise the per-pixel and blur
 //! operators, `geometry` the resampling ones, and `full` a realistic edit
-//! touching everything. The `process2` group repeats the transfer-heavy
-//! cases through the LUT pipeline (ADR 0013) for comparison. The `process5`
-//! group measures the lens correction step (ADR 0016–0018): the same tone
-//! edit and a real bundled Lensfun profile, with `lens_correction` off vs.
-//! on — distortion, vignetting and TCA all run together, the pipeline
-//! resamples the image up to three times per pixel instead of once. Run
-//! with `cargo bench -p leyline-engine`.
+//! touching everything. The `lens` group measures the lens correction
+//! stage (ADR 0016–0018): the same tone edit and a real bundled Lensfun
+//! profile, off vs. on — distortion, vignetting and TCA all run together,
+//! so the pipeline resamples the image up to three times per pixel instead
+//! of once. The `stages` group prices each parameter family alone on top
+//! of the neutral floor: the "what does moving *this* slider cost" table an
+//! interactive UI budget is built from. Run with
+//! `cargo bench -p leyline-engine`.
 
 use criterion::{Criterion, criterion_group, criterion_main};
 use leyline_color::{DcpProfile, Matrix3};
@@ -52,11 +53,8 @@ fn synthetic_image() -> RawImage {
 }
 
 /// A typical tone edit: white balance, exposure and the four tone sliders.
-/// Pinned to process 1 so recorded baselines stay comparable; the
-/// `process2` group overrides the version.
 fn tone_settings() -> Settings {
     Settings {
-        process: 1,
         white_balance: Some(WhiteBalance {
             temperature: 5200,
             tint: 8,
@@ -73,7 +71,7 @@ fn tone_settings() -> Settings {
 
 /// A real bundled Lensfun profile (Canon EOS 5D Mark III + EF 16-35mm
 /// f/2.8L II USM) with distortion, vignetting and TCA calibration data all
-/// present at 20mm — the same fixture `leyline-lens` and `process3`–`5`
+/// present at 20mm — the same fixture `leyline-lens` and the lens stage
 /// unit tests already use.
 fn canon_shot() -> LensShot {
     LensShot {
@@ -111,12 +109,11 @@ fn full_settings() -> Settings {
 
 fn benches(c: &mut Criterion) {
     let image = synthetic_image();
-    let mut group = c.benchmark_group("process1");
+    let mut group = c.benchmark_group("sections");
     group.sample_size(10);
 
     group.bench_function("neutral", |b| {
         let settings = Settings {
-            process: 1,
             ..Settings::default()
         };
         b.iter(|| render(black_box(&image), black_box(&settings), None, None).unwrap());
@@ -129,7 +126,6 @@ fn benches(c: &mut Criterion) {
 
     group.bench_function("color", |b| {
         let settings = Settings {
-            process: 1,
             vibrance: 30,
             saturation: 10,
             ..Settings::default()
@@ -139,7 +135,6 @@ fn benches(c: &mut Criterion) {
 
     group.bench_function("detail", |b| {
         let settings = Settings {
-            process: 1,
             noise_reduction: NoiseReduction {
                 luminance: 40,
                 color: 30,
@@ -155,7 +150,6 @@ fn benches(c: &mut Criterion) {
 
     group.bench_function("geometry", |b| {
         let settings = Settings {
-            process: 1,
             rotation: 2.0,
             crop: Some(Crop {
                 x: 0.1,
@@ -175,40 +169,15 @@ fn benches(c: &mut Criterion) {
 
     group.finish();
 
-    // The transfer-heavy cases again through the LUT pipeline (ADR 0013).
-    let mut group = c.benchmark_group("process2");
-    group.sample_size(10);
-
-    group.bench_function("tone", |b| {
-        let settings = Settings {
-            process: 2,
-            ..tone_settings()
-        };
-        b.iter(|| render(black_box(&image), black_box(&settings), None, None).unwrap());
-    });
-
-    group.bench_function("full", |b| {
-        let settings = Settings {
-            process: 2,
-            ..full_settings()
-        };
-        b.iter(|| render(black_box(&image), black_box(&settings), None, None).unwrap());
-    });
-
-    group.finish();
-
     // Lens correction (ADR 0016–0018): same tone edit and shot, disabled
     // vs. enabled (distortion + vignetting + TCA all at once, the only
     // combination `lens_correction.enabled` can produce).
-    let mut group = c.benchmark_group("process5");
+    let mut group = c.benchmark_group("lens");
     group.sample_size(10);
     let shot = canon_shot();
 
     group.bench_function("baseline_no_lens_correction", |b| {
-        let settings = Settings {
-            process: 5,
-            ..tone_settings()
-        };
+        let settings = tone_settings();
         b.iter(|| {
             render(
                 black_box(&image),
@@ -222,7 +191,6 @@ fn benches(c: &mut Criterion) {
 
     group.bench_function("lens_correction", |b| {
         let settings = Settings {
-            process: 5,
             lens_correction: LensCorrection {
                 enabled: true,
                 profile: "auto".to_owned(),
@@ -254,7 +222,6 @@ fn benches(c: &mut Criterion) {
     };
     group.bench_function("lens_correction_no_tca", |b| {
         let settings = Settings {
-            process: 5,
             lens_correction: LensCorrection {
                 enabled: true,
                 profile: "auto".to_owned(),
@@ -274,16 +241,16 @@ fn benches(c: &mut Criterion) {
 
     group.finish();
 
-    // Every parameter family the current process version exposes, each one
-    // alone on top of the process-11 neutral floor: this is the "what does
+    // Every parameter family the pipeline exposes, each one alone on top
+    // of the neutral floor: this is the "what does
     // moving *this* slider cost" table, the one an interactive UI budget is
     // built from. `neutral` is the floor to subtract; `full` is everything
     // at once, the worst case a single edit can reach.
-    let mut group = c.benchmark_group("process11");
+    let mut group = c.benchmark_group("stages");
     group.sample_size(10);
     let profile = sample_profile();
 
-    for (name, settings) in process11_cases() {
+    for (name, settings) in stage_cases() {
         group.bench_function(name, |b| {
             b.iter(|| {
                 render(
@@ -300,11 +267,10 @@ fn benches(c: &mut Criterion) {
     group.finish();
 }
 
-/// One entry per parameter family, each isolated on the process-11 neutral
+/// One entry per parameter family, each isolated on the neutral
 /// base so the delta against `neutral` is that family's own cost.
-fn process11_cases() -> Vec<(&'static str, Settings)> {
+fn stage_cases() -> Vec<(&'static str, Settings)> {
     let base = Settings {
-        process: 11,
         ..Settings::default()
     };
     vec![
@@ -544,13 +510,7 @@ fn process11_cases() -> Vec<(&'static str, Settings)> {
                 ..base.clone()
             },
         ),
-        (
-            "full",
-            Settings {
-                process: 11,
-                ..full_settings()
-            },
-        ),
+        ("full", full_settings()),
     ]
 }
 
@@ -607,7 +567,7 @@ fn sample_profile() -> DcpProfile {
 #[allow(missing_docs)]
 mod harness {
     use super::*;
-    criterion_group!(process1, benches);
+    criterion_group!(pipeline, benches);
 }
 
-criterion_main!(harness::process1);
+criterion_main!(harness::pipeline);

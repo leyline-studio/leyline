@@ -118,7 +118,7 @@ Sortie (aperçu ou export)
 
 L'utilisateur règle des **valeurs**, jamais l'ordre.
 
-Cet ordre fait partie du contrat de rendu : le modifier change les pixels produits, donc impose une nouvelle *process version* (§3.3).
+Cet ordre fait partie du contrat de rendu : le modifier change les pixels produits, donc impose une nouvelle *version d'étage* déclarant un autre rang (§3.3).
 
 **Sources non-RAW.** Le catalogue accepte à l'import des fichiers JPEG, TIFF et PNG (catalogue §10). Ces fichiers entrent dans la même chaîne : ils sont décodés par des codecs natifs (orientation EXIF appliquée, échantillons normalisés en RGB 8 bits) et prennent la place de « RAW décodé » en tête de pipeline. Le décodage reste déterministe au même titre que LibRaw (§5). HEIF et PSD sont catalogués mais n'ont pas de décodeur en V1 : demander leurs pixels est une erreur explicite, pas un refus LibRaw.
 
@@ -133,7 +133,7 @@ Jamais un delta.
 ```json
 {
     "schema": 1,
-    "process": 1,
+    "stages": { "camera_profile": 1, "gains": 1, "contrast": 1, "crop": 1 },
 
     "camera_profile": {
         "enabled": true,
@@ -216,9 +216,11 @@ Jamais un delta.
 | Champ | Rôle |
 |---|---|
 | `schema` | Version du **format** des paramètres (structure du JSON) |
-| `process` | Version du **rendu** (algorithmes produisant les pixels) |
+| `stages` | Version du **rendu**, étage par étage (algorithmes produisant les pixels) |
 
 Les deux évoluent indépendamment : on peut renommer un champ sans changer le rendu, et corriger un algorithme sans changer la structure.
+
+`stages` associe à chaque étage **actif** la version de cet étage qui rend cette révision. Un étage à sa valeur neutre ne s'exécute pas, n'a donc aucun comportement à épingler, et **n'y figure pas** — la carte est proportionnelle à l'édition réelle, pas au nombre d'étages du moteur. Une révision neutre écrit une carte vide, donc pas de champ du tout.
 
 ### Valeurs omises
 
@@ -260,41 +262,59 @@ Valeurs neutres du schéma 1 :
 
 ---
 
-## 3.3 Process Version
+## 3.3 Versions d'étages
 
-Le champ `process` joue le rôle des *process versions* de Lightroom (2003, 2010, 2012...).
+Le champ `stages` joue le rôle des *process versions* de Lightroom (2003, 2010, 2012...), à une granularité près : ce n'est pas le pipeline entier qui porte un numéro, c'est **chaque opérateur** ([ADR 0042](adr/0042-versioned-stage-pipeline.md)).
 
 Règle fondamentale :
 
-> **Un moteur donné doit savoir rendre toutes les process versions passées.**
+> **Aucune version publiée du logiciel — correctif, mineure ou majeure — ne modifie le rendu d'une version d'étage déjà publiée.**
 
-* Une révision est toujours rendue avec la process version qu'elle déclare.
-* Une correction d'algorithme qui change les pixels produits = nouvelle process version.
+* Une révision est toujours rendue avec les versions d'étages qu'elle déclare.
+* Une correction d'algorithme qui change les pixels produits = nouvelle version de cet étage, dans un nouveau module ; l'ancienne n'est jamais touchée.
 * Une optimisation qui produit des pixels identiques = pas de nouvelle version.
-* L'utilisateur peut migrer une photo vers une process version récente : cela crée une **nouvelle révision** (le graphe Git du catalogue s'en charge naturellement) — l'ancienne reste rendable à l'identique.
+* Le rang d'un étage dans le pipeline appartient à la version : déplacer un étage est une nouvelle version qui déclare un autre rang, jamais une modification de l'existante.
+* L'utilisateur peut migrer une photo vers les versions courantes (§4.5) : cela crée une **nouvelle révision** — l'ancienne reste rendable à l'identique.
 
-Le code des anciennes process versions est conservé dans le moteur : c'est le prix de la promesse « mêmes pixels dans dix ans », dont §5.1 énonce la portée exacte. À partir d'ADR 0042, l'unité gelée n'est plus la process version entière mais l'**étage** — le prix se paie alors par opérateur réellement corrigé, plus par copie intégrale du pipeline.
+**Épinglage.** La carte est écrite par le moteur au moment où la révision est écrite, jamais déduite à la lecture :
 
-**Comment le moteur rend une process version.** Chaque `process: N` possède une expansion figée vers un ensemble de versions d'étages (`crate::stages`, table `PROCESS_STAGES`) : `process: 4` signifie exactement `lens::v2` + `gains::v2` + `contrast::v1` + … . Le moteur ne dispatche donc plus vers un module par version, il compose les étages nommés par l'expansion, dans l'ordre du rang que chaque version d'étage déclare. Les onze rendus restent bit à bit ceux d'avant la migration, et c'est `tests/golden_renders.rs` — non la relecture du diff — qui l'établit (ADR 0042 §7).
+* un étage déjà inscrit **garde** sa version — éditer en 2036 une photo de 2026 ne la re-rend pas à travers du code plus récent ;
+* un étage qui vient de quitter sa valeur neutre reçoit la version **courante** du moteur ;
+* un étage redevenu neutre **perd** son entrée, puisqu'il ne rend plus rien.
 
-Versions connues :
+Un étage actif mais sans version inscrite rend à la version courante. Ce cas ne concerne que des réglages construits en mémoire (SDK, préréglage, test) : toute révision *stockée* reçoit ses entrées à l'écriture.
 
-| `process` | Définition |
-|---|---|
-| 1 | Pipeline initial : fonctions de transfert sRGB exactes (`powf` par échantillon) |
-| 2 | Identique à 1, fonctions de transfert par table de 4096 intervalles avec interpolation linéaire (ADR 0013) — écart < 2·10⁻⁵, invisible en 8 bits mais pas bit-identique |
-| 3 | Identique à 2, plus `lens_correction` : correction de distorsion géométrique via un profil Lensfun (ADR 0016) |
-| 4 | Identique à 3, plus le dévignettage (correction du vignettage) avec le même profil (ADR 0017) |
-| 5 | Identique à 4, plus la correction d'aberration chromatique transversale (TCA), un second passage géométrique indépendant par canal (ADR 0018) |
-| 6 | Identique à 5, plus `tone_curve` : courbe par points interpolée par une spline cubique monotone (Fritsch–Carlson), précalculée en table de correspondance, appliquée en luminance après Blancs/Noirs et avant Vibrance/Saturation (ADR 0030) |
-| 7 | Identique à 6, plus `spot_removal` : clonage déterministe par copie bilinéaire adoucie (falloff radial + opacité), sans mode *heal*, immédiatement après Correction d'objectif et avant Balance des blancs (ADR 0032) |
-| 8 | Identique à 7, plus `local_adjustments` : réglages locaux masqués (brosse/radial/gradient), ré-appliquant les mêmes formules d'opérateur que leurs équivalents globaux (balance des blancs, exposition, contraste, hautes lumières, ombres, blancs, noirs, vibrance, saturation) restreintes à une couverture `[0, 1]` par masque, immédiatement après Vibrance/Saturation et avant Réduction du bruit (ADR 0029 — accepté sous le nom « process 6 », livré en process 8 une fois les process 6 et 7 déjà pris par ADR 0030/0032) |
-| 9 | Identique à 8, plus le mélangeur TSL (`hsl`, 8 bandes de teinte à centres fixes avec fondu entre bandes adjacentes, en HSL dérivé du tampon RGB de travail) et le Color Grading (`color_grading`, trois zones ombres/tons moyens/hautes lumières pondérées par la luminance Rec. 709 du pixel, `balance`/`blending` réglant la frontière et la largeur de fondu entre zones), tous deux immédiatement après Vibrance/Saturation et avant les réglages locaux (ADR 0031) |
-| 10 | Identique à 9, plus `clarity`/`texture` (contraste local par masque flou — même fonction que `sharpen`, appelée à deux rayons, flou grand rayon approché par sous-échantillonnage pour la clarté) et `dehaze` (suppression de voile par *dark channel prior* : lumière atmosphérique par percentile fixe du canal sombre, transmission dérivée en forme close, aucune itération), tous trois immédiatement après la courbe tonale et avant Vibrance/Saturation (ADR 0033) |
+Le code de chaque version d'étage est conservé dans le moteur pour toujours : c'est le prix de la promesse « mêmes pixels dans dix ans », dont §5.1 énonce la portée exacte. Il se paie désormais par opérateur réellement corrigé — quelques dizaines de lignes — et non plus par copie intégrale du pipeline.
 
-| 11 | Identique à 10, plus `camera_profile` : conversion des échantillons RGB natifs boîtier (décodage LibRaw en mode *camera native*, sans conversion sRGB intégrée) vers le sRGB linéaire via la matrice `ColorMatrix1`/`ForwardMatrix1` d'un profil DCP fourni par l'utilisateur, en passant par l'espace de connexion CIE XYZ (D50) — **tout premier étage**, avant même la correction d'objectif, puisqu'il établit l'espace colorimétrique du tampon de travail au lieu d'y retoucher des pixels (ADR 0035, conteneur lu selon ADR 0037). Quand les deux illuminants de calibration sont présents, leurs matrices sont **moyennées** et non interpolées selon la température de couleur estimée ; `ProfileHueSatMapData`/`ProfileLookTableData`/`ProfileToneCurve` ne sont **ni analysés ni appliqués** (ADR 0037 les prévoit, le parseur actuel ne lit que le nom du profil et les matrices). Un profil dont le rendu repose surtout sur ces tables donnera donc un résultat différent de celui d'Adobe. La justesse colorimétrique de ce chemin matriciel **n'a pas encore été validée** contre de vrais `.dcp` Adobe et leurs rendus de référence : le profil d'appareil reste donc une fonctionnalité **expérimentale**, signalée comme telle dans Studio et la CLI |
+**Étages connus, et l'ordre dans lequel ils s'exécutent.** Tous sont en version 1 : l'historique de rendu antérieur à la publication a été effondré ([ADR 0043](adr/0043-collapse-prerelease-render-history.md)), puisqu'aucune révision au monde ne le citait.
 
-Une révision éditée hérite du process de son parent ; seules les nouvelles révisions par défaut (imports) écrivent la version courante.
+| Rang | Étage | Version | Rôle |
+|---|---|---|---|
+| 10 | `camera_profile` | 1 | Matrice DCP boîtier → sRGB linéaire, avant tout le reste : elle établit l'espace du tampon de travail (ADR 0035, conteneur lu selon ADR 0037) |
+| 20 | `lens` | 1 | Distorsion, aberration chromatique transversale et vignettage via un profil Lensfun (ADR 0016–0018) |
+| 30 | `spot_removal` | 1 | Clonage déterministe par copie bilinéaire adoucie, sans mode *heal* (ADR 0031) |
+| 40 | `gains` | 1 | Balance des blancs et exposition, en lumière linéaire, via des tables de transfert de 4096 intervalles (ADR 0013) |
+| 50 | `contrast` | 1 | Courbe en S autour du gris moyen |
+| 60 | `highlights_shadows` | 1 | Hautes lumières et ombres, masquées par la luminance |
+| 70 | `whites_blacks` | 1 | Remappage des extrémités |
+| 80 | `tone_curve` | 1 | Courbe par points, spline cubique monotone précalculée en table (ADR 0030) |
+| 90 | `clarity` | 1 | Contraste local à grand rayon (ADR 0033) |
+| 100 | `texture` | 1 | Même opérateur à petit rayon (ADR 0033) |
+| 110 | `dehaze` | 1 | Suppression de voile par *dark channel prior* (ADR 0033) |
+| 120 | `vibrance` | 1 | Saturation pondérée par le chroma existant |
+| 130 | `saturation` | 1 | Saturation uniforme |
+| 140 | `hsl` | 1 | Mélangeur TSL à 8 bandes de teinte, fondu entre bandes adjacentes (ADR 0032) |
+| 150 | `color_grading` | 1 | Trois zones ombres/tons moyens/hautes lumières pondérées par la luminance (ADR 0032) |
+| 160 | `local_adjustments` | 1 | Réglages locaux masqués (brosse/radial/gradient), réutilisant les opérateurs globaux restreints à une couverture (ADR 0029) |
+| 170 | `noise_luminance` | 1 | Réduction du bruit de luminance |
+| 180 | `noise_color` | 1 | Réduction du bruit chromatique |
+| 190 | `sharpen` | 1 | Masque flou sur le plan de luminance |
+| 200 | `rotate` | 1 | Rotation d'angle arbitraire, échantillonnage bilinéaire |
+| 210 | `crop` | 1 | Recadrage |
+
+Les rangs vont de dix en dix : un étage futur s'insère entre deux existants sans que personne ne renumérote quoi que ce soit.
+
+Une révision éditée hérite des versions d'étages de son parent ; seules les nouvelles révisions par défaut (imports) épinglent les versions courantes.
 
 ---
 
@@ -317,13 +337,15 @@ Aucune migration des révisions existantes n'est jamais effectuée : le moteur s
 
 ### Compatibilité ascendante
 
-Un moteur qui rencontre un `schema` ou un `process` **plus récent** que ce qu'il connaît :
+Un moteur qui rencontre un `schema` plus récent que ce qu'il connaît, ou une version d'étage qu'il n'implémente pas :
 
 * ne modifie jamais la révision ;
 * n'édite pas l'asset (lecture seule) ;
 * affiche la meilleure préversion disponible (dernière preview en cache) avec un avertissement.
 
-Un vieux moteur ne doit jamais détruire le travail d'un moteur récent.
+Un vieux moteur ne doit jamais détruire le travail d'un moteur récent. Un étage inconnu n'est jamais **sauté** : le rendu échoue (`UnknownStage`), car rendre la photo sans un opérateur que son auteur a vu serait lui montrer d'autres pixels sans le dire.
+
+Le champ `process`, retiré par [ADR 0043](adr/0043-collapse-prerelease-render-history.md), fait exception à la règle de préservation des champs inconnus : un document qui le porte encore est **refusé**. Cette règle protège le travail d'un moteur *plus récent* ; un champ *supprimé* signale au contraire un document antérieur à la carte d'étages, qu'il serait faux de rendre comme s'il n'en portait pas.
 
 ---
 
@@ -458,7 +480,7 @@ Les deux formats restent valides pour les exécutions qui les utilisent. Aucune 
 
 ## 4.5 Reprocessing
 
-Lorsqu'un pipeline évolue, les assets peuvent être retraités.
+Lorsqu'un pipeline évolue, les assets peuvent être retraités : le retraitement remonte chaque étage épinglé d'une révision à sa version courante, en conservant les valeurs des réglages.
 
 Le retraitement :
 
@@ -528,7 +550,7 @@ Les règles suivantes sont invariantes :
 | Exécution de développement | Ligne de `develop_revisions` |
 | Paramètres immuables | `settings_json` (état complet) |
 | Version de format | Champ `schema` du JSON |
-| Version de rendu | Champ `process` du JSON |
+| Version de rendu | Champ `stages` du JSON, une entrée par étage actif |
 | Recalcul | Nouvelle révision dans le graphe |
 | Résultat matérialisé | `previews`, invalidées par comparaison de `revision_id` (§20) |
 | Coalescence | Une révision = une intention (§17) — la granularité des exécutions suit la même règle |

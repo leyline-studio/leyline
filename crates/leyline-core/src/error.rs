@@ -76,14 +76,26 @@ pub enum LeylineError {
     #[error("invalid settings: {0}")]
     InvalidSettings(String),
 
-    /// The revision was written by a newer engine (`docs/pipeline.md` §3.4):
-    /// show the best cached preview instead, never edit, never guess.
-    #[error("settings declare schema {schema} / process {process}, newer than this engine")]
+    /// The revision's *format* was written by a newer engine
+    /// (`docs/pipeline.md` §3.4): show the best cached preview instead,
+    /// never edit, never guess.
+    #[error("settings declare schema {schema}, newer than this engine")]
     NewerSettings {
         /// Settings format version the revision declares.
         schema: u32,
-        /// Process (rendering) version the revision declares.
-        process: u32,
+    },
+
+    /// The revision's *rendering* was written by a newer engine: it cites a
+    /// pipeline stage, or a version of one, that this engine does not
+    /// implement (ADR 0043 §4). Same fail-closed contract as
+    /// [`LeylineError::NewerSettings`] — the finer granularity only lets the
+    /// message name what is missing.
+    #[error("settings cite stage {stage} v{version}, which this engine does not implement")]
+    UnknownStage {
+        /// Stage name the revision cites.
+        stage: String,
+        /// Version of that stage the revision cites.
+        version: u16,
     },
 
     /// A pixel buffer handed to the engine is malformed.

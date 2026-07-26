@@ -1436,8 +1436,9 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     }
 }
 
-/// Migrates every version in the library to the current process version
-/// (`docs/engine-api.md` §10.4), regardless of the active grid filter.
+/// Migrates every version in the library to the engine's current stage
+/// versions (`docs/engine-api.md` §10.4), regardless of the active grid
+/// filter.
 /// Reprocessing only rewrites `settings_json` — no pixels render during the
 /// call — so this runs synchronously rather than as a tracked job, the same
 /// way classement writes do.
@@ -2921,7 +2922,7 @@ fn checkout_history_row(app: &mut App, window: &StudioWindow, index: usize) {
     }
 }
 
-/// Migrates the open photo to the engine's current process version
+/// Migrates the open photo to the engine's current stage versions
 /// (`docs/engine-api.md` §10.4) — a new revision with the same parameter
 /// values, so a photo imported before a rendering feature existed (e.g.
 /// lens correction) can pick it up without the user touching a slider. A

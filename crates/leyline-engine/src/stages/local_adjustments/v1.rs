@@ -5,7 +5,7 @@
 //! copy back through the mask's coverage.
 //!
 //! The operators it reaches for are named explicitly, at the versions it was
-//! defined against — `gains::v2`, `contrast::v1`, … — and that binding is
+//! defined against — `gains::v1`, `contrast::v1`, … — and that binding is
 //! part of what is frozen here: a later `contrast::v2` would leave this
 //! module calling `contrast::v1`, as it must.
 //!
@@ -19,7 +19,7 @@ use leyline_core::{LocalAdjustment, WhiteBalance};
 use crate::mask;
 use crate::pixels::Pixels;
 use crate::stages::contrast::v1::contrast;
-use crate::stages::gains::v2::linear_gains;
+use crate::stages::gains::v1::linear_gains;
 use crate::stages::highlights_shadows::v1::highlights_shadows;
 use crate::stages::kernel::v1::saturate;
 use crate::stages::whites_blacks::v1::whites_blacks;

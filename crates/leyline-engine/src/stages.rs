@@ -1,11 +1,17 @@
 //! The develop pipeline as a composition of independently versioned stages
-//! (ADR 0042).
+//! (ADR 0042, ADR 0043).
 //!
 //! Until ADR 0042 the pipeline was eleven `processN.rs` modules, each a full
 //! copy of the previous one — 14 968 lines, 70 to 93 % of them identical to
-//! their neighbor. This module replaces them by the operators that actually
-//! differ, plus a table saying which version of each operator a given
-//! `process: N` expands to.
+//! their neighbor. This module is the operators themselves, one frozen
+//! module per version, plus the registry that composes them.
+//!
+//! A revision names the version of each stage it uses ([`pin`]); there is no
+//! global rendering counter any more. ADR 0043 collapsed the pre-publication
+//! history, so every operator here is at `v1` — the mechanism that lets an
+//! older version keep rendering is exercised by a two-version fixture stage
+//! (`stages/fixture.rs`, test builds only) until the first real `v2`
+//! arrives.
 //!
 //! # What is frozen, and where
 //!
@@ -25,8 +31,7 @@
 //!    editing published ones is not.
 //!
 //! What proves all of this is not review but `tests/golden_renders.rs`,
-//! which pins the digest of one render per process version, captured from
-//! the pre-migration engine (ADR 0042 §7).
+//! which pins the digest of one render per operator family (ADR 0042 §7).
 //!
 //! # Rank, not order of statements
 //!
@@ -51,15 +56,12 @@ pub(crate) mod camera_profile {
 }
 pub(crate) mod lens {
     pub(crate) mod v1;
-    pub(crate) mod v2;
-    pub(crate) mod v3;
 }
 pub(crate) mod spot_removal {
     pub(crate) mod v1;
 }
 pub(crate) mod gains {
     pub(crate) mod v1;
-    pub(crate) mod v2;
 }
 pub(crate) mod contrast {
     pub(crate) mod v1;
@@ -141,14 +143,28 @@ pub(crate) struct Version {
 
 /// One operator, with every version of it this engine can still render.
 pub(crate) struct Stage {
-    /// Name a revision cites, and key of the expansion table.
+    /// Name a revision cites in its `stages` map.
     pub name: &'static str,
     /// Whether this operator's settings are away from their neutral value.
-    /// A property of the operator, shared by all its versions: neutrality
-    /// is about the settings, not about how they are rendered.
-    pub active: fn(&Context<'_>) -> bool,
+    ///
+    /// A property of the operator and of the *settings alone*: it decides
+    /// both what runs and what a revision records, and a revision is written
+    /// without a decoded image, a shot or a resolved profile in hand.
+    /// Runtime availability — no EXIF match, no profile — is the `apply`
+    /// function's business, and leaves the pixels untouched there.
+    pub active: fn(&Settings) -> bool,
     /// Versions, oldest first.
     pub versions: &'static [Version],
+}
+
+impl Stage {
+    /// The version this engine pins when the stage leaves its neutral value
+    /// for the first time (ADR 0043 §3).
+    fn current(&self) -> &'static Version {
+        self.versions
+            .last()
+            .expect("a registered stage has at least one version")
+    }
 }
 
 /// The stage registry. Published `(name, version)` entries are frozen —
@@ -156,7 +172,12 @@ pub(crate) struct Stage {
 pub(crate) static STAGES: &[Stage] = &[
     Stage {
         name: "camera_profile",
-        active: |ctx| ctx.camera_profile.is_some(),
+        active: |settings| {
+            settings
+                .camera_profile
+                .as_ref()
+                .is_some_and(|profile| profile.enabled)
+        },
         versions: &[Version {
             version: 1,
             rank: 10,
@@ -169,65 +190,32 @@ pub(crate) static STAGES: &[Stage] = &[
     },
     Stage {
         name: "lens",
-        active: |ctx| ctx.settings.lens_correction.enabled && ctx.shot.is_some(),
-        versions: &[
-            Version {
-                version: 1,
-                rank: 20,
-                apply: |px, ctx| {
-                    if let Some(shot) = ctx.shot {
-                        *px = lens::v1::correct_lens(px, shot);
+        active: |settings| settings.lens_correction.enabled,
+        versions: &[Version {
+            version: 1,
+            rank: 20,
+            apply: |px, ctx| {
+                let Some(shot) = ctx.shot else { return };
+                if let Some(profile) = leyline_lens::find_profile(
+                    &shot.camera_make,
+                    &shot.camera_model,
+                    shot.lens_make.as_deref(),
+                    shot.lens_model.as_deref().unwrap_or(""),
+                ) {
+                    let correction =
+                        leyline_lens::Correction::new(&profile, shot.focal_mm, px.width, px.height);
+                    *px = lens::v1::undistort(px, &correction);
+                    *px = lens::v1::correct_tca(px, &correction);
+                    if let Some(aperture_f) = shot.aperture_f {
+                        lens::v1::devignette(px, &profile, shot.focal_mm, aperture_f);
                     }
-                },
+                }
             },
-            Version {
-                version: 2,
-                rank: 20,
-                apply: |px, ctx| {
-                    let Some(shot) = ctx.shot else { return };
-                    if let Some(profile) = leyline_lens::find_profile(
-                        &shot.camera_make,
-                        &shot.camera_model,
-                        shot.lens_make.as_deref(),
-                        shot.lens_model.as_deref().unwrap_or(""),
-                    ) {
-                        *px = lens::v2::undistort(px, &profile, shot.focal_mm);
-                        if let Some(aperture_f) = shot.aperture_f {
-                            lens::v2::devignette(px, &profile, shot.focal_mm, aperture_f);
-                        }
-                    }
-                },
-            },
-            Version {
-                version: 3,
-                rank: 20,
-                apply: |px, ctx| {
-                    let Some(shot) = ctx.shot else { return };
-                    if let Some(profile) = leyline_lens::find_profile(
-                        &shot.camera_make,
-                        &shot.camera_model,
-                        shot.lens_make.as_deref(),
-                        shot.lens_model.as_deref().unwrap_or(""),
-                    ) {
-                        let correction = leyline_lens::Correction::new(
-                            &profile,
-                            shot.focal_mm,
-                            px.width,
-                            px.height,
-                        );
-                        *px = lens::v3::undistort(px, &correction);
-                        *px = lens::v3::correct_tca(px, &correction);
-                        if let Some(aperture_f) = shot.aperture_f {
-                            lens::v3::devignette(px, &profile, shot.focal_mm, aperture_f);
-                        }
-                    }
-                },
-            },
-        ],
+        }],
     },
     Stage {
         name: "spot_removal",
-        active: |ctx| !ctx.settings.spot_removal.is_empty(),
+        active: |settings| !settings.spot_removal.is_empty(),
         versions: &[Version {
             version: 1,
             rank: 30,
@@ -242,35 +230,22 @@ pub(crate) static STAGES: &[Stage] = &[
     },
     Stage {
         name: "gains",
-        active: |ctx| ctx.settings.white_balance.is_some() || ctx.settings.exposure != 0.0,
-        versions: &[
-            Version {
-                version: 1,
-                rank: 40,
-                apply: |px, ctx| {
-                    gains::v1::linear_gains(
-                        px,
-                        ctx.settings.white_balance.as_ref(),
-                        ctx.settings.exposure,
-                    );
-                },
+        active: |settings| settings.white_balance.is_some() || settings.exposure != 0.0,
+        versions: &[Version {
+            version: 1,
+            rank: 40,
+            apply: |px, ctx| {
+                gains::v1::linear_gains(
+                    px,
+                    ctx.settings.white_balance.as_ref(),
+                    ctx.settings.exposure,
+                );
             },
-            Version {
-                version: 2,
-                rank: 40,
-                apply: |px, ctx| {
-                    gains::v2::linear_gains(
-                        px,
-                        ctx.settings.white_balance.as_ref(),
-                        ctx.settings.exposure,
-                    );
-                },
-            },
-        ],
+        }],
     },
     Stage {
         name: "contrast",
-        active: |ctx| ctx.settings.contrast != 0,
+        active: |settings| settings.contrast != 0,
         versions: &[Version {
             version: 1,
             rank: 50,
@@ -279,7 +254,7 @@ pub(crate) static STAGES: &[Stage] = &[
     },
     Stage {
         name: "highlights_shadows",
-        active: |ctx| ctx.settings.highlights != 0 || ctx.settings.shadows != 0,
+        active: |settings| settings.highlights != 0 || settings.shadows != 0,
         versions: &[Version {
             version: 1,
             rank: 60,
@@ -294,7 +269,7 @@ pub(crate) static STAGES: &[Stage] = &[
     },
     Stage {
         name: "whites_blacks",
-        active: |ctx| ctx.settings.whites != 0 || ctx.settings.blacks != 0,
+        active: |settings| settings.whites != 0 || settings.blacks != 0,
         versions: &[Version {
             version: 1,
             rank: 70,
@@ -305,7 +280,7 @@ pub(crate) static STAGES: &[Stage] = &[
     },
     Stage {
         name: "tone_curve",
-        active: |ctx| !ctx.settings.tone_curve.points.is_empty(),
+        active: |settings| !settings.tone_curve.points.is_empty(),
         versions: &[Version {
             version: 1,
             rank: 80,
@@ -314,7 +289,7 @@ pub(crate) static STAGES: &[Stage] = &[
     },
     Stage {
         name: "clarity",
-        active: |ctx| ctx.settings.clarity != 0,
+        active: |settings| settings.clarity != 0,
         versions: &[Version {
             version: 1,
             rank: 90,
@@ -329,7 +304,7 @@ pub(crate) static STAGES: &[Stage] = &[
     },
     Stage {
         name: "texture",
-        active: |ctx| ctx.settings.texture != 0,
+        active: |settings| settings.texture != 0,
         versions: &[Version {
             version: 1,
             rank: 100,
@@ -344,7 +319,7 @@ pub(crate) static STAGES: &[Stage] = &[
     },
     Stage {
         name: "dehaze",
-        active: |ctx| ctx.settings.dehaze != 0,
+        active: |settings| settings.dehaze != 0,
         versions: &[Version {
             version: 1,
             rank: 110,
@@ -355,7 +330,7 @@ pub(crate) static STAGES: &[Stage] = &[
     // twice, at two ranks: the `vibrance` flag is what tells them apart.
     Stage {
         name: "vibrance",
-        active: |ctx| ctx.settings.vibrance != 0,
+        active: |settings| settings.vibrance != 0,
         versions: &[Version {
             version: 1,
             rank: 120,
@@ -364,7 +339,7 @@ pub(crate) static STAGES: &[Stage] = &[
     },
     Stage {
         name: "saturation",
-        active: |ctx| ctx.settings.saturation != 0,
+        active: |settings| settings.saturation != 0,
         versions: &[Version {
             version: 1,
             rank: 130,
@@ -373,12 +348,7 @@ pub(crate) static STAGES: &[Stage] = &[
     },
     Stage {
         name: "hsl",
-        active: |ctx| {
-            ctx.settings
-                .hsl
-                .iter()
-                .any(|band| *band != HslBand::default())
-        },
+        active: |settings| settings.hsl.iter().any(|band| *band != HslBand::default()),
         versions: &[Version {
             version: 1,
             rank: 140,
@@ -387,7 +357,7 @@ pub(crate) static STAGES: &[Stage] = &[
     },
     Stage {
         name: "color_grading",
-        active: |ctx| ctx.settings.color_grading != ColorGrading::default(),
+        active: |settings| settings.color_grading != ColorGrading::default(),
         versions: &[Version {
             version: 1,
             rank: 150,
@@ -396,7 +366,7 @@ pub(crate) static STAGES: &[Stage] = &[
     },
     Stage {
         name: "local_adjustments",
-        active: |ctx| !ctx.settings.local_adjustments.is_empty(),
+        active: |settings| !settings.local_adjustments.is_empty(),
         versions: &[Version {
             version: 1,
             rank: 160,
@@ -411,7 +381,7 @@ pub(crate) static STAGES: &[Stage] = &[
     },
     Stage {
         name: "noise_luminance",
-        active: |ctx| ctx.settings.noise_reduction.luminance != 0,
+        active: |settings| settings.noise_reduction.luminance != 0,
         versions: &[Version {
             version: 1,
             rank: 170,
@@ -426,7 +396,7 @@ pub(crate) static STAGES: &[Stage] = &[
     },
     Stage {
         name: "noise_color",
-        active: |ctx| ctx.settings.noise_reduction.color != 0,
+        active: |settings| settings.noise_reduction.color != 0,
         versions: &[Version {
             version: 1,
             rank: 180,
@@ -441,7 +411,7 @@ pub(crate) static STAGES: &[Stage] = &[
     },
     Stage {
         name: "sharpen",
-        active: |ctx| ctx.settings.sharpening.amount != 0,
+        active: |settings| settings.sharpening.amount != 0,
         versions: &[Version {
             version: 1,
             rank: 190,
@@ -456,7 +426,7 @@ pub(crate) static STAGES: &[Stage] = &[
     },
     Stage {
         name: "rotate",
-        active: |ctx| ctx.settings.rotation.rem_euclid(360.0) != 0.0,
+        active: |settings| settings.rotation.rem_euclid(360.0) != 0.0,
         versions: &[Version {
             version: 1,
             rank: 200,
@@ -465,7 +435,7 @@ pub(crate) static STAGES: &[Stage] = &[
     },
     Stage {
         name: "crop",
-        active: |ctx| ctx.settings.crop.is_some(),
+        active: |settings| settings.crop.is_some(),
         versions: &[Version {
             version: 1,
             rank: 210,
@@ -478,239 +448,103 @@ pub(crate) static STAGES: &[Stage] = &[
     },
 ];
 
-/// The expansion of every historical `process: N` into the stage versions
-/// it is made of (ADR 0042 §5).
-///
-/// **Frozen, and load-bearing.** A wrong entry would render an old photo
-/// differently — the one failure mode this whole migration exists to
-/// prevent. Entry `i` is process `i + 1`; order inside a row is irrelevant
-/// (rank decides), and a stage a version never rendered is simply absent:
-/// processes 1 and 2 carry no `lens` entry because they declare lens
-/// correction and deliberately ignore it.
-const PROCESS_STAGES: [&[(&str, u16)]; 11] = [
-    // 1 — the first contract: exact `powf` transfer functions.
-    &[
-        ("gains", 1),
-        ("contrast", 1),
-        ("highlights_shadows", 1),
-        ("whites_blacks", 1),
-        ("vibrance", 1),
-        ("saturation", 1),
-        ("noise_luminance", 1),
-        ("noise_color", 1),
-        ("sharpen", 1),
-        ("rotate", 1),
-        ("crop", 1),
-    ],
-    // 2 — ADR 0013: transfer functions by lookup table.
-    &[
-        ("gains", 2),
-        ("contrast", 1),
-        ("highlights_shadows", 1),
-        ("whites_blacks", 1),
-        ("vibrance", 1),
-        ("saturation", 1),
-        ("noise_luminance", 1),
-        ("noise_color", 1),
-        ("sharpen", 1),
-        ("rotate", 1),
-        ("crop", 1),
-    ],
-    // 3 — ADR 0016: lens distortion.
-    &[
-        ("lens", 1),
-        ("gains", 2),
-        ("contrast", 1),
-        ("highlights_shadows", 1),
-        ("whites_blacks", 1),
-        ("vibrance", 1),
-        ("saturation", 1),
-        ("noise_luminance", 1),
-        ("noise_color", 1),
-        ("sharpen", 1),
-        ("rotate", 1),
-        ("crop", 1),
-    ],
-    // 4 — ADR 0017: vignetting.
-    &[
-        ("lens", 2),
-        ("gains", 2),
-        ("contrast", 1),
-        ("highlights_shadows", 1),
-        ("whites_blacks", 1),
-        ("vibrance", 1),
-        ("saturation", 1),
-        ("noise_luminance", 1),
-        ("noise_color", 1),
-        ("sharpen", 1),
-        ("rotate", 1),
-        ("crop", 1),
-    ],
-    // 5 — ADR 0018: transverse chromatic aberration.
-    &[
-        ("lens", 3),
-        ("gains", 2),
-        ("contrast", 1),
-        ("highlights_shadows", 1),
-        ("whites_blacks", 1),
-        ("vibrance", 1),
-        ("saturation", 1),
-        ("noise_luminance", 1),
-        ("noise_color", 1),
-        ("sharpen", 1),
-        ("rotate", 1),
-        ("crop", 1),
-    ],
-    // 6 — ADR 0024: tone curve.
-    &[
-        ("lens", 3),
-        ("gains", 2),
-        ("contrast", 1),
-        ("highlights_shadows", 1),
-        ("whites_blacks", 1),
-        ("tone_curve", 1),
-        ("vibrance", 1),
-        ("saturation", 1),
-        ("noise_luminance", 1),
-        ("noise_color", 1),
-        ("sharpen", 1),
-        ("rotate", 1),
-        ("crop", 1),
-    ],
-    // 7 — ADR 0031: spot removal.
-    &[
-        ("lens", 3),
-        ("spot_removal", 1),
-        ("gains", 2),
-        ("contrast", 1),
-        ("highlights_shadows", 1),
-        ("whites_blacks", 1),
-        ("tone_curve", 1),
-        ("vibrance", 1),
-        ("saturation", 1),
-        ("noise_luminance", 1),
-        ("noise_color", 1),
-        ("sharpen", 1),
-        ("rotate", 1),
-        ("crop", 1),
-    ],
-    // 8 — ADR 0029: local adjustments.
-    &[
-        ("lens", 3),
-        ("spot_removal", 1),
-        ("gains", 2),
-        ("contrast", 1),
-        ("highlights_shadows", 1),
-        ("whites_blacks", 1),
-        ("tone_curve", 1),
-        ("vibrance", 1),
-        ("saturation", 1),
-        ("local_adjustments", 1),
-        ("noise_luminance", 1),
-        ("noise_color", 1),
-        ("sharpen", 1),
-        ("rotate", 1),
-        ("crop", 1),
-    ],
-    // 9 — ADR 0032: HSL mixer and color grading.
-    &[
-        ("lens", 3),
-        ("spot_removal", 1),
-        ("gains", 2),
-        ("contrast", 1),
-        ("highlights_shadows", 1),
-        ("whites_blacks", 1),
-        ("tone_curve", 1),
-        ("vibrance", 1),
-        ("saturation", 1),
-        ("hsl", 1),
-        ("color_grading", 1),
-        ("local_adjustments", 1),
-        ("noise_luminance", 1),
-        ("noise_color", 1),
-        ("sharpen", 1),
-        ("rotate", 1),
-        ("crop", 1),
-    ],
-    // 10 — ADR 0033: clarity, texture, dehaze.
-    &[
-        ("lens", 3),
-        ("spot_removal", 1),
-        ("gains", 2),
-        ("contrast", 1),
-        ("highlights_shadows", 1),
-        ("whites_blacks", 1),
-        ("tone_curve", 1),
-        ("clarity", 1),
-        ("texture", 1),
-        ("dehaze", 1),
-        ("vibrance", 1),
-        ("saturation", 1),
-        ("hsl", 1),
-        ("color_grading", 1),
-        ("local_adjustments", 1),
-        ("noise_luminance", 1),
-        ("noise_color", 1),
-        ("sharpen", 1),
-        ("rotate", 1),
-        ("crop", 1),
-    ],
-    // 11 — ADR 0035: DCP camera profiles.
-    &[
-        ("camera_profile", 1),
-        ("lens", 3),
-        ("spot_removal", 1),
-        ("gains", 2),
-        ("contrast", 1),
-        ("highlights_shadows", 1),
-        ("whites_blacks", 1),
-        ("tone_curve", 1),
-        ("clarity", 1),
-        ("texture", 1),
-        ("dehaze", 1),
-        ("vibrance", 1),
-        ("saturation", 1),
-        ("hsl", 1),
-        ("color_grading", 1),
-        ("local_adjustments", 1),
-        ("noise_luminance", 1),
-        ("noise_color", 1),
-        ("sharpen", 1),
-        ("rotate", 1),
-        ("crop", 1),
-    ],
-];
+/// Stages this engine implements. In `cfg(test)` builds it also carries the
+/// two-version fixture stage of ADR 0043 §7, which keeps the "an older
+/// version still renders what it rendered" path exercised while every real
+/// operator sits at v1.
+fn registry() -> impl Iterator<Item = &'static Stage> {
+    STAGES.iter().chain(extra_stages())
+}
 
-/// Looks a `(name, version)` pair up in [`STAGES`].
+#[cfg(test)]
+fn extra_stages() -> &'static [Stage] {
+    fixture::STAGES
+}
+
+#[cfg(not(test))]
+fn extra_stages() -> &'static [Stage] {
+    &[]
+}
+
+/// Looks a `(name, version)` pair up in the registry.
 fn find(name: &str, version: u16) -> Option<(&'static Stage, &'static Version)> {
-    let stage = STAGES.iter().find(|stage| stage.name == name)?;
+    let stage = registry().find(|stage| stage.name == name)?;
     let version = stage.versions.iter().find(|v| v.version == version)?;
     Some((stage, version))
 }
 
-/// The stages of one process version, in the order they run.
+/// Fails when `settings` records a stage, or a version of one, this engine
+/// does not implement — the rendering half of the §3.4 guard
+/// (`docs/pipeline.md`), checked wherever a revision is opened or rendered.
+pub(crate) fn check_known(settings: &Settings) -> Result<()> {
+    for (name, &version) in &settings.stages {
+        if find(name, version).is_none() {
+            return Err(LeylineError::UnknownStage {
+                stage: name.clone(),
+                version,
+            });
+        }
+    }
+    Ok(())
+}
+
+/// Records, in `settings`, the version of every stage it activates
+/// (ADR 0043 §3). Called on the way *in* to a revision, never on the way out.
 ///
-/// Fails only for a process this engine does not know; the caller has
-/// already refused anything newer than `CURRENT_PROCESS`.
-fn plan(process: u32) -> Result<Vec<(&'static Stage, &'static Version)>> {
-    let expansion = PROCESS_STAGES
-        .get(process.checked_sub(1).unwrap_or(u32::MAX) as usize)
-        .ok_or_else(|| {
-            LeylineError::InvalidSettings(format!("process version {process} does not exist"))
-        })?;
-    let mut plan: Vec<_> = expansion
-        .iter()
-        .map(|&(name, version)| {
-            find(name, version).expect("the expansion table only names registered stage versions")
+/// A stage already recorded keeps its version — that is the whole promise.
+/// A stage that just left its neutral value gets this engine's current
+/// version. A stage back at its neutral value loses its entry, since it no
+/// longer renders anything to pin.
+pub(crate) fn pin(settings: &mut Settings) {
+    let mut pinned = leyline_core::StageVersions::new();
+    for stage in registry() {
+        if !(stage.active)(settings) {
+            continue;
+        }
+        let version = settings
+            .stages
+            .get(stage.name)
+            .copied()
+            .unwrap_or_else(|| stage.current().version);
+        pinned.insert(stage.name.to_owned(), version);
+    }
+    settings.stages = pinned;
+}
+
+/// The stages `settings` renders through, in the order they run.
+///
+/// A stage that is active but carries no recorded version renders at this
+/// engine's current version. That case is for settings built in memory —
+/// through the SDK, a test, a preset applied to fresh values — since [`pin`]
+/// gives every *stored* revision its entries at write time. It is also why
+/// reading is never a silent guess: what a revision records, it gets.
+///
+/// A recorded stage this engine does not implement fails the render with
+/// [`LeylineError::UnknownStage`] rather than being skipped (ADR 0043 §4):
+/// dropping it would render the photo without an operator its author saw.
+fn plan(settings: &Settings) -> Result<Vec<(&'static Stage, &'static Version)>> {
+    check_known(settings)?;
+    let mut plan: Vec<_> = registry()
+        .filter(|stage| (stage.active)(settings))
+        .map(|stage| {
+            let version = match settings.stages.get(stage.name) {
+                Some(&recorded) => {
+                    find(stage.name, recorded)
+                        .expect("every recorded stage was checked just above")
+                        .1
+                }
+                None => stage.current(),
+            };
+            (stage, version)
         })
         .collect();
     plan.sort_by_key(|(_, version)| version.rank);
     Ok(plan)
 }
 
-/// Renders a decoded image through the stages its process version expands
-/// to. `settings` has already been validated and checked against
-/// `CURRENT_PROCESS` by [`crate::render::render_scaled`].
+/// Renders a decoded image through the stages its settings record.
+/// `settings` has already been validated and checked against
+/// `CURRENT_SCHEMA` by [`crate::render::render_scaled`].
 pub(crate) fn develop_scaled(
     image: &RawImage,
     settings: &Settings,
@@ -718,7 +552,7 @@ pub(crate) fn develop_scaled(
     camera_profile: Option<&DcpProfile>,
     scale: f32,
 ) -> Result<Rendered> {
-    let plan = plan(settings.process)?;
+    let plan = plan(settings)?;
     let ctx = Context {
         settings,
         shot,
@@ -726,10 +560,8 @@ pub(crate) fn develop_scaled(
         scale,
     };
     let mut px = Pixels::from_raw(image)?;
-    for (stage, version) in plan {
-        if (stage.active)(&ctx) {
-            (version.apply)(&mut px, &ctx);
-        }
+    for (_, version) in plan {
+        (version.apply)(&mut px, &ctx);
     }
     Ok(Rendered {
         width: px.width,
@@ -737,6 +569,9 @@ pub(crate) fn develop_scaled(
         data: px.to_rgb8(),
     })
 }
+
+#[cfg(test)]
+mod fixture;
 
 #[cfg(test)]
 mod tests;

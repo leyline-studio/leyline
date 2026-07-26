@@ -112,7 +112,8 @@ pub enum LeylineError {
     PresetMissing(PresetId),
     DecodeFailed { asset: AssetId, reason: String },
     InvalidSettings(String),
-    NewerSettings { schema: u32, process: u32 },
+    NewerSettings { schema: u32 },
+    UnknownStage { stage: String, version: u16 },
     InvalidImage(String),
     Io(std::io::Error),
     Db(String),
@@ -403,11 +404,11 @@ impl Library {
 
 ## 10.4 Retraitement
 
-Migrer une version vers la version de process courante du moteur (`pipeline.md` §4.5) — typiquement pour qu'une photo importée avant l'arrivée d'une fonctionnalité de rendu (ex. la correction d'objectif, process 3–5) en bénéficie sans que l'utilisateur ne touche un seul curseur.
+Remonter chaque étage épinglé d'une version à sa version courante (`pipeline.md` §4.5) — typiquement pour qu'une photo éditée avant la correction d'un opérateur en bénéficie sans que l'utilisateur ne touche un seul curseur.
 
 ```rust
 impl EditSession {
-    /// Migre la tête vers `CURRENT_PROCESS` : nouvelle révision, mêmes
+    /// Remonte la tête aux versions d'étages courantes : nouvelle révision, mêmes
     /// paramètres. Rien s'il n'y a rien à faire.
     pub fn reprocess(&mut self) -> Result<RevisionId>;
 }
@@ -507,7 +508,7 @@ impl Library {
 
 Studio pilote désormais ses dialogues d'import et d'export ainsi que ses vignettes de grille par ce flux : `import_async`/`export_async` pour les dialogues (progression affichée depuis `JobProgress`, résultat depuis `JobFinished`), `preview_async` pour les vignettes (jusqu'à 3 rendus en vol, remplis depuis `PreviewReady`).
 
-L'export rend chaque version à sa révision de tête, avec sa process version (`pipeline.md` §3.3), et journalise dans `export_history`. Les pixels rendus sont en sRGB (`adr/0015-color-management-srgb.md`) ; `leyline-export` embarque le profil ICC sRGB canonique (généré par LittleCMS, `leyline-color::srgb_icc_profile`) dans les fichiers JPEG, PNG et TIFF — WebP et AVIF s'en passent, faute de support ICC dans leurs bibliothèques d'encodage.
+L'export rend chaque version à sa révision de tête, avec les versions d'étages qu'elle déclare (`pipeline.md` §3.3), et journalise dans `export_history`. Les pixels rendus sont en sRGB (`adr/0015-color-management-srgb.md`) ; `leyline-export` embarque le profil ICC sRGB canonique (généré par LittleCMS, `leyline-color::srgb_icc_profile`) dans les fichiers JPEG, PNG et TIFF — WebP et AVIF s'en passent, faute de support ICC dans leurs bibliothèques d'encodage.
 
 Comme `Library::preview` (§11, `adr/0023-catalog-lock-narrowing-preview.md`), `Library::export` ne tient le verrou catalogue que pour la lecture des réglages (résolution du preset le cas échéant) et l'écriture du journal — jamais pendant le décodage/rendu/encodage d'une version (`adr/0024-catalog-lock-narrowing-export.md`). Une requête à plusieurs versions ne bloque donc plus la navigation, la recherche ou l'édition de métadonnées pour toute sa durée, seulement version par version.
 
@@ -541,7 +542,7 @@ impl Library {
 }
 ```
 
-L'impression n'est ni une process version ni un étage de pipeline (ADR 0036) : c'est « un export avec une dimension physique et un profil de destination ». Le moteur rend exactement comme pour un export (décodage → `render` → `process1`-`7`), puis met à l'échelle dans la zone imprimable en pixels (`PrintSettings::target_pixels`, papier × DPI, à la place du `max_edge` d'un export) au lieu de mettre à l'échelle vers un bord le plus long, transforme optionnellement vers un profil ICC de destination (`leyline_color::OutputTransform`, ADR 0027) si `PrintSettings.profile` est renseigné, et encode le résultat en PDF une page (`leyline_export::encode_print`) — le hand-off le plus portable vers un flux d'impression OS (le risque explicitement nommé et différé par ADR 0036) : le PDF porte déjà sa taille physique et ses pixels dans le profil de destination, prêt à être remis tel quel au dialogue d'impression du système. Ce hand-off (Studio invoquant effectivement ce dialogue sur le fichier rendu) reste à câbler dans `leyline-studio`, sans nouvelle surface moteur (même patron que la barre de menu, ADR 0020).
+L'impression n'est ni une process version ni un étage de pipeline (ADR 0036) : c'est « un export avec une dimension physique et un profil de destination ». Le moteur rend exactement comme pour un export (décodage → `render` → les étages de la révision), puis met à l'échelle dans la zone imprimable en pixels (`PrintSettings::target_pixels`, papier × DPI, à la place du `max_edge` d'un export) au lieu de mettre à l'échelle vers un bord le plus long, transforme optionnellement vers un profil ICC de destination (`leyline_color::OutputTransform`, ADR 0027) si `PrintSettings.profile` est renseigné, et encode le résultat en PDF une page (`leyline_export::encode_print`) — le hand-off le plus portable vers un flux d'impression OS (le risque explicitement nommé et différé par ADR 0036) : le PDF porte déjà sa taille physique et ses pixels dans le profil de destination, prêt à être remis tel quel au dialogue d'impression du système. Ce hand-off (Studio invoquant effectivement ce dialogue sur le fichier rendu) reste à câbler dans `leyline-studio`, sans nouvelle surface moteur (même patron que la barre de menu, ADR 0020).
 
 Contrairement à l'export, il n'y a pas de journalisation : pas de table `print_history` (catalog.md §42) — un print ne modifie aucune révision et n'a pas besoin d'être retrouvé plus tard depuis le catalogue.
 

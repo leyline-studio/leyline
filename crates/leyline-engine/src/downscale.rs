@@ -238,7 +238,6 @@ mod tests {
             data,
         };
         let settings = Settings {
-            process: leyline_core::CURRENT_PROCESS,
             exposure: 0.3,
             contrast: 20,
             clarity: 30,

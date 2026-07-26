@@ -5,8 +5,8 @@ use std::time::Duration;
 
 use leyline_catalog::{CHECKSUM_LEN, Catalog, NewAsset, RegisteredAsset};
 use leyline_core::{
-    CURRENT_PROCESS, ColorGrading, HslBand, LeylineError, LocalAdjustment, LocalAdjustmentValues,
-    Mask, MediaType, Settings, VersionId,
+    ColorGrading, HslBand, LeylineError, LocalAdjustment, LocalAdjustmentValues, Mask, MediaType,
+    Settings, VersionId,
 };
 use leyline_engine::{EditSession, Param, Value};
 
@@ -252,18 +252,21 @@ fn reprocess_migrates_an_old_process_to_a_new_revision() {
     catalog
         .connection()
         .execute(
-            "UPDATE develop_revisions SET settings_json = '{\"schema\":1,\"process\":1,\"exposure\":0.4}'
+            "UPDATE develop_revisions SET settings_json = '{\"schema\":1,\"exposure\":0.4}'
              WHERE id = ?1",
             [reg.revision.get()],
         )
         .unwrap();
 
     let mut session = EditSession::open(&mut catalog, reg.version).unwrap();
-    assert_eq!(session.settings().process, 1);
+    assert!(
+        session.settings().stages.is_empty(),
+        "the stored revision records no stage version"
+    );
 
     let head = session.reprocess().unwrap();
     assert_ne!(head, reg.revision, "reprocessing writes a new revision");
-    assert_eq!(session.settings().process, CURRENT_PROCESS);
+    assert_eq!(session.settings().stages.get("gains"), Some(&1));
     assert_eq!(
         session.settings().exposure,
         0.4,
@@ -273,7 +276,7 @@ fn reprocess_migrates_an_old_process_to_a_new_revision() {
 }
 
 #[test]
-fn reprocess_on_a_current_process_head_is_a_no_op() {
+fn reprocess_on_a_head_already_at_the_current_stage_versions_is_a_no_op() {
     let dir = tempfile::tempdir().unwrap();
     let (mut catalog, reg) = catalog_with_asset(&dir);
 
@@ -290,7 +293,7 @@ fn reprocess_commits_pending_state_first() {
     catalog
         .connection()
         .execute(
-            "UPDATE develop_revisions SET settings_json = '{\"schema\":1,\"process\":1}'
+            "UPDATE develop_revisions SET settings_json = '{\"schema\":1,\"exposure\":0.4}'
              WHERE id = ?1",
             [reg.revision.get()],
         )
@@ -301,10 +304,11 @@ fn reprocess_commits_pending_state_first() {
     session.reprocess().unwrap();
 
     assert_eq!(session.settings().contrast, 20);
-    assert_eq!(session.settings().process, CURRENT_PROCESS);
-    // The pending contrast edit and the reprocess are separate intentions:
-    // two new revisions on top of the initial one.
-    assert_eq!(session.history().unwrap().len(), 3);
+    assert_eq!(session.settings().stages.get("contrast"), Some(&1));
+    // The pending contrast edit is committed on its own revision, and that
+    // commit records the current stage versions — so the reprocess right
+    // behind it finds nothing left to migrate and writes nothing.
+    assert_eq!(session.history().unwrap().len(), 2);
 }
 
 fn a_radial_adjustment() -> LocalAdjustment {

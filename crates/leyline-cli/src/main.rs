@@ -656,7 +656,7 @@ fn develop(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
-/// Migrates each version to the engine's current process version
+/// Migrates each version to the engine's current stage versions
 /// (`docs/engine-api.md` §10.4): same parameter values, re-rendered under a
 /// newer process contract (e.g. picking up lens correction).
 fn reprocess(args: &[String]) -> Result<(), String> {
@@ -710,9 +710,15 @@ fn history(args: &[String]) -> Result<(), String> {
     for (index, row) in chain.iter().enumerate() {
         let marker = if index == 0 { "HEAD" } else { "    " };
         let settings = Settings::parse(&row.settings_json).map_err(|e| e.to_string())?;
+        let stages = settings
+            .stages
+            .iter()
+            .map(|(name, version)| format!("{name}:{version}"))
+            .collect::<Vec<_>>()
+            .join(" ");
         println!(
-            "{marker} r{:<6} exposure {:+.2}  contrast {:+}  (schema {}, process {})",
-            row.revision, settings.exposure, settings.contrast, settings.schema, settings.process
+            "{marker} r{:<6} exposure {:+.2}  contrast {:+}  (schema {}, stages [{stages}])",
+            row.revision, settings.exposure, settings.contrast, settings.schema
         );
     }
     Ok(())

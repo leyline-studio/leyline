@@ -467,12 +467,13 @@ fn a_reprocess_job_migrates_versions_and_reports_failures() {
         .unwrap();
     let registered = report.imported[0].registered;
 
-    // Simulate a photo imported before the current process version existed.
+    // Simulate a revision whose stage versions are stale: it activates the
+    // gains stage without recording a version for it.
     library
         .catalog_mut()
         .connection()
         .execute(
-            "UPDATE develop_revisions SET settings_json = '{\"schema\":1,\"process\":1}'
+            "UPDATE develop_revisions SET settings_json = '{\"schema\":1,\"exposure\":0.4}'
              WHERE id = ?1",
             [registered.revision.get()],
         )

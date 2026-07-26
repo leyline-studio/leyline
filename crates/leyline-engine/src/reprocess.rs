@@ -1,4 +1,4 @@
-//! Batch reprocessing to the current process version
+//! Batch reprocessing to the current stage versions
 //! (`docs/engine-api.md` §10.4, `docs/pipeline.md` §4.5).
 //!
 //! Migrating a version never rewrites its history: a fresh session per
@@ -14,10 +14,11 @@ use crate::session::EditSession;
 /// Outcome of one reprocess batch — same shape as [`crate::PresetApplyReport`].
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ReprocessReport {
-    /// Versions that received a new revision under the current process.
+    /// Versions that received a new revision under the current stage
+    /// versions.
     pub reprocessed: Vec<VersionId>,
-    /// Versions already on the current process: left untouched, not a
-    /// failure.
+    /// Versions already rendering through the current stage versions: left
+    /// untouched, not a failure.
     pub already_current: Vec<VersionId>,
     /// Versions left unchanged, with the human-readable reason.
     pub failed: Vec<FailedReprocess>,
@@ -64,7 +65,7 @@ fn reprocess_one(
     version: VersionId,
 ) -> leyline_core::Result<Option<leyline_core::RevisionId>> {
     let mut session = EditSession::open(&mut *catalog, version)?;
-    let before = session.settings().process;
+    let before = session.settings().stages.clone();
     let head = session.reprocess()?;
-    Ok((before != leyline_core::CURRENT_PROCESS).then_some(head))
+    Ok((session.settings().stages != before).then_some(head))
 }

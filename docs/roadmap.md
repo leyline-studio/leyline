@@ -24,7 +24,7 @@ Catalogue SQLite et miniatures.
 
 ## Phase 4 — Pipeline ✅
 
-Pipeline de développement non destructif, `settings_json`, process versions.
+Pipeline de développement non destructif, `settings_json`, versions de rendu.
 
 ## Phase 5 — Leyline Studio ✅
 
@@ -42,17 +42,18 @@ Parallélisme Rayon ([ADR 0012](adr/0012-rayon-data-parallelism.md)), benchmarks
 
 Installateur par plateforme et internationalisation FR/EN ([ADR 0019](adr/0019-distribution-i18n.md)).
 
+## Pipeline d'étages versionnés ✅
+
+Les onze modules `processN.rs` dupliqués (14 968 lignes, 70 à 93 % de duplication) sont remplacés par des étages versionnés indépendamment, puis l'historique de rendu antérieur à la publication est effondré. Dans l'ordre imposé par les ADR :
+
+1. ✅ Capturer des rendus de référence depuis le moteur d'alors, et les committer.
+2. ✅ Refactoriser vers les étages composés ([ADR 0042](adr/0042-versioned-stage-pipeline.md)) — ~1 800 lignes d'étages versionnés (`crate::stages`), un registre, et une table d'expansion `process: N` → versions d'étages.
+3. ✅ Prouver l'égalité bit à bit contre ces rendus, pour les onze versions — les 77 cas de `golden_renders.rs` sont passés sans re-bénissage.
+4. ✅ Effondrer l'historique ([ADR 0043](adr/0043-collapse-prerelease-render-history.md)) — le projet n'ayant jamais été publié, ces onze versions n'engageaient personne : une seule version par opérateur (`v1`), la table d'expansion supprimée, et le §2 d'ADR 0042 livré dans le même mouvement — la révision enregistre sa propre carte `stages`, le champ `process` disparaît. Les catalogues de développement antérieurs ne sont pas migrés (ADR 0043 §5).
+
 ---
 
 ## En cours
-
-**Migration vers un pipeline d'étages versionnés** ([ADR 0042](adr/0042-versioned-stage-pipeline.md)) — remplacer les onze modules `processN.rs` dupliqués par des étages versionnés indépendamment, à rendu strictement identique. La migration procède en trois temps, dans l'ordre imposé par l'ADR :
-
-1. ✅ Capturer des rendus de référence depuis le moteur actuel, et les committer.
-2. ✅ Refactoriser vers les étages composés — 14 968 lignes de `processN.rs` ramenées à ~1 800 lignes d'étages versionnés (`crate::stages`), plus un registre et la table d'expansion `process: N` → versions d'étages.
-3. ✅ Prouver l'égalité bit à bit contre ces rendus, pour les onze versions — les 77 cas de `golden_renders.rs` passent sans re-bénissage.
-
-Reste de l'ADR à livrer : le §2, où une révision enregistre elle-même la carte `stages` qu'elle utilise au lieu d'un `process: N`. C'est un changement de forme de `settings_json` — donc du contrat de reproductibilité — qui touche le catalogue et les trois clients ; il se fait avant l'ouverture publique, pas après.
 
 **Épreuvage écran et filigrane** ([ADR 0034](adr/0034-softproofing-watermark-print.md)) — décidé, non implémenté. Dernier élément du cadrage post-V1 qui reste ouvert.
 

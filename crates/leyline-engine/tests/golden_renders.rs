@@ -1,22 +1,19 @@
-//! Golden renders — the proof that the ADR 0042 migration keeps the
-//! promise `docs/pipeline.md` §3.3 makes: *this RAW, these settings, these
-//! pixels, in ten years*.
+//! Golden renders — the standing proof of the promise `docs/pipeline.md`
+//! §5.1 makes: *this RAW, these settings, these pixels, in ten years*.
 //!
-//! ADR 0042 replaces eleven duplicated `processN.rs` modules with composed,
-//! individually-versioned stages. That is a safe change **only** if every
-//! existing process version still renders byte for byte what it rendered
-//! before. Reading the diff cannot establish that; these fixtures can.
+//! Each entry pins the BLAKE3 digest of one render's RGB8 output, plus its
+//! dimensions and a few sampled pixels so a failure says something more
+//! useful than "the hash moved". Every case is deterministic: synthetic
+//! images, fixed settings, no clock, no file system, no thread-count
+//! dependence (the pipeline's parallelism is over disjoint rows).
 //!
-//! The manifest in `tests/golden/process_renders.json` was captured from
-//! the pre-migration engine. Each entry pins the BLAKE3 digest of one
-//! render's RGB8 output, plus its dimensions and a few sampled pixels so a
-//! failure says something more useful than "the hash moved". Every case is
-//! deterministic: synthetic images, fixed settings, no clock, no file
-//! system, no thread-count dependence (the pipeline's parallelism is over
-//! disjoint rows).
-//!
-//! Regenerate deliberately and never casually — a changed digest means
-//! some revision somewhere now renders differently:
+//! These fixtures were what proved the ADR 0042 migration pixel-exact
+//! across the eleven `processN.rs` modules it replaced. ADR 0043 then
+//! collapsed that pre-publication history onto one version per operator,
+//! and the manifest was regenerated once, under that decision — the only
+//! time it may ever be. From here on a changed digest means a revision
+//! somewhere now renders differently, which is a defect, not a diff to
+//! bless:
 //!
 //! ```text
 //! LEYLINE_BLESS_GOLDEN=1 cargo test -p leyline-engine --test golden_renders
@@ -36,12 +33,11 @@ use leyline_raw::RawImage;
 use serde::{Deserialize, Serialize};
 
 /// Path of the committed manifest, relative to the crate root.
-const MANIFEST: &str = "tests/golden/process_renders.json";
+const MANIFEST: &str = "tests/golden/renders.json";
 
 /// One pinned render.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 struct Golden {
-    process: u32,
     width: u32,
     height: u32,
     /// BLAKE3 of the RGB8 output — the bit-identity assertion itself.
@@ -78,7 +74,7 @@ fn synthetic_image(width: u32, height: u32) -> RawImage {
 }
 
 /// A real bundled Lensfun profile with distortion, vignetting and TCA data
-/// at 20mm — the same fixture `leyline-lens` and the process 3–5 unit
+/// at 20mm — the same fixture `leyline-lens` and the lens stage unit
 /// tests use, so the golden exercises the actual profile lookup rather
 /// than a synthetic stand-in.
 fn canon_shot() -> LensShot {
@@ -370,92 +366,47 @@ fn presence(settings: Settings) -> Settings {
 // The case matrix
 // ---------------------------------------------------------------------------
 
-/// Every case: `(key, process version, settings)`.
+/// Every case: `(key, settings)`.
 ///
-/// Each process version gets a `neutral` floor, the operator families it
-/// inherits, the family it *introduced*, and an `everything` case that runs
-/// them all together — the combination most likely to expose a stage
-/// ordering mistake during the migration.
-fn cases() -> Vec<(String, u32, Settings)> {
-    let mut out = Vec::new();
-    for process in 1..=leyline_core::CURRENT_PROCESS {
-        let base = Settings {
-            process,
-            ..Settings::default()
-        };
-        let mut named: Vec<(&str, Settings)> = vec![
-            ("neutral", base.clone()),
-            ("tone", tone(base.clone())),
-            ("color", color(base.clone())),
-            ("detail", detail(base.clone())),
-            ("geometry", geometry(base.clone())),
-        ];
+/// One `neutral` floor, one case per operator family, and an `everything`
+/// case running them all together — the combination most likely to expose a
+/// stage ordering mistake.
+fn cases() -> Vec<(String, Settings)> {
+    let base = Settings::default();
+    let mut named: Vec<(&str, Settings)> = vec![
+        ("neutral", base.clone()),
+        ("tone", tone(base.clone())),
+        ("color", color(base.clone())),
+        ("detail", detail(base.clone())),
+        ("geometry", geometry(base.clone())),
+        ("lens", lens(base.clone())),
+        ("tone_curve", tone_curve(base.clone())),
+        ("spots", spots(base.clone())),
+        ("locals", locals(base.clone())),
+        ("hsl_grading", hsl_grading(base.clone())),
+        ("presence", presence(base.clone())),
+    ];
 
-        // Each family, from the version that introduced it onward.
-        if process >= 3 {
-            named.push(("lens", lens(base.clone())));
-        }
-        if process >= 6 {
-            named.push(("tone_curve", tone_curve(base.clone())));
-        }
-        if process >= 7 {
-            named.push(("spots", spots(base.clone())));
-        }
-        if process >= 8 {
-            named.push(("locals", locals(base.clone())));
-        }
-        if process >= 9 {
-            named.push(("hsl_grading", hsl_grading(base.clone())));
-        }
-        if process >= 10 {
-            named.push(("presence", presence(base.clone())));
-        }
+    let all = presence(hsl_grading(locals(spots(tone_curve(lens(detail(color(
+        tone(base.clone()),
+    ))))))));
+    named.push(("everything", geometry(all)));
 
-        // Everything this version knows how to do, at once.
-        let mut all = detail(color(tone(base.clone())));
-        if process >= 3 {
-            all = lens(all);
-        }
-        if process >= 6 {
-            all = tone_curve(all);
-        }
-        if process >= 7 {
-            all = spots(all);
-        }
-        if process >= 8 {
-            all = locals(all);
-        }
-        if process >= 9 {
-            all = hsl_grading(all);
-        }
-        if process >= 10 {
-            all = presence(all);
-        }
-        named.push(("everything", geometry(all)));
-
-        for (name, settings) in named {
-            out.push((format!("process{process}/{name}"), process, settings));
-        }
-    }
-    out
+    named
+        .into_iter()
+        .map(|(name, settings)| (name.to_owned(), settings))
+        .collect()
 }
 
 /// Renders one case and reduces it to its pinned form.
-fn capture(process: u32, settings: &Settings) -> Golden {
+fn capture(settings: &Settings) -> Golden {
     // Small enough to keep the suite fast, large enough that the blur and
     // resampling stages have real neighbourhoods to work with.
     let image = synthetic_image(96, 64);
     let shot = canon_shot();
     let profile = sample_profile();
-    let rendered = render(
-        &image,
-        settings,
-        Some(&shot),
-        // The camera profile only exists from process 11; earlier versions
-        // ignore it, exactly as `render` documents.
-        (process >= 11).then_some(&profile),
-    )
-    .unwrap_or_else(|e| panic!("process {process} render failed: {e}"));
+    let rendered = render(&image, settings, Some(&shot), Some(&profile))
+        .unwrap_or_else(|e| panic!("render failed: {e}"));
 
     let digest = blake3::hash(&rendered.data).to_hex().to_string();
     let step = (rendered.data.len() / 3 / 16).max(1);
@@ -469,7 +420,6 @@ fn capture(process: u32, settings: &Settings) -> Golden {
         })
         .collect();
     Golden {
-        process,
         width: rendered.width,
         height: rendered.height,
         digest,
@@ -478,10 +428,10 @@ fn capture(process: u32, settings: &Settings) -> Golden {
 }
 
 #[test]
-fn every_process_version_still_renders_exactly_what_it_rendered_before() {
+fn the_pipeline_still_renders_exactly_what_it_rendered_before() {
     let current: BTreeMap<String, Golden> = cases()
         .into_iter()
-        .map(|(key, process, settings)| (key, capture(process, &settings)))
+        .map(|(key, settings)| (key, capture(&settings)))
         .collect();
 
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(MANIFEST);

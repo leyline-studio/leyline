@@ -15,9 +15,9 @@ use std::time::{Duration, Instant};
 
 use leyline_catalog::{Catalog, RevisionRow};
 use leyline_core::{
-    CURRENT_PROCESS, CURRENT_SCHEMA, CameraProfile, ColorGrading, Crop, HslBand, LensCorrection,
-    LeylineError, LocalAdjustment, NoiseReduction, Result, RevisionId, Settings, Sharpening,
-    SpotRemoval, ToneCurve, VersionId, WhiteBalance,
+    CURRENT_SCHEMA, CameraProfile, ColorGrading, Crop, HslBand, LensCorrection, LeylineError,
+    LocalAdjustment, NoiseReduction, Result, RevisionId, Settings, Sharpening, SpotRemoval,
+    ToneCurve, VersionId, WhiteBalance,
 };
 
 /// Default amendment window of `docs/catalog.md` §17.
@@ -177,12 +177,17 @@ impl<C: DerefMut<Target = Catalog>> EditSession<C> {
     pub fn open(catalog: C, version: VersionId) -> Result<EditSession<C>> {
         let head = catalog.version_head(version)?;
         let settings = Settings::parse(&catalog.revision(head)?.settings_json)?;
-        if settings.schema > CURRENT_SCHEMA || settings.process > CURRENT_PROCESS {
+        if settings.schema > CURRENT_SCHEMA {
             return Err(LeylineError::NewerSettings {
                 schema: settings.schema,
-                process: settings.process,
             });
         }
+        // Also refuses a revision that predates the stage map: `process`
+        // survives parsing as an unknown field, and rendering it as if it
+        // were absent would silently give it another engine's pixels
+        // (ADR 0043 §5).
+        settings.validate()?;
+        crate::stages::check_known(&settings)?;
         Ok(EditSession {
             catalog,
             version,
@@ -248,6 +253,10 @@ impl<C: DerefMut<Target = Catalog>> EditSession<C> {
         let head = match self.pending {
             Pending::Clean => return self.catalog.version_head(self.version),
             Pending::One(param) => {
+                // Only ever on the way to a write: pinning a state nobody
+                // persists would tell the session it had recorded versions
+                // the catalog never saw.
+                crate::stages::pin(&mut self.settings);
                 let in_window = self.last_commit.is_some_and(|(p, at)| {
                     p == param && now.duration_since(at) <= self.amend_window
                 });
@@ -264,6 +273,7 @@ impl<C: DerefMut<Target = Catalog>> EditSession<C> {
                 head
             }
             Pending::Many => {
+                crate::stages::pin(&mut self.settings);
                 let head = self.catalog.commit_revision(self.version, &self.settings)?;
                 self.last_commit = None;
                 head
@@ -327,15 +337,21 @@ impl<C: DerefMut<Target = Catalog>> EditSession<C> {
     ///
     /// Always its own revision, never an amendment (§4.5: "conserve les
     /// anciennes" — reprocessing keeps prior results reachable, it doesn't
-    /// extend the last edit's history entry). A no-op when the head
-    /// already declares `CURRENT_PROCESS`: returns the current head
-    /// unchanged, without writing a new revision.
+    /// extend the last edit's history entry). A no-op when every stage the
+    /// revision uses is already at its current version: returns the current
+    /// head unchanged, without writing a new revision.
     pub fn reprocess(&mut self) -> Result<RevisionId> {
         self.commit()?;
-        if self.settings.process == CURRENT_PROCESS {
+        let before = self.settings.stages.clone();
+        // Dropping the recorded versions and pinning again is exactly the
+        // migration: every active stage takes this engine's current version
+        // (ADR 0043 §3), which is what the old `process = CURRENT_PROCESS`
+        // did for the whole pipeline at once.
+        self.settings.stages.clear();
+        crate::stages::pin(&mut self.settings);
+        if self.settings.stages == before {
             return self.catalog.version_head(self.version);
         }
-        self.settings.process = CURRENT_PROCESS;
         let head = self.catalog.commit_revision(self.version, &self.settings)?;
         self.last_commit = None;
         self.notify_write();

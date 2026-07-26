@@ -350,7 +350,7 @@ pub(crate) fn lens_bilinear(px: &Pixels, sx: f32, sy: f32) -> Option<[f32; 3]> {
 }
 
 /// Same convention and bounds check as [`lens_bilinear`], but interpolates a
-/// single channel `c` instead of all three. [`crate::stages::lens::v3::correct_tca`] samples each
+/// single channel `c` instead of all three. [`crate::stages::lens::v1::correct_tca`] samples each
 /// channel at its own TCA-shifted coordinate and only ever keeps that one
 /// channel's result, so computing (and discarding) the other two via
 /// [`lens_bilinear`] was pure waste. The arithmetic below is copied
