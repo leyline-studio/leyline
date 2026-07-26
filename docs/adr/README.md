@@ -63,3 +63,4 @@ Un ADR remplacé n'est jamais supprimé : il reste lisible, avec sa raison d'ép
 | [0041](0041-interactive-preview-rendering.md) | Rendu interactif : preview développée à la résolution d'affichage (rayons pixel mis à l'échelle) et cache d'étages de pipeline ; export inchangé, aucune nouvelle process version |
 | [0042](0042-versioned-stage-pipeline.md) | Pipeline composé d'étages versionnés : le gel porte sur l'opérateur et non sur la version entière ; remplace ADR 0028, §5 amendé par 0043 |
 | [0043](0043-collapse-prerelease-render-history.md) | Effondrement de l'historique de rendu avant publication : une version par opérateur, la révision porte sa carte `stages`, `process` disparaît |
+| [0044](0044-linear-wide-gamut-working-space.md) | Tampon de travail en lumière linéaire large gamut : Rec. 2020 D65 non borné, étages `input`/`output_rendering`, espace déclaré par version d'étage |

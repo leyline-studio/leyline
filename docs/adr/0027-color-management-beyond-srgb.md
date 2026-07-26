@@ -1,6 +1,11 @@
 # ADR 0027 — Élargir la gestion des couleurs au-delà de sRGB : un profil de sortie découplé du rendu
 
 **Statut :** Accepté — 2026-07
+**Note :** cet ADR reste valide pour tout ce qui concerne la **sortie**. Sa
+prémisse « l'espace de travail interne ne change pas » ne tient plus depuis
+[ADR 0044](0044-linear-wide-gamut-working-space.md), qui fait basculer le
+tampon du pipeline en Rec. 2020 linéaire non borné ; les transformations
+décrites ici s'appliquent alors après l'étage `output_rendering`.
 
 ## Contexte
 
