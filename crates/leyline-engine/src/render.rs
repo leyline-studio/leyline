@@ -1,26 +1,18 @@
 //! Entry point of the develop renderer: process version dispatch.
 //!
 //! A revision is always rendered with the process version it declares
-//! (`docs/pipeline.md` §3.3). The engine keeps every past process module
-//! forever; a revision written by a newer engine is refused, never guessed
-//! at (§3.4) — the caller falls back to the best cached preview.
+//! (`docs/pipeline.md` §3.3). Since ADR 0042 that version is an
+//! abbreviation: it expands to a fixed set of individually versioned stages
+//! ([`crate::stages`]), and the engine keeps every stage version forever. A
+//! revision written by a newer engine is refused, never guessed at (§3.4) —
+//! the caller falls back to the best cached preview.
 
 use leyline_catalog::Metadata;
 use leyline_core::{CURRENT_PROCESS, CURRENT_SCHEMA, Settings};
 use leyline_core::{LeylineError, Result};
 use leyline_raw::RawImage;
 
-use crate::process1;
-use crate::process2;
-use crate::process3;
-use crate::process4;
-use crate::process5;
-use crate::process6;
-use crate::process7;
-use crate::process8;
-use crate::process9;
-use crate::process10;
-use crate::process11;
+use crate::stages;
 
 /// A rendered develop result: tightly packed, interleaved 8-bit RGB.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -122,22 +114,7 @@ pub fn render_scaled(
         });
     }
     settings.validate()?;
-    match settings.process {
-        1 => process1::develop_scaled(image, settings, scale),
-        2 => process2::develop_scaled(image, settings, scale),
-        3 => process3::develop_scaled(image, settings, shot, scale),
-        4 => process4::develop_scaled(image, settings, shot, scale),
-        5 => process5::develop_scaled(image, settings, shot, scale),
-        6 => process6::develop_scaled(image, settings, shot, scale),
-        7 => process7::develop_scaled(image, settings, shot, scale),
-        8 => process8::develop_scaled(image, settings, shot, scale),
-        9 => process9::develop_scaled(image, settings, shot, scale),
-        10 => process10::develop_scaled(image, settings, shot, scale),
-        11 => process11::develop_scaled(image, settings, shot, camera_profile, scale),
-        other => Err(LeylineError::InvalidSettings(format!(
-            "process version {other} does not exist"
-        ))),
-    }
+    stages::develop_scaled(image, settings, shot, camera_profile, scale)
 }
 
 #[cfg(test)]

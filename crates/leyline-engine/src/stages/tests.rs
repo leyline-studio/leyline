@@ -1,0 +1,1279 @@
+//! Behavioral tests of the composed pipeline (ADR 0042).
+//!
+//! These are the unit tests the eleven `processN.rs` modules used to carry,
+//! kept once instead of eleven times. They assert what each operator *does*;
+//! that every historical process version still does it byte for byte is the
+//! separate job of `tests/golden_renders.rs`.
+
+use leyline_core::{CURRENT_PROCESS, LensCorrection};
+use leyline_core::{ColorGradingZone, CurvePoint, Point, SpotRemoval};
+
+use super::clarity::v1::CLARITY_RADIUS;
+use super::color_grading::v1::{zone_tint, zone_weights};
+use super::dehaze::v1::{DEHAZE_PATCH_RADIUS, atmospheric_light, min_filter};
+use super::hsl::v1::{HSL_BAND_CENTERS_DEG, hue_band_neighbors};
+use super::kernel::v1::{
+    approx_blur, exact_linear_to_srgb, exact_srgb_to_linear, gaussian_blur, hsl_to_rgb,
+    lens_bilinear, lens_bilinear_channel, local_contrast, lookup, post_rotation_point_to_buffer,
+    rgb_to_hsl, smoothstep01, tables,
+};
+use super::spot_removal::v1::radial_coverage;
+use super::texture::v1::TEXTURE_RADIUS;
+use super::tone_curve::v1::{build_curve_lut, curve_lookup};
+use super::*;
+
+/// Full-resolution [`develop_scaled`], the shape every test here
+/// exercises: the proxy factor (ADR 0041) is a preview-path concern,
+/// not a pipeline-math one.
+fn develop(
+    image: &RawImage,
+    settings: &Settings,
+    shot: Option<&LensShot>,
+    camera_profile: Option<&DcpProfile>,
+) -> Result<Rendered> {
+    super::develop_scaled(image, settings, shot, camera_profile, 1.0)
+}
+
+#[test]
+fn lookup_tables_track_the_exact_transfer_functions() {
+    let (to_linear, to_srgb) = tables();
+    for i in 0..=100_000 {
+        let v = i as f32 / 100_000.0;
+        assert!(
+            (lookup(to_linear, v) - exact_srgb_to_linear(v)).abs() < 2e-5,
+            "srgb_to_linear at {v}"
+        );
+        assert!(
+            (lookup(to_srgb, v) - exact_linear_to_srgb(v)).abs() < 2e-5,
+            "linear_to_srgb at {v}"
+        );
+    }
+}
+
+/// A deterministic gradient-plus-block test card, large enough for the
+/// bundled Canon profile's distortion to move samples by more than a
+/// rounding error.
+fn test_image(width: u32, height: u32) -> RawImage {
+    let mut data = Vec::with_capacity(width as usize * height as usize * 3);
+    for y in 0..height {
+        for x in 0..width {
+            data.push((x * 255 / width) as u8);
+            data.push((y * 255 / height) as u8);
+            data.push((((x + y) * 255) / (width + height)) as u8);
+        }
+    }
+    RawImage {
+        width,
+        height,
+        bits: 8,
+        data,
+    }
+}
+
+fn canon_shot(focal_mm: f32) -> LensShot {
+    LensShot {
+        camera_make: "Canon".to_owned(),
+        camera_model: "Canon EOS 5D Mark III".to_owned(),
+        lens_make: Some("Canon".to_owned()),
+        lens_model: Some("Canon EF 16-35mm f/2.8L II USM".to_owned()),
+        focal_mm,
+        aperture_f: Some(2.8),
+    }
+}
+
+fn enabled_settings() -> Settings {
+    Settings {
+        process: 11,
+        lens_correction: LensCorrection {
+            enabled: true,
+            profile: "auto".to_owned(),
+        },
+        ..Settings::default()
+    }
+}
+
+#[test]
+fn disabled_lens_correction_matches_process_7_bit_for_bit() {
+    let image = test_image(64, 48);
+    let settings = Settings {
+        process: 11,
+        exposure: 0.3,
+        contrast: 20,
+        ..Settings::default()
+    };
+    let with_process_8 = develop(&image, &settings, Some(&canon_shot(20.0)), None).unwrap();
+    let with_process_7 = develop(
+        &image,
+        &Settings {
+            process: 7,
+            ..settings.clone()
+        },
+        Some(&canon_shot(20.0)),
+        None,
+    )
+    .unwrap();
+    assert_eq!(with_process_8, with_process_7);
+}
+
+#[test]
+fn no_shot_leaves_the_image_unchanged_even_when_enabled() {
+    let image = test_image(64, 48);
+    let out = develop(&image, &enabled_settings(), None, None).unwrap();
+    assert_eq!(out.data, image.data);
+}
+
+#[test]
+fn unmatched_gear_leaves_the_image_unchanged() {
+    let image = test_image(64, 48);
+    let shot = LensShot {
+        camera_make: "Nobody".to_owned(),
+        camera_model: "Nothing".to_owned(),
+        lens_make: Some("Nobody".to_owned()),
+        lens_model: Some("Nothing".to_owned()),
+        focal_mm: 20.0,
+        aperture_f: Some(2.8),
+    };
+    let out = develop(&image, &enabled_settings(), Some(&shot), None).unwrap();
+    assert_eq!(out.data, image.data);
+}
+
+#[test]
+fn a_matched_profile_undistorts_the_image() {
+    let image = test_image(640, 480);
+    let out = develop(&image, &enabled_settings(), Some(&canon_shot(20.0)), None).unwrap();
+    assert_eq!((out.width, out.height), (image.width, image.height));
+    assert_ne!(
+        out.data, image.data,
+        "distortion correction should move pixels"
+    );
+}
+
+#[test]
+fn disabled_setting_ignores_a_matched_profile() {
+    let image = test_image(64, 48);
+    let settings = Settings {
+        process: 11,
+        ..Settings::default()
+    };
+    let out = develop(&image, &settings, Some(&canon_shot(20.0)), None).unwrap();
+    assert_eq!(out.data, image.data);
+}
+
+// -------------------------------------------------------------------
+// Tone curve (ADR 0030) — inherited from process 6, still exercised here
+// -------------------------------------------------------------------
+
+#[test]
+fn no_points_matches_process_7_bit_for_bit() {
+    let image = test_image(64, 48);
+    let settings = Settings {
+        process: 11,
+        exposure: 0.2,
+        contrast: 15,
+        ..Settings::default()
+    };
+    let out8 = develop(&image, &settings, None, None).unwrap();
+    let out7 = develop(
+        &image,
+        &Settings {
+            process: 7,
+            ..settings.clone()
+        },
+        None,
+        None,
+    )
+    .unwrap();
+    assert_eq!(out8, out7);
+}
+
+#[test]
+fn identity_curve_matches_no_points_bit_for_bit() {
+    let image = test_image(64, 48);
+    let with_points = Settings {
+        process: 11,
+        tone_curve: leyline_core::ToneCurve {
+            points: vec![CurvePoint { x: 0.0, y: 0.0 }, CurvePoint { x: 1.0, y: 1.0 }],
+        },
+        ..Settings::default()
+    };
+    let without_points = Settings {
+        process: 11,
+        ..Settings::default()
+    };
+    let out_with = develop(&image, &with_points, None, None).unwrap();
+    let out_without = develop(&image, &without_points, None, None).unwrap();
+    assert_eq!(out_with, out_without);
+}
+
+#[test]
+fn s_curve_raises_shadows_and_lowers_highlights() {
+    // The ADR 0030 example: a soft S-curve.
+    let settings = Settings {
+        process: 11,
+        tone_curve: leyline_core::ToneCurve {
+            points: vec![
+                CurvePoint { x: 0.0, y: 0.0 },
+                CurvePoint { x: 0.25, y: 0.30 },
+                CurvePoint { x: 0.75, y: 0.70 },
+                CurvePoint { x: 1.0, y: 1.0 },
+            ],
+        },
+        ..Settings::default()
+    };
+    settings.validate().unwrap();
+    let table = build_curve_lut(&settings.tone_curve.points);
+    assert!(curve_lookup(&table, 0.1) > 0.1, "shadows should lift");
+    assert!(curve_lookup(&table, 0.9) < 0.9, "highlights should drop");
+    assert!((curve_lookup(&table, 0.0) - 0.0).abs() < 1e-4);
+    assert!((curve_lookup(&table, 1.0) - 1.0).abs() < 1e-4);
+}
+
+#[test]
+fn curve_lut_is_monotone_even_with_unevenly_spaced_points() {
+    let points = vec![
+        CurvePoint { x: 0.0, y: 0.0 },
+        CurvePoint { x: 0.05, y: 0.4 },
+        CurvePoint { x: 0.5, y: 0.5 },
+        CurvePoint { x: 1.0, y: 1.0 },
+    ];
+    let table = build_curve_lut(&points);
+    for pair in table.windows(2) {
+        assert!(
+            pair[1] >= pair[0] - 1e-6,
+            "curve LUT must never decrease: {pair:?}"
+        );
+    }
+}
+
+#[test]
+fn curve_passes_through_its_control_points() {
+    let points = vec![
+        CurvePoint { x: 0.0, y: 0.1 },
+        CurvePoint { x: 0.4, y: 0.6 },
+        CurvePoint { x: 1.0, y: 0.9 },
+    ];
+    let table = build_curve_lut(&points);
+    for point in &points {
+        let looked_up = curve_lookup(&table, point.x as f32);
+        assert!(
+            (looked_up - point.y as f32).abs() < 1e-3,
+            "expected {} at x={}, got {looked_up}",
+            point.y,
+            point.x
+        );
+    }
+}
+
+// -------------------------------------------------------------------
+// Spot removal (ADR 0032)
+// -------------------------------------------------------------------
+
+/// A test card with a distinct solid-color marker block near one corner
+/// (the clone source) and a gradient everywhere else (the background a
+/// clone should overwrite at the target).
+fn spot_test_image(width: u32, height: u32) -> RawImage {
+    let mut data = Vec::with_capacity(width as usize * height as usize * 3);
+    for y in 0..height {
+        for x in 0..width {
+            if (2..6).contains(&x) && (2..6).contains(&y) {
+                data.extend_from_slice(&[200, 40, 40]);
+            } else {
+                let g = ((x * 7 + y * 11) % 255) as u8;
+                data.extend_from_slice(&[g, g, g]);
+            }
+        }
+    }
+    RawImage {
+        width,
+        height,
+        bits: 8,
+        data,
+    }
+}
+
+#[test]
+fn no_spots_matches_process_7_bit_for_bit() {
+    let image = spot_test_image(32, 24);
+    let settings = Settings {
+        process: 11,
+        exposure: 0.1,
+        ..Settings::default()
+    };
+    let out8 = develop(&image, &settings, None, None).unwrap();
+    let out7 = develop(
+        &image,
+        &Settings {
+            process: 7,
+            ..settings.clone()
+        },
+        None,
+        None,
+    )
+    .unwrap();
+    assert_eq!(out8, out7);
+}
+
+#[test]
+fn a_full_opacity_hard_edged_clone_copies_the_source_disk_onto_the_target() {
+    let width = 32u32;
+    let height = 24u32;
+    let image = spot_test_image(width, height);
+    // Source disk centered on the marker block at (4, 4); target far away.
+    let settings = Settings {
+        process: 11,
+        spot_removal: vec![SpotRemoval {
+            target: Point {
+                x: 20.0 / width as f64,
+                y: 16.0 / height as f64,
+            },
+            source: Point {
+                x: 4.0 / width as f64,
+                y: 4.0 / height as f64,
+            },
+            radius: 1.0 / width as f64, // ~1px: stays well inside the marker/background
+            feather: 0.0,
+            opacity: 1.0,
+        }],
+        ..Settings::default()
+    };
+    let out = develop(&image, &settings, None, None).unwrap();
+    let idx = (16 * width as usize + 20) * 3;
+    assert_eq!(
+        &out.data[idx..idx + 3],
+        &[200, 40, 40],
+        "the target pixel should now match the marker it cloned"
+    );
+    // Far outside the target disk, the background is untouched.
+    let untouched_idx = (2 * width as usize + 2) * 3;
+    assert_eq!(
+        &out.data[untouched_idx..untouched_idx + 3],
+        &image.data[untouched_idx..untouched_idx + 3]
+    );
+}
+
+/// A minimal spec-valid DCP: a 1×1 baseline grayscale TIFF/EP carrying
+/// only `ColorMatrix1`, which is all the matrix path needs.
+fn sample_dcp_profile(color_matrix: [[f64; 3]; 3]) -> DcpProfile {
+    use tiff::encoder::colortype::Gray8;
+    use tiff::encoder::{SRational, TiffEncoder};
+
+    /// `ColorMatrix1`, per the DNG specification's private tag list.
+    const COLOR_MATRIX_1: u16 = 50721;
+
+    let rationals: Vec<SRational> = color_matrix
+        .into_iter()
+        .flatten()
+        .map(|v| SRational {
+            n: (v * 10_000.0).round() as i32,
+            d: 10_000,
+        })
+        .collect();
+    let mut buffer = std::io::Cursor::new(Vec::new());
+    {
+        let mut encoder = TiffEncoder::new(&mut buffer).unwrap();
+        let mut image = encoder.new_image::<Gray8>(1, 1).unwrap();
+        image
+            .encoder()
+            .write_tag(
+                tiff::tags::Tag::Unknown(COLOR_MATRIX_1),
+                rationals.as_slice(),
+            )
+            .unwrap();
+        image.write_data(&[0u8]).unwrap();
+    }
+    DcpProfile::parse(&buffer.into_inner()).unwrap()
+}
+
+#[test]
+fn a_camera_profile_changes_the_pixels_and_stays_deterministic() {
+    // The stage is the only difference between process 10 and 11
+    // (ADR 0035): with no profile the neutral rendering is the decoded
+    // image bit for bit, with one it is not.
+    let image = test_image(16, 12);
+    let settings = Settings {
+        process: 11,
+        ..Settings::default()
+    };
+    let neutral = develop(&image, &settings, None, None).unwrap();
+    assert_eq!(neutral.data, image.data);
+
+    let profile = sample_dcp_profile([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]);
+    let profiled = develop(&image, &settings, None, Some(&profile)).unwrap();
+    assert_ne!(profiled.data, neutral.data);
+
+    // Same inputs, same pixels — the §5 reproducibility contract.
+    let again = develop(&image, &settings, None, Some(&profile)).unwrap();
+    assert_eq!(profiled.data, again.data);
+}
+
+#[test]
+fn older_process_versions_ignore_a_camera_profile() {
+    // Process 10 renders identically whether or not a profile is
+    // passed: a revision written before ADR 0035 keeps its pixels.
+    let image = test_image(16, 12);
+    let profile = sample_dcp_profile([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]);
+    let settings = Settings {
+        process: 10,
+        ..Settings::default()
+    };
+    let with_profile = crate::render::render(&image, &settings, None, Some(&profile)).unwrap();
+    let without = crate::render::render(&image, &settings, None, None).unwrap();
+    assert_eq!(with_profile.data, without.data);
+}
+
+#[test]
+fn zero_opacity_leaves_the_image_unchanged() {
+    let width = 32u32;
+    let height = 24u32;
+    let image = spot_test_image(width, height);
+    let settings = Settings {
+        process: 11,
+        spot_removal: vec![SpotRemoval {
+            target: Point { x: 0.6, y: 0.6 },
+            source: Point { x: 0.1, y: 0.1 },
+            radius: 0.1,
+            feather: 0.5,
+            opacity: 0.0,
+        }],
+        ..Settings::default()
+    };
+    let out = develop(&image, &settings, None, None).unwrap();
+    assert_eq!(out.data, image.data);
+}
+
+#[test]
+fn post_rotation_point_to_buffer_is_identity_at_zero_rotation() {
+    let point = Point { x: 0.3, y: 0.7 };
+    let (sx, sy) = post_rotation_point_to_buffer(100, 50, 0.0, point);
+    assert!((sx - 30.0).abs() < 1e-9);
+    assert!((sy - 35.0).abs() < 1e-9);
+}
+
+#[test]
+fn post_rotation_point_to_buffer_flips_both_axes_at_180_degrees() {
+    let point = Point { x: 0.2, y: 0.9 };
+    let (sx, sy) = post_rotation_point_to_buffer(100, 50, 180.0, point);
+    assert!((sx - 80.0).abs() < 1e-6, "sx = {sx}");
+    assert!((sy - 5.0).abs() < 1e-6, "sy = {sy}");
+}
+
+#[test]
+fn post_rotation_point_to_buffer_swaps_axes_at_90_degrees() {
+    // Rotating 90 degrees clockwise swaps the canvas dimensions: the
+    // post-rotation canvas is height x width relative to the buffer.
+    let point = Point { x: 0.25, y: 0.5 };
+    let (sx, sy) = post_rotation_point_to_buffer(100, 50, 90.0, point);
+    // out_w = 50, out_h = 100 for a 100x50 buffer rotated 90 degrees.
+    assert!((0.0..=100.0).contains(&sx));
+    assert!((0.0..=50.0).contains(&sy));
+}
+
+#[test]
+fn radial_coverage_is_full_inside_the_hard_core_and_zero_past_the_rim() {
+    assert_eq!(radial_coverage(0.0, 0.5), 1.0);
+    assert_eq!(radial_coverage(1.0, 0.5), 0.0);
+    assert_eq!(radial_coverage(1.5, 0.5), 0.0);
+    assert_eq!(radial_coverage(0.0, 0.0), 1.0);
+    // Just past the rim with no feather: a hard edge.
+    assert_eq!(radial_coverage(0.999, 0.0), 1.0);
+}
+
+#[test]
+fn radial_coverage_eases_monotonically_across_the_feather_band() {
+    let mut previous = radial_coverage(0.5, 1.0);
+    for i in 1..=10 {
+        let t = 0.5 + 0.05 * i as f64;
+        let current = radial_coverage(t, 1.0);
+        assert!(
+            current <= previous + 1e-6,
+            "coverage must not increase toward the rim"
+        );
+        previous = current;
+    }
+}
+
+/// `lens_bilinear_channel` must return, for every channel, exactly the
+/// value `lens_bilinear` would have computed for that channel — it's an
+/// in-place optimization ([`correct_tca`] discarded two of the three
+/// channels `lens_bilinear` computed), not a formula change. Covers
+/// interior samples, edge/corner clamping, and the out-of-frame `None`
+/// case.
+#[test]
+fn lens_bilinear_channel_matches_the_full_rgb_sampler_bit_for_bit() {
+    let width = 12u32;
+    let height = 9u32;
+    let mut data = Vec::with_capacity(width as usize * height as usize * 3);
+    for y in 0..height {
+        for x in 0..width {
+            data.push((x * 37 % 255) as f32 / 255.0);
+            data.push((y * 53 % 255) as f32 / 255.0);
+            data.push(((x + y) * 29 % 255) as f32 / 255.0);
+        }
+    }
+    let px = Pixels {
+        width,
+        height,
+        data,
+    };
+
+    let samples = [
+        (0.0, 0.0),                                // corner
+        (width as f32 - 1.0, 0.0),                 // corner, x clamp
+        (0.0, height as f32 - 1.0),                // corner, y clamp
+        (5.3, 4.7),                                // interior, fractional
+        (2.999_9, 6.000_1),                        // near-integer fractional
+        (width as f32 - 1.0, height as f32 - 1.0), // far corner
+        (-0.001, 3.0),                             // just out of frame: x
+        (3.0, height as f32),                      // just out of frame: y
+    ];
+
+    for (sx, sy) in samples {
+        let full = lens_bilinear(&px, sx, sy);
+        for c in 0..3 {
+            let single = lens_bilinear_channel(&px, sx, sy, c);
+            match full {
+                Some(rgb) => assert_eq!(
+                    single,
+                    Some(rgb[c]),
+                    "channel {c} at ({sx}, {sy}) diverged from the full-RGB sampler"
+                ),
+                None => assert_eq!(
+                    single, None,
+                    "channel {c} at ({sx}, {sy}) should also be out of frame"
+                ),
+            }
+        }
+    }
+}
+
+// -------------------------------------------------------------------
+// Local adjustments (ADR 0029)
+// -------------------------------------------------------------------
+
+use leyline_core::{LocalAdjustment, LocalAdjustmentValues, Mask};
+
+#[test]
+fn no_local_adjustments_matches_process_7_bit_for_bit() {
+    let image = test_image(64, 48);
+    let settings = Settings {
+        process: 11,
+        exposure: 0.2,
+        contrast: 15,
+        ..Settings::default()
+    };
+    let out8 = develop(&image, &settings, None, None).unwrap();
+    let out7 = develop(
+        &image,
+        &Settings {
+            process: 7,
+            ..settings.clone()
+        },
+        None,
+        None,
+    )
+    .unwrap();
+    assert_eq!(out8, out7);
+}
+
+#[test]
+fn a_radial_mask_darkens_only_its_covered_area() {
+    let image = test_image(200, 150);
+    let settings = Settings {
+        process: 11,
+        local_adjustments: vec![LocalAdjustment {
+            mask: Mask::Radial {
+                cx: 0.5,
+                cy: 0.5,
+                rx: 0.15,
+                ry: 0.15,
+                angle: 0.0,
+                feather: 0.0,
+                inverted: false,
+            },
+            opacity: 1.0,
+            adjustments: LocalAdjustmentValues {
+                exposure: Some(-2.0),
+                ..LocalAdjustmentValues::default()
+            },
+        }],
+        ..Settings::default()
+    };
+    let out = develop(&image, &settings, None, None).unwrap();
+    let plain = develop(
+        &image,
+        &Settings {
+            process: 11,
+            ..Settings::default()
+        },
+        None,
+        None,
+    )
+    .unwrap();
+
+    let center_idx = ((150 / 2 * 200 + 100) * 3) as usize;
+    assert!(
+        out.data[center_idx] < plain.data[center_idx],
+        "the masked area should be darkened by the local exposure drop"
+    );
+    // Far corner, well outside the mask's radius: untouched.
+    let corner_idx = 0usize;
+    assert_eq!(out.data[corner_idx], plain.data[corner_idx]);
+}
+
+#[test]
+fn zero_opacity_local_adjustment_leaves_the_image_unchanged() {
+    let image = test_image(64, 48);
+    let settings = Settings {
+        process: 11,
+        local_adjustments: vec![LocalAdjustment {
+            mask: Mask::Radial {
+                cx: 0.5,
+                cy: 0.5,
+                rx: 0.3,
+                ry: 0.3,
+                angle: 0.0,
+                feather: 0.2,
+                inverted: false,
+            },
+            opacity: 0.0,
+            adjustments: LocalAdjustmentValues {
+                exposure: Some(2.0),
+                ..LocalAdjustmentValues::default()
+            },
+        }],
+        ..Settings::default()
+    };
+    let out = develop(&image, &settings, None, None).unwrap();
+    let plain = develop(
+        &image,
+        &Settings {
+            process: 11,
+            ..Settings::default()
+        },
+        None,
+        None,
+    )
+    .unwrap();
+    assert_eq!(out.data, plain.data);
+}
+
+#[test]
+fn an_empty_local_adjustments_list_is_neutral() {
+    let image = test_image(64, 48);
+    let settings = Settings {
+        process: 11,
+        local_adjustments: vec![],
+        exposure: 0.1,
+        ..Settings::default()
+    };
+    let with_empty = develop(&image, &settings, None, None).unwrap();
+    let without_field = develop(
+        &image,
+        &Settings {
+            process: 11,
+            exposure: 0.1,
+            ..Settings::default()
+        },
+        None,
+        None,
+    )
+    .unwrap();
+    assert_eq!(with_empty.data, without_field.data);
+}
+
+#[test]
+fn local_adjustments_apply_in_list_order_on_top_of_each_other() {
+    // Two full-coverage exposure-raising entries in sequence: the second
+    // entry's blend reads the buffer the first entry already brightened
+    // (list-order composition, the same rule spot removal follows
+    // above), so stacking both must brighten a non-clipped pixel
+    // strictly more than either alone.
+    let image = test_image(200, 150);
+    let full_frame_radial = |exposure: f64| LocalAdjustment {
+        mask: Mask::Radial {
+            cx: 0.5,
+            cy: 0.5,
+            rx: 1.0,
+            ry: 1.0,
+            angle: 0.0,
+            feather: 0.0,
+            inverted: false,
+        },
+        opacity: 1.0,
+        adjustments: LocalAdjustmentValues {
+            exposure: Some(exposure),
+            ..LocalAdjustmentValues::default()
+        },
+    };
+    let stacked = Settings {
+        process: 11,
+        local_adjustments: vec![full_frame_radial(0.5), full_frame_radial(0.5)],
+        ..Settings::default()
+    };
+    let single = Settings {
+        process: 11,
+        local_adjustments: vec![full_frame_radial(0.5)],
+        ..Settings::default()
+    };
+    let out_stacked = develop(&image, &stacked, None, None).unwrap();
+    let out_single = develop(&image, &single, None, None).unwrap();
+    // A middling, non-clipped pixel near the frame's center.
+    let idx = ((150 / 2 * 200 + 100) * 3) as usize;
+    assert!(
+        out_stacked.data[idx] > out_single.data[idx],
+        "stacking two exposure-raising entries should brighten more than one alone"
+    );
+}
+
+// -----------------------------------------------------------------
+// HSL mixer and color grading (ADR 0031)
+// -----------------------------------------------------------------
+
+#[test]
+fn neutral_hsl_and_color_grading_match_process_8_bit_for_bit() {
+    let image = test_image(64, 48);
+    let settings = Settings {
+        process: 11,
+        exposure: 0.3,
+        vibrance: 20,
+        ..Settings::default()
+    };
+    let out9 = develop(&image, &settings, None, None).unwrap();
+    let out8 = develop(
+        &image,
+        &Settings {
+            process: 8,
+            ..settings.clone()
+        },
+        None,
+        None,
+    )
+    .unwrap();
+    assert_eq!(out9, out8);
+}
+
+#[test]
+fn rgb_hsl_round_trips_within_float_error() {
+    let samples: [[f32; 3]; 6] = [
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0, 1.0],
+        [0.3, 0.6, 0.2],
+        [0.8, 0.8, 0.8],
+        [0.0, 0.0, 0.0],
+    ];
+    for rgb in samples {
+        let (h, s, l) = rgb_to_hsl(&rgb);
+        let back = hsl_to_rgb(h, s, l);
+        for c in 0..3 {
+            assert!(
+                (rgb[c] - back[c]).abs() < 1e-4,
+                "channel {c}: {rgb:?} -> hsl({h},{s},{l}) -> {back:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn hue_band_neighbors_always_form_a_partition_of_unity() {
+    let mut h = 0.0f32;
+    while h < 360.0 {
+        let (i0, i1, t) = hue_band_neighbors(h);
+        assert!(i0 < 8 && i1 < 8);
+        assert!((0.0..=1.0).contains(&t), "t out of range at {h}: {t}");
+        h += 1.0;
+    }
+}
+
+#[test]
+fn hue_band_neighbors_is_exact_at_band_centers() {
+    // A center point sits exactly on the shared boundary of two
+    // segments (`[i-1, i]` and `[i, i+1]`); which one the scan matches
+    // first is unspecified, but either way the *effective* weight must
+    // land 100% on band `i` — never split.
+    for (i, &center) in HSL_BAND_CENTERS_DEG.iter().enumerate() {
+        let (i0, i1, t) = hue_band_neighbors(center);
+        let w1 = smoothstep01(t);
+        let w0 = 1.0 - w1;
+        let band_i_weight = if i0 == i {
+            w0
+        } else if i1 == i {
+            w1
+        } else {
+            0.0
+        };
+        assert!(
+            band_i_weight > 0.999,
+            "center {center} (band {i}) should resolve to full weight, got \
+             i0={i0} i1={i1} t={t} (band_i_weight={band_i_weight})"
+        );
+    }
+}
+
+#[test]
+fn zone_weights_always_sum_to_one() {
+    for balance in [-1.0f32, -0.5, 0.0, 0.5, 1.0] {
+        for blending in [0.0f32, 0.3, 0.6, 1.0] {
+            let mut l = 0.0f32;
+            while l <= 1.0 {
+                let w = zone_weights(l, balance, blending);
+                let sum = w[0] + w[1] + w[2];
+                assert!(
+                    (sum - 1.0).abs() < 1e-4,
+                    "weights {w:?} at l={l} balance={balance} blending={blending} sum to {sum}"
+                );
+                assert!(w.iter().all(|&x| (0.0..=1.0).contains(&x)));
+                l += 0.05;
+            }
+        }
+    }
+}
+
+#[test]
+fn zone_weights_favor_shadows_at_low_luma_and_highlights_at_high_luma() {
+    let low = zone_weights(0.0, 0.0, 0.5);
+    let high = zone_weights(1.0, 0.0, 0.5);
+    assert!(low[0] > 0.9, "shadow weight at l=0: {low:?}");
+    assert!(high[2] > 0.9, "highlight weight at l=1: {high:?}");
+}
+
+#[test]
+fn zone_tint_is_zero_at_zero_saturation() {
+    let zone = ColorGradingZone {
+        hue: 220,
+        saturation: 0,
+        luminance: 0,
+    };
+    assert_eq!(zone_tint(&zone), [0.0, 0.0, 0.0]);
+}
+
+#[test]
+fn zone_tint_is_non_zero_once_saturation_is_set() {
+    let zone = ColorGradingZone {
+        hue: 220,
+        saturation: 50,
+        luminance: 0,
+    };
+    assert_ne!(zone_tint(&zone), [0.0, 0.0, 0.0]);
+}
+
+#[test]
+fn hsl_mixer_boosts_saturation_of_a_matched_band_only() {
+    // A muted red (band 0, center 0°) and a muted green (band 3, center
+    // 120°, far enough from red's neighbors — orange 30°, magenta
+    // 315° — to be unaffected by red's slider).
+    let mut image = test_image(4, 4);
+    for px in image.data.chunks_exact_mut(3) {
+        px[0] = 160;
+        px[1] = 90;
+        px[2] = 90;
+    }
+    let mut bands = [HslBand::default(); 8];
+    bands[0].saturation = 100;
+    let settings = Settings {
+        process: 11,
+        hsl: bands,
+        ..Settings::default()
+    };
+    let before = rgb_to_hsl(&[160.0 / 255.0, 90.0 / 255.0, 90.0 / 255.0]);
+    let out = develop(&image, &settings, None, None).unwrap();
+    let after = rgb_to_hsl(&[
+        f32::from(out.data[0]) / 255.0,
+        f32::from(out.data[1]) / 255.0,
+        f32::from(out.data[2]) / 255.0,
+    ]);
+    assert!(
+        after.1 > before.1,
+        "saturation should increase: before {before:?}, after {after:?}"
+    );
+}
+
+#[test]
+fn color_grading_tints_shadows_without_touching_highlights() {
+    let mut image = test_image(4, 4);
+    for (i, px) in image.data.chunks_exact_mut(3).enumerate() {
+        let v = if i % 2 == 0 { 10 } else { 245 };
+        px[0] = v;
+        px[1] = v;
+        px[2] = v;
+    }
+    let settings = Settings {
+        process: 11,
+        color_grading: ColorGrading {
+            shadows: ColorGradingZone {
+                hue: 220,
+                saturation: 80,
+                luminance: 0,
+            },
+            ..ColorGrading::default()
+        },
+        ..Settings::default()
+    };
+    let out = develop(&image, &settings, None, None).unwrap();
+    // The dark (shadow) pixel picks up a blue tint: B channel rises
+    // above R/G. The bright (highlight) pixel, far from the shadow
+    // zone's weight, stays gray (all channels equal).
+    let dark = &out.data[0..3];
+    let bright = &out.data[3..6];
+    assert!(
+        dark[2] > dark[0],
+        "shadow pixel should gain a blue tint: {dark:?}"
+    );
+    assert_eq!(
+        bright[0], bright[1],
+        "highlight pixel should stay neutral: {bright:?}"
+    );
+    assert_eq!(
+        bright[1], bright[2],
+        "highlight pixel should stay neutral: {bright:?}"
+    );
+}
+
+// -----------------------------------------------------------------
+// Clarity, texture and dehaze (ADR 0033)
+// -----------------------------------------------------------------
+
+#[test]
+fn neutral_clarity_texture_dehaze_match_process_9_bit_for_bit() {
+    let image = test_image(64, 48);
+    let settings = Settings {
+        process: 11,
+        exposure: 0.2,
+        vibrance: 10,
+        ..Settings::default()
+    };
+    let out10 = develop(&image, &settings, None, None).unwrap();
+    let out9 = develop(
+        &image,
+        &Settings {
+            process: 9,
+            ..settings.clone()
+        },
+        None,
+        None,
+    )
+    .unwrap();
+    assert_eq!(out10, out9);
+}
+
+#[test]
+fn min_filter_matches_a_naive_2d_minimum() {
+    let width = 6;
+    let height = 5;
+    let plane: Vec<f32> = (0..width * height)
+        .map(|i| ((i * 37) % 100) as f32)
+        .collect();
+    let radius = 2;
+    let filtered = min_filter(&plane, width, height, radius);
+    for y in 0..height {
+        for x in 0..width {
+            let mut expected = f32::INFINITY;
+            for yy in y.saturating_sub(radius)..=(y + radius).min(height - 1) {
+                for xx in x.saturating_sub(radius)..=(x + radius).min(width - 1) {
+                    expected = expected.min(plane[yy * width + xx]);
+                }
+            }
+            assert_eq!(filtered[y * width + x], expected, "at ({x},{y})");
+        }
+    }
+}
+
+#[test]
+fn min_filter_on_a_uniform_plane_is_unchanged() {
+    let plane = vec![0.42f32; 20];
+    let filtered = min_filter(&plane, 5, 4, 1);
+    assert!(filtered.iter().all(|&v| (v - 0.42).abs() < 1e-6));
+}
+
+#[test]
+fn approx_blur_smooths_a_checkerboard_toward_its_mean() {
+    let width = 64;
+    let height = 64;
+    let plane: Vec<f32> = (0..width * height)
+        .map(|i| {
+            let x = i % width;
+            let y = i / width;
+            if (x / 4 + y / 4) % 2 == 0 { 1.0 } else { 0.0 }
+        })
+        .collect();
+    let blurred = approx_blur(&plane, width, height, 20.0);
+    let idx = (height / 2) * width + width / 2;
+    assert!(
+        (blurred[idx] - 0.5).abs() < 0.35,
+        "expected the blur to land near the checkerboard's 0.5 mean, got {}",
+        blurred[idx]
+    );
+}
+
+#[test]
+fn approx_blur_falls_back_to_the_literal_kernel_at_a_small_sigma() {
+    let plane = vec![0.2, 0.8, 0.3, 0.9, 0.1, 0.7, 0.4, 0.6, 0.5];
+    let (width, height) = (3, 3);
+    assert_eq!(
+        approx_blur(&plane, width, height, 0.5),
+        gaussian_blur(&plane, width, height, 0.5)
+    );
+}
+
+#[test]
+fn local_contrast_with_zero_amount_is_a_no_op() {
+    let image = test_image(16, 12);
+    let mut px = Pixels::from_raw(&image).unwrap();
+    let before = px.to_rgb8();
+    local_contrast(&mut px, 0, CLARITY_RADIUS);
+    assert_eq!(px.to_rgb8(), before);
+}
+
+#[test]
+fn local_contrast_pushes_a_bright_region_brighter() {
+    // Left half dark, right half bright: a positive-amount local
+    // contrast boost should push pixels away from the low-pass
+    // (blurred) version, brightening the already-bright side further.
+    let width = 40usize;
+    let height = 20usize;
+    let mut data = Vec::with_capacity(width * height * 3);
+    for _y in 0..height {
+        for x in 0..width {
+            let v = if x < width / 2 { 60u8 } else { 180u8 };
+            data.push(v);
+            data.push(v);
+            data.push(v);
+        }
+    }
+    let image = RawImage {
+        width: width as u32,
+        height: height as u32,
+        bits: 8,
+        data,
+    };
+    let mut px = Pixels::from_raw(&image).unwrap();
+    local_contrast(&mut px, 80, TEXTURE_RADIUS);
+    let out = px.to_rgb8();
+    let idx = (10 * width + (width / 2 + 2)) * 3;
+    assert!(
+        out[idx] as i32 > 180,
+        "expected the bright side to gain further contrast, got {}",
+        out[idx]
+    );
+}
+
+/// A gradient scene veiled toward a bright gray "atmosphere" — exactly
+/// the kind of image dehaze is meant to undo (`amount > 0`) or add to
+/// (`amount < 0`).
+fn hazy_test_image(width: u32, height: u32) -> RawImage {
+    let mut data = Vec::with_capacity((width * height * 3) as usize);
+    for _y in 0..height {
+        for x in 0..width {
+            let scene = (x * 100 / width) as u16;
+            let haze = 180u16;
+            let v = ((scene + haze) / 2) as u8;
+            data.push(v);
+            data.push(v);
+            data.push(v);
+        }
+    }
+    RawImage {
+        width,
+        height,
+        bits: 8,
+        data,
+    }
+}
+
+/// Widest span between the darkest and brightest R sample (R=G=B in
+/// these synthetic gray images, so one channel is representative).
+fn tonal_range(data: &[u8]) -> u8 {
+    let min = data.iter().step_by(3).min().copied().unwrap();
+    let max = data.iter().step_by(3).max().copied().unwrap();
+    max - min
+}
+
+#[test]
+fn atmospheric_light_matches_the_brightest_dark_channel_patch() {
+    let width = 10;
+    let height = 10;
+    let mut data = vec![50u8; width * height * 3];
+    for y in 0..2 {
+        for x in 0..2 {
+            let i = (y * width + x) * 3;
+            data[i] = 240;
+            data[i + 1] = 230;
+            data[i + 2] = 220;
+        }
+    }
+    let image = RawImage {
+        width: width as u32,
+        height: height as u32,
+        bits: 8,
+        data,
+    };
+    let px = Pixels::from_raw(&image).unwrap();
+    let per_pixel_min: Vec<f32> = px
+        .data
+        .chunks_exact(3)
+        .map(|rgb| rgb[0].min(rgb[1]).min(rgb[2]))
+        .collect();
+    let dark = min_filter(&per_pixel_min, width, height, DEHAZE_PATCH_RADIUS);
+    let atmosphere = atmospheric_light(&px, &dark);
+    assert!(
+        atmosphere[0] > 0.8,
+        "expected the bright patch's color, got {atmosphere:?}"
+    );
+}
+
+#[test]
+fn dehaze_positive_amount_widens_the_tonal_range() {
+    let image = hazy_test_image(40, 30);
+    let neutral = develop(
+        &image,
+        &Settings {
+            process: 11,
+            ..Settings::default()
+        },
+        None,
+        None,
+    )
+    .unwrap();
+    let dehazed = develop(
+        &image,
+        &Settings {
+            dehaze: 80,
+            ..Settings {
+                process: 11,
+                ..Settings::default()
+            }
+        },
+        None,
+        None,
+    )
+    .unwrap();
+    assert!(
+        tonal_range(&dehazed.data) > tonal_range(&neutral.data),
+        "dehaze should widen the tonal range: neutral {}, dehazed {}",
+        tonal_range(&neutral.data),
+        tonal_range(&dehazed.data)
+    );
+}
+
+#[test]
+fn dehaze_negative_amount_narrows_the_tonal_range() {
+    let image = hazy_test_image(40, 30);
+    let neutral = develop(
+        &image,
+        &Settings {
+            process: 11,
+            ..Settings::default()
+        },
+        None,
+        None,
+    )
+    .unwrap();
+    let hazier = develop(
+        &image,
+        &Settings {
+            dehaze: -80,
+            ..Settings {
+                process: 11,
+                ..Settings::default()
+            }
+        },
+        None,
+        None,
+    )
+    .unwrap();
+    assert!(
+        tonal_range(&hazier.data) < tonal_range(&neutral.data),
+        "negative dehaze should narrow the tonal range: neutral {}, hazier {}",
+        tonal_range(&neutral.data),
+        tonal_range(&hazier.data)
+    );
+}
+
+// ---------------------------------------------------------------------------
+// The registry and the expansion table
+// ---------------------------------------------------------------------------
+
+#[test]
+fn lookup_matches_the_exact_functions_at_the_domain_endpoints() {
+    // `exact_linear_to_srgb(1.0)` is 0.99999994 in f32 — rounded back to
+    // 255 in 8-bit output; the lookup must reproduce the exact functions,
+    // not idealized endpoints.
+    let (to_linear, to_srgb) = tables();
+    assert_eq!(lookup(to_linear, 0.0), exact_srgb_to_linear(0.0));
+    assert_eq!(lookup(to_linear, 1.0), exact_srgb_to_linear(1.0));
+    assert_eq!(lookup(to_srgb, 0.0), exact_linear_to_srgb(0.0));
+    assert_eq!(lookup(to_srgb, 1.0), exact_linear_to_srgb(1.0));
+    // Out-of-range inputs clamp instead of reading out of bounds.
+    assert_eq!(lookup(to_srgb, -0.5), lookup(to_srgb, 0.0));
+    assert_eq!(lookup(to_srgb, 1.5), lookup(to_srgb, 1.0));
+}
+
+#[test]
+fn every_process_version_expands_to_registered_stage_versions() {
+    for process in 1..=CURRENT_PROCESS {
+        let plan = super::plan(process).unwrap();
+        assert!(!plan.is_empty(), "process {process} expands to nothing");
+    }
+}
+
+#[test]
+fn no_process_version_runs_two_stages_at_the_same_rank() {
+    // Two stages sharing a rank would make their relative order depend on
+    // the sort's stability rather than on a declared decision.
+    for process in 1..=CURRENT_PROCESS {
+        let plan = super::plan(process).unwrap();
+        let mut ranks: Vec<u16> = plan.iter().map(|(_, v)| v.rank).collect();
+        let count = ranks.len();
+        ranks.sort_unstable();
+        ranks.dedup();
+        assert_eq!(ranks.len(), count, "duplicate rank in process {process}");
+    }
+}
+
+#[test]
+fn a_process_version_never_names_the_same_stage_twice() {
+    for process in 1..=CURRENT_PROCESS {
+        let plan = super::plan(process).unwrap();
+        let mut names: Vec<&str> = plan.iter().map(|(stage, _)| stage.name).collect();
+        let count = names.len();
+        names.sort_unstable();
+        names.dedup();
+        assert_eq!(names.len(), count, "duplicate stage in process {process}");
+    }
+}
+
+#[test]
+fn the_plan_runs_in_rank_order() {
+    let plan = super::plan(CURRENT_PROCESS).unwrap();
+    assert!(plan.windows(2).all(|w| w[0].1.rank < w[1].1.rank));
+}
+
+#[test]
+fn every_registered_stage_version_is_reachable_from_some_process_version() {
+    // A version no expansion names is a version nothing can render — either
+    // a typo in the table or dead frozen code.
+    let reachable: Vec<(&str, u16)> = (1..=CURRENT_PROCESS)
+        .flat_map(|process| super::plan(process).unwrap())
+        .map(|(stage, version)| (stage.name, version.version))
+        .collect();
+    for stage in STAGES {
+        for version in stage.versions {
+            assert!(
+                reachable.contains(&(stage.name, version.version)),
+                "{}::v{} is not reachable",
+                stage.name,
+                version.version
+            );
+        }
+    }
+}
+
+#[test]
+fn an_unknown_process_version_is_refused() {
+    for process in [0, CURRENT_PROCESS + 1] {
+        assert!(matches!(
+            super::plan(process),
+            Err(LeylineError::InvalidSettings(_))
+        ));
+    }
+}

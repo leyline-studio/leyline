@@ -6,7 +6,7 @@
 //! encodes **no** process-specific pixel-transform formula of its own — the
 //! actual re-parameterized operators (exposure, contrast, white balance…)
 //! stay inside each process module, called on their own already-frozen
-//! functions (`process8::local_adjustments` builds a fully re-adjusted copy
+//! functions (`stages::local_adjustments::v1` builds a fully re-adjusted copy
 //! of the buffer, then asks this module how much of it to blend in per
 //! pixel). That split is why this module is safe to share across every
 //! future process version the same way `pixels.rs` already is: a later
@@ -338,7 +338,7 @@ mod tests {
             let frame = CanvasFrame::new(width, height, degrees);
             for (sx, sy) in [(0.0, 0.0), (99.0, 49.0), (42.3, 17.9)] {
                 let (cx, cy) = frame.buffer_to_canvas(sx, sy);
-                let point = crate::process8::post_rotation_point_to_buffer(
+                let point = crate::stages::kernel::v1::post_rotation_point_to_buffer(
                     width,
                     height,
                     degrees,

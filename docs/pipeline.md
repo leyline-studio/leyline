@@ -275,11 +275,13 @@ Règle fondamentale :
 
 Le code des anciennes process versions est conservé dans le moteur : c'est le prix de la promesse « mêmes pixels dans dix ans », dont §5.1 énonce la portée exacte. À partir d'ADR 0042, l'unité gelée n'est plus la process version entière mais l'**étage** — le prix se paie alors par opérateur réellement corrigé, plus par copie intégrale du pipeline.
 
+**Comment le moteur rend une process version.** Chaque `process: N` possède une expansion figée vers un ensemble de versions d'étages (`crate::stages`, table `PROCESS_STAGES`) : `process: 4` signifie exactement `lens::v2` + `gains::v2` + `contrast::v1` + … . Le moteur ne dispatche donc plus vers un module par version, il compose les étages nommés par l'expansion, dans l'ordre du rang que chaque version d'étage déclare. Les onze rendus restent bit à bit ceux d'avant la migration, et c'est `tests/golden_renders.rs` — non la relecture du diff — qui l'établit (ADR 0042 §7).
+
 Versions connues :
 
 | `process` | Définition |
 |---|---|
-| 1 | Pipeline initial (`process1.rs`) : fonctions de transfert sRGB exactes (`powf` par échantillon) |
+| 1 | Pipeline initial : fonctions de transfert sRGB exactes (`powf` par échantillon) |
 | 2 | Identique à 1, fonctions de transfert par table de 4096 intervalles avec interpolation linéaire (ADR 0013) — écart < 2·10⁻⁵, invisible en 8 bits mais pas bit-identique |
 | 3 | Identique à 2, plus `lens_correction` : correction de distorsion géométrique via un profil Lensfun (ADR 0016) |
 | 4 | Identique à 3, plus le dévignettage (correction du vignettage) avec le même profil (ADR 0017) |

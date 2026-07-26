@@ -49,8 +49,10 @@ Installateur par plateforme et internationalisation FR/EN ([ADR 0019](adr/0019-d
 **Migration vers un pipeline d'étages versionnés** ([ADR 0042](adr/0042-versioned-stage-pipeline.md)) — remplacer les onze modules `processN.rs` dupliqués par des étages versionnés indépendamment, à rendu strictement identique. La migration procède en trois temps, dans l'ordre imposé par l'ADR :
 
 1. ✅ Capturer des rendus de référence depuis le moteur actuel, et les committer.
-2. ⬜ Refactoriser vers les étages composés.
-3. ⬜ Prouver l'égalité bit à bit contre ces rendus, pour les onze versions.
+2. ✅ Refactoriser vers les étages composés — 14 968 lignes de `processN.rs` ramenées à ~1 800 lignes d'étages versionnés (`crate::stages`), plus un registre et la table d'expansion `process: N` → versions d'étages.
+3. ✅ Prouver l'égalité bit à bit contre ces rendus, pour les onze versions — les 77 cas de `golden_renders.rs` passent sans re-bénissage.
+
+Reste de l'ADR à livrer : le §2, où une révision enregistre elle-même la carte `stages` qu'elle utilise au lieu d'un `process: N`. C'est un changement de forme de `settings_json` — donc du contrat de reproductibilité — qui touche le catalogue et les trois clients ; il se fait avant l'ouverture publique, pas après.
 
 **Épreuvage écran et filigrane** ([ADR 0034](adr/0034-softproofing-watermark-print.md)) — décidé, non implémenté. Dernier élément du cadrage post-V1 qui reste ouvert.
 

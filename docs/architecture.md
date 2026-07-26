@@ -100,6 +100,8 @@ Toutes les corrections sont appliquées sous forme d'un pipeline d'étapes indé
 
 L'ordre exact, le format `settings_json`, les process versions et la promesse de reproductibilité sont spécifiés dans [`pipeline.md`](pipeline.md) — à lire avant toute intervention sur le moteur.
 
+Côté code, chaque opérateur vit dans son propre module versionné et gelé (`leyline-engine/src/stages/`, un dossier par opérateur, un fichier par version), et le registre `stages.rs` dit à quel rang chaque version s'insère et vers quelles versions chaque `process: N` s'étend ([ADR 0042](adr/0042-versioned-stage-pipeline.md)).
+
 ---
 
 ## Conventions de développement
