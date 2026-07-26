@@ -1,6 +1,6 @@
 # ADR 0044 — Un tampon de travail en lumière linéaire large gamut : Rec. 2020 non borné
 
-**Statut :** Accepté — 2026-07
+**Statut :** Accepté — 2026-07 — **appliqué**
 **Complète :** [ADR 0015](0015-color-management-srgb.md) (sRGB de bout en bout) et
 [ADR 0027](0027-color-management-beyond-srgb.md) (élargissement en sortie seulement)
 **S'appuie sur :** [ADR 0042](0042-versioned-stage-pipeline.md) et
@@ -193,6 +193,12 @@ déjà quantifiés. Même surface publique, meilleure conversion.
 
 ### 7. Ordre de migration : la mécanique d'abord, l'espace ensuite
 
+> **Fait, en deux tranches.** Étape 1 (commit `23f1252`) : les étages
+> d'encadrement, la déclaration d'espace et le refus de plan mixte, dans
+> l'espace d'alors — les quinze empreintes de référence n'ont pas bougé,
+> comparées une à une. Étape 2 : la bascule elle-même, avec les vérifications
+> de §7.2 consignées dans les conséquences ci-dessous.
+
 Comme ADR 0042 §7, rien ne bouge sans preuve — mais la preuve n'est pas la même
 ici, et il faut le dire franchement : **le rendu va changer.** L'égalité bit à
 bit n'est donc un critère que pour la première moitié du chantier.
@@ -215,6 +221,20 @@ bit n'est donc un critère que pour la première moitié du chantier.
 * **Le rendu par défaut change pour toute photo.** C'est le point à assumer :
   aucune image ne rend comme avant. Acceptable uniquement avant publication,
   et c'est pourquoi l'ADR est écrit maintenant plutôt qu'après.
+  Ce qui a été mesuré sur des fichiers réels, une fois la bascule faite :
+  * un **JPEG importé et ré-exporté sans retouche ressort au bit près** —
+    différence maximale nulle sur 30 Mpx. sRGB → linéaire → Rec. 2020 →
+    opérateurs → Rec. 2020 → sRGB est l'identité exacte quand rien n'est
+    réglé, ce qui vérifie d'un coup les deux matrices et les deux fonctions
+    de transfert ;
+  * sur un RAW à fort écart de luminance (intérieur + fenêtre au soleil),
+    les pixels écrêtés du rendu neutre passent de **1,71 % à 0,01 %** : la
+    fenêtre revient avec son toit et ses arbres au lieu d'une forme blanche ;
+  * le rendu neutre est plus clair d'environ 20 % en moyenne. Ce n'est pas
+    un effet de l'espace mais de la fonction de transfert : la sortie est
+    désormais encodée en sRGB, alors que LibRaw appliquait sa courbe BT.709
+    par défaut à des pixels que l'export étiquetait pourtant « sRGB ». Une
+    incohérence corrigée au passage.
 * **`pixels::luma()` doit être refait deux fois** : ses coefficients
   s'appliqueront enfin à de la lumière linéaire (ce qu'ils supposaient), et les
   bons coefficients dans le nouvel espace sont ceux de Rec. 2020
@@ -238,6 +258,15 @@ bit n'est donc un critère que pour la première moitié du chantier.
   annulé : ADR 0015 décrivait correctement la V1, et l'élargissement *en
   sortie* d'ADR 0027 reste exact et utile — il devient simplement la seconde
   moitié d'une histoire dont celle-ci est la première.
+* **Le rendu de sortie doit choisir entre récupérer et garder le blanc.**
+  Une épaule qui ramène la marge sous le blanc déplace forcément le blanc
+  lui-même : c'est arithmétique, aucune formule n'y échappe. L'épaule
+  retenue est une quadratique qui atteint le blanc à une entrée *finie*
+  (`2 − genou`) plutôt qu'asymptotiquement — une asymptote signifierait que
+  plus rien dans l'image n'est jamais blanc, ce qui sur un sujet blanc se
+  lit comme un voile gris et non comme des hautes lumières récupérées. Le
+  curseur va de « écrêtage franc » (le comportement d'avant) à une épaule
+  d'environ 0,6 EV.
 * **Le risque principal est le comportement au-dessus de 1**, pas la matrice de
   changement d'espace. Une matrice se vérifie sur trois patches ; un opérateur
   conçu pour [0, 1] et nourri de 4.0 produit du plausible-mais-faux, ce qu'aucun

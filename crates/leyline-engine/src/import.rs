@@ -176,7 +176,7 @@ fn import_one(
         // (`docs/pipeline.md` §3.3): neutral values, plus the versions of the
         // stages a neutral revision still runs — the two that frame the
         // pipeline (ADR 0044 §3).
-        &crate::stages::neutral_settings(),
+        &initial_settings(media_type),
     )?;
     if let Some(raw) = raw {
         catalog.set_metadata(registered.asset, &exif_metadata(&raw))?;
@@ -185,6 +185,24 @@ fn import_one(
         registered,
         relative_path,
     })
+}
+
+/// The develop state a newly imported file starts from.
+///
+/// Neutral, with one decision taken from the file's type: a JPEG, PNG or
+/// TIFF carries no highlight headroom — its white *is* white — so it starts
+/// with the roll-off off, and imports that used to round-trip unchanged
+/// still do. A RAW starts with the default shoulder, because it has
+/// headroom to spend on it (ADR 0044 §3).
+///
+/// It is an opening value, not a rule: the setting is recorded in the
+/// revision like any other, and the user can move it either way.
+fn initial_settings(media_type: MediaType) -> leyline_core::Settings {
+    let mut settings = crate::stages::neutral_settings();
+    if !matches!(media_type, MediaType::Raw | MediaType::Dng) {
+        settings.output_rendering.highlight_rolloff = 0;
+    }
+    settings
 }
 
 /// Collects candidate files under `source`, hidden entries excluded.
@@ -391,6 +409,7 @@ mod tests {
             gps_latitude: None,
             gps_longitude: None,
             gps_altitude: None,
+            camera_to_xyz: None,
         }
     }
 

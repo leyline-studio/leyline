@@ -30,6 +30,25 @@ void leyline_shim_set_options(libraw_data_t *d, int use_camera_wb,
     }
 }
 
+/* --- colorimetry ------------------------------------------------------ */
+
+/* The camera's XYZ->camera matrix, as LibRaw fills it during identify from
+ * its per-model table. Rows are camera channels, columns X, Y, Z; the 4th
+ * row (a 4-color sensor's emerald) is not copied — the develop pipeline is
+ * three-channel throughout. Returns 0 when LibRaw knows no matrix for this
+ * body, which is the caller's cue to fall back rather than to invert zeros. */
+int leyline_shim_cam_xyz(const libraw_data_t *d, double out[9]) {
+    int nonzero = 0;
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            double v = (double)d->color.cam_xyz[i][j];
+            out[i * 3 + j] = v;
+            if (v != 0.0) nonzero = 1;
+        }
+    }
+    return nonzero;
+}
+
 /* --- identification metadata ----------------------------------------- */
 
 const char *leyline_shim_make(const libraw_data_t *d) { return d->idata.make; }

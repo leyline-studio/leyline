@@ -81,6 +81,110 @@ pub(crate) fn tables() -> &'static ([f32; LUT_SIZE + 1], [f32; LUT_SIZE + 1]) {
     })
 }
 
+/// Linear working-space value → the display axis tone operators are defined
+/// on (ADR 0044).
+///
+/// The sRGB transfer function, **extended above 1**: the formula is
+/// evaluated directly there instead of being clamped, so a highlight two
+/// stops above white comes back as a display value above 1 and survives the
+/// operator instead of being flattened onto it. Below 1 it is the frozen
+/// table of ADR 0013, unchanged — the tone sliders keep the response they
+/// were calibrated on.
+///
+/// Negative input cannot occur: the buffer's floor is 0 (ADR 0044 §2).
+pub(crate) fn display(linear: f32) -> f32 {
+    if linear <= 1.0 {
+        lookup(&tables().1, linear)
+    } else {
+        exact_linear_to_srgb(linear)
+    }
+}
+
+/// The inverse of [`display`], likewise extended above 1.
+pub(crate) fn linear(display: f32) -> f32 {
+    if display <= 1.0 {
+        lookup(&tables().0, display)
+    } else {
+        exact_srgb_to_linear(display)
+    }
+}
+
+/// Runs `op` with the buffer on the display axis, and restores the linear
+/// working space afterwards.
+///
+/// Why any operator would want that: a tone control is a statement about
+/// *perceived* lightness. "Contrast +35" means the same thing to a user
+/// whatever the scene's absolute luminance, and an S-curve applied to
+/// linear light would not deliver it — it would crush the shadows and
+/// barely touch the highlights. So the operators that reshape tone declare
+/// this axis, and the ones that describe light itself — white balance,
+/// exposure, vignetting, every geometric resampling — stay linear, where
+/// they belong.
+///
+/// What changes versus the pipeline before ADR 0044 is not the axis, it is
+/// what happens at its ends: nothing is clamped to 1 on the way back, so
+/// highlight headroom crosses the operator instead of dying in it.
+pub(crate) fn in_display(px: &mut Pixels, op: impl FnOnce(&mut Pixels)) {
+    par_rows(px, |row| {
+        for sample in row {
+            *sample = display(*sample);
+        }
+    });
+    op(px);
+    par_rows(px, |row| {
+        for sample in row {
+            *sample = linear(sample.max(0.0));
+        }
+    });
+}
+
+/// Applies a per-channel tone curve defined on `[0, 1]` to a buffer already
+/// on the display axis, extending it above 1 by the curve's own gain at
+/// white (`f(1)`).
+///
+/// A curve is only ever drawn over the display range; the values above it
+/// are headroom, and the honest thing to do with them is to move them by
+/// the same factor the curve moves white — continuous at 1, monotonic
+/// throughout, and never a cliff where a highlight suddenly stops
+/// responding to a slider.
+pub(crate) fn display_curve(px: &mut Pixels, f: impl Fn(f32) -> f32 + Send + Sync) {
+    let at_white = f(1.0);
+    par_rows(px, |row| {
+        for sample in row {
+            *sample = if *sample <= 1.0 {
+                f(*sample)
+            } else {
+                *sample * at_white
+            };
+        }
+    });
+}
+
+/// Runs `f` on a display-axis pixel whose headroom has been divided out,
+/// then puts the headroom back.
+///
+/// The chroma operators — the HSL mixer, color grading, vibrance and
+/// saturation — are all defined on a `[0, 1]` cube: hue and saturation stop
+/// meaning anything outside it. Rather than clamp (which would throw the
+/// headroom away) or refuse (which would make them useless on bright
+/// pixels), the pixel is scaled down to fit the cube, adjusted there, and
+/// scaled back. The color decision is unchanged; only the magnitude is put
+/// back where it was.
+pub(crate) fn preserving_headroom(rgb: &mut [f32], f: impl Fn(&mut [f32])) {
+    let peak = rgb.iter().fold(1.0f32, |m, &v| m.max(v));
+    if peak > 1.0 {
+        for sample in rgb.iter_mut() {
+            *sample /= peak;
+        }
+    }
+    f(rgb);
+    if peak > 1.0 {
+        for sample in rgb.iter_mut() {
+            *sample *= peak;
+        }
+    }
+}
+
 /// Approximate color of a blackbody radiator, gamma-encoded RGB in (0, 1].
 ///
 /// Tanner Helland's polynomial fit, frozen as part of process 2 and carried
@@ -123,7 +227,10 @@ pub(crate) fn luma_plane(px: &Pixels) -> Vec<f32> {
     out
 }
 
-/// Adds a per-pixel delta to all three channels (a pure luma shift).
+/// Adds a per-pixel delta to all three channels (a pure luma shift), on the
+/// display axis. Only [`in_display`] callers use it, and nothing is clamped
+/// upward any more: a highlight above white keeps its headroom across the
+/// operator (ADR 0044 §2).
 pub(crate) fn add_luma_delta(px: &mut Pixels, delta: impl Fn(usize) -> f32 + Sync) {
     let width = px.width as usize;
     px.data
@@ -133,7 +240,7 @@ pub(crate) fn add_luma_delta(px: &mut Pixels, delta: impl Fn(usize) -> f32 + Syn
             for (x, rgb) in row.chunks_exact_mut(3).enumerate() {
                 let d = delta(y * width + x);
                 for sample in rgb {
-                    *sample = (*sample + d).clamp(0.0, 1.0);
+                    *sample = (*sample + d).max(0.0);
                 }
             }
         });
@@ -270,29 +377,35 @@ pub(crate) fn approx_blur(plane: &[f32], width: usize, height: usize, sigma: f32
 /// on big previews/exports (`docs/engine-api.md` §11).
 pub(crate) fn local_contrast(px: &mut Pixels, amount: i32, radius_px: f32) {
     let k = f32::from(amount as i16) / 100.0;
-    let plane = luma_plane(px);
-    let blurred = approx_blur(&plane, px.width as usize, px.height as usize, radius_px);
-    add_luma_delta(px, |i| k * (plane[i] - blurred[i]));
+    in_display(px, |px| {
+        let plane = luma_plane(px);
+        let blurred = approx_blur(&plane, px.width as usize, px.height as usize, radius_px);
+        add_luma_delta(px, |i| k * (plane[i] - blurred[i]));
+    });
 }
 
 /// Scales chroma around the pixel's luma. Plain `saturation` applies the
 /// factor uniformly; `vibrance` weights it by `1 − chroma`.
 pub(crate) fn saturate(px: &mut Pixels, amount: i32, vibrance: bool) {
     let k = f32::from(amount as i16) / 100.0;
-    par_rows(px, |row| {
-        for rgb in row.chunks_exact_mut(3) {
-            let l = luma(rgb);
-            let factor = if vibrance {
-                let chroma = rgb.iter().fold(0.0f32, |m, &v| m.max(v))
-                    - rgb.iter().fold(1.0f32, |m, &v| m.min(v));
-                1.0 + k * (1.0 - chroma)
-            } else {
-                1.0 + k
-            };
-            for sample in rgb {
-                *sample = (l + (*sample - l) * factor).clamp(0.0, 1.0);
+    in_display(px, |px| {
+        par_rows(px, |row| {
+            for rgb in row.chunks_exact_mut(3) {
+                preserving_headroom(rgb, |rgb| {
+                    let l = luma(rgb);
+                    let factor = if vibrance {
+                        let chroma = rgb.iter().fold(0.0f32, |m, &v| m.max(v))
+                            - rgb.iter().fold(1.0f32, |m, &v| m.min(v));
+                        1.0 + k * (1.0 - chroma)
+                    } else {
+                        1.0 + k
+                    };
+                    for sample in rgb {
+                        *sample = (l + (*sample - l) * factor).clamp(0.0, 1.0);
+                    }
+                });
             }
-        }
+        });
     });
 }
 

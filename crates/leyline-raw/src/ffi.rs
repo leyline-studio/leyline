@@ -47,6 +47,7 @@ unsafe extern "C" {
         no_auto_bright: c_int,
         camera_native: c_int,
     );
+    pub(crate) fn leyline_shim_cam_xyz(data: *const LibrawData, out: *mut f64) -> c_int;
     pub(crate) fn leyline_shim_make(data: *const LibrawData) -> *const c_char;
     pub(crate) fn leyline_shim_model(data: *const LibrawData) -> *const c_char;
     pub(crate) fn leyline_shim_lens_make(data: *const LibrawData) -> *const c_char;

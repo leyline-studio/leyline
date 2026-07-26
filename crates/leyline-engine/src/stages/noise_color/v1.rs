@@ -8,12 +8,19 @@
 use rayon::prelude::*;
 
 use crate::pixels::Pixels;
-use crate::stages::kernel::v1::{gaussian_blur, luma_plane};
+use crate::stages::kernel::v1::{gaussian_blur, in_display, luma_plane};
 
 /// Blends the chroma planes (per-channel deviation from luma) toward their
 /// Gaussian blur.
 pub(crate) fn color_noise_reduction(px: &mut Pixels, strength: i32, scale: f32) {
     let k = f32::from(strength as i16) / 100.0;
+    in_display(px, |px| smooth_chroma(px, k, scale));
+}
+
+/// The smoothing itself, on a display-axis buffer: chroma is a channel's
+/// deviation from luma, which is only a meaningful quantity on a bounded
+/// axis.
+fn smooth_chroma(px: &mut Pixels, k: f32, scale: f32) {
     let (w, h) = (px.width as usize, px.height as usize);
     let plane = luma_plane(px);
     for channel in 0..3 {
@@ -28,7 +35,7 @@ pub(crate) fn color_noise_reduction(px: &mut Pixels, strength: i32, scale: f32) 
                 for x in 0..w {
                     let i = y * w + x;
                     let smoothed = chroma[i] + k * (blurred[i] - chroma[i]);
-                    row[x * 3 + channel] = (plane[i] + smoothed).clamp(0.0, 1.0);
+                    row[x * 3 + channel] = (plane[i] + smoothed).max(0.0);
                 }
             });
     }

@@ -256,9 +256,23 @@ mod tests {
 
         let edge = 150;
         let (proxy_image, scale) = downscale_to_fit(&image, edge);
-        let proxy = crate::render::render_scaled(&proxy_image, &settings, None, None, scale)
-            .expect("proxy render");
-        let full = crate::render::render(&image, &settings, None, None).expect("full render");
+        let proxy = crate::render::render_scaled(
+            &proxy_image,
+            &settings,
+            None,
+            None,
+            crate::stages::SourceColor::Camera { to_xyz: None },
+            scale,
+        )
+        .expect("proxy render");
+        let full = crate::render::render(
+            &image,
+            &settings,
+            None,
+            None,
+            crate::stages::SourceColor::Camera { to_xyz: None },
+        )
+        .expect("full render");
         let full_reduced = leyline_preview::Rgb8::new(full.width, full.height, full.data)
             .unwrap()
             .scaled_to_fit(edge);

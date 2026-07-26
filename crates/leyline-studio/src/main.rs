@@ -3132,6 +3132,7 @@ fn dev_model(settings: &Settings) -> ui::DevSettings {
         clarity: settings.clarity as f32,
         texture: settings.texture as f32,
         dehaze: settings.dehaze as f32,
+        highlight_rolloff: settings.output_rendering.highlight_rolloff as f32,
         vibrance: settings.vibrance as f32,
         saturation: settings.saturation as f32,
         wb_temp: wb.temperature as f32,

@@ -12,6 +12,7 @@
 use rayon::prelude::*;
 
 use crate::pixels::Pixels;
+use crate::stages::kernel::v1::in_display;
 
 /// Neighborhood radius (pixels) of the dark channel's local-minimum filter
 /// — He et al.'s "patch size", conventionally an odd window around 15px.
@@ -38,6 +39,15 @@ pub(crate) const DEHAZE_MIN_TRANSMISSION: f32 = 0.1;
 /// solver, nothing whose result depends on an initial guess or a
 /// convergence tolerance (`docs/pipeline.md` §5).
 pub(crate) fn dehaze(px: &mut Pixels, amount: i32, scale: f32) {
+    // The dark-channel prior is stated on a bounded axis: the atmospheric
+    // light is "how bright the haze is", and the transmission a fraction of
+    // it. On the display axis those quantities keep the meaning ADR 0033
+    // gave them (`in_display`, ADR 0044).
+    in_display(px, |px| dark_channel_prior(px, amount, scale));
+}
+
+/// The prior itself, on a display-axis buffer.
+fn dark_channel_prior(px: &mut Pixels, amount: i32, scale: f32) {
     let width = px.width as usize;
     let height = px.height as usize;
     let k = f32::from(amount as i16) / 100.0;
@@ -77,13 +87,16 @@ pub(crate) fn dehaze(px: &mut Pixels, amount: i32, scale: f32) {
                     (1.0 - DEHAZE_OMEGA * normalized_dark[i]).max(DEHAZE_MIN_TRANSMISSION);
                 if k >= 0.0 {
                     for (sample, &a) in rgb.iter_mut().zip(atmosphere.iter()) {
-                        let recovered = ((*sample - a) / transmission + a).clamp(0.0, 1.0);
-                        *sample = (*sample + (recovered - *sample) * k).clamp(0.0, 1.0);
+                        // No ceiling: a recovered highlight that lands
+                        // above white is headroom, and the output stage is
+                        // what decides its fate (ADR 0044 §2).
+                        let recovered = ((*sample - a) / transmission + a).max(0.0);
+                        *sample = (*sample + (recovered - *sample) * k).max(0.0);
                     }
                 } else {
                     let haze_amount = (1.0 - transmission) * -k;
                     for (sample, &a) in rgb.iter_mut().zip(atmosphere.iter()) {
-                        *sample = (*sample + (a - *sample) * haze_amount).clamp(0.0, 1.0);
+                        *sample = (*sample + (a - *sample) * haze_amount).max(0.0);
                     }
                 }
             }

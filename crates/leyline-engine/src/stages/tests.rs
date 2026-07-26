@@ -27,6 +27,15 @@ use super::texture::v1::TEXTURE_RADIUS;
 use super::tone_curve::v1::{build_curve_lut, curve_lookup};
 use super::*;
 
+/// The neutral rendering of `image`: the same file with no operator
+/// running. Since ADR 0044 that is not the decoded bytes any more — the
+/// decoder hands over the sensor's linear numbers and the `input` and
+/// `output_rendering` stages always run — so it is what every "this
+/// operator left the image alone" assertion compares against.
+fn neutral(image: &RawImage) -> Rendered {
+    develop(image, &Settings::default(), None, None).unwrap()
+}
+
 /// Full-resolution [`develop_scaled`], the shape every test here
 /// exercises: the proxy factor (ADR 0041) is a preview-path concern,
 /// not a pipeline-math one.
@@ -36,7 +45,14 @@ fn develop(
     shot: Option<&LensShot>,
     camera_profile: Option<&DcpProfile>,
 ) -> Result<Rendered> {
-    super::develop_scaled(image, settings, shot, camera_profile, 1.0)
+    super::develop_scaled(
+        image,
+        settings,
+        shot,
+        camera_profile,
+        SourceColor::Camera { to_xyz: None },
+        1.0,
+    )
 }
 
 #[test]
@@ -124,7 +140,7 @@ fn a_disabled_lens_correction_is_not_recorded_and_does_not_run() {
 fn no_shot_leaves_the_image_unchanged_even_when_enabled() {
     let image = test_image(64, 48);
     let out = develop(&image, &enabled_settings(), None, None).unwrap();
-    assert_eq!(out.data, image.data);
+    assert_eq!(out.data, neutral(&image).data);
 }
 
 #[test]
@@ -139,7 +155,7 @@ fn unmatched_gear_leaves_the_image_unchanged() {
         aperture_f: Some(2.8),
     };
     let out = develop(&image, &enabled_settings(), Some(&shot), None).unwrap();
-    assert_eq!(out.data, image.data);
+    assert_eq!(out.data, neutral(&image).data);
 }
 
 #[test]
@@ -160,7 +176,7 @@ fn disabled_setting_ignores_a_matched_profile() {
         ..Settings::default()
     };
     let out = develop(&image, &settings, Some(&canon_shot(20.0)), None).unwrap();
-    assert_eq!(out.data, image.data);
+    assert_eq!(out.data, neutral(&image).data);
 }
 
 // -------------------------------------------------------------------
@@ -334,17 +350,21 @@ fn a_full_opacity_hard_edged_clone_copies_the_source_disk_onto_the_target() {
         ..Settings::default()
     };
     let out = develop(&image, &settings, None, None).unwrap();
-    let idx = (16 * width as usize + 20) * 3;
+    // Compared through the neutral rendering: the source's own bytes are
+    // camera numbers, not output pixels (ADR 0044).
+    let base = neutral(&image);
+    let at = |x: usize, y: usize| (y * width as usize + x) * 3;
+    let (target, source) = (at(20, 16), at(4, 4));
     assert_eq!(
-        &out.data[idx..idx + 3],
-        &[200, 40, 40],
+        &out.data[target..target + 3],
+        &base.data[source..source + 3],
         "the target pixel should now match the marker it cloned"
     );
     // Far outside the target disk, the background is untouched.
-    let untouched_idx = (2 * width as usize + 2) * 3;
+    let untouched = at(2, 2);
     assert_eq!(
-        &out.data[untouched_idx..untouched_idx + 3],
-        &image.data[untouched_idx..untouched_idx + 3]
+        &out.data[untouched..untouched + 3],
+        &base.data[untouched..untouched + 3]
     );
 }
 
@@ -383,11 +403,10 @@ fn sample_dcp_profile(color_matrix: [[f64; 3]; 3]) -> DcpProfile {
 
 #[test]
 fn a_camera_profile_changes_the_pixels_and_stays_deterministic() {
-    // With no profile the neutral rendering is the decoded image bit for
-    // bit (ADR 0035); with one, it is not.
+    // A profile changes the colorimetry the pipeline starts from, so it
+    // changes the pixels — that is the whole of what it does (ADR 0035).
     let image = test_image(16, 12);
-    let neutral = develop(&image, &Settings::default(), None, None).unwrap();
-    assert_eq!(neutral.data, image.data);
+    let without = neutral(&image);
 
     // The revision declares the profile; the caller resolves it. Both are
     // needed — a declared-but-unresolvable profile fails the render before
@@ -403,7 +422,7 @@ fn a_camera_profile_changes_the_pixels_and_stays_deterministic() {
     };
     let profile = sample_dcp_profile([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]);
     let profiled = develop(&image, &settings, None, Some(&profile)).unwrap();
-    assert_ne!(profiled.data, neutral.data);
+    assert_ne!(profiled.data, without.data);
 
     // Same inputs, same pixels — the §5 reproducibility contract.
     let again = develop(&image, &settings, None, Some(&profile)).unwrap();
@@ -426,7 +445,7 @@ fn zero_opacity_leaves_the_image_unchanged() {
         ..Settings::default()
     };
     let out = develop(&image, &settings, None, None).unwrap();
-    assert_eq!(out.data, image.data);
+    assert_eq!(out.data, neutral(&image).data);
 }
 
 #[test]
@@ -1410,22 +1429,28 @@ fn a_revision_renders_through_the_stage_version_it_records() {
     let v2 = develop(&image, &fixture_settings(Some(2)), None, None).unwrap();
     assert_ne!(v1.data, v2.data, "the two versions must be tellable apart");
 
-    let expected_v1 = (255.0 * fixture::V1_LIFT).round() as u8;
-    let expected_v2 = (255.0 * fixture::V2_LIFT).round() as u8;
-    let black = crate::render::render(
-        &RawImage {
-            width: 16,
-            height: 12,
-            bits: 8,
-            data: vec![0; 16 * 12 * 3],
-        },
-        &fixture_settings(Some(1)),
-        None,
-        None,
-    )
-    .unwrap();
-    assert_eq!(black.data[0], expected_v1);
-    assert!(expected_v2 > expected_v1);
+    // On black, each version's lift is the only light in the buffer, so
+    // the rendered value is that lift carried through the output stage —
+    // which is exactly the point: the two versions are told apart by their
+    // pixels, not by their numbers.
+    let black = RawImage {
+        width: 16,
+        height: 12,
+        bits: 8,
+        data: vec![0; 16 * 12 * 3],
+    };
+    let lifted = |version: u16| {
+        develop(&black, &fixture_settings(Some(version)), None, None)
+            .unwrap()
+            .data[0]
+    };
+    assert!(
+        lifted(2) > lifted(1),
+        "the newer version lifts further: {} vs {}",
+        lifted(2),
+        lifted(1)
+    );
+    assert!(lifted(1) > 0, "and the older one still lifts");
 }
 
 #[test]
@@ -1467,7 +1492,7 @@ fn every_published_version_declares_the_space_it_renders_in() {
         for version in stage.versions {
             assert_eq!(
                 version.space,
-                Space::SrgbGamma,
+                Space::LinearRec2020,
                 "{}::v{} declares an unexpected space",
                 stage.name,
                 version.version
@@ -1480,11 +1505,11 @@ fn every_published_version_declares_the_space_it_renders_in() {
 fn stages_agreeing_on_one_space_compose() {
     assert_eq!(
         super::single_space([
-            ("input", 1, Space::SrgbGamma),
-            ("gains", 1, Space::SrgbGamma),
+            ("input", 1, Space::LinearRec2020),
+            ("gains", 1, Space::LinearRec2020),
         ])
         .unwrap(),
-        Some(Space::SrgbGamma)
+        Some(Space::LinearRec2020)
     );
     assert_eq!(super::single_space([]).unwrap(), None);
 }
@@ -1496,8 +1521,8 @@ fn two_working_spaces_in_one_plan_are_refused_by_name() {
     // so the render is refused — and the message names both sides, since
     // "your revision is inconsistent" is not actionable on its own.
     let refused = super::single_space([
-        ("gains", 1, Space::SrgbGamma),
-        ("hsl", 2, Space::LinearRec2020),
+        ("gains", 1, Space::LinearRec2020),
+        ("hsl", 2, Space::SrgbGamma),
     ]);
     let Err(LeylineError::MixedWorkingSpaces {
         stage,
@@ -1518,13 +1543,13 @@ fn a_revision_reads_its_space_off_the_versions_it_records() {
     // No record at all: the space this engine renders in today.
     assert_eq!(
         super::revision_space(&Settings::default()),
-        Space::SrgbGamma
+        Space::LinearRec2020
     );
     let settings = Settings {
         stages: leyline_core::StageVersions::from([("gains".to_owned(), 1)]),
         ..Settings::default()
     };
-    assert_eq!(super::revision_space(&settings), Space::SrgbGamma);
+    assert_eq!(super::revision_space(&settings), Space::LinearRec2020);
 }
 
 #[test]
@@ -1538,10 +1563,10 @@ fn a_newly_active_stage_pins_a_version_of_the_revisions_own_space() {
     // its newest version so the mismatch is refused by name rather than
     // silently resolved.
     assert_eq!(
-        stage.current_in(Space::SrgbGamma).map(|v| v.version),
+        stage.current_in(Space::LinearRec2020).map(|v| v.version),
         Some(stage.current().version)
     );
-    assert!(stage.current_in(Space::LinearRec2020).is_none());
+    assert!(stage.current_in(Space::SrgbGamma).is_none());
     assert_eq!(
         super::pinned_version(stage, &Settings::default()).version,
         stage.current().version
@@ -1553,23 +1578,20 @@ fn the_decoder_configuration_comes_from_the_input_version() {
     // ADR 0044 §3: this used to be `camera_native: camera_profile.is_some()`
     // repeated in four modules and recorded nowhere.
     let settings = Settings::default();
-    let without = crate::stages::decode_params(
-        &settings,
-        crate::stages::InputRequest {
-            has_camera_profile: false,
-            half_size: true,
-        },
-    );
-    assert!(!without.camera_native);
-    assert!(without.half_size);
-
-    let with = crate::stages::decode_params(
-        &settings,
-        crate::stages::InputRequest {
-            has_camera_profile: true,
-            half_size: false,
-        },
-    );
-    assert!(with.camera_native, "a DCP matrix needs camera-native input");
-    assert!(!with.half_size);
+    for half_size in [false, true] {
+        let params = crate::stages::decode_params(&settings, half_size);
+        assert!(
+            params.camera_native,
+            "the working space is built here, never by the decoder"
+        );
+        assert!(
+            params.sixteen_bit,
+            "eight-bit linear would band the shadows"
+        );
+        assert!(!params.auto_brighten, "the neutral render is content-blind");
+        assert_eq!(
+            params.half_size, half_size,
+            "the size class is the caller's"
+        );
+    }
 }

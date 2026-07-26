@@ -106,6 +106,35 @@ pub struct NoiseReduction {
     pub color: i32,
 }
 
+/// How the working buffer becomes a display signal (ADR 0044 §3).
+///
+/// The pipeline carries highlights above white — a window brighter than the
+/// wall beside it — all the way to the end. This says what becomes of them
+/// when the image has to fit on a screen or in a file.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct OutputRendering {
+    /// How far the highlight shoulder reaches, slider in [0, 100].
+    ///
+    /// `0` cuts the headroom off at white. Higher values start the shoulder
+    /// lower and bend more of it into the last stretch below white, so a
+    /// bright sky comes back as a bright sky instead of a white shape.
+    ///
+    /// Unlike every other slider here, its neutral value is not 0: there is
+    /// no "do nothing" for this stage — the buffer has to reach the display
+    /// somehow — so the default is a rendering choice, frozen with the
+    /// stage version that reads it.
+    pub highlight_rolloff: i32,
+}
+
+impl Default for OutputRendering {
+    fn default() -> Self {
+        Self {
+            highlight_rolloff: 50,
+        }
+    }
+}
+
 /// Sharpening step. Neutral: amount 0.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -449,6 +478,10 @@ pub struct Settings {
     /// Sharpening step.
     pub sharpening: Sharpening,
 
+    /// How the working buffer becomes a display signal (ADR 0044 §3). Has
+    /// no neutral value: some rendering always happens.
+    pub output_rendering: OutputRendering,
+
     /// Rotation in degrees, clockwise. Neutral: 0.
     pub rotation: f64,
     /// Crop rectangle; `None` = full frame (neutral).
@@ -486,6 +519,7 @@ impl Default for Settings {
             local_adjustments: Vec::new(),
             lens_correction: LensCorrection::default(),
             noise_reduction: NoiseReduction::default(),
+            output_rendering: OutputRendering::default(),
             sharpening: Sharpening::default(),
             rotation: 0.0,
             crop: None,
@@ -785,6 +819,12 @@ impl Settings {
             100,
         )?;
         slider("noise_reduction.color", self.noise_reduction.color, 0, 100)?;
+        slider(
+            "output_rendering.highlight_rolloff",
+            self.output_rendering.highlight_rolloff,
+            0,
+            100,
+        )?;
         slider("sharpening.amount", self.sharpening.amount, 0, 100)?;
         finite("sharpening.radius", self.sharpening.radius)?;
         if self.sharpening.radius <= 0.0 {

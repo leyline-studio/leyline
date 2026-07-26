@@ -126,13 +126,7 @@ pub(crate) fn render_print(
         &plan.develop,
         &plan.source,
     )?;
-    let decode_params = crate::stages::decode_params(
-        &plan.develop,
-        crate::stages::InputRequest {
-            has_camera_profile: camera_profile.is_some(),
-            half_size: false,
-        },
-    );
+    let decode_params = crate::stages::decode_params(&plan.develop, false);
     let decoded = crate::source::decode(&plan.source, &decode_params).map_err(|e| {
         LeylineError::DecodeFailed {
             asset: plan.asset,
@@ -144,6 +138,7 @@ pub(crate) fn render_print(
         &plan.develop,
         plan.shot.as_ref(),
         camera_profile.as_ref(),
+        crate::source::color(&plan.source),
     )?;
 
     let image = Rgb8::new(rendered.width, rendered.height, rendered.data)

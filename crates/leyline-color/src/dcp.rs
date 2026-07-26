@@ -136,6 +136,20 @@ impl DcpProfile {
         let xyz = apply(self.camera_to_xyz_d50, camera_rgb);
         apply(XYZ_D50_TO_LINEAR_SRGB, xyz)
     }
+
+    /// Converts one linear camera-native RGB sample into the pipeline's
+    /// working space, linear Rec. 2020 (ADR 0044 §1), through this profile's
+    /// camera→XYZ(D50) matrix, the Bradford adaptation to D65 and the
+    /// standard XYZ→Rec. 2020 matrix.
+    ///
+    /// Nothing is clipped on the way: a color the working space cannot hold
+    /// would come out negative, and it is the *output* stage's business to
+    /// decide what happens to it, not this one's.
+    pub fn camera_to_linear_rec2020(&self, camera_rgb: [f64; 3]) -> [f64; 3] {
+        let xyz_d50 = apply(self.camera_to_xyz_d50, camera_rgb);
+        let xyz_d65 = apply(BRADFORD_D50_TO_D65, xyz_d50);
+        crate::working_space::apply_matrix(crate::working_space::XYZ_D65_TO_REC2020, xyz_d65)
+    }
 }
 
 /// The standard XYZ (D50) to linear sRGB matrix (Bruce Lindbloom's
@@ -145,6 +159,14 @@ const XYZ_D50_TO_LINEAR_SRGB: Matrix3 = [
     [3.1338561, -1.6168667, -0.4906146],
     [-0.9787684, 1.9161415, 0.0334540],
     [0.0719453, -0.2289914, 1.4052427],
+];
+
+/// Bradford chromatic adaptation from D50 — the illuminant DNG color
+/// matrices are defined against — to D65, the working space's white point.
+const BRADFORD_D50_TO_D65: Matrix3 = [
+    [0.955_576_6, -0.023_039_3, 0.063_163_6],
+    [-0.028_289_5, 1.009_941_6, 0.021_007_7],
+    [0.012_298_2, -0.020_483_0, 1.329_909_8],
 ];
 
 /// Applies a 3×3 matrix to a 3-vector.
@@ -169,7 +191,7 @@ fn average(a: Matrix3, b: Matrix3) -> Matrix3 {
 }
 
 /// 3×3 matrix inverse via the adjugate/determinant, `None` when singular.
-fn invert(m: Matrix3) -> Option<Matrix3> {
+pub(crate) fn invert(m: Matrix3) -> Option<Matrix3> {
     let det = m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
         - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
         + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);

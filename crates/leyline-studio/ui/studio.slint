@@ -70,6 +70,7 @@ export struct DevSettings {
     clarity: float,
     texture: float,
     dehaze: float,
+    highlight-rolloff: float,
     vibrance: float,
     saturation: float,
     wb-temp: float,
@@ -1407,6 +1408,15 @@ export component StudioWindow inherits Window {
                                 value: root.dev.dehaze;
                                 edited(v) => {
                                     root.develop-edit("dehaze", v);
+                                }
+                            }
+                            EditSlider {
+                                label: @tr("Highlight roll-off");
+                                minimum: 0;
+                                maximum: 100;
+                                value: root.dev.highlight-rolloff;
+                                edited(v) => {
+                                    root.develop-edit("highlight-rolloff", v);
                                 }
                             }
                             EditSlider {

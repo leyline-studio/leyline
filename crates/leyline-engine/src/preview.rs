@@ -140,13 +140,7 @@ pub(crate) fn render_preview(
         &plan.settings,
         &plan.source_path,
     )?;
-    let params = crate::stages::decode_params(
-        &plan.settings,
-        crate::stages::InputRequest {
-            has_camera_profile: camera_profile.is_some(),
-            half_size: plan.half_size,
-        },
-    );
+    let params = crate::stages::decode_params(&plan.settings, plan.half_size);
     let decoded = decodes
         .get_or_insert_with(asset, &params, || {
             crate::source::decode(&plan.source_path, &params)
@@ -161,6 +155,7 @@ pub(crate) fn render_preview(
         &plan.settings,
         plan.shot.as_ref(),
         camera_profile.as_ref(),
+        crate::source::color(&plan.source_path),
         scale,
     )?;
     Rgb8::new(rendered.width, rendered.height, rendered.data).map_err(preview_err)
@@ -241,13 +236,7 @@ pub(crate) fn render_with_settings(
         settings,
         &plan.source_path,
     )?;
-    let params = crate::stages::decode_params(
-        settings,
-        crate::stages::InputRequest {
-            has_camera_profile: camera_profile.is_some(),
-            half_size: plan.half_size,
-        },
-    );
+    let params = crate::stages::decode_params(settings, plan.half_size);
     let decoded = decodes
         .get_or_insert_with(asset, &params, || {
             crate::source::decode(&plan.source_path, &params)
@@ -262,6 +251,7 @@ pub(crate) fn render_with_settings(
         settings,
         plan.shot.as_ref(),
         camera_profile.as_ref(),
+        crate::source::color(&plan.source_path),
         scale,
     )?;
     Rgb8::new(rendered.width, rendered.height, rendered.data).map_err(preview_err)

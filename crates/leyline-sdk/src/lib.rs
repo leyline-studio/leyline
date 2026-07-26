@@ -19,8 +19,8 @@ pub use leyline_engine::{
     ExportReport, ExportRequest, ExportedVersion, FailedApply, FailedExport, FailedPrint,
     FailedReprocess, ImportOptions, ImportReport, ImportedCameraProfile, ImportedFile, JobResult,
     Library, Param, PresetApplyReport, Preview, PreviewFile, PrintRecipe, PrintReport,
-    PrintRequest, PrintedVersion, ReprocessReport, Rgb8, SkippedFile, Value, WatchError,
-    WatchSessionEvent, WatchedFile, neutral_settings,
+    PrintRequest, PrintedVersion, ReprocessReport, Rgb8, SkippedFile, SourceColor, Value,
+    WatchError, WatchSessionEvent, WatchedFile, neutral_settings,
 };
 
 pub use leyline_catalog::{

@@ -33,6 +33,7 @@ pub fn action(slider: &str, value: f64, current: &Settings) -> Option<(Param, Va
         "clarity" => (Param::Clarity, int),
         "texture" => (Param::Texture, int),
         "dehaze" => (Param::Dehaze, int),
+        "highlight-rolloff" => (Param::HighlightRolloff, int),
         "vibrance" => (Param::Vibrance, int),
         "saturation" => (Param::Saturation, int),
         // Toggling only ever flips `enabled` on a profile the user has

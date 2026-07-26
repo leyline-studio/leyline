@@ -126,11 +126,21 @@ Sortie (aperçu ou export)
 
 L'utilisateur règle des **valeurs**, jamais l'ordre.
 
-Les deux étages d'extrémité, `input` et `output_rendering`, encadrent le pipeline depuis [ADR 0044](adr/0044-linear-wide-gamut-working-space.md). Ils n'ont pas de valeur neutre — il n'existe pas de rendu sans entrée ni sortie — et sont donc les seuls que **toute** révision inscrit dans sa carte `stages`. `input` porte notamment la configuration demandée au décodeur, qui change les pixels et n'était épinglée nulle part avant cet ADR. L'**espace de travail** du tampon est une propriété déclarée par chaque version d'étage : deux versions d'espaces différents ne composent pas, et un plan qui les mélange **échoue** (`MixedWorkingSpaces`) au lieu d'être rendu au mieux. Migrer une révision d'un espace à l'autre est un retraitement (§4.5), donc une nouvelle révision.
+**L'espace de travail.** Entre les étages, le tampon est en **Rec. 2020, lumière linéaire, D65, borné en bas à 0 et non borné en haut** ([ADR 0044](adr/0044-linear-wide-gamut-working-space.md)). Trois conséquences, une par défaut que cet ADR corrige :
+
+* le gamut du capteur n'est plus écrêté avant le premier réglage — le rétrécissement vers l'espace de sortie a lieu une seule fois, tout à la fin ;
+* les hautes lumières au-dessus du blanc traversent le pipeline : +1 EV puis −1 EV redonne l'image de départ, et le curseur *hautes lumières* a de la matière à récupérer ;
+* les opérateurs qui décrivent la lumière (balance des blancs, exposition, vignettage) et tous les rééchantillonnages géométriques sont des multiplications et des sommes pondérées de lumière réelle.
+
+Les opérateurs de **tonalité**, eux, déclarent explicitement l'axe d'affichage (`in_display`) : un curseur de contraste est un énoncé sur la clarté *perçue*, et la même courbe appliquée à la lumière linéaire écraserait les ombres. Ce n'est pas un retour en arrière — rien n'y est écrêté à 1, l'axe est simplement celui sur lequel ces courbes ont un sens.
+
+Les deux étages d'extrémité, `input` et `output_rendering`, encadrent ce tampon. Ils n'ont pas de valeur neutre — il n'existe pas de rendu sans entrée ni sortie — et sont donc les seuls que **toute** révision inscrit dans sa carte `stages`. `input` porte la configuration demandée au décodeur (capteur natif linéaire, 16 bits) et la matrice qui amène ses pixels dans l'espace de travail ; `output_rendering` ramène le tampon non borné à un signal d'affichage, épaule des hautes lumières puis conversion vers l'espace de sortie.
+
+L'espace de travail est une propriété déclarée par chaque version d'étage : deux versions d'espaces différents ne composent pas, et un plan qui les mélange **échoue** (`MixedWorkingSpaces`) au lieu d'être rendu au mieux. Migrer une révision d'un espace à l'autre est un retraitement (§4.5), donc une nouvelle révision.
 
 Cet ordre fait partie du contrat de rendu : le modifier change les pixels produits, donc impose une nouvelle *version d'étage* déclarant un autre rang (§3.3).
 
-**Sources non-RAW.** Le catalogue accepte à l'import des fichiers JPEG, TIFF et PNG (catalogue §10). Ces fichiers entrent dans la même chaîne : ils sont décodés par des codecs natifs (orientation EXIF appliquée, échantillons normalisés en RGB 8 bits) et prennent la place de « RAW décodé » en tête de pipeline. Le décodage reste déterministe au même titre que LibRaw (§5). HEIF et PSD sont catalogués mais n'ont pas de décodeur en V1 : demander leurs pixels est une erreur explicite, pas un refus LibRaw.
+**Sources non-RAW.** Le catalogue accepte à l'import des fichiers JPEG, TIFF et PNG (catalogue §10). Ces fichiers entrent dans la même chaîne : ils sont décodés par des codecs natifs (orientation EXIF appliquée, échantillons normalisés en RGB 8 bits sRGB) et prennent la place de « RAW décodé » en tête de pipeline ; `input` décode alors leur fonction de transfert et tourne leurs primaires vers l'espace de travail. N'ayant aucune marge au-dessus du blanc, ils sont importés avec l'épaule de sortie à 0, si bien qu'un import non retouché ressort **au bit près** ce qu'il était. Le décodage reste déterministe au même titre que LibRaw (§5). HEIF et PSD sont catalogués mais n'ont pas de décodeur en V1 : demander leurs pixels est une erreur explicite, pas un refus LibRaw.
 
 ---
 
@@ -219,6 +229,7 @@ Jamais un delta.
     "lens_correction": { "enabled": true, "profile": "auto" },
     "noise_reduction": { "luminance": 15, "color": 25 },
     "sharpening": { "amount": 40, "radius": 1.0 },
+    "output_rendering": { "highlight_rolloff": 50 },
 
     "rotation": 0.0,
     "crop": { "x": 0.1, "y": 0.2, "width": 0.8, "height": 0.7 }
@@ -258,6 +269,7 @@ Valeurs neutres du schéma 1 :
 | `lens_correction` | `{ "enabled": false, "profile": "auto" }` |
 | `noise_reduction` | `{ "luminance": 0, "color": 0 }` |
 | `sharpening` | `{ "amount": 0, "radius": 1.0 }` |
+| `output_rendering` | `{ "highlight_rolloff": 50 }` — seul champ dont la valeur par défaut n'est pas « ne rien faire » : il n'existe pas de rendu sans sortie, donc c'est un choix de rendu, gelé avec la version d'étage qui le lit (ADR 0044 §3). L'import d'un JPEG/PNG/TIFF l'ouvre à 0, faute de marge à récupérer |
 | `rotation` | 0.0 |
 | `crop` | absent — image entière |
 
@@ -267,6 +279,7 @@ Valeurs neutres du schéma 1 :
 * `exposure` : EV ;
 * `rotation` : degrés, sens horaire ;
 * `crop` : coordonnées normalisées [0, 1] relatives à l'image **après** rotation ;
+* `output_rendering.highlight_rolloff` : 0 = écrêtage franc au blanc, 100 = épaule la plus longue ; récupérer de la marge coûte un peu de blanc, ce que le curseur permet d'arbitrer ;
 * les curseurs sans unité physique (`contrast`, `vibrance`...) : entiers dans [-100, +100], 0 = neutre ;
 * `hsl[].hue`, `color_grading.{shadows,midtones,highlights}.luminance`, `color_grading.balance` : entiers dans [-100, +100], 0 = neutre ;
 * `color_grading.{shadows,midtones,highlights}.hue` : degrés, entier dans [0, 360) ;
@@ -304,11 +317,11 @@ Le code de chaque version d'étage est conservé dans le moteur pour toujours : 
 
 | Rang | Étage | Version | Rôle |
 |---|---|---|---|
-| 0 | `input` | 1 | Configuration demandée au décodeur (sortie native capteur ou sRGB) et espace du tampon de travail ; toujours actif (ADR 0044) |
-| 10 | `camera_profile` | 1 | Matrice DCP boîtier → sRGB linéaire, avant tout le reste : elle établit l'espace du tampon de travail (ADR 0035, conteneur lu selon ADR 0037) |
+| 0 | `input` | 1 | Configuration demandée au décodeur (capteur natif, linéaire, 16 bits) et matrice vers l'espace de travail — profil DCP, matrice du boîtier, ou décodage sRGB pour un JPEG/PNG/TIFF ; toujours actif (ADR 0044) |
+| 10 | `camera_profile` | 1 | Matrice DCP boîtier → Rec. 2020 linéaire, avant tout le reste : elle remplace alors la matrice d'`input` (ADR 0035, conteneur lu selon ADR 0037) |
 | 20 | `lens` | 1 | Distorsion, aberration chromatique transversale et vignettage via un profil Lensfun (ADR 0016–0018) |
 | 30 | `spot_removal` | 1 | Clonage déterministe par copie bilinéaire adoucie, sans mode *heal* (ADR 0031) |
-| 40 | `gains` | 1 | Balance des blancs et exposition, en lumière linéaire, via des tables de transfert de 4096 intervalles (ADR 0013) |
+| 40 | `gains` | 1 | Balance des blancs et exposition : une multiplication par canal, le tampon étant déjà en lumière linéaire (ADR 0044) |
 | 50 | `contrast` | 1 | Courbe en S autour du gris moyen |
 | 60 | `highlights_shadows` | 1 | Hautes lumières et ombres, masquées par la luminance |
 | 70 | `whites_blacks` | 1 | Remappage des extrémités |
@@ -326,7 +339,7 @@ Le code de chaque version d'étage est conservé dans le moteur pour toujours : 
 | 190 | `sharpen` | 1 | Masque flou sur le plan de luminance |
 | 200 | `rotate` | 1 | Rotation d'angle arbitraire, échantillonnage bilinéaire |
 | 210 | `crop` | 1 | Recadrage |
-| 900 | `output_rendering` | 1 | Du tampon de travail au signal d'affichage ; toujours actif. Sans effet tant que le tampon est déjà sRGB affichable (ADR 0044 §3) |
+| 900 | `output_rendering` | 1 | Épaule des hautes lumières, puis Rec. 2020 → sRGB et encodage ; toujours actif (ADR 0044 §3) |
 
 Les rangs vont de dix en dix : un étage futur s'insère entre deux existants sans que personne ne renumérote quoi que ce soit.
 

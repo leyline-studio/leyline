@@ -15,7 +15,7 @@ use std::cell::RefCell;
 use rayon::prelude::*;
 
 use crate::pixels::Pixels;
-use crate::stages::kernel::v1::{lens_bilinear, lens_bilinear_channel, lookup, tables};
+use crate::stages::kernel::v1::{lens_bilinear, lens_bilinear_channel};
 
 /// Undistorts the image geometrically using an already-built [`leyline_lens::Correction`].
 /// No distortion calibration at this focal length leaves `px` unchanged:
@@ -125,7 +125,6 @@ pub(crate) fn devignette(
     if !vignetting.matched() {
         return;
     }
-    let (to_linear, to_srgb) = tables();
     let width = px.width;
     px.data
         .par_chunks_mut(width as usize * 3)
@@ -135,7 +134,7 @@ pub(crate) fn devignette(
             for (x, rgb) in row.chunks_exact_mut(3).enumerate() {
                 let gain = gains[x];
                 for sample in rgb {
-                    *sample = lookup(to_srgb, (lookup(to_linear, *sample) * gain).clamp(0.0, 1.0));
+                    *sample = (*sample * gain).max(0.0);
                 }
             }
         });

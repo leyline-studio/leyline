@@ -12,7 +12,7 @@ use leyline_core::{CURRENT_SCHEMA, Settings};
 use leyline_core::{LeylineError, Result};
 use leyline_raw::RawImage;
 
-use crate::stages;
+use crate::stages::{self, SourceColor};
 
 /// A rendered develop result: tightly packed, interleaved 8-bit RGB.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -74,6 +74,10 @@ pub fn lens_shot(meta: &Metadata) -> Option<LensShot> {
 /// does not implement is refused the same way
 /// ([`LeylineError::UnknownStage`]).
 ///
+/// `source` says what the decoder produced — which colorimetry the pixels
+/// are in before the `input` stage converts them into the working space
+/// (ADR 0044 §3). It is a property of the file, not of the revision.
+///
 /// `shot` feeds only the lens stage. `camera_profile` feeds only the camera
 /// profile stage (ADR 0035) — already resolved, checksummed and parsed by
 /// the caller (`crate::camera_profile::resolve_from_settings`), since
@@ -84,8 +88,9 @@ pub fn render(
     settings: &Settings,
     shot: Option<&LensShot>,
     camera_profile: Option<&leyline_color::DcpProfile>,
+    source: SourceColor,
 ) -> Result<Rendered> {
-    render_scaled(image, settings, shot, camera_profile, 1.0)
+    render_scaled(image, settings, shot, camera_profile, source, 1.0)
 }
 
 /// [`render`] of an image already reduced by `scale` (ADR 0041).
@@ -106,6 +111,7 @@ pub fn render_scaled(
     settings: &Settings,
     shot: Option<&LensShot>,
     camera_profile: Option<&leyline_color::DcpProfile>,
+    source: SourceColor,
     scale: f32,
 ) -> Result<Rendered> {
     if settings.schema > CURRENT_SCHEMA {
@@ -114,7 +120,7 @@ pub fn render_scaled(
         });
     }
     settings.validate()?;
-    stages::develop_scaled(image, settings, shot, camera_profile, scale)
+    stages::develop_scaled(image, settings, shot, camera_profile, source, scale)
 }
 
 #[cfg(test)]
@@ -205,12 +211,60 @@ mod tests {
         }
     }
 
+    /// The neutral rendering: what the file looks like when no operator
+    /// runs.
+    ///
+    /// Before ADR 0044 it was the decoded bytes, unchanged — the decoder
+    /// handed over display pixels and the pipeline passed them through.
+    /// It cannot be that any more, and the reason is the point of the ADR:
+    /// the decoder is now asked for the sensor's own linear numbers, and
+    /// turning those into something a screen can show *is* a rendering.
+    /// What stays true is that nothing between the two ends touches the
+    /// image, which is what this asserts — geometry untouched, grey still
+    /// grey, and monotonic in the input.
+    fn neutral(image: &RawImage) -> Rendered {
+        render(image, &Settings::default(), None, None, SOURCE).unwrap()
+    }
+
+    /// The colorimetry every test here renders through: no camera matrix,
+    /// so the sensor's numbers are taken as working-space values and the
+    /// tests stay about the operators rather than about a body's profile.
+    const SOURCE: SourceColor = SourceColor::Camera { to_xyz: None };
+
     #[test]
-    fn neutral_settings_render_the_decoded_image_bit_for_bit() {
+    fn a_neutral_render_keeps_geometry_grey_and_order() {
         let image = test_image();
-        let out = render(&image, &Settings::default(), None, None).unwrap();
+        let out = neutral(&image);
         assert_eq!((out.width, out.height), (image.width, image.height));
-        assert_eq!(out.data, image.data);
+
+        for (source, rendered) in image.data.chunks_exact(3).zip(out.data.chunks_exact(3)) {
+            if source[0] == source[1] && source[1] == source[2] {
+                assert!(
+                    rendered[0].abs_diff(rendered[1]) <= 1
+                        && rendered[1].abs_diff(rendered[2]) <= 1,
+                    "a grey sample must stay grey: {source:?} -> {rendered:?}"
+                );
+            }
+        }
+
+        // Monotonic on the greys: a brighter one in, a brighter one out.
+        // Only the greys — a colored pixel's channels move against each
+        // other through the output matrix, which is the whole point of
+        // rendering out of a wider space.
+        let mut pairs: Vec<(u8, u8)> = image
+            .data
+            .chunks_exact(3)
+            .zip(out.data.chunks_exact(3))
+            .filter(|(source, _)| source[0] == source[1] && source[1] == source[2])
+            .map(|(source, rendered)| (source[0], rendered[0]))
+            .collect();
+        pairs.sort_by_key(|(source, _)| *source);
+        for window in pairs.windows(2) {
+            assert!(
+                window[1].1 >= window[0].1,
+                "rendering must be monotonic: {window:?}"
+            );
+        }
     }
 
     #[test]
@@ -246,8 +300,8 @@ mod tests {
             }),
             ..Settings::default()
         };
-        let first = render(&image, &settings, None, None).unwrap();
-        let second = render(&image, &settings, None, None).unwrap();
+        let first = render(&image, &settings, None, None, SOURCE).unwrap();
+        let second = render(&image, &settings, None, None, SOURCE).unwrap();
         assert_eq!(first, second);
     }
 
@@ -262,6 +316,7 @@ mod tests {
             },
             None,
             None,
+            SOURCE,
         )
         .unwrap();
         let darker = render(
@@ -272,11 +327,13 @@ mod tests {
             },
             None,
             None,
+            SOURCE,
         )
         .unwrap();
         let sum = |data: &[u8]| data.iter().map(|&v| u64::from(v)).sum::<u64>();
-        assert!(sum(&brighter.data) > sum(&image.data));
-        assert!(sum(&darker.data) < sum(&image.data));
+        let base = sum(&neutral(&image).data);
+        assert!(sum(&brighter.data) > base);
+        assert!(sum(&darker.data) < base);
     }
 
     #[test]
@@ -293,6 +350,7 @@ mod tests {
             },
             None,
             None,
+            SOURCE,
         )
         .unwrap();
         let sum = |data: &[u8], channel: usize| {
@@ -300,11 +358,9 @@ mod tests {
                 .map(|px| u64::from(px[channel]))
                 .sum::<u64>()
         };
-        assert!(sum(&warm.data, 0) > sum(&image.data, 0), "warmer: more red");
-        assert!(
-            sum(&warm.data, 2) < sum(&image.data, 2),
-            "warmer: less blue"
-        );
+        let base = neutral(&image);
+        assert!(sum(&warm.data, 0) > sum(&base.data, 0), "warmer: more red");
+        assert!(sum(&warm.data, 2) < sum(&base.data, 2), "warmer: less blue");
     }
 
     #[test]
@@ -321,9 +377,14 @@ mod tests {
             },
             None,
             None,
+            SOURCE,
         )
         .unwrap();
-        assert_eq!(out.data, image.data);
+        assert_eq!(
+            out.data,
+            neutral(&image).data,
+            "the pivot temperature is a gain of exactly 1"
+        );
     }
 
     #[test]
@@ -336,6 +397,7 @@ mod tests {
             },
             None,
             None,
+            SOURCE,
         )
         .unwrap();
         for px in out.data.chunks_exact(3) {
@@ -363,6 +425,7 @@ mod tests {
             },
             None,
             None,
+            SOURCE,
         )
         .unwrap();
         let chroma = |px: &[u8]| i32::from(*px.iter().max().unwrap() - *px.iter().min().unwrap());
@@ -403,6 +466,7 @@ mod tests {
             },
             None,
             None,
+            SOURCE,
         )
         .unwrap();
         let spread = |data: &[u8]| {
@@ -440,12 +504,22 @@ mod tests {
             },
             None,
             None,
+            SOURCE,
         )
         .unwrap();
-        // Overshoot on both sides of the edge, on the row y=1.
+        // Overshoot on both sides of the edge, on the row y=1, against the
+        // same edge rendered without sharpening.
+        let flat = neutral(&image);
         let row = &out.data[(width as usize * 3)..(width as usize * 3 * 2)];
-        assert!(row[3 * 3] < 80, "dark side dips below the flat value");
-        assert!(row[4 * 3] > 170, "bright side overshoots the flat value");
+        let flat_row = &flat.data[(width as usize * 3)..(width as usize * 3 * 2)];
+        assert!(
+            row[3 * 3] < flat_row[3 * 3],
+            "dark side dips below the flat value"
+        );
+        assert!(
+            row[4 * 3] > flat_row[4 * 3],
+            "bright side overshoots the flat value"
+        );
     }
 
     #[test]
@@ -458,6 +532,7 @@ mod tests {
             },
             None,
             None,
+            SOURCE,
         )
         .unwrap();
         assert_eq!((out.width, out.height), (8, 12));
@@ -479,11 +554,15 @@ mod tests {
             },
             None,
             None,
+            SOURCE,
         )
         .unwrap();
         assert_eq!((out.width, out.height), (6, 2));
-        // Top-left crop pixel is source pixel (3, 4).
-        let src = &image.data[((4 * 12 + 3) * 3)..((4 * 12 + 3) * 3 + 3)];
+        // Top-left crop pixel is source pixel (3, 4) — compared through the
+        // neutral rendering, since the source's own bytes are camera
+        // numbers and no longer what a render outputs (ADR 0044).
+        let base = neutral(&image);
+        let src = &base.data[((4 * 12 + 3) * 3)..((4 * 12 + 3) * 3 + 3)];
         assert_eq!(&out.data[0..3], src);
     }
 
@@ -494,7 +573,7 @@ mod tests {
             ..Settings::default()
         };
         assert!(matches!(
-            render(&test_image(), &settings, None, None),
+            render(&test_image(), &settings, None, None, SOURCE),
             Err(LeylineError::NewerSettings { .. })
         ));
     }
@@ -513,7 +592,7 @@ mod tests {
             ..Settings::default()
         };
         assert!(matches!(
-            render(&test_image(), &settings, None, None),
+            render(&test_image(), &settings, None, None, SOURCE),
             Err(LeylineError::UnknownStage { version: 99, .. })
         ));
     }
@@ -528,6 +607,7 @@ mod tests {
             },
             None,
             None,
+            SOURCE,
         )
         .unwrap_err();
         assert!(matches!(err, LeylineError::InvalidSettings(_)));

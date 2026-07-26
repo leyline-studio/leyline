@@ -12,7 +12,9 @@
 use leyline_core::HslBand;
 
 use crate::pixels::Pixels;
-use crate::stages::kernel::v1::{hsl_to_rgb, par_rows, rgb_to_hsl, smoothstep01};
+use crate::stages::kernel::v1::{
+    hsl_to_rgb, in_display, par_rows, preserving_headroom, rgb_to_hsl, smoothstep01,
+};
 
 /// Fixed hue-band centers in degrees, in the module's declared band order
 /// (red, orange, yellow, green, aqua, blue, purple, magenta) — chosen to
@@ -35,28 +37,36 @@ pub(crate) const MAX_LUM_SHIFT: f32 = 0.25;
 /// coverage. A neutral `bands` (checked by the caller) is skipped entirely,
 /// so this is only ever called when at least one slider is non-zero.
 pub(crate) fn hsl_mixer(px: &mut Pixels, bands: &[HslBand; 8]) {
-    par_rows(px, |row| {
-        for rgb in row.chunks_exact_mut(3) {
-            let (h, s, l) = rgb_to_hsl(rgb);
-            let (i0, i1, t) = hue_band_neighbors(h);
-            let w1 = smoothstep01(t);
-            let w0 = 1.0 - w1;
-            let hue_shift = (f32::from(bands[i0].hue as i16) * w0
-                + f32::from(bands[i1].hue as i16) * w1)
-                / 100.0
-                * MAX_HUE_SHIFT_DEG;
-            let sat_shift = (f32::from(bands[i0].saturation as i16) * w0
-                + f32::from(bands[i1].saturation as i16) * w1)
-                / 100.0;
-            let lum_shift = (f32::from(bands[i0].luminance as i16) * w0
-                + f32::from(bands[i1].luminance as i16) * w1)
-                / 100.0;
-            let new_h = (h + hue_shift).rem_euclid(360.0);
-            let new_s = (s * (1.0 + sat_shift)).clamp(0.0, 1.0);
-            let new_l = (l + lum_shift * MAX_LUM_SHIFT).clamp(0.0, 1.0);
-            rgb.copy_from_slice(&hsl_to_rgb(new_h, new_s, new_l));
-        }
+    in_display(px, |px| {
+        par_rows(px, |row| {
+            for rgb in row.chunks_exact_mut(3) {
+                preserving_headroom(rgb, |rgb| mix_pixel(rgb, bands));
+            }
+        });
     });
+}
+
+/// The mixer's decision for one pixel, on a display-axis triple already
+/// scaled into `[0, 1]` ([`preserving_headroom`]): hue, saturation and
+/// lightness only mean something inside that cube.
+fn mix_pixel(rgb: &mut [f32], bands: &[HslBand; 8]) {
+    let (h, s, l) = rgb_to_hsl(rgb);
+    let (i0, i1, t) = hue_band_neighbors(h);
+    let w1 = smoothstep01(t);
+    let w0 = 1.0 - w1;
+    let hue_shift = (f32::from(bands[i0].hue as i16) * w0 + f32::from(bands[i1].hue as i16) * w1)
+        / 100.0
+        * MAX_HUE_SHIFT_DEG;
+    let sat_shift = (f32::from(bands[i0].saturation as i16) * w0
+        + f32::from(bands[i1].saturation as i16) * w1)
+        / 100.0;
+    let lum_shift = (f32::from(bands[i0].luminance as i16) * w0
+        + f32::from(bands[i1].luminance as i16) * w1)
+        / 100.0;
+    let new_h = (h + hue_shift).rem_euclid(360.0);
+    let new_s = (s * (1.0 + sat_shift)).clamp(0.0, 1.0);
+    let new_l = (l + lum_shift * MAX_LUM_SHIFT).clamp(0.0, 1.0);
+    rgb.copy_from_slice(&hsl_to_rgb(new_h, new_s, new_l));
 }
 
 /// Finds the two hue bands adjacent to `hue_deg` and how far between them it

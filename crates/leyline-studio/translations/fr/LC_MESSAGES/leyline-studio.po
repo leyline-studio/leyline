@@ -321,6 +321,9 @@ msgctxt "StudioWindow"
 msgid "Dehaze"
 msgstr "Voile"
 
+msgid "Highlight roll-off"
+msgstr "Récupération des hautes lumières"
+
 #: crates/leyline-studio/ui/studio.slint:1413
 msgctxt "StudioWindow"
 msgid "Vibrance"

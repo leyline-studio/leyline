@@ -49,6 +49,9 @@ pub enum Param {
     Texture,
     /// Dark-channel-prior haze removal (ADR 0033).
     Dehaze,
+    /// How far the highlight shoulder reaches when the working buffer
+    /// becomes a display signal (ADR 0044 §3).
+    HighlightRolloff,
     /// Vibrance slider.
     Vibrance,
     /// Saturation slider.
@@ -400,6 +403,9 @@ fn apply(settings: &mut Settings, param: Param, value: Value) -> Result<()> {
         (Param::Clarity, Value::Int(v)) => settings.clarity = v,
         (Param::Texture, Value::Int(v)) => settings.texture = v,
         (Param::Dehaze, Value::Int(v)) => settings.dehaze = v,
+        (Param::HighlightRolloff, Value::Int(v)) => {
+            settings.output_rendering.highlight_rolloff = v;
+        }
         (Param::Vibrance, Value::Int(v)) => settings.vibrance = v,
         (Param::Saturation, Value::Int(v)) => settings.saturation = v,
         (Param::ToneCurve, Value::ToneCurve(v)) => settings.tone_curve = v,

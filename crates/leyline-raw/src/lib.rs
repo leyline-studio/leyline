@@ -92,6 +92,15 @@ pub struct RawMetadata {
     pub gps_longitude: Option<f64>,
     /// GPS altitude in meters, when recorded.
     pub gps_altitude: Option<f64>,
+    /// The body's XYZ→camera matrix (rows: camera channels; columns: X, Y,
+    /// Z), from LibRaw's per-model table. `None` when LibRaw knows no matrix
+    /// for this camera.
+    ///
+    /// This is what lets a caller convert camera-native pixels into a working
+    /// space of its own choosing. Asking LibRaw to do the conversion instead
+    /// would clip every color outside the space it converts to, which is
+    /// exactly what a wide-gamut pipeline must not do.
+    pub camera_to_xyz: Option<[[f64; 3]; 3]>,
 }
 
 /// A decoded image: interleaved RGB, tightly packed, orientation applied.
@@ -189,6 +198,7 @@ impl Handle {
                 gps_latitude,
                 gps_longitude,
                 gps_altitude,
+                camera_to_xyz: cam_xyz(self.0),
             }
         }
     }
@@ -291,6 +301,25 @@ unsafe fn shim_string(ptr: *const std::ffi::c_char) -> String {
     unsafe { CStr::from_ptr(ptr) }
         .to_string_lossy()
         .into_owned()
+}
+
+/// Reads the body's XYZ→camera matrix, `None` when LibRaw has none.
+///
+/// # Safety
+/// `handle` must be a live LibRaw handle whose file has been opened
+/// (identify fills the matrix; no unpack is needed).
+unsafe fn cam_xyz(handle: *const ffi::LibrawData) -> Option<[[f64; 3]; 3]> {
+    let mut flat = [0.0f64; 9];
+    // SAFETY: the shim writes exactly nine doubles into the buffer.
+    let known = unsafe { ffi::leyline_shim_cam_xyz(handle, flat.as_mut_ptr()) };
+    if known == 0 {
+        return None;
+    }
+    let mut matrix = [[0.0f64; 3]; 3];
+    for (row, chunk) in matrix.iter_mut().zip(flat.chunks_exact(3)) {
+        row.copy_from_slice(chunk);
+    }
+    Some(matrix)
 }
 
 /// A metadata float is "recorded" when strictly positive and finite.

@@ -22,7 +22,11 @@ use leyline_core::{
     LocalAdjustment, LocalAdjustmentValues, Mask, NoiseReduction, Point, Settings, Sharpening,
     SpotRemoval, ToneCurve, WhiteBalance,
 };
-use leyline_engine::{LensShot, render};
+use leyline_engine::{LensShot, SourceColor, render};
+
+/// The colorimetry every bench renders through: no camera matrix, so the
+/// measurement is of the operators rather than of a body's profile.
+const SOURCE: SourceColor = SourceColor::Camera { to_xyz: None };
 use leyline_raw::RawImage;
 use std::hint::black_box;
 
@@ -116,12 +120,12 @@ fn benches(c: &mut Criterion) {
         let settings = Settings {
             ..Settings::default()
         };
-        b.iter(|| render(black_box(&image), black_box(&settings), None, None).unwrap());
+        b.iter(|| render(black_box(&image), black_box(&settings), None, None, SOURCE).unwrap());
     });
 
     group.bench_function("tone", |b| {
         let settings = tone_settings();
-        b.iter(|| render(black_box(&image), black_box(&settings), None, None).unwrap());
+        b.iter(|| render(black_box(&image), black_box(&settings), None, None, SOURCE).unwrap());
     });
 
     group.bench_function("color", |b| {
@@ -130,7 +134,7 @@ fn benches(c: &mut Criterion) {
             saturation: 10,
             ..Settings::default()
         };
-        b.iter(|| render(black_box(&image), black_box(&settings), None, None).unwrap());
+        b.iter(|| render(black_box(&image), black_box(&settings), None, None, SOURCE).unwrap());
     });
 
     group.bench_function("detail", |b| {
@@ -145,7 +149,7 @@ fn benches(c: &mut Criterion) {
             },
             ..Settings::default()
         };
-        b.iter(|| render(black_box(&image), black_box(&settings), None, None).unwrap());
+        b.iter(|| render(black_box(&image), black_box(&settings), None, None, SOURCE).unwrap());
     });
 
     group.bench_function("geometry", |b| {
@@ -159,12 +163,12 @@ fn benches(c: &mut Criterion) {
             }),
             ..Settings::default()
         };
-        b.iter(|| render(black_box(&image), black_box(&settings), None, None).unwrap());
+        b.iter(|| render(black_box(&image), black_box(&settings), None, None, SOURCE).unwrap());
     });
 
     group.bench_function("full", |b| {
         let settings = full_settings();
-        b.iter(|| render(black_box(&image), black_box(&settings), None, None).unwrap());
+        b.iter(|| render(black_box(&image), black_box(&settings), None, None, SOURCE).unwrap());
     });
 
     group.finish();
@@ -184,6 +188,7 @@ fn benches(c: &mut Criterion) {
                 black_box(&settings),
                 Some(black_box(&shot)),
                 None,
+                SOURCE,
             )
             .unwrap()
         });
@@ -203,6 +208,7 @@ fn benches(c: &mut Criterion) {
                 black_box(&settings),
                 Some(black_box(&shot)),
                 None,
+                SOURCE,
             )
             .unwrap()
         });
@@ -234,6 +240,7 @@ fn benches(c: &mut Criterion) {
                 black_box(&settings),
                 Some(black_box(&no_tca_shot)),
                 None,
+                SOURCE,
             )
             .unwrap()
         });
@@ -258,6 +265,7 @@ fn benches(c: &mut Criterion) {
                     black_box(&settings),
                     Some(black_box(&shot)),
                     Some(black_box(&profile)),
+                    SOURCE,
                 )
                 .unwrap()
             });

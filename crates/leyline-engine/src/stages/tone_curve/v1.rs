@@ -11,7 +11,7 @@
 use leyline_core::CurvePoint;
 
 use crate::pixels::Pixels;
-use crate::stages::kernel::v1::par_rows;
+use crate::stages::kernel::v1::{display_curve, in_display};
 
 /// Number of intervals in the tone curve lookup table. Frozen alongside
 /// [`crate::stages::kernel::v1::LUT_SIZE`]: changing it changes the pixels, i.e. requires a new process
@@ -23,10 +23,8 @@ pub(crate) const CURVE_LUT_SIZE: usize = 4096;
 /// per-pixel spline evaluation).
 pub(crate) fn tone_curve(px: &mut Pixels, points: &[CurvePoint]) {
     let table = build_curve_lut(points);
-    par_rows(px, |row| {
-        for sample in row {
-            *sample = curve_lookup(&table, *sample);
-        }
+    in_display(px, |px| {
+        display_curve(px, |x| curve_lookup(&table, x));
     });
 }
 

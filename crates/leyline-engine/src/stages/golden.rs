@@ -27,25 +27,31 @@
 //!
 //! Blessing is additive by construction: it never rewrites an entry it
 //! finds. These fixtures were what proved the ADR 0042 migration pixel-exact
-//! across the eleven `processN.rs` modules it replaced; ADR 0043 then
-//! collapsed that pre-publication history and the manifest was regenerated
-//! once, under that decision — the only time it ever was. A digest that
-//! moves now is a defect, and the only way to move one on purpose is to edit
-//! `renders.json` by hand.
+//! across the eleven `processN.rs` modules it replaced.
+//!
+//! The manifest has been regenerated from scratch exactly twice, each time
+//! under a decision that said so in as many words, and never otherwise:
+//! ADR 0043, which collapsed the pre-publication rendering history, and
+//! ADR 0044, which moved the working space to linear Rec. 2020 and
+//! therefore moved every pixel in the pipeline. Both were possible only
+//! because nothing had been published — no revision in the world cited the
+//! renderings they replaced. After the first release neither would be, and
+//! a moved digest is simply a defect. The way to change one on purpose is
+//! to ship a new stage version, which *adds* entries and leaves the
+//! existing ones exactly where they are.
 //!
 //! For the same reason the settings fragments below are frozen too: an entry
 //! can only be replayed if its case still means what it meant. Exercising an
 //! operator differently is a *new* case, never an edit of one that ships.
 //!
-//! # Why every case has two entries
+//! # What these entries do *not* prove
 //!
-//! ADR 0044 §3 added the two stages that frame the pipeline, `input` and
-//! `output_rendering`, so a revision written today records two names more
-//! than one written yesterday. Both shapes are pinned: the entries *without*
-//! them are the revisions that already exist, and they are what proves that
-//! adding the framing left their pixels exactly where they were — the pair
-//! of digests is identical, case by case. The additive blessing rule is what
-//! made that comparison possible rather than a matter of trust.
+//! That the rendering is good. A digest freezes a decision; it cannot make
+//! one. The evidence that ADR 0044's new working space renders *better* —
+//! recovered window highlights, colors that survive a saturation slider —
+//! is elsewhere, in renders of real photographs compared side by side
+//! (ADR 0044 §7.2). What lives here is the promise that whatever was
+//! decided then stays decided.
 
 use std::collections::BTreeMap;
 use std::io::Cursor;
@@ -59,7 +65,7 @@ use leyline_core::{
 use leyline_raw::RawImage;
 use serde::{Deserialize, Serialize};
 
-use super::{fixture, pin, registry};
+use super::{SourceColor, fixture, pin, registry};
 use crate::render::{LensShot, render};
 
 /// Path of the committed manifest, relative to the crate root.
@@ -492,7 +498,17 @@ fn capture(settings: &Settings, stages: &StageVersions) -> Golden {
         stages: stages.clone(),
         ..settings.clone()
     };
-    let rendered = render(&image, &settings, Some(&shot), Some(&profile))
+    // A fixed, made-up camera matrix: what matters to the freeze is that the
+    // colorimetry entering the pipeline is the same every time, not that it
+    // belongs to a real body (ADR 0044 §3).
+    let source = SourceColor::Camera {
+        to_xyz: Some([
+            [0.671_9, -0.099_4, -0.092_5],
+            [-0.440_8, 1.242_6, 0.221_1],
+            [-0.088_7, 0.212_9, 0.605_1],
+        ]),
+    };
+    let rendered = render(&image, &settings, Some(&shot), Some(&profile), source)
         .unwrap_or_else(|e| panic!("render failed: {e}"));
 
     let digest = blake3::hash(&rendered.data).to_hex().to_string();

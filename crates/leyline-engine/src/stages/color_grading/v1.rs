@@ -13,7 +13,9 @@ use leyline_core::{ColorGrading, ColorGradingZone};
 
 use crate::pixels::{Pixels, luma};
 use crate::stages::hsl::v1::MAX_LUM_SHIFT;
-use crate::stages::kernel::v1::{hsl_to_rgb, par_rows, smoothstep01};
+use crate::stages::kernel::v1::{
+    hsl_to_rgb, in_display, par_rows, preserving_headroom, smoothstep01,
+};
 
 /// How strongly a color grading zone's fully-saturated color tints a pixel
 /// fully weighted into that zone.
@@ -40,22 +42,27 @@ pub(crate) fn color_grading(px: &mut Pixels, grading: &ColorGrading) {
     let balance = f32::from(grading.balance as i16) / 100.0;
     let blending = f32::from(grading.blending as i16) / 100.0;
 
-    par_rows(px, |row| {
-        for rgb in row.chunks_exact_mut(3) {
-            let weights = zone_weights(luma(rgb), balance, blending);
-            let mut tint = [0.0f32; 3];
-            let mut lum_shift = 0.0f32;
-            for zone in 0..3 {
-                for c in 0..3 {
-                    tint[c] += tints[zone][c] * weights[zone];
-                }
-                lum_shift += lum_shifts[zone] * weights[zone];
+    in_display(px, |px| {
+        par_rows(px, |row| {
+            for rgb in row.chunks_exact_mut(3) {
+                preserving_headroom(rgb, |rgb| {
+                    let weights = zone_weights(luma(rgb), balance, blending);
+                    let mut tint = [0.0f32; 3];
+                    let mut lum_shift = 0.0f32;
+                    for zone in 0..3 {
+                        for c in 0..3 {
+                            tint[c] += tints[zone][c] * weights[zone];
+                        }
+                        lum_shift += lum_shifts[zone] * weights[zone];
+                    }
+                    let delta_l = lum_shift * MAX_LUM_SHIFT;
+                    for c in 0..3 {
+                        rgb[c] =
+                            (rgb[c] + delta_l + tint[c] * GRADING_TINT_STRENGTH).clamp(0.0, 1.0);
+                    }
+                });
             }
-            let delta_l = lum_shift * MAX_LUM_SHIFT;
-            for c in 0..3 {
-                rgb[c] = (rgb[c] + delta_l + tint[c] * GRADING_TINT_STRENGTH).clamp(0.0, 1.0);
-            }
-        }
+        });
     });
 }
 

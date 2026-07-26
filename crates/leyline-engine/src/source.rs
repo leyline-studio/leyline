@@ -63,6 +63,23 @@ pub(crate) fn decode(path: &Path, params: &DecodeParams) -> Result<RawImage, Sou
     }
 }
 
+/// What colorimetry [`decode`] leaves `path`'s pixels in — the `input`
+/// stage's other input (ADR 0044 §3).
+///
+/// Reads the RAW header only (no unpack, no develop) to pick up the body's
+/// color matrix; a file LibRaw cannot identify still renders, from its
+/// sensor's own numbers, which is all anyone has for it.
+pub(crate) fn color(path: &Path) -> crate::stages::SourceColor {
+    if !is_camera_native(path) {
+        return crate::stages::SourceColor::Srgb;
+    }
+    crate::stages::SourceColor::Camera {
+        to_xyz: leyline_raw::identify(path)
+            .ok()
+            .and_then(|metadata| metadata.camera_to_xyz),
+    }
+}
+
 /// Whether `path` is a source [`decode`] hands to LibRaw — the only kind
 /// whose samples are camera-native, and therefore the only kind a DCP
 /// camera profile (ADR 0035) may be applied to. Mirrors [`decode`]'s own

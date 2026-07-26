@@ -1,7 +1,7 @@
 # ADR 0015 — Gestion des couleurs V1 : pipeline et export figés en sRGB
 
 **Statut :** Accepté — 2026-07
-**Suite :** l'espace de travail *interne* qu'il fige est remplacé par
+**Suite :** l'espace de travail *interne* qu'il fige a été remplacé par
 [ADR 0044](0044-linear-wide-gamut-working-space.md) (Rec. 2020 linéaire non
 borné) ; ce qui concerne la **sortie** a d'abord été élargi par
 [ADR 0027](0027-color-management-beyond-srgb.md).

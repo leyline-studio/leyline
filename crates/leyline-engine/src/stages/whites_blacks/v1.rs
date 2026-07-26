@@ -6,7 +6,7 @@
 //! version module next to this one, never an edit here (ADR 0042 §1).
 
 use crate::pixels::Pixels;
-use crate::stages::kernel::v1::par_rows;
+use crate::stages::kernel::v1::{display_curve, in_display};
 
 /// Endpoint remapping: positive `whites` brightens by lowering the white
 /// point, positive `blacks` lifts the black point (negative values crush).
@@ -14,9 +14,7 @@ pub(crate) fn whites_blacks(px: &mut Pixels, whites: i32, blacks: i32) {
     let white = 1.0 - f32::from(whites as i16) / 100.0 * 0.25;
     let black = -f32::from(blacks as i16) / 100.0 * 0.25;
     let scale = 1.0 / (white - black);
-    par_rows(px, |row| {
-        for sample in row {
-            *sample = ((*sample - black) * scale).clamp(0.0, 1.0);
-        }
+    in_display(px, |px| {
+        display_curve(px, |x| ((x - black) * scale).max(0.0));
     });
 }

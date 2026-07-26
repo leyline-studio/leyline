@@ -1,10 +1,13 @@
 //! White balance and exposure v1 — rank 40.
 //!
 //! Per-channel gains in linear light: white balance as the ratio of two
-//! blackbody colors, exposure as a power of two. Both conversions to and
-//! from linear light go through the interpolated lookup tables of
-//! [`crate::stages::kernel::v1::tables`] rather than `powf` per sample
-//! (ADR 0013).
+//! blackbody colors, exposure as a power of two.
+//!
+//! Since ADR 0044 the working buffer *is* linear light, so this is what it
+//! always should have been — one multiply per sample. The conversions in
+//! and out of linear that used to bracket it, and the clamp at 1 that
+//! destroyed a stop of highlights on the way, are both gone: +1 EV followed
+//! by −1 EV now returns the image it started from.
 //!
 //! **Frozen.** Its pixels are part of the reproducibility contract
 //! (`docs/pipeline.md` §5.1): a revision citing this stage version renders
@@ -14,7 +17,7 @@
 use leyline_core::WhiteBalance;
 
 use crate::pixels::Pixels;
-use crate::stages::kernel::v1::{blackbody_rgb, lookup, par_rows, tables};
+use crate::stages::kernel::v1::{blackbody_rgb, par_rows};
 
 /// Applies white balance and exposure as per-channel gains in linear light.
 pub(crate) fn linear_gains(px: &mut Pixels, wb: Option<&WhiteBalance>, exposure_ev: f64) {
@@ -35,11 +38,10 @@ pub(crate) fn linear_gains(px: &mut Pixels, wb: Option<&WhiteBalance>, exposure_
     let gain = 2.0f64.powf(exposure_ev);
     let gains = gains.map(|g| (g * gain) as f32);
 
-    let (to_linear, to_srgb) = tables();
     par_rows(px, |row| {
         for rgb in row.chunks_exact_mut(3) {
             for (sample, gain) in rgb.iter_mut().zip(gains) {
-                *sample = lookup(to_srgb, (lookup(to_linear, *sample) * gain).clamp(0.0, 1.0));
+                *sample = (*sample * gain).max(0.0);
             }
         }
     });

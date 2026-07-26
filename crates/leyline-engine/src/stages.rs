@@ -140,8 +140,29 @@ use leyline_raw::{DecodeParams, RawImage};
 use crate::pixels::Pixels;
 use crate::render::{LensShot, Rendered};
 
+/// What the decoder handed over, colorimetrically — the `input` stage's
+/// other half (ADR 0044 §3).
+///
+/// It is not a setting: the same revision renders through the same stage
+/// versions whatever the file is. It is a property of the source, resolved
+/// by whoever opened it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SourceColor {
+    /// A RAW decoded camera-native, with the body's XYZ→camera matrix when
+    /// LibRaw knows one for it
+    /// ([`leyline_raw::RawMetadata::camera_to_xyz`]).
+    Camera {
+        /// The body's XYZ→camera matrix, `None` for an unknown body.
+        to_xyz: Option<leyline_color::Matrix3>,
+    },
+    /// A JPEG, PNG or TIFF: gamma-encoded sRGB from a native codec.
+    Srgb,
+}
+
 /// Everything a stage may read besides the buffer it renders.
 pub(crate) struct Context<'a> {
+    /// What the decoder produced, colorimetrically (ADR 0044 §3).
+    pub source: SourceColor,
     /// The revision being rendered, already validated by the caller.
     pub settings: &'a Settings,
     /// EXIF identification of the shot, for the lens stage.
@@ -164,15 +185,19 @@ pub(crate) struct Context<'a> {
 /// than rendered "at best".
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Space {
-    /// Gamma-encoded sRGB, clamped to [0, 1]: the space of every version
-    /// published so far (ADR 0015), described in [`crate::pixels`].
-    SrgbGamma,
-    /// Rec. 2020 primaries, linear light, unbounded above (ADR 0044 §1–2).
+    /// Gamma-encoded sRGB, clamped to [0, 1] — what the pipeline worked in
+    /// until ADR 0044.
     ///
-    /// No shipped operator renders here yet — step 2 of ADR 0044 §7 is what
-    /// moves them over. Until then the test fixture stage is the only thing
-    /// declaring it, so the refusal below is exercised rather than assumed.
+    /// No shipped operator renders here any more: the pre-publication
+    /// history was collapsed rather than doubled (ADR 0044 §5), so nothing
+    /// cites it. It stays because the *rule* it takes part in outlives it —
+    /// the day an operator moves space again, that will be a new version
+    /// beside an old one, and the refusal below has to already work. The
+    /// test fixture stage is what keeps it exercised meanwhile.
     #[cfg_attr(not(test), allow(dead_code))]
+    SrgbGamma,
+    /// The working space: Rec. 2020 primaries, D65, linear light, unbounded
+    /// above (ADR 0044 §1–2).
     LinearRec2020,
 }
 
@@ -250,11 +275,13 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 0,
-            space: Space::SrgbGamma,
+            space: Space::LinearRec2020,
             // Nothing to do on the buffer: at this version the decoder
             // already hands over gamma-encoded sRGB, and the camera
             // profile stage does the matrix when there is a profile.
-            apply: |_, _| {},
+            apply: |px, ctx| {
+                input::v1::to_working_space(px, ctx.source, ctx.camera_profile.is_some());
+            },
         }],
     },
     Stage {
@@ -268,7 +295,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 10,
-            space: Space::SrgbGamma,
+            space: Space::LinearRec2020,
             apply: |px, ctx| {
                 if let Some(profile) = ctx.camera_profile {
                     camera_profile::v1::apply_camera_profile(px, profile);
@@ -282,7 +309,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 20,
-            space: Space::SrgbGamma,
+            space: Space::LinearRec2020,
             apply: |px, ctx| {
                 let Some(shot) = ctx.shot else { return };
                 if let Some(profile) = leyline_lens::find_profile(
@@ -308,7 +335,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 30,
-            space: Space::SrgbGamma,
+            space: Space::LinearRec2020,
             apply: |px, ctx| {
                 spot_removal::v1::spot_removal(
                     px,
@@ -324,7 +351,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 40,
-            space: Space::SrgbGamma,
+            space: Space::LinearRec2020,
             apply: |px, ctx| {
                 gains::v1::linear_gains(
                     px,
@@ -340,7 +367,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 50,
-            space: Space::SrgbGamma,
+            space: Space::LinearRec2020,
             apply: |px, ctx| contrast::v1::contrast(px, ctx.settings.contrast),
         }],
     },
@@ -350,7 +377,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 60,
-            space: Space::SrgbGamma,
+            space: Space::LinearRec2020,
             apply: |px, ctx| {
                 highlights_shadows::v1::highlights_shadows(
                     px,
@@ -366,7 +393,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 70,
-            space: Space::SrgbGamma,
+            space: Space::LinearRec2020,
             apply: |px, ctx| {
                 whites_blacks::v1::whites_blacks(px, ctx.settings.whites, ctx.settings.blacks);
             },
@@ -378,7 +405,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 80,
-            space: Space::SrgbGamma,
+            space: Space::LinearRec2020,
             apply: |px, ctx| tone_curve::v1::tone_curve(px, &ctx.settings.tone_curve.points),
         }],
     },
@@ -388,7 +415,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 90,
-            space: Space::SrgbGamma,
+            space: Space::LinearRec2020,
             apply: |px, ctx| {
                 kernel::v1::local_contrast(
                     px,
@@ -404,7 +431,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 100,
-            space: Space::SrgbGamma,
+            space: Space::LinearRec2020,
             apply: |px, ctx| {
                 kernel::v1::local_contrast(
                     px,
@@ -420,7 +447,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 110,
-            space: Space::SrgbGamma,
+            space: Space::LinearRec2020,
             apply: |px, ctx| dehaze::v1::dehaze(px, ctx.settings.dehaze, ctx.scale),
         }],
     },
@@ -432,7 +459,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 120,
-            space: Space::SrgbGamma,
+            space: Space::LinearRec2020,
             apply: |px, ctx| kernel::v1::saturate(px, ctx.settings.vibrance, true),
         }],
     },
@@ -442,7 +469,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 130,
-            space: Space::SrgbGamma,
+            space: Space::LinearRec2020,
             apply: |px, ctx| kernel::v1::saturate(px, ctx.settings.saturation, false),
         }],
     },
@@ -452,7 +479,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 140,
-            space: Space::SrgbGamma,
+            space: Space::LinearRec2020,
             apply: |px, ctx| hsl::v1::hsl_mixer(px, &ctx.settings.hsl),
         }],
     },
@@ -462,7 +489,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 150,
-            space: Space::SrgbGamma,
+            space: Space::LinearRec2020,
             apply: |px, ctx| color_grading::v1::color_grading(px, &ctx.settings.color_grading),
         }],
     },
@@ -472,7 +499,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 160,
-            space: Space::SrgbGamma,
+            space: Space::LinearRec2020,
             apply: |px, ctx| {
                 local_adjustments::v1::local_adjustments(
                     px,
@@ -488,7 +515,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 170,
-            space: Space::SrgbGamma,
+            space: Space::LinearRec2020,
             apply: |px, ctx| {
                 noise_luminance::v1::luminance_noise_reduction(
                     px,
@@ -504,7 +531,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 180,
-            space: Space::SrgbGamma,
+            space: Space::LinearRec2020,
             apply: |px, ctx| {
                 noise_color::v1::color_noise_reduction(
                     px,
@@ -520,7 +547,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 190,
-            space: Space::SrgbGamma,
+            space: Space::LinearRec2020,
             apply: |px, ctx| {
                 sharpen::v1::sharpen(
                     px,
@@ -536,7 +563,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 200,
-            space: Space::SrgbGamma,
+            space: Space::LinearRec2020,
             apply: |px, ctx| *px = rotate::v1::rotate(px, ctx.settings.rotation),
         }],
     },
@@ -546,7 +573,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 210,
-            space: Space::SrgbGamma,
+            space: Space::LinearRec2020,
             apply: |px, ctx| {
                 if let Some(rect) = &ctx.settings.crop {
                     *px = crop::v1::crop(px, rect);
@@ -563,12 +590,13 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 900,
-            space: Space::SrgbGamma,
-            // Nothing to do: at this version the working buffer already is
-            // display-referred sRGB in [0, 1]. The version that ships with
-            // the linear working space is where the highlight roll-off and
-            // the encoding live.
-            apply: |_, _| {},
+            space: Space::LinearRec2020,
+            apply: |px, ctx| {
+                output_rendering::v1::render_output(
+                    px,
+                    ctx.settings.output_rendering.highlight_rolloff,
+                );
+            },
         }],
     },
 ];
@@ -581,19 +609,10 @@ pub(crate) static STAGES: &[Stage] = &[
 /// cites a single number for them.
 static INPUT_DECODE: &[(u16, DecodeConfig)] = &[(1, input::v1::decode_params)];
 
-/// What one `input` version asks the decoder for.
-type DecodeConfig = fn(InputRequest) -> DecodeParams;
-
-/// What a caller knows about a decode before the pipeline runs: the two
-/// things that vary from one render of the same revision to the next.
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct InputRequest {
-    /// Whether the revision's camera profile resolved to an actual DCP.
-    pub has_camera_profile: bool,
-    /// Whether this render can afford LibRaw's half-size decode (ADR 0041):
-    /// a size class, not a property of the revision.
-    pub half_size: bool,
-}
+/// What one `input` version asks the decoder for. `half_size` is the
+/// caller's size class (ADR 0041), the only thing that varies between two
+/// renders of the same revision.
+type DecodeConfig = fn(bool) -> DecodeParams;
 
 /// The decoder configuration a revision's `input` version calls for
 /// (ADR 0044 §3).
@@ -602,14 +621,14 @@ pub(crate) struct InputRequest {
 /// camera_profile.is_some()` in four modules, deciding a pixel-affecting
 /// parameter that no `stages` map recorded. It now comes from the version
 /// the revision cites, like every other part of its rendering.
-pub(crate) fn decode_params(settings: &Settings, request: InputRequest) -> DecodeParams {
+pub(crate) fn decode_params(settings: &Settings, half_size: bool) -> DecodeParams {
     let version = version_of("input", settings);
     let decode = INPUT_DECODE
         .iter()
         .find(|(v, _)| *v == version.version)
         .map(|(_, decode)| decode)
         .expect("every published input version has a decoder configuration");
-    decode(request)
+    decode(half_size)
 }
 
 /// The version of `stage_name` this render uses: the one `settings` records,
@@ -819,6 +838,7 @@ pub(crate) fn develop_scaled(
     settings: &Settings,
     shot: Option<&LensShot>,
     camera_profile: Option<&DcpProfile>,
+    source: SourceColor,
     scale: f32,
 ) -> Result<Rendered> {
     let plan = plan(settings)?;
@@ -826,6 +846,7 @@ pub(crate) fn develop_scaled(
         settings,
         shot,
         camera_profile,
+        source,
         scale,
     };
     let mut px = Pixels::from_raw(image)?;
