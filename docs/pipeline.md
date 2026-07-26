@@ -273,7 +273,7 @@ Règle fondamentale :
 * Une optimisation qui produit des pixels identiques = pas de nouvelle version.
 * L'utilisateur peut migrer une photo vers une process version récente : cela crée une **nouvelle révision** (le graphe Git du catalogue s'en charge naturellement) — l'ancienne reste rendable à l'identique.
 
-Le code des anciennes process versions est conservé dans le moteur : c'est le prix de la promesse « mêmes pixels dans dix ans ».
+Le code des anciennes process versions est conservé dans le moteur : c'est le prix de la promesse « mêmes pixels dans dix ans », dont §5.1 énonce la portée exacte. À partir d'ADR 0042, l'unité gelée n'est plus la process version entière mais l'**étage** — le prix se paie alors par opérateur réellement corrigé, plus par copie intégrale du pipeline.
 
 Versions connues :
 
@@ -470,16 +470,38 @@ Les anciens résultats restent consultables tant que l'utilisateur ne les suppri
 
 # 5. Reproductibilité
 
-Deux exécutions sont identiques si et seulement si :
+## 5.1 Ce qui est garanti
 
-* le pipeline est identique ;
-* la version est identique ;
+Deux exécutions produisent le **même résultat, bit pour bit**, si et seulement si :
+
 * les paramètres enregistrés sont strictement identiques ;
-* la ressource d'entrée est identique (même `checksum`).
+* les versions d'étages mises en jeu sont identiques (ADR 0042) — pour un pipeline générique, l'identité du pipeline et sa version (§4.1) ;
+* la ressource d'entrée est identique (même `checksum`) ;
+* la plateforme et la chaîne de compilation sont les mêmes (§5.2).
 
-Dans ces conditions, le résultat doit être identique — au pixel près pour le développement RAW.
+Cette garantie ne dépend **ni de la version de l'application, ni du profil de compilation**. Leyline 1.0.3 et Leyline 7.2.0 rendent `sharpen::v1` à l'identique, parce qu'il s'agit littéralement du même code gelé dans les deux binaires ; un build `debug` et un build `release` également, ce que les rendus de référence (`crates/leyline-engine/tests/golden_renders.rs`) vérifient dans les deux profils.
 
-Conséquence pratique : les traitements doivent être **déterministes**. Tout élément non déterministe (seed aléatoire, ordre de threads affectant le résultat) doit être fixé et enregistré dans les paramètres.
+C'est la bonne échelle pour énoncer la promesse : un utilisateur sait quelles versions d'étages sa photo cite — elles sont écrites dans sa révision — alors qu'il ignore quel build a produit ses pixels.
+
+D'où la règle de publication, qui est la forme opérationnelle de la promesse :
+
+> **Aucune version publiée — correctif, mineure ou majeure — ne modifie le rendu d'une version d'étage déjà publiée.** Si le rendu doit changer, c'est une nouvelle version d'étage ; les révisions existantes continuent de citer l'ancienne.
+
+Un rendu qui change n'est donc jamais un incrément de version de l'application : c'est un nouvel étage. Et la règle est **vérifiée mécaniquement** plutôt que promise — la suite de rendus de référence tourne avant publication, et une empreinte qui bouge bloque la publication.
+
+Conserver l'ancien code dans l'arbre est ce qui rend cette garantie réelle, et une étiquette Git n'y suffit pas : le binaire de 2036 est compilé depuis l'arbre de 2036, et une photo de 2026 n'est correctement rendue que si `sharpen::v1` s'y trouve encore. L'étiquette Git sert à *auditer* que l'étage n'a jamais bougé (`git log` vide depuis sa publication) — pas à le livrer.
+
+## 5.2 Ce qui n'est pas garanti
+
+**Changer de plateforme ou de chaîne de compilation.** Le pipeline appelle `powf`, `ln` et `exp` : ces fonctions viennent de la bibliothèque mathématique du système, dont les résultats ne sont pas identiques au dernier bit d'une plateforme, d'une version de libm ou d'une version de LLVM à l'autre. Entre deux plateformes, le rendu est donc **visuellement identique, à une dérive de dernier bit près** — pas bit pour bit.
+
+Prétendre l'inverse serait promettre ce qu'aucun moteur ne tient. Lightroom ne le tient pas (ses chemins GPU et CPU ne donnent pas les mêmes pixels) ; darktable non plus (il migre les paramètres des anciens modules vers le code courant plutôt que de geler ce code). Leyline garantit strictement plus qu'eux dans le cadre de §5.1, et s'arrête exactement là où s'arrête la virgule flottante.
+
+Conséquence pratique : la chaîne d'outils est **épinglée sur une version exacte** dans `rust-toolchain.toml`. En changer est un acte délibéré, qui impose de rejouer les rendus de référence et de consigner toute dérive constatée — jamais l'effet de bord d'un correctif.
+
+## 5.3 Déterminisme
+
+Les traitements doivent être **déterministes** : tout élément non déterministe (graine aléatoire, ordre des threads affectant le résultat) doit être fixé et enregistré dans les paramètres. Le parallélisme reste autorisé tant qu'il ne change ni la formule ni l'ordre des opérations pour un échantillon donné (ADR 0012).
 
 ---
 

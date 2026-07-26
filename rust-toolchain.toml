@@ -1,3 +1,12 @@
+# Épinglé sur une version exacte, et non sur `stable` : `docs/pipeline.md`
+# §5.2 fait de la chaîne de compilation une entrée du rendu (libm et LLVM ne
+# donnent pas le même dernier bit d'une version à l'autre). Sur un canal
+# flottant, un simple `rustup update` avant une publication de correctif
+# pourrait déplacer des pixels sans que personne ne touche au code.
+#
+# En changer impose de rejouer les rendus de référence :
+#     cargo test -p leyline-engine --test golden_renders
+# et de consigner toute dérive constatée.
 [toolchain]
-channel = "stable"
+channel = "1.97.1"
 components = ["rustfmt", "clippy"]

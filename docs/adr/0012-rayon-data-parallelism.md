@@ -6,9 +6,11 @@
 
 La phase 7 vise des rendus interactifs. Les opérateurs de `process 1` sont
 par-pixel ou par-ligne : ils se prêtent au parallélisme de données. Mais le
-contrat de reproductibilité (`docs/pipeline.md`) exige un rendu strictement
-déterministe : un même `settings_json` doit produire les mêmes pixels sur
-toute machine, quel que soit le nombre de threads.
+contrat de reproductibilité (`docs/pipeline.md` §5) exige un rendu strictement
+déterministe : un même `settings_json` doit produire les mêmes pixels quel que
+soit le nombre de threads. Le nombre de threads est précisément le genre de
+variable que §5.1 refuse de laisser entrer dans le résultat — contrairement à
+la plateforme et à la chaîne de compilation, que §5.2 place hors garantie.
 
 ## Décision
 
@@ -17,7 +19,9 @@ Règle absolue : la parallélisation ne change jamais la formule scalaire ni
 l'ordre des opérations *pour un échantillon donné*. Chaque ligne est calculée
 indépendamment, aucune réduction flottante inter-threads n'est autorisée —
 le résultat reste bit-pour-bit identique à l'exécution mono-thread, ce que
-les tests de rendu existants vérifient.
+les tests de rendu existants vérifient — et, depuis ADR 0042 §7, les rendus
+de référence de `golden_renders.rs`, dont aucune empreinte ne dépend du
+nombre de threads.
 
 Un process version gelé peut donc être parallélisé après coup : ce n'est pas
 un changement de rendu au sens de `docs/pipeline.md` §3.3.

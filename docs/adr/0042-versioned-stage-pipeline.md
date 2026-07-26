@@ -53,6 +53,26 @@ ces pixels, dans dix ans* (`docs/pipeline.md` §3.3, §5) — n'est ni affaiblie
 renégociée ici. Elle est **comportementale**. La duplication intégrale n'en
 était qu'une *implémentation possible*, jamais son énoncé.
 
+**Ce qui l'est, en revanche : sa portée.** Le §5 d'origine promettait un
+résultat identique « au pixel près » sans nommer la plateforme. Or le pipeline
+appelle `powf`, `ln` et `exp`, qui sortent de la libm du système : leur dernier
+bit change d'une plateforme, d'une version de libm ou de LLVM à l'autre. La
+promesse était donc, telle qu'écrite, intenable — non par défaut de rigueur,
+mais parce qu'aucun moteur ne la tient : Lightroom ne donne pas les mêmes
+pixels sur ses chemins GPU et CPU, et darktable migre les paramètres des
+anciens modules vers le code courant (`legacy_params`) au lieu de geler ce
+code. §5 est donc rescindé en deux : ce qui est garanti (§5.1) et ce qui ne
+l'est pas (§5.2).
+
+Il faut souligner que ces deux relâchements sont **indépendants**, et qu'un
+seul est retenu. Renoncer à l'exactitude inter-plateforme est *forcé* par la
+virgule flottante. Renoncer au gel du code, à la manière de darktable, serait
+un *choix* — et le présent ADR le rend inutile : ce qui rendait le gel coûteux
+était la copie de 2 700 lignes par fonctionnalité, pas le gel lui-même. Une
+fois les étages composés, `sharpen::v2` pèse quelques dizaines de lignes à côté
+de `sharpen::v1`. On abandonne donc la garantie physiquement impossible, et on
+conserve celle qui ne coûte plus grand-chose.
+
 ## Décision
 
 Le pipeline cesse d'être une suite de modules-versions dupliqués. Il devient la
@@ -118,7 +138,36 @@ table de compatibilité. Le champ devient une abréviation historique et un
 libellé d'affichage (« cette photo utilise un process ancien », comme le PV de
 Lightroom), plus un axe qui croît.
 
-### 6. Rien ne migre sans preuve : les rendus de référence d'abord
+### 6. La version d'étage, et non la version applicative, porte la garantie
+
+Le champ `process` n'était pas seulement l'axe de versionnage du rendu : il
+était aussi la seule échelle à laquelle la promesse savait s'énoncer. Elle
+s'énonce désormais par étage :
+
+> **Aucune version publiée — correctif, mineure ou majeure — ne modifie le
+> rendu d'une version d'étage déjà publiée.** Si le rendu doit changer, c'est
+> une nouvelle version d'étage ; les révisions existantes continuent de citer
+> l'ancienne.
+
+Un changement de rendu n'est donc **jamais** un incrément de version de
+l'application : c'est un nouvel étage. La version applicative et l'identité du
+rendu sont décorrélées — Leyline 1.0.3 et Leyline 7.2.0 rendent `sharpen::v1`
+à l'identique, puisque c'est le même code gelé dans les deux binaires. C'est
+aussi la bonne échelle côté utilisateur : sa révision nomme les versions
+d'étages qu'elle utilise, alors qu'il ignore quel build a produit ses pixels.
+
+Le profil de compilation ne fait pas non plus partie de l'équation : les
+rendus de référence de §7 passent à l'identique en `debug` et en `release`
+(Rust n'active ni *fast-math* ni la contraction FMA, et la vectorisation
+automatique n'a pas le droit de réassocier une réduction flottante).
+
+Reste une entrée que personne ne contrôle en écrivant du code : la chaîne de
+compilation. `rust-toolchain.toml` est donc épinglé sur une **version exacte**
+plutôt que sur `stable` — sinon un `rustup update` avant une publication de
+correctif suffirait à déplacer des pixels. En changer impose de rejouer les
+rendus de référence et de consigner la dérive.
+
+### 7. Rien ne migre sans preuve : les rendus de référence d'abord
 
 **Aucune ligne n'est refactorisée avant que des rendus de référence n'existent.**
 La migration procède dans cet ordre, strictement :
@@ -149,7 +198,7 @@ suite de tests après la migration, comme garde permanent.
   tard.
 * **La correction de l'expansion `process: N` devient critique** : une
   expansion fausse rendrait différemment une photo ancienne. C'est exactement
-  ce que les fixtures de l'étape 6 vérifient, version par version.
+  ce que les fixtures de l'étape 7 vérifient, version par version.
 * **Le nombre de versions d'étages peut croître**, lui — mais seulement pour
   les opérateurs réellement corrigés, pas pour les onze copies de ceux qui ne
   l'ont pas été. Sur l'historique réel, cela aurait produit une `v2` pour les
@@ -157,6 +206,18 @@ suite de tests après la migration, comme garde permanent.
 * **`docs/pipeline.md` §3.3 est réécrit** : le tableau des process versions
   devient une table de compatibilité historique, et la section de versionnage
   décrit les étages.
+* **`docs/pipeline.md` §5 est scindé** en ce qui est garanti (§5.1, avec la
+  règle de publication ci-dessus) et ce qui ne l'est pas (§5.2, la dérive
+  inter-plateforme). Le projet énonce désormais une promesse qu'il tient
+  intégralement, au lieu d'une promesse plus large qu'il tenait en partie.
+* **La chaîne de compilation devient une entrée versionnée du rendu** :
+  `rust-toolchain.toml` est épinglé sur une version exacte, et en changer
+  devient un acte qui impose de rejouer les rendus de référence. C'est la seule
+  variable capable de déplacer des pixels sans qu'une ligne de code bouge.
+* **La version applicative cesse de porter quoi que ce soit sur le rendu** :
+  elle peut suivre le semver ordinaire (fonctionnalités, correctifs, interface)
+  sans que la question « est-ce que cette publication change des pixels ? » se
+  pose jamais. La réponse est structurellement non.
 * **ADR 0028 est remplacé, non annulé rétroactivement** : son raisonnement
   était correct pour les données dont il disposait (cinq modules, 3 433
   lignes), et il avait lui-même prévu sa réouverture sur données réelles.
@@ -182,3 +243,25 @@ suite de tests après la migration, comme garde permanent.
   supplémentaire de rendre la révision non auto-descriptive.
 * **Migrer sans rendus de référence, en relisant le diff** : la seule partie du
   système où « ça devrait aller » n'est pas un critère acceptable.
+* **Adopter aussi le `legacy_params` de darktable** — convertir les paramètres
+  des anciennes versions d'étages vers le code courant plutôt que de geler
+  l'ancien code. C'est le modèle des deux références du domaine, et il ne coûte
+  rien en lignes conservées ; il a été examiné sérieusement, puis écarté. La
+  raison n'est pas doctrinale : c'est que le présent ADR lui retire son
+  intérêt. Ce qui rendait le gel coûteux était la copie intégrale du pipeline,
+  pas le gel ; une fois les étages composés, geler revient à laisser vivre
+  quelques dizaines de lignes qui ne demanderont plus jamais d'attention. On
+  échangerait la seule garantie qui distingue Leyline de Lightroom et de
+  darktable contre quelques centaines de lignes par décennie. Si le calcul
+  devait un jour s'inverser, l'échappatoire reste ouverte **et mesurable** :
+  la structure d'ADR 0042 accueille les deux sémantiques, et les rendus de
+  référence de §7 diraient exactement ce qu'un tel basculement coûterait, au
+  pixel près.
+* **Garder `docs/pipeline.md` §5 tel quel** (« identique au pixel près », sans
+  mention de la plateforme) : intenable. Une promesse invérifiable sur une
+  autre machine n'est pas une promesse plus forte, c'en est une plus fragile —
+  la première dérive de libm constatée par un utilisateur la démolirait tout
+  entière, y compris la partie qui, elle, tient.
+* **Épingler la chaîne d'outils sur `stable`** : c'est ce qui était en place, et
+  c'est précisément le trou. Sur un canal flottant, la promesse dépend de la
+  date à laquelle chaque contributeur a lancé `rustup update`.
