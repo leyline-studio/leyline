@@ -15,5 +15,9 @@ leyline-engine.workspace = true
 leyline-export.workspace = true
 leyline-map.workspace = true
 
+[dev-dependencies]
+serde_json.workspace = true
+tempfile.workspace = true
+
 [lints]
 workspace = true
