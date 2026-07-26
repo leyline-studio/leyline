@@ -4,6 +4,7 @@ use leyline_catalog::{
     CameraInfo, Catalog, GridQuery, Metadata, NewAsset, RatingRule, RegisteredAsset, SmartRules,
     Sort,
 };
+use leyline_core::Settings;
 use leyline_core::{CollectionType, LeylineError, MediaType, PickState, VersionId};
 
 fn new_catalog(dir: &tempfile::TempDir) -> Catalog {
@@ -23,7 +24,7 @@ fn add(catalog: &mut Catalog, filename: &str) -> RegisteredAsset {
         capture_date: None,
         capture_offset_minutes: None,
     };
-    catalog.add_asset(&new).unwrap()
+    catalog.add_asset(&new, &Settings::default()).unwrap()
 }
 
 fn versions(items: &[leyline_catalog::GridItem]) -> Vec<VersionId> {

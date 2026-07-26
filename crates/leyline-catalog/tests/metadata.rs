@@ -2,6 +2,7 @@
 //! (`docs/catalog.md` §13, §14, §15).
 
 use leyline_catalog::{CameraInfo, Catalog, LensInfo, Metadata, NewAsset, Rational};
+use leyline_core::Settings;
 use leyline_core::{AssetId, LeylineError, MediaType};
 
 fn new_catalog(dir: &tempfile::TempDir) -> Catalog {
@@ -21,7 +22,7 @@ fn add(catalog: &mut Catalog, filename: &str) -> AssetId {
         capture_date: None,
         capture_offset_minutes: None,
     };
-    catalog.add_asset(&new).unwrap().asset
+    catalog.add_asset(&new, &Settings::default()).unwrap().asset
 }
 
 fn r5_sample() -> Metadata {

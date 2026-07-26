@@ -24,7 +24,9 @@ fn catalog_with_asset(dir: &tempfile::TempDir) -> (Catalog, RegisteredAsset) {
         capture_date: None,
         capture_offset_minutes: None,
     };
-    let registered = catalog.add_asset(&new).unwrap();
+    let registered = catalog
+        .add_asset(&new, &leyline_engine::neutral_settings())
+        .unwrap();
     (catalog, registered)
 }
 

@@ -790,7 +790,7 @@ Changer de version revient simplement à mettre à jour cette référence.
 
 À l'import, le moteur crée **obligatoirement** pour chaque asset :
 
-1. une révision initiale (réglages neutres, `parent_revision_id = NULL`) ;
+1. une révision initiale (réglages neutres, `parent_revision_id = NULL`) — épinglée comme toute révision stockée (`pipeline.md` §3.3), donc portant déjà la carte `stages` d'une révision neutre. Ces versions d'étages viennent du moteur, jamais du catalogue : `add_asset` reçoit les réglages initiaux de son appelant ;
 2. une version par défaut (`Default`) pointant sur cette révision ;
 3. l'entrée `develop_current` correspondante.
 

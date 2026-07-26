@@ -19,7 +19,9 @@ fn catalog_with_asset(dir: &tempfile::TempDir, name: &str) -> (Catalog, Register
         capture_date: None,
         capture_offset_minutes: None,
     };
-    let registered = catalog.add_asset(&new).unwrap();
+    let registered = catalog
+        .add_asset(&new, &leyline_engine::neutral_settings())
+        .unwrap();
     (catalog, registered)
 }
 
@@ -40,18 +42,21 @@ fn capture_then_apply_reproduces_only_the_included_groups() {
 
     let folder = catalog.ensure_folder("Photos").unwrap();
     let target = catalog
-        .add_asset(&NewAsset {
-            folder,
-            filename: "IMG_0002.CR3".to_owned(),
-            extension: "CR3".to_owned(),
-            media_type: MediaType::Raw,
-            file_size: 1,
-            checksum: [0xCD; CHECKSUM_LEN],
-            width: None,
-            height: None,
-            capture_date: None,
-            capture_offset_minutes: None,
-        })
+        .add_asset(
+            &NewAsset {
+                folder,
+                filename: "IMG_0002.CR3".to_owned(),
+                extension: "CR3".to_owned(),
+                media_type: MediaType::Raw,
+                file_size: 1,
+                checksum: [0xCD; CHECKSUM_LEN],
+                width: None,
+                height: None,
+                capture_date: None,
+                capture_offset_minutes: None,
+            },
+            &Settings::default(),
+        )
         .unwrap()
         .version;
 

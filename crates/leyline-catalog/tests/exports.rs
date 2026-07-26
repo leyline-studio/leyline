@@ -1,6 +1,7 @@
 //! Integration tests: export presets and history (`docs/catalog.md` §27, §28).
 
 use leyline_catalog::{Catalog, NewAsset};
+use leyline_core::Settings;
 use leyline_core::{AssetId, LeylineError, MediaType};
 
 fn new_catalog(dir: &tempfile::TempDir) -> Catalog {
@@ -20,7 +21,7 @@ fn add(catalog: &mut Catalog) -> AssetId {
         capture_date: None,
         capture_offset_minutes: None,
     };
-    catalog.add_asset(&new).unwrap().asset
+    catalog.add_asset(&new, &Settings::default()).unwrap().asset
 }
 
 #[test]

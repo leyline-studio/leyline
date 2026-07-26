@@ -45,6 +45,10 @@ RAW décodé
 
 ↓
 
+Entrée (`input` : configuration du décodeur, espace du tampon)
+
+↓
+
 Profil d'appareil (DCP)
 
 ↓
@@ -113,10 +117,16 @@ Rotation / Recadrage
 
 ↓
 
+Rendu de sortie (`output_rendering` : du tampon de travail au signal d'affichage)
+
+↓
+
 Sortie (aperçu ou export)
 ```
 
 L'utilisateur règle des **valeurs**, jamais l'ordre.
+
+Les deux étages d'extrémité, `input` et `output_rendering`, encadrent le pipeline depuis [ADR 0044](adr/0044-linear-wide-gamut-working-space.md). Ils n'ont pas de valeur neutre — il n'existe pas de rendu sans entrée ni sortie — et sont donc les seuls que **toute** révision inscrit dans sa carte `stages`. `input` porte notamment la configuration demandée au décodeur, qui change les pixels et n'était épinglée nulle part avant cet ADR. L'**espace de travail** du tampon est une propriété déclarée par chaque version d'étage : deux versions d'espaces différents ne composent pas, et un plan qui les mélange **échoue** (`MixedWorkingSpaces`) au lieu d'être rendu au mieux. Migrer une révision d'un espace à l'autre est un retraitement (§4.5), donc une nouvelle révision.
 
 Cet ordre fait partie du contrat de rendu : le modifier change les pixels produits, donc impose une nouvelle *version d'étage* déclarant un autre rang (§3.3).
 
@@ -133,7 +143,11 @@ Jamais un delta.
 ```json
 {
     "schema": 1,
-    "stages": { "camera_profile": 1, "gains": 1, "contrast": 1, "crop": 1 },
+    "stages": {
+        "input": 1,
+        "camera_profile": 1, "gains": 1, "contrast": 1, "crop": 1,
+        "output_rendering": 1
+    },
 
     "camera_profile": {
         "enabled": true,
@@ -220,7 +234,7 @@ Jamais un delta.
 
 Les deux évoluent indépendamment : on peut renommer un champ sans changer le rendu, et corriger un algorithme sans changer la structure.
 
-`stages` associe à chaque étage **actif** la version de cet étage qui rend cette révision. Un étage à sa valeur neutre ne s'exécute pas, n'a donc aucun comportement à épingler, et **n'y figure pas** — la carte est proportionnelle à l'édition réelle, pas au nombre d'étages du moteur. Une révision neutre écrit une carte vide, donc pas de champ du tout.
+`stages` associe à chaque étage **actif** la version de cet étage qui rend cette révision. Un étage à sa valeur neutre ne s'exécute pas, n'a donc aucun comportement à épingler, et **n'y figure pas** — la carte est proportionnelle à l'édition réelle, pas au nombre d'étages du moteur. Une révision neutre n'inscrit donc que les deux étages d'encadrement (§3.1), qui n'ont pas de valeur neutre.
 
 ### Valeurs omises
 
@@ -279,8 +293,8 @@ Règle fondamentale :
 **Épinglage.** La carte est écrite par le moteur au moment où la révision est écrite, jamais déduite à la lecture :
 
 * un étage déjà inscrit **garde** sa version — éditer en 2036 une photo de 2026 ne la re-rend pas à travers du code plus récent ;
-* un étage qui vient de quitter sa valeur neutre reçoit la version **courante** du moteur ;
-* un étage redevenu neutre **perd** son entrée, puisqu'il ne rend plus rien.
+* un étage qui vient de quitter sa valeur neutre reçoit la version courante du moteur **dans l'espace de travail que la révision déclare déjà** — jamais une version qui la ferait changer d'espace par effet de bord ([ADR 0044](adr/0044-linear-wide-gamut-working-space.md) §4) ;
+* un étage redevenu neutre **perd** son entrée, puisqu'il ne rend plus rien ; `input` et `output_rendering` font exception, n'ayant pas de valeur neutre.
 
 Un étage actif mais sans version inscrite rend à la version courante. Ce cas ne concerne que des réglages construits en mémoire (SDK, préréglage, test) : toute révision *stockée* reçoit ses entrées à l'écriture.
 
@@ -290,6 +304,7 @@ Le code de chaque version d'étage est conservé dans le moteur pour toujours : 
 
 | Rang | Étage | Version | Rôle |
 |---|---|---|---|
+| 0 | `input` | 1 | Configuration demandée au décodeur (sortie native capteur ou sRGB) et espace du tampon de travail ; toujours actif (ADR 0044) |
 | 10 | `camera_profile` | 1 | Matrice DCP boîtier → sRGB linéaire, avant tout le reste : elle établit l'espace du tampon de travail (ADR 0035, conteneur lu selon ADR 0037) |
 | 20 | `lens` | 1 | Distorsion, aberration chromatique transversale et vignettage via un profil Lensfun (ADR 0016–0018) |
 | 30 | `spot_removal` | 1 | Clonage déterministe par copie bilinéaire adoucie, sans mode *heal* (ADR 0031) |
@@ -311,6 +326,7 @@ Le code de chaque version d'étage est conservé dans le moteur pour toujours : 
 | 190 | `sharpen` | 1 | Masque flou sur le plan de luminance |
 | 200 | `rotate` | 1 | Rotation d'angle arbitraire, échantillonnage bilinéaire |
 | 210 | `crop` | 1 | Recadrage |
+| 900 | `output_rendering` | 1 | Du tampon de travail au signal d'affichage ; toujours actif. Sans effet tant que le tampon est déjà sRGB affichable (ADR 0044 §3) |
 
 Les rangs vont de dix en dix : un étage futur s'insère entre deux existants sans que personne ne renumérote quoi que ce soit.
 
@@ -344,6 +360,8 @@ Un moteur qui rencontre un `schema` plus récent que ce qu'il connaît, ou une v
 * affiche la meilleure préversion disponible (dernière preview en cache) avec un avertissement.
 
 Un vieux moteur ne doit jamais détruire le travail d'un moteur récent. Un étage inconnu n'est jamais **sauté** : le rendu échoue (`UnknownStage`), car rendre la photo sans un opérateur que son auteur a vu serait lui montrer d'autres pixels sans le dire.
+
+Même posture pour une révision dont les versions d'étages ne s'accordent pas sur un espace de travail : le rendu échoue (`MixedWorkingSpaces`) en nommant les deux étages en désaccord. Un opérateur écrit pour la lumière linéaire à qui l'on donne un tampon gamma-encodé produirait des pixels plausibles et faux — le seul cas pire qu'une erreur.
 
 Le champ `process`, retiré par [ADR 0043](adr/0043-collapse-prerelease-render-history.md), fait exception à la règle de préservation des champs inconnus : un document qui le porte encore est **refusé**. Cette règle protège le travail d'un moteur *plus récent* ; un champ *supprimé* signale au contraire un document antérieur à la carte d'étages, qu'il serait faux de rendre comme s'il n'en portait pas.
 
@@ -499,7 +517,7 @@ Les anciens résultats restent consultables tant que l'utilisateur ne les suppri
 Deux exécutions produisent le **même résultat, bit pour bit**, si et seulement si :
 
 * les paramètres enregistrés sont strictement identiques ;
-* les versions d'étages mises en jeu sont identiques (ADR 0042) — pour un pipeline générique, l'identité du pipeline et sa version (§4.1) ;
+* les versions d'étages mises en jeu sont identiques (ADR 0042) — y compris celles des deux étages d'encadrement, qui épinglent l'espace de travail et la configuration du décodeur (ADR 0044) ; pour un pipeline générique, l'identité du pipeline et sa version (§4.1) ;
 * la ressource d'entrée est identique (même `checksum`) ;
 * la plateforme et la chaîne de compilation sont les mêmes (§5.2).
 

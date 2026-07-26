@@ -36,6 +36,16 @@
 //! For the same reason the settings fragments below are frozen too: an entry
 //! can only be replayed if its case still means what it meant. Exercising an
 //! operator differently is a *new* case, never an edit of one that ships.
+//!
+//! # Why every case has two entries
+//!
+//! ADR 0044 §3 added the two stages that frame the pipeline, `input` and
+//! `output_rendering`, so a revision written today records two names more
+//! than one written yesterday. Both shapes are pinned: the entries *without*
+//! them are the revisions that already exist, and they are what proves that
+//! adding the framing left their pixels exactly where they were — the pair
+//! of digests is identical, case by case. The additive blessing rule is what
+//! made that comparison possible rather than a matter of trust.
 
 use std::collections::BTreeMap;
 use std::io::Cursor;

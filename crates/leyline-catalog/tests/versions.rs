@@ -23,7 +23,7 @@ fn registered_asset(catalog: &mut Catalog) -> RegisteredAsset {
         capture_date: None,
         capture_offset_minutes: None,
     };
-    catalog.add_asset(&new).unwrap()
+    catalog.add_asset(&new, &Settings::default()).unwrap()
 }
 
 fn exposure(catalog: &mut Catalog, version: VersionId, ev: f64) -> RevisionId {
@@ -91,7 +91,7 @@ fn create_version_rejects_foreign_revisions_and_duplicate_names() {
         capture_date: None,
         capture_offset_minutes: None,
     };
-    let other = catalog.add_asset(&other).unwrap();
+    let other = catalog.add_asset(&other, &Settings::default()).unwrap();
 
     // A revision of another asset is not a valid branch point.
     assert!(matches!(
@@ -151,7 +151,7 @@ fn registered_asset_named(catalog: &mut Catalog, filename: &str) -> RegisteredAs
         capture_date: None,
         capture_offset_minutes: None,
     };
-    catalog.add_asset(&new).unwrap()
+    catalog.add_asset(&new, &Settings::default()).unwrap()
 }
 
 #[test]

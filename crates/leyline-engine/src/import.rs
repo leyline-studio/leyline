@@ -159,18 +159,25 @@ fn import_one(
         .ok_or_else(|| Skip("file sits at the library root, not in a folder".to_owned()))?;
     let folder = catalog.ensure_folder(folder_path)?;
 
-    let registered = catalog.add_asset(&NewAsset {
-        folder,
-        filename,
-        extension,
-        media_type,
-        file_size,
-        checksum,
-        width: raw.as_ref().map(|m| m.width).or(probed.map(|(w, _)| w)),
-        height: raw.as_ref().map(|m| m.height).or(probed.map(|(_, h)| h)),
-        capture_date: raw.as_ref().and_then(|m| m.capture_ms),
-        capture_offset_minutes: None,
-    })?;
+    let registered = catalog.add_asset(
+        &NewAsset {
+            folder,
+            filename,
+            extension,
+            media_type,
+            file_size,
+            checksum,
+            width: raw.as_ref().map(|m| m.width).or(probed.map(|(w, _)| w)),
+            height: raw.as_ref().map(|m| m.height).or(probed.map(|(_, h)| h)),
+            capture_date: raw.as_ref().and_then(|m| m.capture_ms),
+            capture_offset_minutes: None,
+        },
+        // The initial revision is stored, so it is pinned like any other
+        // (`docs/pipeline.md` §3.3): neutral values, plus the versions of the
+        // stages a neutral revision still runs — the two that frame the
+        // pipeline (ADR 0044 §3).
+        &crate::stages::neutral_settings(),
+    )?;
     if let Some(raw) = raw {
         catalog.set_metadata(registered.asset, &exif_metadata(&raw))?;
     }

@@ -114,6 +114,10 @@ pub enum LeylineError {
     InvalidSettings(String),
     NewerSettings { schema: u32 },
     UnknownStage { stage: String, version: u16 },
+    MixedWorkingSpaces {
+        stage: String, version: u16, space: String,
+        other_stage: String, other_version: u16, other_space: String,
+    },
     InvalidImage(String),
     Io(std::io::Error),
     Db(String),

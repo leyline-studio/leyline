@@ -82,7 +82,7 @@ fn add_asset_creates_the_mandatory_develop_trio() {
     let mut catalog = new_catalog(&dir);
 
     let new = sample_asset(&mut catalog, "IMG_0001.CR3");
-    let registered = catalog.add_asset(&new).unwrap();
+    let registered = catalog.add_asset(&new, &Settings::default()).unwrap();
 
     // §18: initial revision is neutral, parentless, and the head of `Default`.
     let (settings_json, parent): (String, Option<i64>) = catalog
@@ -133,8 +133,11 @@ fn add_asset_rejects_duplicates_in_the_same_folder() {
     let mut catalog = new_catalog(&dir);
 
     let new = sample_asset(&mut catalog, "IMG_0001.CR3");
-    catalog.add_asset(&new).unwrap();
-    assert!(matches!(catalog.add_asset(&new), Err(LeylineError::Db(_))));
+    catalog.add_asset(&new, &Settings::default()).unwrap();
+    assert!(matches!(
+        catalog.add_asset(&new, &Settings::default()),
+        Err(LeylineError::Db(_))
+    ));
 
     // The failed transaction left nothing behind.
     let assets: i64 = catalog

@@ -29,7 +29,6 @@ use leyline_color::OutputTransform;
 use leyline_core::{AssetId, LeylineError, PrintPresetId, Result, Settings, VersionId};
 use leyline_export::{ExportError, PrintSettings};
 use leyline_preview::Rgb8;
-use leyline_raw::DecodeParams;
 
 use crate::render;
 
@@ -127,10 +126,13 @@ pub(crate) fn render_print(
         &plan.develop,
         &plan.source,
     )?;
-    let decode_params = DecodeParams {
-        camera_native: camera_profile.is_some(),
-        ..DecodeParams::default()
-    };
+    let decode_params = crate::stages::decode_params(
+        &plan.develop,
+        crate::stages::InputRequest {
+            has_camera_profile: camera_profile.is_some(),
+            half_size: false,
+        },
+    );
     let decoded = crate::source::decode(&plan.source, &decode_params).map_err(|e| {
         LeylineError::DecodeFailed {
             asset: plan.asset,

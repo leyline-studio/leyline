@@ -1,6 +1,7 @@
 //! Integration tests: the grid query (`docs/engine-api.md` §7).
 
 use leyline_catalog::{Catalog, GridQuery, NewAsset, RegisteredAsset, Sort};
+use leyline_core::Settings;
 use leyline_core::{ColorLabel, LeylineError, MediaType, PickState, VersionId};
 
 fn new_catalog(dir: &tempfile::TempDir) -> Catalog {
@@ -25,7 +26,7 @@ fn add(
         capture_date,
         capture_offset_minutes: None,
     };
-    catalog.add_asset(&new).unwrap()
+    catalog.add_asset(&new, &Settings::default()).unwrap()
 }
 
 /// Three assets: two birds in Wildlife (rated 5 and 3), one street shot.

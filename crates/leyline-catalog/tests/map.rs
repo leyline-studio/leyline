@@ -2,6 +2,7 @@
 
 use leyline_catalog::{Catalog, Metadata, NewAsset, RegisteredAsset};
 use leyline_core::MediaType;
+use leyline_core::Settings;
 
 fn new_catalog(dir: &tempfile::TempDir) -> Catalog {
     Catalog::create(&dir.path().join("catalog.db"), "Map").unwrap()
@@ -20,7 +21,7 @@ fn add(catalog: &mut Catalog, filename: &str, checksum: u8) -> RegisteredAsset {
         capture_date: None,
         capture_offset_minutes: None,
     };
-    catalog.add_asset(&new).unwrap()
+    catalog.add_asset(&new, &Settings::default()).unwrap()
 }
 
 #[test]

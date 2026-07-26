@@ -11,6 +11,7 @@ use leyline_core::{
     Point, Sharpening, SpotRemoval,
 };
 
+use super::Space;
 use super::clarity::v1::CLARITY_RADIUS;
 use super::color_grading::v1::{zone_tint, zone_weights};
 use super::dehaze::v1::{DEHAZE_PATCH_RADIUS, atmospheric_light, min_filter};
@@ -1278,11 +1279,24 @@ fn the_plan_runs_in_rank_order() {
 }
 
 #[test]
-fn a_neutral_edit_records_and_runs_nothing() {
+fn a_neutral_edit_records_and_runs_only_the_framing_stages() {
+    // Since ADR 0044 §3 the pipeline is framed by two stages that have no
+    // neutral value — they say where the pixels come from and how they
+    // leave. Everything *between* them is still absent from a neutral
+    // revision, which is what makes it render the decoded image untouched.
     let mut settings = Settings::default();
     crate::stages::pin(&mut settings);
-    assert!(settings.stages.is_empty());
-    assert!(super::plan(&settings).unwrap().is_empty());
+    assert_eq!(
+        settings.stages.keys().collect::<Vec<_>>(),
+        ["input", "output_rendering"],
+        "{:?}",
+        settings.stages
+    );
+    let plan = super::plan(&settings).unwrap();
+    assert_eq!(
+        plan.iter().map(|(stage, _)| stage.name).collect::<Vec<_>>(),
+        ["input", "output_rendering"]
+    );
 }
 
 #[test]
@@ -1293,7 +1307,11 @@ fn pin_records_the_current_version_of_a_stage_that_just_became_active() {
     };
     crate::stages::pin(&mut settings);
     assert_eq!(settings.stages.get("gains"), Some(&1));
-    assert_eq!(settings.stages.len(), 1, "{:?}", settings.stages);
+    assert_eq!(
+        settings.stages.keys().collect::<Vec<_>>(),
+        ["gains", "input", "output_rendering"],
+        "one operator, plus the two stages that frame every pipeline"
+    );
 }
 
 #[test]
@@ -1434,4 +1452,124 @@ fn an_unknown_version_of_a_known_stage_is_refused() {
         super::plan(&fixture_settings(Some(3))),
         Err(LeylineError::UnknownStage { version: 3, .. })
     ));
+}
+
+// ---------------------------------------------------------------------------
+// Working space (ADR 0044)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn every_published_version_declares_the_space_it_renders_in() {
+    // Nothing has moved to linear Rec. 2020 yet (ADR 0044 §7 step 2); what
+    // matters here is that the declaration exists on each version, since it
+    // is what the refusal below reads.
+    for stage in crate::stages::registry() {
+        for version in stage.versions {
+            assert_eq!(
+                version.space,
+                Space::SrgbGamma,
+                "{}::v{} declares an unexpected space",
+                stage.name,
+                version.version
+            );
+        }
+    }
+}
+
+#[test]
+fn stages_agreeing_on_one_space_compose() {
+    assert_eq!(
+        super::single_space([
+            ("input", 1, Space::SrgbGamma),
+            ("gains", 1, Space::SrgbGamma),
+        ])
+        .unwrap(),
+        Some(Space::SrgbGamma)
+    );
+    assert_eq!(super::single_space([]).unwrap(), None);
+}
+
+#[test]
+fn two_working_spaces_in_one_plan_are_refused_by_name() {
+    // The case ADR 0044 §4 exists for: an operator written for linear light
+    // handed a gamma-encoded buffer would produce plausible, wrong pixels,
+    // so the render is refused — and the message names both sides, since
+    // "your revision is inconsistent" is not actionable on its own.
+    let refused = super::single_space([
+        ("gains", 1, Space::SrgbGamma),
+        ("hsl", 2, Space::LinearRec2020),
+    ]);
+    let Err(LeylineError::MixedWorkingSpaces {
+        stage,
+        version,
+        other_stage,
+        other_version,
+        ..
+    }) = refused
+    else {
+        panic!("mixing two spaces must be refused, got {refused:?}");
+    };
+    assert_eq!((stage.as_str(), version), ("gains", 1));
+    assert_eq!((other_stage.as_str(), other_version), ("hsl", 2));
+}
+
+#[test]
+fn a_revision_reads_its_space_off_the_versions_it_records() {
+    // No record at all: the space this engine renders in today.
+    assert_eq!(
+        super::revision_space(&Settings::default()),
+        Space::SrgbGamma
+    );
+    let settings = Settings {
+        stages: leyline_core::StageVersions::from([("gains".to_owned(), 1)]),
+        ..Settings::default()
+    };
+    assert_eq!(super::revision_space(&settings), Space::SrgbGamma);
+}
+
+#[test]
+fn a_newly_active_stage_pins_a_version_of_the_revisions_own_space() {
+    let stage = crate::stages::registry()
+        .find(|stage| stage.name == "gains")
+        .unwrap();
+    // Every version is sRGB today, so `current_in` and `current` agree —
+    // the assertion that matters is the other one: an operator that has
+    // never rendered in a space offers nothing there, and `pin` then writes
+    // its newest version so the mismatch is refused by name rather than
+    // silently resolved.
+    assert_eq!(
+        stage.current_in(Space::SrgbGamma).map(|v| v.version),
+        Some(stage.current().version)
+    );
+    assert!(stage.current_in(Space::LinearRec2020).is_none());
+    assert_eq!(
+        super::pinned_version(stage, &Settings::default()).version,
+        stage.current().version
+    );
+}
+
+#[test]
+fn the_decoder_configuration_comes_from_the_input_version() {
+    // ADR 0044 §3: this used to be `camera_native: camera_profile.is_some()`
+    // repeated in four modules and recorded nowhere.
+    let settings = Settings::default();
+    let without = crate::stages::decode_params(
+        &settings,
+        crate::stages::InputRequest {
+            has_camera_profile: false,
+            half_size: true,
+        },
+    );
+    assert!(!without.camera_native);
+    assert!(without.half_size);
+
+    let with = crate::stages::decode_params(
+        &settings,
+        crate::stages::InputRequest {
+            has_camera_profile: true,
+            half_size: false,
+        },
+    );
+    assert!(with.camera_native, "a DCP matrix needs camera-native input");
+    assert!(!with.half_size);
 }

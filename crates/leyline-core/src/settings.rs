@@ -378,8 +378,13 @@ pub struct Settings {
     pub schema: u32,
     /// Version of each stage that renders this revision — the *rendering*
     /// axis, replacing the single `process` counter of ADR 0028 (ADR 0043).
-    /// Empty when every stage is neutral, which is exactly when nothing
-    /// runs.
+    /// A stage at its neutral value has no entry, since it does not run.
+    ///
+    /// Two stages have no neutral value and are therefore always recorded:
+    /// `input` and `output_rendering`, which say where the pixels come from
+    /// and how they leave (ADR 0044 §3). The map is empty only on settings
+    /// no engine has pinned yet — freshly built in memory, or read from a
+    /// revision written before those two stages existed.
     #[serde(default, skip_serializing_if = "StageVersions::is_empty")]
     pub stages: StageVersions,
 

@@ -98,6 +98,31 @@ pub enum LeylineError {
         version: u16,
     },
 
+    /// The revision cites stage versions that work in two different working
+    /// spaces (ADR 0044 §4). They do not compose — an operator written for
+    /// linear light handed a gamma-encoded buffer produces plausible, wrong
+    /// pixels — so the render is refused, exactly as an unknown stage is.
+    /// Migrating the revision to one space is a reprocessing
+    /// (`docs/pipeline.md` §4.5), which writes a new revision.
+    #[error(
+        "settings mix working spaces: {stage} v{version} renders in {space}, \
+         {other_stage} v{other_version} in {other_space}"
+    )]
+    MixedWorkingSpaces {
+        /// One stage's name.
+        stage: String,
+        /// That stage's version.
+        version: u16,
+        /// The working space that version renders in.
+        space: String,
+        /// The name of a stage disagreeing with it.
+        other_stage: String,
+        /// That stage's version.
+        other_version: u16,
+        /// The working space it renders in.
+        other_space: String,
+    },
+
     /// A pixel buffer handed to the engine is malformed.
     #[error("invalid image: {0}")]
     InvalidImage(String),

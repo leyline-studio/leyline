@@ -1,6 +1,7 @@
 //! Integration tests: hierarchical keywords (`docs/catalog.md` §22, §23).
 
 use leyline_catalog::{Catalog, NewAsset, RegisteredAsset};
+use leyline_core::Settings;
 use leyline_core::{AssetId, KeywordId, LeylineError, MediaType};
 
 fn new_catalog(dir: &tempfile::TempDir) -> Catalog {
@@ -20,7 +21,7 @@ fn registered_asset(catalog: &mut Catalog, filename: &str) -> RegisteredAsset {
         capture_date: None,
         capture_offset_minutes: None,
     };
-    catalog.add_asset(&new).unwrap()
+    catalog.add_asset(&new, &Settings::default()).unwrap()
 }
 
 #[test]

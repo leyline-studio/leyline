@@ -55,12 +55,19 @@ pub struct RegisteredAsset {
 impl Catalog {
     /// Registers a file and its mandatory develop trio, in one transaction.
     ///
+    /// `initial` is the develop state the first revision records — neutral
+    /// values, and the stage versions the caller's engine pins for them
+    /// (`docs/pipeline.md` §3.3: a *stored* revision gets its entries when
+    /// it is written). This crate cannot derive those itself, which is why
+    /// they come in as a parameter: stage versions are engine knowledge and
+    /// the catalog sits below the engine.
+    ///
     /// Fails if a file with the same name already exists in the folder
     /// (`UNIQUE(folder_id, filename)`).
-    pub fn add_asset(&mut self, new: &NewAsset) -> Result<RegisteredAsset> {
+    pub fn add_asset(&mut self, new: &NewAsset, initial: &Settings) -> Result<RegisteredAsset> {
         self.ensure_writable()?;
         let now = now_ms();
-        let neutral = Settings::default().to_json();
+        let neutral = initial.to_json();
 
         let tx = self.conn.transaction().map_err(db_err)?;
 

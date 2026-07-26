@@ -43,14 +43,33 @@
 //! another rank, never an edit of an existing one — revisions citing the old
 //! version keep the old position.
 //!
-//! # Neutral stages
+//! # Neutral stages, and the two that are never neutral
 //!
 //! A stage whose setting sits at its neutral value does not run at all
 //! ([`Stage::active`]) — the rule that makes a neutral rendering bit-for-bit
 //! the decoded image. It is also why a neutral stage has no behavior to pin
 //! and does not need to appear in a revision.
+//!
+//! `input` and `output_rendering` are the exceptions (ADR 0044 §3): a
+//! rendering without an entry or an exit is not a neutral rendering, it is
+//! an incomplete one. They run and are recorded always, which is what lets a
+//! revision say — without any global counter — where its pixels came from
+//! and which working space they travelled in.
+//!
+//! # Working space
+//!
+//! Each version declares the buffer it reads and writes ([`Version::space`]).
+//! Two spaces never compose, so a plan mixing them is refused
+//! ([`LeylineError::MixedWorkingSpaces`]) instead of rendered at best, and a
+//! stage entering a revision takes the current version *of that revision's
+//! space* ([`pinned_version`]). Everything published so far renders in
+//! gamma-encoded sRGB; moving the pipeline to linear Rec. 2020 is what
+//! ADR 0044 §7 step 2 does, one new version per operator.
 
 pub(crate) mod kernel {
+    pub(crate) mod v1;
+}
+pub(crate) mod input {
     pub(crate) mod v1;
 }
 pub(crate) mod camera_profile {
@@ -110,10 +129,13 @@ pub(crate) mod rotate {
 pub(crate) mod crop {
     pub(crate) mod v1;
 }
+pub(crate) mod output_rendering {
+    pub(crate) mod v1;
+}
 
 use leyline_color::DcpProfile;
 use leyline_core::{ColorGrading, HslBand, LeylineError, Result, Settings};
-use leyline_raw::RawImage;
+use leyline_raw::{DecodeParams, RawImage};
 
 use crate::pixels::Pixels;
 use crate::render::{LensShot, Rendered};
@@ -132,6 +154,38 @@ pub(crate) struct Context<'a> {
     pub scale: f32,
 }
 
+/// The pixel encoding a stage version reads and writes — the working
+/// buffer's contract, declared per version (ADR 0044 §4).
+///
+/// It is a property of the *version* for the same reason the rank is: an
+/// operator moved to another space is a new version, and revisions citing
+/// the old one keep rendering in the old space. Stages of two different
+/// spaces never compose, so a plan mixing them is refused ([`plan`]) rather
+/// than rendered "at best".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Space {
+    /// Gamma-encoded sRGB, clamped to [0, 1]: the space of every version
+    /// published so far (ADR 0015), described in [`crate::pixels`].
+    SrgbGamma,
+    /// Rec. 2020 primaries, linear light, unbounded above (ADR 0044 §1–2).
+    ///
+    /// No shipped operator renders here yet — step 2 of ADR 0044 §7 is what
+    /// moves them over. Until then the test fixture stage is the only thing
+    /// declaring it, so the refusal below is exercised rather than assumed.
+    #[cfg_attr(not(test), allow(dead_code))]
+    LinearRec2020,
+}
+
+impl Space {
+    /// How a rendering error names this space.
+    fn label(self) -> &'static str {
+        match self {
+            Space::SrgbGamma => "gamma-encoded sRGB",
+            Space::LinearRec2020 => "linear Rec. 2020",
+        }
+    }
+}
+
 /// One frozen version of one operator.
 pub(crate) struct Version {
     /// Version number, as a revision cites it.
@@ -139,6 +193,9 @@ pub(crate) struct Version {
     /// Position in the pipeline; lower runs first. A property of the
     /// version, not of the operator (ADR 0042 §3).
     pub rank: u16,
+    /// The working buffer this version expects and leaves behind
+    /// (ADR 0044 §4).
+    pub space: Space,
     /// The rendering itself.
     pub apply: fn(&mut Pixels, &Context<'_>),
 }
@@ -167,11 +224,39 @@ impl Stage {
             .last()
             .expect("a registered stage has at least one version")
     }
+
+    /// The newest version of this operator working in `space`, if it has
+    /// one — what a revision already committed to a space is allowed to
+    /// pin (ADR 0044 §4). A stage that never rendered in `space` returns
+    /// `None`, and [`pin`] falls back to [`Stage::current`] so the
+    /// incoherence is written down and refused at render time by name,
+    /// rather than silently resolved into some other stage's space.
+    fn current_in(&self, space: Space) -> Option<&'static Version> {
+        self.versions.iter().rev().find(|v| v.space == space)
+    }
 }
 
 /// The stage registry. Published `(name, version)` entries are frozen —
 /// see the module docs.
 pub(crate) static STAGES: &[Stage] = &[
+    Stage {
+        // Always active: there is no rendering without an input, so this
+        // stage has no neutral value (ADR 0044 §3). Its version is what
+        // pins the *decoder's* configuration — see [`decode_params`] —
+        // which changes pixels and was, until ADR 0044, the one input to
+        // the rendering that no revision recorded.
+        name: "input",
+        active: |_| true,
+        versions: &[Version {
+            version: 1,
+            rank: 0,
+            space: Space::SrgbGamma,
+            // Nothing to do on the buffer: at this version the decoder
+            // already hands over gamma-encoded sRGB, and the camera
+            // profile stage does the matrix when there is a profile.
+            apply: |_, _| {},
+        }],
+    },
     Stage {
         name: "camera_profile",
         active: |settings| {
@@ -183,6 +268,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 10,
+            space: Space::SrgbGamma,
             apply: |px, ctx| {
                 if let Some(profile) = ctx.camera_profile {
                     camera_profile::v1::apply_camera_profile(px, profile);
@@ -196,6 +282,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 20,
+            space: Space::SrgbGamma,
             apply: |px, ctx| {
                 let Some(shot) = ctx.shot else { return };
                 if let Some(profile) = leyline_lens::find_profile(
@@ -221,6 +308,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 30,
+            space: Space::SrgbGamma,
             apply: |px, ctx| {
                 spot_removal::v1::spot_removal(
                     px,
@@ -236,6 +324,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 40,
+            space: Space::SrgbGamma,
             apply: |px, ctx| {
                 gains::v1::linear_gains(
                     px,
@@ -251,6 +340,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 50,
+            space: Space::SrgbGamma,
             apply: |px, ctx| contrast::v1::contrast(px, ctx.settings.contrast),
         }],
     },
@@ -260,6 +350,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 60,
+            space: Space::SrgbGamma,
             apply: |px, ctx| {
                 highlights_shadows::v1::highlights_shadows(
                     px,
@@ -275,6 +366,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 70,
+            space: Space::SrgbGamma,
             apply: |px, ctx| {
                 whites_blacks::v1::whites_blacks(px, ctx.settings.whites, ctx.settings.blacks);
             },
@@ -286,6 +378,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 80,
+            space: Space::SrgbGamma,
             apply: |px, ctx| tone_curve::v1::tone_curve(px, &ctx.settings.tone_curve.points),
         }],
     },
@@ -295,6 +388,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 90,
+            space: Space::SrgbGamma,
             apply: |px, ctx| {
                 kernel::v1::local_contrast(
                     px,
@@ -310,6 +404,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 100,
+            space: Space::SrgbGamma,
             apply: |px, ctx| {
                 kernel::v1::local_contrast(
                     px,
@@ -325,6 +420,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 110,
+            space: Space::SrgbGamma,
             apply: |px, ctx| dehaze::v1::dehaze(px, ctx.settings.dehaze, ctx.scale),
         }],
     },
@@ -336,6 +432,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 120,
+            space: Space::SrgbGamma,
             apply: |px, ctx| kernel::v1::saturate(px, ctx.settings.vibrance, true),
         }],
     },
@@ -345,6 +442,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 130,
+            space: Space::SrgbGamma,
             apply: |px, ctx| kernel::v1::saturate(px, ctx.settings.saturation, false),
         }],
     },
@@ -354,6 +452,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 140,
+            space: Space::SrgbGamma,
             apply: |px, ctx| hsl::v1::hsl_mixer(px, &ctx.settings.hsl),
         }],
     },
@@ -363,6 +462,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 150,
+            space: Space::SrgbGamma,
             apply: |px, ctx| color_grading::v1::color_grading(px, &ctx.settings.color_grading),
         }],
     },
@@ -372,6 +472,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 160,
+            space: Space::SrgbGamma,
             apply: |px, ctx| {
                 local_adjustments::v1::local_adjustments(
                     px,
@@ -387,6 +488,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 170,
+            space: Space::SrgbGamma,
             apply: |px, ctx| {
                 noise_luminance::v1::luminance_noise_reduction(
                     px,
@@ -402,6 +504,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 180,
+            space: Space::SrgbGamma,
             apply: |px, ctx| {
                 noise_color::v1::color_noise_reduction(
                     px,
@@ -417,6 +520,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 190,
+            space: Space::SrgbGamma,
             apply: |px, ctx| {
                 sharpen::v1::sharpen(
                     px,
@@ -432,6 +536,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 200,
+            space: Space::SrgbGamma,
             apply: |px, ctx| *px = rotate::v1::rotate(px, ctx.settings.rotation),
         }],
     },
@@ -441,6 +546,7 @@ pub(crate) static STAGES: &[Stage] = &[
         versions: &[Version {
             version: 1,
             rank: 210,
+            space: Space::SrgbGamma,
             apply: |px, ctx| {
                 if let Some(rect) = &ctx.settings.crop {
                     *px = crop::v1::crop(px, rect);
@@ -448,7 +554,83 @@ pub(crate) static STAGES: &[Stage] = &[
             },
         }],
     },
+    Stage {
+        // Always active, like `input` and for the same reason: the buffer
+        // has to become a display signal, and "not converting" is not a
+        // neutral value but a missing step (ADR 0044 §3).
+        name: "output_rendering",
+        active: |_| true,
+        versions: &[Version {
+            version: 1,
+            rank: 900,
+            space: Space::SrgbGamma,
+            // Nothing to do: at this version the working buffer already is
+            // display-referred sRGB in [0, 1]. The version that ships with
+            // the linear working space is where the highlight roll-off and
+            // the encoding live.
+            apply: |_, _| {},
+        }],
+    },
 ];
+
+/// How the decoder must be configured, per published `input` version.
+///
+/// Kept beside [`STAGES`] and frozen exactly like it: an `input` version
+/// freezes two things together — what the decoder is asked for, and what the
+/// stage then does to the buffer — because both change pixels and a revision
+/// cites a single number for them.
+static INPUT_DECODE: &[(u16, DecodeConfig)] = &[(1, input::v1::decode_params)];
+
+/// What one `input` version asks the decoder for.
+type DecodeConfig = fn(InputRequest) -> DecodeParams;
+
+/// What a caller knows about a decode before the pipeline runs: the two
+/// things that vary from one render of the same revision to the next.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct InputRequest {
+    /// Whether the revision's camera profile resolved to an actual DCP.
+    pub has_camera_profile: bool,
+    /// Whether this render can afford LibRaw's half-size decode (ADR 0041):
+    /// a size class, not a property of the revision.
+    pub half_size: bool,
+}
+
+/// The decoder configuration a revision's `input` version calls for
+/// (ADR 0044 §3).
+///
+/// This is the call site that used to read `camera_native:
+/// camera_profile.is_some()` in four modules, deciding a pixel-affecting
+/// parameter that no `stages` map recorded. It now comes from the version
+/// the revision cites, like every other part of its rendering.
+pub(crate) fn decode_params(settings: &Settings, request: InputRequest) -> DecodeParams {
+    let version = version_of("input", settings);
+    let decode = INPUT_DECODE
+        .iter()
+        .find(|(v, _)| *v == version.version)
+        .map(|(_, decode)| decode)
+        .expect("every published input version has a decoder configuration");
+    decode(request)
+}
+
+/// The version of `stage_name` this render uses: the one `settings` records,
+/// or the current one compatible with the space it is already committed to.
+///
+/// Only meaningful for the stages that are always active; a caller asking
+/// about a stage absent from the registry gets a panic, since the name is
+/// always a literal from this module.
+fn version_of(stage_name: &'static str, settings: &Settings) -> &'static Version {
+    let stage = registry()
+        .find(|stage| stage.name == stage_name)
+        .expect("the stage name is a literal from this module");
+    match settings.stages.get(stage_name) {
+        Some(&recorded) => stage
+            .versions
+            .iter()
+            .find(|v| v.version == recorded)
+            .unwrap_or_else(|| stage.current()),
+        None => pinned_version(stage, settings),
+    }
+}
 
 /// Stages this engine implements. In `cfg(test)` builds it also carries the
 /// two-version fixture stage of ADR 0043 §7, which keeps the "an older
@@ -490,13 +672,48 @@ pub(crate) fn check_known(settings: &Settings) -> Result<()> {
     Ok(())
 }
 
+/// The working space `settings` is already committed to (ADR 0044 §4).
+///
+/// Read off the versions it records, since the space is a property of those
+/// and never a field of its own: a revision recording nothing yet — fresh
+/// settings, a preset, a test — gets the space this engine renders in today.
+/// A revision whose records disagree resolves to the first of them here and
+/// is refused by [`plan`], which can name both sides.
+fn revision_space(settings: &Settings) -> Space {
+    settings
+        .stages
+        .iter()
+        .find_map(|(name, &version)| find(name, version).map(|(_, v)| v.space))
+        .unwrap_or_else(|| {
+            registry()
+                .find(|stage| stage.name == "input")
+                .expect("the input stage is always registered")
+                .current()
+                .space
+        })
+}
+
+/// The version a stage receives when it enters a revision that does not
+/// record it yet: the newest one working in the revision's space, or — when
+/// this operator has never rendered there — the newest one at all, so the
+/// mismatch is written down and refused by name instead of disappearing.
+fn pinned_version(stage: &'static Stage, settings: &Settings) -> &'static Version {
+    stage
+        .current_in(revision_space(settings))
+        .unwrap_or_else(|| stage.current())
+}
+
 /// Records, in `settings`, the version of every stage it activates
 /// (ADR 0043 §3). Called on the way *in* to a revision, never on the way out.
 ///
 /// A stage already recorded keeps its version — that is the whole promise.
-/// A stage that just left its neutral value gets this engine's current
-/// version. A stage back at its neutral value loses its entry, since it no
-/// longer renders anything to pin.
+/// A stage that just left its neutral value gets [`pinned_version`]: the
+/// current version *in the revision's working space*, never a version that
+/// would silently move the revision to another one (ADR 0044 §4). A stage
+/// back at its neutral value loses its entry, since it no longer renders
+/// anything to pin — except the two that frame the pipeline, `input` and
+/// `output_rendering`, which have no neutral value and are therefore always
+/// recorded.
 pub(crate) fn pin(settings: &mut Settings) {
     let mut pinned = leyline_core::StageVersions::new();
     for stage in registry() {
@@ -507,10 +724,54 @@ pub(crate) fn pin(settings: &mut Settings) {
             .stages
             .get(stage.name)
             .copied()
-            .unwrap_or_else(|| stage.current().version);
+            .unwrap_or_else(|| pinned_version(stage, settings).version);
         pinned.insert(stage.name.to_owned(), version);
     }
     settings.stages = pinned;
+}
+
+/// The develop state a stored revision starts from: neutral values, already
+/// pinned.
+///
+/// Neutral or not, a *stored* revision records the versions it renders
+/// through (`docs/pipeline.md` §3.3) — which for a neutral one means the two
+/// stages that frame every pipeline (ADR 0044 §3). Public because
+/// [`leyline_catalog::Catalog::add_asset`] takes the initial settings from
+/// its caller: the catalog sits below the engine and cannot know what this
+/// engine pins.
+pub fn neutral_settings() -> Settings {
+    let mut settings = Settings::default();
+    pin(&mut settings);
+    settings
+}
+
+/// Fails when the stages about to run do not agree on one working space.
+///
+/// Two spaces never compose: a `gains` working in linear Rec. 2020 handed a
+/// gamma-encoded buffer would produce plausible, wrong pixels. Refusing is
+/// the same posture as [`LeylineError::UnknownStage`] — a revision this
+/// engine cannot render exactly is not rendered approximately.
+fn single_space(
+    stages: impl IntoIterator<Item = (&'static str, u16, Space)>,
+) -> Result<Option<Space>> {
+    let mut agreed: Option<(&'static str, u16, Space)> = None;
+    for (name, version, space) in stages {
+        match agreed {
+            None => agreed = Some((name, version, space)),
+            Some((_, _, other)) if other == space => {}
+            Some((other_name, other_version, other)) => {
+                return Err(LeylineError::MixedWorkingSpaces {
+                    stage: other_name.to_owned(),
+                    version: other_version,
+                    space: other.label().to_owned(),
+                    other_stage: name.to_owned(),
+                    other_version: version,
+                    other_space: space.label().to_owned(),
+                });
+            }
+        }
+    }
+    Ok(agreed.map(|(_, _, space)| space))
 }
 
 /// The stages `settings` renders through, in the order they run.
@@ -524,6 +785,8 @@ pub(crate) fn pin(settings: &mut Settings) {
 /// A recorded stage this engine does not implement fails the render with
 /// [`LeylineError::UnknownStage`] rather than being skipped (ADR 0043 §4):
 /// dropping it would render the photo without an operator its author saw.
+/// A plan whose stages do not agree on one working space fails the same way
+/// ([`LeylineError::MixedWorkingSpaces`], ADR 0044 §4).
 fn plan(settings: &Settings) -> Result<Vec<(&'static Stage, &'static Version)>> {
     check_known(settings)?;
     let mut plan: Vec<_> = registry()
@@ -535,12 +798,16 @@ fn plan(settings: &Settings) -> Result<Vec<(&'static Stage, &'static Version)>> 
                         .expect("every recorded stage was checked just above")
                         .1
                 }
-                None => stage.current(),
+                None => pinned_version(stage, settings),
             };
             (stage, version)
         })
         .collect();
     plan.sort_by_key(|(_, version)| version.rank);
+    single_space(
+        plan.iter()
+            .map(|(stage, version)| (stage.name, version.version, version.space)),
+    )?;
     Ok(plan)
 }
 

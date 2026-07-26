@@ -1,6 +1,7 @@
 //! Integration tests: manual collections (`docs/catalog.md` §24, §25).
 
 use leyline_catalog::{Catalog, NewAsset};
+use leyline_core::Settings;
 use leyline_core::{CollectionId, CollectionType, LeylineError, MediaType, VersionId};
 
 fn new_catalog(dir: &tempfile::TempDir) -> Catalog {
@@ -23,7 +24,10 @@ fn three_versions(catalog: &mut Catalog) -> Vec<VersionId> {
                 capture_date: None,
                 capture_offset_minutes: None,
             };
-            catalog.add_asset(&new).unwrap().version
+            catalog
+                .add_asset(&new, &Settings::default())
+                .unwrap()
+                .version
         })
         .collect()
 }

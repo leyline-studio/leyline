@@ -38,6 +38,8 @@ pub(crate) static STAGES: &[Stage] = &[Stage {
         Version {
             version: 1,
             rank: 65,
+
+            space: super::Space::SrgbGamma,
             apply: |px: &mut Pixels, _: &Context<'_>| lift(px, V1_LIFT),
         },
         Version {
@@ -45,6 +47,8 @@ pub(crate) static STAGES: &[Stage] = &[Stage {
             // Not 65: a new version is free to declare another position,
             // and revisions citing v1 keep v1's.
             rank: 66,
+
+            space: super::Space::SrgbGamma,
             apply: |px: &mut Pixels, _: &Context<'_>| lift(px, V2_LIFT),
         },
     ],

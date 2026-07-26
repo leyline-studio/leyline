@@ -21,7 +21,7 @@ fn registered_asset(catalog: &mut Catalog) -> RegisteredAsset {
         capture_date: None,
         capture_offset_minutes: None,
     };
-    catalog.add_asset(&new).unwrap()
+    catalog.add_asset(&new, &Settings::default()).unwrap()
 }
 
 fn exposure(ev: f64) -> Settings {
@@ -270,18 +270,21 @@ fn checkout_revision_refuses_a_revision_of_a_different_asset() {
     let reg = registered_asset(&mut catalog);
     let folder = catalog.ensure_folder("Photos").unwrap();
     let other = catalog
-        .add_asset(&NewAsset {
-            folder,
-            filename: "IMG_0002.CR3".to_owned(),
-            extension: "CR3".to_owned(),
-            media_type: MediaType::Raw,
-            file_size: 32_000_000,
-            checksum: [0xCD; 32],
-            width: Some(6000),
-            height: Some(4000),
-            capture_date: None,
-            capture_offset_minutes: None,
-        })
+        .add_asset(
+            &NewAsset {
+                folder,
+                filename: "IMG_0002.CR3".to_owned(),
+                extension: "CR3".to_owned(),
+                media_type: MediaType::Raw,
+                file_size: 32_000_000,
+                checksum: [0xCD; 32],
+                width: Some(6000),
+                height: Some(4000),
+                capture_date: None,
+                capture_offset_minutes: None,
+            },
+            &Settings::default(),
+        )
         .unwrap();
 
     let foreign = catalog

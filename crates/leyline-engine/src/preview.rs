@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use leyline_catalog::{Catalog, NewPreview};
 use leyline_core::{AssetId, LeylineError, PreviewKind, Result, Settings};
 use leyline_preview::{PreviewCache, PreviewError, Rgb8};
-use leyline_raw::{DecodeParams, RawImage};
+use leyline_raw::RawImage;
 
 use crate::decode_cache::DecodeCache;
 use crate::render::{self, render_scaled};
@@ -140,11 +140,13 @@ pub(crate) fn render_preview(
         &plan.settings,
         &plan.source_path,
     )?;
-    let params = DecodeParams {
-        half_size: plan.half_size,
-        camera_native: camera_profile.is_some(),
-        ..DecodeParams::default()
-    };
+    let params = crate::stages::decode_params(
+        &plan.settings,
+        crate::stages::InputRequest {
+            has_camera_profile: camera_profile.is_some(),
+            half_size: plan.half_size,
+        },
+    );
     let decoded = decodes
         .get_or_insert_with(asset, &params, || {
             crate::source::decode(&plan.source_path, &params)
@@ -239,11 +241,13 @@ pub(crate) fn render_with_settings(
         settings,
         &plan.source_path,
     )?;
-    let params = DecodeParams {
-        half_size: plan.half_size,
-        camera_native: camera_profile.is_some(),
-        ..DecodeParams::default()
-    };
+    let params = crate::stages::decode_params(
+        settings,
+        crate::stages::InputRequest {
+            has_camera_profile: camera_profile.is_some(),
+            half_size: plan.half_size,
+        },
+    );
     let decoded = decodes
         .get_or_insert_with(asset, &params, || {
             crate::source::decode(&plan.source_path, &params)

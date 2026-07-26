@@ -1,6 +1,7 @@
 //! Integration tests: preview metadata and §20 validity.
 
 use leyline_catalog::{Catalog, NewAsset, NewPreview, RegisteredAsset};
+use leyline_core::Settings;
 use leyline_core::{LeylineError, MediaType, PreviewKind, RevisionId};
 
 fn new_catalog(dir: &tempfile::TempDir) -> Catalog {
@@ -20,7 +21,7 @@ fn registered_asset(catalog: &mut Catalog) -> RegisteredAsset {
         capture_date: None,
         capture_offset_minutes: None,
     };
-    catalog.add_asset(&new).unwrap()
+    catalog.add_asset(&new, &Settings::default()).unwrap()
 }
 
 fn thumbnail(registered: &RegisteredAsset, revision: RevisionId) -> NewPreview {
