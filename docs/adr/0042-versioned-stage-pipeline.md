@@ -132,6 +132,13 @@ et non parce qu'on a pris soin de ne pas toucher leur module.
 
 ### 5. Les révisions existantes continuent d'être rendues à l'identique
 
+> **Sans objet depuis [ADR 0043](0043-collapse-prerelease-render-history.md).**
+> Ce paragraphe a été appliqué tel quel (table d'expansion des onze versions,
+> égalité bit à bit prouvée, commit `bf63df1`), puis retiré : Leyline n'ayant
+> pas été publié, ces onze versions n'engageaient personne. L'historique de
+> rendu est effondré sur une version par opérateur et `process` disparaît au
+> profit de la carte `stages` du §2. Le reste du présent ADR est intact.
+
 `process: N` reste lu et compris : chaque N possède une **expansion figée et
 déterministe** vers un ensemble de versions d'étages, écrite une fois dans une
 table de compatibilité. Le champ devient une abréviation historique et un

@@ -8,7 +8,7 @@ Il n'est pas fait pour être lu d'un bout à l'autre. Trois usages :
 
 * **Comprendre une brique externe** — 0001 à 0005 (Rust, Slint, SQLite, LibRaw, Lensfun/LittleCMS).
 * **Comprendre le modèle de données** — 0007 (modèle inspiré de Git), 0008 (la version comme unité), 0010 (chemins relatifs).
-* **Comprendre le rendu** — 0012 (parallélisme), 0028 puis **0042** (versionnage du rendu), et les ADR de fonctionnalité pixel 0013, 0016–0018, 0029–0035.
+* **Comprendre le rendu** — 0012 (parallélisme), 0028 puis **0042** et **0043** (versionnage du rendu), et les ADR de fonctionnalité pixel 0013, 0016–0018, 0029–0035.
 
 ## Règle d'édition
 
@@ -61,4 +61,5 @@ Un ADR remplacé n'est jamais supprimé : il reste lisible, avec sa raison d'ép
 | [0039](0039-watched-folder-import.md) | Import automatique par dossier surveillé (`notify`), un fichier stabilisé à la fois, même cœur d'import que le tethering |
 | [0040](0040-gps-map-view.md) | Vue carte GPS : tuiles MBTiles hors-ligne fournies par l'utilisateur, aucun appel réseau, GPS extrait des RAW via LibRaw |
 | [0041](0041-interactive-preview-rendering.md) | Rendu interactif : preview développée à la résolution d'affichage (rayons pixel mis à l'échelle) et cache d'étages de pipeline ; export inchangé, aucune nouvelle process version |
-| [0042](0042-versioned-stage-pipeline.md) | Pipeline composé d'étages versionnés : le gel porte sur l'opérateur et non sur la version entière ; remplace ADR 0028 |
+| [0042](0042-versioned-stage-pipeline.md) | Pipeline composé d'étages versionnés : le gel porte sur l'opérateur et non sur la version entière ; remplace ADR 0028, §5 amendé par 0043 |
+| [0043](0043-collapse-prerelease-render-history.md) | Effondrement de l'historique de rendu avant publication : une version par opérateur, la révision porte sa carte `stages`, `process` disparaît |
