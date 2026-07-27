@@ -1,0 +1,141 @@
+// Small reusable controls of the Studio UI (ADR 0045 §3).
+//
+// Nothing here knows about application state: each control takes what it
+// displays as an `in` property and reports interaction through a callback.
+// That is what makes them the one part of the UI that *is* reusable, unlike
+// the singleton panels of `ui/panels/`.
+
+export component DetailRow inherits HorizontalLayout {
+    in property <string> label;
+    in property <string> value;
+    spacing: 8px;
+    Text {
+        text: root.label;
+        color: #9a9a9a;
+        font-size: 12px;
+        width: 72px;
+    }
+    Text {
+        text: root.value;
+        color: #e6e6e6;
+        font-size: 12px;
+        wrap: word-wrap;
+        horizontal-stretch: 1;
+    }
+}
+
+// Collapsible section header for the develop panel's setting groups: lets
+// a photo's edit stay focused on the groups actually touched instead of
+// scrolling past sliders for adjustments that were never made.
+export component GroupHeader inherits HorizontalLayout {
+    in property <string> label;
+    in-out property <bool> expanded;
+
+    TouchArea {
+        horizontal-stretch: 1;
+        Text {
+            text: (root.expanded ? "▾ " : "▸ ") + root.label;
+            color: #9a9a9a;
+            font-size: 11px;
+            width: 100%;
+        }
+        clicked => {
+            root.expanded = !root.expanded;
+        }
+    }
+}
+
+export component FilterChip inherits Rectangle {
+    in property <bool> active;
+    in property <bool> enabled: true;
+    in property <string> text;
+    callback clicked;
+
+    height: 24px;
+    width: chip-text.preferred-width + 18px;
+    border-radius: 12px;
+    background: root.active ? #2f4f6f : #242424;
+    border-width: 1px;
+    border-color: root.active ? #6fa8dc : #333333;
+    opacity: root.enabled ? 1.0 : 0.4;
+
+    chip-text := Text {
+        text: root.text;
+        color: root.active ? #e6e6e6 : #9a9a9a;
+        font-size: 12px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        width: 100%;
+        height: 100%;
+    }
+    TouchArea {
+        enabled: root.enabled;
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+// One develop slider. The displayed position follows the authoritative
+// value from Rust except while dragging, so refreshing the settings after
+// a commit never breaks a binding.
+export component EditSlider inherits VerticalLayout {
+    in property <string> label;
+    in property <float> minimum;
+    in property <float> maximum;
+    in property <float> value;
+    in property <int> decimals;
+    callback edited(float);
+
+    property <bool> dragging;
+    property <float> drag-value;
+    property <float> shown: root.dragging ? root.drag-value : root.value;
+    property <float> factor: root.decimals == 0 ? 1 : 100;
+
+    spacing: 2px;
+
+    HorizontalLayout {
+        Text {
+            text: root.label;
+            color: #9a9a9a;
+            font-size: 12px;
+            horizontal-stretch: 1;
+        }
+        Text {
+            text: Math.round(root.shown * root.factor) / root.factor;
+            color: #e6e6e6;
+            font-size: 12px;
+        }
+    }
+    track := Rectangle {
+        height: 14px;
+        Rectangle {
+            y: parent.height / 2 - 2px;
+            height: 4px;
+            border-radius: 2px;
+            background: #333333;
+        }
+        Rectangle {
+            x: (track.width - 12px) * (root.shown - root.minimum) / (root.maximum - root.minimum);
+            y: parent.height / 2 - 6px;
+            width: 12px;
+            height: 12px;
+            border-radius: 6px;
+            background: root.dragging ? #6fa8dc : #8a8a8a;
+        }
+        TouchArea {
+            moved => {
+                if (self.pressed) {
+                    root.dragging = true;
+                    root.drag-value = Math.clamp(root.minimum + (self.mouse-x / self.width) * (root.maximum - root.minimum), root.minimum, root.maximum);
+                }
+            }
+            pointer-event(event) => {
+                if (event.kind == PointerEventKind.up && root.dragging) {
+                    root.dragging = false;
+                    root.edited(root.drag-value);
+                }
+            }
+        }
+    }
+}

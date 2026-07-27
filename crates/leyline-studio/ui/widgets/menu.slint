@@ -1,0 +1,125 @@
+// Building blocks of the hand-rolled menu bar (ADR 0045 §3).
+//
+// Hand-rolled menu bar, replacing Slint's native `MenuBar` (ADR 0020).
+// Bisected 2026-07-22: the native MenuBar's OS-level menu integration
+// (`muda`, pulled in unconditionally by `i-slint-backend-selector`) breaks
+// repaint scheduling for the grid and collections list elsewhere in the
+// window — they can go blank and stay blank, surviving even a real resize,
+// until some other structural change (a dialog opening) forces a repaint.
+// This purely Slint-rendered replacement never touches that native code
+// path. See `StudioWindow.open-menu`/`reset-submenus()` for the state this
+// wires into, and the dropdown panels near the modal dialog overlay for
+// the actual menu contents.
+export component TopMenuLabel inherits Rectangle {
+    in property <string> title;
+    in property <bool> active;
+    in property <bool> enabled: true;
+    callback clicked;
+
+    height: 28px;
+    width: label.preferred-width + 20px;
+    background: root.active ? #2f4f6f : transparent;
+
+    label := Text {
+        text: root.title;
+        color: root.enabled ? #e6e6e6 : #666666;
+        font-size: 13px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        width: 100%;
+        height: 100%;
+    }
+    TouchArea {
+        enabled: root.enabled;
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+export component MenuDropdown inherits Rectangle {
+    // Without explicit sizing, a bare `Rectangle` defaults to filling its
+    // parent — here that's the full-window click-catcher, which made every
+    // dropdown's background span the entire page even though its rows are
+    // only 240px wide. Sizing to `content`'s own preferred size instead
+    // makes it hug its rows.
+    background: #262626;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: #3a3a3a;
+    width: content.preferred-width;
+    height: content.preferred-height;
+    content := VerticalLayout {
+        @children
+    }
+}
+
+export component MenuRow inherits Rectangle {
+    in property <string> title;
+    in property <bool> enabled: true;
+    callback activated;
+
+    height: 26px;
+    width: 240px;
+    background: touch.has-hover && root.enabled ? #2f4f6f : transparent;
+
+    Text {
+        x: 12px;
+        width: parent.width - 24px;
+        text: root.title;
+        color: root.enabled ? #e6e6e6 : #666666;
+        font-size: 12px;
+        vertical-alignment: center;
+        height: 100%;
+        overflow: elide;
+    }
+    touch := TouchArea {
+        enabled: root.enabled;
+        clicked => {
+            root.activated();
+        }
+    }
+}
+
+// Inline-expanding submenu (Photo's Rate/Label/Flag, Develop's Apply
+// Preset): a flyout to the side would need a second layer of absolute
+// positioning for little benefit here, so this expands downward in place
+// instead, the same interaction `GroupHeader` already uses for the develop
+// panel's setting groups.
+export component SubmenuHeader inherits Rectangle {
+    in property <string> title;
+    in-out property <bool> expanded;
+    in property <bool> enabled: true;
+
+    height: 26px;
+    width: 240px;
+    background: touch.has-hover && root.enabled ? #2f4f6f : transparent;
+
+    Text {
+        x: 12px;
+        text: (root.expanded ? "▾ " : "▸ ") + root.title;
+        color: root.enabled ? #e6e6e6 : #666666;
+        font-size: 12px;
+        vertical-alignment: center;
+        height: 100%;
+    }
+    touch := TouchArea {
+        enabled: root.enabled;
+        clicked => {
+            root.expanded = !root.expanded;
+        }
+    }
+}
+
+export component MenuSep inherits Rectangle {
+    height: 9px;
+    width: 240px;
+    Rectangle {
+        x: 8px;
+        y: parent.height / 2;
+        width: parent.width - 16px;
+        height: 1px;
+        background: #3a3a3a;
+    }
+}
+

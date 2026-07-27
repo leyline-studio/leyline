@@ -1,0 +1,177 @@
+// Data types shared across the Studio UI, and the translation helpers Rust
+// calls into (ADR 0045 §3).
+//
+// The structs below are the Rust ↔ UI contract: every catalog value (dates,
+// sizes, exposure, ratings…) arrives already formatted from Rust — the UI
+// never interprets those itself — and every filter or classement decision
+// is made in Rust too. The one exception is prose meant for translation
+// (ADR 0019), assembled through the `Tr` global at the bottom of this file,
+// because `@tr(...)` — and therefore `slint-tr-extractor` — only sees
+// strings written in `.slint` files.
+//
+// Kept apart from `state/`: these are types the generated Rust imports as
+// types, whereas a global is a runtime access point. Merging the two would
+// recreate a catch-all file.
+
+export struct Cell {
+    thumbnail: image,
+    filename: string,
+    stars: string,
+    label: color,
+    has-label: bool,
+    // Part of a multi-selection (Ctrl/Shift-click), independent of `selected`
+    // — the single-index focus/anchor kept for keyboard nav and the detail
+    // panel.
+    multi-selected: bool,
+}
+
+// One row of the collections sidebar, already flattened by Rust.
+export struct CollectionRow {
+    name: string,
+    depth: int,
+    smart: bool,
+}
+
+// One tone-curve control point marker, already mapped into the curve
+// canvas' own pixel space by `develop::curve_layout`.
+export struct CurveMarker {
+    x: float,
+    y: float,
+}
+
+// One GPS pin, already projected into the map canvas' own pixel space by
+// `map_view::render` (ADR 0040).
+export struct MapPinMarker {
+    x: float,
+    y: float,
+}
+
+// One HSL mixer band's current values (ADR 0031), mirrored from
+// `Settings::hsl[i]`.
+export struct HslBandValues {
+    hue: float,
+    saturation: float,
+    luminance: float,
+}
+
+// One color grading zone's current values (ADR 0031), mirrored from
+// `Settings::color_grading.{shadows,midtones,highlights}`.
+export struct ColorGradingZoneValues {
+    hue: float,
+    saturation: float,
+    luminance: float,
+}
+
+// Develop slider values, mirrored from the Settings held in Rust.
+export struct DevSettings {
+    exposure: float,
+    contrast: float,
+    highlights: float,
+    shadows: float,
+    whites: float,
+    blacks: float,
+    clarity: float,
+    texture: float,
+    dehaze: float,
+    highlight-rolloff: float,
+    vibrance: float,
+    saturation: float,
+    wb-temp: float,
+    wb-tint: float,
+    rotation: float,
+    crop-left: float,
+    crop-top: float,
+    crop-width: float,
+    crop-height: float,
+    nr-luminance: float,
+    nr-color: float,
+    sharpen-amount: float,
+    sharpen-radius: float,
+    lens-correction: bool,
+    // Whether the referenced camera profile is applied (ADR 0035); its
+    // name lives in `camera-profile-name`, empty when none is referenced.
+    camera-profile: bool,
+    // Fixed order: red, orange, yellow, green, aqua, blue, purple, magenta
+    // (ADR 0031) — always exactly 8 entries.
+    hsl: [HslBandValues],
+    color-grading-shadows: ColorGradingZoneValues,
+    color-grading-midtones: ColorGradingZoneValues,
+    color-grading-highlights: ColorGradingZoneValues,
+    color-grading-balance: float,
+    color-grading-blending: float,
+}
+
+// Translated templates for the status-line and dialog messages Rust builds
+// from catalog numbers (counts, paths, error text…). Slint 1.13 has no
+// public `slint::tr!()` for Rust code — translation is a `.slint`-only
+// mechanism — so Rust supplies the numbers and calls these functions
+// instead of formatting the sentence itself; `slint-tr-extractor` picks up
+// the `@tr(...)` calls below exactly like any other UI string.
+export global Tr {
+    public pure function photo-count(n: int) -> string {
+        return @tr("{} photo" | "{} photos" % n, n);
+    }
+    public pure function importing-progress(done: int, total: int) -> string {
+        return @tr("Importing {}/{}…", done, total);
+    }
+    public pure function exporting-progress(done: int, total: int) -> string {
+        return @tr("Exporting {}/{}…", done, total);
+    }
+    public pure function import-failed(reason: string) -> string {
+        return @tr("Import failed: {}", reason);
+    }
+    public pure function export-failed(reason: string) -> string {
+        return @tr("Export failed: {}", reason);
+    }
+    public pure function printing-progress(done: int, total: int) -> string {
+        return @tr("Printing {}/{}…", done, total);
+    }
+    public pure function print-failed(reason: string) -> string {
+        return @tr("Print failed: {}", reason);
+    }
+    public pure function printing-ellipsis() -> string {
+        return @tr("Printing…");
+    }
+    public pure function reprocessed(reprocessed: int, already-current: int, failed: int) -> string {
+        return @tr("Reprocessed {} photo(s), {} already current, {} failed", reprocessed, already-current, failed);
+    }
+    public pure function enter-source-folder() -> string {
+        return @tr("Enter a source folder.");
+    }
+    public pure function importing-ellipsis() -> string {
+        return @tr("Importing…");
+    }
+    public pure function select-photo-first() -> string {
+        return @tr("Select a photo first.");
+    }
+    public pure function enter-destination-folder() -> string {
+        return @tr("Enter a destination folder.");
+    }
+    public pure function exporting-ellipsis() -> string {
+        return @tr("Exporting…");
+    }
+    public pure function enter-a-name() -> string {
+        return @tr("Enter a name.");
+    }
+    public pure function creation-failed(error: string) -> string {
+        return @tr("Creation failed: {}", error);
+    }
+    public pure function open-photo-in-develop-first() -> string {
+        return @tr("Open a photo in develop first.");
+    }
+    public pure function pick-at-least-one-group() -> string {
+        return @tr("Pick at least one group.");
+    }
+    public pure function save-failed(error: string) -> string {
+        return @tr("Save failed: {}", error);
+    }
+    public pure function error-prefix(message: string) -> string {
+        return @tr("Error: {}", message);
+    }
+    public pure function select-collection-first() -> string {
+        return @tr("Select a collection in the sidebar first.");
+    }
+    public pure function preset-saved() -> string {
+        return @tr("Preset saved.");
+    }
+}
