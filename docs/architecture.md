@@ -53,6 +53,27 @@ Deux conséquences qui reviennent souvent en revue :
 
 ---
 
+## À l'intérieur de Studio
+
+Studio consomme `leyline-sdk` et rien d'autre : `crates/leyline-studio/Cargo.toml` ne déclare qu'une seule dépendance Leyline, et tout `src/` ne référence que `leyline_sdk`. C'est la même position qu'un produit tiers qui intégrerait le SDK. Un besoin auquel Studio répondrait par un détour vers un crate interne est le signe qu'il manque quelque chose à l'API publique : le correctif est d'élargir le SDK, jamais de contourner.
+
+Sous cette contrainte, l'interface se découpe en quatre couches ([ADR 0045](adr/0045-studio-ui-modularisation.md)) :
+
+```
+ui/studio.slint     assemblage : attributs de fenêtre, raccourcis clavier, ordre de montage
+ui/types.slint      structs du contrat Rust ↔ UI, et les gabarits de traduction (Tr)
+ui/state/           un `global` Slint par domaine — la seule surface qui traverse vers Rust
+ui/widgets/         contrôles réutilisables, sans aucune connaissance de l'état
+ui/panels/          les vues (develop, carte, browser), l'overlay de dialogues, la barre de menus
+ui/dialogs/         un fichier par dialogue modal
+```
+
+Côté Rust, `src/wiring/` est le miroir exact de `ui/state/` : un module par global, qui atteint le sien par `Global::<T>::get(&window)` et laisse les autres tranquilles. Autour, `app.rs` (l'état applicatif), `library.rs` (quelle bibliothèque est ouverte), `events.rs` (la pompe d'événements moteur) et `models.rs` (les conversions vers l'affichage) — plus les modules de logique pure `develop.rs`, `map_view.rs`, `format.rs` et `classify.rs`, qui ne connaissent aucun type Slint et sont les seuls testables unitairement.
+
+La règle qui borne l'usage des globals est dans [`contributing.md`](contributing.md#létat-dinterface--global-ou-local-).
+
+---
+
 ## Briques externes
 
 Chaque dépendance lourde a fait l'objet d'une décision écrite.

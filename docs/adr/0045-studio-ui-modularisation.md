@@ -61,8 +61,8 @@ Les domaines, et leur contenu :
 | Global | Porte |
 |---|---|
 | `LibraryState` | nom/chemin de la bibliothèque, version applicative, ligne de statut, bibliothèques récentes, ouverture/relance, quitter |
-| `GridState` | fenêtre de cellules chargée, total, index sélectionné, clic cellule, viewport, recherche, tri, classement (`classify`) |
-| `FilterState` | filtres note/label/pick/mot-clé et leurs bascules |
+| `GridState` | fenêtre de cellules chargée, total, index sélectionné, clic cellule, viewport, classement (`classify`) |
+| `FilterState` | tout ce qui restreint ou ordonne la grille : filtres note/label/pick/mot-clé, tri, recherche — ces valeurs ne sont qu'un miroir du même `GridQuery` côté Rust et bougent toujours ensemble |
 | `DetailState` | métadonnées de la photo sélectionnée, mots-clés et leur ajout/retrait |
 | `DevelopState` | mode develop, images (rendu et « avant »), `DevSettings`, histogramme, courbe tonale, taches, presets, historique de révisions, tous les `develop-*` |
 | `MapState` | mode carte, image rendue, épingles, pack de tuiles, pan/zoom |
@@ -118,12 +118,22 @@ recréerait un fichier fourre-tout.
 ### 4. Les modules Rust sont le miroir des panneaux
 
 `main.rs` est réduit à `main()`/`run()` et au bootstrap. Le reste se répartit
-en `src/wiring/{grid,filters,develop,dialogs,collections,keywords,presets,map}.rs`
+en `src/wiring/{grid,filters,develop,dialogs,collections,keywords,presets,map,library}`
 — un module par global, câblant ce global et lui seul via
 `Global::<T>::get(&window)` (le mécanisme déjà utilisé pour `Tr`) — plus
-`src/{app,library,events,models,details}.rs` pour l'état applicatif, les
-chemins de bibliothèque, le pompage d'événements, la conversion vers les
-modèles Slint et le panneau de détails.
+`src/{app,library,events,models}.rs` pour l'état applicatif, les chemins de
+bibliothèque, le pompage d'événements et la conversion vers les modèles Slint.
+
+Deux de ces modules se subdivisent, parce qu'une seule fonction y dépassait
+les 400 lignes :
+
+* `wiring/dialogs/` — un sous-module par dialogue, miroir exact de
+  `ui/dialogs/`, chacun avec les helpers de validation de ses propres champs.
+* `wiring/develop/` — découpé non par dialogue (le panneau develop est une
+  seule surface) mais par ce qu'une édition *est* : changer de photo
+  (`session`), changer une valeur (`adjustments`, `curve`, `spot`), se
+  déplacer dans ce qui a déjà été changé (`history`), et transporter des
+  réglages d'une photo à l'autre (`clipboard`).
 
 Les modules de logique pure existants (`develop.rs`, `map_view.rs`,
 `format.rs`, `classify.rs`) ne bougent pas : ils sont déjà à une
@@ -174,8 +184,17 @@ son propre commit, et pas dans une tranche de modularisation.
 `slint-tr-extractor` inscrit dans le catalogue le fichier et la ligne de
 chaque `@tr(...)`. Déplacer 4000 lignes invalide donc toutes les références,
 en silence ([[i18n-extraction-workflow]]). L'extraction est relancée une fois
-la nouvelle arborescence stabilisée ; les chaînes elles-mêmes étant
-inchangées, aucune traduction n'est perdue.
+la nouvelle arborescence stabilisée.
+
+Le point que ce chantier a révélé et qu'il faut retenir : le `msgctxt` d'une
+chaîne est **le nom du composant qui la contient**. Sortir les dialogues de
+`StudioWindow` change donc la clé de chacune de leurs chaînes, et une
+régénération naïve du `.po` perdrait la totalité des traductions
+françaises — sans erreur, sans avertissement, avec une interface qui
+compile. Le report se fait par `msgid`, ce que rend sûr le fait qu'aucun
+`msgid` du catalogue n'avait deux traductions distinctes (vérifié : 226
+`msgid` distincts, 226 traductions). La vérification finale est de lancer
+Studio en `LANG=fr_FR.UTF-8` et de regarder l'écran.
 
 ## Conséquences
 

@@ -61,6 +61,33 @@ LEYLINE_BLESS_GOLDEN=1 cargo test -p leyline-engine --lib stages::golden   # ajo
 
 Le bénissage est **additif** : il n'écrase jamais une entrée existante. Si une empreinte déjà au manifeste change, c'est un défaut — du code gelé a été touché — et il se corrige dans le code, pas dans le manifeste. Les cas eux-mêmes sont gelés pour la même raison : exercer un opérateur autrement, c'est un nouveau cas.
 
+## Toucher à l'interface de Studio
+
+La découpe des fichiers est décrite dans [`architecture.md`](architecture.md#à-lintérieur-de-studio). Trois règles s'y ajoutent, dont deux sont faciles à enfreindre sans s'en apercevoir.
+
+### L'état d'interface : global ou local ?
+
+> **Un `global` ne porte que l'état qui traverse la frontière Rust ↔ UI. L'état qui ne concerne qu'un panneau reste une propriété privée de ce panneau.**
+
+C'est la règle qui empêche `ui/state/` de redevenir la surface plate de 111 propriétés qu'ADR 0045 a démontée. Un accordéon replié, l'outil de glisser actif, le menu ouvert : Rust ne les lit jamais, donc ils n'ont rien à faire dans un global. Si un panneau doit malgré tout exposer quelque chose à la fenêtre, il le fait par sa propre surface — une propriété `in-out`, une `public function`, un `callback` — et non en élargissant un global.
+
+Le test est mécanique : si aucun `.get_x()`/`.set_x()`/`.on_x()` côté Rust ne correspond à la propriété, elle ne doit pas être dans `ui/state/`.
+
+### Ne jamais poser de géométrie autour du contenu
+
+Slint 1.13 a, dans ce projet, un défaut de planification de repaint : donner à `keys` (le `FocusScope` de `studio.slint`) ou à un ancêtre de ses repeaters — la grille, la liste des collections — **un override de position ou de taille, même inerte**, suffit à faire rester des zones blanches jusqu'à ce qu'un changement structurel force un rafraîchissement. C'est pourquoi les panneaux héritent du type d'élément qu'ils remplacent et ne posent aucune géométrie, et pourquoi une colonne qui doit dégager la hauteur de la barre de menus le fait avec un `Rectangle` d'espacement en enfant supplémentaire. Le commentaire au-dessus de `menu-row` dans `studio.slint` détaille le diagnostic.
+
+### Le catalogue de traduction se périme en silence
+
+`slint-tr-extractor` inscrit le fichier et la ligne de chaque `@tr(...)`, et le `msgctxt` est **le nom du composant**. Déplacer une chaîne d'un composant à un autre change donc sa clé et la détache de sa traduction, sans le moindre avertissement. Après toute tranche d'interface :
+
+```bash
+slint-tr-extractor -o crates/leyline-studio/translations/leyline-studio.pot \
+    $(find crates/leyline-studio/ui -name '*.slint' | sort)
+```
+
+puis reporter les traductions existantes dans `translations/fr/LC_MESSAGES/leyline-studio.po`. Vérifier en lançant Studio avec `LANG=fr_FR.UTF-8` : un catalogue qui compile n'est pas un catalogue qui traduit.
+
 ## Commits
 
 Conventional Commits.
