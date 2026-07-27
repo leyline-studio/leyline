@@ -47,7 +47,7 @@ use leyline_sdk::{
 use slint::winit_030::WinitWindowAccessor;
 use slint::{ComponentHandle, Global, Model, ModelRc, SharedString, Timer, TimerMode, VecModel};
 
-use ui::{Cell, CurveMarker, StudioWindow, Tr};
+use ui::{Cell, CurveMarker, LibraryState, StudioWindow, Tr};
 
 /// Sort orders the header button cycles through, with their labels.
 const SORTS: [(Sort, &str); 8] = [
@@ -398,20 +398,21 @@ fn run() -> Result<(), String> {
     if let Some(language) = system_language() {
         let _ = slint::select_bundled_translation(&language);
     }
-    window.set_library_name(SharedString::from(info.name.as_str()));
+    LibraryState::get(&window).set_library_name(SharedString::from(info.name.as_str()));
     // Surfaced in Help ▸ About Leyline (ADR 0020): the no-argument fallback
     // picks a real, disk-backed location on the user's behalf, so it must
     // stay discoverable — nobody should have to guess where their catalog
     // ended up. An explicit argument is just as worth showing here.
-    window.set_library_path(SharedString::from(library_path.as_str()));
+    LibraryState::get(&window).set_library_path(SharedString::from(library_path.as_str()));
     let recent_library_names: Vec<SharedString> = other_recent_libraries
         .iter()
         .map(|p| SharedString::from(p.display().to_string()))
         .collect();
-    window.set_recent_libraries(ModelRc::from(Rc::new(VecModel::from(recent_library_names))));
+    LibraryState::get(&window)
+        .set_recent_libraries(ModelRc::from(Rc::new(VecModel::from(recent_library_names))));
     // Surfaced in Help ▸ About Leyline: build-time constant from Cargo.toml's
     // `version.workspace = true`, so it stays in sync without a manual edit.
-    window.set_app_version(SharedString::from(env!("CARGO_PKG_VERSION")));
+    LibraryState::get(&window).set_app_version(SharedString::from(env!("CARGO_PKG_VERSION")));
     window.set_filter_label(-1);
     window.set_filter_pick(-1);
     window.set_sort_label(SharedString::from(sort_label(GridQuery::default().sort)));
@@ -433,7 +434,8 @@ fn run() -> Result<(), String> {
     wire_settings_clipboard(&app, &window);
     wire_filters(&app, &window);
     wire_develop(&app, &window);
-    wire_dialogs(&app, &window, other_recent_libraries);
+    wire_library(&window, other_recent_libraries);
+    wire_dialogs(&app, &window);
     wire_collections(&app, &window);
     wire_keywords(&app, &window);
     wire_presets(&app, &window);
@@ -1461,7 +1463,7 @@ fn reprocess_library(app: &mut App, window: &StudioWindow) {
     })();
     match outcome {
         Ok(report) => {
-            window.set_status_line(Tr::get(window).invoke_reprocessed(
+            LibraryState::get(window).set_status_line(Tr::get(window).invoke_reprocessed(
                 i32::try_from(report.reprocessed.len()).unwrap_or(i32::MAX),
                 i32::try_from(report.already_current.len()).unwrap_or(i32::MAX),
                 i32::try_from(report.failed.len()).unwrap_or(i32::MAX),
@@ -1480,7 +1482,7 @@ fn reprocess_selected(app: &mut App, window: &StudioWindow) {
     };
     match app.library.reprocess(&[version], |_, _| {}) {
         Ok(report) => {
-            window.set_status_line(Tr::get(window).invoke_reprocessed(
+            LibraryState::get(window).set_status_line(Tr::get(window).invoke_reprocessed(
                 i32::try_from(report.reprocessed.len()).unwrap_or(i32::MAX),
                 i32::try_from(report.already_current.len()).unwrap_or(i32::MAX),
                 i32::try_from(report.failed.len()).unwrap_or(i32::MAX),
@@ -1491,19 +1493,21 @@ fn reprocess_selected(app: &mut App, window: &StudioWindow) {
 }
 
 /// Connects the import and export dialogs.
-fn wire_dialogs(
-    app: &Rc<RefCell<App>>,
-    window: &StudioWindow,
-    other_recent_libraries: Vec<PathBuf>,
-) {
+/// Wires `LibraryState`: leaving the open library, and leaving the app.
+///
+/// All three callbacks are terminal — they either stop the event loop or
+/// relaunch the process pointed at another library (`relaunch_into`) — so
+/// none of them touches `App`.
+fn wire_library(window: &StudioWindow, other_recent_libraries: Vec<PathBuf>) {
+    let state = LibraryState::get(window);
     // File ▸ Quit (ADR 0020): stops the event loop, the same outcome as
     // closing the window from the OS chrome.
-    window.on_quit(move || {
+    state.on_quit(move || {
         let _ = slint::quit_event_loop();
     });
     {
         let handle = window.as_weak();
-        window.on_open_library_requested(move || {
+        state.on_open_library_requested(move || {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -1514,7 +1518,7 @@ fn wire_dialogs(
     }
     {
         let handle = window.as_weak();
-        window.on_open_recent_library(move |index| {
+        state.on_open_recent_library(move |index| {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -1524,6 +1528,9 @@ fn wire_dialogs(
             relaunch_into(&window, path);
         });
     }
+}
+
+fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let handle = window.as_weak();
         window.on_browse_import_source(move || {
@@ -3205,7 +3212,8 @@ fn relaunch_into(window: &StudioWindow, library_root: &Path) {
 
 fn report_error(window: &StudioWindow, message: &str) {
     eprintln!("error: {message}");
-    window.set_status_line(Tr::get(window).invoke_error_prefix(SharedString::from(message)));
+    LibraryState::get(window)
+        .set_status_line(Tr::get(window).invoke_error_prefix(SharedString::from(message)));
 }
 
 /// The window worth loading for a viewport: the visible cells plus the
@@ -3339,7 +3347,7 @@ fn reload(app: &mut App, window: &StudioWindow) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     let total = i32::try_from(app.total).unwrap_or(i32::MAX);
     window.set_total_cells(total);
-    window.set_status_line(Tr::get(window).invoke_photo_count(total));
+    LibraryState::get(window).set_status_line(Tr::get(window).invoke_photo_count(total));
     load_window(app, window)?;
 
     let selected = keep

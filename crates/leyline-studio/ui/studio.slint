@@ -22,16 +22,18 @@ import {
     MapPinMarker,
     Tr,
 } from "types.slint";
+import { LibraryState } from "state/library.slint";
+import { DetailRow, EditSlider, FilterChip, GroupHeader } from "widgets/controls.slint";
+import { MenuDropdown, MenuRow, MenuSep, SubmenuHeader, TopMenuLabel } from "widgets/menu.slint";
+
 // Structs reach the generated Rust just by being used in the compiled tree,
 // but a `global` only does when the root file re-exports it explicitly —
 // without this, `ui::Tr` doesn't exist and Rust can't build its status-line
 // and dialog messages (ADR 0019).
-export { Tr }
-import { DetailRow, EditSlider, FilterChip, GroupHeader } from "widgets/controls.slint";
-import { MenuDropdown, MenuRow, MenuSep, SubmenuHeader, TopMenuLabel } from "widgets/menu.slint";
+export { LibraryState, Tr }
 
 export component StudioWindow inherits Window {
-    title: "Leyline Studio — " + root.library-name;
+    title: "Leyline Studio — " + LibraryState.library-name;
     // Taskbar/Alt-Tab/window-manager icon: the square badge, matching the
     // .exe icon embedded via windows-manifest.rc and the Linux desktop
     // entry's `packaging/icons` (ADR 0019) — one source of truth for "the
@@ -47,15 +49,6 @@ export component StudioWindow inherits Window {
     background: #1b1b1b;
     forward-focus: keys;
 
-    in property <string> library-name;
-    // Disk location of the open library's `catalog.db` folder. Shown in
-    // Help ▸ About Leyline — the no-argument fallback location isn't
-    // something the user chose, so it needs to stay discoverable.
-    in property <string> library-path;
-    // App version shown in Help ▸ About Leyline, wired from CARGO_PKG_VERSION
-    // at startup (see main.rs) — kept in sync with Cargo.toml automatically.
-    in property <string> app-version;
-    in property <string> status-line;
     // The loaded window of grid cells; cell `i` shows grid row
     // `window-start + i` out of `total-cells` matching rows.
     in property <[Cell]> cells;
@@ -122,9 +115,6 @@ export component StudioWindow inherits Window {
     // always being the top row.
     in property <int> dev-history-current: 0;
     callback checkout-history-row(int);
-    // Paths of other libraries opened before, most recent first (never
-    // includes the currently open one) — File ▸ Open Recent.
-    in property <[string]> recent-libraries;
 
     callback select(int);
     // A grid cell was clicked: index, then whether Ctrl/Shift was held
@@ -252,18 +242,10 @@ export component StudioWindow inherits Window {
     // The file name of the referenced profile, empty when none is set.
     callback browse-camera-profile();
     in property <string> camera-profile-name;
-    // File ▸ Open Library…: native folder picker, then Rust relaunches
-    // Studio pointed at the chosen path (see `relaunch_into` in main.rs).
-    callback open-library-requested();
-    // File ▸ Open Recent: relaunches into `recent-libraries[index]`.
-    callback open-recent-library(int);
     in-out property <string> import-source-text: "";
     in-out property <string> export-destination-text: "";
     in-out property <string> print-destination-text: "";
     in-out property <string> print-profile-text: "";
-    // Stops the event loop — the menu bar's File ▸ Quit, equivalent to
-    // closing the window from the OS chrome.
-    callback quit();
     // preset index (-1 = ad-hoc), destination, format index, quality text, max-edge text.
     // Format/quality/max-edge are ignored when a stored preset is chosen.
     callback run-export(int, string, int, string, string);
@@ -1936,7 +1918,7 @@ export component StudioWindow inherits Window {
                 }
 
                 Text {
-                    text: root.status-line;
+                    text: LibraryState.status-line;
                     color: #9a9a9a;
                     font-size: 13px;
                 }
@@ -3489,7 +3471,7 @@ export component StudioWindow inherits Window {
                             }
                         }
                         Text {
-                            text: @tr("Version {}", root.app-version);
+                            text: @tr("Version {}", LibraryState.app-version);
                             color: #9a9a9a;
                             font-size: 11px;
                             horizontal-alignment: center;
@@ -3501,7 +3483,7 @@ export component StudioWindow inherits Window {
                             wrap: word-wrap;
                         }
                         Text {
-                            text: @tr("Library: {}", root.library-path);
+                            text: @tr("Library: {}", LibraryState.library-path);
                             color: #909090;
                             font-size: 11px;
                             wrap: word-wrap;
@@ -3576,20 +3558,20 @@ export component StudioWindow inherits Window {
                 MenuRow {
                     title: @tr("Open Library…");
                     activated => {
-                        root.open-library-requested();
+                        LibraryState.open-library-requested();
                         root.open-menu = "";
                     }
                 }
                 SubmenuHeader {
                     title: @tr("Open Recent");
                     expanded <=> root.open-recent-submenu-open;
-                    enabled: root.recent-libraries.length > 0;
+                    enabled: LibraryState.recent-libraries.length > 0;
                 }
                 if root.open-recent-submenu-open: VerticalLayout {
-                    for path[index] in root.recent-libraries: MenuRow {
+                    for path[index] in LibraryState.recent-libraries: MenuRow {
                         title: path;
                         activated => {
-                            root.open-recent-library(index);
+                            LibraryState.open-recent-library(index);
                             root.open-menu = "";
                             root.reset-submenus();
                         }
@@ -3637,7 +3619,7 @@ export component StudioWindow inherits Window {
                 MenuRow {
                     title: @tr("Quit");
                     activated => {
-                        root.quit();
+                        LibraryState.quit();
                     }
                 }
             }

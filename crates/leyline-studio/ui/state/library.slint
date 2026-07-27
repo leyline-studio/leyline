@@ -1,0 +1,30 @@
+// The open library itself: what it is, where it lives, and the ways in and
+// out of it (ADR 0045 §1).
+//
+// Everything here crosses the Rust ↔ UI boundary — Rust owns the catalog
+// and the recent-libraries file on disk, the UI only displays what it is
+// given and reports what was clicked.
+export global LibraryState {
+    in property <string> library-name;
+    // Disk location of the open library's `catalog.db` folder. Shown in
+    // Help ▸ About Leyline — the no-argument fallback location isn't
+    // something the user chose, so it needs to stay discoverable.
+    in property <string> library-path;
+    // App version shown in Help ▸ About Leyline, wired from CARGO_PKG_VERSION
+    // at startup (see `run` in main.rs) — kept in sync with Cargo.toml
+    // automatically.
+    in property <string> app-version;
+    in property <string> status-line;
+    // Paths of other libraries opened before, most recent first (never
+    // includes the currently open one) — File ▸ Open Recent.
+    in property <[string]> recent-libraries;
+
+    // File ▸ Open Library…: native folder picker, then Rust relaunches
+    // Studio pointed at the chosen path (see `relaunch_into` in main.rs).
+    callback open-library-requested();
+    // File ▸ Open Recent: relaunches into `recent-libraries[index]`.
+    callback open-recent-library(int);
+    // Stops the event loop — the menu bar's File ▸ Quit, equivalent to
+    // closing the window from the OS chrome.
+    callback quit();
+}
