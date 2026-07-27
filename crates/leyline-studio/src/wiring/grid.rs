@@ -1,0 +1,226 @@
+//! Wires `GridState`: selection, the loaded window of rows, and the detail
+//! panel that follows the focus (ADR 0045 §4).
+
+use std::cell::RefCell;
+use std::collections::VecDeque;
+use std::rc::Rc;
+
+use crate::app::{App, desired_window, item_at};
+use crate::format;
+use crate::models::label_color;
+use crate::ui::{Cell, DetailState, GridState, LibraryState, StudioWindow, Tr};
+use crate::wiring::keywords::keyword_rows;
+use leyline_sdk::{PreviewKind, VersionId};
+use slint::{ComponentHandle, Global, Model, ModelRc, SharedString, VecModel};
+
+/// Fills the side panel when a cell is clicked or reached with the arrows.
+pub(crate) fn wire_select(app: &Rc<RefCell<App>>, window: &StudioWindow) {
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        GridState::get(window).on_select(move |index| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            // Every other path to `select` (arrow keys, double-click,
+            // right-click menu actions) is a single-photo intention: it
+            // always replaces whatever was multi-selected, exactly like
+            // clicking a cell plainly does.
+            {
+                let mut app = app.borrow_mut();
+                app.multi_selected.clear();
+                refresh_multi_selected_cells(&app);
+            }
+            show_details(&mut app.borrow_mut(), &window, index);
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        GridState::get(window).on_cell_clicked(move |index, ctrl, shift| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let focused = GridState::get(&window).get_selected();
+            {
+                let mut app = app.borrow_mut();
+                if ctrl {
+                    if let Ok(index) = usize::try_from(index) {
+                        // The previously lone focus joins the set it's
+                        // about to be toggled within, so a first Ctrl-click
+                        // right after a plain click still keeps that photo.
+                        if let Ok(focused) = usize::try_from(focused) {
+                            app.multi_selected.insert(focused);
+                        }
+                        if !app.multi_selected.remove(&index) {
+                            app.multi_selected.insert(index);
+                        }
+                    }
+                } else if shift {
+                    if let (Ok(from), Ok(to)) = (usize::try_from(focused), usize::try_from(index)) {
+                        let (from, to) = (from.min(to), from.max(to));
+                        app.multi_selected.extend(from..=to);
+                    }
+                } else {
+                    app.multi_selected.clear();
+                }
+                refresh_multi_selected_cells(&app);
+            }
+            GridState::get(&window).set_selected(index);
+            show_details(&mut app.borrow_mut(), &window, index);
+        });
+    }
+}
+
+/// Re-marks every loaded cell's `multi-selected` flag from
+/// `app.multi_selected`, without refetching anything from the catalog —
+/// called after every Ctrl/Shift-click.
+pub(crate) fn refresh_multi_selected_cells(app: &App) {
+    for i in 0..app.cells.row_count() {
+        let Some(mut cell) = app.cells.row_data(i) else {
+            continue;
+        };
+        let selected = app.multi_selected.contains(&(app.window_start + i));
+        if cell.multi_selected != selected {
+            cell.multi_selected = selected;
+            app.cells.set_row_data(i, cell);
+        }
+    }
+}
+
+/// Fetches the window of rows serving the current viewport and rebuilds
+/// the cell model from it (virtual scrolling: the rest of the grid only
+/// exists as the scrollbar's extent).
+pub(crate) fn load_window(app: &mut App, window: &StudioWindow) -> Result<(), String> {
+    let range = desired_window(app.viewport, app.total);
+    app.query.range = u32::try_from(range.start).unwrap_or(u32::MAX)
+        ..u32::try_from(range.end).unwrap_or(u32::MAX);
+    let items = app
+        .library
+        .catalog()
+        .grid(&app.query)
+        .map_err(|e| e.to_string())?;
+
+    // Only thumbnails already cached are loaded here, so the window appears
+    // instantly; the rest are queued and rendered by the thumbnail timer,
+    // visible cells before the overscan rows above them.
+    let first_visible = app.viewport.0.saturating_sub(range.start);
+    let mut cells = Vec::with_capacity(items.len());
+    let mut missing = Vec::new();
+    for (index, item) in items.iter().enumerate() {
+        let thumbnail = app
+            .library
+            .cached_preview(item.asset_id, PreviewKind::Thumbnail)
+            .ok()
+            .flatten()
+            .and_then(|file| slint::Image::load_from_path(&file.path).ok());
+        if thumbnail.is_none() {
+            missing.push(index);
+        }
+        cells.push(Cell {
+            thumbnail: thumbnail.unwrap_or_default(),
+            filename: SharedString::from(item.filename.as_str()),
+            stars: SharedString::from(format::stars(item.rating)),
+            label: label_color(item.color_label),
+            has_label: item.color_label.is_some(),
+            multi_selected: app.multi_selected.contains(&(range.start + index)),
+        });
+    }
+    let (visible, above): (VecDeque<usize>, VecDeque<usize>) = missing
+        .into_iter()
+        .partition(|&index| index >= first_visible);
+    app.items = items;
+    app.window_start = range.start;
+    app.pending = visible.into_iter().chain(above).collect();
+    app.cells = Rc::new(VecModel::from(cells));
+
+    GridState::get(window).set_cells(ModelRc::from(Rc::clone(&app.cells)));
+    GridState::get(window).set_window_start(i32::try_from(range.start).unwrap_or(i32::MAX));
+
+    // The selection may have just scrolled into the loaded window (arrow
+    // navigation past the edge): fill the side panel now that its row exists.
+    let selected = GridState::get(window).get_selected();
+    if item_at(app, selected).is_some() {
+        show_details(app, window, selected);
+    }
+    Ok(())
+}
+
+/// Re-runs the grid query — count plus the visible window — and rebuilds
+/// the cell model, keeping the current selection when the same version is
+/// still in the loaded window.
+pub(crate) fn reload(app: &mut App, window: &StudioWindow) -> Result<(), String> {
+    let keep: Option<VersionId> =
+        item_at(app, GridState::get(window).get_selected()).map(|item| item.version_id);
+
+    app.total = app
+        .library
+        .catalog()
+        .count(&app.query)
+        .map_err(|e| e.to_string())?;
+    let total = i32::try_from(app.total).unwrap_or(i32::MAX);
+    GridState::get(window).set_total_cells(total);
+    LibraryState::get(window).set_status_line(Tr::get(window).invoke_photo_count(total));
+    load_window(app, window)?;
+
+    let selected = keep
+        .and_then(|version| app.items.iter().position(|item| item.version_id == version))
+        .and_then(|i| i32::try_from(i + app.window_start).ok())
+        .unwrap_or(-1);
+    GridState::get(window).set_selected(selected);
+    if selected >= 0 {
+        show_details(app, window, selected);
+    }
+    Ok(())
+}
+
+/// Reads and formats everything the side panel shows for one grid row.
+pub(crate) fn show_details(app: &mut App, window: &StudioWindow, index: i32) {
+    let Some(asset) = item_at(app, index).map(|item| item.asset_id) else {
+        return;
+    };
+    let details = match app.library.catalog().asset_details(asset) {
+        Ok(details) => details,
+        Err(error) => {
+            eprintln!("error: {error}");
+            return;
+        }
+    };
+    match keyword_rows(app, asset) {
+        Ok((ids, paths)) => {
+            app.keywords = ids;
+            DetailState::get(window)
+                .set_detail_keywords(ModelRc::from(Rc::new(VecModel::from(paths))));
+        }
+        Err(error) => eprintln!("error: {error}"),
+    }
+    let meta = details.metadata.as_ref();
+    DetailState::get(window).set_detail_filename(SharedString::from(details.filename.as_str()));
+    DetailState::get(window).set_detail_path(SharedString::from(details.relative_path.as_str()));
+    DetailState::get(window).set_detail_capture(SharedString::from(
+        details
+            .capture_date
+            .map_or_else(|| "—".to_owned(), format::capture_date),
+    ));
+    DetailState::get(window).set_detail_dimensions(SharedString::from(format::dimensions(
+        details.width,
+        details.height,
+    )));
+    DetailState::get(window)
+        .set_detail_file_size(SharedString::from(format::file_size(details.file_size)));
+    DetailState::get(window).set_detail_camera(SharedString::from(
+        meta.and_then(|m| m.camera.as_ref()).map_or_else(
+            || "—".to_owned(),
+            |c| format!("{} {}", c.manufacturer, c.model),
+        ),
+    ));
+    DetailState::get(window).set_detail_lens(SharedString::from(
+        meta.and_then(|m| m.lens.as_ref()).map_or_else(
+            || "—".to_owned(),
+            |l| format!("{} {}", l.manufacturer, l.model),
+        ),
+    ));
+    DetailState::get(window).set_detail_exposure(SharedString::from(
+        meta.map_or_else(String::new, format::exposure_line),
+    ));
+}
