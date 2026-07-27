@@ -64,3 +64,4 @@ Un ADR remplacé n'est jamais supprimé : il reste lisible, avec sa raison d'ép
 | [0042](0042-versioned-stage-pipeline.md) | Pipeline composé d'étages versionnés : le gel porte sur l'opérateur et non sur la version entière ; remplace ADR 0028, §5 amendé par 0043 |
 | [0043](0043-collapse-prerelease-render-history.md) | Effondrement de l'historique de rendu avant publication : une version par opérateur, la révision porte sa carte `stages`, `process` disparaît |
 | [0044](0044-linear-wide-gamut-working-space.md) | Tampon de travail en lumière linéaire large gamut : Rec. 2020 D65 non borné, étages `input`/`output_rendering`, espace déclaré par version d'étage |
+| [0045](0045-studio-ui-modularisation.md) | Modularisation de l'interface Studio : un `global` Slint par domaine, un fichier par panneau/dialogue, modules Rust `wiring/` en miroir ; frontière SDK inchangée |
