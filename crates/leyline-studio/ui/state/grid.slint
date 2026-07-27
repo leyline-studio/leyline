@@ -1,0 +1,23 @@
+// The thumbnail grid: the loaded window of cells, the focus, and the
+// classement actions that apply to it (ADR 0045 §1).
+//
+// Only a window of rows is ever held here, not the whole catalog: Rust
+// sends `cells` for rows `window-start .. window-start + cells.length` out
+// of `total-cells`, and refills it as `viewport-moved` reports scrolling.
+
+import { Cell } from "../types.slint";
+export global GridState {
+    // The loaded window of grid cells; cell `i` shows grid row
+    // `window-start + i` out of `total-cells` matching rows.
+    in property <[Cell]> cells;
+    in property <int> total-cells;
+    in property <int> window-start;
+    in-out property <int> selected: -1;
+    callback select(int);
+    // A grid cell was clicked: index, then whether Ctrl/Shift was held
+    // (multi-select) — plain clicks (both false) behave like `select`.
+    callback cell-clicked(int, bool, bool);
+    callback classify(string);
+    // First visible cell and how many cells fit, sent on scroll or resize.
+    callback viewport-moved(int, int);
+}

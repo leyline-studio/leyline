@@ -1,0 +1,31 @@
+// The GPS map view (ADR 0040), a whole-window mode like develop
+// (ADR 0045 §1).
+//
+// The canvas is rendered to an image by Rust (`map_view::render`) because
+// Slint has no tile canvas; the UI forwards pan/zoom gestures and draws the
+// pin markers Rust already projected into canvas pixels.
+
+import { MapPinMarker } from "../types.slint";
+export global MapState {
+    // GPS map view (ADR 0040-gps-map-view.md): whole-window mode, same
+    // shape as `develop-mode` — `enter-map`/`exit-map` toggle it, the
+    // browser panel below adds `&& !map-mode` to stay mutually exclusive.
+    in property <bool> map-mode;
+    in property <image> map-image;
+    in property <[MapPinMarker]> map-pins;
+    in property <bool> map-pack-imported;
+    in property <string> map-pack-attribution;
+    in property <string> map-status;
+    callback enter-map();
+    callback exit-map();
+    // Native file picker, immediately followed by the import (single click,
+    // same shape as File ▸ Open Library…): unlike `browse-import-source`
+    // there's no text field to fill in first, so no separate "run" step.
+    callback browse-map-pack();
+    // Drag delta in canvas pixels.
+    callback map-pan(float, float);
+    callback map-zoom-in();
+    callback map-zoom-out();
+    // Index into `map-pins`.
+    callback map-pin-clicked(int);
+}

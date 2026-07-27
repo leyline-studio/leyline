@@ -26,6 +26,8 @@ import { LibraryState } from "state/library.slint";
 import { FilterState } from "state/filter.slint";
 import { DetailState } from "state/detail.slint";
 import { CollectionState } from "state/collection.slint";
+import { GridState } from "state/grid.slint";
+import { MapState } from "state/map.slint";
 import { DetailRow, EditSlider, FilterChip, GroupHeader } from "widgets/controls.slint";
 import { MenuDropdown, MenuRow, MenuSep, SubmenuHeader, TopMenuLabel } from "widgets/menu.slint";
 
@@ -33,7 +35,7 @@ import { MenuDropdown, MenuRow, MenuSep, SubmenuHeader, TopMenuLabel } from "wid
 // but a `global` only does when the root file re-exports it explicitly —
 // without this, `ui::Tr` doesn't exist and Rust can't build its status-line
 // and dialog messages (ADR 0019).
-export { CollectionState, DetailState, FilterState, LibraryState, Tr }
+export { CollectionState, DetailState, FilterState, GridState, LibraryState, MapState, Tr }
 
 export component StudioWindow inherits Window {
     title: "Leyline Studio — " + LibraryState.library-name;
@@ -52,12 +54,6 @@ export component StudioWindow inherits Window {
     background: #1b1b1b;
     forward-focus: keys;
 
-    // The loaded window of grid cells; cell `i` shows grid row
-    // `window-start + i` out of `total-cells` matching rows.
-    in property <[Cell]> cells;
-    in property <int> total-cells;
-    in property <int> window-start;
-    in-out property <int> selected: -1;
 
 
 
@@ -101,11 +97,6 @@ export component StudioWindow inherits Window {
     in property <int> dev-history-current: 0;
     callback checkout-history-row(int);
 
-    callback select(int);
-    // A grid cell was clicked: index, then whether Ctrl/Shift was held
-    // (multi-select) — plain clicks (both false) behave like `select`.
-    callback cell-clicked(int, bool, bool);
-    callback classify(string);
     callback enter-develop();
     callback exit-develop();
     // Moves the develop view to the next/previous photo in the grid
@@ -187,27 +178,6 @@ export component StudioWindow inherits Window {
     in-out property <string> watch-last-imported: "";
     in-out property <int> watch-imported-count: 0;
 
-    // GPS map view (ADR 0040-gps-map-view.md): whole-window mode, same
-    // shape as `develop-mode` — `enter-map`/`exit-map` toggle it, the
-    // browser panel below adds `&& !map-mode` to stay mutually exclusive.
-    in property <bool> map-mode;
-    in property <image> map-image;
-    in property <[MapPinMarker]> map-pins;
-    in property <bool> map-pack-imported;
-    in property <string> map-pack-attribution;
-    in property <string> map-status;
-    callback enter-map();
-    callback exit-map();
-    // Native file picker, immediately followed by the import (single click,
-    // same shape as File ▸ Open Library…): unlike `browse-import-source`
-    // there's no text field to fill in first, so no separate "run" step.
-    callback browse-map-pack();
-    // Drag delta in canvas pixels.
-    callback map-pan(float, float);
-    callback map-zoom-in();
-    callback map-zoom-out();
-    // Index into `map-pins`.
-    callback map-pin-clicked(int);
     // Opens a native OS folder picker; on a non-cancelled pick, Rust sets
     // `import-source-text` / `export-destination-text` below. Manual typing
     // into the paired TextInput keeps working — the picker is just a
@@ -266,8 +236,6 @@ export component StudioWindow inherits Window {
     // How many photos `run-export` will act on — the multi-selection when
     // there is one, otherwise 1 for the lone focused photo.
     in-out property <int> export-photo-count: 1;
-    // First visible cell and how many cells fit, sent on scroll or resize.
-    callback viewport-moved(int, int);
 
     property <length> cell-size: 176px;
 
@@ -330,11 +298,11 @@ export component StudioWindow inherits Window {
 
     // Moves the selection to `index` and scrolls it into view.
     function select-cell(index: int) {
-        if (index < 0 || index >= root.total-cells) {
+        if (index < 0 || index >= GridState.total-cells) {
             return;
         }
-        root.selected = index;
-        root.select(index);
+        GridState.selected = index;
+        GridState.select(index);
         if (Math.floor(index / flick.columns) * root.cell-size < -flick.viewport-y) {
             flick.viewport-y = -Math.floor(index / flick.columns) * root.cell-size;
         } else if ((Math.floor(index / flick.columns) + 1) * root.cell-size > -flick.viewport-y + flick.height) {
@@ -358,9 +326,9 @@ export component StudioWindow inherits Window {
                 }
                 return accept;
             }
-            if (root.map-mode) {
+            if (MapState.map-mode) {
                 if (event.text == "m" || event.text == "M" || event.text == Key.Escape) {
-                    root.exit-map();
+                    MapState.exit-map();
                 }
                 return accept;
             }
@@ -413,7 +381,7 @@ export component StudioWindow inherits Window {
                     root.develop-next();
                     return accept;
                 }
-                root.classify(event.text);
+                GridState.classify(event.text);
                 return accept;
             }
             if (event.text == "d" || event.text == "D" || event.text == Key.Return) {
@@ -434,7 +402,7 @@ export component StudioWindow inherits Window {
                 return accept;
             }
             if (event.text == "m" || event.text == "M") {
-                root.enter-map();
+                MapState.enter-map();
                 return accept;
             }
             if (event.text == "n" || event.text == "N") {
@@ -455,22 +423,22 @@ export component StudioWindow inherits Window {
                 return accept;
             }
             if (event.text == Key.LeftArrow) {
-                root.select-cell(max(root.selected - 1, 0));
+                root.select-cell(max(GridState.selected - 1, 0));
                 return accept;
             }
             if (event.text == Key.RightArrow) {
-                root.select-cell(root.selected < 0 ? 0 : root.selected + 1);
+                root.select-cell(GridState.selected < 0 ? 0 : GridState.selected + 1);
                 return accept;
             }
             if (event.text == Key.UpArrow) {
-                root.select-cell(root.selected - flick.columns);
+                root.select-cell(GridState.selected - flick.columns);
                 return accept;
             }
             if (event.text == Key.DownArrow) {
-                root.select-cell(root.selected < 0 ? 0 : root.selected + flick.columns);
+                root.select-cell(GridState.selected < 0 ? 0 : GridState.selected + flick.columns);
                 return accept;
             }
-            root.classify(event.text);
+            GridState.classify(event.text);
             accept
         }
 
@@ -703,17 +671,17 @@ export component StudioWindow inherits Window {
 
                 // Filmstrip: the loaded grid window's thumbnails, so
                 // switching photos doesn't require leaving develop mode.
-                // Reuses `root.cells` (already populated for the grid) —
+                // Reuses `GridState.cells` (already populated for the grid) —
                 // no separate data path.
                 Flickable {
                     height: 64px;
-                    viewport-width: root.cells.length * 64px;
+                    viewport-width: GridState.cells.length * 64px;
                     HorizontalLayout {
-                        for cell[i] in root.cells: TouchArea {
+                        for cell[i] in GridState.cells: TouchArea {
                             width: 64px;
                             height: 64px;
                             clicked => {
-                                root.develop-switch(root.window-start + i);
+                                root.develop-switch(GridState.window-start + i);
                             }
                             Rectangle {
                                 x: 2px;
@@ -721,7 +689,7 @@ export component StudioWindow inherits Window {
                                 width: parent.width - 4px;
                                 height: parent.height - 4px;
                                 border-radius: 3px;
-                                border-width: root.window-start + i == root.selected ? 2px : 0px;
+                                border-width: GridState.window-start + i == GridState.selected ? 2px : 0px;
                                 border-color: #6fa8dc;
                                 Image {
                                     source: cell.thumbnail;
@@ -1552,7 +1520,7 @@ export component StudioWindow inherits Window {
         }
 
         HorizontalLayout {
-            visible: root.map-mode;
+            visible: MapState.map-mode;
             VerticalLayout {
                 padding: 12px;
                 spacing: 8px;
@@ -1570,40 +1538,40 @@ export component StudioWindow inherits Window {
                     Rectangle {
                         horizontal-stretch: 1;
                     }
-                    if root.map-pack-imported: FilterChip {
+                    if MapState.map-pack-imported: FilterChip {
                         text: "−";
                         active: false;
                         clicked => {
-                            root.map-zoom-out();
+                            MapState.map-zoom-out();
                         }
                     }
-                    if root.map-pack-imported: FilterChip {
+                    if MapState.map-pack-imported: FilterChip {
                         text: "+";
                         active: false;
                         clicked => {
-                            root.map-zoom-in();
+                            MapState.map-zoom-in();
                         }
                     }
                     FilterChip {
                         text: @tr("Import Map Pack…");
                         active: false;
                         clicked => {
-                            root.browse-map-pack();
+                            MapState.browse-map-pack();
                         }
                     }
                     FilterChip {
                         text: @tr("Close");
                         active: false;
                         clicked => {
-                            root.exit-map();
+                            MapState.exit-map();
                         }
                     }
                 }
 
-                if !root.map-pack-imported: VerticalLayout {
+                if !MapState.map-pack-imported: VerticalLayout {
                     alignment: center;
                     Text {
-                        text: root.map-status == "" ? @tr("No map pack imported yet. Import an offline MBTiles map pack to place GPS-tagged photos on a map.") : root.map-status;
+                        text: MapState.map-status == "" ? @tr("No map pack imported yet. Import an offline MBTiles map pack to place GPS-tagged photos on a map.") : MapState.map-status;
                         color: #9a9a9a;
                         font-size: 13px;
                         horizontal-alignment: center;
@@ -1611,14 +1579,14 @@ export component StudioWindow inherits Window {
                     }
                 }
 
-                if root.map-pack-imported: Rectangle {
+                if MapState.map-pack-imported: Rectangle {
                     width: 720px;
                     height: 480px;
                     clip: true;
                     background: #1a1a1a;
 
                     Image {
-                        source: root.map-image;
+                        source: MapState.map-image;
                         width: 720px;
                         height: 480px;
                     }
@@ -1632,7 +1600,7 @@ export component StudioWindow inherits Window {
                         height: 100%;
                         pointer-event(event) => {
                             if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
-                                root.map-pan(
+                                MapState.map-pan(
                                     (self.mouse-x - self.pressed-x) / 1px,
                                     (self.mouse-y - self.pressed-y) / 1px,
                                 );
@@ -1640,13 +1608,13 @@ export component StudioWindow inherits Window {
                         }
                     }
 
-                    for pin[index] in root.map-pins: TouchArea {
+                    for pin[index] in MapState.map-pins: TouchArea {
                         x: pin.x * 1px - 6px;
                         y: pin.y * 1px - 6px;
                         width: 12px;
                         height: 12px;
                         clicked => {
-                            root.map-pin-clicked(index);
+                            MapState.map-pin-clicked(index);
                         }
                         Rectangle {
                             width: 12px;
@@ -1670,7 +1638,7 @@ export component StudioWindow inherits Window {
                         attribution-text := Text {
                             x: 4px;
                             y: 2px;
-                            text: root.map-pack-attribution == "" ? "© OpenStreetMap contributors" : root.map-pack-attribution;
+                            text: MapState.map-pack-attribution == "" ? "© OpenStreetMap contributors" : MapState.map-pack-attribution;
                             color: #d8d8d8;
                             font-size: 10px;
                         }
@@ -1680,7 +1648,7 @@ export component StudioWindow inherits Window {
         }
 
         HorizontalLayout {
-            visible: !root.develop-mode && !root.map-mode;
+            visible: !root.develop-mode && !MapState.map-mode;
 
             Rectangle {
                 width: 190px;
@@ -1895,17 +1863,17 @@ export component StudioWindow inherits Window {
                     // asks Rust for the matching window.
                     property <int> first-cell: Math.floor(-self.viewport-y / root.cell-size) * self.columns;
                     property <int> visible-cells: (Math.ceil(self.height / root.cell-size) + 1) * self.columns;
-                    viewport-height: Math.ceil(root.total-cells / self.columns) * root.cell-size;
+                    viewport-height: Math.ceil(GridState.total-cells / self.columns) * root.cell-size;
                     changed first-cell => {
-                        root.viewport-moved(self.first-cell, self.visible-cells);
+                        GridState.viewport-moved(self.first-cell, self.visible-cells);
                     }
                     changed visible-cells => {
-                        root.viewport-moved(self.first-cell, self.visible-cells);
+                        GridState.viewport-moved(self.first-cell, self.visible-cells);
                     }
 
-                    for cell[i] in root.cells: Rectangle {
-                        x: Math.mod(root.window-start + i, flick.columns) * root.cell-size;
-                        y: Math.floor((root.window-start + i) / flick.columns) * root.cell-size;
+                    for cell[i] in GridState.cells: Rectangle {
+                        x: Math.mod(GridState.window-start + i, flick.columns) * root.cell-size;
+                        y: Math.floor((GridState.window-start + i) / flick.columns) * root.cell-size;
                         width: root.cell-size;
                         height: root.cell-size;
 
@@ -1914,10 +1882,10 @@ export component StudioWindow inherits Window {
                             y: 4px;
                             width: parent.width - 8px;
                             height: parent.height - 8px;
-                            background: (root.window-start + i == root.selected || cell.multi-selected) ? #2f4f6f : #242424;
+                            background: (GridState.window-start + i == GridState.selected || cell.multi-selected) ? #2f4f6f : #242424;
                             border-radius: 4px;
-                            border-width: (root.window-start + i == root.selected || cell.multi-selected) ? 2px : 1px;
-                            border-color: root.window-start + i == root.selected ? #6fa8dc : (cell.multi-selected ? #4a7aa8 : #333333);
+                            border-width: (GridState.window-start + i == GridState.selected || cell.multi-selected) ? 2px : 1px;
+                            border-color: GridState.window-start + i == GridState.selected ? #6fa8dc : (cell.multi-selected ? #4a7aa8 : #333333);
 
                             VerticalLayout {
                                 padding: 6px;
@@ -1955,13 +1923,13 @@ export component StudioWindow inherits Window {
 
                         TouchArea {
                             double-clicked => {
-                                root.selected = root.window-start + i;
-                                root.select(root.window-start + i);
+                                GridState.selected = GridState.window-start + i;
+                                GridState.select(GridState.window-start + i);
                                 root.enter-develop();
                             }
                             pointer-event(event) => {
                                 if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
-                                    root.cell-clicked(root.window-start + i, event.modifiers.control, event.modifiers.shift);
+                                    GridState.cell-clicked(GridState.window-start + i, event.modifiers.control, event.modifiers.shift);
                                 }
                             }
                         }
@@ -1971,7 +1939,7 @@ export component StudioWindow inherits Window {
                         // callbacks already wired above and to the
                         // MenuBar (ADR 0020). Rate/Label/Flag/Reprocess/Copy
                         // Settings reset to a plain single selection here
-                        // (`root.selected = ...; root.select(...)`), like
+                        // (`GridState.selected = ...; GridState.select(...)`), like
                         // every keyboard shortcut and menu-bar entry —
                         // *Paste* Settings is the one exception, acting on
                         // whatever multi-selection is already current
@@ -1981,8 +1949,8 @@ export component StudioWindow inherits Window {
                                 MenuItem {
                                     title: @tr("Develop    D");
                                     activated => {
-                                        root.selected = root.window-start + i;
-                                        root.select(root.window-start + i);
+                                        GridState.selected = GridState.window-start + i;
+                                        GridState.select(GridState.window-start + i);
                                         root.enter-develop();
                                     }
                                 }
@@ -1992,50 +1960,50 @@ export component StudioWindow inherits Window {
                                     MenuItem {
                                         title: @tr("1 star    1");
                                         activated => {
-                                            root.selected = root.window-start + i;
-                                            root.select(root.window-start + i);
-                                            root.classify("1");
+                                            GridState.selected = GridState.window-start + i;
+                                            GridState.select(GridState.window-start + i);
+                                            GridState.classify("1");
                                         }
                                     }
                                     MenuItem {
                                         title: @tr("2 stars    2");
                                         activated => {
-                                            root.selected = root.window-start + i;
-                                            root.select(root.window-start + i);
-                                            root.classify("2");
+                                            GridState.selected = GridState.window-start + i;
+                                            GridState.select(GridState.window-start + i);
+                                            GridState.classify("2");
                                         }
                                     }
                                     MenuItem {
                                         title: @tr("3 stars    3");
                                         activated => {
-                                            root.selected = root.window-start + i;
-                                            root.select(root.window-start + i);
-                                            root.classify("3");
+                                            GridState.selected = GridState.window-start + i;
+                                            GridState.select(GridState.window-start + i);
+                                            GridState.classify("3");
                                         }
                                     }
                                     MenuItem {
                                         title: @tr("4 stars    4");
                                         activated => {
-                                            root.selected = root.window-start + i;
-                                            root.select(root.window-start + i);
-                                            root.classify("4");
+                                            GridState.selected = GridState.window-start + i;
+                                            GridState.select(GridState.window-start + i);
+                                            GridState.classify("4");
                                         }
                                     }
                                     MenuItem {
                                         title: @tr("5 stars    5");
                                         activated => {
-                                            root.selected = root.window-start + i;
-                                            root.select(root.window-start + i);
-                                            root.classify("5");
+                                            GridState.selected = GridState.window-start + i;
+                                            GridState.select(GridState.window-start + i);
+                                            GridState.classify("5");
                                         }
                                     }
                                     MenuSeparator { }
                                     MenuItem {
                                         title: @tr("Clear Rating    0");
                                         activated => {
-                                            root.selected = root.window-start + i;
-                                            root.select(root.window-start + i);
-                                            root.classify("0");
+                                            GridState.selected = GridState.window-start + i;
+                                            GridState.select(GridState.window-start + i);
+                                            GridState.classify("0");
                                         }
                                     }
                                 }
@@ -2044,33 +2012,33 @@ export component StudioWindow inherits Window {
                                     MenuItem {
                                         title: @tr("Red    6");
                                         activated => {
-                                            root.selected = root.window-start + i;
-                                            root.select(root.window-start + i);
-                                            root.classify("6");
+                                            GridState.selected = GridState.window-start + i;
+                                            GridState.select(GridState.window-start + i);
+                                            GridState.classify("6");
                                         }
                                     }
                                     MenuItem {
                                         title: @tr("Yellow    7");
                                         activated => {
-                                            root.selected = root.window-start + i;
-                                            root.select(root.window-start + i);
-                                            root.classify("7");
+                                            GridState.selected = GridState.window-start + i;
+                                            GridState.select(GridState.window-start + i);
+                                            GridState.classify("7");
                                         }
                                     }
                                     MenuItem {
                                         title: @tr("Green    8");
                                         activated => {
-                                            root.selected = root.window-start + i;
-                                            root.select(root.window-start + i);
-                                            root.classify("8");
+                                            GridState.selected = GridState.window-start + i;
+                                            GridState.select(GridState.window-start + i);
+                                            GridState.classify("8");
                                         }
                                     }
                                     MenuItem {
                                         title: @tr("Blue    9");
                                         activated => {
-                                            root.selected = root.window-start + i;
-                                            root.select(root.window-start + i);
-                                            root.classify("9");
+                                            GridState.selected = GridState.window-start + i;
+                                            GridState.select(GridState.window-start + i);
+                                            GridState.classify("9");
                                         }
                                     }
                                 }
@@ -2079,25 +2047,25 @@ export component StudioWindow inherits Window {
                                     MenuItem {
                                         title: @tr("Pick    P");
                                         activated => {
-                                            root.selected = root.window-start + i;
-                                            root.select(root.window-start + i);
-                                            root.classify("p");
+                                            GridState.selected = GridState.window-start + i;
+                                            GridState.select(GridState.window-start + i);
+                                            GridState.classify("p");
                                         }
                                     }
                                     MenuItem {
                                         title: @tr("Reject    X");
                                         activated => {
-                                            root.selected = root.window-start + i;
-                                            root.select(root.window-start + i);
-                                            root.classify("x");
+                                            GridState.selected = GridState.window-start + i;
+                                            GridState.select(GridState.window-start + i);
+                                            GridState.classify("x");
                                         }
                                     }
                                     MenuItem {
                                         title: @tr("Clear    U");
                                         activated => {
-                                            root.selected = root.window-start + i;
-                                            root.select(root.window-start + i);
-                                            root.classify("u");
+                                            GridState.selected = GridState.window-start + i;
+                                            GridState.select(GridState.window-start + i);
+                                            GridState.classify("u");
                                         }
                                     }
                                 }
@@ -2106,8 +2074,8 @@ export component StudioWindow inherits Window {
                                     title: @tr("Add to Collection    B");
                                     enabled: CollectionState.active-collection >= 0;
                                     activated => {
-                                        root.selected = root.window-start + i;
-                                        root.select(root.window-start + i);
+                                        GridState.selected = GridState.window-start + i;
+                                        GridState.select(GridState.window-start + i);
                                         CollectionState.add-to-collection();
                                     }
                                 }
@@ -2115,8 +2083,8 @@ export component StudioWindow inherits Window {
                                     title: @tr("Remove from Collection    Shift+B");
                                     enabled: CollectionState.active-collection >= 0;
                                     activated => {
-                                        root.selected = root.window-start + i;
-                                        root.select(root.window-start + i);
+                                        GridState.selected = GridState.window-start + i;
+                                        GridState.select(GridState.window-start + i);
                                         CollectionState.remove-from-collection();
                                     }
                                 }
@@ -2129,8 +2097,8 @@ export component StudioWindow inherits Window {
                                     // Shift+R, scoped to one version.
                                     title: @tr("Reprocess");
                                     activated => {
-                                        root.selected = root.window-start + i;
-                                        root.select(root.window-start + i);
+                                        GridState.selected = GridState.window-start + i;
+                                        GridState.select(GridState.window-start + i);
                                         root.reprocess-selected();
                                     }
                                 }
@@ -2141,8 +2109,8 @@ export component StudioWindow inherits Window {
                                     // source of a copy is always singular.
                                     title: @tr("Copy Settings");
                                     activated => {
-                                        root.selected = root.window-start + i;
-                                        root.select(root.window-start + i);
+                                        GridState.selected = GridState.window-start + i;
+                                        GridState.select(GridState.window-start + i);
                                         root.copy-settings();
                                     }
                                 }
@@ -2179,13 +2147,13 @@ export component StudioWindow inherits Window {
                     }
 
                     Text {
-                        text: root.selected < 0 ? @tr("No photo selected") : DetailState.detail-filename;
+                        text: GridState.selected < 0 ? @tr("No photo selected") : DetailState.detail-filename;
                         color: #f0f0f0;
                         font-size: 15px;
                         font-weight: 600;
                         overflow: elide;
                     }
-                    if root.selected >= 0: VerticalLayout {
+                    if GridState.selected >= 0: VerticalLayout {
                         spacing: 6px;
                         DetailRow {
                             label: @tr("Path");
@@ -3567,7 +3535,7 @@ export component StudioWindow inherits Window {
                 MenuRow {
                     title: @tr("Map…    M");
                     activated => {
-                        root.enter-map();
+                        MapState.enter-map();
                         root.open-menu = "";
                     }
                 }
@@ -3602,7 +3570,7 @@ export component StudioWindow inherits Window {
                 }
                 MenuRow {
                     title: @tr("Add to Collection    B");
-                    enabled: root.selected >= 0 && CollectionState.active-collection >= 0;
+                    enabled: GridState.selected >= 0 && CollectionState.active-collection >= 0;
                     activated => {
                         CollectionState.add-to-collection();
                         root.open-menu = "";
@@ -3610,7 +3578,7 @@ export component StudioWindow inherits Window {
                 }
                 MenuRow {
                     title: @tr("Remove from Collection    Shift+B");
-                    enabled: root.selected >= 0 && CollectionState.active-collection >= 0;
+                    enabled: GridState.selected >= 0 && CollectionState.active-collection >= 0;
                     activated => {
                         CollectionState.remove-from-collection();
                         root.open-menu = "";
@@ -3636,45 +3604,45 @@ export component StudioWindow inherits Window {
                 if root.rate-submenu-open: VerticalLayout {
                     MenuRow {
                         title: @tr("1 star    1");
-                        enabled: root.selected >= 0;
+                        enabled: GridState.selected >= 0;
                         activated => {
-                            root.classify("1");
+                            GridState.classify("1");
                             root.open-menu = "";
                             root.reset-submenus();
                         }
                     }
                     MenuRow {
                         title: @tr("2 stars    2");
-                        enabled: root.selected >= 0;
+                        enabled: GridState.selected >= 0;
                         activated => {
-                            root.classify("2");
+                            GridState.classify("2");
                             root.open-menu = "";
                             root.reset-submenus();
                         }
                     }
                     MenuRow {
                         title: @tr("3 stars    3");
-                        enabled: root.selected >= 0;
+                        enabled: GridState.selected >= 0;
                         activated => {
-                            root.classify("3");
+                            GridState.classify("3");
                             root.open-menu = "";
                             root.reset-submenus();
                         }
                     }
                     MenuRow {
                         title: @tr("4 stars    4");
-                        enabled: root.selected >= 0;
+                        enabled: GridState.selected >= 0;
                         activated => {
-                            root.classify("4");
+                            GridState.classify("4");
                             root.open-menu = "";
                             root.reset-submenus();
                         }
                     }
                     MenuRow {
                         title: @tr("5 stars    5");
-                        enabled: root.selected >= 0;
+                        enabled: GridState.selected >= 0;
                         activated => {
-                            root.classify("5");
+                            GridState.classify("5");
                             root.open-menu = "";
                             root.reset-submenus();
                         }
@@ -3682,9 +3650,9 @@ export component StudioWindow inherits Window {
                     MenuSep { }
                     MenuRow {
                         title: @tr("Clear Rating    0");
-                        enabled: root.selected >= 0;
+                        enabled: GridState.selected >= 0;
                         activated => {
-                            root.classify("0");
+                            GridState.classify("0");
                             root.open-menu = "";
                             root.reset-submenus();
                         }
@@ -3697,36 +3665,36 @@ export component StudioWindow inherits Window {
                 if root.label-submenu-open: VerticalLayout {
                     MenuRow {
                         title: @tr("Red    6");
-                        enabled: root.selected >= 0;
+                        enabled: GridState.selected >= 0;
                         activated => {
-                            root.classify("6");
+                            GridState.classify("6");
                             root.open-menu = "";
                             root.reset-submenus();
                         }
                     }
                     MenuRow {
                         title: @tr("Yellow    7");
-                        enabled: root.selected >= 0;
+                        enabled: GridState.selected >= 0;
                         activated => {
-                            root.classify("7");
+                            GridState.classify("7");
                             root.open-menu = "";
                             root.reset-submenus();
                         }
                     }
                     MenuRow {
                         title: @tr("Green    8");
-                        enabled: root.selected >= 0;
+                        enabled: GridState.selected >= 0;
                         activated => {
-                            root.classify("8");
+                            GridState.classify("8");
                             root.open-menu = "";
                             root.reset-submenus();
                         }
                     }
                     MenuRow {
                         title: @tr("Blue    9");
-                        enabled: root.selected >= 0;
+                        enabled: GridState.selected >= 0;
                         activated => {
-                            root.classify("9");
+                            GridState.classify("9");
                             root.open-menu = "";
                             root.reset-submenus();
                         }
@@ -3739,27 +3707,27 @@ export component StudioWindow inherits Window {
                 if root.flag-submenu-open: VerticalLayout {
                     MenuRow {
                         title: @tr("Pick    P");
-                        enabled: root.selected >= 0;
+                        enabled: GridState.selected >= 0;
                         activated => {
-                            root.classify("p");
+                            GridState.classify("p");
                             root.open-menu = "";
                             root.reset-submenus();
                         }
                     }
                     MenuRow {
                         title: @tr("Reject    X");
-                        enabled: root.selected >= 0;
+                        enabled: GridState.selected >= 0;
                         activated => {
-                            root.classify("x");
+                            GridState.classify("x");
                             root.open-menu = "";
                             root.reset-submenus();
                         }
                     }
                     MenuRow {
                         title: @tr("Clear    U");
-                        enabled: root.selected >= 0;
+                        enabled: GridState.selected >= 0;
                         activated => {
-                            root.classify("u");
+                            GridState.classify("u");
                             root.open-menu = "";
                             root.reset-submenus();
                         }
@@ -3768,7 +3736,7 @@ export component StudioWindow inherits Window {
                 MenuSep { }
                 MenuRow {
                     title: @tr("Develop    D");
-                    enabled: root.selected >= 0 && !root.develop-mode;
+                    enabled: GridState.selected >= 0 && !root.develop-mode;
                     activated => {
                         root.enter-develop();
                         root.open-menu = "";
@@ -3851,7 +3819,7 @@ export component StudioWindow inherits Window {
                 }
                 MenuRow {
                     title: @tr("Develop    D");
-                    enabled: !root.develop-mode && root.selected >= 0;
+                    enabled: !root.develop-mode && GridState.selected >= 0;
                     activated => {
                         root.enter-develop();
                         root.open-menu = "";

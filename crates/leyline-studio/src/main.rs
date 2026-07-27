@@ -48,7 +48,8 @@ use slint::winit_030::WinitWindowAccessor;
 use slint::{ComponentHandle, Global, Model, ModelRc, SharedString, Timer, TimerMode, VecModel};
 
 use ui::{
-    Cell, CollectionState, CurveMarker, DetailState, FilterState, LibraryState, StudioWindow, Tr,
+    Cell, CollectionState, CurveMarker, DetailState, FilterState, GridState, LibraryState,
+    MapState, StudioWindow, Tr,
 };
 
 /// Sort orders the header button cycles through, with their labels.
@@ -153,11 +154,15 @@ struct App {
     /// GPS map view state (`docs/adr/0040-gps-map-view.md`), `None` outside
     /// map mode — reset (pins re-fetched, view re-centered) every time the
     /// map is entered.
-    map: Option<MapState>,
+    map: Option<MapSession>,
 }
 
 /// Live state of the GPS map view while it's open.
-struct MapState {
+///
+/// Named for the session rather than the state because `MapState` is now the
+/// Slint global carrying what the map view shows (ADR 0045 §1); this struct is
+/// the Rust-side half, and none of it crosses to the UI as-is.
+struct MapSession {
     view: map_view::View,
     /// Fetched once on entry, not re-queried per pan/zoom — a GPS tag never
     /// changes while the map is open.
@@ -448,7 +453,7 @@ fn run() -> Result<(), String> {
         // rows from the catalog when the loaded window no longer covers it.
         let app = Rc::clone(&app);
         let handle = window.as_weak();
-        window.on_viewport_moved(move |first, capacity| {
+        GridState::get(&window).on_viewport_moved(move |first, capacity| {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -582,7 +587,7 @@ fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
         Event::AssetsChanged { asset_ids } => {
             // Another writer touched assets: refresh the side panel when
             // the selected photo is among them.
-            let selected = window.get_selected();
+            let selected = GridState::get(window).get_selected();
             if let Some(asset) = item_at(app, selected).map(|item| item.asset_id)
                 && asset_ids.contains(&asset)
             {
@@ -714,7 +719,7 @@ fn wire_select(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_select(move |index| {
+        GridState::get(window).on_select(move |index| {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -733,11 +738,11 @@ fn wire_select(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_cell_clicked(move |index, ctrl, shift| {
+        GridState::get(window).on_cell_clicked(move |index, ctrl, shift| {
             let Some(window) = handle.upgrade() else {
                 return;
             };
-            let focused = window.get_selected();
+            let focused = GridState::get(&window).get_selected();
             {
                 let mut app = app.borrow_mut();
                 if ctrl {
@@ -762,7 +767,7 @@ fn wire_select(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 }
                 refresh_multi_selected_cells(&app);
             }
-            window.set_selected(index);
+            GridState::get(&window).set_selected(index);
             show_details(&mut app.borrow_mut(), &window, index);
         });
     }
@@ -793,12 +798,12 @@ fn refresh_multi_selected_cells(app: &App) {
 fn wire_classify(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     let app = Rc::clone(app);
     let handle = window.as_weak();
-    window.on_classify(move |key| {
+    GridState::get(window).on_classify(move |key| {
         let Some(window) = handle.upgrade() else {
             return;
         };
         let mut app = app.borrow_mut();
-        let focused = window.get_selected();
+        let focused = GridState::get(&window).get_selected();
         let Some((label, pick)) = item_at(&app, focused).map(|item| (item.color_label, item.pick))
         else {
             return;
@@ -847,7 +852,8 @@ fn wire_settings_clipboard(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 return;
             };
             let mut app = app.borrow_mut();
-            let Some(version) = item_at(&app, window.get_selected()).map(|item| item.version_id)
+            let Some(version) =
+                item_at(&app, GridState::get(&window).get_selected()).map(|item| item.version_id)
             else {
                 return;
             };
@@ -871,7 +877,7 @@ fn wire_settings_clipboard(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             let Some(clipboard) = app.dev_clipboard.clone() else {
                 return;
             };
-            let versions = selected_versions(&app, window.get_selected());
+            let versions = selected_versions(&app, GridState::get(&window).get_selected());
             if versions.is_empty() {
                 return;
             }
@@ -1008,8 +1014,9 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 return;
             };
             let mut app = app.borrow_mut();
-            let Some((asset, version, filename)) = item_at(&app, window.get_selected())
-                .map(|item| (item.asset_id, item.version_id, item.filename.clone()))
+            let Some((asset, version, filename)) =
+                item_at(&app, GridState::get(&window).get_selected())
+                    .map(|item| (item.asset_id, item.version_id, item.filename.clone()))
             else {
                 return;
             };
@@ -1483,7 +1490,9 @@ fn reprocess_library(app: &mut App, window: &StudioWindow) {
 /// call as `reprocess_library`/Shift+R, bounded to the single photo the
 /// context menu was opened on rather than the whole catalog.
 fn reprocess_selected(app: &mut App, window: &StudioWindow) {
-    let Some(version) = item_at(app, window.get_selected()).map(|item| item.version_id) else {
+    let Some(version) =
+        item_at(app, GridState::get(window).get_selected()).map(|item| item.version_id)
+    else {
         return;
     };
     match app.library.reprocess(&[version], |_, _| {}) {
@@ -1611,7 +1620,8 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             app.presets = presets;
             window.set_export_presets(ModelRc::from(Rc::new(VecModel::from(names))));
             window.set_export_photo_count(
-                i32::try_from(selected_indices(&app, window.get_selected()).len()).unwrap_or(0),
+                i32::try_from(selected_indices(&app, GridState::get(&window).get_selected()).len())
+                    .unwrap_or(0),
             );
             window.set_export_preset(-1);
             window.set_export_format(0);
@@ -1630,7 +1640,7 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 return;
             };
             let mut app = app.borrow_mut();
-            let versions = selected_versions(&app, window.get_selected());
+            let versions = selected_versions(&app, GridState::get(&window).get_selected());
             if versions.is_empty() {
                 window.set_dialog_result(Tr::get(&window).invoke_select_photo_first());
                 return;
@@ -1781,8 +1791,8 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                     return;
                 };
                 let mut app = app.borrow_mut();
-                let Some(version) =
-                    item_at(&app, window.get_selected()).map(|item| item.version_id)
+                let Some(version) = item_at(&app, GridState::get(&window).get_selected())
+                    .map(|item| item.version_id)
                 else {
                     window.set_dialog_result(Tr::get(&window).invoke_select_photo_first());
                     return;
@@ -2222,7 +2232,9 @@ fn wire_keywords(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             if path.is_empty() {
                 return;
             }
-            let Some(asset) = item_at(&app, window.get_selected()).map(|item| item.asset_id) else {
+            let Some(asset) =
+                item_at(&app, GridState::get(&window).get_selected()).map(|item| item.asset_id)
+            else {
                 return;
             };
             let tagged = ensure_keyword_path(&mut app, &path).and_then(|keyword| {
@@ -2245,7 +2257,9 @@ fn wire_keywords(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 return;
             };
             let mut app = app.borrow_mut();
-            let Some(asset) = item_at(&app, window.get_selected()).map(|item| item.asset_id) else {
+            let Some(asset) =
+                item_at(&app, GridState::get(&window).get_selected()).map(|item| item.asset_id)
+            else {
                 return;
             };
             let Some(keyword) = usize::try_from(index)
@@ -2460,7 +2474,7 @@ fn wire_map(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_enter_map(move || {
+        MapState::get(window).on_enter_map(move || {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -2473,24 +2487,24 @@ fn wire_map(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 Ok(pins) => (pins, None),
                 Err(error) => (Vec::new(), Some(error.to_string())),
             };
-            app.map = Some(new_map_state(pins, &app.library));
+            app.map = Some(new_map_session(pins, &app.library));
             let unsupported = apply_pack_info(&app, &window);
-            window.set_map_status(SharedString::from(
+            MapState::get(&window).set_map_status(SharedString::from(
                 status.or(unsupported).unwrap_or_default(),
             ));
-            window.set_map_mode(true);
+            MapState::get(&window).set_map_mode(true);
             render_map(&mut app, &window);
         });
     }
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_exit_map(move || {
+        MapState::get(window).on_exit_map(move || {
             let Some(window) = handle.upgrade() else {
                 return;
             };
             app.borrow_mut().map = None;
-            window.set_map_mode(false);
+            MapState::get(&window).set_map_mode(false);
         });
     }
     {
@@ -2537,7 +2551,7 @@ fn wire_map(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_browse_map_pack(move || {
+        MapState::get(window).on_browse_map_pack(move || {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -2551,7 +2565,8 @@ fn wire_map(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             match app.library.import_map_pack(&path) {
                 Ok(()) => {
                     let unsupported = apply_pack_info(&app, &window);
-                    window.set_map_status(SharedString::from(unsupported.unwrap_or_default()));
+                    MapState::get(&window)
+                        .set_map_status(SharedString::from(unsupported.unwrap_or_default()));
                     // The new pack brings its own zoom range: re-derive the
                     // whole map state rather than keep a view centered at a
                     // zoom the new pack may not cover.
@@ -2560,17 +2575,19 @@ fn wire_map(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                         .as_mut()
                         .map(|state| std::mem::take(&mut state.pins))
                         .unwrap_or_default();
-                    app.map = Some(new_map_state(pins, &app.library));
+                    app.map = Some(new_map_session(pins, &app.library));
                     render_map(&mut app, &window);
                 }
-                Err(error) => window.set_map_status(SharedString::from(error.to_string())),
+                Err(error) => {
+                    MapState::get(&window).set_map_status(SharedString::from(error.to_string()))
+                }
             }
         });
     }
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_map_pan(move |dx, dy| {
+        MapState::get(window).on_map_pan(move |dx, dy| {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -2584,7 +2601,7 @@ fn wire_map(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_map_zoom_in(move || {
+        MapState::get(window).on_map_zoom_in(move || {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -2598,7 +2615,7 @@ fn wire_map(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_map_zoom_out(move || {
+        MapState::get(window).on_map_zoom_out(move || {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -2612,7 +2629,7 @@ fn wire_map(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_map_pin_clicked(move |index| {
+        MapState::get(window).on_map_pin_clicked(move |index| {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -2624,16 +2641,16 @@ fn wire_map(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 return;
             };
             app.map = None;
-            window.set_map_mode(false);
+            MapState::get(&window).set_map_mode(false);
             enter_develop_for(&mut app, &window, asset, version);
         });
     }
 }
 
-/// Builds a fresh [`MapState`] for `pins`, centered on them, with the
+/// Builds a fresh [`MapSession`] for `pins`, centered on them, with the
 /// active pack's declared zoom range (a generous default when it declares
 /// none, or there is no pack yet).
-fn new_map_state(pins: Vec<MapPin>, library: &Library) -> MapState {
+fn new_map_session(pins: Vec<MapPin>, library: &Library) -> MapSession {
     let info = library.map_pack_info().ok().flatten();
     // MBTiles metadata is whatever the pack's author wrote: normalize it
     // into a range this renderer can honor before anything projects with
@@ -2642,7 +2659,7 @@ fn new_map_state(pins: Vec<MapPin>, library: &Library) -> MapState {
         info.as_ref().and_then(|i| i.min_zoom),
         info.as_ref().and_then(|i| i.max_zoom),
     );
-    MapState {
+    MapSession {
         view: map_view::View::initial(&pins, min_zoom, max_zoom),
         pins,
         min_zoom,
@@ -2683,7 +2700,7 @@ fn refresh_map_pins(app: &mut App, window: &StudioWindow) {
             }
             render_map(app, window);
         }
-        Err(error) => window.set_map_status(SharedString::from(error.to_string())),
+        Err(error) => MapState::get(window).set_map_status(SharedString::from(error.to_string())),
     }
 }
 
@@ -2693,9 +2710,9 @@ fn refresh_map_pins(app: &mut App, window: &StudioWindow) {
 /// show.
 fn apply_pack_info(app: &App, window: &StudioWindow) -> Option<String> {
     let info = app.library.map_pack_info().ok().flatten();
-    window.set_map_pack_imported(info.is_some());
+    MapState::get(window).set_map_pack_imported(info.is_some());
     let unsupported = unsupported_pack_message(info.as_ref());
-    window.set_map_pack_attribution(SharedString::from(
+    MapState::get(window).set_map_pack_attribution(SharedString::from(
         info.and_then(|i| i.attribution).unwrap_or_default(),
     ));
     unsupported
@@ -2703,22 +2720,22 @@ fn apply_pack_info(app: &App, window: &StudioWindow) -> Option<String> {
 
 /// Recomposes the map canvas for the current pan/zoom state and updates
 /// every map-view Slint property, a no-op outside map mode. Also refreshes
-/// `MapState::visible_pins` so a later `map-pin-clicked(index)` resolves
+/// `MapSession::visible_pins` so a later `map-pin-clicked(index)` resolves
 /// against exactly the pins this call just put on screen.
 fn render_map(app: &mut App, window: &StudioWindow) {
-    if !window.get_map_pack_imported() {
+    if !MapState::get(window).get_map_pack_imported() {
         return;
     }
     let Some(state) = &app.map else {
         return;
     };
     let (canvas, projected) = map_view::render(&app.library, &state.view, &state.pins);
-    window.set_map_image(map_view::to_slint_image(&canvas));
+    MapState::get(window).set_map_image(map_view::to_slint_image(&canvas));
     let markers: Vec<ui::MapPinMarker> = projected
         .iter()
         .map(|pin| ui::MapPinMarker { x: pin.x, y: pin.y })
         .collect();
-    window.set_map_pins(ModelRc::from(Rc::new(VecModel::from(markers))));
+    MapState::get(window).set_map_pins(ModelRc::from(Rc::new(VecModel::from(markers))));
 
     let visible_pins = projected
         .iter()
@@ -2818,7 +2835,9 @@ fn collection_membership(app: &mut App, window: &StudioWindow, add: bool) {
         report_error(window, &Tr::get(window).invoke_select_collection_first());
         return;
     };
-    let Some(version) = item_at(app, window.get_selected()).map(|item| item.version_id) else {
+    let Some(version) =
+        item_at(app, GridState::get(window).get_selected()).map(|item| item.version_id)
+    else {
         return;
     };
     let changed = if add {
@@ -2968,14 +2987,14 @@ fn reprocess_current(app: &mut App, window: &StudioWindow) {
 /// (`item_at`) — crossing a virtual-scroll window boundary while develop
 /// is open is rare enough not to warrant reloading the grid for it.
 fn develop_navigate(app: &mut App, window: &StudioWindow, delta: i32) {
-    develop_switch_to(app, window, window.get_selected() + delta);
+    develop_switch_to(app, window, GridState::get(window).get_selected() + delta);
 }
 
 /// Switches develop to whole-grid index `next` directly, without leaving
 /// develop mode — the filmstrip's click-to-switch, and what
 /// [`develop_navigate`]'s ±1 arrow-key steps reduce to.
 fn develop_switch_to(app: &mut App, window: &StudioWindow, next: i32) {
-    if next < 0 || next >= window.get_total_cells() {
+    if next < 0 || next >= GridState::get(window).get_total_cells() {
         return;
     }
     let Some((asset, version, filename)) =
@@ -2983,7 +3002,7 @@ fn develop_switch_to(app: &mut App, window: &StudioWindow, next: i32) {
     else {
         return;
     };
-    window.set_selected(next);
+    GridState::get(window).set_selected(next);
     app.develop = Some((asset, version));
     match refresh_develop(app, window) {
         Ok(()) => window.set_develop_filename(SharedString::from(filename.as_str())),
@@ -3332,12 +3351,12 @@ fn load_window(app: &mut App, window: &StudioWindow) -> Result<(), String> {
     app.pending = visible.into_iter().chain(above).collect();
     app.cells = Rc::new(VecModel::from(cells));
 
-    window.set_cells(ModelRc::from(Rc::clone(&app.cells)));
-    window.set_window_start(i32::try_from(range.start).unwrap_or(i32::MAX));
+    GridState::get(window).set_cells(ModelRc::from(Rc::clone(&app.cells)));
+    GridState::get(window).set_window_start(i32::try_from(range.start).unwrap_or(i32::MAX));
 
     // The selection may have just scrolled into the loaded window (arrow
     // navigation past the edge): fill the side panel now that its row exists.
-    let selected = window.get_selected();
+    let selected = GridState::get(window).get_selected();
     if item_at(app, selected).is_some() {
         show_details(app, window, selected);
     }
@@ -3348,7 +3367,8 @@ fn load_window(app: &mut App, window: &StudioWindow) -> Result<(), String> {
 /// the cell model, keeping the current selection when the same version is
 /// still in the loaded window.
 fn reload(app: &mut App, window: &StudioWindow) -> Result<(), String> {
-    let keep: Option<VersionId> = item_at(app, window.get_selected()).map(|item| item.version_id);
+    let keep: Option<VersionId> =
+        item_at(app, GridState::get(window).get_selected()).map(|item| item.version_id);
 
     app.total = app
         .library
@@ -3356,7 +3376,7 @@ fn reload(app: &mut App, window: &StudioWindow) -> Result<(), String> {
         .count(&app.query)
         .map_err(|e| e.to_string())?;
     let total = i32::try_from(app.total).unwrap_or(i32::MAX);
-    window.set_total_cells(total);
+    GridState::get(window).set_total_cells(total);
     LibraryState::get(window).set_status_line(Tr::get(window).invoke_photo_count(total));
     load_window(app, window)?;
 
@@ -3364,7 +3384,7 @@ fn reload(app: &mut App, window: &StudioWindow) -> Result<(), String> {
         .and_then(|version| app.items.iter().position(|item| item.version_id == version))
         .and_then(|i| i32::try_from(i + app.window_start).ok())
         .unwrap_or(-1);
-    window.set_selected(selected);
+    GridState::get(window).set_selected(selected);
     if selected >= 0 {
         show_details(app, window, selected);
     }
