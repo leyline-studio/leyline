@@ -1,0 +1,124 @@
+// Save a develop preset (`docs/presets.md` §3.1): a name plus one flag per
+// group of settings to capture.
+//
+// One of the dialogs hosted by `panels/dialogs.slint` (ADR 0045 §3).
+
+import { DevelopState } from "../state/develop.slint";
+import { DialogState } from "../state/dialog.slint";
+import { FilterChip } from "../widgets/controls.slint";
+
+export component PresetDialog inherits VerticalLayout {
+    spacing: 12px;
+    property <bool> g-white-balance: true;
+    property <bool> g-tone: true;
+    property <bool> g-presence: true;
+    property <bool> g-lens-correction: false;
+    property <bool> g-detail: false;
+    property <bool> g-geometry: false;
+
+    Text {
+        text: @tr("Save as preset");
+        color: #f0f0f0;
+        font-size: 15px;
+        font-weight: 600;
+    }
+    Text {
+        text: @tr("Name");
+        color: #9a9a9a;
+        font-size: 12px;
+    }
+    Rectangle {
+        height: 28px;
+        background: #1b1b1b;
+        border-radius: 4px;
+        border-width: 1px;
+        border-color: #3a3a3a;
+        preset-name := TextInput {
+            x: 8px;
+            width: parent.width - 16px;
+            height: 100%;
+            color: #e6e6e6;
+            font-size: 12px;
+            vertical-alignment: center;
+            single-line: true;
+        }
+    }
+    Text {
+        text: @tr("Groups (geometry is rarely reused across photos)");
+        color: #9a9a9a;
+        font-size: 12px;
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        FilterChip {
+            text: @tr("White balance");
+            active: root.g-white-balance;
+            clicked => {
+                root.g-white-balance = !root.g-white-balance;
+            }
+        }
+        FilterChip {
+            text: @tr("Tone");
+            active: root.g-tone;
+            clicked => {
+                root.g-tone = !root.g-tone;
+            }
+        }
+        FilterChip {
+            text: @tr("Presence");
+            active: root.g-presence;
+            clicked => {
+                root.g-presence = !root.g-presence;
+            }
+        }
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        FilterChip {
+            text: @tr("Lens correction");
+            active: root.g-lens-correction;
+            clicked => {
+                root.g-lens-correction = !root.g-lens-correction;
+            }
+        }
+        FilterChip {
+            text: @tr("Detail");
+            active: root.g-detail;
+            clicked => {
+                root.g-detail = !root.g-detail;
+            }
+        }
+        FilterChip {
+            text: @tr("Geometry");
+            active: root.g-geometry;
+            clicked => {
+                root.g-geometry = !root.g-geometry;
+            }
+        }
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: end;
+        FilterChip {
+            text: @tr("Cancel");
+            active: false;
+            clicked => {
+                DialogState.dialog = "";
+            }
+        }
+        FilterChip {
+            text: @tr("Save");
+            active: true;
+            clicked => {
+                DevelopState.run-save-preset(
+                    preset-name.text,
+                    root.g-white-balance,
+                    root.g-tone,
+                    root.g-presence,
+                    root.g-lens-correction,
+                    root.g-detail,
+                    root.g-geometry);
+            }
+        }
+    }
+}

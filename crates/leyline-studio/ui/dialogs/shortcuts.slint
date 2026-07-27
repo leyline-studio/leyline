@@ -1,0 +1,226 @@
+// Keyboard shortcuts reference — the same callbacks the menu bar exposes,
+// listed with the keys that reach them.
+//
+// One of the dialogs hosted by `panels/dialogs.slint` (ADR 0045 §3).
+
+import { DialogState } from "../state/dialog.slint";
+import { FilterChip } from "../widgets/controls.slint";
+
+export component ShortcutsDialog inherits VerticalLayout {
+    spacing: 12px;
+    Text {
+        text: @tr("Keyboard shortcuts");
+        color: #f0f0f0;
+        font-size: 15px;
+        font-weight: 600;
+    }
+    VerticalLayout {
+        spacing: 4px;
+        HorizontalLayout {
+            spacing: 12px;
+            Text {
+                text: "G / D";
+                color: #e6e6e6;
+                font-size: 12px;
+                font-weight: 600;
+                width: 110px;
+            }
+            Text {
+                text: @tr("Library / develop");
+                color: #9a9a9a;
+                font-size: 12px;
+            }
+        }
+        HorizontalLayout {
+            spacing: 12px;
+            Text {
+                text: "I";
+                color: #e6e6e6;
+                font-size: 12px;
+                font-weight: 600;
+                width: 110px;
+            }
+            Text {
+                text: @tr("Import");
+                color: #9a9a9a;
+                font-size: 12px;
+            }
+        }
+        HorizontalLayout {
+            spacing: 12px;
+            Text {
+                text: "E";
+                color: #e6e6e6;
+                font-size: 12px;
+                font-weight: 600;
+                width: 110px;
+            }
+            Text {
+                text: @tr("Export");
+                color: #9a9a9a;
+                font-size: 12px;
+            }
+        }
+        HorizontalLayout {
+            spacing: 12px;
+            Text {
+                text: "T";
+                color: #e6e6e6;
+                font-size: 12px;
+                font-weight: 600;
+                width: 110px;
+            }
+            Text {
+                text: @tr("Tethered capture");
+                color: #9a9a9a;
+                font-size: 12px;
+            }
+        }
+        HorizontalLayout {
+            spacing: 12px;
+            Text {
+                text: "N";
+                color: #e6e6e6;
+                font-size: 12px;
+                font-weight: 600;
+                width: 110px;
+            }
+            Text {
+                text: @tr("New collection");
+                color: #9a9a9a;
+                font-size: 12px;
+            }
+        }
+        HorizontalLayout {
+            spacing: 12px;
+            Text {
+                text: "B / Shift+B";
+                color: #e6e6e6;
+                font-size: 12px;
+                font-weight: 600;
+                width: 110px;
+            }
+            Text {
+                text: @tr("Add / remove from collection");
+                color: #9a9a9a;
+                font-size: 12px;
+            }
+        }
+        HorizontalLayout {
+            spacing: 12px;
+            Text {
+                text: "Shift+R";
+                color: #e6e6e6;
+                font-size: 12px;
+                font-weight: 600;
+                width: 110px;
+            }
+            Text {
+                text: @tr("Reprocess library");
+                color: #9a9a9a;
+                font-size: 12px;
+            }
+        }
+        HorizontalLayout {
+            spacing: 12px;
+            Text {
+                text: "R";
+                color: #e6e6e6;
+                font-size: 12px;
+                font-weight: 600;
+                width: 110px;
+            }
+            Text {
+                text: @tr("Reprocess (develop mode)");
+                color: #9a9a9a;
+                font-size: 12px;
+            }
+        }
+        HorizontalLayout {
+            spacing: 12px;
+            Text {
+                text: "Ctrl+Z / Ctrl+Y";
+                color: #e6e6e6;
+                font-size: 12px;
+                font-weight: 600;
+                width: 110px;
+            }
+            Text {
+                text: @tr("Undo / redo");
+                color: #9a9a9a;
+                font-size: 12px;
+            }
+        }
+        HorizontalLayout {
+            spacing: 12px;
+            Text {
+                text: "S";
+                color: #e6e6e6;
+                font-size: 12px;
+                font-weight: 600;
+                width: 110px;
+            }
+            Text {
+                text: @tr("Save preset");
+                color: #9a9a9a;
+                font-size: 12px;
+            }
+        }
+        HorizontalLayout {
+            spacing: 12px;
+            Text {
+                text: "0–5";
+                color: #e6e6e6;
+                font-size: 12px;
+                font-weight: 600;
+                width: 110px;
+            }
+            Text {
+                text: @tr("Rate");
+                color: #9a9a9a;
+                font-size: 12px;
+            }
+        }
+        HorizontalLayout {
+            spacing: 12px;
+            Text {
+                text: "6–9";
+                color: #e6e6e6;
+                font-size: 12px;
+                font-weight: 600;
+                width: 110px;
+            }
+            Text {
+                text: @tr("Color label");
+                color: #9a9a9a;
+                font-size: 12px;
+            }
+        }
+        HorizontalLayout {
+            spacing: 12px;
+            Text {
+                text: "P / X / U";
+                color: #e6e6e6;
+                font-size: 12px;
+                font-weight: 600;
+                width: 110px;
+            }
+            Text {
+                text: @tr("Pick / reject / clear");
+                color: #9a9a9a;
+                font-size: 12px;
+            }
+        }
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: end;
+        FilterChip {
+            text: @tr("Close");
+            active: true;
+            clicked => {
+                DialogState.dialog = "";
+            }
+        }
+    }
+}

@@ -1,0 +1,316 @@
+// Print (ADR 0036): paper, orientation, margins, resolution, ICC profile
+// and rendering intent, again either from a stored preset or ad-hoc.
+//
+// One of the dialogs hosted by `panels/dialogs.slint` (ADR 0045 §3).
+
+import { DialogState } from "../state/dialog.slint";
+import { FilterChip } from "../widgets/controls.slint";
+
+export component PrintDialog inherits VerticalLayout {
+    spacing: 12px;
+    Text {
+        text: @tr("Print selected photo");
+        color: #f0f0f0;
+        font-size: 15px;
+        font-weight: 600;
+    }
+    Text {
+        text: @tr("Preset");
+        color: #9a9a9a;
+        font-size: 12px;
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: start;
+        FilterChip {
+            text: @tr("Custom");
+            active: DialogState.print-preset == -1;
+            clicked => {
+                DialogState.print-preset = -1;
+            }
+        }
+        for name[i] in DialogState.print-presets: FilterChip {
+            text: name;
+            active: DialogState.print-preset == i;
+            clicked => {
+                DialogState.print-preset = i;
+            }
+        }
+    }
+    if DialogState.print-preset == -1: VerticalLayout {
+        spacing: 8px;
+        Text {
+            text: @tr("Paper");
+            color: #9a9a9a;
+            font-size: 12px;
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            alignment: start;
+            for name[i] in ["A4", "A3", "Letter"]: FilterChip {
+                text: name;
+                active: DialogState.print-paper == i;
+                clicked => {
+                    DialogState.print-paper = i;
+                }
+            }
+        }
+        Text {
+            text: @tr("Orientation");
+            color: #9a9a9a;
+            font-size: 12px;
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            alignment: start;
+            for name[i] in ["Portrait", "Landscape"]: FilterChip {
+                text: name;
+                active: DialogState.print-orientation == i;
+                clicked => {
+                    DialogState.print-orientation = i;
+                }
+            }
+        }
+        HorizontalLayout {
+            spacing: 12px;
+            VerticalLayout {
+                spacing: 4px;
+                horizontal-stretch: 1;
+                Text {
+                    text: @tr("Margins (mm, all sides)");
+                    color: #9a9a9a;
+                    font-size: 12px;
+                }
+                Rectangle {
+                    height: 28px;
+                    background: #1b1b1b;
+                    border-radius: 4px;
+                    border-width: 1px;
+                    border-color: #3a3a3a;
+                    TextInput {
+                        x: 8px;
+                        width: parent.width - 16px;
+                        height: 100%;
+                        text <=> DialogState.print-margins-text;
+                        color: #e6e6e6;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                        single-line: true;
+                    }
+                }
+            }
+            VerticalLayout {
+                spacing: 4px;
+                horizontal-stretch: 1;
+                Text {
+                    text: @tr("DPI");
+                    color: #9a9a9a;
+                    font-size: 12px;
+                }
+                Rectangle {
+                    height: 28px;
+                    background: #1b1b1b;
+                    border-radius: 4px;
+                    border-width: 1px;
+                    border-color: #3a3a3a;
+                    TextInput {
+                        x: 8px;
+                        width: parent.width - 16px;
+                        height: 100%;
+                        text <=> DialogState.print-dpi-text;
+                        color: #e6e6e6;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                        single-line: true;
+                    }
+                }
+            }
+        }
+        Text {
+            text: @tr("Destination ICC profile (blank = sRGB)");
+            color: #9a9a9a;
+            font-size: 12px;
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            Rectangle {
+                height: 28px;
+                horizontal-stretch: 1;
+                background: #1b1b1b;
+                border-radius: 4px;
+                border-width: 1px;
+                border-color: #3a3a3a;
+                TextInput {
+                    x: 8px;
+                    width: parent.width - 16px;
+                    height: 100%;
+                    text <=> DialogState.print-profile-text;
+                    color: #e6e6e6;
+                    font-size: 12px;
+                    vertical-alignment: center;
+                    single-line: true;
+                }
+            }
+            FilterChip {
+                text: @tr("Browse…");
+                active: false;
+                clicked => {
+                    DialogState.browse-print-profile();
+                }
+            }
+        }
+        Text {
+            text: @tr("Rendering intent");
+            color: #9a9a9a;
+            font-size: 12px;
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            alignment: start;
+            for name[i] in ["Perceptual", "Relative", "Saturation", "Absolute"]: FilterChip {
+                text: name;
+                active: DialogState.print-intent == i;
+                clicked => {
+                    DialogState.print-intent = i;
+                }
+            }
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            VerticalLayout {
+                spacing: 4px;
+                horizontal-stretch: 1;
+                Text {
+                    text: @tr("Save as preset (optional name)");
+                    color: #9a9a9a;
+                    font-size: 12px;
+                }
+                Rectangle {
+                    height: 28px;
+                    background: #1b1b1b;
+                    border-radius: 4px;
+                    border-width: 1px;
+                    border-color: #3a3a3a;
+                    TextInput {
+                        x: 8px;
+                        width: parent.width - 16px;
+                        height: 100%;
+                        text <=> DialogState.print-preset-name;
+                        color: #e6e6e6;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                        single-line: true;
+                    }
+                }
+            }
+            FilterChip {
+                text: @tr("Save as preset");
+                active: false;
+                clicked => {
+                    DialogState.run-save-print-preset(
+                        DialogState.print-preset-name,
+                        DialogState.print-paper,
+                        DialogState.print-orientation,
+                        DialogState.print-margins-text,
+                        DialogState.print-dpi-text,
+                        DialogState.print-profile-text,
+                        DialogState.print-intent,
+                    );
+                }
+            }
+        }
+    }
+    Text {
+        text: @tr("Destination folder (absolute path)");
+        color: #9a9a9a;
+        font-size: 12px;
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        Rectangle {
+            height: 28px;
+            horizontal-stretch: 1;
+            background: #1b1b1b;
+            border-radius: 4px;
+            border-width: 1px;
+            border-color: #3a3a3a;
+            print-destination := TextInput {
+                x: 8px;
+                width: parent.width - 16px;
+                height: 100%;
+                text <=> DialogState.print-destination-text;
+                color: #e6e6e6;
+                font-size: 12px;
+                vertical-alignment: center;
+                single-line: true;
+            }
+        }
+        FilterChip {
+            text: @tr("Browse…");
+            active: false;
+            clicked => {
+                DialogState.browse-print-destination();
+            }
+        }
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        VerticalLayout {
+            spacing: 4px;
+            horizontal-stretch: 1;
+            Text {
+                text: @tr("Copies");
+                color: #9a9a9a;
+                font-size: 12px;
+            }
+            Rectangle {
+                height: 28px;
+                background: #1b1b1b;
+                border-radius: 4px;
+                border-width: 1px;
+                border-color: #3a3a3a;
+                TextInput {
+                    x: 8px;
+                    width: parent.width - 16px;
+                    height: 100%;
+                    text <=> DialogState.print-copies-text;
+                    color: #e6e6e6;
+                    font-size: 12px;
+                    vertical-alignment: center;
+                    single-line: true;
+                }
+            }
+        }
+        Rectangle {
+            horizontal-stretch: 1;
+        }
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: end;
+        FilterChip {
+            text: @tr("Cancel");
+            active: false;
+            clicked => {
+                DialogState.dialog = "";
+            }
+        }
+        FilterChip {
+            text: @tr("Print");
+            active: true;
+            clicked => {
+                DialogState.run-print(
+                    DialogState.print-preset,
+                    print-destination.text,
+                    DialogState.print-paper,
+                    DialogState.print-orientation,
+                    DialogState.print-margins-text,
+                    DialogState.print-dpi-text,
+                    DialogState.print-profile-text,
+                    DialogState.print-intent,
+                    DialogState.print-copies-text,
+                );
+            }
+        }
+    }
+}

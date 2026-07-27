@@ -1,0 +1,70 @@
+// The modal dialog overlay: the dimmed backdrop, the panel that holds
+// whichever dialog is open, and the result line under it (ADR 0045 §3).
+//
+// Each dialog is its own file under `ui/dialogs/`; this component only
+// decides which one is mounted and gives them a common frame.
+
+import { DialogState } from "../state/dialog.slint";
+import { AboutDialog } from "../dialogs/about.slint";
+import { CollectionDialog } from "../dialogs/collection.slint";
+import { ExportDialog } from "../dialogs/export.slint";
+import { ImportDialog } from "../dialogs/import.slint";
+import { PresetDialog } from "../dialogs/preset.slint";
+import { PrintDialog } from "../dialogs/print.slint";
+import { ShortcutsDialog } from "../dialogs/shortcuts.slint";
+import { TetherDialog } from "../dialogs/tether.slint";
+import { WatchDialog } from "../dialogs/watch.slint";
+
+export component DialogOverlay inherits Rectangle {
+        visible: DialogState.dialog != "";
+        background: #000000aa;
+        TouchArea {
+            clicked => {
+                DialogState.dialog = "";
+            }
+        }
+
+        Rectangle {
+            width: 480px;
+            background: #262626;
+            border-radius: 8px;
+            border-width: 1px;
+            border-color: #3a3a3a;
+            height: body.preferred-height;
+            TouchArea { }
+
+            body := VerticalLayout {
+                padding: 20px;
+                spacing: 12px;
+
+                if DialogState.dialog == "import": ImportDialog { }
+
+                if DialogState.dialog == "export": ExportDialog { }
+
+                if DialogState.dialog == "print": PrintDialog { }
+
+                if DialogState.dialog == "tether": TetherDialog { }
+
+                if DialogState.dialog == "watch": WatchDialog { }
+
+                if DialogState.dialog == "collection": CollectionDialog { }
+
+                if DialogState.dialog == "preset": PresetDialog { }
+
+                // Help ▸ Keyboard Shortcuts…: the shortcut list already
+                // in this file, made discoverable outside develop mode
+                // too. Designing a dedicated panel is out of scope for
+                // ADR 0020 — this is the minimal read-only stand-in.
+                if DialogState.dialog == "shortcuts": ShortcutsDialog { }
+
+                if DialogState.dialog == "about": AboutDialog { }
+
+                if DialogState.dialog-result != "": Text {
+                    text: DialogState.dialog-result;
+                    color: #d8b23c;
+                    font-size: 12px;
+                    wrap: word-wrap;
+                }
+            }
+        }
+}

@@ -1,0 +1,57 @@
+// New collection: just a name — the parent is whatever is selected in the
+// sidebar.
+//
+// One of the dialogs hosted by `panels/dialogs.slint` (ADR 0045 §3).
+
+import { CollectionState } from "../state/collection.slint";
+import { DialogState } from "../state/dialog.slint";
+import { FilterChip } from "../widgets/controls.slint";
+
+export component CollectionDialog inherits VerticalLayout {
+    spacing: 12px;
+    Text {
+        text: @tr("New collection");
+        color: #f0f0f0;
+        font-size: 15px;
+        font-weight: 600;
+    }
+    Text {
+        text: @tr("Name");
+        color: #9a9a9a;
+        font-size: 12px;
+    }
+    Rectangle {
+        height: 28px;
+        background: #1b1b1b;
+        border-radius: 4px;
+        border-width: 1px;
+        border-color: #3a3a3a;
+        collection-name := TextInput {
+            x: 8px;
+            width: parent.width - 16px;
+            height: 100%;
+            color: #e6e6e6;
+            font-size: 12px;
+            vertical-alignment: center;
+            single-line: true;
+        }
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: end;
+        FilterChip {
+            text: @tr("Cancel");
+            active: false;
+            clicked => {
+                DialogState.dialog = "";
+            }
+        }
+        FilterChip {
+            text: @tr("Create");
+            active: true;
+            clicked => {
+                CollectionState.run-new-collection(collection-name.text);
+            }
+        }
+    }
+}

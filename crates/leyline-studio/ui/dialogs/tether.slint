@@ -1,0 +1,60 @@
+// Tethered capture (ADR 0038): connect to the first USB camera libgphoto2
+// finds, then every shutter release imports like any other file.
+//
+// One of the dialogs hosted by `panels/dialogs.slint` (ADR 0045 §3).
+
+import { DialogState } from "../state/dialog.slint";
+import { FilterChip } from "../widgets/controls.slint";
+
+export component TetherDialog inherits VerticalLayout {
+    spacing: 12px;
+    Text {
+        text: @tr("Tethered capture");
+        color: #f0f0f0;
+        font-size: 15px;
+        font-weight: 600;
+    }
+    Text {
+        text: DialogState.tether-connected ? @tr("Connected — waiting for shots") : (DialogState.tether-status == "" ? @tr("Not connected. Plug in a camera over USB and click Connect.") : DialogState.tether-status);
+        color: DialogState.tether-connected ? #7fc97f : #9a9a9a;
+        font-size: 12px;
+        wrap: word-wrap;
+    }
+    if DialogState.tether-connected: Text {
+        text: @tr("{} captured this session", DialogState.tether-captured-count);
+        color: #9a9a9a;
+        font-size: 12px;
+        wrap: word-wrap;
+    }
+    if DialogState.tether-connected && DialogState.tether-last-captured != "": Text {
+        text: @tr("Last: {}", DialogState.tether-last-captured);
+        color: #9a9a9a;
+        font-size: 12px;
+        wrap: word-wrap;
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: end;
+        FilterChip {
+            text: @tr("Close");
+            active: false;
+            clicked => {
+                DialogState.dialog = "";
+            }
+        }
+        if !DialogState.tether-connected: FilterChip {
+            text: @tr("Connect");
+            active: true;
+            clicked => {
+                DialogState.run-tether-connect();
+            }
+        }
+        if DialogState.tether-connected: FilterChip {
+            text: @tr("Disconnect");
+            active: true;
+            clicked => {
+                DialogState.run-tether-disconnect();
+            }
+        }
+    }
+}

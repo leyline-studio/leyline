@@ -1,0 +1,89 @@
+// Import (`docs/specification.md`): pick a source folder, choose whether
+// to copy the files in and whether to recurse, then hand the whole thing to
+// Rust.
+//
+// One of the dialogs hosted by `panels/dialogs.slint` (ADR 0045 §3).
+
+import { DialogState } from "../state/dialog.slint";
+import { FilterChip } from "../widgets/controls.slint";
+
+export component ImportDialog inherits VerticalLayout {
+    spacing: 12px;
+    Text {
+        text: @tr("Import photos");
+        color: #f0f0f0;
+        font-size: 15px;
+        font-weight: 600;
+    }
+    Text {
+        text: @tr("Source folder (absolute path)");
+        color: #9a9a9a;
+        font-size: 12px;
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        Rectangle {
+            height: 28px;
+            horizontal-stretch: 1;
+            background: #1b1b1b;
+            border-radius: 4px;
+            border-width: 1px;
+            border-color: #3a3a3a;
+            import-source := TextInput {
+                x: 8px;
+                width: parent.width - 16px;
+                height: 100%;
+                text <=> DialogState.import-source-text;
+                color: #e6e6e6;
+                font-size: 12px;
+                vertical-alignment: center;
+                single-line: true;
+            }
+        }
+        FilterChip {
+            text: @tr("Browse…");
+            active: false;
+            clicked => {
+                DialogState.browse-import-source();
+            }
+        }
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        FilterChip {
+            text: @tr("Copy into library");
+            active: DialogState.import-copy;
+            clicked => {
+                DialogState.import-copy = !DialogState.import-copy;
+            }
+        }
+        FilterChip {
+            text: @tr("Recursive");
+            active: DialogState.import-recursive;
+            clicked => {
+                DialogState.import-recursive = !DialogState.import-recursive;
+            }
+        }
+        Rectangle {
+            horizontal-stretch: 1;
+        }
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: end;
+        FilterChip {
+            text: @tr("Cancel");
+            active: false;
+            clicked => {
+                DialogState.dialog = "";
+            }
+        }
+        FilterChip {
+            text: @tr("Import");
+            active: true;
+            clicked => {
+                DialogState.run-import(import-source.text, DialogState.import-copy, DialogState.import-recursive);
+            }
+        }
+    }
+}

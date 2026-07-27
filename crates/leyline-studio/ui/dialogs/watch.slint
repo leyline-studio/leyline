@@ -1,0 +1,75 @@
+// Watched-folder auto-import (ADR 0039): every file that settles in the
+// chosen folder is imported.
+//
+// One of the dialogs hosted by `panels/dialogs.slint` (ADR 0045 §3).
+
+import { DialogState } from "../state/dialog.slint";
+import { FilterChip } from "../widgets/controls.slint";
+
+export component WatchDialog inherits VerticalLayout {
+    spacing: 12px;
+    Text {
+        text: @tr("Auto import");
+        color: #f0f0f0;
+        font-size: 15px;
+        font-weight: 600;
+    }
+    Text {
+        text: DialogState.watch-active ? @tr("Watching — waiting for files") : (DialogState.watch-status == "" ? @tr("Not watching. Pick a folder and click Start.") : DialogState.watch-status);
+        color: DialogState.watch-active ? #7fc97f : #9a9a9a;
+        font-size: 12px;
+        wrap: word-wrap;
+    }
+    if !DialogState.watch-active: HorizontalLayout {
+        spacing: 8px;
+        watch-folder-input := TextInput {
+            text <=> DialogState.watch-folder-text;
+            color: #f0f0f0;
+            font-size: 12px;
+        }
+        FilterChip {
+            text: @tr("Browse…");
+            active: false;
+            clicked => {
+                DialogState.browse-watch-folder();
+            }
+        }
+    }
+    if DialogState.watch-active: Text {
+        text: @tr("{} imported this session", DialogState.watch-imported-count);
+        color: #9a9a9a;
+        font-size: 12px;
+        wrap: word-wrap;
+    }
+    if DialogState.watch-active && DialogState.watch-last-imported != "": Text {
+        text: @tr("Last: {}", DialogState.watch-last-imported);
+        color: #9a9a9a;
+        font-size: 12px;
+        wrap: word-wrap;
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: end;
+        FilterChip {
+            text: @tr("Close");
+            active: false;
+            clicked => {
+                DialogState.dialog = "";
+            }
+        }
+        if !DialogState.watch-active: FilterChip {
+            text: @tr("Start");
+            active: true;
+            clicked => {
+                DialogState.run-watch-start();
+            }
+        }
+        if DialogState.watch-active: FilterChip {
+            text: @tr("Stop");
+            active: true;
+            clicked => {
+                DialogState.run-watch-stop();
+            }
+        }
+    }
+}
