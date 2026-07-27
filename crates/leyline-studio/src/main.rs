@@ -47,7 +47,9 @@ use leyline_sdk::{
 use slint::winit_030::WinitWindowAccessor;
 use slint::{ComponentHandle, Global, Model, ModelRc, SharedString, Timer, TimerMode, VecModel};
 
-use ui::{Cell, CurveMarker, LibraryState, StudioWindow, Tr};
+use ui::{
+    Cell, CollectionState, CurveMarker, DetailState, FilterState, LibraryState, StudioWindow, Tr,
+};
 
 /// Sort orders the header button cycles through, with their labels.
 const SORTS: [(Sort, &str); 8] = [
@@ -413,14 +415,15 @@ fn run() -> Result<(), String> {
     // Surfaced in Help ▸ About Leyline: build-time constant from Cargo.toml's
     // `version.workspace = true`, so it stays in sync without a manual edit.
     LibraryState::get(&window).set_app_version(SharedString::from(env!("CARGO_PKG_VERSION")));
-    window.set_filter_label(-1);
-    window.set_filter_pick(-1);
-    window.set_sort_label(SharedString::from(sort_label(GridQuery::default().sort)));
+    FilterState::get(&window).set_filter_label(-1);
+    FilterState::get(&window).set_filter_pick(-1);
+    FilterState::get(&window)
+        .set_sort_label(SharedString::from(sort_label(GridQuery::default().sort)));
     let palette: Vec<slint::Color> = (0..5)
         .filter_map(ColorLabel::from_i64)
         .map(|label| label_color(Some(label)))
         .collect();
-    window.set_label_colors(ModelRc::from(Rc::new(VecModel::from(palette))));
+    FilterState::get(&window).set_label_colors(ModelRc::from(Rc::new(VecModel::from(palette))));
 
     {
         let mut app = app.borrow_mut();
@@ -917,21 +920,22 @@ fn wire_filters(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_rating_filter(move |stars| {
+        FilterState::get(window).on_rating_filter(move |stars| {
             let Some(window) = handle.upgrade() else {
                 return;
             };
             let mut app = app.borrow_mut();
             app.query.rating_at_least =
                 classify::toggle_rating_filter(app.query.rating_at_least, stars as u8);
-            window.set_filter_rating(app.query.rating_at_least.map_or(0, i32::from));
+            FilterState::get(&window)
+                .set_filter_rating(app.query.rating_at_least.map_or(0, i32::from));
             on_error(&window, reload(&mut app, &window));
         });
     }
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_label_filter(move |value| {
+        FilterState::get(window).on_label_filter(move |value| {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -940,14 +944,15 @@ fn wire_filters(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             };
             let mut app = app.borrow_mut();
             app.query.color_label = classify::toggle_label_filter(app.query.color_label, clicked);
-            window.set_filter_label(app.query.color_label.map_or(-1, |l| l.as_i64() as i32));
+            FilterState::get(&window)
+                .set_filter_label(app.query.color_label.map_or(-1, |l| l.as_i64() as i32));
             on_error(&window, reload(&mut app, &window));
         });
     }
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_pick_filter(move |value| {
+        FilterState::get(window).on_pick_filter(move |value| {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -956,14 +961,15 @@ fn wire_filters(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             };
             let mut app = app.borrow_mut();
             app.query.pick = classify::toggle_pick_filter(app.query.pick, clicked);
-            window.set_filter_pick(app.query.pick.map_or(-1, |p| p.as_i64() as i32));
+            FilterState::get(&window)
+                .set_filter_pick(app.query.pick.map_or(-1, |p| p.as_i64() as i32));
             on_error(&window, reload(&mut app, &window));
         });
     }
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_search(move |text| {
+        FilterState::get(window).on_search(move |text| {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -976,7 +982,7 @@ fn wire_filters(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_cycle_sort(move || {
+        FilterState::get(window).on_cycle_sort(move || {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -986,7 +992,7 @@ fn wire_filters(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 .position(|(sort, _)| *sort == app.query.sort)
                 .map_or(0, |i| (i + 1) % SORTS.len());
             app.query.sort = SORTS[next].0;
-            window.set_sort_label(SharedString::from(SORTS[next].1));
+            FilterState::get(&window).set_sort_label(SharedString::from(SORTS[next].1));
             on_error(&window, reload(&mut app, &window));
         });
     }
@@ -2136,7 +2142,7 @@ fn wire_collections(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_select_collection(move |index| {
+        CollectionState::get(window).on_select_collection(move |index| {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -2145,7 +2151,11 @@ fn wire_collections(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 .ok()
                 .and_then(|i| app.collections.get(i))
                 .copied();
-            window.set_active_collection(if picked.is_some() { index } else { -1 });
+            CollectionState::get(&window).set_active_collection(if picked.is_some() {
+                index
+            } else {
+                -1
+            });
             app.query.collection = picked;
             if let Err(error) = reload(&mut app, &window) {
                 report_error(&window, &error);
@@ -2155,7 +2165,7 @@ fn wire_collections(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_run_new_collection(move |name| {
+        CollectionState::get(window).on_run_new_collection(move |name| {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -2181,7 +2191,7 @@ fn wire_collections(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_add_to_collection(move || {
+        CollectionState::get(window).on_add_to_collection(move || {
             if let Some(window) = handle.upgrade() {
                 collection_membership(&mut app.borrow_mut(), &window, true);
             }
@@ -2190,7 +2200,7 @@ fn wire_collections(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_remove_from_collection(move || {
+        CollectionState::get(window).on_remove_from_collection(move || {
             if let Some(window) = handle.upgrade() {
                 collection_membership(&mut app.borrow_mut(), &window, false);
             }
@@ -2203,7 +2213,7 @@ fn wire_keywords(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_add_keyword(move |path| {
+        DetailState::get(window).on_add_keyword(move |path| {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -2230,7 +2240,7 @@ fn wire_keywords(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_remove_keyword(move |index| {
+        DetailState::get(window).on_remove_keyword(move |index| {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -2261,7 +2271,7 @@ fn wire_keywords(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_keyword_filter(move |index| {
+        FilterState::get(window).on_keyword_filter(move |index| {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -2279,10 +2289,10 @@ fn wire_keywords(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 Some(keyword)
             };
             app.query.keywords = app.keyword_filter.into_iter().collect();
-            window.set_filter_keyword_label(
+            FilterState::get(&window).set_filter_keyword_label(
                 app.keyword_filter
                     .and_then(|k| app.keywords.iter().position(|&x| x == k))
-                    .and_then(|i| window.get_detail_keywords().row_data(i))
+                    .and_then(|i| DetailState::get(&window).get_detail_keywords().row_data(i))
                     .unwrap_or_default(),
             );
             if let Err(error) = reload(&mut app, &window) {
@@ -2293,14 +2303,14 @@ fn wire_keywords(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_clear_keyword_filter(move || {
+        FilterState::get(window).on_clear_keyword_filter(move || {
             let Some(window) = handle.upgrade() else {
                 return;
             };
             let mut app = app.borrow_mut();
             app.keyword_filter = None;
             app.query.keywords.clear();
-            window.set_filter_keyword_label(SharedString::default());
+            FilterState::get(&window).set_filter_keyword_label(SharedString::default());
             if let Err(error) = reload(&mut app, &window) {
                 report_error(&window, &error);
             }
@@ -2800,7 +2810,7 @@ fn collect_keyword_paths(
 /// Adds the selected photo's version to the active collection, or removes
 /// it, then reloads the grid (membership may change what it shows).
 fn collection_membership(app: &mut App, window: &StudioWindow, add: bool) {
-    let Some(collection) = usize::try_from(window.get_active_collection())
+    let Some(collection) = usize::try_from(CollectionState::get(window).get_active_collection())
         .ok()
         .and_then(|i| app.collections.get(i))
         .copied()
@@ -2838,7 +2848,7 @@ fn refresh_collections(app: &mut App, window: &StudioWindow) -> Result<(), Strin
             smart,
         })
         .collect();
-    window.set_collections(ModelRc::from(Rc::new(VecModel::from(rows))));
+    CollectionState::get(window).set_collections(ModelRc::from(Rc::new(VecModel::from(rows))));
     Ok(())
 }
 
@@ -3376,36 +3386,38 @@ fn show_details(app: &mut App, window: &StudioWindow, index: i32) {
     match keyword_rows(app, asset) {
         Ok((ids, paths)) => {
             app.keywords = ids;
-            window.set_detail_keywords(ModelRc::from(Rc::new(VecModel::from(paths))));
+            DetailState::get(window)
+                .set_detail_keywords(ModelRc::from(Rc::new(VecModel::from(paths))));
         }
         Err(error) => eprintln!("error: {error}"),
     }
     let meta = details.metadata.as_ref();
-    window.set_detail_filename(SharedString::from(details.filename.as_str()));
-    window.set_detail_path(SharedString::from(details.relative_path.as_str()));
-    window.set_detail_capture(SharedString::from(
+    DetailState::get(window).set_detail_filename(SharedString::from(details.filename.as_str()));
+    DetailState::get(window).set_detail_path(SharedString::from(details.relative_path.as_str()));
+    DetailState::get(window).set_detail_capture(SharedString::from(
         details
             .capture_date
             .map_or_else(|| "—".to_owned(), format::capture_date),
     ));
-    window.set_detail_dimensions(SharedString::from(format::dimensions(
+    DetailState::get(window).set_detail_dimensions(SharedString::from(format::dimensions(
         details.width,
         details.height,
     )));
-    window.set_detail_file_size(SharedString::from(format::file_size(details.file_size)));
-    window.set_detail_camera(SharedString::from(
+    DetailState::get(window)
+        .set_detail_file_size(SharedString::from(format::file_size(details.file_size)));
+    DetailState::get(window).set_detail_camera(SharedString::from(
         meta.and_then(|m| m.camera.as_ref()).map_or_else(
             || "—".to_owned(),
             |c| format!("{} {}", c.manufacturer, c.model),
         ),
     ));
-    window.set_detail_lens(SharedString::from(
+    DetailState::get(window).set_detail_lens(SharedString::from(
         meta.and_then(|m| m.lens.as_ref()).map_or_else(
             || "—".to_owned(),
             |l| format!("{} {}", l.manufacturer, l.model),
         ),
     ));
-    window.set_detail_exposure(SharedString::from(
+    DetailState::get(window).set_detail_exposure(SharedString::from(
         meta.map_or_else(String::new, format::exposure_line),
     ));
 }

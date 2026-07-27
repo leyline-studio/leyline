@@ -1,0 +1,21 @@
+// Metadata of the focused photo, and its keywords (ADR 0045 §1).
+//
+// Everything is preformatted by Rust — dates, sizes and exposure arrive as
+// display strings, and keyword paths arrive already flattened. The panel
+// that shows them does no interpretation of its own.
+export global DetailState {
+    in property <string> detail-filename;
+    in property <string> detail-path;
+    in property <string> detail-capture;
+    in property <string> detail-dimensions;
+    in property <string> detail-file-size;
+    in property <string> detail-camera;
+    in property <string> detail-lens;
+    in property <string> detail-exposure;
+    // Keyword paths of the selected photo, already flattened by Rust.
+    in property <[string]> detail-keywords;
+    // Tag the selected photo with a slash-separated keyword path, or untag
+    // the keyword at an index of `detail-keywords`.
+    callback add-keyword(string);
+    callback remove-keyword(int);
+}

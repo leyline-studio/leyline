@@ -23,6 +23,9 @@ import {
     Tr,
 } from "types.slint";
 import { LibraryState } from "state/library.slint";
+import { FilterState } from "state/filter.slint";
+import { DetailState } from "state/detail.slint";
+import { CollectionState } from "state/collection.slint";
 import { DetailRow, EditSlider, FilterChip, GroupHeader } from "widgets/controls.slint";
 import { MenuDropdown, MenuRow, MenuSep, SubmenuHeader, TopMenuLabel } from "widgets/menu.slint";
 
@@ -30,7 +33,7 @@ import { MenuDropdown, MenuRow, MenuSep, SubmenuHeader, TopMenuLabel } from "wid
 // but a `global` only does when the root file re-exports it explicitly —
 // without this, `ui::Tr` doesn't exist and Rust can't build its status-line
 // and dialog messages (ADR 0019).
-export { LibraryState, Tr }
+export { CollectionState, DetailState, FilterState, LibraryState, Tr }
 
 export component StudioWindow inherits Window {
     title: "Leyline Studio — " + LibraryState.library-name;
@@ -56,25 +59,7 @@ export component StudioWindow inherits Window {
     in property <int> window-start;
     in-out property <int> selected: -1;
 
-    // Filter state, mirrored from the GridQuery held in Rust.
-    in property <int> filter-rating; // 0 = off, else minimum stars
-    in property <int> filter-label; // -1 = off, else ColorLabel encoding
-    in property <int> filter-pick; // -1 = off, else PickState encoding
-    in property <string> sort-label;
-    in property <[color]> label-colors;
-    // Active keyword filter's full path, or "" when off.
-    in property <string> filter-keyword-label;
 
-    in property <string> detail-filename;
-    in property <string> detail-path;
-    in property <string> detail-capture;
-    in property <string> detail-dimensions;
-    in property <string> detail-file-size;
-    in property <string> detail-camera;
-    in property <string> detail-lens;
-    in property <string> detail-exposure;
-    // Keyword paths of the selected photo, already flattened by Rust.
-    in property <[string]> detail-keywords;
 
     // Develop view state, mirrored from Rust.
     in property <bool> develop-mode;
@@ -121,10 +106,6 @@ export component StudioWindow inherits Window {
     // (multi-select) — plain clicks (both false) behave like `select`.
     callback cell-clicked(int, bool, bool);
     callback classify(string);
-    callback rating-filter(int);
-    callback label-filter(int);
-    callback pick-filter(int);
-    callback cycle-sort();
     callback enter-develop();
     callback exit-develop();
     // Moves the develop view to the next/previous photo in the grid
@@ -285,22 +266,6 @@ export component StudioWindow inherits Window {
     // How many photos `run-export` will act on — the multi-selection when
     // there is one, otherwise 1 for the lone focused photo.
     in-out property <int> export-photo-count: 1;
-    in property <[CollectionRow]> collections;
-    in-out property <int> active-collection: -1;
-    callback select-collection(int);
-    callback run-new-collection(string);
-    callback add-to-collection();
-    callback remove-from-collection();
-    // Tag the selected photo with a slash-separated keyword path, or untag
-    // the keyword at an index of `detail-keywords`.
-    callback add-keyword(string);
-    callback remove-keyword(int);
-    // Toggles the grid filter to the keyword at an index of
-    // `detail-keywords` (its descendants included); clicking the active
-    // one turns the filter off.
-    callback keyword-filter(int);
-    callback clear-keyword-filter();
-    callback search(string);
     // First visible cell and how many cells fit, sent on scroll or resize.
     callback viewport-moved(int, int);
 
@@ -479,9 +444,9 @@ export component StudioWindow inherits Window {
             }
             if (event.text == "b" || event.text == "B") {
                 if (event.modifiers.shift) {
-                    root.remove-from-collection();
+                    CollectionState.remove-from-collection();
                 } else {
-                    root.add-to-collection();
+                    CollectionState.add-to-collection();
                 }
                 return accept;
             }
@@ -1738,7 +1703,7 @@ export component StudioWindow inherits Window {
                     Rectangle {
                         height: 24px;
                         border-radius: 4px;
-                        background: root.active-collection == -1 ? #2f4f6f : transparent;
+                        background: CollectionState.active-collection == -1 ? #2f4f6f : transparent;
                         Text {
                             x: 8px;
                             width: parent.width - 16px;
@@ -1751,20 +1716,20 @@ export component StudioWindow inherits Window {
                         }
                         TouchArea {
                             clicked => {
-                                root.select-collection(-1);
+                                CollectionState.select-collection(-1);
                             }
                         }
                     }
 
                     Flickable {
                         vertical-stretch: 1;
-                        viewport-height: root.collections.length * 26px;
-                        for row[i] in root.collections: Rectangle {
+                        viewport-height: CollectionState.collections.length * 26px;
+                        for row[i] in CollectionState.collections: Rectangle {
                             y: i * 26px;
                             height: 24px;
                             width: parent.width;
                             border-radius: 4px;
-                            background: root.active-collection == i ? #2f4f6f : transparent;
+                            background: CollectionState.active-collection == i ? #2f4f6f : transparent;
                             Text {
                                 x: 8px + row.depth * 12px;
                                 width: parent.width - self.x - 8px;
@@ -1777,7 +1742,7 @@ export component StudioWindow inherits Window {
                             }
                             TouchArea {
                                 clicked => {
-                                    root.select-collection(i);
+                                    CollectionState.select-collection(i);
                                 }
                             }
                         }
@@ -1809,8 +1774,8 @@ export component StudioWindow inherits Window {
                             width: 18px;
                             height: 24px;
                             Text {
-                                text: root.filter-rating > s ? "★" : "☆";
-                                color: root.filter-rating > s ? #d8b23c : #666666;
+                                text: FilterState.filter-rating > s ? "★" : "☆";
+                                color: FilterState.filter-rating > s ? #d8b23c : #666666;
                                 font-size: 15px;
                                 vertical-alignment: center;
                                 horizontal-alignment: center;
@@ -1818,7 +1783,7 @@ export component StudioWindow inherits Window {
                                 height: 100%;
                             }
                             clicked => {
-                                root.rating-filter(s + 1);
+                                FilterState.rating-filter(s + 1);
                             }
                         }
                     }
@@ -1833,44 +1798,44 @@ export component StudioWindow inherits Window {
                                 height: 12px;
                                 y: (parent.height - self.height) / 2;
                                 border-radius: 6px;
-                                background: root.label-colors[l];
-                                border-width: root.filter-label == l ? 2px : 0px;
+                                background: FilterState.label-colors[l];
+                                border-width: FilterState.filter-label == l ? 2px : 0px;
                                 border-color: #f0f0f0;
-                                opacity: root.filter-label == l || root.filter-label == -1 ? 1 : 0.35;
+                                opacity: FilterState.filter-label == l || FilterState.filter-label == -1 ? 1 : 0.35;
                             }
                             clicked => {
-                                root.label-filter(l);
+                                FilterState.label-filter(l);
                             }
                         }
                     }
 
                     FilterChip {
                         text: @tr("⚑ Picked");
-                        active: root.filter-pick == 1;
+                        active: FilterState.filter-pick == 1;
                         clicked => {
-                            root.pick-filter(1);
+                            FilterState.pick-filter(1);
                         }
                     }
                     FilterChip {
                         text: @tr("✕ Rejected");
-                        active: root.filter-pick == 2;
+                        active: FilterState.filter-pick == 2;
                         clicked => {
-                            root.pick-filter(2);
+                            FilterState.pick-filter(2);
                         }
                     }
                     FilterChip {
                         text: @tr("– Unflagged");
-                        active: root.filter-pick == 0;
+                        active: FilterState.filter-pick == 0;
                         clicked => {
-                            root.pick-filter(0);
+                            FilterState.pick-filter(0);
                         }
                     }
 
-                    if root.filter-keyword-label != "": FilterChip {
-                        text: "🏷 " + root.filter-keyword-label;
+                    if FilterState.filter-keyword-label != "": FilterChip {
+                        text: "🏷 " + FilterState.filter-keyword-label;
                         active: true;
                         clicked => {
-                            root.clear-keyword-filter();
+                            FilterState.clear-keyword-filter();
                         }
                     }
 
@@ -1890,7 +1855,7 @@ export component StudioWindow inherits Window {
                             vertical-alignment: center;
                             single-line: true;
                             accepted => {
-                                root.search(self.text);
+                                FilterState.search(self.text);
                                 keys.focus();
                             }
                         }
@@ -1909,10 +1874,10 @@ export component StudioWindow inherits Window {
                     }
 
                     FilterChip {
-                        text: @tr("Sort: {}", root.sort-label);
+                        text: @tr("Sort: {}", FilterState.sort-label);
                         active: false;
                         clicked => {
-                            root.cycle-sort();
+                            FilterState.cycle-sort();
                         }
                     }
                 }
@@ -2139,20 +2104,20 @@ export component StudioWindow inherits Window {
                                 MenuSeparator { }
                                 MenuItem {
                                     title: @tr("Add to Collection    B");
-                                    enabled: root.active-collection >= 0;
+                                    enabled: CollectionState.active-collection >= 0;
                                     activated => {
                                         root.selected = root.window-start + i;
                                         root.select(root.window-start + i);
-                                        root.add-to-collection();
+                                        CollectionState.add-to-collection();
                                     }
                                 }
                                 MenuItem {
                                     title: @tr("Remove from Collection    Shift+B");
-                                    enabled: root.active-collection >= 0;
+                                    enabled: CollectionState.active-collection >= 0;
                                     activated => {
                                         root.selected = root.window-start + i;
                                         root.select(root.window-start + i);
-                                        root.remove-from-collection();
+                                        CollectionState.remove-from-collection();
                                     }
                                 }
                                 MenuSeparator { }
@@ -2214,7 +2179,7 @@ export component StudioWindow inherits Window {
                     }
 
                     Text {
-                        text: root.selected < 0 ? @tr("No photo selected") : root.detail-filename;
+                        text: root.selected < 0 ? @tr("No photo selected") : DetailState.detail-filename;
                         color: #f0f0f0;
                         font-size: 15px;
                         font-weight: 600;
@@ -2224,31 +2189,31 @@ export component StudioWindow inherits Window {
                         spacing: 6px;
                         DetailRow {
                             label: @tr("Path");
-                            value: root.detail-path;
+                            value: DetailState.detail-path;
                         }
                         DetailRow {
                             label: @tr("Captured");
-                            value: root.detail-capture;
+                            value: DetailState.detail-capture;
                         }
                         DetailRow {
                             label: @tr("Size");
-                            value: root.detail-dimensions;
+                            value: DetailState.detail-dimensions;
                         }
                         DetailRow {
                             label: @tr("File");
-                            value: root.detail-file-size;
+                            value: DetailState.detail-file-size;
                         }
                         DetailRow {
                             label: @tr("Camera");
-                            value: root.detail-camera;
+                            value: DetailState.detail-camera;
                         }
                         DetailRow {
                             label: @tr("Lens");
-                            value: root.detail-lens;
+                            value: DetailState.detail-lens;
                         }
                         DetailRow {
                             label: @tr("Exposure");
-                            value: root.detail-exposure;
+                            value: DetailState.detail-exposure;
                         }
 
                         Text {
@@ -2256,13 +2221,13 @@ export component StudioWindow inherits Window {
                             color: #9a9a9a;
                             font-size: 11px;
                         }
-                        for kw[i] in root.detail-keywords: HorizontalLayout {
+                        for kw[i] in DetailState.detail-keywords: HorizontalLayout {
                             spacing: 6px;
                             TouchArea {
                                 horizontal-stretch: 1;
                                 Text {
                                     text: kw;
-                                    color: root.filter-keyword-label == kw ? #6fa8dc : #e6e6e6;
+                                    color: FilterState.filter-keyword-label == kw ? #6fa8dc : #e6e6e6;
                                     font-size: 12px;
                                     overflow: elide;
                                     width: 100%;
@@ -2270,7 +2235,7 @@ export component StudioWindow inherits Window {
                                     vertical-alignment: center;
                                 }
                                 clicked => {
-                                    root.keyword-filter(i);
+                                    FilterState.keyword-filter(i);
                                 }
                             }
                             TouchArea {
@@ -2286,7 +2251,7 @@ export component StudioWindow inherits Window {
                                     height: 100%;
                                 }
                                 clicked => {
-                                    root.remove-keyword(i);
+                                    DetailState.remove-keyword(i);
                                 }
                             }
                         }
@@ -2305,7 +2270,7 @@ export component StudioWindow inherits Window {
                                 vertical-alignment: center;
                                 single-line: true;
                                 accepted => {
-                                    root.add-keyword(self.text);
+                                    DetailState.add-keyword(self.text);
                                     self.text = "";
                                     keys.focus();
                                 }
@@ -3108,7 +3073,7 @@ export component StudioWindow inherits Window {
                                 text: @tr("Create");
                                 active: true;
                                 clicked => {
-                                    root.run-new-collection(collection-name.text);
+                                    CollectionState.run-new-collection(collection-name.text);
                                 }
                             }
                         }
@@ -3637,17 +3602,17 @@ export component StudioWindow inherits Window {
                 }
                 MenuRow {
                     title: @tr("Add to Collection    B");
-                    enabled: root.selected >= 0 && root.active-collection >= 0;
+                    enabled: root.selected >= 0 && CollectionState.active-collection >= 0;
                     activated => {
-                        root.add-to-collection();
+                        CollectionState.add-to-collection();
                         root.open-menu = "";
                     }
                 }
                 MenuRow {
                     title: @tr("Remove from Collection    Shift+B");
-                    enabled: root.selected >= 0 && root.active-collection >= 0;
+                    enabled: root.selected >= 0 && CollectionState.active-collection >= 0;
                     activated => {
-                        root.remove-from-collection();
+                        CollectionState.remove-from-collection();
                         root.open-menu = "";
                     }
                 }

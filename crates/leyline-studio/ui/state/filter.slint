@@ -1,0 +1,26 @@
+// What narrows and orders the grid: the filter bar and the search box
+// (ADR 0045 §1).
+//
+// Every value here is a mirror of the `GridQuery` held in Rust — the UI
+// never decides what matches, it only reports which chip was clicked and
+// displays the state Rust sends back.
+export global FilterState {
+    // Filter state, mirrored from the GridQuery held in Rust.
+    in property <int> filter-rating; // 0 = off, else minimum stars
+    in property <int> filter-label; // -1 = off, else ColorLabel encoding
+    in property <int> filter-pick; // -1 = off, else PickState encoding
+    // Active keyword filter's full path, or "" when off.
+    in property <string> filter-keyword-label;
+    in property <string> sort-label;
+    in property <[color]> label-colors;
+    callback rating-filter(int);
+    callback label-filter(int);
+    callback pick-filter(int);
+    callback cycle-sort();
+    // Toggles the grid filter to the keyword at an index of
+    // `detail-keywords` (its descendants included); clicking the active
+    // one turns the filter off.
+    callback keyword-filter(int);
+    callback clear-keyword-filter();
+    callback search(string);
+}

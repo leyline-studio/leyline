@@ -1,0 +1,15 @@
+// Collections sidebar: the tree, the active collection, and membership
+// changes (ADR 0045 §1).
+//
+// Rust flattens the tree into `CollectionRow`s with their depth; the UI
+// only indents and reports clicks.
+import { CollectionRow } from "../types.slint";
+
+export global CollectionState {
+    in property <[CollectionRow]> collections;
+    in-out property <int> active-collection: -1;
+    callback select-collection(int);
+    callback run-new-collection(string);
+    callback add-to-collection();
+    callback remove-from-collection();
+}
