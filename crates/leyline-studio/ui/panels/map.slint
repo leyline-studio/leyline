@@ -1,0 +1,137 @@
+// The GPS map view (ADR 0040): the tile canvas Rust renders, the pin
+// markers over it, and the pan/zoom controls (ADR 0045 §3).
+//
+// Same shape as the develop panel — a whole-window mode gated on
+// `MapState.map-mode`, inheriting `HorizontalLayout` and setting no geometry
+// of its own.
+
+import { MapState } from "../state/map.slint";
+import { FilterChip } from "../widgets/controls.slint";
+
+export component MapPanel inherits HorizontalLayout {
+        visible: MapState.map-mode;
+        VerticalLayout {
+            padding: 12px;
+            spacing: 8px;
+
+            HorizontalLayout {
+                height: 28px;
+                spacing: 8px;
+                Text {
+                    text: @tr("Map");
+                    color: #f0f0f0;
+                    font-size: 15px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                }
+                Rectangle {
+                    horizontal-stretch: 1;
+                }
+                if MapState.map-pack-imported: FilterChip {
+                    text: "−";
+                    active: false;
+                    clicked => {
+                        MapState.map-zoom-out();
+                    }
+                }
+                if MapState.map-pack-imported: FilterChip {
+                    text: "+";
+                    active: false;
+                    clicked => {
+                        MapState.map-zoom-in();
+                    }
+                }
+                FilterChip {
+                    text: @tr("Import Map Pack…");
+                    active: false;
+                    clicked => {
+                        MapState.browse-map-pack();
+                    }
+                }
+                FilterChip {
+                    text: @tr("Close");
+                    active: false;
+                    clicked => {
+                        MapState.exit-map();
+                    }
+                }
+            }
+
+            if !MapState.map-pack-imported: VerticalLayout {
+                alignment: center;
+                Text {
+                    text: MapState.map-status == "" ? @tr("No map pack imported yet. Import an offline MBTiles map pack to place GPS-tagged photos on a map.") : MapState.map-status;
+                    color: #9a9a9a;
+                    font-size: 13px;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+            }
+
+            if MapState.map-pack-imported: Rectangle {
+                width: 720px;
+                height: 480px;
+                clip: true;
+                background: #1a1a1a;
+
+                Image {
+                    source: MapState.map-image;
+                    width: 720px;
+                    height: 480px;
+                }
+
+                // Drag-to-pan: recomputed once on release, not on every
+                // pointer move — repositioning would mean refetching
+                // and recompositing tiles, too heavy to do per pixel of
+                // movement.
+                map-drag := TouchArea {
+                    width: 100%;
+                    height: 100%;
+                    pointer-event(event) => {
+                        if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
+                            MapState.map-pan(
+                                (self.mouse-x - self.pressed-x) / 1px,
+                                (self.mouse-y - self.pressed-y) / 1px,
+                            );
+                        }
+                    }
+                }
+
+                for pin[index] in MapState.map-pins: TouchArea {
+                    x: pin.x * 1px - 6px;
+                    y: pin.y * 1px - 6px;
+                    width: 12px;
+                    height: 12px;
+                    clicked => {
+                        MapState.map-pin-clicked(index);
+                    }
+                    Rectangle {
+                        width: 12px;
+                        height: 12px;
+                        border-radius: 6px;
+                        background: #e05c3e;
+                        border-width: 1.5px;
+                        border-color: #ffffff;
+                    }
+                }
+
+                // OpenStreetMap attribution (ODbL requires it travel
+                // with wherever the data is displayed, ADR 0040) — a
+                // fixed overlay, not just a mention buried in About.
+                Rectangle {
+                    x: parent.width - self.width - 4px;
+                    y: parent.height - self.height - 4px;
+                    width: attribution-text.width + 8px;
+                    height: attribution-text.height + 4px;
+                    background: #000000aa;
+                    attribution-text := Text {
+                        x: 4px;
+                        y: 2px;
+                        text: MapState.map-pack-attribution == "" ? "© OpenStreetMap contributors" : MapState.map-pack-attribution;
+                        color: #d8d8d8;
+                        font-size: 10px;
+                    }
+                }
+            }
+        }
+}

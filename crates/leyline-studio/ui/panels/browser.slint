@@ -1,0 +1,661 @@
+// The library browser: the filter bar, the collections sidebar, the
+// thumbnail grid and the metadata panel (ADR 0045 §3).
+//
+// The default view — visible whenever neither develop nor the map has taken
+// over the window.
+//
+// Inherits `HorizontalLayout` and sets no geometry of its own: the grid
+// `Flickable` and the collections list are exactly the repeaters the repaint
+// bug documented above `menu-row` in `studio.slint` is about, so nothing
+// here may gain a position or size override.
+
+import { Cell, CollectionRow } from "../types.slint";
+import { CollectionState } from "../state/collection.slint";
+import { LibraryState } from "../state/library.slint";
+import { DetailState } from "../state/detail.slint";
+import { DevelopState } from "../state/develop.slint";
+import { DialogState } from "../state/dialog.slint";
+import { FilterState } from "../state/filter.slint";
+import { GridState } from "../state/grid.slint";
+import { MapState } from "../state/map.slint";
+import { DetailRow, FilterChip } from "../widgets/controls.slint";
+
+export component BrowserPanel inherits HorizontalLayout {
+    // Hands keyboard focus back to the window's `FocusScope` after a text
+    // field is validated, so the single-key shortcuts start working again
+    // instead of typing into the box. A callback rather than a global: this
+    // is UI-internal plumbing that never reaches Rust (ADR 0045 §2).
+    callback return-focus();
+    // How many thumbnails fit per row. Exposed because the window's Up/Down
+    // arrow shortcuts move the selection by exactly one row, and only the
+    // grid knows how wide a row currently is.
+    out property <int> columns: flick.columns;
+
+    property <length> cell-size: 176px;
+
+    // Moves the selection to `index` and scrolls it into view.
+    //
+    // `public` because the window's arrow-key shortcuts call it: scrolling
+    // needs `flick`, which lives in here, so the function has to as well
+    // (ADR 0045 §2).
+    public function select-cell(index: int) {
+        if (index < 0 || index >= GridState.total-cells) {
+            return;
+        }
+        GridState.selected = index;
+        GridState.select(index);
+        if (Math.floor(index / flick.columns) * root.cell-size < -flick.viewport-y) {
+            flick.viewport-y = -Math.floor(index / flick.columns) * root.cell-size;
+        } else if ((Math.floor(index / flick.columns) + 1) * root.cell-size > -flick.viewport-y + flick.height) {
+            flick.viewport-y = flick.height - (Math.floor(index / flick.columns) + 1) * root.cell-size;
+        }
+    }
+
+        visible: !DevelopState.develop-mode && !MapState.map-mode;
+
+        Rectangle {
+            width: 190px;
+            background: #202020;
+
+            VerticalLayout {
+                padding: 10px;
+                spacing: 4px;
+
+                Rectangle {
+                    height: 28px;
+                }
+
+                Text {
+                    text: @tr("Collections");
+                    color: #9a9a9a;
+                    font-size: 11px;
+                }
+
+                Rectangle {
+                    height: 24px;
+                    border-radius: 4px;
+                    background: CollectionState.active-collection == -1 ? #2f4f6f : transparent;
+                    Text {
+                        x: 8px;
+                        width: parent.width - 16px;
+                        height: 100%;
+                        text: @tr("All photos");
+                        color: #e6e6e6;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+                    TouchArea {
+                        clicked => {
+                            CollectionState.select-collection(-1);
+                        }
+                    }
+                }
+
+                Flickable {
+                    vertical-stretch: 1;
+                    viewport-height: CollectionState.collections.length * 26px;
+                    for row[i] in CollectionState.collections: Rectangle {
+                        y: i * 26px;
+                        height: 24px;
+                        width: parent.width;
+                        border-radius: 4px;
+                        background: CollectionState.active-collection == i ? #2f4f6f : transparent;
+                        Text {
+                            x: 8px + row.depth * 12px;
+                            width: parent.width - self.x - 8px;
+                            height: 100%;
+                            text: (row.smart ? "◈ " : "") + row.name;
+                            color: #d0d0d0;
+                            font-size: 12px;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+                        TouchArea {
+                            clicked => {
+                                CollectionState.select-collection(i);
+                            }
+                        }
+                    }
+                }
+
+                Text {
+                    text: @tr("N: new · B: add photo");
+                    color: #666666;
+                    font-size: 10px;
+                }
+            }
+        }
+
+        VerticalLayout {
+            horizontal-stretch: 1;
+            padding: 12px;
+            spacing: 8px;
+
+            Rectangle {
+                height: 28px;
+            }
+
+            HorizontalLayout {
+                spacing: 10px;
+
+                HorizontalLayout {
+                    spacing: 2px;
+                    for s in 5: TouchArea {
+                        width: 18px;
+                        height: 24px;
+                        Text {
+                            text: FilterState.filter-rating > s ? "★" : "☆";
+                            color: FilterState.filter-rating > s ? #d8b23c : #666666;
+                            font-size: 15px;
+                            vertical-alignment: center;
+                            horizontal-alignment: center;
+                            width: 100%;
+                            height: 100%;
+                        }
+                        clicked => {
+                            FilterState.rating-filter(s + 1);
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 4px;
+                    for l in 5: TouchArea {
+                        width: 16px;
+                        height: 24px;
+                        Rectangle {
+                            width: 12px;
+                            height: 12px;
+                            y: (parent.height - self.height) / 2;
+                            border-radius: 6px;
+                            background: FilterState.label-colors[l];
+                            border-width: FilterState.filter-label == l ? 2px : 0px;
+                            border-color: #f0f0f0;
+                            opacity: FilterState.filter-label == l || FilterState.filter-label == -1 ? 1 : 0.35;
+                        }
+                        clicked => {
+                            FilterState.label-filter(l);
+                        }
+                    }
+                }
+
+                FilterChip {
+                    text: @tr("⚑ Picked");
+                    active: FilterState.filter-pick == 1;
+                    clicked => {
+                        FilterState.pick-filter(1);
+                    }
+                }
+                FilterChip {
+                    text: @tr("✕ Rejected");
+                    active: FilterState.filter-pick == 2;
+                    clicked => {
+                        FilterState.pick-filter(2);
+                    }
+                }
+                FilterChip {
+                    text: @tr("– Unflagged");
+                    active: FilterState.filter-pick == 0;
+                    clicked => {
+                        FilterState.pick-filter(0);
+                    }
+                }
+
+                if FilterState.filter-keyword-label != "": FilterChip {
+                    text: "🏷 " + FilterState.filter-keyword-label;
+                    active: true;
+                    clicked => {
+                        FilterState.clear-keyword-filter();
+                    }
+                }
+
+                Rectangle {
+                    height: 24px;
+                    width: 180px;
+                    background: #1b1b1b;
+                    border-radius: 12px;
+                    border-width: 1px;
+                    border-color: search-input.text == "" ? #333333 : #6fa8dc;
+                    search-input := TextInput {
+                        x: 10px;
+                        width: parent.width - 20px;
+                        height: 100%;
+                        color: #e6e6e6;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                        single-line: true;
+                        accepted => {
+                            FilterState.search(self.text);
+                            root.return-focus();
+                        }
+                    }
+                    if search-input.text == "" && !search-input.has-focus: Text {
+                        x: 10px;
+                        height: 100%;
+                        text: @tr("Search…");
+                        color: #666666;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                    }
+                }
+
+                Rectangle {
+                    horizontal-stretch: 1;
+                }
+
+                FilterChip {
+                    text: @tr("Sort: {}", FilterState.sort-label);
+                    active: false;
+                    clicked => {
+                        FilterState.cycle-sort();
+                    }
+                }
+            }
+
+            Text {
+                text: LibraryState.status-line;
+                color: #9a9a9a;
+                font-size: 13px;
+            }
+
+            flick := Flickable {
+                property <int> columns: max(1, Math.floor(self.width / root.cell-size));
+                // Virtual scrolling: only the loaded window has cells, but
+                // the viewport spans the whole grid; scrolling or resizing
+                // asks Rust for the matching window.
+                property <int> first-cell: Math.floor(-self.viewport-y / root.cell-size) * self.columns;
+                property <int> visible-cells: (Math.ceil(self.height / root.cell-size) + 1) * self.columns;
+                viewport-height: Math.ceil(GridState.total-cells / self.columns) * root.cell-size;
+                changed first-cell => {
+                    GridState.viewport-moved(self.first-cell, self.visible-cells);
+                }
+                changed visible-cells => {
+                    GridState.viewport-moved(self.first-cell, self.visible-cells);
+                }
+
+                for cell[i] in GridState.cells: Rectangle {
+                    x: Math.mod(GridState.window-start + i, flick.columns) * root.cell-size;
+                    y: Math.floor((GridState.window-start + i) / flick.columns) * root.cell-size;
+                    width: root.cell-size;
+                    height: root.cell-size;
+
+                    Rectangle {
+                        x: 4px;
+                        y: 4px;
+                        width: parent.width - 8px;
+                        height: parent.height - 8px;
+                        background: (GridState.window-start + i == GridState.selected || cell.multi-selected) ? #2f4f6f : #242424;
+                        border-radius: 4px;
+                        border-width: (GridState.window-start + i == GridState.selected || cell.multi-selected) ? 2px : 1px;
+                        border-color: GridState.window-start + i == GridState.selected ? #6fa8dc : (cell.multi-selected ? #4a7aa8 : #333333);
+
+                        VerticalLayout {
+                            padding: 6px;
+                            spacing: 4px;
+
+                            Image {
+                                source: cell.thumbnail;
+                                image-fit: contain;
+                                vertical-stretch: 1;
+                            }
+                            HorizontalLayout {
+                                spacing: 4px;
+                                if cell.has-label: Rectangle {
+                                    width: 10px;
+                                    height: 10px;
+                                    y: (parent.height - self.height) / 2;
+                                    border-radius: 5px;
+                                    background: cell.label;
+                                }
+                                Text {
+                                    text: cell.filename;
+                                    color: #d0d0d0;
+                                    font-size: 11px;
+                                    overflow: elide;
+                                    horizontal-stretch: 1;
+                                }
+                                Text {
+                                    text: cell.stars;
+                                    color: #d8b23c;
+                                    font-size: 11px;
+                                }
+                            }
+                        }
+                    }
+
+                    TouchArea {
+                        double-clicked => {
+                            GridState.selected = GridState.window-start + i;
+                            GridState.select(GridState.window-start + i);
+                            DevelopState.enter-develop();
+                        }
+                        pointer-event(event) => {
+                            if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
+                                GridState.cell-clicked(GridState.window-start + i, event.modifiers.control, event.modifiers.shift);
+                            }
+                        }
+                    }
+
+                    // Right-click (ADR 0021): a second, per-photo path
+                    // to the same classement/collection/reprocess
+                    // callbacks already wired above and to the
+                    // MenuBar (ADR 0020). Rate/Label/Flag/Reprocess/Copy
+                    // Settings reset to a plain single selection here
+                    // (`GridState.selected = ...; GridState.select(...)`), like
+                    // every keyboard shortcut and menu-bar entry —
+                    // *Paste* Settings is the one exception, acting on
+                    // whatever multi-selection is already current
+                    // instead (see its own comment below).
+                    ContextMenuArea {
+                        Menu {
+                            MenuItem {
+                                title: @tr("Develop    D");
+                                activated => {
+                                    GridState.selected = GridState.window-start + i;
+                                    GridState.select(GridState.window-start + i);
+                                    DevelopState.enter-develop();
+                                }
+                            }
+                            MenuSeparator { }
+                            Menu {
+                                title: @tr("Rate");
+                                MenuItem {
+                                    title: @tr("1 star    1");
+                                    activated => {
+                                        GridState.selected = GridState.window-start + i;
+                                        GridState.select(GridState.window-start + i);
+                                        GridState.classify("1");
+                                    }
+                                }
+                                MenuItem {
+                                    title: @tr("2 stars    2");
+                                    activated => {
+                                        GridState.selected = GridState.window-start + i;
+                                        GridState.select(GridState.window-start + i);
+                                        GridState.classify("2");
+                                    }
+                                }
+                                MenuItem {
+                                    title: @tr("3 stars    3");
+                                    activated => {
+                                        GridState.selected = GridState.window-start + i;
+                                        GridState.select(GridState.window-start + i);
+                                        GridState.classify("3");
+                                    }
+                                }
+                                MenuItem {
+                                    title: @tr("4 stars    4");
+                                    activated => {
+                                        GridState.selected = GridState.window-start + i;
+                                        GridState.select(GridState.window-start + i);
+                                        GridState.classify("4");
+                                    }
+                                }
+                                MenuItem {
+                                    title: @tr("5 stars    5");
+                                    activated => {
+                                        GridState.selected = GridState.window-start + i;
+                                        GridState.select(GridState.window-start + i);
+                                        GridState.classify("5");
+                                    }
+                                }
+                                MenuSeparator { }
+                                MenuItem {
+                                    title: @tr("Clear Rating    0");
+                                    activated => {
+                                        GridState.selected = GridState.window-start + i;
+                                        GridState.select(GridState.window-start + i);
+                                        GridState.classify("0");
+                                    }
+                                }
+                            }
+                            Menu {
+                                title: @tr("Label");
+                                MenuItem {
+                                    title: @tr("Red    6");
+                                    activated => {
+                                        GridState.selected = GridState.window-start + i;
+                                        GridState.select(GridState.window-start + i);
+                                        GridState.classify("6");
+                                    }
+                                }
+                                MenuItem {
+                                    title: @tr("Yellow    7");
+                                    activated => {
+                                        GridState.selected = GridState.window-start + i;
+                                        GridState.select(GridState.window-start + i);
+                                        GridState.classify("7");
+                                    }
+                                }
+                                MenuItem {
+                                    title: @tr("Green    8");
+                                    activated => {
+                                        GridState.selected = GridState.window-start + i;
+                                        GridState.select(GridState.window-start + i);
+                                        GridState.classify("8");
+                                    }
+                                }
+                                MenuItem {
+                                    title: @tr("Blue    9");
+                                    activated => {
+                                        GridState.selected = GridState.window-start + i;
+                                        GridState.select(GridState.window-start + i);
+                                        GridState.classify("9");
+                                    }
+                                }
+                            }
+                            Menu {
+                                title: @tr("Flag");
+                                MenuItem {
+                                    title: @tr("Pick    P");
+                                    activated => {
+                                        GridState.selected = GridState.window-start + i;
+                                        GridState.select(GridState.window-start + i);
+                                        GridState.classify("p");
+                                    }
+                                }
+                                MenuItem {
+                                    title: @tr("Reject    X");
+                                    activated => {
+                                        GridState.selected = GridState.window-start + i;
+                                        GridState.select(GridState.window-start + i);
+                                        GridState.classify("x");
+                                    }
+                                }
+                                MenuItem {
+                                    title: @tr("Clear    U");
+                                    activated => {
+                                        GridState.selected = GridState.window-start + i;
+                                        GridState.select(GridState.window-start + i);
+                                        GridState.classify("u");
+                                    }
+                                }
+                            }
+                            MenuSeparator { }
+                            MenuItem {
+                                title: @tr("Add to Collection    B");
+                                enabled: CollectionState.active-collection >= 0;
+                                activated => {
+                                    GridState.selected = GridState.window-start + i;
+                                    GridState.select(GridState.window-start + i);
+                                    CollectionState.add-to-collection();
+                                }
+                            }
+                            MenuItem {
+                                title: @tr("Remove from Collection    Shift+B");
+                                enabled: CollectionState.active-collection >= 0;
+                                activated => {
+                                    GridState.selected = GridState.window-start + i;
+                                    GridState.select(GridState.window-start + i);
+                                    CollectionState.remove-from-collection();
+                                }
+                            }
+                            MenuSeparator { }
+                            MenuItem {
+                                // Library::reprocess (§10.4) on this photo
+                                // alone — not the EditSession::reprocess
+                                // path behind `R`, which needs an open
+                                // develop session. Same call as
+                                // Shift+R, scoped to one version.
+                                title: @tr("Reprocess");
+                                activated => {
+                                    GridState.selected = GridState.window-start + i;
+                                    GridState.select(GridState.window-start + i);
+                                    DevelopState.reprocess-selected();
+                                }
+                            }
+                            MenuSeparator { }
+                            MenuItem {
+                                // Copies from this one cell — reset to a
+                                // plain single selection is fine, the
+                                // source of a copy is always singular.
+                                title: @tr("Copy Settings");
+                                activated => {
+                                    GridState.selected = GridState.window-start + i;
+                                    GridState.select(GridState.window-start + i);
+                                    DevelopState.copy-settings();
+                                }
+                            }
+                            MenuItem {
+                                // Deliberately does *not* touch
+                                // `selected`/`select` first: pasting must
+                                // act on whatever multi-selection is
+                                // already current (right-clicking one of
+                                // several already-selected photos), not
+                                // collapse it down to this one cell.
+                                title: @tr("Paste Settings");
+                                enabled: DevelopState.has-settings-clipboard;
+                                activated => {
+                                    DevelopState.paste-settings();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            width: 300px;
+            background: #212121;
+
+            VerticalLayout {
+                padding: 16px;
+                spacing: 10px;
+                alignment: start;
+
+                Rectangle {
+                    height: 28px;
+                }
+
+                Text {
+                    text: GridState.selected < 0 ? @tr("No photo selected") : DetailState.detail-filename;
+                    color: #f0f0f0;
+                    font-size: 15px;
+                    font-weight: 600;
+                    overflow: elide;
+                }
+                if GridState.selected >= 0: VerticalLayout {
+                    spacing: 6px;
+                    DetailRow {
+                        label: @tr("Path");
+                        value: DetailState.detail-path;
+                    }
+                    DetailRow {
+                        label: @tr("Captured");
+                        value: DetailState.detail-capture;
+                    }
+                    DetailRow {
+                        label: @tr("Size");
+                        value: DetailState.detail-dimensions;
+                    }
+                    DetailRow {
+                        label: @tr("File");
+                        value: DetailState.detail-file-size;
+                    }
+                    DetailRow {
+                        label: @tr("Camera");
+                        value: DetailState.detail-camera;
+                    }
+                    DetailRow {
+                        label: @tr("Lens");
+                        value: DetailState.detail-lens;
+                    }
+                    DetailRow {
+                        label: @tr("Exposure");
+                        value: DetailState.detail-exposure;
+                    }
+
+                    Text {
+                        text: @tr("Keywords");
+                        color: #9a9a9a;
+                        font-size: 11px;
+                    }
+                    for kw[i] in DetailState.detail-keywords: HorizontalLayout {
+                        spacing: 6px;
+                        TouchArea {
+                            horizontal-stretch: 1;
+                            Text {
+                                text: kw;
+                                color: FilterState.filter-keyword-label == kw ? #6fa8dc : #e6e6e6;
+                                font-size: 12px;
+                                overflow: elide;
+                                width: 100%;
+                                height: 100%;
+                                vertical-alignment: center;
+                            }
+                            clicked => {
+                                FilterState.keyword-filter(i);
+                            }
+                        }
+                        TouchArea {
+                            width: 16px;
+                            height: 16px;
+                            Text {
+                                text: "×";
+                                color: #9a9a9a;
+                                font-size: 12px;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                                width: 100%;
+                                height: 100%;
+                            }
+                            clicked => {
+                                DetailState.remove-keyword(i);
+                            }
+                        }
+                    }
+                    Rectangle {
+                        height: 24px;
+                        background: #1b1b1b;
+                        border-radius: 4px;
+                        border-width: 1px;
+                        border-color: keyword-input.text == "" ? #333333 : #6fa8dc;
+                        keyword-input := TextInput {
+                            x: 8px;
+                            width: parent.width - 16px;
+                            height: 100%;
+                            color: #e6e6e6;
+                            font-size: 12px;
+                            vertical-alignment: center;
+                            single-line: true;
+                            accepted => {
+                                DetailState.add-keyword(self.text);
+                                self.text = "";
+                                root.return-focus();
+                            }
+                        }
+                        if keyword-input.text == "" && !keyword-input.has-focus: Text {
+                            x: 8px;
+                            height: 100%;
+                            text: @tr("Add keyword (Nature/Birds)…");
+                            color: #666666;
+                            font-size: 12px;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+            }
+        }
+}
