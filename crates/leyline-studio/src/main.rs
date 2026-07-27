@@ -53,7 +53,8 @@ use library::{
 use models::{label_color, sort_label};
 use ui::{FilterState, GridState, LibraryState, StudioWindow};
 use wiring::collections::{refresh_collections, wire_collections};
-use wiring::develop::{wire_develop, wire_settings_clipboard};
+use wiring::develop::clipboard::wire_settings_clipboard;
+use wiring::develop::wire_develop;
 use wiring::dialogs::wire_dialogs;
 use wiring::filters::{wire_classify, wire_filters};
 use wiring::grid::{load_window, reload, wire_select};
