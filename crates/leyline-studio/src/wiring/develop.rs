@@ -13,7 +13,6 @@ use crate::develop;
 use crate::format;
 use crate::models::{CURVE_CANVAS_SIZE, dev_model, rgb8_to_slint_image};
 use crate::ui::{CurveMarker, DevelopState, GridState, LibraryState, StudioWindow, Tr};
-use crate::wiring::dialogs::spot_defaults;
 use crate::wiring::grid::reload;
 use leyline_sdk::{AssetId, GridQuery, PreviewKind, SettingsGroup, VersionId};
 use slint::{ComponentHandle, Global, ModelRc, SharedString, VecModel};
@@ -825,5 +824,42 @@ pub(crate) fn enter_develop_for(
             app.develop = None;
             report_error(window, &error);
         }
+    }
+}
+
+/// Parses the spot-removal panel's radius/feather/opacity percent fields
+/// into the `[0, 1]` units `SpotRemoval` stores — the defaults applied to
+/// the *next* spot placed, not part of any stored revision themselves.
+pub(crate) fn spot_defaults(
+    radius: &str,
+    feather: &str,
+    opacity: &str,
+) -> Result<(f64, f64, f64), String> {
+    let radius: f64 = radius
+        .parse()
+        .map_err(|_| format!("bad radius {radius:?}"))?;
+    let feather: f64 = feather
+        .parse()
+        .map_err(|_| format!("bad feather {feather:?}"))?;
+    let opacity: f64 = opacity
+        .parse()
+        .map_err(|_| format!("bad opacity {opacity:?}"))?;
+    Ok((radius / 100.0, feather / 100.0, opacity / 100.0))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn spot_defaults_converts_percent_to_unit_range() {
+        assert_eq!(spot_defaults("5", "50", "100").unwrap(), (0.05, 0.5, 1.0));
+    }
+
+    #[test]
+    fn spot_defaults_rejects_bad_input() {
+        assert!(spot_defaults("not a number", "50", "100").is_err());
+        assert!(spot_defaults("5", "not a number", "100").is_err());
+        assert!(spot_defaults("5", "50", "not a number").is_err());
     }
 }
