@@ -28,6 +28,8 @@ import { DetailState } from "state/detail.slint";
 import { CollectionState } from "state/collection.slint";
 import { GridState } from "state/grid.slint";
 import { MapState } from "state/map.slint";
+import { DevelopState } from "state/develop.slint";
+import { DialogState } from "state/dialog.slint";
 import { DetailRow, EditSlider, FilterChip, GroupHeader } from "widgets/controls.slint";
 import { MenuDropdown, MenuRow, MenuSep, SubmenuHeader, TopMenuLabel } from "widgets/menu.slint";
 
@@ -35,7 +37,7 @@ import { MenuDropdown, MenuRow, MenuSep, SubmenuHeader, TopMenuLabel } from "wid
 // but a `global` only does when the root file re-exports it explicitly —
 // without this, `ui::Tr` doesn't exist and Rust can't build its status-line
 // and dialog messages (ADR 0019).
-export { CollectionState, DetailState, FilterState, GridState, LibraryState, MapState, Tr }
+export { CollectionState, DetailState, DevelopState, DialogState, FilterState, GridState, LibraryState, MapState, Tr }
 
 export component StudioWindow inherits Window {
     title: "Leyline Studio — " + LibraryState.library-name;
@@ -57,185 +59,21 @@ export component StudioWindow inherits Window {
 
 
 
-    // Develop view state, mirrored from Rust.
-    in property <bool> develop-mode;
-    in property <image> develop-image;
     // A new photo's image just loaded (entered develop, or navigated):
     // loupe zoom is per-photo UI state, so it resets like Compare
     // Before/After does (in Rust, for `dev-compare`).
-    changed develop-image => {
+    //
+    // `changed` only attaches to a property of the element declaring it, so
+    // watching a global takes this local mirror. It moves into the develop
+    // panel along with `dev-zoomed` itself (ADR 0045 §2).
+    property <image> loaded-develop-image: DevelopState.develop-image;
+    changed loaded-develop-image => {
         root.dev-zoomed = false;
     }
-    // The neutral (as-shot) render of the same photo, fetched once per
-    // develop session — the "before" half of Compare Before/After.
-    in property <image> develop-image-before;
-    in-out property <bool> dev-compare: false;
-    callback toggle-compare();
-    // Filled-area SVG paths, one per channel, in a 256x90 viewbox — see
-    // `develop::histogram_layout` in main.rs.
-    in property <string> dev-histogram-r;
-    in property <string> dev-histogram-g;
-    in property <string> dev-histogram-b;
 
-    // Copy/paste develop settings between photos (distinct from named
-    // presets): captures White Balance/Tone/Presence/Lens/Detail from one
-    // photo, pastes onto the current grid selection.
-    callback copy-settings();
-    callback paste-settings();
-    in property <bool> has-settings-clipboard: false;
-    in property <string> develop-filename;
-    in property <DevSettings> dev;
-    // Stored develop preset names, already ordered by Rust.
-    in property <[string]> dev-presets;
-    // Revision history, head first, formatted timestamps — a browsable
-    // history panel beyond linear undo/redo.
-    in property <[string]> dev-history;
-    // Index within `dev-history` of the currently-checked-out revision —
-    // not always 0: the list is stable across a jump (see the Rust-side
-    // `dev_history` field doc), so "current" moves within it instead of
-    // always being the top row.
-    in property <int> dev-history-current: 0;
-    callback checkout-history-row(int);
 
-    callback enter-develop();
-    callback exit-develop();
-    // Moves the develop view to the next/previous photo in the grid
-    // without leaving develop mode.
-    callback develop-next();
-    callback develop-prev();
-    // Filmstrip click: switches develop to the clicked whole-grid index
-    // directly, without leaving develop mode.
-    callback develop-switch(int);
-    callback develop-edit(string, float);
-    // HSL mixer band edit (ADR 0031): band index (0..8, fixed order red..
-    // magenta), field ("hue"/"saturation"/"luminance"), released value.
-    callback develop-edit-hsl-band(int, string, float);
-    // Color grading zone edit (ADR 0031): zone ("shadows"/"midtones"/
-    // "highlights"), field ("hue"/"saturation"/"luminance"), released
-    // value. `balance`/`blending` go through the plain `develop-edit`
-    // above (`"color-grading-balance"`/`"color-grading-blending"`) since
-    // they don't need a zone.
-    callback develop-edit-color-grading-zone(string, string, float);
-    // Mouse crop: press x/y, release x/y, viewport w/h, preview w/h (px).
-    callback develop-crop-drag(float, float, float, float, float, float, float, float);
-    // Tone curve graph (ADR 0030): click position in the curve canvas'
-    // own pixel space (0..width, 0..height, y already screen-down).
-    callback develop-curve-click(float, float, float, float);
-    callback develop-curve-reset();
-    // Spot removal (ADR 0032): source click x/y, target click x/y,
-    // viewport w/h, preview w/h (px) — same letterbox convention as
-    // `develop-crop-drag`.
-    callback develop-spot-click(float, float, float, float, float, float, float, float);
-    callback develop-spot-undo();
-    callback develop-spot-reset();
-    // Tone-curve graph state, mirrored from the current revision's
-    // settings: line commands and marker positions, both already in the
-    // canvas' own pixel space (`develop::curve_layout`).
-    in property <string> dev-curve-path;
-    in property <[CurveMarker]> dev-curve-points;
-    in property <int> dev-spot-count;
-    // Defaults applied to the *next* placed spot — dialog-local text
-    // fields, not part of any stored revision until a spot is placed.
-    in-out property <string> spot-radius-text: "5";
-    in-out property <string> spot-feather-text: "50";
-    in-out property <string> spot-opacity-text: "100";
-    callback develop-undo();
-    callback develop-redo();
-    callback develop-reprocess();
-    callback reprocess-library();
-    // Library::reprocess (§10.4) scoped to the currently selected photo —
-    // same call as Shift+R, just bounded to one version instead of the
-    // whole catalog (ADR 0021, grid context menu).
-    callback reprocess-selected();
-    // Apply / delete the develop preset at an index of `dev-presets`.
-    callback apply-preset(int);
-    callback delete-preset(int);
-    callback open-preset-dialog();
-    // Name, then one flag per group: white-balance, tone, presence,
-    // lens-correction, detail, geometry (`docs/presets.md` §3.1).
-    callback run-save-preset(string, bool, bool, bool, bool, bool, bool);
-    callback run-import(string, bool, bool);
-    callback open-export();
-    callback open-print();
-    // Opens the tethered-capture panel (ADR 0038), connects to / disconnects
-    // from the first USB camera libgphoto2 finds.
-    callback open-tether();
-    callback run-tether-connect();
-    callback run-tether-disconnect();
-    in-out property <bool> tether-connected: false;
-    in-out property <string> tether-status: "";
-    in-out property <string> tether-last-captured: "";
-    in-out property <int> tether-captured-count: 0;
-    // Opens the watched-folder auto-import panel (ADR 0039): starts/stops
-    // watching a folder, importing every file that settles there.
-    callback open-watch();
-    callback browse-watch-folder();
-    callback run-watch-start();
-    callback run-watch-stop();
-    in-out property <bool> watch-active: false;
-    in-out property <string> watch-status: "";
-    in-out property <string> watch-folder-text: "";
-    in-out property <string> watch-last-imported: "";
-    in-out property <int> watch-imported-count: 0;
 
-    // Opens a native OS folder picker; on a non-cancelled pick, Rust sets
-    // `import-source-text` / `export-destination-text` below. Manual typing
-    // into the paired TextInput keeps working — the picker is just a
-    // faster alternative, not a replacement (both are `<=>` bound to the
-    // same property so either input path stays in sync).
-    callback browse-import-source();
-    callback browse-export-destination();
-    callback browse-print-destination();
-    callback browse-print-profile();
-    // Camera profile (ADR 0035): native `.dcp` picker, immediately followed
-    // by the import into `Profiles/Camera/` and the reference being stored
-    // on the edited version — one click, same shape as `browse-map-pack`.
-    // The file name of the referenced profile, empty when none is set.
-    callback browse-camera-profile();
-    in property <string> camera-profile-name;
-    in-out property <string> import-source-text: "";
-    in-out property <string> export-destination-text: "";
-    in-out property <string> print-destination-text: "";
-    in-out property <string> print-profile-text: "";
-    // preset index (-1 = ad-hoc), destination, format index, quality text, max-edge text.
-    // Format/quality/max-edge are ignored when a stored preset is chosen.
-    callback run-export(int, string, int, string, string);
-    // Name, format index, quality text, max-edge text — stores the custom
-    // export dialog's current recipe as a reusable preset (§12).
-    callback run-save-export-preset(string, int, string, string);
-    in-out property <int> export-format: 0;
-    in-out property <string> export-quality-text: "90";
-    in-out property <string> export-max-edge-text: "";
-    in-out property <string> export-preset-name: "";
 
-    // Print (ADR 0036): preset index (-1 = ad-hoc), destination, paper
-    // index, orientation index, margins text (mm, all four edges), dpi
-    // text, ICC profile path (blank = sRGB), intent index, copies text.
-    // Paper/orientation/margins/dpi/profile/intent are ignored when a
-    // stored preset is chosen — same pattern as `run-export`.
-    callback run-print(int, string, int, int, string, string, string, int, string);
-    callback run-save-print-preset(string, int, int, string, string, string, int);
-    in-out property <int> print-paper: 0;
-    in-out property <int> print-orientation: 0;
-    in-out property <string> print-margins-text: "10";
-    in-out property <string> print-dpi-text: "300";
-    in-out property <int> print-intent: 1;
-    in-out property <string> print-copies-text: "1";
-    in-out property <string> print-preset-name: "";
-    in property <[string]> print-presets;
-    in-out property <int> print-preset: -1;
-
-    // Modal dialog state: "" (none), "import", "export", "print", "tether"
-    // or "watch".
-    in-out property <string> dialog;
-    in-out property <string> dialog-result;
-    in-out property <bool> import-copy: true;
-    in-out property <bool> import-recursive: true;
-    in property <[string]> export-presets;
-    in-out property <int> export-preset: -1;
-    // How many photos `run-export` will act on — the multi-selection when
-    // there is one, otherwise 1 for the lone focused photo.
-    in-out property <int> export-photo-count: 1;
 
     property <length> cell-size: 176px;
 
@@ -313,9 +151,9 @@ export component StudioWindow inherits Window {
 
     keys := FocusScope {
         key-pressed(event) => {
-            if (root.dialog != "") {
+            if (DialogState.dialog != "") {
                 if (event.text == Key.Escape) {
-                    root.dialog = "";
+                    DialogState.dialog = "";
                 }
                 return accept;
             }
@@ -333,40 +171,40 @@ export component StudioWindow inherits Window {
                 return accept;
             }
             if (event.modifiers.control && (event.text == "p" || event.text == "P")) {
-                root.open-print();
+                DialogState.open-print();
                 return accept;
             }
             if (event.modifiers.control && (event.text == "c" || event.text == "C")) {
-                root.copy-settings();
+                DevelopState.copy-settings();
                 return accept;
             }
             if (event.modifiers.control && (event.text == "v" || event.text == "V")) {
-                root.paste-settings();
+                DevelopState.paste-settings();
                 return accept;
             }
-            if (root.develop-mode) {
+            if (DevelopState.develop-mode) {
                 if (event.text == "g" || event.text == "G" || event.text == Key.Escape) {
-                    root.exit-develop();
+                    DevelopState.exit-develop();
                     return accept;
                 }
                 if (event.modifiers.control && (event.text == "z" || event.text == "Z")) {
-                    root.develop-undo();
+                    DevelopState.develop-undo();
                     return accept;
                 }
                 if (event.modifiers.control && (event.text == "y" || event.text == "Y")) {
-                    root.develop-redo();
+                    DevelopState.develop-redo();
                     return accept;
                 }
                 if (event.text == "s" || event.text == "S") {
-                    root.open-preset-dialog();
+                    DevelopState.open-preset-dialog();
                     return accept;
                 }
                 if (event.text == "r" || event.text == "R") {
-                    root.develop-reprocess();
+                    DevelopState.develop-reprocess();
                     return accept;
                 }
                 if (event.text == "\\") {
-                    root.toggle-compare();
+                    DevelopState.toggle-compare();
                     return accept;
                 }
                 if ((event.text == "z" || event.text == "Z") && root.active-tool == "select") {
@@ -374,31 +212,31 @@ export component StudioWindow inherits Window {
                     return accept;
                 }
                 if (event.text == Key.LeftArrow) {
-                    root.develop-prev();
+                    DevelopState.develop-prev();
                     return accept;
                 }
                 if (event.text == Key.RightArrow) {
-                    root.develop-next();
+                    DevelopState.develop-next();
                     return accept;
                 }
                 GridState.classify(event.text);
                 return accept;
             }
             if (event.text == "d" || event.text == "D" || event.text == Key.Return) {
-                root.enter-develop();
+                DevelopState.enter-develop();
                 return accept;
             }
             if (event.text == "i" || event.text == "I") {
-                root.dialog-result = "";
-                root.dialog = "import";
+                DialogState.dialog-result = "";
+                DialogState.dialog = "import";
                 return accept;
             }
             if (event.text == "e" || event.text == "E") {
-                root.open-export();
+                DialogState.open-export();
                 return accept;
             }
             if (event.text == "t" || event.text == "T") {
-                root.open-tether();
+                DialogState.open-tether();
                 return accept;
             }
             if (event.text == "m" || event.text == "M") {
@@ -406,8 +244,8 @@ export component StudioWindow inherits Window {
                 return accept;
             }
             if (event.text == "n" || event.text == "N") {
-                root.dialog-result = "";
-                root.dialog = "collection";
+                DialogState.dialog-result = "";
+                DialogState.dialog = "collection";
                 return accept;
             }
             if (event.text == "b" || event.text == "B") {
@@ -419,7 +257,7 @@ export component StudioWindow inherits Window {
                 return accept;
             }
             if ((event.text == "r" || event.text == "R") && event.modifiers.shift) {
-                root.reprocess-library();
+                DevelopState.reprocess-library();
                 return accept;
             }
             if (event.text == Key.LeftArrow) {
@@ -443,7 +281,7 @@ export component StudioWindow inherits Window {
         }
 
         HorizontalLayout {
-            visible: root.develop-mode;
+            visible: DevelopState.develop-mode;
             VerticalLayout {
                 horizontal-stretch: 1;
                 padding: 12px;
@@ -455,7 +293,7 @@ export component StudioWindow inherits Window {
 
                 HorizontalLayout {
                     Text {
-                        text: root.develop-filename;
+                        text: DevelopState.develop-filename;
                         color: #f0f0f0;
                         font-size: 14px;
                         font-weight: 600;
@@ -513,7 +351,7 @@ export component StudioWindow inherits Window {
                     clip: true;
 
                     if !root.dev-zoomed: Image {
-                        source: root.dev-compare ? root.develop-image-before : root.develop-image;
+                        source: DevelopState.dev-compare ? DevelopState.develop-image-before : DevelopState.develop-image;
                         image-fit: contain;
                         width: 100%;
                         height: 100%;
@@ -526,16 +364,16 @@ export component StudioWindow inherits Window {
                     if root.dev-zoomed: Flickable {
                         width: 100%;
                         height: 100%;
-                        viewport-width: root.develop-image.width * 1px;
-                        viewport-height: root.develop-image.height * 1px;
+                        viewport-width: DevelopState.develop-image.width * 1px;
+                        viewport-height: DevelopState.develop-image.height * 1px;
                         Image {
-                            source: root.dev-compare ? root.develop-image-before : root.develop-image;
-                            width: root.develop-image.width * 1px;
-                            height: root.develop-image.height * 1px;
+                            source: DevelopState.dev-compare ? DevelopState.develop-image-before : DevelopState.develop-image;
+                            width: DevelopState.develop-image.width * 1px;
+                            height: DevelopState.develop-image.height * 1px;
                         }
                     }
 
-                    if root.dev-compare: Rectangle {
+                    if DevelopState.dev-compare: Rectangle {
                         x: 8px;
                         y: 8px;
                         width: label.preferred-width + 16px;
@@ -559,11 +397,11 @@ export component StudioWindow inherits Window {
                         mouse-cursor: crosshair;
                         pointer-event(event) => {
                             if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
-                                root.develop-crop-drag(
+                                DevelopState.develop-crop-drag(
                                     self.pressed-x / 1px, self.pressed-y / 1px,
                                     self.mouse-x / 1px, self.mouse-y / 1px,
                                     self.width / 1px, self.height / 1px,
-                                    root.develop-image.width, root.develop-image.height);
+                                    DevelopState.develop-image.width, DevelopState.develop-image.height);
                             }
                         }
                     }
@@ -596,11 +434,11 @@ export component StudioWindow inherits Window {
                                     root.spot-pending-vx = self.mouse-x / 1px;
                                     root.spot-pending-vy = self.mouse-y / 1px;
                                 } else {
-                                    root.develop-spot-click(
+                                    DevelopState.develop-spot-click(
                                         root.spot-pending-vx, root.spot-pending-vy,
                                         self.mouse-x / 1px, self.mouse-y / 1px,
                                         self.width / 1px, self.height / 1px,
-                                        root.develop-image.width, root.develop-image.height);
+                                        DevelopState.develop-image.width, DevelopState.develop-image.height);
                                     root.spot-pending = false;
                                 }
                             }
@@ -628,41 +466,41 @@ export component StudioWindow inherits Window {
                             MenuItem {
                                 title: @tr("Reset Crop");
                                 activated => {
-                                    root.develop-edit("crop-reset", 0);
+                                    DevelopState.develop-edit("crop-reset", 0);
                                 }
                             }
                             MenuItem {
                                 title: @tr("Undo Last Spot");
-                                enabled: root.dev-spot-count > 0;
+                                enabled: DevelopState.dev-spot-count > 0;
                                 activated => {
-                                    root.develop-spot-undo();
+                                    DevelopState.develop-spot-undo();
                                 }
                             }
                             MenuItem {
                                 title: @tr("Clear All Spots");
-                                enabled: root.dev-spot-count > 0;
+                                enabled: DevelopState.dev-spot-count > 0;
                                 activated => {
-                                    root.develop-spot-reset();
+                                    DevelopState.develop-spot-reset();
                                 }
                             }
                             MenuItem {
-                                title: root.dev-compare ? @tr("Show After    \\") : @tr("Compare Before/After    \\");
+                                title: DevelopState.dev-compare ? @tr("Show After    \\") : @tr("Compare Before/After    \\");
                                 activated => {
-                                    root.toggle-compare();
+                                    DevelopState.toggle-compare();
                                 }
                             }
                             MenuSeparator { }
                             MenuItem {
                                 title: @tr("Reprocess    R");
                                 activated => {
-                                    root.develop-reprocess();
+                                    DevelopState.develop-reprocess();
                                 }
                             }
                             MenuSeparator { }
                             MenuItem {
                                 title: @tr("Back to Library    G");
                                 activated => {
-                                    root.exit-develop();
+                                    DevelopState.exit-develop();
                                 }
                             }
                         }
@@ -681,7 +519,7 @@ export component StudioWindow inherits Window {
                             width: 64px;
                             height: 64px;
                             clicked => {
-                                root.develop-switch(GridState.window-start + i);
+                                DevelopState.develop-switch(GridState.window-start + i);
                             }
                             Rectangle {
                                 x: 2px;
@@ -722,7 +560,7 @@ export component StudioWindow inherits Window {
                             color: #9a9a9a;
                             font-size: 11px;
                         }
-                        for name[i] in root.dev-presets: HorizontalLayout {
+                        for name[i] in DevelopState.dev-presets: HorizontalLayout {
                             spacing: 6px;
                             TouchArea {
                                 horizontal-stretch: 1;
@@ -736,7 +574,7 @@ export component StudioWindow inherits Window {
                                     vertical-alignment: center;
                                 }
                                 clicked => {
-                                    root.apply-preset(i);
+                                    DevelopState.apply-preset(i);
                                 }
                             }
                             TouchArea {
@@ -752,7 +590,7 @@ export component StudioWindow inherits Window {
                                     height: 100%;
                                 }
                                 clicked => {
-                                    root.delete-preset(i);
+                                    DevelopState.delete-preset(i);
                                 }
                             }
                         }
@@ -762,7 +600,7 @@ export component StudioWindow inherits Window {
                                 text: @tr("Save as preset…");
                                 active: false;
                                 clicked => {
-                                    root.open-preset-dialog();
+                                    DevelopState.open-preset-dialog();
                                 }
                             }
                         }
@@ -782,7 +620,7 @@ export component StudioWindow inherits Window {
                                 viewbox-width: 256;
                                 viewbox-height: 90;
                                 fill: #ff444455;
-                                commands: root.dev-histogram-r;
+                                commands: DevelopState.dev-histogram-r;
                             }
                             Path {
                                 width: 100%;
@@ -790,7 +628,7 @@ export component StudioWindow inherits Window {
                                 viewbox-width: 256;
                                 viewbox-height: 90;
                                 fill: #44ff4455;
-                                commands: root.dev-histogram-g;
+                                commands: DevelopState.dev-histogram-g;
                             }
                             Path {
                                 width: 100%;
@@ -798,7 +636,7 @@ export component StudioWindow inherits Window {
                                 viewbox-width: 256;
                                 viewbox-height: 90;
                                 fill: #4444ff55;
-                                commands: root.dev-histogram-b;
+                                commands: DevelopState.dev-histogram-b;
                             }
                         }
 
@@ -812,18 +650,18 @@ export component StudioWindow inherits Window {
                                 label: @tr("Temperature");
                                 minimum: 2000;
                                 maximum: 12000;
-                                value: root.dev.wb-temp;
+                                value: DevelopState.dev.wb-temp;
                                 edited(v) => {
-                                    root.develop-edit("wb-temp", v);
+                                    DevelopState.develop-edit("wb-temp", v);
                                 }
                             }
                             EditSlider {
                                 label: @tr("Tint");
                                 minimum: -100;
                                 maximum: 100;
-                                value: root.dev.wb-tint;
+                                value: DevelopState.dev.wb-tint;
                                 edited(v) => {
-                                    root.develop-edit("wb-tint", v);
+                                    DevelopState.develop-edit("wb-tint", v);
                                 }
                             }
                         }
@@ -839,54 +677,54 @@ export component StudioWindow inherits Window {
                                 minimum: -5;
                                 maximum: 5;
                                 decimals: 2;
-                                value: root.dev.exposure;
+                                value: DevelopState.dev.exposure;
                                 edited(v) => {
-                                    root.develop-edit("exposure", v);
+                                    DevelopState.develop-edit("exposure", v);
                                 }
                             }
                             EditSlider {
                                 label: @tr("Contrast");
                                 minimum: -100;
                                 maximum: 100;
-                                value: root.dev.contrast;
+                                value: DevelopState.dev.contrast;
                                 edited(v) => {
-                                    root.develop-edit("contrast", v);
+                                    DevelopState.develop-edit("contrast", v);
                                 }
                             }
                             EditSlider {
                                 label: @tr("Highlights");
                                 minimum: -100;
                                 maximum: 100;
-                                value: root.dev.highlights;
+                                value: DevelopState.dev.highlights;
                                 edited(v) => {
-                                    root.develop-edit("highlights", v);
+                                    DevelopState.develop-edit("highlights", v);
                                 }
                             }
                             EditSlider {
                                 label: @tr("Shadows");
                                 minimum: -100;
                                 maximum: 100;
-                                value: root.dev.shadows;
+                                value: DevelopState.dev.shadows;
                                 edited(v) => {
-                                    root.develop-edit("shadows", v);
+                                    DevelopState.develop-edit("shadows", v);
                                 }
                             }
                             EditSlider {
                                 label: @tr("Whites");
                                 minimum: -100;
                                 maximum: 100;
-                                value: root.dev.whites;
+                                value: DevelopState.dev.whites;
                                 edited(v) => {
-                                    root.develop-edit("whites", v);
+                                    DevelopState.develop-edit("whites", v);
                                 }
                             }
                             EditSlider {
                                 label: @tr("Blacks");
                                 minimum: -100;
                                 maximum: 100;
-                                value: root.dev.blacks;
+                                value: DevelopState.dev.blacks;
                                 edited(v) => {
-                                    root.develop-edit("blacks", v);
+                                    DevelopState.develop-edit("blacks", v);
                                 }
                             }
                         }
@@ -901,54 +739,54 @@ export component StudioWindow inherits Window {
                                 label: @tr("Clarity");
                                 minimum: -100;
                                 maximum: 100;
-                                value: root.dev.clarity;
+                                value: DevelopState.dev.clarity;
                                 edited(v) => {
-                                    root.develop-edit("clarity", v);
+                                    DevelopState.develop-edit("clarity", v);
                                 }
                             }
                             EditSlider {
                                 label: @tr("Texture");
                                 minimum: -100;
                                 maximum: 100;
-                                value: root.dev.texture;
+                                value: DevelopState.dev.texture;
                                 edited(v) => {
-                                    root.develop-edit("texture", v);
+                                    DevelopState.develop-edit("texture", v);
                                 }
                             }
                             EditSlider {
                                 label: @tr("Dehaze");
                                 minimum: -100;
                                 maximum: 100;
-                                value: root.dev.dehaze;
+                                value: DevelopState.dev.dehaze;
                                 edited(v) => {
-                                    root.develop-edit("dehaze", v);
+                                    DevelopState.develop-edit("dehaze", v);
                                 }
                             }
                             EditSlider {
                                 label: @tr("Highlight roll-off");
                                 minimum: 0;
                                 maximum: 100;
-                                value: root.dev.highlight-rolloff;
+                                value: DevelopState.dev.highlight-rolloff;
                                 edited(v) => {
-                                    root.develop-edit("highlight-rolloff", v);
+                                    DevelopState.develop-edit("highlight-rolloff", v);
                                 }
                             }
                             EditSlider {
                                 label: @tr("Vibrance");
                                 minimum: -100;
                                 maximum: 100;
-                                value: root.dev.vibrance;
+                                value: DevelopState.dev.vibrance;
                                 edited(v) => {
-                                    root.develop-edit("vibrance", v);
+                                    DevelopState.develop-edit("vibrance", v);
                                 }
                             }
                             EditSlider {
                                 label: @tr("Saturation");
                                 minimum: -100;
                                 maximum: 100;
-                                value: root.dev.saturation;
+                                value: DevelopState.dev.saturation;
                                 edited(v) => {
-                                    root.develop-edit("saturation", v);
+                                    DevelopState.develop-edit("saturation", v);
                                 }
                             }
                         }
@@ -970,9 +808,9 @@ export component StudioWindow inherits Window {
                                 wrap: word-wrap;
                             }
                             Text {
-                                text: root.camera-profile-name == ""
+                                text: DevelopState.camera-profile-name == ""
                                     ? @tr("No profile — the decoder's own colors")
-                                    : root.camera-profile-name;
+                                    : DevelopState.camera-profile-name;
                                 color: #9a9a9a;
                                 font-size: 12px;
                                 wrap: word-wrap;
@@ -984,14 +822,14 @@ export component StudioWindow inherits Window {
                                     text: @tr("Choose .dcp…");
                                     active: false;
                                     clicked => {
-                                        root.browse-camera-profile();
+                                        DevelopState.browse-camera-profile();
                                     }
                                 }
-                                if root.camera-profile-name != "": FilterChip {
-                                    active: root.dev.camera-profile;
-                                    text: root.dev.camera-profile ? @tr("Enabled") : @tr("Disabled");
+                                if DevelopState.camera-profile-name != "": FilterChip {
+                                    active: DevelopState.dev.camera-profile;
+                                    text: DevelopState.dev.camera-profile ? @tr("Enabled") : @tr("Disabled");
                                     clicked => {
-                                        root.develop-edit("camera-profile", root.dev.camera-profile ? 0 : 1);
+                                        DevelopState.develop-edit("camera-profile", DevelopState.dev.camera-profile ? 0 : 1);
                                     }
                                 }
                             }
@@ -1004,10 +842,10 @@ export component StudioWindow inherits Window {
                         if root.expand-lens: VerticalLayout {
                             spacing: 12px;
                             FilterChip {
-                                active: root.dev.lens-correction;
-                                text: root.dev.lens-correction ? @tr("Enabled") : @tr("Disabled");
+                                active: DevelopState.dev.lens-correction;
+                                text: DevelopState.dev.lens-correction ? @tr("Enabled") : @tr("Disabled");
                                 clicked => {
-                                    root.develop-edit("lens-correction", root.dev.lens-correction ? 0 : 1);
+                                    DevelopState.develop-edit("lens-correction", DevelopState.dev.lens-correction ? 0 : 1);
                                 }
                             }
                         }
@@ -1022,27 +860,27 @@ export component StudioWindow inherits Window {
                                 label: @tr("Luminance NR");
                                 minimum: 0;
                                 maximum: 100;
-                                value: root.dev.nr-luminance;
+                                value: DevelopState.dev.nr-luminance;
                                 edited(v) => {
-                                    root.develop-edit("nr-luminance", v);
+                                    DevelopState.develop-edit("nr-luminance", v);
                                 }
                             }
                             EditSlider {
                                 label: @tr("Color NR");
                                 minimum: 0;
                                 maximum: 100;
-                                value: root.dev.nr-color;
+                                value: DevelopState.dev.nr-color;
                                 edited(v) => {
-                                    root.develop-edit("nr-color", v);
+                                    DevelopState.develop-edit("nr-color", v);
                                 }
                             }
                             EditSlider {
                                 label: @tr("Sharpen amount");
                                 minimum: 0;
                                 maximum: 100;
-                                value: root.dev.sharpen-amount;
+                                value: DevelopState.dev.sharpen-amount;
                                 edited(v) => {
-                                    root.develop-edit("sharpen-amount", v);
+                                    DevelopState.develop-edit("sharpen-amount", v);
                                 }
                             }
                             EditSlider {
@@ -1050,9 +888,9 @@ export component StudioWindow inherits Window {
                                 minimum: 0.5;
                                 maximum: 3;
                                 decimals: 1;
-                                value: root.dev.sharpen-radius;
+                                value: DevelopState.dev.sharpen-radius;
                                 edited(v) => {
-                                    root.develop-edit("sharpen-radius", v);
+                                    DevelopState.develop-edit("sharpen-radius", v);
                                 }
                             }
                         }
@@ -1094,11 +932,11 @@ export component StudioWindow inherits Window {
                                     height: 220px;
                                     viewbox-width: 220;
                                     viewbox-height: 220;
-                                    commands: root.dev-curve-path;
+                                    commands: DevelopState.dev-curve-path;
                                     stroke: #6fa8dc;
                                     stroke-width: 2px;
                                 }
-                                for point in root.dev-curve-points: Rectangle {
+                                for point in DevelopState.dev-curve-points: Rectangle {
                                     x: point.x * 1px - 4px;
                                     y: point.y * 1px - 4px;
                                     width: 8px;
@@ -1110,7 +948,7 @@ export component StudioWindow inherits Window {
                                     mouse-cursor: crosshair;
                                     pointer-event(event) => {
                                         if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
-                                            root.develop-curve-click(self.mouse-x / 1px, self.mouse-y / 1px, self.width / 1px, self.height / 1px);
+                                            DevelopState.develop-curve-click(self.mouse-x / 1px, self.mouse-y / 1px, self.width / 1px, self.height / 1px);
                                         }
                                     }
                                 }
@@ -1119,7 +957,7 @@ export component StudioWindow inherits Window {
                                 text: @tr("Reset Curve");
                                 active: false;
                                 clicked => {
-                                    root.develop-curve-reset();
+                                    DevelopState.develop-curve-reset();
                                 }
                             }
                         }
@@ -1130,7 +968,7 @@ export component StudioWindow inherits Window {
                         }
                         if root.expand-hsl: VerticalLayout {
                             spacing: 14px;
-                            for band[i] in root.dev.hsl: VerticalLayout {
+                            for band[i] in DevelopState.dev.hsl: VerticalLayout {
                                 spacing: 6px;
                                 Text {
                                     text: root.hsl-band-names[i];
@@ -1144,7 +982,7 @@ export component StudioWindow inherits Window {
                                     maximum: 100;
                                     value: band.hue;
                                     edited(v) => {
-                                        root.develop-edit-hsl-band(i, "hue", v);
+                                        DevelopState.develop-edit-hsl-band(i, "hue", v);
                                     }
                                 }
                                 EditSlider {
@@ -1153,7 +991,7 @@ export component StudioWindow inherits Window {
                                     maximum: 100;
                                     value: band.saturation;
                                     edited(v) => {
-                                        root.develop-edit-hsl-band(i, "saturation", v);
+                                        DevelopState.develop-edit-hsl-band(i, "saturation", v);
                                     }
                                 }
                                 EditSlider {
@@ -1162,7 +1000,7 @@ export component StudioWindow inherits Window {
                                     maximum: 100;
                                     value: band.luminance;
                                     edited(v) => {
-                                        root.develop-edit-hsl-band(i, "luminance", v);
+                                        DevelopState.develop-edit-hsl-band(i, "luminance", v);
                                     }
                                 }
                             }
@@ -1186,27 +1024,27 @@ export component StudioWindow inherits Window {
                                     label: @tr("Hue");
                                     minimum: 0;
                                     maximum: 359;
-                                    value: root.dev.color-grading-shadows.hue;
+                                    value: DevelopState.dev.color-grading-shadows.hue;
                                     edited(v) => {
-                                        root.develop-edit-color-grading-zone("shadows", "hue", v);
+                                        DevelopState.develop-edit-color-grading-zone("shadows", "hue", v);
                                     }
                                 }
                                 EditSlider {
                                     label: @tr("Saturation");
                                     minimum: 0;
                                     maximum: 100;
-                                    value: root.dev.color-grading-shadows.saturation;
+                                    value: DevelopState.dev.color-grading-shadows.saturation;
                                     edited(v) => {
-                                        root.develop-edit-color-grading-zone("shadows", "saturation", v);
+                                        DevelopState.develop-edit-color-grading-zone("shadows", "saturation", v);
                                     }
                                 }
                                 EditSlider {
                                     label: @tr("Luminance");
                                     minimum: -100;
                                     maximum: 100;
-                                    value: root.dev.color-grading-shadows.luminance;
+                                    value: DevelopState.dev.color-grading-shadows.luminance;
                                     edited(v) => {
-                                        root.develop-edit-color-grading-zone("shadows", "luminance", v);
+                                        DevelopState.develop-edit-color-grading-zone("shadows", "luminance", v);
                                     }
                                 }
                             }
@@ -1222,27 +1060,27 @@ export component StudioWindow inherits Window {
                                     label: @tr("Hue");
                                     minimum: 0;
                                     maximum: 359;
-                                    value: root.dev.color-grading-midtones.hue;
+                                    value: DevelopState.dev.color-grading-midtones.hue;
                                     edited(v) => {
-                                        root.develop-edit-color-grading-zone("midtones", "hue", v);
+                                        DevelopState.develop-edit-color-grading-zone("midtones", "hue", v);
                                     }
                                 }
                                 EditSlider {
                                     label: @tr("Saturation");
                                     minimum: 0;
                                     maximum: 100;
-                                    value: root.dev.color-grading-midtones.saturation;
+                                    value: DevelopState.dev.color-grading-midtones.saturation;
                                     edited(v) => {
-                                        root.develop-edit-color-grading-zone("midtones", "saturation", v);
+                                        DevelopState.develop-edit-color-grading-zone("midtones", "saturation", v);
                                     }
                                 }
                                 EditSlider {
                                     label: @tr("Luminance");
                                     minimum: -100;
                                     maximum: 100;
-                                    value: root.dev.color-grading-midtones.luminance;
+                                    value: DevelopState.dev.color-grading-midtones.luminance;
                                     edited(v) => {
-                                        root.develop-edit-color-grading-zone("midtones", "luminance", v);
+                                        DevelopState.develop-edit-color-grading-zone("midtones", "luminance", v);
                                     }
                                 }
                             }
@@ -1258,27 +1096,27 @@ export component StudioWindow inherits Window {
                                     label: @tr("Hue");
                                     minimum: 0;
                                     maximum: 359;
-                                    value: root.dev.color-grading-highlights.hue;
+                                    value: DevelopState.dev.color-grading-highlights.hue;
                                     edited(v) => {
-                                        root.develop-edit-color-grading-zone("highlights", "hue", v);
+                                        DevelopState.develop-edit-color-grading-zone("highlights", "hue", v);
                                     }
                                 }
                                 EditSlider {
                                     label: @tr("Saturation");
                                     minimum: 0;
                                     maximum: 100;
-                                    value: root.dev.color-grading-highlights.saturation;
+                                    value: DevelopState.dev.color-grading-highlights.saturation;
                                     edited(v) => {
-                                        root.develop-edit-color-grading-zone("highlights", "saturation", v);
+                                        DevelopState.develop-edit-color-grading-zone("highlights", "saturation", v);
                                     }
                                 }
                                 EditSlider {
                                     label: @tr("Luminance");
                                     minimum: -100;
                                     maximum: 100;
-                                    value: root.dev.color-grading-highlights.luminance;
+                                    value: DevelopState.dev.color-grading-highlights.luminance;
                                     edited(v) => {
-                                        root.develop-edit-color-grading-zone("highlights", "luminance", v);
+                                        DevelopState.develop-edit-color-grading-zone("highlights", "luminance", v);
                                     }
                                 }
                             }
@@ -1286,18 +1124,18 @@ export component StudioWindow inherits Window {
                                 label: @tr("Balance");
                                 minimum: -100;
                                 maximum: 100;
-                                value: root.dev.color-grading-balance;
+                                value: DevelopState.dev.color-grading-balance;
                                 edited(v) => {
-                                    root.develop-edit("color-grading-balance", v);
+                                    DevelopState.develop-edit("color-grading-balance", v);
                                 }
                             }
                             EditSlider {
                                 label: @tr("Blending");
                                 minimum: 0;
                                 maximum: 100;
-                                value: root.dev.color-grading-blending;
+                                value: DevelopState.dev.color-grading-blending;
                                 edited(v) => {
-                                    root.develop-edit("color-grading-blending", v);
+                                    DevelopState.develop-edit("color-grading-blending", v);
                                 }
                             }
                         }
@@ -1334,7 +1172,7 @@ export component StudioWindow inherits Window {
                                             x: 6px;
                                             width: parent.width - 12px;
                                             height: 100%;
-                                            text <=> root.spot-radius-text;
+                                            text <=> DevelopState.spot-radius-text;
                                             color: #e6e6e6;
                                             font-size: 12px;
                                             vertical-alignment: center;
@@ -1360,7 +1198,7 @@ export component StudioWindow inherits Window {
                                             x: 6px;
                                             width: parent.width - 12px;
                                             height: 100%;
-                                            text <=> root.spot-feather-text;
+                                            text <=> DevelopState.spot-feather-text;
                                             color: #e6e6e6;
                                             font-size: 12px;
                                             vertical-alignment: center;
@@ -1386,7 +1224,7 @@ export component StudioWindow inherits Window {
                                             x: 6px;
                                             width: parent.width - 12px;
                                             height: 100%;
-                                            text <=> root.spot-opacity-text;
+                                            text <=> DevelopState.spot-opacity-text;
                                             color: #e6e6e6;
                                             font-size: 12px;
                                             vertical-alignment: center;
@@ -1398,7 +1236,7 @@ export component StudioWindow inherits Window {
                             HorizontalLayout {
                                 spacing: 8px;
                                 Text {
-                                    text: @tr("{} spot(s)", root.dev-spot-count);
+                                    text: @tr("{} spot(s)", DevelopState.dev-spot-count);
                                     color: #9a9a9a;
                                     font-size: 12px;
                                     vertical-alignment: center;
@@ -1408,14 +1246,14 @@ export component StudioWindow inherits Window {
                                     text: @tr("Undo Last");
                                     active: false;
                                     clicked => {
-                                        root.develop-spot-undo();
+                                        DevelopState.develop-spot-undo();
                                     }
                                 }
                                 FilterChip {
                                     text: @tr("Clear All");
                                     active: false;
                                     clicked => {
-                                        root.develop-spot-reset();
+                                        DevelopState.develop-spot-reset();
                                     }
                                 }
                             }
@@ -1432,45 +1270,45 @@ export component StudioWindow inherits Window {
                                 minimum: -45;
                                 maximum: 45;
                                 decimals: 1;
-                                value: root.dev.rotation;
+                                value: DevelopState.dev.rotation;
                                 edited(v) => {
-                                    root.develop-edit("rotation", v);
+                                    DevelopState.develop-edit("rotation", v);
                                 }
                             }
                             EditSlider {
                                 label: @tr("Crop left");
                                 minimum: 0;
                                 maximum: 100;
-                                value: root.dev.crop-left;
+                                value: DevelopState.dev.crop-left;
                                 edited(v) => {
-                                    root.develop-edit("crop-left", v);
+                                    DevelopState.develop-edit("crop-left", v);
                                 }
                             }
                             EditSlider {
                                 label: @tr("Crop top");
                                 minimum: 0;
                                 maximum: 100;
-                                value: root.dev.crop-top;
+                                value: DevelopState.dev.crop-top;
                                 edited(v) => {
-                                    root.develop-edit("crop-top", v);
+                                    DevelopState.develop-edit("crop-top", v);
                                 }
                             }
                             EditSlider {
                                 label: @tr("Crop width");
                                 minimum: 1;
                                 maximum: 100;
-                                value: root.dev.crop-width;
+                                value: DevelopState.dev.crop-width;
                                 edited(v) => {
-                                    root.develop-edit("crop-width", v);
+                                    DevelopState.develop-edit("crop-width", v);
                                 }
                             }
                             EditSlider {
                                 label: @tr("Crop height");
                                 minimum: 1;
                                 maximum: 100;
-                                value: root.dev.crop-height;
+                                value: DevelopState.dev.crop-height;
                                 edited(v) => {
-                                    root.develop-edit("crop-height", v);
+                                    DevelopState.develop-edit("crop-height", v);
                                 }
                             }
                             HorizontalLayout {
@@ -1479,7 +1317,7 @@ export component StudioWindow inherits Window {
                                     text: @tr("Reset crop");
                                     active: false;
                                     clicked => {
-                                        root.develop-edit("crop-reset", 0);
+                                        DevelopState.develop-edit("crop-reset", 0);
                                     }
                                 }
                             }
@@ -1493,19 +1331,19 @@ export component StudioWindow inherits Window {
                         // (Ctrl+Z/Y): head first, click any row to jump
                         // straight to it (`checkout-history-row`).
                         if root.expand-history: VerticalLayout {
-                            for entry[index] in root.dev-history: touch := TouchArea {
+                            for entry[index] in DevelopState.dev-history: touch := TouchArea {
                                 height: 26px;
                                 clicked => {
-                                    root.checkout-history-row(index);
+                                    DevelopState.checkout-history-row(index);
                                 }
                                 Rectangle {
                                     width: 100%;
                                     height: 100%;
-                                    background: index == root.dev-history-current ? #2f4f6f : (touch.has-hover ? #2a2a2a : transparent);
+                                    background: index == DevelopState.dev-history-current ? #2f4f6f : (touch.has-hover ? #2a2a2a : transparent);
                                     border-radius: 4px;
                                     Text {
                                         x: 8px;
-                                        text: index == root.dev-history-current ? @tr("{} (current)", entry) : entry;
+                                        text: index == DevelopState.dev-history-current ? @tr("{} (current)", entry) : entry;
                                         color: #d0d0d0;
                                         font-size: 12px;
                                         vertical-alignment: center;
@@ -1648,7 +1486,7 @@ export component StudioWindow inherits Window {
         }
 
         HorizontalLayout {
-            visible: !root.develop-mode && !MapState.map-mode;
+            visible: !DevelopState.develop-mode && !MapState.map-mode;
 
             Rectangle {
                 width: 190px;
@@ -1925,7 +1763,7 @@ export component StudioWindow inherits Window {
                             double-clicked => {
                                 GridState.selected = GridState.window-start + i;
                                 GridState.select(GridState.window-start + i);
-                                root.enter-develop();
+                                DevelopState.enter-develop();
                             }
                             pointer-event(event) => {
                                 if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
@@ -1951,7 +1789,7 @@ export component StudioWindow inherits Window {
                                     activated => {
                                         GridState.selected = GridState.window-start + i;
                                         GridState.select(GridState.window-start + i);
-                                        root.enter-develop();
+                                        DevelopState.enter-develop();
                                     }
                                 }
                                 MenuSeparator { }
@@ -2099,7 +1937,7 @@ export component StudioWindow inherits Window {
                                     activated => {
                                         GridState.selected = GridState.window-start + i;
                                         GridState.select(GridState.window-start + i);
-                                        root.reprocess-selected();
+                                        DevelopState.reprocess-selected();
                                     }
                                 }
                                 MenuSeparator { }
@@ -2111,7 +1949,7 @@ export component StudioWindow inherits Window {
                                     activated => {
                                         GridState.selected = GridState.window-start + i;
                                         GridState.select(GridState.window-start + i);
-                                        root.copy-settings();
+                                        DevelopState.copy-settings();
                                     }
                                 }
                                 MenuItem {
@@ -2122,9 +1960,9 @@ export component StudioWindow inherits Window {
                                     // several already-selected photos), not
                                     // collapse it down to this one cell.
                                     title: @tr("Paste Settings");
-                                    enabled: root.has-settings-clipboard;
+                                    enabled: DevelopState.has-settings-clipboard;
                                     activated => {
-                                        root.paste-settings();
+                                        DevelopState.paste-settings();
                                     }
                                 }
                             }
@@ -2259,11 +2097,11 @@ export component StudioWindow inherits Window {
 
         // Modal overlay: import and export dialogs.
         Rectangle {
-            visible: root.dialog != "";
+            visible: DialogState.dialog != "";
             background: #000000aa;
             TouchArea {
                 clicked => {
-                    root.dialog = "";
+                    DialogState.dialog = "";
                 }
             }
 
@@ -2280,7 +2118,7 @@ export component StudioWindow inherits Window {
                     padding: 20px;
                     spacing: 12px;
 
-                    if root.dialog == "import": VerticalLayout {
+                    if DialogState.dialog == "import": VerticalLayout {
                         spacing: 12px;
                         Text {
                             text: @tr("Import photos");
@@ -2306,7 +2144,7 @@ export component StudioWindow inherits Window {
                                     x: 8px;
                                     width: parent.width - 16px;
                                     height: 100%;
-                                    text <=> root.import-source-text;
+                                    text <=> DialogState.import-source-text;
                                     color: #e6e6e6;
                                     font-size: 12px;
                                     vertical-alignment: center;
@@ -2317,7 +2155,7 @@ export component StudioWindow inherits Window {
                                 text: @tr("Browse…");
                                 active: false;
                                 clicked => {
-                                    root.browse-import-source();
+                                    DialogState.browse-import-source();
                                 }
                             }
                         }
@@ -2325,16 +2163,16 @@ export component StudioWindow inherits Window {
                             spacing: 8px;
                             FilterChip {
                                 text: @tr("Copy into library");
-                                active: root.import-copy;
+                                active: DialogState.import-copy;
                                 clicked => {
-                                    root.import-copy = !root.import-copy;
+                                    DialogState.import-copy = !DialogState.import-copy;
                                 }
                             }
                             FilterChip {
                                 text: @tr("Recursive");
-                                active: root.import-recursive;
+                                active: DialogState.import-recursive;
                                 clicked => {
-                                    root.import-recursive = !root.import-recursive;
+                                    DialogState.import-recursive = !DialogState.import-recursive;
                                 }
                             }
                             Rectangle {
@@ -2348,24 +2186,24 @@ export component StudioWindow inherits Window {
                                 text: @tr("Cancel");
                                 active: false;
                                 clicked => {
-                                    root.dialog = "";
+                                    DialogState.dialog = "";
                                 }
                             }
                             FilterChip {
                                 text: @tr("Import");
                                 active: true;
                                 clicked => {
-                                    root.run-import(import-source.text, root.import-copy, root.import-recursive);
+                                    DialogState.run-import(import-source.text, DialogState.import-copy, DialogState.import-recursive);
                                 }
                             }
                         }
                     }
 
-                    if root.dialog == "export": VerticalLayout {
+                    if DialogState.dialog == "export": VerticalLayout {
                         spacing: 12px;
                         Text {
-                            text: root.export-photo-count > 1
-                                ? @tr("Export {} selected photos", root.export-photo-count)
+                            text: DialogState.export-photo-count > 1
+                                ? @tr("Export {} selected photos", DialogState.export-photo-count)
                                 : @tr("Export selected photo");
                             color: #f0f0f0;
                             font-size: 15px;
@@ -2381,20 +2219,20 @@ export component StudioWindow inherits Window {
                             alignment: start;
                             FilterChip {
                                 text: @tr("Custom");
-                                active: root.export-preset == -1;
+                                active: DialogState.export-preset == -1;
                                 clicked => {
-                                    root.export-preset = -1;
+                                    DialogState.export-preset = -1;
                                 }
                             }
-                            for name[i] in root.export-presets: FilterChip {
+                            for name[i] in DialogState.export-presets: FilterChip {
                                 text: name;
-                                active: root.export-preset == i;
+                                active: DialogState.export-preset == i;
                                 clicked => {
-                                    root.export-preset = i;
+                                    DialogState.export-preset = i;
                                 }
                             }
                         }
-                        if root.export-preset == -1: VerticalLayout {
+                        if DialogState.export-preset == -1: VerticalLayout {
                             spacing: 8px;
                             Text {
                                 text: @tr("Format");
@@ -2406,9 +2244,9 @@ export component StudioWindow inherits Window {
                                 alignment: start;
                                 for name[i] in ["JPEG", "PNG", "TIFF", "WebP", "AVIF"]: FilterChip {
                                     text: name;
-                                    active: root.export-format == i;
+                                    active: DialogState.export-format == i;
                                     clicked => {
-                                        root.export-format = i;
+                                        DialogState.export-format = i;
                                     }
                                 }
                             }
@@ -2432,7 +2270,7 @@ export component StudioWindow inherits Window {
                                             x: 8px;
                                             width: parent.width - 16px;
                                             height: 100%;
-                                            text <=> root.export-quality-text;
+                                            text <=> DialogState.export-quality-text;
                                             color: #e6e6e6;
                                             font-size: 12px;
                                             vertical-alignment: center;
@@ -2458,7 +2296,7 @@ export component StudioWindow inherits Window {
                                             x: 8px;
                                             width: parent.width - 16px;
                                             height: 100%;
-                                            text <=> root.export-max-edge-text;
+                                            text <=> DialogState.export-max-edge-text;
                                             color: #e6e6e6;
                                             font-size: 12px;
                                             vertical-alignment: center;
@@ -2487,7 +2325,7 @@ export component StudioWindow inherits Window {
                                             x: 8px;
                                             width: parent.width - 16px;
                                             height: 100%;
-                                            text <=> root.export-preset-name;
+                                            text <=> DialogState.export-preset-name;
                                             color: #e6e6e6;
                                             font-size: 12px;
                                             vertical-alignment: center;
@@ -2499,11 +2337,11 @@ export component StudioWindow inherits Window {
                                     text: @tr("Save as preset");
                                     active: false;
                                     clicked => {
-                                        root.run-save-export-preset(
-                                            root.export-preset-name,
-                                            root.export-format,
-                                            root.export-quality-text,
-                                            root.export-max-edge-text,
+                                        DialogState.run-save-export-preset(
+                                            DialogState.export-preset-name,
+                                            DialogState.export-format,
+                                            DialogState.export-quality-text,
+                                            DialogState.export-max-edge-text,
                                         );
                                     }
                                 }
@@ -2527,7 +2365,7 @@ export component StudioWindow inherits Window {
                                     x: 8px;
                                     width: parent.width - 16px;
                                     height: 100%;
-                                    text <=> root.export-destination-text;
+                                    text <=> DialogState.export-destination-text;
                                     color: #e6e6e6;
                                     font-size: 12px;
                                     vertical-alignment: center;
@@ -2538,7 +2376,7 @@ export component StudioWindow inherits Window {
                                 text: @tr("Browse…");
                                 active: false;
                                 clicked => {
-                                    root.browse-export-destination();
+                                    DialogState.browse-export-destination();
                                 }
                             }
                         }
@@ -2549,26 +2387,26 @@ export component StudioWindow inherits Window {
                                 text: @tr("Cancel");
                                 active: false;
                                 clicked => {
-                                    root.dialog = "";
+                                    DialogState.dialog = "";
                                 }
                             }
                             FilterChip {
                                 text: @tr("Export");
                                 active: true;
                                 clicked => {
-                                    root.run-export(
-                                        root.export-preset,
+                                    DialogState.run-export(
+                                        DialogState.export-preset,
                                         export-destination.text,
-                                        root.export-format,
-                                        root.export-quality-text,
-                                        root.export-max-edge-text,
+                                        DialogState.export-format,
+                                        DialogState.export-quality-text,
+                                        DialogState.export-max-edge-text,
                                     );
                                 }
                             }
                         }
                     }
 
-                    if root.dialog == "print": VerticalLayout {
+                    if DialogState.dialog == "print": VerticalLayout {
                         spacing: 12px;
                         Text {
                             text: @tr("Print selected photo");
@@ -2586,20 +2424,20 @@ export component StudioWindow inherits Window {
                             alignment: start;
                             FilterChip {
                                 text: @tr("Custom");
-                                active: root.print-preset == -1;
+                                active: DialogState.print-preset == -1;
                                 clicked => {
-                                    root.print-preset = -1;
+                                    DialogState.print-preset = -1;
                                 }
                             }
-                            for name[i] in root.print-presets: FilterChip {
+                            for name[i] in DialogState.print-presets: FilterChip {
                                 text: name;
-                                active: root.print-preset == i;
+                                active: DialogState.print-preset == i;
                                 clicked => {
-                                    root.print-preset = i;
+                                    DialogState.print-preset = i;
                                 }
                             }
                         }
-                        if root.print-preset == -1: VerticalLayout {
+                        if DialogState.print-preset == -1: VerticalLayout {
                             spacing: 8px;
                             Text {
                                 text: @tr("Paper");
@@ -2611,9 +2449,9 @@ export component StudioWindow inherits Window {
                                 alignment: start;
                                 for name[i] in ["A4", "A3", "Letter"]: FilterChip {
                                     text: name;
-                                    active: root.print-paper == i;
+                                    active: DialogState.print-paper == i;
                                     clicked => {
-                                        root.print-paper = i;
+                                        DialogState.print-paper = i;
                                     }
                                 }
                             }
@@ -2627,9 +2465,9 @@ export component StudioWindow inherits Window {
                                 alignment: start;
                                 for name[i] in ["Portrait", "Landscape"]: FilterChip {
                                     text: name;
-                                    active: root.print-orientation == i;
+                                    active: DialogState.print-orientation == i;
                                     clicked => {
-                                        root.print-orientation = i;
+                                        DialogState.print-orientation = i;
                                     }
                                 }
                             }
@@ -2653,7 +2491,7 @@ export component StudioWindow inherits Window {
                                             x: 8px;
                                             width: parent.width - 16px;
                                             height: 100%;
-                                            text <=> root.print-margins-text;
+                                            text <=> DialogState.print-margins-text;
                                             color: #e6e6e6;
                                             font-size: 12px;
                                             vertical-alignment: center;
@@ -2679,7 +2517,7 @@ export component StudioWindow inherits Window {
                                             x: 8px;
                                             width: parent.width - 16px;
                                             height: 100%;
-                                            text <=> root.print-dpi-text;
+                                            text <=> DialogState.print-dpi-text;
                                             color: #e6e6e6;
                                             font-size: 12px;
                                             vertical-alignment: center;
@@ -2706,7 +2544,7 @@ export component StudioWindow inherits Window {
                                         x: 8px;
                                         width: parent.width - 16px;
                                         height: 100%;
-                                        text <=> root.print-profile-text;
+                                        text <=> DialogState.print-profile-text;
                                         color: #e6e6e6;
                                         font-size: 12px;
                                         vertical-alignment: center;
@@ -2717,7 +2555,7 @@ export component StudioWindow inherits Window {
                                     text: @tr("Browse…");
                                     active: false;
                                     clicked => {
-                                        root.browse-print-profile();
+                                        DialogState.browse-print-profile();
                                     }
                                 }
                             }
@@ -2731,9 +2569,9 @@ export component StudioWindow inherits Window {
                                 alignment: start;
                                 for name[i] in ["Perceptual", "Relative", "Saturation", "Absolute"]: FilterChip {
                                     text: name;
-                                    active: root.print-intent == i;
+                                    active: DialogState.print-intent == i;
                                     clicked => {
-                                        root.print-intent = i;
+                                        DialogState.print-intent = i;
                                     }
                                 }
                             }
@@ -2757,7 +2595,7 @@ export component StudioWindow inherits Window {
                                             x: 8px;
                                             width: parent.width - 16px;
                                             height: 100%;
-                                            text <=> root.print-preset-name;
+                                            text <=> DialogState.print-preset-name;
                                             color: #e6e6e6;
                                             font-size: 12px;
                                             vertical-alignment: center;
@@ -2769,14 +2607,14 @@ export component StudioWindow inherits Window {
                                     text: @tr("Save as preset");
                                     active: false;
                                     clicked => {
-                                        root.run-save-print-preset(
-                                            root.print-preset-name,
-                                            root.print-paper,
-                                            root.print-orientation,
-                                            root.print-margins-text,
-                                            root.print-dpi-text,
-                                            root.print-profile-text,
-                                            root.print-intent,
+                                        DialogState.run-save-print-preset(
+                                            DialogState.print-preset-name,
+                                            DialogState.print-paper,
+                                            DialogState.print-orientation,
+                                            DialogState.print-margins-text,
+                                            DialogState.print-dpi-text,
+                                            DialogState.print-profile-text,
+                                            DialogState.print-intent,
                                         );
                                     }
                                 }
@@ -2800,7 +2638,7 @@ export component StudioWindow inherits Window {
                                     x: 8px;
                                     width: parent.width - 16px;
                                     height: 100%;
-                                    text <=> root.print-destination-text;
+                                    text <=> DialogState.print-destination-text;
                                     color: #e6e6e6;
                                     font-size: 12px;
                                     vertical-alignment: center;
@@ -2811,7 +2649,7 @@ export component StudioWindow inherits Window {
                                 text: @tr("Browse…");
                                 active: false;
                                 clicked => {
-                                    root.browse-print-destination();
+                                    DialogState.browse-print-destination();
                                 }
                             }
                         }
@@ -2835,7 +2673,7 @@ export component StudioWindow inherits Window {
                                         x: 8px;
                                         width: parent.width - 16px;
                                         height: 100%;
-                                        text <=> root.print-copies-text;
+                                        text <=> DialogState.print-copies-text;
                                         color: #e6e6e6;
                                         font-size: 12px;
                                         vertical-alignment: center;
@@ -2854,30 +2692,30 @@ export component StudioWindow inherits Window {
                                 text: @tr("Cancel");
                                 active: false;
                                 clicked => {
-                                    root.dialog = "";
+                                    DialogState.dialog = "";
                                 }
                             }
                             FilterChip {
                                 text: @tr("Print");
                                 active: true;
                                 clicked => {
-                                    root.run-print(
-                                        root.print-preset,
+                                    DialogState.run-print(
+                                        DialogState.print-preset,
                                         print-destination.text,
-                                        root.print-paper,
-                                        root.print-orientation,
-                                        root.print-margins-text,
-                                        root.print-dpi-text,
-                                        root.print-profile-text,
-                                        root.print-intent,
-                                        root.print-copies-text,
+                                        DialogState.print-paper,
+                                        DialogState.print-orientation,
+                                        DialogState.print-margins-text,
+                                        DialogState.print-dpi-text,
+                                        DialogState.print-profile-text,
+                                        DialogState.print-intent,
+                                        DialogState.print-copies-text,
                                     );
                                 }
                             }
                         }
                     }
 
-                    if root.dialog == "tether": VerticalLayout {
+                    if DialogState.dialog == "tether": VerticalLayout {
                         spacing: 12px;
                         Text {
                             text: @tr("Tethered capture");
@@ -2886,19 +2724,19 @@ export component StudioWindow inherits Window {
                             font-weight: 600;
                         }
                         Text {
-                            text: root.tether-connected ? @tr("Connected — waiting for shots") : (root.tether-status == "" ? @tr("Not connected. Plug in a camera over USB and click Connect.") : root.tether-status);
-                            color: root.tether-connected ? #7fc97f : #9a9a9a;
+                            text: DialogState.tether-connected ? @tr("Connected — waiting for shots") : (DialogState.tether-status == "" ? @tr("Not connected. Plug in a camera over USB and click Connect.") : DialogState.tether-status);
+                            color: DialogState.tether-connected ? #7fc97f : #9a9a9a;
                             font-size: 12px;
                             wrap: word-wrap;
                         }
-                        if root.tether-connected: Text {
-                            text: @tr("{} captured this session", root.tether-captured-count);
+                        if DialogState.tether-connected: Text {
+                            text: @tr("{} captured this session", DialogState.tether-captured-count);
                             color: #9a9a9a;
                             font-size: 12px;
                             wrap: word-wrap;
                         }
-                        if root.tether-connected && root.tether-last-captured != "": Text {
-                            text: @tr("Last: {}", root.tether-last-captured);
+                        if DialogState.tether-connected && DialogState.tether-last-captured != "": Text {
+                            text: @tr("Last: {}", DialogState.tether-last-captured);
                             color: #9a9a9a;
                             font-size: 12px;
                             wrap: word-wrap;
@@ -2910,27 +2748,27 @@ export component StudioWindow inherits Window {
                                 text: @tr("Close");
                                 active: false;
                                 clicked => {
-                                    root.dialog = "";
+                                    DialogState.dialog = "";
                                 }
                             }
-                            if !root.tether-connected: FilterChip {
+                            if !DialogState.tether-connected: FilterChip {
                                 text: @tr("Connect");
                                 active: true;
                                 clicked => {
-                                    root.run-tether-connect();
+                                    DialogState.run-tether-connect();
                                 }
                             }
-                            if root.tether-connected: FilterChip {
+                            if DialogState.tether-connected: FilterChip {
                                 text: @tr("Disconnect");
                                 active: true;
                                 clicked => {
-                                    root.run-tether-disconnect();
+                                    DialogState.run-tether-disconnect();
                                 }
                             }
                         }
                     }
 
-                    if root.dialog == "watch": VerticalLayout {
+                    if DialogState.dialog == "watch": VerticalLayout {
                         spacing: 12px;
                         Text {
                             text: @tr("Auto import");
@@ -2939,15 +2777,15 @@ export component StudioWindow inherits Window {
                             font-weight: 600;
                         }
                         Text {
-                            text: root.watch-active ? @tr("Watching — waiting for files") : (root.watch-status == "" ? @tr("Not watching. Pick a folder and click Start.") : root.watch-status);
-                            color: root.watch-active ? #7fc97f : #9a9a9a;
+                            text: DialogState.watch-active ? @tr("Watching — waiting for files") : (DialogState.watch-status == "" ? @tr("Not watching. Pick a folder and click Start.") : DialogState.watch-status);
+                            color: DialogState.watch-active ? #7fc97f : #9a9a9a;
                             font-size: 12px;
                             wrap: word-wrap;
                         }
-                        if !root.watch-active: HorizontalLayout {
+                        if !DialogState.watch-active: HorizontalLayout {
                             spacing: 8px;
                             watch-folder-input := TextInput {
-                                text <=> root.watch-folder-text;
+                                text <=> DialogState.watch-folder-text;
                                 color: #f0f0f0;
                                 font-size: 12px;
                             }
@@ -2955,18 +2793,18 @@ export component StudioWindow inherits Window {
                                 text: @tr("Browse…");
                                 active: false;
                                 clicked => {
-                                    root.browse-watch-folder();
+                                    DialogState.browse-watch-folder();
                                 }
                             }
                         }
-                        if root.watch-active: Text {
-                            text: @tr("{} imported this session", root.watch-imported-count);
+                        if DialogState.watch-active: Text {
+                            text: @tr("{} imported this session", DialogState.watch-imported-count);
                             color: #9a9a9a;
                             font-size: 12px;
                             wrap: word-wrap;
                         }
-                        if root.watch-active && root.watch-last-imported != "": Text {
-                            text: @tr("Last: {}", root.watch-last-imported);
+                        if DialogState.watch-active && DialogState.watch-last-imported != "": Text {
+                            text: @tr("Last: {}", DialogState.watch-last-imported);
                             color: #9a9a9a;
                             font-size: 12px;
                             wrap: word-wrap;
@@ -2978,27 +2816,27 @@ export component StudioWindow inherits Window {
                                 text: @tr("Close");
                                 active: false;
                                 clicked => {
-                                    root.dialog = "";
+                                    DialogState.dialog = "";
                                 }
                             }
-                            if !root.watch-active: FilterChip {
+                            if !DialogState.watch-active: FilterChip {
                                 text: @tr("Start");
                                 active: true;
                                 clicked => {
-                                    root.run-watch-start();
+                                    DialogState.run-watch-start();
                                 }
                             }
-                            if root.watch-active: FilterChip {
+                            if DialogState.watch-active: FilterChip {
                                 text: @tr("Stop");
                                 active: true;
                                 clicked => {
-                                    root.run-watch-stop();
+                                    DialogState.run-watch-stop();
                                 }
                             }
                         }
                     }
 
-                    if root.dialog == "collection": VerticalLayout {
+                    if DialogState.dialog == "collection": VerticalLayout {
                         spacing: 12px;
                         Text {
                             text: @tr("New collection");
@@ -3034,7 +2872,7 @@ export component StudioWindow inherits Window {
                                 text: @tr("Cancel");
                                 active: false;
                                 clicked => {
-                                    root.dialog = "";
+                                    DialogState.dialog = "";
                                 }
                             }
                             FilterChip {
@@ -3047,7 +2885,7 @@ export component StudioWindow inherits Window {
                         }
                     }
 
-                    if root.dialog == "preset": save-group := VerticalLayout {
+                    if DialogState.dialog == "preset": save-group := VerticalLayout {
                         spacing: 12px;
                         property <bool> g-white-balance: true;
                         property <bool> g-tone: true;
@@ -3143,14 +2981,14 @@ export component StudioWindow inherits Window {
                                 text: @tr("Cancel");
                                 active: false;
                                 clicked => {
-                                    root.dialog = "";
+                                    DialogState.dialog = "";
                                 }
                             }
                             FilterChip {
                                 text: @tr("Save");
                                 active: true;
                                 clicked => {
-                                    root.run-save-preset(
+                                    DevelopState.run-save-preset(
                                         preset-name.text,
                                         save-group.g-white-balance,
                                         save-group.g-tone,
@@ -3167,7 +3005,7 @@ export component StudioWindow inherits Window {
                     // in this file, made discoverable outside develop mode
                     // too. Designing a dedicated panel is out of scope for
                     // ADR 0020 — this is the minimal read-only stand-in.
-                    if root.dialog == "shortcuts": VerticalLayout {
+                    if DialogState.dialog == "shortcuts": VerticalLayout {
                         spacing: 12px;
                         Text {
                             text: @tr("Keyboard shortcuts");
@@ -3380,13 +3218,13 @@ export component StudioWindow inherits Window {
                                 text: @tr("Close");
                                 active: true;
                                 clicked => {
-                                    root.dialog = "";
+                                    DialogState.dialog = "";
                                 }
                             }
                         }
                     }
 
-                    if root.dialog == "about": VerticalLayout {
+                    if DialogState.dialog == "about": VerticalLayout {
                         spacing: 12px;
                         HorizontalLayout {
                             alignment: center;
@@ -3440,14 +3278,14 @@ export component StudioWindow inherits Window {
                                 text: @tr("Close");
                                 active: true;
                                 clicked => {
-                                    root.dialog = "";
+                                    DialogState.dialog = "";
                                 }
                             }
                         }
                     }
 
-                    if root.dialog-result != "": Text {
-                        text: root.dialog-result;
+                    if DialogState.dialog-result != "": Text {
+                        text: DialogState.dialog-result;
                         color: #d8b23c;
                         font-size: 12px;
                         wrap: word-wrap;
@@ -3475,15 +3313,15 @@ export component StudioWindow inherits Window {
                 MenuRow {
                     title: @tr("Import…    I");
                     activated => {
-                        root.dialog-result = "";
-                        root.dialog = "import";
+                        DialogState.dialog-result = "";
+                        DialogState.dialog = "import";
                         root.open-menu = "";
                     }
                 }
                 MenuRow {
                     title: @tr("Export…    E");
                     activated => {
-                        root.open-export();
+                        DialogState.open-export();
                         root.open-menu = "";
                     }
                 }
@@ -3514,21 +3352,21 @@ export component StudioWindow inherits Window {
                 MenuRow {
                     title: @tr("Print…    Ctrl+P");
                     activated => {
-                        root.open-print();
+                        DialogState.open-print();
                         root.open-menu = "";
                     }
                 }
                 MenuRow {
                     title: @tr("Tethered Capture…    T");
                     activated => {
-                        root.open-tether();
+                        DialogState.open-tether();
                         root.open-menu = "";
                     }
                 }
                 MenuRow {
                     title: @tr("Auto Import…");
                     activated => {
-                        root.open-watch();
+                        DialogState.open-watch();
                         root.open-menu = "";
                     }
                 }
@@ -3563,8 +3401,8 @@ export component StudioWindow inherits Window {
                 MenuRow {
                     title: @tr("New Collection…    N");
                     activated => {
-                        root.dialog-result = "";
-                        root.dialog = "collection";
+                        DialogState.dialog-result = "";
+                        DialogState.dialog = "collection";
                         root.open-menu = "";
                     }
                 }
@@ -3588,7 +3426,7 @@ export component StudioWindow inherits Window {
                 MenuRow {
                     title: @tr("Reprocess Library…    Shift+R");
                     activated => {
-                        root.reprocess-library();
+                        DevelopState.reprocess-library();
                         root.open-menu = "";
                     }
                 }
@@ -3736,9 +3574,9 @@ export component StudioWindow inherits Window {
                 MenuSep { }
                 MenuRow {
                     title: @tr("Develop    D");
-                    enabled: GridState.selected >= 0 && !root.develop-mode;
+                    enabled: GridState.selected >= 0 && !DevelopState.develop-mode;
                     activated => {
-                        root.enter-develop();
+                        DevelopState.enter-develop();
                         root.open-menu = "";
                     }
                 }
@@ -3748,28 +3586,28 @@ export component StudioWindow inherits Window {
                     // that context rather than silently acting on
                     // something else.
                     title: @tr("Reprocess    R");
-                    enabled: root.develop-mode;
+                    enabled: DevelopState.develop-mode;
                     activated => {
-                        root.develop-reprocess();
+                        DevelopState.develop-reprocess();
                         root.open-menu = "";
                     }
                 }
             }
 
-            if root.open-menu == "develop-menu" && root.develop-mode: MenuDropdown {
+            if root.open-menu == "develop-menu" && DevelopState.develop-mode: MenuDropdown {
                 x: develop-label.x;
                 y: 28px;
                 MenuRow {
                     title: @tr("Undo    Ctrl+Z");
                     activated => {
-                        root.develop-undo();
+                        DevelopState.develop-undo();
                         root.open-menu = "";
                     }
                 }
                 MenuRow {
                     title: @tr("Redo    Ctrl+Y");
                     activated => {
-                        root.develop-redo();
+                        DevelopState.develop-redo();
                         root.open-menu = "";
                     }
                 }
@@ -3777,20 +3615,20 @@ export component StudioWindow inherits Window {
                 MenuRow {
                     title: @tr("Save Preset…    S");
                     activated => {
-                        root.open-preset-dialog();
+                        DevelopState.open-preset-dialog();
                         root.open-menu = "";
                     }
                 }
                 SubmenuHeader {
                     title: @tr("Apply Preset");
                     expanded <=> root.apply-preset-submenu-open;
-                    enabled: root.dev-presets.length > 0;
+                    enabled: DevelopState.dev-presets.length > 0;
                 }
                 if root.apply-preset-submenu-open: VerticalLayout {
-                    for name[index] in root.dev-presets: MenuRow {
+                    for name[index] in DevelopState.dev-presets: MenuRow {
                         title: name;
                         activated => {
-                            root.apply-preset(index);
+                            DevelopState.apply-preset(index);
                             root.open-menu = "";
                             root.reset-submenus();
                         }
@@ -3800,7 +3638,7 @@ export component StudioWindow inherits Window {
                 MenuRow {
                     title: @tr("Back to Library    G");
                     activated => {
-                        root.exit-develop();
+                        DevelopState.exit-develop();
                         root.open-menu = "";
                     }
                 }
@@ -3811,17 +3649,17 @@ export component StudioWindow inherits Window {
                 y: 28px;
                 MenuRow {
                     title: @tr("Library    G");
-                    enabled: root.develop-mode;
+                    enabled: DevelopState.develop-mode;
                     activated => {
-                        root.exit-develop();
+                        DevelopState.exit-develop();
                         root.open-menu = "";
                     }
                 }
                 MenuRow {
                     title: @tr("Develop    D");
-                    enabled: !root.develop-mode && GridState.selected >= 0;
+                    enabled: !DevelopState.develop-mode && GridState.selected >= 0;
                     activated => {
-                        root.enter-develop();
+                        DevelopState.enter-develop();
                         root.open-menu = "";
                     }
                 }
@@ -3833,16 +3671,16 @@ export component StudioWindow inherits Window {
                 MenuRow {
                     title: @tr("Keyboard Shortcuts…");
                     activated => {
-                        root.dialog-result = "";
-                        root.dialog = "shortcuts";
+                        DialogState.dialog-result = "";
+                        DialogState.dialog = "shortcuts";
                         root.open-menu = "";
                     }
                 }
                 MenuRow {
                     title: @tr("About Leyline");
                     activated => {
-                        root.dialog-result = "";
-                        root.dialog = "about";
+                        DialogState.dialog-result = "";
+                        DialogState.dialog = "about";
                         root.open-menu = "";
                     }
                 }
@@ -3913,7 +3751,7 @@ export component StudioWindow inherits Window {
         develop-label := TopMenuLabel {
             title: @tr("Develop");
             active: root.open-menu == "develop-menu";
-            enabled: root.develop-mode;
+            enabled: DevelopState.develop-mode;
             clicked => {
                 root.open-menu = root.open-menu == "develop-menu" ? "" : "develop-menu";
                 root.reset-submenus();

@@ -1,0 +1,110 @@
+// The develop view: the rendered photo, every adjustment that can be made
+// to it, and the revision history behind it (ADR 0045 §1).
+//
+// The largest domain by far, and the one with the clearest boundary: Rust
+// owns the edit session and the pipeline, the UI owns none of it. Sliders
+// report a released value and get the authoritative settings back.
+//
+// What is *not* here, by ADR 0045 §2: the accordion expand flags, the
+// active drag tool, the loupe zoom and the spot tool's pending first
+// click. None of those cross to Rust, so they stay private to the develop
+// panel.
+
+import { CurveMarker, DevSettings } from "../types.slint";
+export global DevelopState {
+    // Develop view state, mirrored from Rust.
+    in property <bool> develop-mode;
+    in property <string> develop-filename;
+    in property <image> develop-image;
+    // The neutral (as-shot) render of the same photo, fetched once per
+    // develop session — the "before" half of Compare Before/After.
+    in property <image> develop-image-before;
+    in-out property <bool> dev-compare: false;
+    callback toggle-compare();
+    in property <DevSettings> dev;
+    // Filled-area SVG paths, one per channel, in a 256x90 viewbox — see
+    // `develop::histogram_layout` in main.rs.
+    in property <string> dev-histogram-r;
+    in property <string> dev-histogram-g;
+    in property <string> dev-histogram-b;
+    // Tone-curve graph state, mirrored from the current revision's
+    // settings: line commands and marker positions, both already in the
+    // canvas' own pixel space (`develop::curve_layout`).
+    in property <string> dev-curve-path;
+    in property <[CurveMarker]> dev-curve-points;
+    in property <int> dev-spot-count;
+    // Defaults applied to the *next* placed spot — dialog-local text
+    // fields, not part of any stored revision until a spot is placed.
+    in-out property <string> spot-radius-text: "5";
+    in-out property <string> spot-feather-text: "50";
+    in-out property <string> spot-opacity-text: "100";
+    in property <string> camera-profile-name;
+    // Camera profile (ADR 0035): native `.dcp` picker, immediately followed
+    // by the import into `Profiles/Camera/` and the reference being stored
+    // on the edited version — one click, same shape as `browse-map-pack`.
+    // The file name of the referenced profile, empty when none is set.
+    callback browse-camera-profile();
+    callback enter-develop();
+    callback exit-develop();
+    // Moves the develop view to the next/previous photo in the grid
+    // without leaving develop mode.
+    callback develop-next();
+    callback develop-prev();
+    // Filmstrip click: switches develop to the clicked whole-grid index
+    // directly, without leaving develop mode.
+    callback develop-switch(int);
+    callback develop-edit(string, float);
+    // HSL mixer band edit (ADR 0031): band index (0..8, fixed order red..
+    // magenta), field ("hue"/"saturation"/"luminance"), released value.
+    callback develop-edit-hsl-band(int, string, float);
+    // Color grading zone edit (ADR 0031): zone ("shadows"/"midtones"/
+    // "highlights"), field ("hue"/"saturation"/"luminance"), released
+    // value. `balance`/`blending` go through the plain `develop-edit`
+    // above (`"color-grading-balance"`/`"color-grading-blending"`) since
+    // they don't need a zone.
+    callback develop-edit-color-grading-zone(string, string, float);
+    // Mouse crop: press x/y, release x/y, viewport w/h, preview w/h (px).
+    callback develop-crop-drag(float, float, float, float, float, float, float, float);
+    // Tone curve graph (ADR 0030): click position in the curve canvas'
+    // own pixel space (0..width, 0..height, y already screen-down).
+    callback develop-curve-click(float, float, float, float);
+    callback develop-curve-reset();
+    // Spot removal (ADR 0032): source click x/y, target click x/y,
+    // viewport w/h, preview w/h (px) — same letterbox convention as
+    // `develop-crop-drag`.
+    callback develop-spot-click(float, float, float, float, float, float, float, float);
+    callback develop-spot-undo();
+    callback develop-spot-reset();
+    callback develop-undo();
+    callback develop-redo();
+    callback develop-reprocess();
+    callback reprocess-library();
+    // Library::reprocess (§10.4) scoped to the currently selected photo —
+    // same call as Shift+R, just bounded to one version instead of the
+    // whole catalog (ADR 0021, grid context menu).
+    callback reprocess-selected();
+    // Revision history, head first, formatted timestamps — a browsable
+    // history panel beyond linear undo/redo.
+    in property <[string]> dev-history;
+    // Index within `dev-history` of the currently-checked-out revision —
+    // not always 0: the list is stable across a jump (see the Rust-side
+    // `dev_history` field doc), so "current" moves within it instead of
+    // always being the top row.
+    in property <int> dev-history-current: 0;
+    callback checkout-history-row(int);
+    // Stored develop preset names, already ordered by Rust.
+    in property <[string]> dev-presets;
+    // Apply / delete the develop preset at an index of `dev-presets`.
+    callback apply-preset(int);
+    callback delete-preset(int);
+    callback open-preset-dialog();
+    // Name, then one flag per group: white-balance, tone, presence,
+    // lens-correction, detail, geometry (`docs/presets.md` §3.1).
+    callback run-save-preset(string, bool, bool, bool, bool, bool, bool);
+    // Copy/paste develop settings between photos (distinct from named
+    // presets): captures White Balance/Tone/Presence/Lens/Detail from one
+    // photo, pastes onto the current grid selection.
+    callback copy-settings();
+    callback paste-settings();
+    in property <bool> has-settings-clipboard: false;
+}

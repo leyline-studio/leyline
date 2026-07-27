@@ -48,8 +48,8 @@ use slint::winit_030::WinitWindowAccessor;
 use slint::{ComponentHandle, Global, Model, ModelRc, SharedString, Timer, TimerMode, VecModel};
 
 use ui::{
-    Cell, CollectionState, CurveMarker, DetailState, FilterState, GridState, LibraryState,
-    MapState, StudioWindow, Tr,
+    Cell, CollectionState, CurveMarker, DetailState, DevelopState, DialogState, FilterState,
+    GridState, LibraryState, MapState, StudioWindow, Tr,
 };
 
 /// Sort orders the header button cycles through, with their labels.
@@ -533,17 +533,20 @@ fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
             let done = i32::try_from(done).unwrap_or(i32::MAX);
             let total = i32::try_from(total).unwrap_or(i32::MAX);
             if app.import_job == Some(job_id) {
-                window.set_dialog_result(Tr::get(window).invoke_importing_progress(done, total));
+                DialogState::get(window)
+                    .set_dialog_result(Tr::get(window).invoke_importing_progress(done, total));
             } else if app.export_job == Some(job_id) {
-                window.set_dialog_result(Tr::get(window).invoke_exporting_progress(done, total));
+                DialogState::get(window)
+                    .set_dialog_result(Tr::get(window).invoke_exporting_progress(done, total));
             } else if app.print_job == Some(job_id) {
-                window.set_dialog_result(Tr::get(window).invoke_printing_progress(done, total));
+                DialogState::get(window)
+                    .set_dialog_result(Tr::get(window).invoke_printing_progress(done, total));
             }
         }
         Event::JobFinished { job_id, result } => {
             if app.import_job == Some(job_id) {
                 app.import_job = None;
-                window.set_dialog_result(match result {
+                DialogState::get(window).set_dialog_result(match result {
                     JobResult::Import(report) => {
                         SharedString::from(import_summary(report.imported.len(), &report.skipped))
                     }
@@ -557,7 +560,7 @@ fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
                 // added nothing (every file skipped) leaves the grid as-is.
             } else if app.export_job == Some(job_id) {
                 app.export_job = None;
-                window.set_dialog_result(match result {
+                DialogState::get(window).set_dialog_result(match result {
                     JobResult::Export(report) => SharedString::from(export_summary(&report)),
                     JobResult::Failed(reason) => {
                         Tr::get(window).invoke_export_failed(SharedString::from(reason))
@@ -566,7 +569,7 @@ fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
                 });
             } else if app.print_job == Some(job_id) {
                 app.print_job = None;
-                window.set_dialog_result(match result {
+                DialogState::get(window).set_dialog_result(match result {
                     JobResult::Print(report) => SharedString::from(print_summary(&report)),
                     JobResult::Failed(reason) => {
                         Tr::get(window).invoke_print_failed(SharedString::from(reason))
@@ -621,16 +624,20 @@ fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
                 && let Ok(details) = app.library.catalog().asset_details(asset)
             {
                 app.tether_captured += 1;
-                window.set_tether_captured_count(i32::try_from(app.tether_captured).unwrap_or(0));
-                window.set_tether_last_captured(SharedString::from(details.filename.as_str()));
+                DialogState::get(window)
+                    .set_tether_captured_count(i32::try_from(app.tether_captured).unwrap_or(0));
+                DialogState::get(window)
+                    .set_tether_last_captured(SharedString::from(details.filename.as_str()));
             }
             if app.watch_active
                 && let Some(&asset) = asset_ids.last()
                 && let Ok(details) = app.library.catalog().asset_details(asset)
             {
                 app.watch_imported += 1;
-                window.set_watch_imported_count(i32::try_from(app.watch_imported).unwrap_or(0));
-                window.set_watch_last_imported(SharedString::from(details.filename.as_str()));
+                DialogState::get(window)
+                    .set_watch_imported_count(i32::try_from(app.watch_imported).unwrap_or(0));
+                DialogState::get(window)
+                    .set_watch_last_imported(SharedString::from(details.filename.as_str()));
             }
             // New assets — our own import, or another writer's — can change
             // both the total count and the visible window; skip while
@@ -651,14 +658,14 @@ fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
         Event::TetherConnected => {
             app.tether_connected = true;
             app.tether_captured = 0;
-            window.set_tether_connected(true);
-            window.set_tether_captured_count(0);
-            window.set_tether_last_captured(SharedString::default());
+            DialogState::get(window).set_tether_connected(true);
+            DialogState::get(window).set_tether_captured_count(0);
+            DialogState::get(window).set_tether_last_captured(SharedString::default());
         }
         Event::TetherDisconnected { reason } => {
             app.tether_connected = false;
-            window.set_tether_connected(false);
-            window.set_tether_status(match reason {
+            DialogState::get(window).set_tether_connected(false);
+            DialogState::get(window).set_tether_status(match reason {
                 Some(reason) => SharedString::from(reason),
                 None => SharedString::default(),
             });
@@ -666,14 +673,14 @@ fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
         Event::WatchStarted { .. } => {
             app.watch_active = true;
             app.watch_imported = 0;
-            window.set_watch_active(true);
-            window.set_watch_imported_count(0);
-            window.set_watch_last_imported(SharedString::default());
+            DialogState::get(window).set_watch_active(true);
+            DialogState::get(window).set_watch_imported_count(0);
+            DialogState::get(window).set_watch_last_imported(SharedString::default());
         }
         Event::WatchStopped { reason } => {
             app.watch_active = false;
-            window.set_watch_active(false);
-            window.set_watch_status(match reason {
+            DialogState::get(window).set_watch_active(false);
+            DialogState::get(window).set_watch_status(match reason {
                 Some(reason) => SharedString::from(reason),
                 None => SharedString::default(),
             });
@@ -847,7 +854,7 @@ fn wire_settings_clipboard(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_copy_settings(move || {
+        DevelopState::get(window).on_copy_settings(move || {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -860,7 +867,7 @@ fn wire_settings_clipboard(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             match app.library.capture_settings(version, CLIPBOARD_GROUPS) {
                 Ok(settings) => {
                     app.dev_clipboard = Some(settings);
-                    window.set_has_settings_clipboard(true);
+                    DevelopState::get(&window).set_has_settings_clipboard(true);
                 }
                 Err(error) => report_error(&window, &error.to_string()),
             }
@@ -869,7 +876,7 @@ fn wire_settings_clipboard(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_paste_settings(move || {
+        DevelopState::get(window).on_paste_settings(move || {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -1009,7 +1016,7 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_enter_develop(move || {
+        DevelopState::get(window).on_enter_develop(move || {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -1023,8 +1030,9 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             app.develop = Some((asset, version));
             match refresh_develop(&mut app, &window) {
                 Ok(()) => {
-                    window.set_develop_filename(SharedString::from(filename.as_str()));
-                    window.set_develop_mode(true);
+                    DevelopState::get(&window)
+                        .set_develop_filename(SharedString::from(filename.as_str()));
+                    DevelopState::get(&window).set_develop_mode(true);
                 }
                 Err(error) => {
                     app.develop = None;
@@ -1036,7 +1044,7 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_toggle_compare(move || {
+        DevelopState::get(window).on_toggle_compare(move || {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -1044,12 +1052,12 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             let Some((asset, _version)) = app.develop else {
                 return;
             };
-            let showing_before = !window.get_dev_compare();
+            let showing_before = !DevelopState::get(&window).get_dev_compare();
             if showing_before && app.dev_before.is_none() {
                 match app.library.preview_before(asset, PreviewKind::Small) {
                     Ok(rendered) => {
                         let image = rgb8_to_slint_image(&rendered);
-                        window.set_develop_image_before(image.clone());
+                        DevelopState::get(&window).set_develop_image_before(image.clone());
                         app.dev_before = Some(image);
                     }
                     Err(error) => {
@@ -1058,19 +1066,19 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                     }
                 }
             }
-            window.set_dev_compare(showing_before);
+            DevelopState::get(&window).set_dev_compare(showing_before);
         });
     }
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_exit_develop(move || {
+        DevelopState::get(window).on_exit_develop(move || {
             let Some(window) = handle.upgrade() else {
                 return;
             };
             let mut app = app.borrow_mut();
             app.develop = None;
-            window.set_develop_mode(false);
+            DevelopState::get(&window).set_develop_mode(false);
             // Edits invalidated the thumbnails: rebuild the grid.
             if let Err(error) = reload(&mut app, &window) {
                 report_error(&window, &error);
@@ -1080,7 +1088,7 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_develop_prev(move || {
+        DevelopState::get(window).on_develop_prev(move || {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -1090,7 +1098,7 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_develop_next(move || {
+        DevelopState::get(window).on_develop_next(move || {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -1100,7 +1108,7 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_develop_switch(move |index| {
+        DevelopState::get(window).on_develop_switch(move |index| {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -1110,7 +1118,7 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_develop_edit(move |slider, value| {
+        DevelopState::get(window).on_develop_edit(move |slider, value| {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -1139,7 +1147,7 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_develop_edit_hsl_band(move |index, field, value| {
+        DevelopState::get(window).on_develop_edit_hsl_band(move |index, field, value| {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -1171,7 +1179,7 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_develop_edit_color_grading_zone(move |zone, field, value| {
+        DevelopState::get(window).on_develop_edit_color_grading_zone(move |zone, field, value| {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -1203,7 +1211,7 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_develop_crop_drag(move |px, py, rx, ry, vw, vh, iw, ih| {
+        DevelopState::get(window).on_develop_crop_drag(move |px, py, rx, ry, vw, vh, iw, ih| {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -1236,7 +1244,7 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_develop_curve_click(move |mx, my, w, h| {
+        DevelopState::get(window).on_develop_curve_click(move |mx, my, w, h| {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -1271,7 +1279,7 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_develop_curve_reset(move || {
+        DevelopState::get(window).on_develop_curve_reset(move || {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -1296,7 +1304,7 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_develop_spot_click(move |sx, sy, tx, ty, vw, vh, iw, ih| {
+        DevelopState::get(window).on_develop_spot_click(move |sx, sy, tx, ty, vw, vh, iw, ih| {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -1305,9 +1313,9 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 return;
             };
             let radius_feather_opacity = match spot_defaults(
-                window.get_spot_radius_text().as_str(),
-                window.get_spot_feather_text().as_str(),
-                window.get_spot_opacity_text().as_str(),
+                DevelopState::get(&window).get_spot_radius_text().as_str(),
+                DevelopState::get(&window).get_spot_feather_text().as_str(),
+                DevelopState::get(&window).get_spot_opacity_text().as_str(),
             ) {
                 Ok(defaults) => defaults,
                 Err(error) => {
@@ -1341,7 +1349,7 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_develop_spot_undo(move || {
+        DevelopState::get(window).on_develop_spot_undo(move || {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -1370,7 +1378,7 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_develop_spot_reset(move || {
+        DevelopState::get(window).on_develop_spot_reset(move || {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -1395,7 +1403,7 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_develop_undo(move || {
+        DevelopState::get(window).on_develop_undo(move || {
             if let Some(window) = handle.upgrade() {
                 history_step(&mut app.borrow_mut(), &window, true);
             }
@@ -1404,7 +1412,7 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_develop_redo(move || {
+        DevelopState::get(window).on_develop_redo(move || {
             if let Some(window) = handle.upgrade() {
                 history_step(&mut app.borrow_mut(), &window, false);
             }
@@ -1413,7 +1421,7 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_checkout_history_row(move |index| {
+        DevelopState::get(window).on_checkout_history_row(move |index| {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -1425,7 +1433,7 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_develop_reprocess(move || {
+        DevelopState::get(window).on_develop_reprocess(move || {
             if let Some(window) = handle.upgrade() {
                 reprocess_current(&mut app.borrow_mut(), &window);
             }
@@ -1434,7 +1442,7 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_reprocess_library(move || {
+        DevelopState::get(window).on_reprocess_library(move || {
             if let Some(window) = handle.upgrade() {
                 reprocess_library(&mut app.borrow_mut(), &window);
             }
@@ -1443,7 +1451,7 @@ fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_reprocess_selected(move || {
+        DevelopState::get(window).on_reprocess_selected(move || {
             if let Some(window) = handle.upgrade() {
                 reprocess_selected(&mut app.borrow_mut(), &window);
             }
@@ -1548,7 +1556,7 @@ fn wire_library(window: &StudioWindow, other_recent_libraries: Vec<PathBuf>) {
 fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let handle = window.as_weak();
-        window.on_browse_import_source(move || {
+        DialogState::get(window).on_browse_import_source(move || {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -1557,19 +1565,19 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             // like the rest of this app's callbacks, we're already on the
             // UI thread here, so no extra thread hop / async wiring needed.
             if let Some(folder) = rfd::FileDialog::new().pick_folder() {
-                window
+                DialogState::get(&window)
                     .set_import_source_text(SharedString::from(folder.to_string_lossy().as_ref()));
             }
         });
     }
     {
         let handle = window.as_weak();
-        window.on_browse_export_destination(move || {
+        DialogState::get(window).on_browse_export_destination(move || {
             let Some(window) = handle.upgrade() else {
                 return;
             };
             if let Some(folder) = rfd::FileDialog::new().pick_folder() {
-                window.set_export_destination_text(SharedString::from(
+                DialogState::get(&window).set_export_destination_text(SharedString::from(
                     folder.to_string_lossy().as_ref(),
                 ));
             }
@@ -1578,13 +1586,14 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_run_import(move |source, copy, recursive| {
+        DialogState::get(window).on_run_import(move |source, copy, recursive| {
             let Some(window) = handle.upgrade() else {
                 return;
             };
             let mut app = app.borrow_mut();
             if source.is_empty() {
-                window.set_dialog_result(Tr::get(&window).invoke_enter_source_folder());
+                DialogState::get(&window)
+                    .set_dialog_result(Tr::get(&window).invoke_enter_source_folder());
                 return;
             }
             let options = ImportOptions {
@@ -1595,13 +1604,14 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 .library
                 .import_async(Path::new(source.as_str()), &options);
             app.import_job = Some(job);
-            window.set_dialog_result(Tr::get(&window).invoke_importing_ellipsis());
+            DialogState::get(&window)
+                .set_dialog_result(Tr::get(&window).invoke_importing_ellipsis());
         });
     }
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_open_export(move || {
+        DialogState::get(window).on_open_export(move || {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -1618,109 +1628,122 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 .map(|preset| SharedString::from(preset.name.as_str()))
                 .collect();
             app.presets = presets;
-            window.set_export_presets(ModelRc::from(Rc::new(VecModel::from(names))));
-            window.set_export_photo_count(
+            DialogState::get(&window)
+                .set_export_presets(ModelRc::from(Rc::new(VecModel::from(names))));
+            DialogState::get(&window).set_export_photo_count(
                 i32::try_from(selected_indices(&app, GridState::get(&window).get_selected()).len())
                     .unwrap_or(0),
             );
-            window.set_export_preset(-1);
-            window.set_export_format(0);
-            window.set_export_quality_text(SharedString::from("90"));
-            window.set_export_max_edge_text(SharedString::default());
-            window.set_export_preset_name(SharedString::default());
-            window.set_dialog_result(SharedString::default());
-            window.set_dialog(SharedString::from("export"));
+            DialogState::get(&window).set_export_preset(-1);
+            DialogState::get(&window).set_export_format(0);
+            DialogState::get(&window).set_export_quality_text(SharedString::from("90"));
+            DialogState::get(&window).set_export_max_edge_text(SharedString::default());
+            DialogState::get(&window).set_export_preset_name(SharedString::default());
+            DialogState::get(&window).set_dialog_result(SharedString::default());
+            DialogState::get(&window).set_dialog(SharedString::from("export"));
         });
     }
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_run_export(move |preset, destination, format, quality, max_edge| {
-            let Some(window) = handle.upgrade() else {
-                return;
-            };
-            let mut app = app.borrow_mut();
-            let versions = selected_versions(&app, GridState::get(&window).get_selected());
-            if versions.is_empty() {
-                window.set_dialog_result(Tr::get(&window).invoke_select_photo_first());
-                return;
-            }
-            if destination.is_empty() {
-                window.set_dialog_result(Tr::get(&window).invoke_enter_destination_folder());
-                return;
-            }
-            let destination = PathBuf::from(destination.as_str());
-            let stored = usize::try_from(preset)
-                .ok()
-                .and_then(|i| app.presets.get(i))
-                .map(|preset| preset.preset);
-            let recipe = match stored {
-                Some(id) => ExportRecipe::Preset(id),
-                None => {
-                    let settings = match export_settings(format, &quality, &max_edge) {
-                        Ok(settings) => settings,
+        DialogState::get(window).on_run_export(
+            move |preset, destination, format, quality, max_edge| {
+                let Some(window) = handle.upgrade() else {
+                    return;
+                };
+                let mut app = app.borrow_mut();
+                let versions = selected_versions(&app, GridState::get(&window).get_selected());
+                if versions.is_empty() {
+                    DialogState::get(&window)
+                        .set_dialog_result(Tr::get(&window).invoke_select_photo_first());
+                    return;
+                }
+                if destination.is_empty() {
+                    DialogState::get(&window)
+                        .set_dialog_result(Tr::get(&window).invoke_enter_destination_folder());
+                    return;
+                }
+                let destination = PathBuf::from(destination.as_str());
+                let stored = usize::try_from(preset)
+                    .ok()
+                    .and_then(|i| app.presets.get(i))
+                    .map(|preset| preset.preset);
+                let recipe = match stored {
+                    Some(id) => ExportRecipe::Preset(id),
+                    None => {
+                        let settings = match export_settings(format, &quality, &max_edge) {
+                            Ok(settings) => settings,
+                            Err(message) => {
+                                DialogState::get(&window)
+                                    .set_dialog_result(SharedString::from(message));
+                                return;
+                            }
+                        };
+                        ExportRecipe::Adhoc(settings)
+                    }
+                };
+                let job = app.library.export_async(ExportRequest {
+                    versions,
+                    recipe,
+                    destination_dir: destination,
+                });
+                app.export_job = Some(job);
+                DialogState::get(&window)
+                    .set_dialog_result(Tr::get(&window).invoke_exporting_ellipsis());
+            },
+        );
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        DialogState::get(window).on_run_save_export_preset(
+            move |name, format, quality, max_edge| {
+                let Some(window) = handle.upgrade() else {
+                    return;
+                };
+                if name.trim().is_empty() {
+                    DialogState::get(&window)
+                        .set_dialog_result(Tr::get(&window).invoke_enter_a_name());
+                    return;
+                }
+                let (name, settings) =
+                    match export_preset_request(&name, format, &quality, &max_edge) {
+                        Ok(request) => request,
                         Err(message) => {
-                            window.set_dialog_result(SharedString::from(message));
+                            DialogState::get(&window)
+                                .set_dialog_result(SharedString::from(message));
                             return;
                         }
                     };
-                    ExportRecipe::Adhoc(settings)
+                let mut app = app.borrow_mut();
+                let saved = app
+                    .library
+                    .create_export_preset(&name, &settings)
+                    .map_err(|e| e.to_string())
+                    .and_then(|_| refresh_export_presets(&mut app, &window));
+                match saved {
+                    Ok(()) => {
+                        DialogState::get(&window).set_export_preset_name(SharedString::default());
+                        DialogState::get(&window)
+                            .set_dialog_result(Tr::get(&window).invoke_preset_saved());
+                    }
+                    Err(error) => {
+                        DialogState::get(&window).set_dialog_result(
+                            Tr::get(&window).invoke_save_failed(SharedString::from(error)),
+                        );
+                    }
                 }
-            };
-            let job = app.library.export_async(ExportRequest {
-                versions,
-                recipe,
-                destination_dir: destination,
-            });
-            app.export_job = Some(job);
-            window.set_dialog_result(Tr::get(&window).invoke_exporting_ellipsis());
-        });
-    }
-    {
-        let app = Rc::clone(app);
-        let handle = window.as_weak();
-        window.on_run_save_export_preset(move |name, format, quality, max_edge| {
-            let Some(window) = handle.upgrade() else {
-                return;
-            };
-            if name.trim().is_empty() {
-                window.set_dialog_result(Tr::get(&window).invoke_enter_a_name());
-                return;
-            }
-            let (name, settings) = match export_preset_request(&name, format, &quality, &max_edge) {
-                Ok(request) => request,
-                Err(message) => {
-                    window.set_dialog_result(SharedString::from(message));
-                    return;
-                }
-            };
-            let mut app = app.borrow_mut();
-            let saved = app
-                .library
-                .create_export_preset(&name, &settings)
-                .map_err(|e| e.to_string())
-                .and_then(|_| refresh_export_presets(&mut app, &window));
-            match saved {
-                Ok(()) => {
-                    window.set_export_preset_name(SharedString::default());
-                    window.set_dialog_result(Tr::get(&window).invoke_preset_saved());
-                }
-                Err(error) => {
-                    window.set_dialog_result(
-                        Tr::get(&window).invoke_save_failed(SharedString::from(error)),
-                    );
-                }
-            }
-        });
+            },
+        );
     }
     {
         let handle = window.as_weak();
-        window.on_browse_print_destination(move || {
+        DialogState::get(window).on_browse_print_destination(move || {
             let Some(window) = handle.upgrade() else {
                 return;
             };
             if let Some(folder) = rfd::FileDialog::new().pick_folder() {
-                window.set_print_destination_text(SharedString::from(
+                DialogState::get(&window).set_print_destination_text(SharedString::from(
                     folder.to_string_lossy().as_ref(),
                 ));
             }
@@ -1728,7 +1751,7 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     }
     {
         let handle = window.as_weak();
-        window.on_browse_print_profile(move || {
+        DialogState::get(window).on_browse_print_profile(move || {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -1736,14 +1759,15 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 .add_filter("ICC profile", &["icc", "icm"])
                 .pick_file()
             {
-                window.set_print_profile_text(SharedString::from(file.to_string_lossy().as_ref()));
+                DialogState::get(&window)
+                    .set_print_profile_text(SharedString::from(file.to_string_lossy().as_ref()));
             }
         });
     }
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_open_print(move || {
+        DialogState::get(window).on_open_print(move || {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -1760,24 +1784,25 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 .map(|preset| SharedString::from(preset.name.as_str()))
                 .collect();
             app.print_presets = presets;
-            window.set_print_presets(ModelRc::from(Rc::new(VecModel::from(names))));
-            window.set_print_preset(-1);
-            window.set_print_paper(0);
-            window.set_print_orientation(0);
-            window.set_print_margins_text(SharedString::from("10"));
-            window.set_print_dpi_text(SharedString::from("300"));
-            window.set_print_profile_text(SharedString::default());
-            window.set_print_intent(1);
-            window.set_print_copies_text(SharedString::from("1"));
-            window.set_print_preset_name(SharedString::default());
-            window.set_dialog_result(SharedString::default());
-            window.set_dialog(SharedString::from("print"));
+            DialogState::get(&window)
+                .set_print_presets(ModelRc::from(Rc::new(VecModel::from(names))));
+            DialogState::get(&window).set_print_preset(-1);
+            DialogState::get(&window).set_print_paper(0);
+            DialogState::get(&window).set_print_orientation(0);
+            DialogState::get(&window).set_print_margins_text(SharedString::from("10"));
+            DialogState::get(&window).set_print_dpi_text(SharedString::from("300"));
+            DialogState::get(&window).set_print_profile_text(SharedString::default());
+            DialogState::get(&window).set_print_intent(1);
+            DialogState::get(&window).set_print_copies_text(SharedString::from("1"));
+            DialogState::get(&window).set_print_preset_name(SharedString::default());
+            DialogState::get(&window).set_dialog_result(SharedString::default());
+            DialogState::get(&window).set_dialog(SharedString::from("print"));
         });
     }
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_run_print(
+        DialogState::get(window).on_run_print(
             move |preset,
                   destination,
                   paper,
@@ -1794,11 +1819,13 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 let Some(version) = item_at(&app, GridState::get(&window).get_selected())
                     .map(|item| item.version_id)
                 else {
-                    window.set_dialog_result(Tr::get(&window).invoke_select_photo_first());
+                    DialogState::get(&window)
+                        .set_dialog_result(Tr::get(&window).invoke_select_photo_first());
                     return;
                 };
                 if destination.is_empty() {
-                    window.set_dialog_result(Tr::get(&window).invoke_enter_destination_folder());
+                    DialogState::get(&window)
+                        .set_dialog_result(Tr::get(&window).invoke_enter_destination_folder());
                     return;
                 }
                 let destination_dir = PathBuf::from(destination.as_str());
@@ -1819,7 +1846,8 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                         ) {
                             Ok(settings) => settings,
                             Err(message) => {
-                                window.set_dialog_result(SharedString::from(message));
+                                DialogState::get(&window)
+                                    .set_dialog_result(SharedString::from(message));
                                 return;
                             }
                         };
@@ -1829,7 +1857,7 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 let copies: u32 = match copies.parse() {
                     Ok(copies) => copies,
                     Err(_) => {
-                        window.set_dialog_result(SharedString::from(format!(
+                        DialogState::get(&window).set_dialog_result(SharedString::from(format!(
                             "bad copies {copies:?}"
                         )));
                         return;
@@ -1842,20 +1870,22 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                     copies,
                 });
                 app.print_job = Some(job);
-                window.set_dialog_result(Tr::get(&window).invoke_printing_ellipsis());
+                DialogState::get(&window)
+                    .set_dialog_result(Tr::get(&window).invoke_printing_ellipsis());
             },
         );
     }
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_run_save_print_preset(
+        DialogState::get(window).on_run_save_print_preset(
             move |name, paper, orientation, margins, dpi, profile, intent| {
                 let Some(window) = handle.upgrade() else {
                     return;
                 };
                 if name.trim().is_empty() {
-                    window.set_dialog_result(Tr::get(&window).invoke_enter_a_name());
+                    DialogState::get(&window)
+                        .set_dialog_result(Tr::get(&window).invoke_enter_a_name());
                     return;
                 }
                 let (name, settings) = match print_preset_request(
@@ -1869,7 +1899,7 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 ) {
                     Ok(request) => request,
                     Err(message) => {
-                        window.set_dialog_result(SharedString::from(message));
+                        DialogState::get(&window).set_dialog_result(SharedString::from(message));
                         return;
                     }
                 };
@@ -1881,11 +1911,12 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                     .and_then(|_| refresh_print_presets(&mut app, &window));
                 match saved {
                     Ok(()) => {
-                        window.set_print_preset_name(SharedString::default());
-                        window.set_dialog_result(Tr::get(&window).invoke_preset_saved());
+                        DialogState::get(&window).set_print_preset_name(SharedString::default());
+                        DialogState::get(&window)
+                            .set_dialog_result(Tr::get(&window).invoke_preset_saved());
                     }
                     Err(error) => {
-                        window.set_dialog_result(
+                        DialogState::get(&window).set_dialog_result(
                             Tr::get(&window).invoke_save_failed(SharedString::from(error)),
                         );
                     }
@@ -1896,22 +1927,23 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_open_tether(move || {
+        DialogState::get(window).on_open_tether(move || {
             let Some(window) = handle.upgrade() else {
                 return;
             };
             let app = app.borrow();
-            window.set_tether_connected(app.tether_connected);
-            window.set_tether_status(SharedString::default());
-            window.set_tether_captured_count(i32::try_from(app.tether_captured).unwrap_or(0));
-            window.set_tether_last_captured(SharedString::default());
-            window.set_dialog(SharedString::from("tether"));
+            DialogState::get(&window).set_tether_connected(app.tether_connected);
+            DialogState::get(&window).set_tether_status(SharedString::default());
+            DialogState::get(&window)
+                .set_tether_captured_count(i32::try_from(app.tether_captured).unwrap_or(0));
+            DialogState::get(&window).set_tether_last_captured(SharedString::default());
+            DialogState::get(&window).set_dialog(SharedString::from("tether"));
         });
     }
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_run_tether_connect(move || {
+        DialogState::get(window).on_run_tether_connect(move || {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -1919,66 +1951,71 @@ fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             match app.library.tether_connect() {
                 Ok(()) => {
                     app.tether_captured = 0;
-                    window.set_tether_status(SharedString::default());
+                    DialogState::get(&window).set_tether_status(SharedString::default());
                 }
-                Err(error) => window.set_tether_status(SharedString::from(error.to_string())),
+                Err(error) => DialogState::get(&window)
+                    .set_tether_status(SharedString::from(error.to_string())),
             }
         });
     }
     {
         let app = Rc::clone(app);
-        window.on_run_tether_disconnect(move || {
+        DialogState::get(window).on_run_tether_disconnect(move || {
             app.borrow().library.tether_disconnect();
         });
     }
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_open_watch(move || {
+        DialogState::get(window).on_open_watch(move || {
             let Some(window) = handle.upgrade() else {
                 return;
             };
             let app = app.borrow();
-            window.set_watch_active(app.watch_active);
-            window.set_watch_status(SharedString::default());
-            window.set_watch_imported_count(i32::try_from(app.watch_imported).unwrap_or(0));
-            window.set_watch_last_imported(SharedString::default());
-            window.set_dialog(SharedString::from("watch"));
+            DialogState::get(&window).set_watch_active(app.watch_active);
+            DialogState::get(&window).set_watch_status(SharedString::default());
+            DialogState::get(&window)
+                .set_watch_imported_count(i32::try_from(app.watch_imported).unwrap_or(0));
+            DialogState::get(&window).set_watch_last_imported(SharedString::default());
+            DialogState::get(&window).set_dialog(SharedString::from("watch"));
         });
     }
     {
         let handle = window.as_weak();
-        window.on_browse_watch_folder(move || {
+        DialogState::get(window).on_browse_watch_folder(move || {
             let Some(window) = handle.upgrade() else {
                 return;
             };
             if let Some(folder) = rfd::FileDialog::new().pick_folder() {
-                window.set_watch_folder_text(SharedString::from(folder.to_string_lossy().as_ref()));
+                DialogState::get(&window)
+                    .set_watch_folder_text(SharedString::from(folder.to_string_lossy().as_ref()));
             }
         });
     }
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_run_watch_start(move || {
+        DialogState::get(window).on_run_watch_start(move || {
             let Some(window) = handle.upgrade() else {
                 return;
             };
             let app = app.borrow_mut();
-            let folder = window.get_watch_folder_text();
+            let folder = DialogState::get(&window).get_watch_folder_text();
             if folder.is_empty() {
-                window.set_watch_status(Tr::get(&window).invoke_enter_source_folder());
+                DialogState::get(&window)
+                    .set_watch_status(Tr::get(&window).invoke_enter_source_folder());
                 return;
             }
             match app.library.watch_start(Path::new(folder.as_str())) {
-                Ok(()) => window.set_watch_status(SharedString::default()),
-                Err(error) => window.set_watch_status(SharedString::from(error.to_string())),
+                Ok(()) => DialogState::get(&window).set_watch_status(SharedString::default()),
+                Err(error) => DialogState::get(&window)
+                    .set_watch_status(SharedString::from(error.to_string())),
             }
         });
     }
     {
         let app = Rc::clone(app);
-        window.on_run_watch_stop(move || {
+        DialogState::get(window).on_run_watch_stop(move || {
             app.borrow().library.watch_stop();
         });
     }
@@ -1993,7 +2030,7 @@ fn refresh_export_presets(app: &mut App, window: &StudioWindow) -> Result<(), St
         .map(|preset| SharedString::from(preset.name.as_str()))
         .collect();
     app.presets = presets;
-    window.set_export_presets(ModelRc::from(Rc::new(VecModel::from(names))));
+    DialogState::get(window).set_export_presets(ModelRc::from(Rc::new(VecModel::from(names))));
     Ok(())
 }
 
@@ -2069,7 +2106,7 @@ fn refresh_print_presets(app: &mut App, window: &StudioWindow) -> Result<(), Str
         .map(|preset| SharedString::from(preset.name.as_str()))
         .collect();
     app.print_presets = presets;
-    window.set_print_presets(ModelRc::from(Rc::new(VecModel::from(names))));
+    DialogState::get(window).set_print_presets(ModelRc::from(Rc::new(VecModel::from(names))));
     Ok(())
 }
 
@@ -2181,7 +2218,7 @@ fn wire_collections(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             };
             let name = name.trim();
             if name.is_empty() {
-                window.set_dialog_result(Tr::get(&window).invoke_enter_a_name());
+                DialogState::get(&window).set_dialog_result(Tr::get(&window).invoke_enter_a_name());
                 return;
             }
             let mut app = app.borrow_mut();
@@ -2191,8 +2228,8 @@ fn wire_collections(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 .map_err(|e| e.to_string())
                 .and_then(|_| refresh_collections(&mut app, &window));
             match created {
-                Ok(()) => window.set_dialog(SharedString::default()),
-                Err(error) => window.set_dialog_result(
+                Ok(()) => DialogState::get(&window).set_dialog(SharedString::default()),
+                Err(error) => DialogState::get(&window).set_dialog_result(
                     Tr::get(&window).invoke_creation_failed(SharedString::from(error)),
                 ),
             }
@@ -2337,30 +2374,32 @@ fn wire_keywords(app: &Rc<RefCell<App>>, window: &StudioWindow) {
 fn wire_presets(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let handle = window.as_weak();
-        window.on_open_preset_dialog(move || {
+        DevelopState::get(window).on_open_preset_dialog(move || {
             let Some(window) = handle.upgrade() else {
                 return;
             };
-            window.set_dialog_result(SharedString::default());
-            window.set_dialog(SharedString::from("preset"));
+            DialogState::get(&window).set_dialog_result(SharedString::default());
+            DialogState::get(&window).set_dialog(SharedString::from("preset"));
         });
     }
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_run_save_preset(
+        DevelopState::get(window).on_run_save_preset(
             move |name, white_balance, tone, presence, lens_correction, detail, geometry| {
                 let Some(window) = handle.upgrade() else {
                     return;
                 };
                 let name = name.trim();
                 if name.is_empty() {
-                    window.set_dialog_result(Tr::get(&window).invoke_enter_a_name());
+                    DialogState::get(&window)
+                        .set_dialog_result(Tr::get(&window).invoke_enter_a_name());
                     return;
                 }
                 let mut app = app.borrow_mut();
                 let Some((_, version)) = app.develop else {
-                    window.set_dialog_result(Tr::get(&window).invoke_open_photo_in_develop_first());
+                    DialogState::get(&window)
+                        .set_dialog_result(Tr::get(&window).invoke_open_photo_in_develop_first());
                     return;
                 };
                 let flags = [
@@ -2376,7 +2415,8 @@ fn wire_presets(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                     .filter_map(|(on, group)| on.then_some(group))
                     .collect();
                 if groups.is_empty() {
-                    window.set_dialog_result(Tr::get(&window).invoke_pick_at_least_one_group());
+                    DialogState::get(&window)
+                        .set_dialog_result(Tr::get(&window).invoke_pick_at_least_one_group());
                     return;
                 }
                 let saved = app
@@ -2385,9 +2425,9 @@ fn wire_presets(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                     .map_err(|e| e.to_string())
                     .and_then(|_| refresh_presets(&mut app, &window));
                 match saved {
-                    Ok(()) => window.set_dialog(SharedString::default()),
+                    Ok(()) => DialogState::get(&window).set_dialog(SharedString::default()),
                     Err(error) => {
-                        window.set_dialog_result(
+                        DialogState::get(&window).set_dialog_result(
                             Tr::get(&window).invoke_save_failed(SharedString::from(error)),
                         );
                     }
@@ -2398,7 +2438,7 @@ fn wire_presets(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_apply_preset(move |index| {
+        DevelopState::get(window).on_apply_preset(move |index| {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -2432,7 +2472,7 @@ fn wire_presets(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_delete_preset(move |index| {
+        DevelopState::get(window).on_delete_preset(move |index| {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -2464,7 +2504,7 @@ fn refresh_presets(app: &mut App, window: &StudioWindow) -> Result<(), String> {
         .map(|preset| SharedString::from(preset.name.as_str()))
         .collect();
     app.dev_presets = presets;
-    window.set_dev_presets(ModelRc::from(Rc::new(VecModel::from(names))));
+    DevelopState::get(window).set_dev_presets(ModelRc::from(Rc::new(VecModel::from(names))));
     Ok(())
 }
 
@@ -2510,7 +2550,7 @@ fn wire_map(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        window.on_browse_camera_profile(move || {
+        DevelopState::get(window).on_browse_camera_profile(move || {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -3005,7 +3045,9 @@ fn develop_switch_to(app: &mut App, window: &StudioWindow, next: i32) {
     GridState::get(window).set_selected(next);
     app.develop = Some((asset, version));
     match refresh_develop(app, window) {
-        Ok(()) => window.set_develop_filename(SharedString::from(filename.as_str())),
+        Ok(()) => {
+            DevelopState::get(window).set_develop_filename(SharedString::from(filename.as_str()))
+        }
         Err(error) => report_error(window, &error),
     }
 }
@@ -3019,10 +3061,10 @@ fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<(), String> {
         let history = session.history().map_err(|e| e.to_string())?;
         (session.settings().clone(), history)
     };
-    window.set_dev(dev_model(&settings));
+    DevelopState::get(window).set_dev(dev_model(&settings));
     // Only the file name: the panel has no room for `Profiles/Camera/…`,
     // and that prefix is the same for every imported profile anyway.
-    window.set_camera_profile_name(SharedString::from(
+    DevelopState::get(window).set_camera_profile_name(SharedString::from(
         settings
             .camera_profile
             .as_ref()
@@ -3055,8 +3097,8 @@ fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<(), String> {
         .iter()
         .map(|row| SharedString::from(format::capture_date(row.created_at)))
         .collect();
-    window.set_dev_history(ModelRc::from(Rc::new(VecModel::from(rows))));
-    window.set_dev_history_current(
+    DevelopState::get(window).set_dev_history(ModelRc::from(Rc::new(VecModel::from(rows))));
+    DevelopState::get(window).set_dev_history_current(
         i32::try_from(
             app.dev_history
                 .iter()
@@ -3066,8 +3108,8 @@ fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<(), String> {
         .unwrap_or(0),
     );
     let (path, markers) = develop::curve_layout(&settings.tone_curve.points, CURVE_CANVAS_SIZE);
-    window.set_dev_curve_path(SharedString::from(path));
-    window.set_dev_curve_points(ModelRc::from(Rc::new(VecModel::from(
+    DevelopState::get(window).set_dev_curve_path(SharedString::from(path));
+    DevelopState::get(window).set_dev_curve_points(ModelRc::from(Rc::new(VecModel::from(
         markers
             .into_iter()
             .map(|(x, y)| CurveMarker {
@@ -3076,33 +3118,34 @@ fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<(), String> {
             })
             .collect::<Vec<_>>(),
     ))));
-    window.set_dev_spot_count(i32::try_from(settings.spot_removal.len()).unwrap_or(i32::MAX));
+    DevelopState::get(window)
+        .set_dev_spot_count(i32::try_from(settings.spot_removal.len()).unwrap_or(i32::MAX));
     let file = app
         .library
         .preview(asset, PreviewKind::Small)
         .map_err(|e| e.to_string())?;
     let image = slint::Image::load_from_path(&file.path)
         .map_err(|_| format!("cannot load preview {}", file.path.display()))?;
-    window.set_develop_image(image);
+    DevelopState::get(window).set_develop_image(image);
     if let Ok(bins) = app.library.histogram(asset, PreviewKind::Small) {
         const CANVAS: (f64, f64) = (256.0, 90.0);
         let scale_max = bins.iter().flatten().copied().max().unwrap_or(0);
-        window.set_dev_histogram_r(SharedString::from(develop::histogram_layout(
-            &bins[0], scale_max, CANVAS.0, CANVAS.1,
-        )));
-        window.set_dev_histogram_g(SharedString::from(develop::histogram_layout(
-            &bins[1], scale_max, CANVAS.0, CANVAS.1,
-        )));
-        window.set_dev_histogram_b(SharedString::from(develop::histogram_layout(
-            &bins[2], scale_max, CANVAS.0, CANVAS.1,
-        )));
+        DevelopState::get(window).set_dev_histogram_r(SharedString::from(
+            develop::histogram_layout(&bins[0], scale_max, CANVAS.0, CANVAS.1),
+        ));
+        DevelopState::get(window).set_dev_histogram_g(SharedString::from(
+            develop::histogram_layout(&bins[1], scale_max, CANVAS.0, CANVAS.1),
+        ));
+        DevelopState::get(window).set_dev_histogram_b(SharedString::from(
+            develop::histogram_layout(&bins[2], scale_max, CANVAS.0, CANVAS.1),
+        ));
     }
     // The develop target just changed (entered develop, or navigated to a
     // neighboring photo): any cached "before" render is for the wrong photo
     // now, and Compare Before/After starts back on "after" each time.
     app.dev_before = None;
-    window.set_dev_compare(false);
-    window.set_develop_image_before(slint::Image::default());
+    DevelopState::get(window).set_dev_compare(false);
+    DevelopState::get(window).set_develop_image_before(slint::Image::default());
     Ok(())
 }
 
@@ -3121,8 +3164,8 @@ fn enter_develop_for(app: &mut App, window: &StudioWindow, asset: AssetId, versi
     app.develop = Some((asset, version));
     match refresh_develop(app, window) {
         Ok(()) => {
-            window.set_develop_filename(SharedString::from(filename.as_str()));
-            window.set_develop_mode(true);
+            DevelopState::get(window).set_develop_filename(SharedString::from(filename.as_str()));
+            DevelopState::get(window).set_develop_mode(true);
         }
         Err(error) => {
             app.develop = None;

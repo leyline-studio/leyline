@@ -1,0 +1,86 @@
+// The modal dialogs and the panels that behave like them: which one is
+// open, what it reports back, and the fields each one holds (ADR 0045 §1).
+//
+// One `dialog` slot rather than a flag per dialog: only ever one is open at
+// a time, and `dialog-result` is the single line where each reports success
+// or failure.
+//
+// The text fields are `in-out` because both sides write them — the user
+// types into them, and the native pickers (`browse-*`) fill them in from
+// Rust. The two input paths stay in sync because they bind the same
+// property.
+export global DialogState {
+    // Modal dialog state: "" (none), "import", "export", "print", "tether"
+    // or "watch".
+    in-out property <string> dialog;
+    in-out property <string> dialog-result;
+    callback run-import(string, bool, bool);
+    in-out property <bool> import-copy: true;
+    in-out property <bool> import-recursive: true;
+    in-out property <string> import-source-text: "";
+    // Opens a native OS folder picker; on a non-cancelled pick, Rust sets
+    // `import-source-text` / `export-destination-text` below. Manual typing
+    // into the paired TextInput keeps working — the picker is just a
+    // faster alternative, not a replacement (both are `<=>` bound to the
+    // same property so either input path stays in sync).
+    callback browse-import-source();
+    callback open-export();
+    // preset index (-1 = ad-hoc), destination, format index, quality text, max-edge text.
+    // Format/quality/max-edge are ignored when a stored preset is chosen.
+    callback run-export(int, string, int, string, string);
+    // Name, format index, quality text, max-edge text — stores the custom
+    // export dialog's current recipe as a reusable preset (§12).
+    callback run-save-export-preset(string, int, string, string);
+    in property <[string]> export-presets;
+    in-out property <int> export-preset: -1;
+    in-out property <string> export-preset-name: "";
+    // How many photos `run-export` will act on — the multi-selection when
+    // there is one, otherwise 1 for the lone focused photo.
+    in-out property <int> export-photo-count: 1;
+    in-out property <int> export-format: 0;
+    in-out property <string> export-quality-text: "90";
+    in-out property <string> export-max-edge-text: "";
+    in-out property <string> export-destination-text: "";
+    callback browse-export-destination();
+    callback open-print();
+    // Print (ADR 0036): preset index (-1 = ad-hoc), destination, paper
+    // index, orientation index, margins text (mm, all four edges), dpi
+    // text, ICC profile path (blank = sRGB), intent index, copies text.
+    // Paper/orientation/margins/dpi/profile/intent are ignored when a
+    // stored preset is chosen — same pattern as `run-export`.
+    callback run-print(int, string, int, int, string, string, string, int, string);
+    callback run-save-print-preset(string, int, int, string, string, string, int);
+    in property <[string]> print-presets;
+    in-out property <int> print-preset: -1;
+    in-out property <string> print-preset-name: "";
+    in-out property <int> print-paper: 0;
+    in-out property <int> print-orientation: 0;
+    in-out property <string> print-margins-text: "10";
+    in-out property <string> print-dpi-text: "300";
+    in-out property <int> print-intent: 1;
+    in-out property <string> print-copies-text: "1";
+    in-out property <string> print-destination-text: "";
+    in-out property <string> print-profile-text: "";
+    callback browse-print-destination();
+    callback browse-print-profile();
+    // Opens the tethered-capture panel (ADR 0038), connects to / disconnects
+    // from the first USB camera libgphoto2 finds.
+    callback open-tether();
+    callback run-tether-connect();
+    callback run-tether-disconnect();
+    in-out property <bool> tether-connected: false;
+    in-out property <string> tether-status: "";
+    in-out property <string> tether-last-captured: "";
+    in-out property <int> tether-captured-count: 0;
+    // Opens the watched-folder auto-import panel (ADR 0039): starts/stops
+    // watching a folder, importing every file that settles there.
+    callback open-watch();
+    callback browse-watch-folder();
+    callback run-watch-start();
+    callback run-watch-stop();
+    in-out property <bool> watch-active: false;
+    in-out property <string> watch-status: "";
+    in-out property <string> watch-folder-text: "";
+    in-out property <string> watch-last-imported: "";
+    in-out property <int> watch-imported-count: 0;
+}
