@@ -38,12 +38,15 @@ jobs:
         if: runner.os == 'Linux'
         # nasm: rav1e (leyline-export's AVIF encoder) hard-fails its build.rs
         # without it rather than falling back to a pure-Rust path.
-        run: sudo apt-get update && sudo apt-get install -y libraw-dev nasm
+        # libgphoto2-dev: leyline-tether (ADR 0038). Found through pkg-config
+        # only, like LibRaw — its absence fails the *build*, which surfaces on
+        # whichever step compiles first (Clippy), not as a lint error.
+        run: sudo apt-get update && sudo apt-get install -y libraw-dev libgphoto2-dev nasm
 
       - name: Install system dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install libraw nasm
+          brew install libraw libgphoto2 nasm
           # Homebrew's libraw_r.pc hardcodes `-lstdc++` in its Libs line
           # (LibRaw is C++), but current Xcode/macOS SDKs only ship libc++ —
           # there's no standalone libstdc++.dylib/.tbd anymore, so the
