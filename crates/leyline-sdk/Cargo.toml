@@ -15,6 +15,14 @@ leyline-engine.workspace = true
 leyline-export.workspace = true
 leyline-map.workspace = true
 
+[features]
+# Pure forwarding of `leyline-engine/tether`, so the Windows packaging script
+# can turn the backend off from the top of the tree (Cargo can only select
+# features on the package it is asked to build, never on a transitive
+# dependency). Nothing in this crate's own surface changes either way.
+default = ["tether"]
+tether = ["leyline-engine/tether"]
+
 [dev-dependencies]
 serde_json.workspace = true
 tempfile.workspace = true

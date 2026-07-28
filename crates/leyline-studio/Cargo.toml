@@ -27,6 +27,14 @@ image.workspace = true
 slint-build.workspace = true
 embed-resource = "3.0"
 
+[features]
+# Pure forwarding of `leyline-engine/tether`, so the Windows packaging script
+# can turn the backend off from the top of the tree (Cargo can only select
+# features on the package it is asked to build, never on a transitive
+# dependency). Nothing in this crate's own surface changes either way.
+default = ["tether"]
+tether = ["leyline-sdk/tether"]
+
 [dev-dependencies]
 tempfile.workspace = true
 

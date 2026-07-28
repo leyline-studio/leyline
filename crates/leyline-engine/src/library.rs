@@ -84,6 +84,7 @@ struct Inner {
     next_job: AtomicU64,
     /// The running tether session (`docs/adr/0038`), if any. One camera at
     /// a time per library — connecting while this is `Some` is refused.
+    #[cfg(feature = "tether")]
     tether: Mutex<Option<leyline_tether::TetherSession>>,
     /// The running watched-folder session (`docs/adr/0039`), if any. One
     /// watched folder at a time per library — starting while this is
@@ -212,6 +213,7 @@ impl Library {
                 catalog: Mutex::new(catalog),
                 decodes: Mutex::new(DecodeCache::new(DECODE_CACHE_CAPACITY)),
                 subscribers: Mutex::new(Vec::new()),
+                #[cfg(feature = "tether")]
                 tether: Mutex::new(None),
                 watch: Mutex::new(None),
                 map_pack: Mutex::new(None),
@@ -1027,6 +1029,7 @@ impl Library {
     ///
     /// Refuses a second session while one is already open: one camera at a
     /// time per library in V1 (`docs/adr/0038`).
+    #[cfg(feature = "tether")]
     pub fn tether_connect(&self) -> Result<()> {
         let mut slot = lock(&self.inner.tether);
         if slot.is_some() {
@@ -1046,10 +1049,26 @@ impl Library {
         Ok(())
     }
 
+    /// Same call, in a build without the `tether` feature: reports that this
+    /// build has no libgphoto2 backend.
+    ///
+    /// The message names the cause rather than saying only "failed", because
+    /// a bare connection error would send the user unplugging and replugging
+    /// a camera that was never the problem.
+    #[cfg(not(feature = "tether"))]
+    pub fn tether_connect(&self) -> Result<()> {
+        Err(LeylineError::Tether(
+            "tethered capture is not available in this build of Leyline: no \
+             libgphoto2 backend is packaged for this platform yet"
+                .to_owned(),
+        ))
+    }
+
     /// Ends the running tether session, if any (`docs/adr/0038`) — a no-op
     /// when none is open. Blocks briefly (at most one poll interval) for
     /// the background thread to actually stop; by the time this returns,
     /// `Event::TetherDisconnected { reason: None }` has already fired.
+    #[cfg(feature = "tether")]
     pub fn tether_disconnect(&self) {
         // Deliberately two statements, not `if let Some(s) =
         // lock(..).take() { s.stop() }`: that form is a real deadlock, not
@@ -1066,9 +1085,15 @@ impl Library {
         }
     }
 
+    /// Same call, in a build without the `tether` feature: nothing can be
+    /// open, so this is the no-op it already is when no session is running.
+    #[cfg(not(feature = "tether"))]
+    pub fn tether_disconnect(&self) {}
+
     /// Turns one `leyline_tether::TetherEvent` into catalog state and an
     /// engine event (`docs/adr/0038`). Runs on the tether session's own
     /// background thread.
+    #[cfg(feature = "tether")]
     fn handle_tether_event(&self, event: leyline_tether::TetherEvent) {
         match event {
             leyline_tether::TetherEvent::Captured(file) => {

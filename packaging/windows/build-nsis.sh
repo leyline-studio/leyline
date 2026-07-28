@@ -104,12 +104,41 @@ trap cleanup EXIT
 
 # Populate the vendor DLLs this run needs. libraw_r-23.dll (and its
 # libraw_r.pc) must already exist from the manual cross-build described in
-# point 2 above — this script doesn't redo that autotools build itself.
-: "${LIBRAW_MINGW_PREFIX:?Set LIBRAW_MINGW_PREFIX to the --prefix used when cross-building LibRaw for x86_64-w64-mingw32, see point 2 above}"
+# point 2 above — this script doesn't redo that autotools build itself, but it
+# defaults to where that build is kept on this machine so a repeat run needs
+# no environment set up at all. Override LIBRAW_MINGW_PREFIX to point
+# elsewhere.
+: "${LIBRAW_MINGW_PREFIX:=/opt/leyline/libraw-mingw}"
+if [[ ! -f "$LIBRAW_MINGW_PREFIX/bin/libraw_r-23.dll" ]]; then
+    echo "error: no cross-built LibRaw at $LIBRAW_MINGW_PREFIX" >&2
+    echo "       rebuild it following point 2 of the header comment, or set" >&2
+    echo "       LIBRAW_MINGW_PREFIX to where it already lives." >&2
+    exit 1
+fi
+
+# pkg-config must be restricted to mingw-only paths — see point 1 of the
+# header comment for why PKG_CONFIG_PATH alone silently produces a
+# `cannot find -llcms2` at the final link instead of failing fast. Set here
+# rather than left to the caller: getting this wrong is the single easiest
+# way to lose an hour on this build.
+export PKG_CONFIG_ALLOW_CROSS=1
+export PKG_CONFIG_LIBDIR="/usr/x86_64-w64-mingw32/lib/pkgconfig:$LIBRAW_MINGW_PREFIX/lib/pkgconfig"
 cp "$LIBRAW_MINGW_PREFIX/bin/libraw_r-23.dll" "$vendor_dir/"
 cp /usr/x86_64-w64-mingw32/lib/zlib1.dll "$vendor_dir/"
 cp /usr/lib/gcc/x86_64-w64-mingw32/10-posix/libgcc_s_seh-1.dll "$vendor_dir/"
 cp /usr/lib/gcc/x86_64-w64-mingw32/10-posix/libstdc++-6.dll "$vendor_dir/"
 cp /usr/x86_64-w64-mingw32/lib/libwinpthread-1.dll "$vendor_dir/"
 
+# `--no-default-features` turns off `leyline-engine`'s `tether` feature: there
+# is no cross-compilable libgphoto2 for this target (no Debian mingw package,
+# weak upstream Windows support, and it pulls ltdl/libusb/gettext/iconv), the
+# gap ADR 0038 already recorded as open. The feature removes only the backend
+# — `tether_connect` still exists and reports why it cannot run — so nothing
+# in Studio, the CLI or the SDK surface changes shape for this build. Drop
+# this flag the day libgphoto2 is packaged for Windows.
+build_flags=(--release --target x86_64-pc-windows-gnu -p leyline-studio --no-default-features)
+
+# cargo-packager does not build the binary itself here, it packages one that
+# already exists at the target path.
+cargo build "${build_flags[@]}"
 cargo packager --release -p leyline-studio -f nsis --target x86_64-pc-windows-gnu "$@"

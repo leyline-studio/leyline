@@ -16,12 +16,26 @@ leyline-catalog.workspace = true
 leyline-preview.workspace = true
 leyline-color.workspace = true
 leyline-lens.workspace = true
-leyline-tether.workspace = true
+leyline-tether = { workspace = true, optional = true }
 leyline-map.workspace = true
 leyline-export.workspace = true
 notify.workspace = true
 rayon.workspace = true
 thiserror.workspace = true
+
+[features]
+# On by default, so an ordinary `cargo build`/`cargo test` is unchanged.
+# Turned off only by `packaging/windows/build-nsis.sh`: there is no
+# cross-compilable `libgphoto2` for the mingw target (no Debian mingw
+# package, weak upstream Windows support, pulls ltdl/libusb/gettext/iconv),
+# and ADR 0038 already flagged Windows/macOS packaging of it as open work.
+#
+# The feature removes the *backend*, never the API: `tether_connect`,
+# `tether_disconnect` and the tether events compile either way, so
+# `leyline-sdk`'s semver surface keeps the same shape and no client — CLI,
+# Studio or third party — needs to know how the engine was built.
+default = ["tether"]
+tether = ["dep:leyline-tether"]
 
 [dev-dependencies]
 image.workspace = true

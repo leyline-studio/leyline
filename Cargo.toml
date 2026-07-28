@@ -19,8 +19,13 @@ leyline-lens = { path = "crates/leyline-lens" }
 leyline-tether = { path = "crates/leyline-tether" }
 leyline-map = { path = "crates/leyline-map" }
 leyline-export = { path = "crates/leyline-export" }
-leyline-engine = { path = "crates/leyline-engine" }
-leyline-sdk = { path = "crates/leyline-sdk" }
+# `default-features = false` here rather than on each member edge: Cargo
+# forbids a member from overriding an inherited dependency's
+# `default-features`. Each consumer re-enables the `tether` backend through
+# its own forwarding feature, so the Windows packaging script can turn it
+# off from the top of the tree.
+leyline-engine = { path = "crates/leyline-engine", default-features = false }
+leyline-sdk = { path = "crates/leyline-sdk", default-features = false }
 
 blake3 = "1"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "tiff"] }
