@@ -15,6 +15,20 @@
 * clippy sans warnings
 * CI verte obligatoire.
 
+## Commandes
+
+Un `Makefile` à la racine rassemble ce qui revient souvent — `make` seul liste les cibles. Rien n'y est obligatoire : chaque cible n'est qu'une enveloppe autour d'un `cargo` ou d'un script de `packaging/`, et tout reste lançable à la main. L'intérêt est de garder les options exactes en un seul endroit, plusieurs étant faciles à se rappeler de travers.
+
+La seule à connaître par cœur :
+
+```bash
+make check      # fmt + clippy + tests — à passer avant chaque commit
+```
+
+Il n'y a pas encore de CI distante : `make check` est donc la seule chose entre une erreur et `main`.
+
+Les autres, au besoin : `make run` / `make cli` (avec `ARGS=…`), `make golden` et `make golden-bless` (rendus de référence, section suivante), `make test-raw LEYLINE_TEST_RAW=…` (les tests ignorés qui exigent un vrai RAW), `make bench`, `make i18n` (voir plus bas), et `make windows` / `make appimage` / `make dmg` pour les paquets ([ADR 0019](adr/0019-distribution-i18n.md)).
+
 ## Ajouter ou corriger un étage de rendu
 
 C'est la contribution la plus contrainte du projet, parce que c'est celle qui touche à la promesse « mêmes pixels dans dix ans » ([`pipeline.md`](pipeline.md) §5.1). Le *quoi* est spécifié en §3.3 du même document ; voici le *comment*.
@@ -55,8 +69,8 @@ Trois gardes :
 * aucune paire `(étage, version)` publiée n'y échappe — un opérateur qu'aucun cas n'active fait échouer les tests.
 
 ```bash
-cargo test -p leyline-engine --lib stages::golden          # vérifier
-LEYLINE_BLESS_GOLDEN=1 cargo test -p leyline-engine --lib stages::golden   # ajouter les entrées manquantes
+make golden          # vérifier
+make golden-bless    # ajouter les entrées manquantes
 ```
 
 Le bénissage est **additif** : il n'écrase jamais une entrée existante. Si une empreinte déjà au manifeste change, c'est un défaut — du code gelé a été touché — et il se corrige dans le code, pas dans le manifeste. Les cas eux-mêmes sont gelés pour la même raison : exercer un opérateur autrement, c'est un nouveau cas.
@@ -82,8 +96,7 @@ Slint 1.13 a, dans ce projet, un défaut de planification de repaint : donner à
 `slint-tr-extractor` inscrit le fichier et la ligne de chaque `@tr(...)`, et le `msgctxt` est **le nom du composant**. Déplacer une chaîne d'un composant à un autre change donc sa clé et la détache de sa traduction, sans le moindre avertissement. Après toute tranche d'interface :
 
 ```bash
-slint-tr-extractor -o crates/leyline-studio/translations/leyline-studio.pot \
-    $(find crates/leyline-studio/ui -name '*.slint' | sort)
+make i18n
 ```
 
 puis reporter les traductions existantes dans `translations/fr/LC_MESSAGES/leyline-studio.po`. Vérifier en lançant Studio avec `LANG=fr_FR.UTF-8` : un catalogue qui compile n'est pas un catalogue qui traduit.
