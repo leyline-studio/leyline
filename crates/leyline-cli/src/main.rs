@@ -8,11 +8,11 @@ use std::path::{Path, PathBuf};
 
 use leyline_sdk::{
     AssetId, CameraProfile, ColorGrading, ColorGradingZone, ColorLabel, Crop, CurvePoint,
-    ExportFormat, ExportRecipe, ExportRequest, ExportSettings, GridQuery, HslBand, ImportOptions,
-    LensCorrection, Library, LocalAdjustment, Margins, NoiseReduction, Orientation, PaperSize,
-    Param, PickState, Point, PresetId, PreviewKind, PrintRecipe, PrintRequest, PrintSettings,
-    RenderingIntent, Settings, SettingsGroup, Sharpening, SpotRemoval, ToneCurve, Value, VersionId,
-    WhiteBalance,
+    ExportFormat, ExportRecipe, ExportRequest, ExportSettings, GridQuery, HighlightReconstruction,
+    HslBand, ImportOptions, LensCorrection, Library, LocalAdjustment, Margins, NoiseReduction,
+    Orientation, PaperSize, Param, PickState, Point, PresetId, PreviewKind, PrintRecipe,
+    PrintRequest, PrintSettings, RenderingIntent, Settings, SettingsGroup, Sharpening, SpotRemoval,
+    ToneCurve, Value, VersionId, WhiteBalance,
 };
 
 const USAGE: &str = "\
@@ -60,6 +60,11 @@ Develop params (docs/pipeline.md §3.2, schema 1):
   contrast highlights shadows whites blacks vibrance saturation
   clarity texture dehaze           integer in [-100, 100]
   highlight-rolloff <0-100>         highlight shoulder at the output (0 = clip at white)
+  highlight-reconstruction <clip|blend|rebuild>
+                                    what the decoder does with channels that saturated at
+                                    the sensor (ADR 0050); clip is the neutral default.
+                                    Needs a revision pinned at input version 2 — reprocess
+                                    an older one first
   white-balance <kelvin> <tint>     tint integer, or `white-balance none` for as-shot
   lens-correction <on|off>
   noise-reduction <luminance> <color>
@@ -481,6 +486,22 @@ fn develop(args: &[String]) -> Result<(), String> {
         "texture" => (Param::Texture, Value::Int(int_at(0)?)),
         "dehaze" => (Param::Dehaze, Value::Int(int_at(0)?)),
         "highlight-rolloff" => (Param::HighlightRolloff, Value::Int(int_at(0)?)),
+        "highlight-reconstruction" => {
+            let mode = match at(0)? {
+                "clip" | "none" => HighlightReconstruction::Clip,
+                "blend" => HighlightReconstruction::Blend,
+                "rebuild" => HighlightReconstruction::Rebuild,
+                other => {
+                    return Err(format!(
+                        "unknown highlight reconstruction {other:?}, expected clip/blend/rebuild"
+                    ));
+                }
+            };
+            (
+                Param::HighlightReconstruction,
+                Value::HighlightReconstruction(mode),
+            )
+        }
         "vibrance" => (Param::Vibrance, Value::Int(int_at(0)?)),
         "saturation" => (Param::Saturation, Value::Int(int_at(0)?)),
         "white-balance" => {

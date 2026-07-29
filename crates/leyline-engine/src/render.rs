@@ -229,7 +229,10 @@ mod tests {
     /// The colorimetry every test here renders through: no camera matrix,
     /// so the sensor's numbers are taken as working-space values and the
     /// tests stay about the operators rather than about a body's profile.
-    const SOURCE: SourceColor = SourceColor::Camera { to_xyz: None };
+    const SOURCE: SourceColor = SourceColor::Camera {
+        to_xyz: None,
+        multipliers: None,
+    };
 
     #[test]
     fn a_neutral_render_keeps_geometry_grey_and_order() {

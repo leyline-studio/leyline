@@ -109,6 +109,11 @@ pub(crate) fn dev_model(settings: &Settings) -> crate::ui::DevSettings {
         color_grading_shadows: zone_model(&settings.color_grading.shadows),
         color_grading_midtones: zone_model(&settings.color_grading.midtones),
         color_grading_highlights: zone_model(&settings.color_grading.highlights),
+        highlight_reconstruction: SharedString::from(match settings.highlight_reconstruction {
+            leyline_sdk::HighlightReconstruction::Clip => "clip",
+            leyline_sdk::HighlightReconstruction::Blend => "blend",
+            leyline_sdk::HighlightReconstruction::Rebuild => "rebuild",
+        }),
         color_grading_balance: settings.color_grading.balance as f32,
         color_grading_blending: settings.color_grading.blending as f32,
     }

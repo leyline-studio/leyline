@@ -134,7 +134,7 @@ L'utilisateur règle des **valeurs**, jamais l'ordre.
 
 Les opérateurs de **tonalité**, eux, déclarent explicitement l'axe d'affichage (`in_display`) : un curseur de contraste est un énoncé sur la clarté *perçue*, et la même courbe appliquée à la lumière linéaire écraserait les ombres. Ce n'est pas un retour en arrière — rien n'y est écrêté à 1, l'axe est simplement celui sur lequel ces courbes ont un sens.
 
-Les deux étages d'extrémité, `input` et `output_rendering`, encadrent ce tampon. Ils n'ont pas de valeur neutre — il n'existe pas de rendu sans entrée ni sortie — et sont donc les seuls que **toute** révision inscrit dans sa carte `stages`. `input` porte la configuration demandée au décodeur (capteur natif linéaire, 16 bits) et la matrice qui amène ses pixels dans l'espace de travail ; `output_rendering` ramène le tampon non borné à un signal d'affichage, épaule des hautes lumières puis conversion vers l'espace de sortie.
+Les deux étages d'extrémité, `input` et `output_rendering`, encadrent ce tampon. Ils n'ont pas de valeur neutre — il n'existe pas de rendu sans entrée ni sortie — et sont donc les seuls que **toute** révision inscrit dans sa carte `stages`. `input` porte la configuration demandée au décodeur (capteur natif linéaire, 16 bits, et depuis ADR 0050 le sort des canaux saturés au capteur) et la matrice qui amène ses pixels dans l'espace de travail ; `output_rendering` ramène le tampon non borné à un signal d'affichage, épaule des hautes lumières puis conversion vers l'espace de sortie.
 
 L'espace de travail est une propriété déclarée par chaque version d'étage : deux versions d'espaces différents ne composent pas, et un plan qui les mélange **échoue** (`MixedWorkingSpaces`) au lieu d'être rendu au mieux. Migrer une révision d'un espace à l'autre est un retraitement (§4.5), donc une nouvelle révision.
 
@@ -154,7 +154,7 @@ Jamais un delta.
 {
     "schema": 1,
     "stages": {
-        "input": 1,
+        "input": 2,
         "camera_profile": 1, "gains": 1, "contrast": 1, "crop": 1,
         "output_rendering": 1
     },
@@ -239,6 +239,7 @@ Jamais un delta.
     "noise_reduction": { "luminance": 15, "color": 25 },
     "sharpening": { "amount": 40, "radius": 1.0 },
     "output_rendering": { "highlight_rolloff": 50 },
+    "highlight_reconstruction": "rebuild",
 
     "rotation": 0.0,
     "crop": { "x": 0.1, "y": 0.2, "width": 0.8, "height": 0.7 }
@@ -279,6 +280,7 @@ Valeurs neutres du schéma 1 :
 | `noise_reduction` | `{ "luminance": 0, "color": 0 }` |
 | `sharpening` | `{ "amount": 0, "radius": 1.0 }` |
 | `output_rendering` | `{ "highlight_rolloff": 50 }` — seul champ dont la valeur par défaut n'est pas « ne rien faire » : il n'existe pas de rendu sans sortie, donc c'est un choix de rendu, gelé avec la version d'étage qui le lit (ADR 0044 §3). L'import d'un JPEG/PNG/TIFF l'ouvre à 0, faute de marge à récupérer |
+| `highlight_reconstruction` | absent — `"clip"`, écrêtage au blanc ; les deux autres valeurs (`"blend"`, `"rebuild"`) exigent `input` en version 2 ([ADR 0050](adr/0050-highlight-reconstruction.md)) |
 | `rotation` | 0.0 |
 | `crop` | absent — image entière |
 
@@ -289,6 +291,7 @@ Valeurs neutres du schéma 1 :
 * `rotation` : degrés, sens horaire ;
 * `crop` : coordonnées normalisées [0, 1] relatives à l'image **après** rotation ;
 * `output_rendering.highlight_rolloff` : 0 = écrêtage franc au blanc, 100 = épaule la plus longue ; récupérer de la marge coûte un peu de blanc, ce que le curseur permet d'arbitrer ;
+* `highlight_reconstruction` : `"clip"` (neutre), `"blend"` ou `"rebuild"` — ce que le **décodeur** fait d'un canal saturé au capteur, avant dématriçage, à ne pas confondre avec l'épaule ci-dessus qui décide de ce que devient la marge à la sortie (ADR 0050) ;
 * les curseurs sans unité physique (`contrast`, `vibrance`...) : entiers dans [-100, +100], 0 = neutre ;
 * `hsl[].hue`, `color_grading.{shadows,midtones,highlights}.luminance`, `color_grading.balance` : entiers dans [-100, +100], 0 = neutre ;
 * `color_grading.{shadows,midtones,highlights}.hue` : degrés, entier dans [0, 360) ;
@@ -322,13 +325,13 @@ Un étage actif mais sans version inscrite rend à la version courante. Ce cas n
 
 Le code de chaque version d'étage est conservé dans le moteur pour toujours : c'est le prix de la promesse « mêmes pixels dans dix ans », dont §5.1 énonce la portée exacte. Il se paie désormais par opérateur réellement corrigé — quelques dizaines de lignes — et non plus par copie intégrale du pipeline.
 
-**Étages connus, et l'ordre dans lequel ils s'exécutent.** L'historique de rendu antérieur à la publication a été effondré ([ADR 0043](adr/0043-collapse-prerelease-render-history.md)), puisqu'aucune révision au monde ne le citait : tous les étages sont donc partis en version 1. Trois ont depuis une seconde version : les deux étages de bruit ([ADR 0046](adr/0046-edge-preserving-denoise.md)) et les réglages locaux ([ADR 0048](adr/0048-range-masks.md)). La version courante, celle qu'une nouvelle révision épingle, est la **dernière** listée pour chaque étage.
+**Étages connus, et l'ordre dans lequel ils s'exécutent.** L'historique de rendu antérieur à la publication a été effondré ([ADR 0043](adr/0043-collapse-prerelease-render-history.md)), puisqu'aucune révision au monde ne le citait : tous les étages sont donc partis en version 1. Quatre ont depuis une seconde version : les deux étages de bruit ([ADR 0046](adr/0046-edge-preserving-denoise.md)), les réglages locaux ([ADR 0048](adr/0048-range-masks.md)) et `input` ([ADR 0050](adr/0050-highlight-reconstruction.md)). La version courante, celle qu'une nouvelle révision épingle, est la **dernière** listée pour chaque étage.
 
-**Un réglage qu'une version épinglée ne sait pas exprimer est refusé.** ADR 0046 corrigeait un rendu ; ADR 0048 **étend** un opérateur, et fait donc apparaître un cas que rien n'avait éprouvé : un réglage dont l'existence même dépend de la version d'étage. Puisqu'un étage déjà inscrit garde sa version, une révision épinglée en `local_adjustments: 1` ne peut pas porter de masque par plage — et `Settings::validate()` la **refuse** en nommant le remède (retraiter, §4.5) au lieu de laisser le réglage disparaître en silence. C'est la règle générale pour toute fonctionnalité future ajoutée à un étage existant.
+**Un réglage qu'une version épinglée ne sait pas exprimer est refusé.** ADR 0046 corrigeait un rendu ; ADR 0048 **étend** un opérateur, et fait donc apparaître un cas que rien n'avait éprouvé : un réglage dont l'existence même dépend de la version d'étage. Puisqu'un étage déjà inscrit garde sa version, une révision épinglée en `local_adjustments: 1` ne peut pas porter de masque par plage — et `Settings::validate()` la **refuse** en nommant le remède (retraiter, §4.5) au lieu de laisser le réglage disparaître en silence. C'est la règle générale pour toute fonctionnalité future ajoutée à un étage existant. ADR 0050 l'applique une seconde fois, un cran plus bas : le mode de reconstruction des hautes lumières est une **configuration du décodeur**, qu'`input::v1` ne lit pas — une révision épinglée en `input: 1` le refuse donc de la même manière.
 
 | Rang | Étage | Version | Rôle |
 |---|---|---|---|
-| 0 | `input` | 1 | Configuration demandée au décodeur (capteur natif, linéaire, 16 bits) et matrice vers l'espace de travail — profil DCP, matrice du boîtier, ou décodage sRGB pour un JPEG/PNG/TIFF ; toujours actif (ADR 0044) |
+| 0 | `input` | 1, 2 | Configuration demandée au décodeur (capteur natif, linéaire, 16 bits) et matrice vers l'espace de travail — profil DCP, matrice du boîtier, ou décodage sRGB pour un JPEG/PNG/TIFF ; toujours actif (ADR 0044). La v2 ajoute le mode de reconstruction des hautes lumières demandé au décodeur (ADR 0050) |
 | 10 | `camera_profile` | 1 | Matrice DCP boîtier → Rec. 2020 linéaire, avant tout le reste : elle remplace alors la matrice d'`input` (ADR 0035, conteneur lu selon ADR 0037) |
 | 20 | `lens` | 1 | Distorsion, aberration chromatique transversale et vignettage via un profil Lensfun (ADR 0016–0018) |
 | 30 | `spot_removal` | 1 | Clonage déterministe par copie bilinéaire adoucie, sans mode *heal* (ADR 0031) |

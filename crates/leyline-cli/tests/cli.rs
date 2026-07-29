@@ -76,6 +76,8 @@ fn develop_covers_every_param_kind() {
         vec!["develop", &root, "1", "sharpening", "40", "1.5"],
         vec!["develop", &root, "1", "crop", "10", "10", "80", "80"],
         vec!["develop", &root, "1", "crop", "reset"],
+        vec!["develop", &root, "1", "highlight-reconstruction", "blend"],
+        vec!["develop", &root, "1", "highlight-reconstruction", "clip"],
     ] {
         let out = run(&args);
         assert!(out.status.success(), "{args:?}: {}", stderr(&out));
@@ -85,7 +87,7 @@ fn develop_covers_every_param_kind() {
     let out = run(&["history", &root, "1"]);
     assert!(out.status.success(), "{}", stderr(&out));
     // The initial revision plus one commit per develop call above.
-    assert_eq!(stdout(&out).lines().count(), 9);
+    assert_eq!(stdout(&out).lines().count(), 11);
     assert!(stdout(&out).lines().next().unwrap().starts_with("HEAD"));
 }
 
@@ -234,6 +236,10 @@ fn develop_rejects_bad_input_without_writing_a_revision() {
     let out = run(&["develop", &root, "1", "sharpening", "40"]);
     assert!(!out.status.success());
     assert!(stderr(&out).contains("expects"));
+
+    let out = run(&["develop", &root, "1", "highlight-reconstruction", "guess"]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("clip/blend/rebuild"));
 
     let out = run(&["develop", &root, "1", "gamma", "1.0"]);
     assert!(!out.status.success());

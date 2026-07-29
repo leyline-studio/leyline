@@ -72,6 +72,7 @@ pub(crate) mod kernel {
 }
 pub(crate) mod input {
     pub(crate) mod v1;
+    pub(crate) mod v2;
 }
 pub(crate) mod camera_profile {
     pub(crate) mod v1;
@@ -158,6 +159,14 @@ pub enum SourceColor {
     Camera {
         /// The body's XYZ→camera matrix, `None` for an unknown body.
         to_xyz: Option<leyline_color::Matrix3>,
+        /// The body's as-shot channel multipliers
+        /// ([`leyline_raw::RawMetadata::camera_multipliers`]), `None` when
+        /// the file records none.
+        ///
+        /// Only one stage version reads them, and for one purpose: undoing
+        /// the global gain change the decoder applies when it is asked to
+        /// reconstruct highlights instead of clipping them (ADR 0050 §3).
+        multipliers: Option<[f64; 4]>,
     },
     /// A JPEG, PNG or TIFF: gamma-encoded sRGB from a native codec.
     Srgb,
@@ -276,17 +285,36 @@ pub(crate) static STAGES: &[Stage] = &[
         // the rendering that no revision recorded.
         name: "input",
         active: |_| true,
-        versions: &[Version {
-            version: 1,
-            rank: 0,
-            space: Space::LinearRec2020,
-            // Nothing to do on the buffer: at this version the decoder
-            // already hands over gamma-encoded sRGB, and the camera
-            // profile stage does the matrix when there is a profile.
-            apply: |px, ctx| {
-                input::v1::to_working_space(px, ctx.source, ctx.camera_profile.is_some());
+        versions: &[
+            Version {
+                version: 1,
+                rank: 0,
+                space: Space::LinearRec2020,
+                // Nothing to do on the buffer: at this version the decoder
+                // already hands over gamma-encoded sRGB, and the camera
+                // profile stage does the matrix when there is a profile.
+                apply: |px, ctx| {
+                    input::v1::to_working_space(px, ctx.source, ctx.camera_profile.is_some());
+                },
             },
-        }],
+            // Same buffer work, a decoder that is told what to do with
+            // clipped highlights (ADR 0050): the difference lives entirely
+            // in `INPUT_DECODE` below, which is the other half of what an
+            // `input` version pins.
+            Version {
+                version: 2,
+                rank: 0,
+                space: Space::LinearRec2020,
+                apply: |px, ctx| {
+                    input::v2::to_working_space(
+                        px,
+                        ctx.source,
+                        ctx.camera_profile.is_some(),
+                        ctx.settings.highlight_reconstruction,
+                    );
+                },
+            },
+        ],
     },
     Stage {
         name: "camera_profile",
@@ -657,12 +685,17 @@ pub(crate) static STAGES: &[Stage] = &[
 /// freezes two things together — what the decoder is asked for, and what the
 /// stage then does to the buffer — because both change pixels and a revision
 /// cites a single number for them.
-static INPUT_DECODE: &[(u16, DecodeConfig)] = &[(1, input::v1::decode_params)];
+static INPUT_DECODE: &[(u16, DecodeConfig)] =
+    &[(1, input::v1::decode_params), (2, input::v2::decode_params)];
 
-/// What one `input` version asks the decoder for. `half_size` is the
-/// caller's size class (ADR 0041), the only thing that varies between two
-/// renders of the same revision.
-type DecodeConfig = fn(bool) -> DecodeParams;
+/// What one `input` version asks the decoder for.
+///
+/// `half_size` is the caller's size class (ADR 0041), the only thing that
+/// varies between two renders of the same revision. The settings arrive
+/// because a decoder configuration can itself be a stored choice — the
+/// highlight mode of ADR 0050 is one — and each version decides which of
+/// them it reads; `v1` reads none, which is what keeps it frozen.
+type DecodeConfig = fn(&Settings, bool) -> DecodeParams;
 
 /// The decoder configuration a revision's `input` version calls for
 /// (ADR 0044 §3).
@@ -678,7 +711,7 @@ pub(crate) fn decode_params(settings: &Settings, half_size: bool) -> DecodeParam
         .find(|(v, _)| *v == version.version)
         .map(|(_, decode)| decode)
         .expect("every published input version has a decoder configuration");
-    decode(half_size)
+    decode(settings, half_size)
 }
 
 /// The version of `stage_name` this render uses: the one `settings` records,

@@ -11,11 +11,18 @@
 
 void leyline_shim_set_options(libraw_data_t *d, int use_camera_wb,
                               int half_size, int output_bps,
-                              int no_auto_bright, int camera_native) {
+                              int no_auto_bright, int camera_native,
+                              int highlight) {
     d->params.use_camera_wb = use_camera_wb;
     d->params.half_size = half_size;
     d->params.output_bps = output_bps;
     d->params.no_auto_bright = no_auto_bright;
+    /* Clipped highlight handling, before demosaic (ADR 0050): 0 clips at
+     * white, 2 blends the clipped and unclipped channels, 5 rebuilds the
+     * saturated channel from the others. The caller decides; LibRaw's own
+     * default is 0, which is what Leyline asked for implicitly until
+     * ADR 0050 gave it a name. */
+    d->params.highlight = highlight;
     if (camera_native) {
         /* Raw camera color space (ADR 0035): no color matrix applied, so a
          * camera profile (DCP) can operate on genuinely camera-native
@@ -47,6 +54,22 @@ int leyline_shim_cam_xyz(const libraw_data_t *d, double out[9]) {
         }
     }
     return nonzero;
+}
+
+/* The camera's as-shot channel multipliers (white balance as the body
+ * recorded it), as LibRaw fills them during identify. Four channels: a
+ * three-color sensor leaves the fourth at 0 or repeats the second green.
+ *
+ * They are what `scale_colors` normalizes the image by, and the normalization
+ * differs between highlight modes (dcraw divides by the smallest multiplier
+ * when clipping, by the largest otherwise), which is why a caller asking for
+ * highlight reconstruction needs them to undo the resulting global gain
+ * change (ADR 0050 §3). Returns 0 when LibRaw has no camera white balance for
+ * this file. */
+int leyline_shim_cam_mul(const libraw_data_t *d, double out[4]) {
+    if (d->color.cam_mul[0] <= 0.0f) return 0;
+    for (int c = 0; c < 4; c++) out[c] = (double)d->color.cam_mul[c];
+    return 1;
 }
 
 /* --- identification metadata ----------------------------------------- */

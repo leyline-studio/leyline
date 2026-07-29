@@ -15,9 +15,9 @@ use std::time::{Duration, Instant};
 
 use leyline_catalog::{Catalog, RevisionRow};
 use leyline_core::{
-    CURRENT_SCHEMA, CameraProfile, ColorGrading, Crop, HslBand, LensCorrection, LeylineError,
-    LocalAdjustment, NoiseReduction, Result, RevisionId, Settings, Sharpening, SpotRemoval,
-    ToneCurve, VersionId, WhiteBalance,
+    CURRENT_SCHEMA, CameraProfile, ColorGrading, Crop, HighlightReconstruction, HslBand,
+    LensCorrection, LeylineError, LocalAdjustment, NoiseReduction, Result, RevisionId, Settings,
+    Sharpening, SpotRemoval, ToneCurve, VersionId, WhiteBalance,
 };
 
 /// Default amendment window of `docs/catalog.md` §17.
@@ -52,6 +52,10 @@ pub enum Param {
     /// How far the highlight shoulder reaches when the working buffer
     /// becomes a display signal (ADR 0044 §3).
     HighlightRolloff,
+    /// What the decoder does with channels that saturated at the sensor
+    /// (ADR 0050) — a decoder configuration rather than an operator, so a
+    /// revision pinned at `input: 1` refuses it instead of dropping it.
+    HighlightReconstruction,
     /// Vibrance slider.
     Vibrance,
     /// Saturation slider.
@@ -122,6 +126,8 @@ pub enum Value {
     /// For [`Param::CameraProfile`]; `None` returns to no camera profile
     /// (the decoder's default sRGB rendering).
     CameraProfile(Option<CameraProfile>),
+    /// For [`Param::HighlightReconstruction`].
+    HighlightReconstruction(HighlightReconstruction),
 }
 
 /// What changed since the last commit point.
@@ -405,6 +411,9 @@ fn apply(settings: &mut Settings, param: Param, value: Value) -> Result<()> {
         (Param::Dehaze, Value::Int(v)) => settings.dehaze = v,
         (Param::HighlightRolloff, Value::Int(v)) => {
             settings.output_rendering.highlight_rolloff = v;
+        }
+        (Param::HighlightReconstruction, Value::HighlightReconstruction(v)) => {
+            settings.highlight_reconstruction = v;
         }
         (Param::Vibrance, Value::Int(v)) => settings.vibrance = v,
         (Param::Saturation, Value::Int(v)) => settings.saturation = v,

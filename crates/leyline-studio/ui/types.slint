@@ -155,6 +155,9 @@ export struct DevSettings {
     // Whether the referenced camera profile is applied (ADR 0035); its
     // name lives in `camera-profile-name`, empty when none is referenced.
     camera-profile: bool,
+    // What the decoder does with channels that saturated at the sensor
+    // (ADR 0050): "clip", "blend" or "rebuild".
+    highlight-reconstruction: string,
     // Fixed order: red, orange, yellow, green, aqua, blue, purple, magenta
     // (ADR 0031) — always exactly 8 entries.
     hsl: [HslBandValues],

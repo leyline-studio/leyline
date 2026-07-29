@@ -108,6 +108,39 @@ pub struct NoiseReduction {
 
 /// How the working buffer becomes a display signal (ADR 0044 §3).
 ///
+/// What becomes of a channel that saturated at the sensor (ADR 0050).
+///
+/// Decided *before* demosaic, where a clipped pixel still has unclipped
+/// neighbors in the other channels — which is why this is a decoder
+/// configuration pinned by the `input` stage version, not an operator of its
+/// own. `Clip` is the neutral value: it changes nothing, and it is what every
+/// revision written before ADR 0050 renders through.
+///
+/// Requires `input` at version 2 or later. A non-neutral value on a revision
+/// pinned at `input: 1` is refused by [`Settings::validate`] rather than
+/// silently dropped (ADR 0050 §5).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HighlightReconstruction {
+    /// Clip at white: nothing is recovered.
+    #[default]
+    Clip,
+    /// Blend the clipped and unclipped channels: recovers texture without
+    /// drifting in color.
+    Blend,
+    /// Rebuild the saturated channel from the others: recovers the most, at
+    /// the risk of a hue shift in deeply saturated areas.
+    Rebuild,
+}
+
+impl HighlightReconstruction {
+    /// Whether this is the neutral value — the predicate that keeps it out of
+    /// a stored `settings_json` when nothing was asked for.
+    pub fn is_clip(&self) -> bool {
+        *self == HighlightReconstruction::Clip
+    }
+}
+
 /// The pipeline carries highlights above white — a window brighter than the
 /// wall beside it — all the way to the end. This says what becomes of them
 /// when the image has to fit on a screen or in a file.
@@ -560,6 +593,12 @@ pub struct Settings {
     /// no neutral value: some rendering always happens.
     pub output_rendering: OutputRendering,
 
+    /// What the decoder does with channels that saturated at the sensor
+    /// (ADR 0050). Neutral: [`HighlightReconstruction::Clip`], which is why
+    /// it is absent from a stored document that never asked for anything.
+    #[serde(default, skip_serializing_if = "HighlightReconstruction::is_clip")]
+    pub highlight_reconstruction: HighlightReconstruction,
+
     /// Rotation in degrees, clockwise. Neutral: 0.
     pub rotation: f64,
     /// Crop rectangle; `None` = full frame (neutral).
@@ -598,6 +637,7 @@ impl Default for Settings {
             lens_correction: LensCorrection::default(),
             noise_reduction: NoiseReduction::default(),
             output_rendering: OutputRendering::default(),
+            highlight_reconstruction: HighlightReconstruction::default(),
             sharpening: Sharpening::default(),
             rotation: 0.0,
             crop: None,
@@ -638,6 +678,18 @@ impl Settings {
             return Err(LeylineError::InvalidSettings(
                 "settings carry `process`, removed by ADR 0043: this revision \
                  predates the stage map and cannot be rendered"
+                    .to_owned(),
+            ));
+        }
+
+        // Same capability rule as ADR 0048 §5, one layer lower: the mode is
+        // a *decoder* configuration, and `input::v1` has no code that reads
+        // it. Keeping the pinned version and dropping the mode would leave
+        // the user with a setting that does nothing (ADR 0050 §5).
+        if !self.highlight_reconstruction.is_clip() && self.stages.get("input") == Some(&1) {
+            return Err(LeylineError::InvalidSettings(
+                "highlight_reconstruction needs stage input version 2, but this revision \
+                 pins version 1; reprocess the photo to the current stage versions first"
                     .to_owned(),
             ));
         }
@@ -1698,6 +1750,64 @@ mod tests {
             }),
             ..radial_adjustment()
         }
+    }
+
+    /// ADR 0050 §5, the same capability rule one layer lower: the decoder
+    /// configuration a revision pins decides whether the mode can be
+    /// expressed at all.
+    #[test]
+    fn a_highlight_mode_on_a_revision_pinned_at_input_v1_is_refused() {
+        let pinned_v1 = Settings {
+            highlight_reconstruction: HighlightReconstruction::Rebuild,
+            stages: StageVersions::from([("input".to_owned(), 1)]),
+            ..Settings::default()
+        };
+        let error = pinned_v1.validate().unwrap_err().to_string();
+        assert!(error.contains("input version 2"), "{error}");
+        assert!(error.contains("reprocess"), "{error}");
+
+        // Clipping is the neutral value, so it is expressible everywhere.
+        let clipped = Settings {
+            highlight_reconstruction: HighlightReconstruction::Clip,
+            ..pinned_v1.clone()
+        };
+        assert!(clipped.validate().is_ok());
+
+        // And so is any mode on a revision pinned at the version that reads
+        // it, or at none at all (a fresh revision).
+        let pinned_v2 = Settings {
+            stages: StageVersions::from([("input".to_owned(), 2)]),
+            ..pinned_v1.clone()
+        };
+        assert!(pinned_v2.validate().is_ok());
+        let unpinned = Settings {
+            stages: StageVersions::default(),
+            ..pinned_v1
+        };
+        assert!(unpinned.validate().is_ok());
+    }
+
+    /// The neutral mode leaves no trace in a stored document, and a stored
+    /// one round-trips (`docs/pipeline.md` §3.4).
+    #[test]
+    fn the_highlight_mode_is_omitted_when_neutral_and_round_trips_otherwise() {
+        let neutral = Settings::default();
+        let json: serde_json::Value = serde_json::from_str(&neutral.to_json()).unwrap();
+        assert!(json.get("highlight_reconstruction").is_none());
+
+        let asked = Settings {
+            highlight_reconstruction: HighlightReconstruction::Blend,
+            ..Settings::default()
+        };
+        let json = asked.to_json();
+        assert!(
+            json.contains("\"highlight_reconstruction\":\"blend\""),
+            "{json}"
+        );
+        assert_eq!(
+            Settings::parse(&json).unwrap().highlight_reconstruction,
+            HighlightReconstruction::Blend
+        );
     }
 
     /// The decision of ADR 0048 §5: a revision pinned at `local_adjustments`

@@ -1482,3 +1482,17 @@ msgstr "Largeur de teinte"
 
 msgid "Hue softness"
 msgstr "Douceur de teinte"
+
+# Highlight reconstruction (ADR 0050): what the decoder does with a clipped channel.
+
+msgid "Clipped highlights"
+msgstr "Hautes lumières écrêtées"
+
+msgid "Clip"
+msgstr "Écrêter"
+
+msgid "Blend"
+msgstr "Mélanger"
+
+msgid "Rebuild"
+msgstr "Reconstruire"

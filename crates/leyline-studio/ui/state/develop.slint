@@ -54,6 +54,11 @@ export global DevelopState {
     // directly, without leaving develop mode.
     callback develop-switch(int);
     callback develop-edit(string, float);
+    // Highlight reconstruction (ADR 0050): the mode name the decoder is
+    // asked for — "clip", "blend" or "rebuild". Its own callback rather than
+    // a `develop-edit` with a number, because the three modes are not points
+    // on a scale.
+    callback develop-set-highlight-reconstruction(string);
     // HSL mixer band edit (ADR 0031): band index (0..8, fixed order red..
     // magenta), field ("hue"/"saturation"/"luminance"), released value.
     callback develop-edit-hsl-band(int, string, float);

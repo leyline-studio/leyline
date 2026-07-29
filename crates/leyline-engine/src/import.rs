@@ -425,6 +425,7 @@ mod tests {
             gps_longitude: None,
             gps_altitude: None,
             camera_to_xyz: None,
+            camera_multipliers: None,
         }
     }
 

@@ -48,6 +48,10 @@ pub struct DecodeParams {
     /// Apply LibRaw's histogram-based auto-brightening. Off by default:
     /// the neutral rendering must not depend on image content.
     pub auto_brighten: bool,
+    /// What to do with channels that saturated at the sensor (ADR 0050).
+    /// `Default` is [`HighlightMode::Clip`], LibRaw's own default and what
+    /// this crate asked for implicitly before that decision.
+    pub highlight: HighlightMode,
     /// Decode to raw camera color space, linear (no color matrix, no gamma
     /// curve), instead of LibRaw's own built-in sRGB conversion (ADR 0035).
     /// Needed only when a camera profile (DCP) will replace that
@@ -55,6 +59,39 @@ pub struct DecodeParams {
     /// (`Default`) leaves this off and gets LibRaw's ordinary gamma-
     /// encoded sRGB.
     pub camera_native: bool,
+}
+
+/// What the decoder does with a channel that saturated at the sensor
+/// (ADR 0050), applied *before* demosaic — the only place where a clipped
+/// pixel still has unclipped neighbors in the other channels.
+///
+/// Three of LibRaw's nine modes. `Unclip` (its mode 1) is deliberately not
+/// among them: it leaves the highlights with the magenta cast of a channel
+/// carried past the others, which looks like a defect rather than a choice.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum HighlightMode {
+    /// Clip at white — nothing is recovered, and nothing changes from what
+    /// this crate did before ADR 0050. LibRaw mode 0.
+    #[default]
+    Clip,
+    /// Blend the clipped and unclipped channels: recovers texture without
+    /// drifting in color. LibRaw mode 2.
+    Blend,
+    /// Rebuild the saturated channel from the others: recovers the most, at
+    /// the risk of a hue shift in deeply saturated areas. LibRaw mode 5, the
+    /// median of its 3..9 rebuild family.
+    Rebuild,
+}
+
+impl HighlightMode {
+    /// The `params.highlight` value LibRaw expects.
+    fn libraw_mode(self) -> i32 {
+        match self {
+            HighlightMode::Clip => 0,
+            HighlightMode::Blend => 2,
+            HighlightMode::Rebuild => 5,
+        }
+    }
 }
 
 /// Identification metadata read from a RAW file's header, without decoding.
@@ -101,6 +138,20 @@ pub struct RawMetadata {
     /// would clip every color outside the space it converts to, which is
     /// exactly what a wide-gamut pipeline must not do.
     pub camera_to_xyz: Option<[[f64; 3]; 3]>,
+    /// The camera's as-shot channel multipliers — the white balance the body
+    /// recorded — in the decoder's channel order, `None` when the file
+    /// carries none.
+    ///
+    /// A three-color sensor leaves the fourth entry at zero or repeats the
+    /// second green, so a caller must skip non-positive entries.
+    ///
+    /// Exposed for one reason (ADR 0050 §3): the decoder normalizes the image
+    /// by these multipliers, and it normalizes by the *smallest* of them when
+    /// clipping highlights but by the *largest* when reconstructing them. The
+    /// ratio between the two is a global gain difference a caller has to know
+    /// about to undo — it is the same for every pixel, which is what makes it
+    /// undoable at all.
+    pub camera_multipliers: Option<[f64; 4]>,
 }
 
 /// A decoded image: interleaved RGB, tightly packed, orientation applied.
@@ -199,6 +250,7 @@ impl Handle {
                 gps_longitude,
                 gps_altitude,
                 camera_to_xyz: cam_xyz(self.0),
+                camera_multipliers: cam_mul(self.0),
             }
         }
     }
@@ -242,6 +294,7 @@ pub fn decode(path: &Path, params: &DecodeParams) -> Result<Decoded, RawError> {
             if params.sixteen_bit { 16 } else { 8 },
             c_int::from(!params.auto_brighten),
             c_int::from(params.camera_native),
+            params.highlight.libraw_mode(),
         );
         check(ffi::libraw_unpack(handle.0))?;
         check(ffi::libraw_dcraw_process(handle.0))?;
@@ -320,6 +373,17 @@ unsafe fn cam_xyz(handle: *const ffi::LibrawData) -> Option<[[f64; 3]; 3]> {
         row.copy_from_slice(chunk);
     }
     Some(matrix)
+}
+
+/// The camera's as-shot channel multipliers, `None` when the file has none.
+///
+/// # Safety
+/// `handle` must be a live LibRaw handle whose file has been opened.
+unsafe fn cam_mul(handle: *const ffi::LibrawData) -> Option<[f64; 4]> {
+    let mut multipliers = [0.0f64; 4];
+    // SAFETY: the shim writes exactly four doubles into the buffer.
+    let known = unsafe { ffi::leyline_shim_cam_mul(handle, multipliers.as_mut_ptr()) };
+    (known != 0 && multipliers.iter().all(|m| m.is_finite())).then_some(multipliers)
 }
 
 /// A metadata float is "recorded" when strictly positive and finite.

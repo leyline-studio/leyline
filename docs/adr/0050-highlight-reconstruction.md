@@ -70,7 +70,34 @@ du projet — la valeur neutre d'un réglage est celle qui ne change rien —, e
 elle est ici doublement nécessaire, puisque changer le défaut modifierait le
 rendu de toute photo déjà importée.
 
-### 3. `input::v2`, et un `v1` qui ne bouge pas
+### 3. Rendre le gain que le décodeur retire
+
+Mesuré sur un vrai CR2 : demander `blend` ou `rebuild` **assombrit toute la
+photo** d'environ un tiers, hautes lumières comprises. Ce n'est pas un défaut
+d'implémentation, c'est le fonctionnement de dcraw, repris par LibRaw : la
+normalisation par les multiplicateurs de balance des blancs divise par le
+**plus petit** d'entre eux quand on écrête — tous les canaux montent alors à 1
+ou au-dessus, et le plus fort sature — et par le **plus grand** quand on
+reconstruit, pour qu'aucun canal ne puisse dépasser le blanc. L'écart entre les
+deux est un gain global, identique pour tous les pixels.
+
+Le laisser tel quel serait inacceptable : « récupérer les hautes lumières »
+donnerait l'apparence d'un curseur d'exposition, et l'utilisateur compenserait
+à la main sans savoir pourquoi. `input::v2` le **rend** donc, en multipliant le
+tampon par le rapport `max/min` des multiplicateurs as-shot du boîtier, que
+`leyline-raw` expose pour cela (`RawMetadata::camera_multipliers`).
+
+Le résultat est exactement ce que la fonction doit être : les tons moyens
+reviennent là où l'écrêtage les mettait — mesuré à 0,1 % près sur le même
+fichier — et ce qui a été reconstruit atterrit **au-dessus du blanc**, où le
+tampon non borné d'ADR 0044 le garde jusqu'à ce que `output_rendering` décide de
+son sort. C'est une opération sur les hautes lumières, pas sur l'exposition.
+
+Un fichier sans balance des blancs enregistrée ne reçoit aucune compensation :
+pas de multiplicateurs, donc pas de rapport à rendre — et pas de correction
+inventée.
+
+### 4. `input::v2`, et un `v1` qui ne bouge pas
 
 Le mode de décodage fait partie du rendu, donc de la promesse de
 `docs/pipeline.md` §5.1. Il lui faut une nouvelle version d'étage :
@@ -88,7 +115,7 @@ n'est pas une édition de version publiée au sens d'ADR 0042 §1 : ce que le ge
 protège est **ce que `v1` demande au décodeur**, et `v1` demande la même chose
 qu'avant en ignorant son nouvel argument.
 
-### 4. Un mode non neutre sur une révision épinglée en `input: 1` est **refusé**
+### 5. Un mode non neutre sur une révision épinglée en `input: 1` est **refusé**
 
 C'est le cas de figure d'[ADR 0048](0048-range-masks.md) §5, mot pour mot :
 une révision de 2026 épingle `input: 1`, l'utilisateur y demande `rebuild` en
@@ -102,7 +129,7 @@ qu'ADR 0048 §5 a dégagée — **un réglage qu'une version épinglée ne sait 
 exprimer est un refus de validation, jamais une valeur perdue** — et la
 première qui ne concerne pas un opérateur de pixels mais le décodeur.
 
-### 5. Ce que la reproductibilité couvre ici
+### 6. Ce que la reproductibilité couvre ici
 
 La reconstruction est déterministe : mêmes octets d'entrée, mêmes paramètres,
 mêmes pixels. Elle dépend en revanche de la **version de LibRaw**, comme tout le
@@ -111,7 +138,7 @@ décodage depuis le premier jour — ce que `docs/pipeline.md` §5.2 range déj�
 elle y ajoute un paramètre dont l'effet est visible, là où le décodage y était
 déjà entièrement.
 
-### 6. Hors périmètre
+### 7. Hors périmètre
 
 * **Le choix de l'algorithme de dématriçage** (`params.user_qual`), aujourd'hui
   laissé au défaut de LibRaw. Même famille de question — un paramètre de
@@ -129,6 +156,11 @@ déjà entièrement.
   `rebuild` remonte au-dessus du blanc traverse tout le pipeline et c'est
   l'épaule de `output_rendering` qui le ramène — les deux décisions composent
   exactement comme prévu, sans que l'une ait à connaître l'autre.
+* **`leyline-raw` expose une donnée de plus, et une seule** : les
+  multiplicateurs as-shot, pour le gain du §3. Aucun autre étage ne les lit.
+* **Un cas de rendu de référence de plus**, qui gèle la compensation du §3 —
+  la seule partie de cette décision qu'un tampon synthétique puisse exercer,
+  le mode lui-même vivant dans le décodeur.
 * **Le cache de décodage reste correct sans y toucher** : il est indexé par
   `(asset, DecodeParams)`, donc deux modes sont deux entrées.
 * **Troisième version d'étage réelle du projet** (après 0046 et 0048), et la

@@ -5,8 +5,8 @@
 //! the session applies whatever comes back.
 
 use leyline_sdk::{
-    ColorGrading, Crop, CurvePoint, HslBand, LensCorrection, NoiseReduction, Param, Point,
-    Settings, Sharpening, SpotRemoval, ToneCurve, Value,
+    ColorGrading, Crop, CurvePoint, HighlightReconstruction, HslBand, LensCorrection,
+    NoiseReduction, Param, Point, Settings, Sharpening, SpotRemoval, ToneCurve, Value,
 };
 
 /// Decodes a slider release into an engine parameter update.
@@ -106,6 +106,26 @@ pub fn action(slider: &str, value: f64, current: &Settings) -> Option<(Param, Va
         ),
         _ => return None,
     })
+}
+
+/// Decodes the highlight-reconstruction picker (ADR 0050): `mode` is
+/// `"clip"`/`"blend"`/`"rebuild"`, the three the decoder can be asked for.
+/// An unknown name is no update rather than a guess.
+///
+/// Unlike every other control of the panel this one carries a name, not a
+/// number: the modes are not points on a scale — `rebuild` is not "more
+/// blend" — so a slider would invite an interpolation that does not exist.
+pub fn highlight_reconstruction_action(mode: &str) -> Option<(Param, Value)> {
+    let mode = match mode {
+        "clip" => HighlightReconstruction::Clip,
+        "blend" => HighlightReconstruction::Blend,
+        "rebuild" => HighlightReconstruction::Rebuild,
+        _ => return None,
+    };
+    Some((
+        Param::HighlightReconstruction,
+        Value::HighlightReconstruction(mode),
+    ))
 }
 
 /// Decodes one HSL mixer band's slider release (ADR 0031). `index` is the
@@ -568,6 +588,25 @@ mod tests {
                 })
             ))
         );
+    }
+
+    #[test]
+    fn the_highlight_reconstruction_picker_names_its_three_modes() {
+        assert_eq!(
+            highlight_reconstruction_action("rebuild"),
+            Some((
+                Param::HighlightReconstruction,
+                Value::HighlightReconstruction(HighlightReconstruction::Rebuild)
+            ))
+        );
+        assert_eq!(
+            highlight_reconstruction_action("clip"),
+            Some((
+                Param::HighlightReconstruction,
+                Value::HighlightReconstruction(HighlightReconstruction::Clip)
+            ))
+        );
+        assert_eq!(highlight_reconstruction_action("guess"), None);
     }
 
     #[test]

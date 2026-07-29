@@ -73,10 +73,10 @@ pub(crate) fn color(path: &Path) -> crate::stages::SourceColor {
     if !is_camera_native(path) {
         return crate::stages::SourceColor::Srgb;
     }
+    let metadata = leyline_raw::identify(path).ok();
     crate::stages::SourceColor::Camera {
-        to_xyz: leyline_raw::identify(path)
-            .ok()
-            .and_then(|metadata| metadata.camera_to_xyz),
+        to_xyz: metadata.as_ref().and_then(|m| m.camera_to_xyz),
+        multipliers: metadata.and_then(|m| m.camera_multipliers),
     }
 }
 

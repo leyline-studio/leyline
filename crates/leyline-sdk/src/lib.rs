@@ -8,10 +8,11 @@
 pub use leyline_core::{
     AssetId, BrushStroke, CURRENT_SCHEMA, CameraProfile, CollectionId, CollectionType,
     ColorGrading, ColorGradingZone, ColorLabel, ColorRange, Crop, CurvePoint, ExportPresetId,
-    FolderId, HslBand, JobId, KeywordId, LensCorrection, LeylineError, LocalAdjustment,
-    LocalAdjustmentValues, LuminanceRange, Mask, MediaType, NoiseReduction, PickState, Point,
-    PresetId, PresetSettings, PreviewKind, PrintPresetId, RangeMask, Result, RevisionId, Settings,
-    SettingsGroup, Sharpening, SpotRemoval, StageVersions, ToneCurve, VersionId, WhiteBalance,
+    FolderId, HighlightReconstruction, HslBand, JobId, KeywordId, LensCorrection, LeylineError,
+    LocalAdjustment, LocalAdjustmentValues, LuminanceRange, Mask, MediaType, NoiseReduction,
+    PickState, Point, PresetId, PresetSettings, PreviewKind, PrintPresetId, RangeMask, Result,
+    RevisionId, Settings, SettingsGroup, Sharpening, SpotRemoval, StageVersions, ToneCurve,
+    VersionId, WhiteBalance,
 };
 
 pub use leyline_engine::{

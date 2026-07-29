@@ -50,7 +50,10 @@ fn develop(
         settings,
         shot,
         camera_profile,
-        SourceColor::Camera { to_xyz: None },
+        SourceColor::Camera {
+            to_xyz: None,
+            multipliers: None,
+        },
         1.0,
     )
 }
@@ -1575,6 +1578,97 @@ fn a_newly_active_stage_pins_a_version_of_the_revisions_own_space() {
         super::pinned_version(stage, &Settings::default()).version,
         stage.current().version
     );
+}
+
+/// ADR 0050 §3: reconstruction costs a global gain at the decoder, and
+/// `input::v2` gives it back — otherwise "recover the highlights" would read
+/// as "darken the photo".
+#[test]
+fn reconstruction_undoes_the_decoders_renormalization() {
+    use crate::stages::input::v2::reconstruction_gain;
+
+    // The ratio between the largest and smallest white balance multiplier:
+    // what the decoder divides by when it must not clip any channel.
+    assert_eq!(reconstruction_gain([2.0, 1.0, 1.6, 1.0]), 2.0);
+    // A three-color sensor leaves the fourth multiplier at zero, which is not
+    // a multiplier of one.
+    assert_eq!(reconstruction_gain([2.0, 1.0, 1.6, 0.0]), 2.0);
+    // Nothing usable, or a degenerate set: no compensation rather than a
+    // wrong one.
+    assert_eq!(reconstruction_gain([0.0; 4]), 1.0);
+    assert_eq!(reconstruction_gain([f64::NAN, 1.0, 1.0, 1.0]), 1.0);
+    // A neutral white balance has nothing to give back.
+    assert_eq!(reconstruction_gain([1.0; 4]), 1.0);
+}
+
+/// And it only happens when reconstruction was actually asked for: with the
+/// neutral mode, `v2` leaves the buffer exactly where `v1` did.
+#[test]
+fn the_gain_is_given_back_only_when_reconstruction_was_asked_for() {
+    use crate::pixels::Pixels;
+    use crate::stages::SourceColor;
+    use leyline_core::HighlightReconstruction;
+
+    let source = SourceColor::Camera {
+        // No matrix, so the only thing that can move the samples is the
+        // compensation itself.
+        to_xyz: None,
+        multipliers: Some([2.0, 1.0, 1.0, 1.0]),
+    };
+    let render = |mode| {
+        let mut px = Pixels {
+            width: 1,
+            height: 1,
+            data: vec![0.25, 0.25, 0.25],
+        };
+        crate::stages::input::v2::to_working_space(&mut px, source, false, mode);
+        px.data[0]
+    };
+    assert_eq!(render(HighlightReconstruction::Clip), 0.25);
+    assert_eq!(render(HighlightReconstruction::Blend), 0.5);
+    assert_eq!(render(HighlightReconstruction::Rebuild), 0.5);
+}
+
+/// ADR 0050: the highlight mode is part of what an `input` version pins, so
+/// the version a revision cites decides whether the mode is even read.
+#[test]
+fn the_highlight_mode_reaches_the_decoder_only_from_input_v2() {
+    use leyline_core::{HighlightReconstruction, StageVersions};
+    use leyline_raw::HighlightMode;
+
+    let modes = [
+        (HighlightReconstruction::Clip, HighlightMode::Clip),
+        (HighlightReconstruction::Blend, HighlightMode::Blend),
+        (HighlightReconstruction::Rebuild, HighlightMode::Rebuild),
+    ];
+    for (setting, expected) in modes {
+        // A fresh revision pins the current `input`, which is the one that
+        // reads the setting.
+        let settings = Settings {
+            highlight_reconstruction: setting,
+            ..Settings::default()
+        };
+        assert_eq!(
+            crate::stages::decode_params(&settings, false).highlight,
+            expected,
+            "{setting:?} must reach the decoder through the current input version"
+        );
+
+        // A revision pinned at v1 renders through v1's configuration, which
+        // has no highlight mode to read — the frozen behavior. Reaching this
+        // state is what `Settings::validate` refuses (ADR 0050 §5), so a
+        // caller can only get here by building the pair by hand, as here.
+        let pinned_v1 = Settings {
+            highlight_reconstruction: setting,
+            stages: StageVersions::from([("input".to_owned(), 1)]),
+            ..Settings::default()
+        };
+        assert_eq!(
+            crate::stages::decode_params(&pinned_v1, false).highlight,
+            HighlightMode::Clip,
+            "input::v1 asks for exactly what it always asked for"
+        );
+    }
 }
 
 #[test]

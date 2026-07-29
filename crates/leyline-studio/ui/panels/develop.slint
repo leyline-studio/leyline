@@ -745,6 +745,40 @@ export component DevelopPanel inherits HorizontalLayout {
                                 DevelopState.develop-edit("dehaze", v);
                             }
                         }
+                        // What the *decoder* does with a channel that
+                        // saturated at the sensor (ADR 0050), as opposed to
+                        // the roll-off below, which decides what becomes of
+                        // the headroom on the way out.
+                        Text {
+                            text: @tr("Clipped highlights");
+                            color: #9a9a9a;
+                            font-size: 12px;
+                        }
+                        HorizontalLayout {
+                            spacing: 6px;
+                            alignment: start;
+                            FilterChip {
+                                text: @tr("Clip");
+                                active: DevelopState.dev.highlight-reconstruction == "clip";
+                                clicked => {
+                                    DevelopState.develop-set-highlight-reconstruction("clip");
+                                }
+                            }
+                            FilterChip {
+                                text: @tr("Blend");
+                                active: DevelopState.dev.highlight-reconstruction == "blend";
+                                clicked => {
+                                    DevelopState.develop-set-highlight-reconstruction("blend");
+                                }
+                            }
+                            FilterChip {
+                                text: @tr("Rebuild");
+                                active: DevelopState.dev.highlight-reconstruction == "rebuild";
+                                clicked => {
+                                    DevelopState.develop-set-highlight-reconstruction("rebuild");
+                                }
+                            }
+                        }
                         EditSlider {
                             label: @tr("Highlight roll-off");
                             minimum: 0;

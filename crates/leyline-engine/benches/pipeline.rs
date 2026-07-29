@@ -29,7 +29,10 @@ use leyline_engine::{LensShot, SourceColor, render};
 
 /// The colorimetry every bench renders through: no camera matrix, so the
 /// measurement is of the operators rather than of a body's profile.
-const SOURCE: SourceColor = SourceColor::Camera { to_xyz: None };
+const SOURCE: SourceColor = SourceColor::Camera {
+    to_xyz: None,
+    multipliers: None,
+};
 use leyline_raw::RawImage;
 use std::hint::black_box;
 

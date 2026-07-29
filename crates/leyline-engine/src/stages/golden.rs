@@ -451,6 +451,17 @@ fn presence(settings: Settings) -> Settings {
     }
 }
 
+/// Asks the decoder to reconstruct clipped highlights (ADR 0050). The mode
+/// itself is a decoder configuration, which no synthetic buffer can exercise —
+/// what this case freezes is the other half of `input::v2`: the gain it gives
+/// back for the renormalization the decoder applied (§3).
+fn highlight_reconstruction(settings: Settings) -> Settings {
+    Settings {
+        highlight_reconstruction: leyline_core::HighlightReconstruction::Rebuild,
+        ..settings
+    }
+}
+
 /// Activates the two-version fixture stage of ADR 0043 §7 at `version`.
 /// These two cases are what keep the manifest carrying, at all times, a
 /// stage whose older version stays pinned while a newer one exists — the
@@ -492,6 +503,10 @@ fn cases() -> Vec<(String, Settings)> {
         ("locals_range", locals_range(base.clone())),
         ("hsl_grading", hsl_grading(base.clone())),
         ("presence", presence(base.clone())),
+        (
+            "highlight_reconstruction",
+            highlight_reconstruction(base.clone()),
+        ),
         ("fixture_v1", fixture_stage(base.clone(), 1)),
         ("fixture_v2", fixture_stage(base.clone(), 2)),
     ];
@@ -539,6 +554,10 @@ fn capture(settings: &Settings, stages: &StageVersions) -> Golden {
             [-0.440_8, 1.242_6, 0.221_1],
             [-0.088_7, 0.212_9, 0.605_1],
         ]),
+        // Fixed for the same reason as the matrix, and non-neutral so a case
+        // asking for highlight reconstruction (ADR 0050) has a gain to give
+        // back rather than nothing to do.
+        multipliers: Some([2.0, 1.0, 1.5, 1.0]),
     };
     let rendered = render(&image, &settings, Some(&shot), Some(&profile), source)
         .unwrap_or_else(|e| panic!("render failed: {e}"));
