@@ -69,3 +69,4 @@ Un ADR remplacé n'est jamais supprimé : il reste lisible, avec sa raison d'ép
 | [0047](0047-xmp-sidecar-read.md) | Lecture des sidecars XMP : une amorce à l'import et à la demande, jamais une synchronisation ; remplir sans écraser, `roxmltree` pour le parsing |
 | [0048](0048-range-masks.md) | Masques par plage : raffinement de luminance et de teinte multipliant la couverture géométrique, `local_adjustments::v2` ; un réglage inexprimable par la version épinglée est refusé |
 | [0049](0049-local-adjustments-clients.md) | Exposer les retouches locales aux clients : outils de tracé sur la preview dans Studio (« neutre = absent »), payload JSON du `LocalAdjustment` stocké dans la CLI |
+| [0050](0050-highlight-reconstruction.md) | Reconstruction des hautes lumières : modes `clip`/`blend`/`rebuild` de LibRaw avant dématriçage, épinglés par `input::v2` ; refus de validation sur une révision en `input: 1` |
