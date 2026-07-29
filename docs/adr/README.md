@@ -68,3 +68,4 @@ Un ADR remplacé n'est jamais supprimé : il reste lisible, avec sa raison d'ép
 | [0046](0046-edge-preserving-denoise.md) | Débruitage préservant les contours : ondelettes à trous et seuillage doux par échelle, `noise_luminance::v2` / `noise_color::v2` (premier `v2` réel d'ADR 0042) |
 | [0047](0047-xmp-sidecar-read.md) | Lecture des sidecars XMP : une amorce à l'import et à la demande, jamais une synchronisation ; remplir sans écraser, `roxmltree` pour le parsing |
 | [0048](0048-range-masks.md) | Masques par plage : raffinement de luminance et de teinte multipliant la couverture géométrique, `local_adjustments::v2` ; un réglage inexprimable par la version épinglée est refusé |
+| [0049](0049-local-adjustments-clients.md) | Exposer les retouches locales aux clients : outils de tracé sur la preview dans Studio (« neutre = absent »), payload JSON du `LocalAdjustment` stocké dans la CLI |
