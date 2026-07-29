@@ -24,7 +24,7 @@ Toutes les fonctionnalités listées comme livrées le sont sur les **trois clie
 * Ombres / hautes lumières, blancs / noirs
 * Vibrance / saturation
 * Rotation, recadrage
-* Réduction du bruit, netteté
+* Réduction du bruit (luminance et chroma, préservant les contours — [ADR 0046](adr/0046-edge-preserving-denoise.md)), netteté
 * Correction d'objectif via Lensfun : distorsion, vignettage, aberration chromatique transversale ([ADR 0016](adr/0016-process-3-lens-correction.md), [0017](adr/0017-process-4-vignetting.md), [0018](adr/0018-process-5-tca.md))
 * Gestion des couleurs via LittleCMS ([ADR 0015](adr/0015-color-management-srgb.md), [ADR 0027](adr/0027-color-management-beyond-srgb.md))
 * Presets de développement : créer, appliquer, appliquer en lot ([`presets.md`](presets.md), [ADR 0014](adr/0014-develop-presets.md))
@@ -64,7 +64,7 @@ La mention *expérimental* est littérale : la justesse colorimétrique du chemi
 | Sujet | Décision |
 |---|---|
 | Épreuvage écran (vue seule) et filigrane texte (à l'export) | [ADR 0034](adr/0034-softproofing-watermark-print.md) |
-| Pipeline composé d'étages versionnés — migration en cours | [ADR 0042](adr/0042-versioned-stage-pipeline.md) |
+| Profil de bruit mesuré par boîtier et par sensibilité | À trancher par son propre ADR ([ADR 0046](adr/0046-edge-preserving-denoise.md) §7) |
 
 ---
 

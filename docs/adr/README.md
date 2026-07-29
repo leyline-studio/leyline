@@ -65,3 +65,4 @@ Un ADR remplacé n'est jamais supprimé : il reste lisible, avec sa raison d'ép
 | [0043](0043-collapse-prerelease-render-history.md) | Effondrement de l'historique de rendu avant publication : une version par opérateur, la révision porte sa carte `stages`, `process` disparaît |
 | [0044](0044-linear-wide-gamut-working-space.md) | Tampon de travail en lumière linéaire large gamut : Rec. 2020 D65 non borné, étages `input`/`output_rendering`, espace déclaré par version d'étage |
 | [0045](0045-studio-ui-modularisation.md) | Modularisation de l'interface Studio : un `global` Slint par domaine, un fichier par panneau/dialogue, modules Rust `wiring/` en miroir ; frontière SDK inchangée |
+| [0046](0046-edge-preserving-denoise.md) | Débruitage préservant les contours : ondelettes à trous et seuillage doux par échelle, `noise_luminance::v2` / `noise_color::v2` (premier `v2` réel d'ADR 0042) |

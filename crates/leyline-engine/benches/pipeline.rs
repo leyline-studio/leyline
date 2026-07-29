@@ -12,7 +12,10 @@
 //! so the pipeline resamples the image up to three times per pixel instead
 //! of once. The `stages` group prices each parameter family alone on top
 //! of the neutral floor: the "what does moving *this* slider cost" table an
-//! interactive UI budget is built from. Run with
+//! interactive UI budget is built from. The `denoise` group prices the two
+//! denoise stage versions against each other (ADR 0046), both pinned
+//! explicitly — every published version stays in the engine forever, so
+//! every published version stays measured. Run with
 //! `cargo bench -p leyline-engine`.
 
 use criterion::{Criterion, criterion_group, criterion_main};
@@ -20,7 +23,7 @@ use leyline_color::{DcpProfile, Matrix3};
 use leyline_core::{
     BrushStroke, ColorGrading, ColorGradingZone, Crop, CurvePoint, HslBand, LensCorrection,
     LocalAdjustment, LocalAdjustmentValues, Mask, NoiseReduction, Point, Settings, Sharpening,
-    SpotRemoval, ToneCurve, WhiteBalance,
+    SpotRemoval, StageVersions, ToneCurve, WhiteBalance,
 };
 use leyline_engine::{LensShot, SourceColor, render};
 
@@ -269,6 +272,36 @@ fn benches(c: &mut Criterion) {
                 )
                 .unwrap()
             });
+        });
+    }
+
+    group.finish();
+
+    // The two denoise stage versions at identical slider values, each pinned
+    // explicitly: what ADR 0046 costs against the Gaussian blur it replaces.
+    // Both remain in the engine forever, so both stay priced forever.
+    let mut group = c.benchmark_group("denoise");
+    group.sample_size(10);
+
+    for version in [1u16, 2u16] {
+        let settings = Settings {
+            noise_reduction: NoiseReduction {
+                luminance: 40,
+                color: 30,
+            },
+            stages: StageVersions::from([
+                ("noise_luminance".to_owned(), version),
+                ("noise_color".to_owned(), version),
+            ]),
+            ..Settings::default()
+        };
+        let name = if version == 1 {
+            "v1_gaussian"
+        } else {
+            "v2_wavelet"
+        };
+        group.bench_function(name, |b| {
+            b.iter(|| render(black_box(&image), black_box(&settings), None, None, SOURCE).unwrap());
         });
     }
 

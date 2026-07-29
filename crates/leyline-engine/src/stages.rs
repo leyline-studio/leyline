@@ -68,6 +68,7 @@
 
 pub(crate) mod kernel {
     pub(crate) mod v1;
+    pub(crate) mod v2;
 }
 pub(crate) mod input {
     pub(crate) mod v1;
@@ -116,9 +117,11 @@ pub(crate) mod local_adjustments {
 }
 pub(crate) mod noise_luminance {
     pub(crate) mod v1;
+    pub(crate) mod v2;
 }
 pub(crate) mod noise_color {
     pub(crate) mod v1;
+    pub(crate) mod v2;
 }
 pub(crate) mod sharpen {
     pub(crate) mod v1;
@@ -512,34 +515,64 @@ pub(crate) static STAGES: &[Stage] = &[
     Stage {
         name: "noise_luminance",
         active: |settings| settings.noise_reduction.luminance != 0,
-        versions: &[Version {
-            version: 1,
-            rank: 170,
-            space: Space::LinearRec2020,
-            apply: |px, ctx| {
-                noise_luminance::v1::luminance_noise_reduction(
-                    px,
-                    ctx.settings.noise_reduction.luminance,
-                    ctx.scale,
-                );
+        versions: &[
+            Version {
+                version: 1,
+                rank: 170,
+                space: Space::LinearRec2020,
+                apply: |px, ctx| {
+                    noise_luminance::v1::luminance_noise_reduction(
+                        px,
+                        ctx.settings.noise_reduction.luminance,
+                        ctx.scale,
+                    );
+                },
             },
-        }],
+            // Edge-preserving, same slider and same rank (ADR 0046).
+            Version {
+                version: 2,
+                rank: 170,
+                space: Space::LinearRec2020,
+                apply: |px, ctx| {
+                    noise_luminance::v2::luminance_noise_reduction(
+                        px,
+                        ctx.settings.noise_reduction.luminance,
+                        ctx.scale,
+                    );
+                },
+            },
+        ],
     },
     Stage {
         name: "noise_color",
         active: |settings| settings.noise_reduction.color != 0,
-        versions: &[Version {
-            version: 1,
-            rank: 180,
-            space: Space::LinearRec2020,
-            apply: |px, ctx| {
-                noise_color::v1::color_noise_reduction(
-                    px,
-                    ctx.settings.noise_reduction.color,
-                    ctx.scale,
-                );
+        versions: &[
+            Version {
+                version: 1,
+                rank: 180,
+                space: Space::LinearRec2020,
+                apply: |px, ctx| {
+                    noise_color::v1::color_noise_reduction(
+                        px,
+                        ctx.settings.noise_reduction.color,
+                        ctx.scale,
+                    );
+                },
             },
-        }],
+            // Edge-preserving, same slider and same rank (ADR 0046).
+            Version {
+                version: 2,
+                rank: 180,
+                space: Space::LinearRec2020,
+                apply: |px, ctx| {
+                    noise_color::v2::color_noise_reduction(
+                        px,
+                        ctx.settings.noise_reduction.color,
+                        ctx.scale,
+                    );
+                },
+            },
+        ],
     },
     Stage {
         name: "sharpen",

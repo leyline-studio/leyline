@@ -313,7 +313,7 @@ Un étage actif mais sans version inscrite rend à la version courante. Ce cas n
 
 Le code de chaque version d'étage est conservé dans le moteur pour toujours : c'est le prix de la promesse « mêmes pixels dans dix ans », dont §5.1 énonce la portée exacte. Il se paie désormais par opérateur réellement corrigé — quelques dizaines de lignes — et non plus par copie intégrale du pipeline.
 
-**Étages connus, et l'ordre dans lequel ils s'exécutent.** Tous sont en version 1 : l'historique de rendu antérieur à la publication a été effondré ([ADR 0043](adr/0043-collapse-prerelease-render-history.md)), puisqu'aucune révision au monde ne le citait.
+**Étages connus, et l'ordre dans lequel ils s'exécutent.** L'historique de rendu antérieur à la publication a été effondré ([ADR 0043](adr/0043-collapse-prerelease-render-history.md)), puisqu'aucune révision au monde ne le citait : tous les étages sont donc partis en version 1. Deux ont depuis une seconde version, les deux étages de bruit ([ADR 0046](adr/0046-edge-preserving-denoise.md)) — le premier usage réel du mécanisme ci-dessus. La version courante, celle qu'une nouvelle révision épingle, est la **dernière** listée pour chaque étage.
 
 | Rang | Étage | Version | Rôle |
 |---|---|---|---|
@@ -334,8 +334,10 @@ Le code de chaque version d'étage est conservé dans le moteur pour toujours : 
 | 140 | `hsl` | 1 | Mélangeur TSL à 8 bandes de teinte, fondu entre bandes adjacentes (ADR 0032) |
 | 150 | `color_grading` | 1 | Trois zones ombres/tons moyens/hautes lumières pondérées par la luminance (ADR 0032) |
 | 160 | `local_adjustments` | 1 | Réglages locaux masqués (brosse/radial/gradient), réutilisant les opérateurs globaux restreints à une couverture (ADR 0029) |
-| 170 | `noise_luminance` | 1 | Réduction du bruit de luminance |
-| 180 | `noise_color` | 1 | Réduction du bruit chromatique |
+| 170 | `noise_luminance` | 1 | Réduction du bruit de luminance : mélange vers un flou gaussien du plan de luma |
+| 170 | `noise_luminance` | 2 | Idem, préservant les contours : ondelettes à trous et seuillage doux par échelle (ADR 0046) |
+| 180 | `noise_color` | 1 | Réduction du bruit chromatique : mélange vers un flou gaussien des écarts à la luma |
+| 180 | `noise_color` | 2 | Idem, préservant les contours, seuil plus agressif que la luminance (ADR 0046) |
 | 190 | `sharpen` | 1 | Masque flou sur le plan de luminance |
 | 200 | `rotate` | 1 | Rotation d'angle arbitraire, échantillonnage bilinéaire |
 | 210 | `crop` | 1 | Recadrage |

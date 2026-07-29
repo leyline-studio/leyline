@@ -437,29 +437,36 @@ mod tests {
         );
     }
 
-    #[test]
-    fn luminance_noise_reduction_smooths_the_image() {
-        // A checkerboard is pure luma noise at pixel scale.
+    /// A grey checkerboard of amplitude `±(step/2)` around 128 — pixel-scale
+    /// detail whose *amplitude* is the whole question for `noise_*::v2`.
+    fn checkerboard(step: u8) -> RawImage {
         let (width, height) = (16u32, 16u32);
         let data: Vec<u8> = (0..height)
             .flat_map(|y| {
                 (0..width).flat_map(move |x| {
-                    let v = if (x + y) % 2 == 0 { 40 } else { 210 };
+                    let v = if (x + y) % 2 == 0 {
+                        128 - step / 2
+                    } else {
+                        128 + step / 2
+                    };
                     [v, v, v]
                 })
             })
             .collect();
-        let image = RawImage {
+        RawImage {
             width,
             height,
             bits: 8,
             data,
-        };
-        let out = render(
-            &image,
+        }
+    }
+
+    fn denoised(image: &RawImage, luminance: i32) -> Rendered {
+        render(
+            image,
             &Settings {
                 noise_reduction: NoiseReduction {
-                    luminance: 100,
+                    luminance,
                     color: 0,
                 },
                 ..Settings::default()
@@ -468,11 +475,47 @@ mod tests {
             None,
             SOURCE,
         )
-        .unwrap();
-        let spread = |data: &[u8]| {
-            i32::from(*data.iter().max().unwrap()) - i32::from(*data.iter().min().unwrap())
-        };
-        assert!(spread(&out.data) < spread(&image.data) / 2);
+        .unwrap()
+    }
+
+    /// Peak-to-peak amplitude over the middle of a 16×16 render. The interior,
+    /// not the whole buffer: every kernel in the pipeline replicates its
+    /// edges, so border pixels see a different neighborhood and say nothing
+    /// about what the operator does to the image.
+    fn interior_spread(data: &[u8], width: usize) -> i32 {
+        let mut lo = u8::MAX;
+        let mut hi = u8::MIN;
+        for y in 4..12 {
+            for x in 4..12 {
+                let v = data[(y * width + x) * 3];
+                lo = lo.min(v);
+                hi = hi.max(v);
+            }
+        }
+        i32::from(hi) - i32::from(lo)
+    }
+
+    /// Both halves compare the same render with the slider at 0 and at 100,
+    /// so what is measured is the operator alone — not the pipeline's own
+    /// tone rendering, which moves these values too.
+    #[test]
+    fn luminance_noise_reduction_smooths_low_amplitude_grain() {
+        let image = checkerboard(8);
+        let before = interior_spread(&denoised(&image, 0).data, 16);
+        let after = interior_spread(&denoised(&image, 100).data, 16);
+        assert!(after < before / 2, "grain survived: {after} of {before}");
+    }
+
+    /// The other half of ADR 0046, and what `v1` could not do: the same
+    /// pattern at an amplitude no sensor produces as noise is *detail*, and
+    /// the slider at 100 must leave it standing. A Gaussian blur strong
+    /// enough to pass the test above would have flattened this one too.
+    #[test]
+    fn luminance_noise_reduction_leaves_high_amplitude_detail_alone() {
+        let image = checkerboard(170);
+        let before = interior_spread(&denoised(&image, 0).data, 16);
+        let after = interior_spread(&denoised(&image, 100).data, 16);
+        assert!(after > before * 3 / 4, "detail lost: {after} of {before}");
     }
 
     #[test]
