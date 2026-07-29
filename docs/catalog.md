@@ -87,7 +87,7 @@ Cette règle garantit la portabilité entre Windows, Linux et macOS.
 
 Le catalogue SQLite est la seule source de vérité.
 
-Les fichiers XMP sont uniquement des exports optionnels.
+Les fichiers XMP sont des exports optionnels ; ils peuvent **amorcer** un catalogue vide à l'import mais n'ont d'autorité sur rien (§29, [ADR 0047](adr/0047-xmp-sidecar-read.md)).
 
 ---
 
@@ -1191,9 +1191,22 @@ L'utilisateur déclenche explicitement une synchronisation.
 
 Chaque modification valide automatiquement le sidecar correspondant.
 
-Le moteur ne lit jamais les XMP comme source principale.
+Ces trois modes concernent l'**écriture** seule.
 
-Ils servent uniquement à l'interopérabilité avec d'autres logiciels.
+## Lecture
+
+Le moteur lit un sidecar pour **amorcer** ce que le catalogue n'a pas encore, jamais pour arbitrer ce qu'il a déjà ([ADR 0047](adr/0047-xmp-sidecar-read.md)). Le catalogue reste donc la seule source de vérité (§2.4) : un sidecar n'a d'autorité sur aucun champ déjà renseigné, et rien ne le relit après coup.
+
+Deux moments, et deux seulement :
+
+* **à l'import**, automatiquement, si un `.xmp` se trouve à côté du fichier source — c'est le chemin de migration depuis un autre logiciel, celui qui fait suivre des années de notes, de libellés et de mots-clés hiérarchiques ;
+* **explicitement**, sur un asset déjà importé (`read_xmp`), pour une bibliothèque constituée avant l'export des sidecars.
+
+La politique est de **remplir sans écraser** : note, libellé, artiste et copyright ne sont appliqués que là où le catalogue est vide, et les mots-clés sont une union. Aucune lecture ne peut retirer ni remplacer une donnée du catalogue. Il n'y a pas d'équivalent du mode *Always* en lecture — ce serait un second canal d'autorité, donc la fin de §2.4.
+
+Les champs lus sont exactement ceux qu'écrit §29 ci-dessus. Les réglages de développement (`crs:` d'Adobe) ne sont **pas** lus : ils ne sont pas traduisibles vers notre pipeline, et prétendre les reprendre serait mentir sur le rendu.
+
+Le reste sert uniquement à l'interopérabilité avec d'autres logiciels.
 
 ---
 

@@ -46,4 +46,4 @@ pub use reprocess::{FailedReprocess, ReprocessReport, reprocess_batch};
 pub use session::{DEFAULT_AMEND_WINDOW, EditSession, Param, Value};
 pub use stages::{SourceColor, neutral_settings};
 pub use watch::{WatchError, WatchSessionEvent, WatchedFile};
-pub use xmp::write_xmp_sidecar;
+pub use xmp::{XmpSidecar, apply_xmp_sidecar, read_xmp_sidecar, sidecar_path, write_xmp_sidecar};

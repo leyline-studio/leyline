@@ -131,6 +131,9 @@ fn fully_specified_settings() -> Settings {
 fn every_returned_type_is_nameable(library: &Library, version: VersionId, asset: AssetId) {
     let _: Preview = library.preview_state(asset, PreviewKind::Medium).unwrap();
     let _: PathBuf = library.write_xmp(asset).unwrap();
+    // Reading is not the mirror of writing: it reports whether the sidecar
+    // filled anything, not a path (ADR 0047 §3).
+    let _: bool = library.read_xmp(asset).unwrap();
     let _: JobId = library.preview_async(asset, PreviewKind::Medium);
     let _: EditSession<_> = library.edit(version).unwrap();
     let _: [[u32; 256]; 3] = library.histogram(asset, PreviewKind::Medium).unwrap();

@@ -1016,6 +1016,30 @@ impl Library {
         crate::xmp::write_xmp_sidecar(&self.catalog(), &self.inner.root, asset)
     }
 
+    /// Reads the XMP sidecar sitting next to an asset's file and seeds the
+    /// catalog with it (ADR 0047), returning whether anything was written.
+    ///
+    /// Not the mirror image of [`Library::write_xmp`], deliberately: this
+    /// **fills** what the catalog leaves empty and unions keywords, so it
+    /// can never replace or remove what is already recorded (ADR 0047 §3).
+    /// `Ok(false)` covers both "no usable sidecar" and "nothing left to
+    /// fill" — neither is an error.
+    ///
+    /// The counterpart for a whole folder is an ordinary import, which reads
+    /// sidecars on its own.
+    pub fn read_xmp(&self, asset: AssetId) -> Result<bool> {
+        let mut catalog = lock(&self.inner.catalog);
+        let relative = catalog.asset_details(asset)?.relative_path;
+        let file = self
+            .inner
+            .root
+            .join(relative.replace('/', std::path::MAIN_SEPARATOR_STR));
+        let Some(sidecar) = crate::xmp::read_xmp_sidecar(&file) else {
+            return Ok(false);
+        };
+        crate::xmp::apply_xmp_sidecar(&mut catalog, asset, &sidecar)
+    }
+
     /// Connects to the first USB camera libgphoto2 finds and starts a
     /// tether session (`docs/adr/0038-tethered-capture.md`): every shot the
     /// camera reports from here on is downloaded and imported automatically

@@ -181,6 +181,21 @@ fn import_one(
     if let Some(raw) = raw {
         catalog.set_metadata(registered.asset, &exif_metadata(&raw))?;
     }
+
+    // An XMP sidecar next to the *source* file seeds the fresh asset
+    // (ADR 0047 §2): this is the migration path from another program, where
+    // rating, labels and keywords are the work that took years. Read from
+    // the source rather than from the copy, since that is where the other
+    // program left it, and never copied into `Photos/` — the catalog is the
+    // source of truth from here on (`docs/catalog.md` §2.4).
+    //
+    // Best-effort, like the thumbnail pass: a sidecar that cannot be applied
+    // never turns a successful import into a skip. The asset is already in
+    // the catalog and correct; only the seeding is lost.
+    if let Some(sidecar) = crate::xmp::read_xmp_sidecar(file) {
+        let _ = crate::xmp::apply_xmp_sidecar(catalog, registered.asset, &sidecar);
+    }
+
     Ok(ImportedFile {
         registered,
         relative_path,

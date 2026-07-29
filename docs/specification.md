@@ -14,6 +14,7 @@ Toutes les fonctionnalités listées comme livrées le sont sur les **trois clie
 * Catalogue SQLite — bibliothèques, collections (manuelles et dynamiques), mots-clés, notes, libellés de couleur, statut de sélection
 * Miniatures et aperçus en cache
 * Lecture EXIF, recherche plein texte
+* Sidecars XMP : écriture à la demande, et lecture comme amorce à l'import — le chemin de migration depuis un autre logiciel ([ADR 0047](adr/0047-xmp-sidecar-read.md))
 * Capture tethering USB — chaque photo importée dès la prise de vue ([ADR 0038](adr/0038-tethered-capture.md))
 * Import automatique par dossier surveillé ([ADR 0039](adr/0039-watched-folder-import.md))
 * Vue carte GPS, tuiles MBTiles hors-ligne fournies par l'utilisateur, aucun appel réseau ([ADR 0040](adr/0040-gps-map-view.md))

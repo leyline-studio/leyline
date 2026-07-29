@@ -175,6 +175,8 @@ impl Library {
 
 L'import est un travail : extraction EXIF, checksum BLAKE3, création de la révision initiale et de la version `Default` (catalogue §18) — en flux, avec `JobProgress` par fichier candidat. Chaque asset importé avec succès reçoit aussi sa miniature (`PreviewKind::Thumbnail`) avant que `import`/`import_async` ne retourne, via le même cœur que `preview_async` (§11) : le client n'a plus besoin de la déclencher lui-même après coup. Un échec de rendu de miniature n'annule jamais l'import de l'asset — il reste importé, sans miniature en cache, et retombe sur le chemin paresseux existant (`cached_preview` puis `preview_async`) la première fois qu'il doit s'afficher. Ce rendu est fait séquentiellement, asset par asset : la miniature partage le verrou du catalogue avec le reste de l'import (§11), le paralléliser demanderait de revoir ce verrouillage, pas seulement d'itérer avec `rayon`.
 
+Un **sidecar XMP** posé à côté du fichier source amorce l'asset qui vient d'être créé — note, libellé, mots-clés hiérarchiques, artiste, copyright ([ADR 0047](adr/0047-xmp-sidecar-read.md), catalogue §29) : c'est le chemin de migration depuis un autre logiciel, et il ne demande aucune option. Comme la miniature, c'est du meilleur effort : un sidecar illisible n'écarte jamais la photo, il s'écarte lui-même. Pour un asset déjà importé, `Library::read_xmp(asset) -> Result<bool>` fait la même chose à la demande, en remplissant sans jamais écraser.
+
 ---
 
 # 6bis. Capture tethering (`docs/adr/0038-tethered-capture.md`)
