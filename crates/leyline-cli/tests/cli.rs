@@ -89,6 +89,86 @@ fn develop_covers_every_param_kind() {
     assert!(stdout(&out).lines().next().unwrap().starts_with("HEAD"));
 }
 
+/// Local adjustments take a stored `LocalAdjustment` verbatim (ADR 0049 §4).
+/// What proves one landed is that the engine can then address it by index:
+/// `rm 0` succeeds while it is there and is refused once it is gone.
+#[test]
+fn local_adjustments_are_appended_removed_and_reset() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = library_with_a_photo(&dir);
+    let radial = r#"{"mask":{"type":"radial","cx":0.5,"cy":0.5,"rx":0.3,"ry":0.2,
+        "angle":0,"feather":0.5,"inverted":false},
+        "opacity":1,"adjustments":{"exposure":-0.5}}"#;
+    // A range term needs `local_adjustments` at v2 (ADR 0048 §5), which a
+    // freshly imported photo pins.
+    let gradient = r#"{"mask":{"type":"gradient","x0":0.0,"y0":0.0,"x1":0.0,"y1":1.0},
+        "range":{"luminance":{"min":0.4,"max":1.0,"softness":0.1}},
+        "opacity":0.8,"adjustments":{"shadows":25}}"#;
+
+    for payload in [radial, gradient] {
+        let out = run(&["develop", &root, "1", "local-adjustment", payload]);
+        assert!(out.status.success(), "{}", stderr(&out));
+        assert!(stdout(&out).starts_with("committed revision"));
+    }
+
+    // A brush payload from a file, the form a many-dab stroke needs.
+    let file = dir.path().join("brush.json");
+    std::fs::write(
+        &file,
+        r#"{"mask":{"type":"brush","strokes":[
+            {"x":0.2,"y":0.3,"radius":0.05,"flow":0.5,"hardness":0.5}]},
+            "opacity":1,"adjustments":{"clarity":40}}"#,
+    )
+    .unwrap();
+    let out = run(&[
+        "develop",
+        &root,
+        "1",
+        "local-adjustment",
+        &format!("@{}", file.display()),
+    ]);
+    assert!(out.status.success(), "{}", stderr(&out));
+
+    let out = run(&["develop", &root, "1", "local-adjustment", "rm", "2"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    // Only two are left, so index 2 no longer addresses anything.
+    let out = run(&["develop", &root, "1", "local-adjustment", "rm", "2"]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("no local adjustment at index 2"));
+
+    let out = run(&["develop", &root, "1", "local-adjustment", "reset"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    let out = run(&["develop", &root, "1", "local-adjustment", "rm", "0"]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("no local adjustment at index 0"));
+}
+
+#[test]
+fn local_adjustments_refuse_a_malformed_or_out_of_range_payload() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = library_with_a_photo(&dir);
+
+    let out = run(&["develop", &root, "1", "local-adjustment", "{\"mask\":1}"]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("bad local adjustment payload"));
+
+    // Well-formed JSON, but `opacity` is out of range: `Settings::validate`
+    // names it instead of storing it.
+    let out = run(&[
+        "develop",
+        &root,
+        "1",
+        "local-adjustment",
+        r#"{"mask":{"type":"everything"},"opacity":3,"adjustments":{}}"#,
+    ]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("opacity"), "{}", stderr(&out));
+
+    // Nothing above committed: only the initial revision.
+    let out = run(&["history", &root, "1"]);
+    assert_eq!(stdout(&out).lines().count(), 1);
+}
+
 #[test]
 fn camera_profile_import_list_and_reference_round_trip() {
     let dir = tempfile::tempdir().unwrap();

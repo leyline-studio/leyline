@@ -9,6 +9,10 @@ rust-version.workspace = true
 
 [dependencies]
 leyline-sdk.workspace = true
+# One command takes a stored `LocalAdjustment` verbatim as its argument
+# (ADR 0049 §4), so the CLI reads the very JSON `settings_json` holds rather
+# than inventing a second grammar for the same structure.
+serde_json.workspace = true
 
 [build-dependencies]
 embed-resource = "3.0"

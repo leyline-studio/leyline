@@ -94,7 +94,8 @@ soit un second dialecte à documenter, à valider et à faire vieillir en
 parallèle du premier.
 
 Le JSON est validé par `Settings::validate()` comme n'importe quel réglage :
-un champ inconnu ou hors bornes est une erreur nommée, pas un silence. `@fichier`
+un payload mal formé ou hors bornes est une erreur nommée, pas un silence.
+`@fichier`
 lit le payload sur disque, parce qu'un masque de brosse à trente dabs n'entre
 pas dans une ligne de commande.
 

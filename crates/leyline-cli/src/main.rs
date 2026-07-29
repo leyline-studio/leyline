@@ -9,9 +9,10 @@ use std::path::{Path, PathBuf};
 use leyline_sdk::{
     AssetId, CameraProfile, ColorGrading, ColorGradingZone, ColorLabel, Crop, CurvePoint,
     ExportFormat, ExportRecipe, ExportRequest, ExportSettings, GridQuery, HslBand, ImportOptions,
-    LensCorrection, Library, Margins, NoiseReduction, Orientation, PaperSize, Param, PickState,
-    Point, PresetId, PreviewKind, PrintRecipe, PrintRequest, PrintSettings, RenderingIntent,
-    Settings, SettingsGroup, Sharpening, SpotRemoval, ToneCurve, Value, VersionId, WhiteBalance,
+    LensCorrection, Library, LocalAdjustment, Margins, NoiseReduction, Orientation, PaperSize,
+    Param, PickState, Point, PresetId, PreviewKind, PrintRecipe, PrintRequest, PrintSettings,
+    RenderingIntent, Settings, SettingsGroup, Sharpening, SpotRemoval, ToneCurve, Value, VersionId,
+    WhiteBalance,
 };
 
 const USAGE: &str = "\
@@ -68,6 +69,16 @@ Develop params (docs/pipeline.md §3.2, schema 1):
   spot-removal <tx> <ty> <sx> <sy> <radius> <feather> <opacity>
                                     positions/radius percent 0-100, feather/opacity 0-1;
                                     appends one spot, or `spot-removal reset` to clear all
+  local-adjustment <json|@file>     appends one masked local adjustment (ADR 0029, ADR 0048),
+                                    written exactly as `settings_json` stores it
+                                    (docs/pipeline.md §3.2), e.g.
+                                    '{\"mask\":{\"type\":\"radial\",\"cx\":0.5,\"cy\":0.5,
+                                    \"rx\":0.3,\"ry\":0.3,\"angle\":0,\"feather\":0.5,
+                                    \"inverted\":false},\"opacity\":1,
+                                    \"adjustments\":{\"exposure\":-0.5}}';
+                                    @file reads the payload from a file instead
+  local-adjustment rm <index>       removes the adjustment at that index
+  local-adjustment reset            removes every local adjustment
   hsl-band <band> <hue> <saturation> <luminance>
                                     band is one of red/orange/yellow/green/aqua/blue/purple/magenta,
                                     each value integer in [-100, 100]
@@ -601,6 +612,24 @@ fn develop(args: &[String]) -> Result<(), String> {
             };
             (Param::SpotRemoval, Value::SpotRemoval(spots))
         }
+        // The only command taking a JSON payload (ADR 0049 §4), and the only
+        // one whose argument can stand for several edits at once — so it
+        // commits on its own instead of falling through to the single
+        // `set` below.
+        "local-adjustment" => {
+            let updates = local_adjustment_updates(
+                at(0)?,
+                rest.get(1).map(String::as_str),
+                &session.settings().local_adjustments,
+            )?;
+            for (param, value) in updates {
+                session.set(param, value).map_err(|e| e.to_string())?;
+            }
+            let revision = session.commit().map_err(|e| e.to_string())?;
+            drop(session);
+            println!("committed revision {revision}");
+            return Ok(());
+        }
         "hsl-band" => {
             const HSL_BAND_NAMES: [&str; 8] = [
                 "red", "orange", "yellow", "green", "aqua", "blue", "purple", "magenta",
@@ -656,6 +685,60 @@ fn develop(args: &[String]) -> Result<(), String> {
     drop(session);
     println!("committed revision {revision}");
     Ok(())
+}
+
+/// Decodes the `local-adjustment` develop argument (ADR 0049 §4) into the
+/// edits it stands for, against the adjustments `current`ly stored.
+///
+/// `action` is `reset`, `rm`, or the payload itself — a serialized
+/// [`LocalAdjustment`] exactly as `settings_json` holds it, or `@path` to read
+/// that payload from a file (a brush stroke's dabs do not fit on a command
+/// line). `argument` is the index `rm` removes, and is ignored otherwise.
+///
+/// A payload appends, so its index is the current length — the append
+/// convention of [`Value::LocalAdjustment`]. `reset` removes from the last
+/// index down, since removing an entry shifts every later one.
+fn local_adjustment_updates(
+    action: &str,
+    argument: Option<&str>,
+    current: &[LocalAdjustment],
+) -> Result<Vec<(Param, Value)>, String> {
+    match action {
+        "reset" => Ok((0..current.len())
+            .rev()
+            .map(|i| (Param::LocalAdjustment(i), Value::LocalAdjustment(None)))
+            .collect()),
+        "rm" => {
+            let index =
+                argument.ok_or_else(|| "local-adjustment rm expects an index".to_owned())?;
+            let index: usize = index.parse().map_err(|_| format!("bad index {index:?}"))?;
+            if index >= current.len() {
+                return Err(format!(
+                    "no local adjustment at index {index}; there {} {}",
+                    if current.len() == 1 { "is" } else { "are" },
+                    current.len()
+                ));
+            }
+            Ok(vec![(
+                Param::LocalAdjustment(index),
+                Value::LocalAdjustment(None),
+            )])
+        }
+        payload => {
+            let json = match payload.strip_prefix('@') {
+                Some(path) => {
+                    std::fs::read_to_string(path).map_err(|e| format!("cannot read {path}: {e}"))?
+                }
+                None => payload.to_owned(),
+            };
+            let adjustment: LocalAdjustment = serde_json::from_str(&json)
+                .map_err(|e| format!("bad local adjustment payload: {e}"))?;
+            Ok(vec![(
+                Param::LocalAdjustment(current.len()),
+                Value::LocalAdjustment(Some(adjustment)),
+            )])
+        }
+    }
 }
 
 /// Migrates each version to the engine's current stage versions
@@ -1223,4 +1306,124 @@ fn exports(args: &[String]) -> Result<(), String> {
     }
     println!("{} export(s)", history.len());
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use leyline_sdk::{LocalAdjustmentValues, Mask};
+
+    use super::*;
+
+    /// One stored radial adjustment, as a payload and as a value.
+    fn radial_json() -> &'static str {
+        r#"{"mask":{"type":"radial","cx":0.5,"cy":0.5,"rx":0.3,"ry":0.2,
+            "angle":0,"feather":0.5,"inverted":false},
+            "opacity":1,"adjustments":{"exposure":-0.5}}"#
+    }
+
+    fn radial() -> LocalAdjustment {
+        LocalAdjustment {
+            mask: Mask::Radial {
+                cx: 0.5,
+                cy: 0.5,
+                rx: 0.3,
+                ry: 0.2,
+                angle: 0.0,
+                feather: 0.5,
+                inverted: false,
+            },
+            range: None,
+            opacity: 1.0,
+            adjustments: LocalAdjustmentValues {
+                exposure: Some(-0.5),
+                ..LocalAdjustmentValues::default()
+            },
+        }
+    }
+
+    #[test]
+    fn a_payload_appends_at_the_current_length() {
+        assert_eq!(
+            local_adjustment_updates(radial_json(), None, &[]),
+            Ok(vec![(
+                Param::LocalAdjustment(0),
+                Value::LocalAdjustment(Some(radial()))
+            )])
+        );
+        let existing = [radial(), radial()];
+        assert_eq!(
+            local_adjustment_updates(radial_json(), None, &existing),
+            Ok(vec![(
+                Param::LocalAdjustment(2),
+                Value::LocalAdjustment(Some(radial()))
+            )])
+        );
+    }
+
+    #[test]
+    fn an_at_prefixed_payload_is_read_from_a_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("mask.json");
+        std::fs::write(&file, radial_json()).unwrap();
+        assert_eq!(
+            local_adjustment_updates(&format!("@{}", file.display()), None, &[]),
+            Ok(vec![(
+                Param::LocalAdjustment(0),
+                Value::LocalAdjustment(Some(radial()))
+            )])
+        );
+        assert!(
+            local_adjustment_updates("@no/such/file.json", None, &[])
+                .unwrap_err()
+                .starts_with("cannot read ")
+        );
+    }
+
+    #[test]
+    fn a_malformed_payload_is_named_rather_than_ignored() {
+        let error = local_adjustment_updates("{\"mask\":\"radial\"}", None, &[]).unwrap_err();
+        assert!(
+            error.starts_with("bad local adjustment payload: "),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn rm_removes_one_index_and_refuses_a_missing_one() {
+        assert_eq!(
+            local_adjustment_updates("rm", Some("1"), &[radial(), radial()]),
+            Ok(vec![(
+                Param::LocalAdjustment(1),
+                Value::LocalAdjustment(None)
+            )])
+        );
+        assert_eq!(
+            local_adjustment_updates("rm", Some("2"), &[radial(), radial()]),
+            Err("no local adjustment at index 2; there are 2".to_owned())
+        );
+        assert_eq!(
+            local_adjustment_updates("rm", None, &[radial()]),
+            Err("local-adjustment rm expects an index".to_owned())
+        );
+        assert!(
+            local_adjustment_updates("rm", Some("x"), &[radial()])
+                .unwrap_err()
+                .starts_with("bad index ")
+        );
+    }
+
+    /// Removing shifts every later index down, so a reset that walked
+    /// forwards would run off the end of a shrinking list.
+    #[test]
+    fn reset_removes_from_the_last_index_down() {
+        assert_eq!(
+            local_adjustment_updates("reset", None, &[radial(), radial(), radial()]),
+            Ok(vec![
+                (Param::LocalAdjustment(2), Value::LocalAdjustment(None)),
+                (Param::LocalAdjustment(1), Value::LocalAdjustment(None)),
+                (Param::LocalAdjustment(0), Value::LocalAdjustment(None)),
+            ])
+        );
+        assert_eq!(local_adjustment_updates("reset", None, &[]), Ok(vec![]));
+    }
 }
