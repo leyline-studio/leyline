@@ -1414,3 +1414,71 @@ msgstr "Sélectionnez d'abord une collection dans le panneau latéral."
 msgctxt "Tr"
 msgid "Preset saved."
 msgstr "Préréglage enregistré."
+
+# Local adjustments (ADR 0049): masks, their tools and their range terms.
+
+msgid "Radial"
+msgstr "Radial"
+
+msgid "Gradient"
+msgstr "Dégradé"
+
+msgid "Brush"
+msgstr "Pinceau"
+
+msgid "Local Adjustments"
+msgstr "Retouches locales"
+
+msgid "Pick Radial, Gradient or Brush above and draw on the photo. Click a row to edit it; drawing again moves the selected mask."
+msgstr "Choisissez Radial, Dégradé ou Pinceau ci-dessus et tracez sur la photo. Cliquez une ligne pour la modifier ; tracer de nouveau déplace le masque sélectionné."
+
+msgid "Whole image"
+msgstr "Image entière"
+
+msgid "Add whole-image mask"
+msgstr "Ajouter un masque sur toute l'image"
+
+msgid "Size %"
+msgstr "Taille %"
+
+msgid "Flow %"
+msgstr "Débit %"
+
+msgid "Hardness %"
+msgstr "Dureté %"
+
+msgid "Opacity"
+msgstr "Opacité"
+
+msgid "Feather"
+msgstr "Contour progressif"
+
+msgid "Inside the ellipse"
+msgstr "À l'intérieur de l'ellipse"
+
+msgid "Outside the ellipse"
+msgstr "À l'extérieur de l'ellipse"
+
+msgid "Local white balance"
+msgstr "Balance des blancs locale"
+
+msgid "Luminance range"
+msgstr "Plage de luminance"
+
+msgid "Range from"
+msgstr "Plage à partir de"
+
+msgid "Range to"
+msgstr "Plage jusqu'à"
+
+msgid "Range softness"
+msgstr "Douceur de la plage"
+
+msgid "Color range"
+msgstr "Plage de couleur"
+
+msgid "Hue width"
+msgstr "Largeur de teinte"
+
+msgid "Hue softness"
+msgstr "Douceur de teinte"

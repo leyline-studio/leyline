@@ -95,8 +95,7 @@ parallèle du premier.
 
 Le JSON est validé par `Settings::validate()` comme n'importe quel réglage :
 un payload mal formé ou hors bornes est une erreur nommée, pas un silence.
-`@fichier`
-lit le payload sur disque, parce qu'un masque de brosse à trente dabs n'entre
+`@fichier` lit le payload sur disque, parce qu'un masque de brosse à trente dabs n'entre
 pas dans une ligne de commande.
 
 ### 5. Ce que l'interface montre de la couverture
@@ -104,6 +103,11 @@ pas dans une ligne de commande.
 Studio dessine le **contour** de la géométrie sélectionnée sur la preview —
 l'ellipse d'un radial, l'axe d'un gradué, les dabs d'une brosse — calculé côté
 UI à partir de la géométrie stockée, sans rien demander au moteur.
+
+Le contour ne reflète pas la rotation d'une ellipse (`angle`) : les outils
+n'en écrivent jamais — un glissement à deux coins n'a pas de rotation à
+rapporter (§1) — et une ellipse inclinée écrite par la CLI ou le SDK montre
+donc son contour non tourné.
 
 Il ne dessine **pas** la couverture réelle en surimpression (le « masque rouge »
 de Lightroom). Cette couverture inclut le terme de plage, donc dépend des
@@ -140,8 +144,10 @@ absence ne bloque pas le geste : le contour suffit à savoir *où* on a tracé.
   assumé et borné à ce cas : la justification (§4) est la profondeur de la
   structure, pas la commodité.
 * **`ui/state/mask.slint` est le huitième global de domaine** (ADR 0045 §1).
-  La sélection de ligne, l'outil actif et les replis restent privés au panneau,
-  Rust ne les lisant pas.
+  Il porte la liste des retouches, les trois champs de la brosse **et la ligne
+  sélectionnée** : celle-ci traverse la frontière parce qu'un geste qui *crée*
+  une retouche doit la sélectionner depuis Rust (§2). L'outil actif et les
+  replis, que Rust ne lit jamais, restent privés au panneau.
 
 ## Alternatives écartées
 

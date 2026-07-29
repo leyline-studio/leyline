@@ -194,7 +194,11 @@ pub fn drag_crop(
 /// into `[0, 1]` unit coordinates of the *image itself* — the referential
 /// [`Crop`] and [`Point`] (ADR 0026) both share. `None` for a degenerate
 /// viewport or preview.
-fn letterbox_unit(point: (f64, f64), view: (f64, f64), image: (f64, f64)) -> Option<(f64, f64)> {
+pub(crate) fn letterbox_unit(
+    point: (f64, f64),
+    view: (f64, f64),
+    image: (f64, f64),
+) -> Option<(f64, f64)> {
     if view.0 <= 0.0 || view.1 <= 0.0 || image.0 <= 0.0 || image.1 <= 0.0 {
         return None;
     }

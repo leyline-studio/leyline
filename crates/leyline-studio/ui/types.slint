@@ -62,6 +62,70 @@ export struct ColorGradingZoneValues {
     luminance: float,
 }
 
+// One brush dab of a local adjustment's mask, in [0, 1] image coordinates
+// (ADR 0026) — what the preview outline draws (ADR 0049 §5).
+export struct MaskDab {
+    x: float,
+    y: float,
+    radius: float,
+}
+
+// One entry of `Settings::local_adjustments` (ADR 0029, ADR 0048), mirrored
+// by `models::mask_rows` for the local-adjustment panel (ADR 0049).
+//
+// The whole list is mirrored rather than only the selected entry: which row is
+// selected never crosses to Rust (ADR 0045 §2), so the panel reads the row it
+// is showing straight out of this model and names its index when it edits.
+//
+// The `-on` flags stand for a value being *set* rather than zero: an
+// adjustment's fields are `Option`s, and "not set" is not the same as 0
+// (ADR 0049 §3).
+export struct MaskRow {
+    // "radial", "gradient", "brush" or "everything".
+    kind: string,
+    // The geometry in words, already formatted by Rust — positions in percent,
+    // dab counts — since the UI never formats a stored value itself.
+    geometry: string,
+    // Percent, like every [0, 1] field below.
+    opacity: float,
+    // Radial only, ignored by the panel for the other kinds.
+    feather: float,
+    inverted: bool,
+    // Local white balance: the pair is set together or not at all, since
+    // neither field has a neutral value (ADR 0049 §3).
+    wb-on: bool,
+    temperature: float,
+    tint: float,
+    exposure: float,
+    contrast: float,
+    highlights: float,
+    shadows: float,
+    whites: float,
+    blacks: float,
+    vibrance: float,
+    saturation: float,
+    range-luminance-on: bool,
+    lum-min: float,
+    lum-max: float,
+    lum-softness: float,
+    range-color-on: bool,
+    // Degrees, all three.
+    color-center: float,
+    color-width: float,
+    color-softness: float,
+    // Geometry in [0, 1] image coordinates, for the preview outline: center
+    // and radii of a radial, both ends of a gradient, every dab of a brush.
+    cx: float,
+    cy: float,
+    rx: float,
+    ry: float,
+    x0: float,
+    y0: float,
+    x1: float,
+    y1: float,
+    dabs: [MaskDab],
+}
+
 // Develop slider values, mirrored from the Settings held in Rust.
 export struct DevSettings {
     exposure: float,

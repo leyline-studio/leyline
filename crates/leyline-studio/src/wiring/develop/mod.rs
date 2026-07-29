@@ -4,7 +4,9 @@
 //! Split by what an edit *is* rather than by dialog, since the develop panel
 //! is one surface: moving between photos (`session`), changing values
 //! (`adjustments`, `curve`, `spot`), and moving through what has already been
-//! changed (`history`). `clipboard` carries settings between photos.
+//! changed (`history`). `clipboard` carries settings between photos, and
+//! `masks` the local adjustments, whose entries are traced on the image rather
+//! than moved with a slider (ADR 0049).
 //!
 //! The rules deciding *what* a slider does live in `crate::develop`, free of
 //! any Slint type; these modules only move values across the boundary.
@@ -13,6 +15,7 @@ pub(crate) mod adjustments;
 pub(crate) mod clipboard;
 pub(crate) mod curve;
 pub(crate) mod history;
+pub(crate) mod masks;
 pub(crate) mod session;
 pub(crate) mod spot;
 
@@ -23,7 +26,7 @@ use crate::app::{App, report_error};
 use crate::develop;
 use crate::format;
 use crate::models::{CURVE_CANVAS_SIZE, dev_model};
-use crate::ui::{CurveMarker, DevelopState, StudioWindow};
+use crate::ui::{CurveMarker, DevelopState, MaskState, StudioWindow};
 use leyline_sdk::{AssetId, PreviewKind, VersionId};
 use slint::{Global, ModelRc, SharedString, VecModel};
 
@@ -33,6 +36,7 @@ pub(crate) fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     adjustments::wire_adjustments(app, window);
     curve::wire_curve(app, window);
     spot::wire_spot(app, window);
+    masks::wire_masks(app, window);
     history::wire_history(app, window);
 }
 
@@ -104,6 +108,15 @@ pub(crate) fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<()
     ))));
     DevelopState::get(window)
         .set_dev_spot_count(i32::try_from(settings.spot_removal.len()).unwrap_or(i32::MAX));
+    // Local adjustments (ADR 0049): the whole list, plus a selection kept
+    // inside it — a removal, an undo or a jump through the history can shorten
+    // the list under a row that was selected a moment ago.
+    let rows = crate::models::mask_rows(&settings);
+    let selected = MaskState::get(window).get_selected_mask();
+    if usize::try_from(selected).is_ok_and(|row| row >= rows.len()) {
+        MaskState::get(window).set_selected_mask(-1);
+    }
+    MaskState::get(window).set_masks(ModelRc::from(Rc::new(VecModel::from(rows))));
     let file = app
         .library
         .preview(asset, PreviewKind::Small)

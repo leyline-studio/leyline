@@ -7,9 +7,10 @@
 // `menu-row` in `studio.slint` for why any position or size override around
 // this content is a repaint hazard.
 
-import { DevSettings } from "../types.slint";
+import { DevSettings, MaskRow } from "../types.slint";
 import { DevelopState } from "../state/develop.slint";
 import { GridState } from "../state/grid.slint";
+import { MaskState } from "../state/mask.slint";
 import { EditSlider, FilterChip, GroupHeader } from "../widgets/controls.slint";
 
 export component DevelopPanel inherits HorizontalLayout {
@@ -28,6 +29,7 @@ export component DevelopPanel inherits HorizontalLayout {
     property <bool> expand-hsl: false;
     property <bool> expand-color-grading: false;
     property <bool> expand-spot-removal: false;
+    property <bool> expand-local: false;
     property <bool> expand-geometry: false;
     property <bool> expand-history: false;
     // Fixed band order (ADR 0031), parallel to `DevSettings::hsl`.
@@ -38,7 +40,9 @@ export component DevelopPanel inherits HorizontalLayout {
 
     // Which drag tool the develop image responds to: "select" (default,
     // dragging does nothing), "crop" (dragging draws the crop rectangle),
-    // or "spot" (two clicks place a spot-removal clone, ADR 0032).
+    // "spot" (two clicks place a spot-removal clone, ADR 0032), or one of
+    // the three local-adjustment tools — "radial"/"gradient" (one drag
+    // traces the geometry) and "brush" (each click adds a dab), ADR 0049 §1.
     // `in-out` because the window's keyboard shortcuts switch tools too.
     in-out property <string> active-tool: "select";
     // Loupe zoom: fit-to-window (false) or 100%-with-pan (true). Only
@@ -53,6 +57,21 @@ export component DevelopPanel inherits HorizontalLayout {
     property <bool> spot-pending: false;
     property <float> spot-pending-vx: 0;
     property <float> spot-pending-vy: 0;
+
+    // An ellipse centered on `cx`/`cy` with radii `rx`/`ry`, as `Path`
+    // commands in whatever unit those four arrive in (ADR 0049 §5).
+    //
+    // Four cubic segments rather than two `A` arcs: Slint's path parser
+    // accepts arc commands and then draws nothing for them. 0.5523 is the
+    // usual control-point ratio that makes a cubic quarter indistinguishable
+    // from a quarter ellipse.
+    pure function ellipse-path(cx: float, cy: float, rx: float, ry: float) -> string {
+        return "M\{cx - rx} \{cy}"
+            + " C\{cx - rx} \{cy - 0.5523 * ry} \{cx - 0.5523 * rx} \{cy - ry} \{cx} \{cy - ry}"
+            + " C\{cx + 0.5523 * rx} \{cy - ry} \{cx + rx} \{cy - 0.5523 * ry} \{cx + rx} \{cy}"
+            + " C\{cx + rx} \{cy + 0.5523 * ry} \{cx + 0.5523 * rx} \{cy + ry} \{cx} \{cy + ry}"
+            + " C\{cx - 0.5523 * rx} \{cy + ry} \{cx - rx} \{cy + 0.5523 * ry} \{cx - rx} \{cy} Z";
+    }
 
     // A new photo's image just loaded (entered develop, or navigated): loupe
     // zoom is per-photo UI state, so it resets like Compare Before/After
@@ -117,6 +136,40 @@ export component DevelopPanel inherits HorizontalLayout {
                         root.dev-zoomed = false;
                     }
                 }
+                // The three local-adjustment tools (ADR 0049 §1). Like Crop
+                // and Spot Removal they assume the fit-to-window letterbox,
+                // so picking one drops the loupe back to fit; each also opens
+                // the panel section that shows what the gesture just wrote.
+                FilterChip {
+                    text: @tr("Radial");
+                    active: root.active-tool == "radial";
+                    clicked => {
+                        root.active-tool = "radial";
+                        root.spot-pending = false;
+                        root.dev-zoomed = false;
+                        root.expand-local = true;
+                    }
+                }
+                FilterChip {
+                    text: @tr("Gradient");
+                    active: root.active-tool == "gradient";
+                    clicked => {
+                        root.active-tool = "gradient";
+                        root.spot-pending = false;
+                        root.dev-zoomed = false;
+                        root.expand-local = true;
+                    }
+                }
+                FilterChip {
+                    text: @tr("Brush");
+                    active: root.active-tool == "brush";
+                    clicked => {
+                        root.active-tool = "brush";
+                        root.spot-pending = false;
+                        root.dev-zoomed = false;
+                        root.expand-local = true;
+                    }
+                }
                 FilterChip {
                     // Loupe zoom (Z): 100%-with-pan vs fit-to-window,
                     // Select tool only (see `dev-zoomed`'s declaration).
@@ -129,9 +182,20 @@ export component DevelopPanel inherits HorizontalLayout {
                 }
             }
 
-            Rectangle {
+            preview := Rectangle {
                 vertical-stretch: 1;
                 clip: true;
+
+                // Where the fit-to-window preview actually sits inside this
+                // viewport: the same letterbox `develop::letterbox_unit`
+                // inverts on the Rust side, so a mask outline drawn from
+                // stored [0, 1] coordinates lands exactly where the gesture
+                // that traced it was read (ADR 0049 §5).
+                property <float> image-w: max(DevelopState.develop-image.width, 1);
+                property <float> image-h: max(DevelopState.develop-image.height, 1);
+                property <length> fit: min(self.width / self.image-w, self.height / self.image-h);
+                property <length> pad-x: (self.width - self.image-w * self.fit) / 2;
+                property <length> pad-y: (self.height - self.image-h * self.fit) / 2;
 
                 if !root.dev-zoomed: Image {
                     source: DevelopState.dev-compare ? DevelopState.develop-image-before : DevelopState.develop-image;
@@ -239,6 +303,142 @@ export component DevelopPanel inherits HorizontalLayout {
                     background: #ffcc0055;
                     border-width: 1px;
                     border-color: #ffcc00;
+                }
+
+                // Radial and gradient: one drag traces the geometry
+                // (ADR 0049 §1), onto the selected row when it is of the
+                // same kind and as a new entry otherwise — the decision is
+                // Rust's, in `masks::place_geometry`.
+                mask-drag := TouchArea {
+                    enabled: root.active-tool == "radial" || root.active-tool == "gradient";
+                    mouse-cursor: crosshair;
+                    pointer-event(event) => {
+                        if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
+                            MaskState.place-mask(
+                                MaskState.selected-mask, root.active-tool,
+                                self.pressed-x / 1px, self.pressed-y / 1px,
+                                self.mouse-x / 1px, self.mouse-y / 1px,
+                                self.width / 1px, self.height / 1px,
+                                DevelopState.develop-image.width, DevelopState.develop-image.height);
+                        }
+                    }
+                }
+
+                // Live feedback while tracing: the ellipse that will be
+                // inscribed in the dragged rectangle, or the gradient's axis.
+                //
+                // Both are one `Path` spanning the whole viewport with a
+                // viewbox in viewport pixels, so its coordinates *are* the
+                // viewport's own — a `Path` scales its viewbox uniformly and
+                // centers it, so a stretched square viewbox would draw a
+                // circle where an ellipse belongs.
+                if mask-drag.pressed && root.active-tool == "radial": Path {
+                    width: 100%;
+                    height: 100%;
+                    viewbox-width: self.width / 1px;
+                    viewbox-height: self.height / 1px;
+                    commands: ellipse-path(
+                        (mask-drag.pressed-x + mask-drag.mouse-x) / 2 / 1px,
+                        (mask-drag.pressed-y + mask-drag.mouse-y) / 2 / 1px,
+                        abs((mask-drag.pressed-x - mask-drag.mouse-x) / 1px) / 2,
+                        abs((mask-drag.pressed-y - mask-drag.mouse-y) / 1px) / 2);
+                    stroke: #ffcc00;
+                    stroke-width: 1px;
+                }
+                if mask-drag.pressed && root.active-tool == "gradient": Path {
+                    width: 100%;
+                    height: 100%;
+                    viewbox-width: self.width / 1px;
+                    viewbox-height: self.height / 1px;
+                    commands: "M\{mask-drag.pressed-x / 1px} \{mask-drag.pressed-y / 1px} L\{mask-drag.mouse-x / 1px} \{mask-drag.mouse-y / 1px}";
+                    stroke: #ffcc00;
+                    stroke-width: 1px;
+                }
+
+                // Brush: one dab per click, appended to the selected brush or
+                // starting a new one (ADR 0049 §2).
+                brush-click := TouchArea {
+                    enabled: root.active-tool == "brush";
+                    mouse-cursor: crosshair;
+                    pointer-event(event) => {
+                        if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
+                            MaskState.paint-mask-dab(
+                                MaskState.selected-mask,
+                                self.mouse-x / 1px, self.mouse-y / 1px,
+                                self.width / 1px, self.height / 1px,
+                                DevelopState.develop-image.width, DevelopState.develop-image.height);
+                        }
+                    }
+                }
+
+                // The selected mask's outline (ADR 0049 §5): the geometry
+                // itself, never the resulting coverage — that would include
+                // the range term, hence the pixels, hence a render the engine
+                // does not expose. Drawn from the stored [0, 1] coordinates
+                // through the letterbox above.
+                //
+                // A radial's `angle` is not reflected: the tools only ever
+                // write 0 (a two-corner drag has no rotation to report), and
+                // an ellipse written at an angle through the CLI or the SDK
+                // shows its unrotated outline.
+                if MaskState.selected-mask >= 0 && MaskState.selected-mask < MaskState.masks.length: outline := Rectangle {
+                    property <MaskRow> shape: MaskState.masks[MaskState.selected-mask];
+                    // Where the image sits, so children can work in image
+                    // fractions without repeating the letterbox.
+                    x: preview.pad-x;
+                    y: preview.pad-y;
+                    width: preview.image-w * preview.fit;
+                    height: preview.image-h * preview.fit;
+
+                    // The image area in its own pixels, the unit both paths
+                    // below work in (see the live feedback's comment for why
+                    // the viewbox has to match the element's aspect ratio).
+                    property <float> w: self.width / 1px;
+                    property <float> h: self.height / 1px;
+
+                    if outline.shape.kind == "radial": Path {
+                        width: 100%;
+                        height: 100%;
+                        viewbox-width: outline.w;
+                        viewbox-height: outline.h;
+                        commands: ellipse-path(
+                            outline.shape.cx * outline.w, outline.shape.cy * outline.h,
+                            outline.shape.rx * outline.w, outline.shape.ry * outline.h);
+                        stroke: #ffcc00;
+                        stroke-width: 1px;
+                    }
+                    if outline.shape.kind == "gradient": Path {
+                        width: 100%;
+                        height: 100%;
+                        viewbox-width: outline.w;
+                        viewbox-height: outline.h;
+                        commands: "M\{outline.shape.x0 * outline.w} \{outline.shape.y0 * outline.h} L\{outline.shape.x1 * outline.w} \{outline.shape.y1 * outline.h}";
+                        stroke: #ffcc00;
+                        stroke-width: 1px;
+                    }
+                    // The full-coverage end of the gradient, so which way it
+                    // runs is visible rather than guessed.
+                    if outline.shape.kind == "gradient": Rectangle {
+                        x: outline.shape.x0 * parent.width - 4px;
+                        y: outline.shape.y0 * parent.height - 4px;
+                        width: 8px;
+                        height: 8px;
+                        border-radius: 4px;
+                        background: #ffcc00;
+                    }
+                    // Dab radii are normalized against the larger dimension,
+                    // so a dab is a circle on screen and not an ellipse.
+                    if outline.shape.kind == "brush": Rectangle {
+                        for dab in outline.shape.dabs: Rectangle {
+                            x: dab.x * parent.width - dab.radius * max(parent.width, parent.height);
+                            y: dab.y * parent.height - dab.radius * max(parent.width, parent.height);
+                            width: 2 * dab.radius * max(parent.width, parent.height);
+                            height: self.width;
+                            border-radius: self.width / 2;
+                            border-width: 1px;
+                            border-color: #ffcc0088;
+                        }
+                    }
                 }
 
                 // Right-click (ADR 0021): every entry is an existing
@@ -1037,6 +1237,378 @@ export component DevelopPanel inherits HorizontalLayout {
                                 active: false;
                                 clicked => {
                                     DevelopState.develop-spot-reset();
+                                }
+                            }
+                        }
+                    }
+
+                    GroupHeader {
+                        label: @tr("Local Adjustments");
+                        expanded <=> root.expand-local;
+                    }
+                    // The masked adjustments of ADR 0029, refined by the range
+                    // masks of ADR 0048 (ADR 0049): a list of entries, the
+                    // selected one's values below it. Geometry is traced on the
+                    // image with the three tools above, never typed here.
+                    if root.expand-local: VerticalLayout {
+                        spacing: 8px;
+                        Text {
+                            text: @tr("Pick Radial, Gradient or Brush above and draw on the photo. Click a row to edit it; drawing again moves the selected mask.");
+                            color: #666666;
+                            font-size: 11px;
+                            wrap: word-wrap;
+                        }
+                        for row[i] in MaskState.masks: mask-touch := TouchArea {
+                            height: 30px;
+                            clicked => {
+                                MaskState.selected-mask = MaskState.selected-mask == i ? -1 : i;
+                            }
+                            Rectangle {
+                                width: 100%;
+                                height: 100%;
+                                border-radius: 4px;
+                                background: i == MaskState.selected-mask ? #2f4f6f : (mask-touch.has-hover ? #2a2a2a : transparent);
+                                HorizontalLayout {
+                                    padding-left: 8px;
+                                    padding-right: 4px;
+                                    spacing: 6px;
+                                    Text {
+                                        text: row.kind == "radial" ? @tr("Radial")
+                                            : row.kind == "gradient" ? @tr("Gradient")
+                                            : row.kind == "brush" ? @tr("Brush")
+                                            : @tr("Whole image");
+                                        color: #e6e6e6;
+                                        font-size: 12px;
+                                        vertical-alignment: center;
+                                    }
+                                    Text {
+                                        // Already formatted by Rust
+                                        // (`models::mask_rows`).
+                                        text: row.geometry;
+                                        color: #9a9a9a;
+                                        font-size: 11px;
+                                        overflow: elide;
+                                        horizontal-stretch: 1;
+                                        vertical-alignment: center;
+                                    }
+                                    remove-touch := TouchArea {
+                                        width: 18px;
+                                        clicked => {
+                                            MaskState.remove-mask(i);
+                                            MaskState.selected-mask = -1;
+                                        }
+                                        Text {
+                                            text: "×";
+                                            color: remove-touch.has-hover ? #f0f0f0 : #9a9a9a;
+                                            font-size: 13px;
+                                            horizontal-alignment: center;
+                                            vertical-alignment: center;
+                                            width: 100%;
+                                            height: 100%;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        HorizontalLayout {
+                            alignment: start;
+                            FilterChip {
+                                // A range mask standing on its own needs a
+                                // geometry that covers everything (ADR 0048
+                                // §1) — nothing to trace, so a button.
+                                text: @tr("Add whole-image mask");
+                                active: false;
+                                clicked => {
+                                    MaskState.add-mask("everything");
+                                    root.expand-local = true;
+                                }
+                            }
+                        }
+
+                        // Brush defaults, applied to the next dab painted.
+                        if root.active-tool == "brush": HorizontalLayout {
+                            spacing: 8px;
+                            VerticalLayout {
+                                spacing: 4px;
+                                horizontal-stretch: 1;
+                                Text {
+                                    text: @tr("Size %");
+                                    color: #9a9a9a;
+                                    font-size: 12px;
+                                }
+                                Rectangle {
+                                    height: 26px;
+                                    background: #1b1b1b;
+                                    border-radius: 4px;
+                                    border-width: 1px;
+                                    border-color: #3a3a3a;
+                                    TextInput {
+                                        x: 6px;
+                                        width: parent.width - 12px;
+                                        height: 100%;
+                                        text <=> MaskState.brush-size-text;
+                                        color: #e6e6e6;
+                                        font-size: 12px;
+                                        vertical-alignment: center;
+                                        single-line: true;
+                                    }
+                                }
+                            }
+                            VerticalLayout {
+                                spacing: 4px;
+                                horizontal-stretch: 1;
+                                Text {
+                                    text: @tr("Flow %");
+                                    color: #9a9a9a;
+                                    font-size: 12px;
+                                }
+                                Rectangle {
+                                    height: 26px;
+                                    background: #1b1b1b;
+                                    border-radius: 4px;
+                                    border-width: 1px;
+                                    border-color: #3a3a3a;
+                                    TextInput {
+                                        x: 6px;
+                                        width: parent.width - 12px;
+                                        height: 100%;
+                                        text <=> MaskState.brush-flow-text;
+                                        color: #e6e6e6;
+                                        font-size: 12px;
+                                        vertical-alignment: center;
+                                        single-line: true;
+                                    }
+                                }
+                            }
+                            VerticalLayout {
+                                spacing: 4px;
+                                horizontal-stretch: 1;
+                                Text {
+                                    text: @tr("Hardness %");
+                                    color: #9a9a9a;
+                                    font-size: 12px;
+                                }
+                                Rectangle {
+                                    height: 26px;
+                                    background: #1b1b1b;
+                                    border-radius: 4px;
+                                    border-width: 1px;
+                                    border-color: #3a3a3a;
+                                    TextInput {
+                                        x: 6px;
+                                        width: parent.width - 12px;
+                                        height: 100%;
+                                        text <=> MaskState.brush-hardness-text;
+                                        color: #e6e6e6;
+                                        font-size: 12px;
+                                        vertical-alignment: center;
+                                        single-line: true;
+                                    }
+                                }
+                            }
+                        }
+
+                        // The selected entry's values. Every slider back at
+                        // its neutral value means "not set" (ADR 0049 §3), so
+                        // there is nothing to switch off but the two pairs
+                        // that have no neutral: the local white balance and
+                        // each range term.
+                        if MaskState.selected-mask >= 0 && MaskState.selected-mask < MaskState.masks.length: editor := VerticalLayout {
+                            property <MaskRow> sel: MaskState.masks[MaskState.selected-mask];
+                            spacing: 12px;
+
+                            EditSlider {
+                                label: @tr("Opacity");
+                                minimum: 0;
+                                maximum: 100;
+                                value: editor.sel.opacity;
+                                edited(v) => {
+                                    MaskState.edit-mask(MaskState.selected-mask, "opacity", v);
+                                }
+                            }
+                            if editor.sel.kind == "radial": EditSlider {
+                                label: @tr("Feather");
+                                minimum: 0;
+                                maximum: 100;
+                                value: editor.sel.feather;
+                                edited(v) => {
+                                    MaskState.edit-mask(MaskState.selected-mask, "feather", v);
+                                }
+                            }
+                            if editor.sel.kind == "radial": FilterChip {
+                                text: editor.sel.inverted ? @tr("Outside the ellipse") : @tr("Inside the ellipse");
+                                active: editor.sel.inverted;
+                                clicked => {
+                                    MaskState.edit-mask(MaskState.selected-mask, "invert", editor.sel.inverted ? 0 : 1);
+                                }
+                            }
+                            EditSlider {
+                                label: @tr("Exposure");
+                                minimum: -5;
+                                maximum: 5;
+                                decimals: 2;
+                                value: editor.sel.exposure;
+                                edited(v) => {
+                                    MaskState.edit-mask(MaskState.selected-mask, "exposure", v);
+                                }
+                            }
+                            EditSlider {
+                                label: @tr("Contrast");
+                                minimum: -100;
+                                maximum: 100;
+                                value: editor.sel.contrast;
+                                edited(v) => {
+                                    MaskState.edit-mask(MaskState.selected-mask, "contrast", v);
+                                }
+                            }
+                            EditSlider {
+                                label: @tr("Highlights");
+                                minimum: -100;
+                                maximum: 100;
+                                value: editor.sel.highlights;
+                                edited(v) => {
+                                    MaskState.edit-mask(MaskState.selected-mask, "highlights", v);
+                                }
+                            }
+                            EditSlider {
+                                label: @tr("Shadows");
+                                minimum: -100;
+                                maximum: 100;
+                                value: editor.sel.shadows;
+                                edited(v) => {
+                                    MaskState.edit-mask(MaskState.selected-mask, "shadows", v);
+                                }
+                            }
+                            EditSlider {
+                                label: @tr("Whites");
+                                minimum: -100;
+                                maximum: 100;
+                                value: editor.sel.whites;
+                                edited(v) => {
+                                    MaskState.edit-mask(MaskState.selected-mask, "whites", v);
+                                }
+                            }
+                            EditSlider {
+                                label: @tr("Blacks");
+                                minimum: -100;
+                                maximum: 100;
+                                value: editor.sel.blacks;
+                                edited(v) => {
+                                    MaskState.edit-mask(MaskState.selected-mask, "blacks", v);
+                                }
+                            }
+                            EditSlider {
+                                label: @tr("Vibrance");
+                                minimum: -100;
+                                maximum: 100;
+                                value: editor.sel.vibrance;
+                                edited(v) => {
+                                    MaskState.edit-mask(MaskState.selected-mask, "vibrance", v);
+                                }
+                            }
+                            EditSlider {
+                                label: @tr("Saturation");
+                                minimum: -100;
+                                maximum: 100;
+                                value: editor.sel.saturation;
+                                edited(v) => {
+                                    MaskState.edit-mask(MaskState.selected-mask, "saturation", v);
+                                }
+                            }
+                            FilterChip {
+                                text: @tr("Local white balance");
+                                active: editor.sel.wb-on;
+                                clicked => {
+                                    MaskState.edit-mask(MaskState.selected-mask, "wb", editor.sel.wb-on ? 0 : 1);
+                                }
+                            }
+                            if editor.sel.wb-on: EditSlider {
+                                label: @tr("Temperature");
+                                minimum: 2000;
+                                maximum: 12000;
+                                value: editor.sel.temperature;
+                                edited(v) => {
+                                    MaskState.edit-mask(MaskState.selected-mask, "temperature", v);
+                                }
+                            }
+                            if editor.sel.wb-on: EditSlider {
+                                label: @tr("Tint");
+                                minimum: -100;
+                                maximum: 100;
+                                value: editor.sel.tint;
+                                edited(v) => {
+                                    MaskState.edit-mask(MaskState.selected-mask, "tint", v);
+                                }
+                            }
+                            // Range mask (ADR 0048): narrows the traced
+                            // geometry by luminance and by hue, each term
+                            // independent and off by default.
+                            FilterChip {
+                                text: @tr("Luminance range");
+                                active: editor.sel.range-luminance-on;
+                                clicked => {
+                                    MaskState.edit-mask(MaskState.selected-mask, "range-luminance", editor.sel.range-luminance-on ? 0 : 1);
+                                }
+                            }
+                            if editor.sel.range-luminance-on: EditSlider {
+                                label: @tr("Range from");
+                                minimum: 0;
+                                maximum: 100;
+                                value: editor.sel.lum-min;
+                                edited(v) => {
+                                    MaskState.edit-mask(MaskState.selected-mask, "lum-min", v);
+                                }
+                            }
+                            if editor.sel.range-luminance-on: EditSlider {
+                                label: @tr("Range to");
+                                minimum: 0;
+                                maximum: 100;
+                                value: editor.sel.lum-max;
+                                edited(v) => {
+                                    MaskState.edit-mask(MaskState.selected-mask, "lum-max", v);
+                                }
+                            }
+                            if editor.sel.range-luminance-on: EditSlider {
+                                label: @tr("Range softness");
+                                minimum: 0;
+                                maximum: 100;
+                                value: editor.sel.lum-softness;
+                                edited(v) => {
+                                    MaskState.edit-mask(MaskState.selected-mask, "lum-softness", v);
+                                }
+                            }
+                            FilterChip {
+                                text: @tr("Color range");
+                                active: editor.sel.range-color-on;
+                                clicked => {
+                                    MaskState.edit-mask(MaskState.selected-mask, "range-color", editor.sel.range-color-on ? 0 : 1);
+                                }
+                            }
+                            if editor.sel.range-color-on: EditSlider {
+                                label: @tr("Hue");
+                                minimum: 0;
+                                maximum: 359;
+                                value: editor.sel.color-center;
+                                edited(v) => {
+                                    MaskState.edit-mask(MaskState.selected-mask, "color-center", v);
+                                }
+                            }
+                            if editor.sel.range-color-on: EditSlider {
+                                label: @tr("Hue width");
+                                minimum: 1;
+                                maximum: 180;
+                                value: editor.sel.color-width;
+                                edited(v) => {
+                                    MaskState.edit-mask(MaskState.selected-mask, "color-width", v);
+                                }
+                            }
+                            if editor.sel.range-color-on: EditSlider {
+                                label: @tr("Hue softness");
+                                minimum: 0;
+                                maximum: 180;
+                                value: editor.sel.color-softness;
+                                edited(v) => {
+                                    MaskState.edit-mask(MaskState.selected-mask, "color-softness", v);
                                 }
                             }
                         }

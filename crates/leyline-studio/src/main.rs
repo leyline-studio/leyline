@@ -25,6 +25,7 @@ mod events;
 mod format;
 mod library;
 mod map_view;
+mod masks;
 mod models;
 mod wiring;
 

@@ -7,7 +7,7 @@ use std::rc::Rc;
 
 use crate::app::SORTS;
 use leyline_sdk::{ColorLabel, ExportReport, PrintReport, Settings, SkippedFile, Sort};
-use slint::{ModelRc, VecModel};
+use slint::{ModelRc, SharedString, VecModel};
 
 /// One line summing up an import batch for the dialog.
 pub(crate) fn import_summary(imported: usize, skipped: &[SkippedFile]) -> String {
@@ -114,6 +114,142 @@ pub(crate) fn dev_model(settings: &Settings) -> crate::ui::DevSettings {
     }
 }
 
+/// Mirrors every stored local adjustment into the mask panel's model
+/// (ADR 0049): one row per entry of `Settings::local_adjustments`, in list
+/// order, since that order *is* the identity of an entry
+/// (`Param::LocalAdjustment(index)`).
+///
+/// `[0, 1]` fields arrive as percent, the unit the panel's sliders use, and
+/// each `Option` that is `None` arrives as its neutral value plus an `_on`
+/// flag turned off — the mapping [`crate::masks::edit_field`] inverts.
+pub(crate) fn mask_rows(settings: &Settings) -> Vec<crate::ui::MaskRow> {
+    settings
+        .local_adjustments
+        .iter()
+        .map(|entry| {
+            let values = &entry.adjustments;
+            let luminance = entry.range.as_ref().and_then(|range| range.luminance);
+            let color = entry.range.as_ref().and_then(|range| range.color);
+            let mut row = crate::ui::MaskRow {
+                kind: SharedString::from(mask_kind(&entry.mask)),
+                geometry: SharedString::from(mask_geometry(&entry.mask)),
+                opacity: (entry.opacity * 100.0) as f32,
+                feather: 0.0,
+                inverted: false,
+                wb_on: values.temperature.is_some() || values.tint.is_some(),
+                temperature: values
+                    .temperature
+                    .unwrap_or_else(|| leyline_sdk::WhiteBalance::default().temperature)
+                    as f32,
+                tint: values.tint.unwrap_or(0) as f32,
+                exposure: values.exposure.unwrap_or(0.0) as f32,
+                contrast: values.contrast.unwrap_or(0) as f32,
+                highlights: values.highlights.unwrap_or(0) as f32,
+                shadows: values.shadows.unwrap_or(0) as f32,
+                whites: values.whites.unwrap_or(0) as f32,
+                blacks: values.blacks.unwrap_or(0) as f32,
+                vibrance: values.vibrance.unwrap_or(0) as f32,
+                saturation: values.saturation.unwrap_or(0) as f32,
+                range_luminance_on: luminance.is_some(),
+                lum_min: (luminance.unwrap_or_default().min * 100.0) as f32,
+                lum_max: (luminance.unwrap_or_default().max * 100.0) as f32,
+                lum_softness: (luminance.unwrap_or_default().softness * 100.0) as f32,
+                range_color_on: color.is_some(),
+                color_center: color.unwrap_or_default().center as f32,
+                color_width: color.unwrap_or_default().width as f32,
+                color_softness: color.unwrap_or_default().softness as f32,
+                cx: 0.0,
+                cy: 0.0,
+                rx: 0.0,
+                ry: 0.0,
+                x0: 0.0,
+                y0: 0.0,
+                x1: 0.0,
+                y1: 0.0,
+                dabs: ModelRc::default(),
+            };
+            match &entry.mask {
+                leyline_sdk::Mask::Radial {
+                    cx,
+                    cy,
+                    rx,
+                    ry,
+                    feather,
+                    inverted,
+                    ..
+                } => {
+                    row.cx = *cx as f32;
+                    row.cy = *cy as f32;
+                    row.rx = *rx as f32;
+                    row.ry = *ry as f32;
+                    row.feather = (feather * 100.0) as f32;
+                    row.inverted = *inverted;
+                }
+                leyline_sdk::Mask::Gradient { x0, y0, x1, y1 } => {
+                    row.x0 = *x0 as f32;
+                    row.y0 = *y0 as f32;
+                    row.x1 = *x1 as f32;
+                    row.y1 = *y1 as f32;
+                }
+                leyline_sdk::Mask::Brush { strokes } => {
+                    row.dabs = ModelRc::from(Rc::new(VecModel::from(
+                        strokes
+                            .iter()
+                            .map(|dab| crate::ui::MaskDab {
+                                x: dab.x as f32,
+                                y: dab.y as f32,
+                                radius: dab.radius as f32,
+                            })
+                            .collect::<Vec<_>>(),
+                    )));
+                }
+                leyline_sdk::Mask::Everything => {}
+            }
+            row
+        })
+        .collect()
+}
+
+/// The mask kind the panel switches its labels and controls on.
+fn mask_kind(mask: &leyline_sdk::Mask) -> &'static str {
+    match mask {
+        leyline_sdk::Mask::Radial { .. } => "radial",
+        leyline_sdk::Mask::Gradient { .. } => "gradient",
+        leyline_sdk::Mask::Brush { .. } => "brush",
+        leyline_sdk::Mask::Everything => "everything",
+    }
+}
+
+/// One mask's geometry in a row's worth of numbers: position and size for a
+/// radial, both ends for a gradient, dab count and size for a brush. Symbols
+/// and percentages only — nothing to translate, and nothing for the UI to
+/// interpret.
+fn mask_geometry(mask: &leyline_sdk::Mask) -> String {
+    let percent = |value: f64| (value * 100.0).round();
+    match mask {
+        leyline_sdk::Mask::Radial { cx, cy, rx, ry, .. } => format!(
+            "({}, {}) · {}×{} %",
+            percent(*cx),
+            percent(*cy),
+            percent(*rx),
+            percent(*ry)
+        ),
+        leyline_sdk::Mask::Gradient { x0, y0, x1, y1 } => format!(
+            "({}, {}) → ({}, {}) %",
+            percent(*x0),
+            percent(*y0),
+            percent(*x1),
+            percent(*y1)
+        ),
+        leyline_sdk::Mask::Brush { strokes } => format!(
+            "×{} · ⌀ {} %",
+            strokes.len(),
+            strokes.last().map_or(0.0, |dab| percent(dab.radius))
+        ),
+        leyline_sdk::Mask::Everything => String::new(),
+    }
+}
+
 /// Mirrors one color grading zone into the Slint model.
 pub(crate) fn zone_model(
     zone: &leyline_sdk::ColorGradingZone,
@@ -170,6 +306,127 @@ mod tests {
             import_summary(1, &skipped),
             "1 imported, 2 skipped (unsupported file type)."
         );
+    }
+
+    #[test]
+    fn mask_rows_mirror_every_kind_with_its_geometry_in_words() {
+        use leyline_sdk::{BrushStroke, LocalAdjustment, LocalAdjustmentValues, Mask};
+
+        let entry = |mask: Mask| LocalAdjustment {
+            mask,
+            range: None,
+            opacity: 1.0,
+            adjustments: LocalAdjustmentValues::default(),
+        };
+        let settings = Settings {
+            local_adjustments: vec![
+                entry(Mask::Radial {
+                    cx: 0.5,
+                    cy: 0.25,
+                    rx: 0.3,
+                    ry: 0.2,
+                    angle: 0.0,
+                    feather: 0.4,
+                    inverted: true,
+                }),
+                entry(Mask::Gradient {
+                    x0: 0.0,
+                    y0: 0.8,
+                    x1: 0.0,
+                    y1: 0.2,
+                }),
+                entry(Mask::Brush {
+                    strokes: vec![BrushStroke {
+                        x: 0.1,
+                        y: 0.2,
+                        radius: 0.08,
+                        flow: 0.5,
+                        hardness: 0.5,
+                    }],
+                }),
+                entry(Mask::Everything),
+            ],
+            ..Settings::default()
+        };
+        let rows = mask_rows(&settings);
+        let kinds: Vec<&str> = rows.iter().map(|row| row.kind.as_str()).collect();
+        assert_eq!(kinds, ["radial", "gradient", "brush", "everything"]);
+        // Two percentages side by side are parenthesized rather than
+        // comma-joined: a bare "50,25" reads as one decimal number.
+        assert_eq!(rows[0].geometry, "(50, 25) · 30×20 %");
+        assert_eq!(rows[1].geometry, "(0, 80) → (0, 20) %");
+        assert_eq!(rows[2].geometry, "×1 · ⌀ 8 %");
+        assert_eq!(rows[3].geometry, "");
+        // Radial-only fields reach the panel as percent, and the other kinds
+        // leave them at zero rather than showing a stale feather.
+        assert_eq!((rows[0].feather, rows[0].inverted), (40.0, true));
+        assert_eq!((rows[1].feather, rows[1].inverted), (0.0, false));
+        assert_eq!(slint::Model::row_count(&rows[2].dabs), 1);
+    }
+
+    /// Every `None` reaches the panel as its neutral value with the matching
+    /// flag off — the inverse of `masks::edit_field`'s "neutral = absent"
+    /// (ADR 0049 §3).
+    #[test]
+    fn unset_values_arrive_neutral_and_flagged_off() {
+        use leyline_sdk::{
+            ColorRange, LocalAdjustment, LocalAdjustmentValues, LuminanceRange, Mask, RangeMask,
+        };
+
+        let settings = Settings {
+            local_adjustments: vec![LocalAdjustment {
+                mask: Mask::Everything,
+                range: None,
+                opacity: 0.5,
+                adjustments: LocalAdjustmentValues::default(),
+            }],
+            ..Settings::default()
+        };
+        let row = &mask_rows(&settings)[0];
+        assert_eq!(row.opacity, 50.0);
+        assert!(!row.wb_on && !row.range_luminance_on && !row.range_color_on);
+        assert_eq!(
+            (row.exposure, row.contrast, row.saturation),
+            (0.0, 0.0, 0.0)
+        );
+        assert_eq!(
+            row.temperature,
+            leyline_sdk::WhiteBalance::default().temperature as f32
+        );
+
+        let settings = Settings {
+            local_adjustments: vec![LocalAdjustment {
+                mask: Mask::Everything,
+                range: Some(RangeMask {
+                    luminance: Some(LuminanceRange {
+                        min: 0.4,
+                        max: 0.9,
+                        softness: 0.1,
+                    }),
+                    color: Some(ColorRange {
+                        center: 210.0,
+                        width: 30.0,
+                        softness: 15.0,
+                    }),
+                }),
+                opacity: 1.0,
+                adjustments: LocalAdjustmentValues {
+                    temperature: Some(4800),
+                    tint: Some(-10),
+                    exposure: Some(-1.5),
+                    ..LocalAdjustmentValues::default()
+                },
+            }],
+            ..Settings::default()
+        };
+        let row = &mask_rows(&settings)[0];
+        assert!(row.wb_on && row.range_luminance_on && row.range_color_on);
+        assert_eq!(
+            (row.temperature, row.tint, row.exposure),
+            (4800.0, -10.0, -1.5)
+        );
+        assert_eq!((row.lum_min, row.lum_max), (40.0, 90.0));
+        assert_eq!(row.color_center, 210.0);
     }
 
     #[test]

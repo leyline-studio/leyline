@@ -1,0 +1,48 @@
+// Local adjustments: the masked, locally re-parameterized edits of ADR 0029,
+// refined by the range masks of ADR 0048, and exposed to a user for the first
+// time by ADR 0049.
+//
+// Its own global rather than more of `DevelopState` (ADR 0045 §1): a local
+// adjustment is a list entry with a geometry, not a slider, and the develop
+// panel already owns the largest surface of the application.
+//
+// What is *not* here, by ADR 0045 §2: whether the section is expanded, and
+// which of the three tools is active — the develop panel's `active-tool`
+// already carries that for Crop and Spot Removal, and Rust never reads it.
+// The brush's three fields and the selected row *are* here, because Rust reads
+// the former when a dab is painted and writes the latter when a gesture
+// creates a row.
+
+import { MaskRow } from "../types.slint";
+export global MaskState {
+    // Every stored adjustment of the photo being developed, in list order.
+    in property <[MaskRow]> masks;
+    // The row the panel is showing and the tools trace onto, -1 for none.
+    // Written from both sides: the panel on a click, Rust when a gesture
+    // creates an entry — a traced mask has to become the selected one, or its
+    // values would appear nowhere (ADR 0049 §2).
+    in-out property <int> selected-mask: -1;
+    // Adds an entry whose geometry needs no tracing — "everything", the
+    // geometry of "no geometry" a range mask stands on its own with
+    // (ADR 0048 §1). Traced geometries come from the two callbacks below.
+    callback add-mask(string);
+    callback remove-mask(int);
+    // Row index, field name, released value — the same shape as
+    // `develop-edit-hsl-band`, and the same rule: Rust decides what the field
+    // means, including whether a zero clears it (ADR 0049 §3).
+    callback edit-mask(int, string, float);
+    // A traced geometry: selected row (-1 for none), "radial"/"gradient",
+    // press x/y, release x/y, viewport w/h, preview w/h (px) — the letterbox
+    // convention `develop-crop-drag` established. Retraces the selected row
+    // when it is of that kind, appends otherwise (ADR 0049 §2).
+    callback place-mask(int, string, float, float, float, float, float, float, float, float);
+    // One brush dab: selected row (-1 for none), click x/y, viewport w/h,
+    // preview w/h (px). Extends the selected brush, or starts one — a brush
+    // cannot exist without a dab, so the first dab creates the entry.
+    callback paint-mask-dab(int, float, float, float, float, float, float);
+    // Defaults applied to the *next* dab painted, in percent — dialog-local
+    // text fields, exactly like the spot tool's three (`DevelopState`).
+    in-out property <string> brush-size-text: "8";
+    in-out property <string> brush-flow-text: "50";
+    in-out property <string> brush-hardness-text: "50";
+}
