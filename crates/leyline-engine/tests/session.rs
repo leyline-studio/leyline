@@ -324,6 +324,7 @@ fn a_radial_adjustment() -> LocalAdjustment {
             feather: 0.3,
             inverted: false,
         },
+        range: None,
         opacity: 1.0,
         adjustments: LocalAdjustmentValues {
             exposure: Some(0.5),

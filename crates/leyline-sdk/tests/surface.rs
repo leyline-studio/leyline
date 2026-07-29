@@ -15,13 +15,14 @@
 use std::path::PathBuf;
 
 use leyline_sdk::{
-    AssetId, BrushStroke, CameraProfile, ColorGrading, ColorGradingZone, ColorLabel, Crop,
-    CurvePoint, EditSession, Event, ExportFormat, ExportRecipe, ExportRequest, ExportSettings,
-    GridItem, GridQuery, HslBand, ImportOptions, ImportReport, ImportedFile, JobId, LensCorrection,
-    LeylineError, Library, LocalAdjustment, LocalAdjustmentValues, Margins, Mask, NoiseReduction,
-    Orientation, PaperSize, PickState, Point, Preview, PreviewKind, PrintRecipe, PrintRequest,
-    PrintSettings, RegisteredAsset, RenderingIntent, RevisionId, Settings, Sharpening, SkippedFile,
-    SpotRemoval, StageVersions, ToneCurve, VersionId, WatchSessionEvent, WatchedFile,
+    AssetId, BrushStroke, CameraProfile, ColorGrading, ColorGradingZone, ColorLabel, ColorRange,
+    Crop, CurvePoint, EditSession, Event, ExportFormat, ExportRecipe, ExportRequest,
+    ExportSettings, GridItem, GridQuery, HslBand, ImportOptions, ImportReport, ImportedFile, JobId,
+    LensCorrection, LeylineError, Library, LocalAdjustment, LocalAdjustmentValues, LuminanceRange,
+    Margins, Mask, NoiseReduction, Orientation, PaperSize, PickState, Point, Preview, PreviewKind,
+    PrintRecipe, PrintRequest, PrintSettings, RangeMask, RegisteredAsset, RenderingIntent,
+    RevisionId, Settings, Sharpening, SkippedFile, SpotRemoval, StageVersions, ToneCurve,
+    VersionId, WatchSessionEvent, WatchedFile,
 };
 
 /// A `Settings` built field by field, every nested type named through the
@@ -75,6 +76,7 @@ fn fully_specified_settings() -> Settings {
                     feather: 0.5,
                     inverted: false,
                 },
+                range: None,
                 opacity: 1.0,
                 adjustments: values,
             },
@@ -85,7 +87,27 @@ fn fully_specified_settings() -> Settings {
                     x1: 0.0,
                     y1: 0.5,
                 },
+                range: None,
                 opacity: 0.8,
+                adjustments: values,
+            },
+            // A range mask (ADR 0048) through the façade, on the geometry
+            // that has none of its own.
+            LocalAdjustment {
+                mask: Mask::Everything,
+                range: Some(RangeMask {
+                    luminance: Some(LuminanceRange {
+                        min: 0.2,
+                        max: 0.8,
+                        softness: 0.1,
+                    }),
+                    color: Some(ColorRange {
+                        center: 210.0,
+                        width: 40.0,
+                        softness: 15.0,
+                    }),
+                }),
+                opacity: 0.5,
                 adjustments: values,
             },
             LocalAdjustment {
@@ -98,6 +120,7 @@ fn fully_specified_settings() -> Settings {
                         hardness: 0.5,
                     }],
                 },
+                range: None,
                 opacity: 1.0,
                 adjustments: values,
             },
@@ -237,7 +260,9 @@ fn a_library_round_trip_needs_nothing_but_the_sdk() {
 #[test]
 fn settings_round_trip_through_the_sdk_surface() {
     let settings = fully_specified_settings();
-    assert_eq!(settings.local_adjustments.len(), 3);
+    // One entry per mask kind, plus the range-refined one (ADR 0048).
+    assert_eq!(settings.local_adjustments.len(), 4);
+    assert!(settings.local_adjustments.iter().any(|a| a.range.is_some()));
     assert_eq!(settings.stages.get("gains"), Some(&1));
 
     // `Settings` is the reproducibility contract; the SDK must expose it in

@@ -223,6 +223,15 @@ Jamais un delta.
             },
             "opacity": 1.0,
             "adjustments": { "exposure": 0.6, "contrast": 15, "highlights": -20 }
+        },
+        {
+            "mask": { "type": "everything" },
+            "range": {
+                "luminance": { "min": 0.25, "max": 0.75, "softness": 0.15 },
+                "color": { "center": 210.0, "width": 40.0, "softness": 20.0 }
+            },
+            "opacity": 0.85,
+            "adjustments": { "exposure": -0.4 }
         }
     ],
 
@@ -313,7 +322,9 @@ Un étage actif mais sans version inscrite rend à la version courante. Ce cas n
 
 Le code de chaque version d'étage est conservé dans le moteur pour toujours : c'est le prix de la promesse « mêmes pixels dans dix ans », dont §5.1 énonce la portée exacte. Il se paie désormais par opérateur réellement corrigé — quelques dizaines de lignes — et non plus par copie intégrale du pipeline.
 
-**Étages connus, et l'ordre dans lequel ils s'exécutent.** L'historique de rendu antérieur à la publication a été effondré ([ADR 0043](adr/0043-collapse-prerelease-render-history.md)), puisqu'aucune révision au monde ne le citait : tous les étages sont donc partis en version 1. Deux ont depuis une seconde version, les deux étages de bruit ([ADR 0046](adr/0046-edge-preserving-denoise.md)) — le premier usage réel du mécanisme ci-dessus. La version courante, celle qu'une nouvelle révision épingle, est la **dernière** listée pour chaque étage.
+**Étages connus, et l'ordre dans lequel ils s'exécutent.** L'historique de rendu antérieur à la publication a été effondré ([ADR 0043](adr/0043-collapse-prerelease-render-history.md)), puisqu'aucune révision au monde ne le citait : tous les étages sont donc partis en version 1. Trois ont depuis une seconde version : les deux étages de bruit ([ADR 0046](adr/0046-edge-preserving-denoise.md)) et les réglages locaux ([ADR 0048](adr/0048-range-masks.md)). La version courante, celle qu'une nouvelle révision épingle, est la **dernière** listée pour chaque étage.
+
+**Un réglage qu'une version épinglée ne sait pas exprimer est refusé.** ADR 0046 corrigeait un rendu ; ADR 0048 **étend** un opérateur, et fait donc apparaître un cas que rien n'avait éprouvé : un réglage dont l'existence même dépend de la version d'étage. Puisqu'un étage déjà inscrit garde sa version, une révision épinglée en `local_adjustments: 1` ne peut pas porter de masque par plage — et `Settings::validate()` la **refuse** en nommant le remède (retraiter, §4.5) au lieu de laisser le réglage disparaître en silence. C'est la règle générale pour toute fonctionnalité future ajoutée à un étage existant.
 
 | Rang | Étage | Version | Rôle |
 |---|---|---|---|
@@ -334,6 +345,7 @@ Le code de chaque version d'étage est conservé dans le moteur pour toujours : 
 | 140 | `hsl` | 1 | Mélangeur TSL à 8 bandes de teinte, fondu entre bandes adjacentes (ADR 0032) |
 | 150 | `color_grading` | 1 | Trois zones ombres/tons moyens/hautes lumières pondérées par la luminance (ADR 0032) |
 | 160 | `local_adjustments` | 1 | Réglages locaux masqués (brosse/radial/gradient), réutilisant les opérateurs globaux restreints à une couverture (ADR 0029) |
+| 160 | `local_adjustments` | 2 | Idem, plus les masques par plage : la couverture géométrique peut être resserrée par une bande de luminance et une bande de teinte (ADR 0048) |
 | 170 | `noise_luminance` | 1 | Réduction du bruit de luminance : mélange vers un flou gaussien du plan de luma |
 | 170 | `noise_luminance` | 2 | Idem, préservant les contours : ondelettes à trous et seuillage doux par échelle (ADR 0046) |
 | 180 | `noise_color` | 1 | Réduction du bruit chromatique : mélange vers un flou gaussien des écarts à la luma |

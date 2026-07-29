@@ -114,6 +114,7 @@ pub(crate) mod color_grading {
 }
 pub(crate) mod local_adjustments {
     pub(crate) mod v1;
+    pub(crate) mod v2;
 }
 pub(crate) mod noise_luminance {
     pub(crate) mod v1;
@@ -499,18 +500,34 @@ pub(crate) static STAGES: &[Stage] = &[
     Stage {
         name: "local_adjustments",
         active: |settings| !settings.local_adjustments.is_empty(),
-        versions: &[Version {
-            version: 1,
-            rank: 160,
-            space: Space::LinearRec2020,
-            apply: |px, ctx| {
-                local_adjustments::v1::local_adjustments(
-                    px,
-                    &ctx.settings.local_adjustments,
-                    ctx.settings.rotation,
-                );
+        versions: &[
+            Version {
+                version: 1,
+                rank: 160,
+                space: Space::LinearRec2020,
+                apply: |px, ctx| {
+                    local_adjustments::v1::local_adjustments(
+                        px,
+                        &ctx.settings.local_adjustments,
+                        ctx.settings.rotation,
+                    );
+                },
             },
-        }],
+            // Range masks (ADR 0048): an entry without a `range` renders
+            // exactly as v1 renders it.
+            Version {
+                version: 2,
+                rank: 160,
+                space: Space::LinearRec2020,
+                apply: |px, ctx| {
+                    local_adjustments::v2::local_adjustments(
+                        px,
+                        &ctx.settings.local_adjustments,
+                        ctx.settings.rotation,
+                    );
+                },
+            },
+        ],
     },
     Stage {
         name: "noise_luminance",

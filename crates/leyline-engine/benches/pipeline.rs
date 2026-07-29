@@ -465,6 +465,7 @@ fn stage_cases() -> Vec<(&'static str, Settings)> {
                         feather: 0.5,
                         inverted: false,
                     },
+                    range: None,
                     opacity: 1.0,
                     adjustments: local_values(),
                 }],
@@ -481,6 +482,7 @@ fn stage_cases() -> Vec<(&'static str, Settings)> {
                         x1: 0.0,
                         y1: 0.6,
                     },
+                    range: None,
                     opacity: 1.0,
                     adjustments: local_values(),
                 }],
@@ -502,6 +504,7 @@ fn stage_cases() -> Vec<(&'static str, Settings)> {
                             })
                             .collect(),
                     },
+                    range: None,
                     opacity: 1.0,
                     adjustments: local_values(),
                 }],

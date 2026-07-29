@@ -58,9 +58,10 @@ use std::io::Cursor;
 
 use leyline_color::DcpProfile;
 use leyline_core::{
-    BrushStroke, CameraProfile, ColorGrading, ColorGradingZone, Crop, CurvePoint, HslBand,
-    LensCorrection, LocalAdjustment, LocalAdjustmentValues, Mask, NoiseReduction, Point, Settings,
-    Sharpening, SpotRemoval, StageVersions, ToneCurve, WhiteBalance,
+    BrushStroke, CameraProfile, ColorGrading, ColorGradingZone, ColorRange, Crop, CurvePoint,
+    HslBand, LensCorrection, LocalAdjustment, LocalAdjustmentValues, LuminanceRange, Mask,
+    NoiseReduction, Point, RangeMask, Settings, Sharpening, SpotRemoval, StageVersions, ToneCurve,
+    WhiteBalance,
 };
 use leyline_raw::RawImage;
 use serde::{Deserialize, Serialize};
@@ -298,6 +299,33 @@ fn local_values() -> LocalAdjustmentValues {
     }
 }
 
+/// A range-refined local adjustment (ADR 0048): one entry with both terms, so
+/// the luminance band, the hue band and the saturation weight are all frozen
+/// together. A separate case from `locals` rather than a change to it — an
+/// entry that ships is never edited (see the module docs).
+fn locals_range(settings: Settings) -> Settings {
+    Settings {
+        local_adjustments: vec![LocalAdjustment {
+            mask: Mask::Everything,
+            range: Some(RangeMask {
+                luminance: Some(LuminanceRange {
+                    min: 0.25,
+                    max: 0.75,
+                    softness: 0.15,
+                }),
+                color: Some(ColorRange {
+                    center: 210.0,
+                    width: 40.0,
+                    softness: 20.0,
+                }),
+            }),
+            opacity: 0.85,
+            adjustments: local_values(),
+        }],
+        ..settings
+    }
+}
+
 fn locals(settings: Settings) -> Settings {
     Settings {
         local_adjustments: vec![
@@ -311,6 +339,7 @@ fn locals(settings: Settings) -> Settings {
                     feather: 0.5,
                     inverted: false,
                 },
+                range: None,
                 opacity: 0.9,
                 adjustments: local_values(),
             },
@@ -321,6 +350,7 @@ fn locals(settings: Settings) -> Settings {
                     x1: 0.0,
                     y1: 0.6,
                 },
+                range: None,
                 opacity: 0.7,
                 adjustments: local_values(),
             },
@@ -336,6 +366,7 @@ fn locals(settings: Settings) -> Settings {
                         })
                         .collect(),
                 },
+                range: None,
                 opacity: 1.0,
                 adjustments: local_values(),
             },
@@ -458,6 +489,7 @@ fn cases() -> Vec<(String, Settings)> {
         ("tone_curve", tone_curve(base.clone())),
         ("spots", spots(base.clone())),
         ("locals", locals(base.clone())),
+        ("locals_range", locals_range(base.clone())),
         ("hsl_grading", hsl_grading(base.clone())),
         ("presence", presence(base.clone())),
         ("fixture_v1", fixture_stage(base.clone(), 1)),

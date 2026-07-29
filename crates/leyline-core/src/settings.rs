@@ -324,6 +324,75 @@ pub enum Mask {
         /// Ordered dabs, one per recorded point of the stroke.
         strokes: Vec<BrushStroke>,
     },
+    /// Full coverage everywhere — the geometry of "no geometry" (ADR 0048
+    /// §1), so a range mask can stand on its own instead of having to be
+    /// hung off a deliberately oversized radial.
+    Everything,
+}
+
+/// A range refinement of a [`LocalAdjustment`]'s geometric mask (ADR 0048):
+/// the coverage is *multiplied* by these terms, so a range narrows a mask and
+/// can never widen it.
+///
+/// Both terms are optional and independent. `RangeMask::default()` — neither
+/// term — is a no-op, which is why the field on [`LocalAdjustment`] is an
+/// `Option` rather than a struct with two `None`s standing for "off".
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct RangeMask {
+    /// Restrict to a band of luminance; `None` = no luminance term.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub luminance: Option<LuminanceRange>,
+    /// Restrict to a band of hue; `None` = no color term.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub color: Option<ColorRange>,
+}
+
+/// A band of luminance on the display axis (ADR 0048 §2–3).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct LuminanceRange {
+    /// Lower edge of full coverage, in [0, 1].
+    pub min: f64,
+    /// Upper edge of full coverage, in [0, 1]; must be `>= min`.
+    pub max: f64,
+    /// Width of the smooth falloff outside each edge, in [0, 1]. 0 is a hard
+    /// edge — visible as a contour as soon as noise makes a pixel cross the
+    /// threshold, which is what this parameter exists to avoid.
+    pub softness: f64,
+}
+
+impl Default for LuminanceRange {
+    fn default() -> Self {
+        Self {
+            min: 0.0,
+            max: 1.0,
+            softness: 0.1,
+        }
+    }
+}
+
+/// A band of hue, in degrees (ADR 0048 §2). Hue is circular, so `center`
+/// wraps and the distance to it is taken modulo 360.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ColorRange {
+    /// Center of the band, in degrees.
+    pub center: f64,
+    /// Half-width of full coverage, in degrees, in (0, 180].
+    pub width: f64,
+    /// Width of the smooth falloff outside the band, in degrees.
+    pub softness: f64,
+}
+
+impl Default for ColorRange {
+    fn default() -> Self {
+        Self {
+            center: 0.0,
+            width: 30.0,
+            softness: 15.0,
+        }
+    }
 }
 
 /// The restricted subset of [`Settings`]' global tonal/color fields a
@@ -375,6 +444,15 @@ pub struct LocalAdjustmentValues {
 pub struct LocalAdjustment {
     /// The spatial coverage this adjustment applies through.
     pub mask: Mask,
+    /// Optional luminance/color refinement of `mask`, multiplying its
+    /// coverage (ADR 0048). `None` is the ADR 0029 behavior exactly.
+    ///
+    /// Requires `local_adjustments` at version 2 or later: a revision pinned
+    /// at v1 cannot express it, and [`Settings::validate`] refuses the
+    /// combination rather than let the setting be silently dropped
+    /// (ADR 0048 §5).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range: Option<RangeMask>,
     /// Overall blend strength, in [0, 1]. 1.0 is the neutral "fully applied"
     /// value for an *entry*; there is no neutral value for the list itself
     /// other than being empty.
@@ -702,6 +780,7 @@ impl Settings {
                         )));
                     }
                 }
+                Mask::Everything => {}
                 Mask::Brush { strokes } => {
                     if strokes.is_empty() {
                         return Err(LeylineError::InvalidSettings(format!(
@@ -722,6 +801,48 @@ impl Settings {
                     }
                 }
             }
+
+            if let Some(range) = &adjustment.range {
+                // A range is a *capability* of the stage version, not just a
+                // value: v1 has no code for it, and the pinning rule
+                // (ADR 0042 §2) keeps a pinned stage at its version. Refusing
+                // is the only honest outcome — the alternative is a slider
+                // that does nothing (ADR 0048 §5).
+                if self.stages.get("local_adjustments") == Some(&1) {
+                    return Err(LeylineError::InvalidSettings(format!(
+                        "local_adjustments[{i}].range needs stage local_adjustments version 2, \
+                         but this revision pins version 1; reprocess the photo to the current \
+                         stage versions first"
+                    )));
+                }
+                if let Some(luminance) = &range.luminance {
+                    unit("range.luminance.min", luminance.min)?;
+                    unit("range.luminance.max", luminance.max)?;
+                    unit("range.luminance.softness", luminance.softness)?;
+                    if luminance.max < luminance.min {
+                        return Err(LeylineError::InvalidSettings(format!(
+                            "local_adjustments[{i}].range.luminance.max must be >= min, got {} < {}",
+                            luminance.max, luminance.min
+                        )));
+                    }
+                }
+                if let Some(color) = &range.color {
+                    finite("range.color.center", color.center)?;
+                    if !(0.0..=180.0).contains(&color.width) || color.width <= 0.0 {
+                        return Err(LeylineError::InvalidSettings(format!(
+                            "local_adjustments[{i}].range.color.width must be in (0, 180], got {}",
+                            color.width
+                        )));
+                    }
+                    if !(0.0..=180.0).contains(&color.softness) {
+                        return Err(LeylineError::InvalidSettings(format!(
+                            "local_adjustments[{i}].range.color.softness must be in [0, 180], got {}",
+                            color.softness
+                        )));
+                    }
+                }
+            }
+
             let values = &adjustment.adjustments;
             if let Some(temperature) = values.temperature {
                 if temperature == 0 {
@@ -1466,6 +1587,7 @@ mod tests {
                 feather: 0.40,
                 inverted: false,
             },
+            range: None,
             opacity: 1.0,
             adjustments: LocalAdjustmentValues {
                 exposure: Some(0.6),
@@ -1562,6 +1684,115 @@ mod tests {
             s.validate(),
             Err(LeylineError::InvalidSettings(_))
         ));
+    }
+
+    // -------------------------------------------------------------------
+    // Range masks (ADR 0048)
+    // -------------------------------------------------------------------
+
+    fn ranged_adjustment() -> LocalAdjustment {
+        LocalAdjustment {
+            range: Some(RangeMask {
+                luminance: Some(LuminanceRange::default()),
+                color: Some(ColorRange::default()),
+            }),
+            ..radial_adjustment()
+        }
+    }
+
+    /// The decision of ADR 0048 §5: a revision pinned at `local_adjustments`
+    /// v1 cannot express a range, and the pinning rule keeps it at v1 — so the
+    /// only honest outcome is a refusal, never a slider that does nothing.
+    #[test]
+    fn a_range_on_a_revision_pinned_at_v1_is_refused() {
+        let s = Settings {
+            local_adjustments: vec![ranged_adjustment()],
+            stages: StageVersions::from([("local_adjustments".to_owned(), 1)]),
+            ..Settings::default()
+        };
+        let message = match s.validate() {
+            Err(LeylineError::InvalidSettings(message)) => message,
+            other => panic!("expected a refusal, got {other:?}"),
+        };
+        // The message has to name the remedy, since the user cannot guess it.
+        assert!(message.contains("reprocess"), "{message}");
+    }
+
+    #[test]
+    fn a_range_is_accepted_at_v2_and_on_unpinned_settings() {
+        let at_v2 = Settings {
+            local_adjustments: vec![ranged_adjustment()],
+            stages: StageVersions::from([("local_adjustments".to_owned(), 2)]),
+            ..Settings::default()
+        };
+        at_v2.validate().unwrap();
+
+        // Built in memory, nothing pinned yet: the engine will pin the
+        // current version when the revision is written.
+        let unpinned = Settings {
+            local_adjustments: vec![ranged_adjustment()],
+            ..Settings::default()
+        };
+        unpinned.validate().unwrap();
+    }
+
+    #[test]
+    fn a_range_rejects_an_inverted_luminance_band() {
+        let mut adjustment = ranged_adjustment();
+        adjustment.range = Some(RangeMask {
+            luminance: Some(LuminanceRange {
+                min: 0.8,
+                max: 0.2,
+                softness: 0.1,
+            }),
+            color: None,
+        });
+        let s = Settings {
+            local_adjustments: vec![adjustment],
+            ..Settings::default()
+        };
+        assert!(matches!(
+            s.validate(),
+            Err(LeylineError::InvalidSettings(_))
+        ));
+    }
+
+    #[test]
+    fn a_range_rejects_a_hue_band_wider_than_the_circle() {
+        for (width, softness) in [(0.0, 10.0), (181.0, 10.0), (30.0, 200.0)] {
+            let mut adjustment = ranged_adjustment();
+            adjustment.range = Some(RangeMask {
+                luminance: None,
+                color: Some(ColorRange {
+                    center: 210.0,
+                    width,
+                    softness,
+                }),
+            });
+            let s = Settings {
+                local_adjustments: vec![adjustment],
+                ..Settings::default()
+            };
+            assert!(
+                matches!(s.validate(), Err(LeylineError::InvalidSettings(_))),
+                "width {width}, softness {softness} should be refused"
+            );
+        }
+    }
+
+    /// A neutral range is absent, not present-and-empty: an adjustment without
+    /// one must not gain a `range` key in `settings_json` (§3.4 compatibility).
+    #[test]
+    fn an_adjustment_without_a_range_serializes_without_the_field() {
+        let s = Settings {
+            local_adjustments: vec![radial_adjustment()],
+            ..Settings::default()
+        };
+        let value: serde_json::Value = serde_json::from_str(&s.to_json()).unwrap();
+        let entry = &value["local_adjustments"][0];
+        assert!(entry.get("range").is_none(), "{entry}");
+        // And it round-trips.
+        assert_eq!(Settings::parse(&s.to_json()).unwrap(), s);
     }
 
     #[test]

@@ -198,6 +198,10 @@ pub(crate) fn rasterize_coverage(
                         gradient_coverage_at(cx, cy, &frame, *x0, *y0, *x1, *y1)
                     }
                     Mask::Brush { strokes } => brush_coverage_at(cx, cy, &frame, strokes),
+                    // Still geometry, which is why it belongs here while the
+                    // range terms that usually accompany it do not
+                    // (ADR 0048 §4).
+                    Mask::Everything => 1.0,
                 } as f32;
             }
         });

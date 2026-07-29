@@ -592,6 +592,7 @@ fn a_radial_mask_darkens_only_its_covered_area() {
                 feather: 0.0,
                 inverted: false,
             },
+            range: None,
             opacity: 1.0,
             adjustments: LocalAdjustmentValues {
                 exposure: Some(-2.0),
@@ -635,6 +636,7 @@ fn zero_opacity_local_adjustment_leaves_the_image_unchanged() {
                 feather: 0.2,
                 inverted: false,
             },
+            range: None,
             opacity: 0.0,
             adjustments: LocalAdjustmentValues {
                 exposure: Some(2.0),
@@ -696,6 +698,7 @@ fn local_adjustments_apply_in_list_order_on_top_of_each_other() {
             feather: 0.0,
             inverted: false,
         },
+        range: None,
         opacity: 1.0,
         adjustments: LocalAdjustmentValues {
             exposure: Some(exposure),
@@ -1244,6 +1247,7 @@ fn everything() -> Settings {
             feather: 0.4,
             inverted: false,
         },
+        range: None,
         opacity: 1.0,
         adjustments: LocalAdjustmentValues {
             exposure: Some(0.5),
