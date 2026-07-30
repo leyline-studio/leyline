@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2026-07-29 23:53+0000\n"
+"POT-Creation-Date: 2026-07-30 00:16+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1205,37 +1205,47 @@ msgctxt "DevelopPanel"
 msgid "Rotation"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1751
+#: crates/leyline-studio/ui/panels/develop.slint:1753
+msgctxt "DevelopPanel"
+msgid "Vertical perspective"
+msgstr ""
+
+#: crates/leyline-studio/ui/panels/develop.slint:1762
+msgctxt "DevelopPanel"
+msgid "Horizontal perspective"
+msgstr ""
+
+#: crates/leyline-studio/ui/panels/develop.slint:1771
 msgctxt "DevelopPanel"
 msgid "Crop left"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1760
+#: crates/leyline-studio/ui/panels/develop.slint:1780
 msgctxt "DevelopPanel"
 msgid "Crop top"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1769
+#: crates/leyline-studio/ui/panels/develop.slint:1789
 msgctxt "DevelopPanel"
 msgid "Crop width"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1778
+#: crates/leyline-studio/ui/panels/develop.slint:1798
 msgctxt "DevelopPanel"
 msgid "Crop height"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1789
+#: crates/leyline-studio/ui/panels/develop.slint:1809
 msgctxt "DevelopPanel"
 msgid "Reset crop"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1799
+#: crates/leyline-studio/ui/panels/develop.slint:1819
 msgctxt "DevelopPanel"
 msgid "History"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1818
+#: crates/leyline-studio/ui/panels/develop.slint:1838
 msgctxt "DevelopPanel"
 msgid "{} (current)"
 msgstr ""
@@ -1494,114 +1504,114 @@ msgctxt "MenuBar"
 msgid "Help"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:179
+#: crates/leyline-studio/ui/types.slint:182
 msgctxt "Tr"
 msgid "{} photo"
 msgid_plural "{} photos"
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/leyline-studio/ui/types.slint:182
+#: crates/leyline-studio/ui/types.slint:185
 msgctxt "Tr"
 msgid "Importing {}/{}…"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:185
+#: crates/leyline-studio/ui/types.slint:188
 msgctxt "Tr"
 msgid "Exporting {}/{}…"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:188
+#: crates/leyline-studio/ui/types.slint:191
 msgctxt "Tr"
 msgid "Import failed: {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:191
+#: crates/leyline-studio/ui/types.slint:194
 msgctxt "Tr"
 msgid "Export failed: {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:194
+#: crates/leyline-studio/ui/types.slint:197
 msgctxt "Tr"
 msgid "Printing {}/{}…"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:197
+#: crates/leyline-studio/ui/types.slint:200
 msgctxt "Tr"
 msgid "Print failed: {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:200
+#: crates/leyline-studio/ui/types.slint:203
 msgctxt "Tr"
 msgid "Printing…"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:203
+#: crates/leyline-studio/ui/types.slint:206
 msgctxt "Tr"
 msgid "Reprocessed {} photo(s), {} already current, {} failed"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:206
+#: crates/leyline-studio/ui/types.slint:209
 msgctxt "Tr"
 msgid "Enter a source folder."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:209
+#: crates/leyline-studio/ui/types.slint:212
 msgctxt "Tr"
 msgid "Importing…"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:212
+#: crates/leyline-studio/ui/types.slint:215
 msgctxt "Tr"
 msgid "Select a photo first."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:215
+#: crates/leyline-studio/ui/types.slint:218
 msgctxt "Tr"
 msgid "Enter a destination folder."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:218
+#: crates/leyline-studio/ui/types.slint:221
 msgctxt "Tr"
 msgid "Exporting…"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:221
+#: crates/leyline-studio/ui/types.slint:224
 msgctxt "Tr"
 msgid "Enter a name."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:224
+#: crates/leyline-studio/ui/types.slint:227
 msgctxt "Tr"
 msgid "Creation failed: {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:227
+#: crates/leyline-studio/ui/types.slint:230
 msgctxt "Tr"
 msgid "Open a photo in develop first."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:230
+#: crates/leyline-studio/ui/types.slint:233
 msgctxt "Tr"
 msgid "Pick at least one group."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:233
+#: crates/leyline-studio/ui/types.slint:236
 msgctxt "Tr"
 msgid "Save failed: {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:236
+#: crates/leyline-studio/ui/types.slint:239
 msgctxt "Tr"
 msgid "Error: {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:239
+#: crates/leyline-studio/ui/types.slint:242
 msgctxt "Tr"
 msgid "Select a collection in the sidebar first."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:242
+#: crates/leyline-studio/ui/types.slint:245
 msgctxt "Tr"
 msgid "Preset saved."
 msgstr ""

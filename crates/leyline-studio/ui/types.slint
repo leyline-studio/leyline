@@ -143,6 +143,9 @@ export struct DevSettings {
     wb-temp: float,
     wb-tint: float,
     rotation: float,
+    // Perspective correction (ADR 0052), both sliders in [-100, 100].
+    perspective-vertical: float,
+    perspective-horizontal: float,
     crop-left: float,
     crop-top: float,
     crop-width: float,

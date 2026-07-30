@@ -10,8 +10,8 @@ pub use leyline_core::{
     ColorGrading, ColorGradingZone, ColorLabel, ColorRange, Crop, CurvePoint, ExportPresetId,
     FolderId, HighlightReconstruction, HslBand, JobId, KeywordId, LensCorrection, LeylineError,
     LocalAdjustment, LocalAdjustmentValues, LuminanceRange, Mask, MediaType, NoiseReduction,
-    PickState, Point, PresetId, PresetSettings, PreviewKind, PrintPresetId, RangeMask, Result,
-    RevisionId, Settings, SettingsGroup, Sharpening, SpotRemoval, StageVersions, ToneCurve,
+    Perspective, PickState, Point, PresetId, PresetSettings, PreviewKind, PrintPresetId, RangeMask,
+    Result, RevisionId, Settings, SettingsGroup, Sharpening, SpotRemoval, StageVersions, ToneCurve,
     VersionId, WhiteBalance,
 };
 

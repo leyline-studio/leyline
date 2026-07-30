@@ -1528,3 +1528,11 @@ msgstr "Signaler les couleurs hors gamut"
 
 msgid "Watermark text (blank = none)"
 msgstr "Texte du filigrane (vide = aucun)"
+
+# Perspective correction (ADR 0052).
+
+msgid "Horizontal perspective"
+msgstr "Perspective horizontale"
+
+msgid "Vertical perspective"
+msgstr "Perspective verticale"

@@ -16,8 +16,8 @@ use std::time::{Duration, Instant};
 use leyline_catalog::{Catalog, RevisionRow};
 use leyline_core::{
     CURRENT_SCHEMA, CameraProfile, ColorGrading, Crop, HighlightReconstruction, HslBand,
-    LensCorrection, LeylineError, LocalAdjustment, NoiseReduction, Result, RevisionId, Settings,
-    Sharpening, SpotRemoval, ToneCurve, VersionId, WhiteBalance,
+    LensCorrection, LeylineError, LocalAdjustment, NoiseReduction, Perspective, Result, RevisionId,
+    Settings, Sharpening, SpotRemoval, ToneCurve, VersionId, WhiteBalance,
 };
 
 /// Default amendment window of `docs/catalog.md` §17.
@@ -84,6 +84,9 @@ pub enum Param {
     Sharpening,
     /// Rotation in degrees, clockwise.
     Rotation,
+    /// Perspective correction (ADR 0052): the two sliders as one tool, since
+    /// they drive one transform; `None` returns to neutral.
+    Perspective,
     /// Crop rectangle; `None` clears it.
     Crop,
     /// Camera profile (ADR 0035): the referenced `.dcp` file, its
@@ -128,6 +131,8 @@ pub enum Value {
     CameraProfile(Option<CameraProfile>),
     /// For [`Param::HighlightReconstruction`].
     HighlightReconstruction(HighlightReconstruction),
+    /// For [`Param::Perspective`]; `None` returns to neutral.
+    Perspective(Option<Perspective>),
 }
 
 /// What changed since the last commit point.
@@ -401,6 +406,7 @@ fn apply(settings: &mut Settings, param: Param, value: Value) -> Result<()> {
     match (param, value) {
         (Param::Exposure, Value::Float(v)) => settings.exposure = v,
         (Param::Rotation, Value::Float(v)) => settings.rotation = v,
+        (Param::Perspective, Value::Perspective(v)) => settings.perspective = v,
         (Param::Contrast, Value::Int(v)) => settings.contrast = v,
         (Param::Highlights, Value::Int(v)) => settings.highlights = v,
         (Param::Shadows, Value::Int(v)) => settings.shadows = v,

@@ -494,6 +494,22 @@ pub struct LocalAdjustment {
     pub adjustments: LocalAdjustmentValues,
 }
 
+/// Perspective correction (ADR 0052): two sliders driving one projective
+/// transform, applied after rotation and before crop.
+///
+/// Neutral is the absence of the whole struct, not a struct of zeros — the same
+/// convention [`Crop`] follows.
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Perspective {
+    /// Vertical correction, slider in [-100, +100]: positive brings the top
+    /// edge's corners together, which is what straightens a building shot from
+    /// below.
+    pub vertical: i32,
+    /// Horizontal correction, slider in [-100, +100].
+    pub horizontal: i32,
+}
+
 /// Crop rectangle in normalized [0, 1] coordinates, relative to the image
 /// *after* rotation. Neutral state is the absence of a crop (`None`).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -601,6 +617,9 @@ pub struct Settings {
 
     /// Rotation in degrees, clockwise. Neutral: 0.
     pub rotation: f64,
+    /// Perspective correction (ADR 0052); `None` = neutral.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub perspective: Option<Perspective>,
     /// Crop rectangle; `None` = full frame (neutral).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub crop: Option<Crop>,
@@ -640,6 +659,7 @@ impl Default for Settings {
             highlight_reconstruction: HighlightReconstruction::default(),
             sharpening: Sharpening::default(),
             rotation: 0.0,
+            perspective: None,
             crop: None,
             extra: serde_json::Map::new(),
         }
@@ -715,6 +735,10 @@ impl Settings {
 
         finite("exposure", self.exposure)?;
         finite("rotation", self.rotation)?;
+        if let Some(perspective) = &self.perspective {
+            slider("perspective.vertical", perspective.vertical, -100, 100)?;
+            slider("perspective.horizontal", perspective.horizontal, -100, 100)?;
+        }
         slider("contrast", self.contrast, -100, 100)?;
         slider("highlights", self.highlights, -100, 100)?;
         slider("shadows", self.shadows, -100, 100)?;

@@ -10,9 +10,9 @@ use leyline_sdk::{
     AssetId, CameraProfile, ColorGrading, ColorGradingZone, ColorLabel, Crop, CurvePoint,
     ExportFormat, ExportRecipe, ExportRequest, ExportSettings, GridQuery, HighlightReconstruction,
     HslBand, ImportOptions, LensCorrection, Library, LocalAdjustment, Margins, NoiseReduction,
-    Orientation, PaperSize, Param, PickState, Point, PresetId, PreviewKind, PrintRecipe,
-    PrintRequest, PrintSettings, RenderingIntent, Settings, SettingsGroup, Sharpening, SpotRemoval,
-    ToneCurve, Value, VersionId, Watermark, WatermarkAnchor, WhiteBalance,
+    Orientation, PaperSize, Param, Perspective, PickState, Point, PresetId, PreviewKind,
+    PrintRecipe, PrintRequest, PrintSettings, RenderingIntent, Settings, SettingsGroup, Sharpening,
+    SpotRemoval, ToneCurve, Value, VersionId, Watermark, WatermarkAnchor, WhiteBalance,
 };
 
 const USAGE: &str = "\
@@ -76,6 +76,9 @@ Develop params (docs/pipeline.md §3.2, schema 1):
   noise-reduction <luminance> <color>
   sharpening <amount> <radius>
   crop <x> <y> <width> <height>     percent 0-100, or `crop reset`
+  perspective <vertical> <horizontal>
+                                    keystone correction, integers in [-100, 100]
+                                    (ADR 0052), or `perspective reset`
   tone-curve <x,y> <x,y>...         points in [0,1], strictly increasing x, or `tone-curve reset`
   spot-removal <tx> <ty> <sx> <sy> <radius> <feather> <opacity>
                                     positions/radius percent 0-100, feather/opacity 0-1;
@@ -586,6 +589,16 @@ fn develop(args: &[String]) -> Result<(), String> {
                 radius: float_at(1)?,
             }),
         ),
+        "perspective" => {
+            let perspective = match at(0)? {
+                "none" | "reset" => None,
+                _ => Some(Perspective {
+                    vertical: int_at(0)?,
+                    horizontal: int_at(1)?,
+                }),
+            };
+            (Param::Perspective, Value::Perspective(perspective))
+        }
         "crop" => {
             let crop = match at(0)? {
                 "none" | "reset" => None,

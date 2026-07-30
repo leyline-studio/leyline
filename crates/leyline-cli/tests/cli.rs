@@ -78,6 +78,8 @@ fn develop_covers_every_param_kind() {
         vec!["develop", &root, "1", "crop", "reset"],
         vec!["develop", &root, "1", "highlight-reconstruction", "blend"],
         vec!["develop", &root, "1", "highlight-reconstruction", "clip"],
+        vec!["develop", &root, "1", "perspective", "30", "-10"],
+        vec!["develop", &root, "1", "perspective", "reset"],
     ] {
         let out = run(&args);
         assert!(out.status.success(), "{args:?}: {}", stderr(&out));
@@ -87,7 +89,7 @@ fn develop_covers_every_param_kind() {
     let out = run(&["history", &root, "1"]);
     assert!(out.status.success(), "{}", stderr(&out));
     // The initial revision plus one commit per develop call above.
-    assert_eq!(stdout(&out).lines().count(), 11);
+    assert_eq!(stdout(&out).lines().count(), 13);
     assert!(stdout(&out).lines().next().unwrap().starts_with("HEAD"));
 }
 

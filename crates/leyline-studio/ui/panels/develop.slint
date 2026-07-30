@@ -1747,6 +1747,26 @@ export component DevelopPanel inherits HorizontalLayout {
                                 DevelopState.develop-edit("rotation", v);
                             }
                         }
+                        // Perspective (ADR 0052): between rotation and crop
+                        // in the panel exactly as in the pipeline.
+                        EditSlider {
+                            label: @tr("Vertical perspective");
+                            minimum: -100;
+                            maximum: 100;
+                            value: DevelopState.dev.perspective-vertical;
+                            edited(v) => {
+                                DevelopState.develop-edit("perspective-vertical", v);
+                            }
+                        }
+                        EditSlider {
+                            label: @tr("Horizontal perspective");
+                            minimum: -100;
+                            maximum: 100;
+                            value: DevelopState.dev.perspective-horizontal;
+                            edited(v) => {
+                                DevelopState.develop-edit("perspective-horizontal", v);
+                            }
+                        }
                         EditSlider {
                             label: @tr("Crop left");
                             minimum: 0;

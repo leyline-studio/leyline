@@ -82,6 +82,8 @@ pub(crate) fn dev_model(settings: &Settings) -> crate::ui::DevSettings {
         wb_temp: wb.temperature as f32,
         wb_tint: wb.tint as f32,
         rotation: settings.rotation as f32,
+        perspective_vertical: settings.perspective.map_or(0, |p| p.vertical) as f32,
+        perspective_horizontal: settings.perspective.map_or(0, |p| p.horizontal) as f32,
         crop_left: (crop.x * 100.0) as f32,
         crop_top: (crop.y * 100.0) as f32,
         crop_width: (crop.width * 100.0) as f32,

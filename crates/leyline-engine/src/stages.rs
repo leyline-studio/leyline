@@ -131,6 +131,9 @@ pub(crate) mod sharpen {
 pub(crate) mod rotate {
     pub(crate) mod v1;
 }
+pub(crate) mod perspective {
+    pub(crate) mod v1;
+}
 pub(crate) mod crop {
     pub(crate) mod v1;
 }
@@ -643,6 +646,27 @@ pub(crate) static STAGES: &[Stage] = &[
             rank: 200,
             space: Space::LinearRec2020,
             apply: |px, ctx| *px = rotate::v1::rotate(px, ctx.settings.rotation),
+        }],
+    },
+    Stage {
+        // Between rotation and crop, and constrained on both sides: a level
+        // horizon is what makes "vertical" meaningful, and one crops what one
+        // sees (ADR 0052 §3).
+        name: "perspective",
+        active: |settings| {
+            settings
+                .perspective
+                .is_some_and(|p| p.vertical != 0 || p.horizontal != 0)
+        },
+        versions: &[Version {
+            version: 1,
+            rank: 205,
+            space: Space::LinearRec2020,
+            apply: |px, ctx| {
+                if let Some(perspective) = &ctx.settings.perspective {
+                    *px = perspective::v1::correct(px, perspective);
+                }
+            },
         }],
     },
     Stage {

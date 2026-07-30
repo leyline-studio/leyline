@@ -581,6 +581,101 @@ fn an_empty_local_adjustment_list_is_not_recorded_and_does_not_run() {
     );
     assert_eq!(develop(&image, &settings, None, None).unwrap(), before);
 }
+/// ADR 0052: the correction is projective, so a straight line stays straight
+/// while parallel edges stop being parallel — and the canvas grows to hold the
+/// transformed quadrilateral rather than cropping it.
+#[test]
+fn perspective_widens_the_canvas_and_converges_the_edges() {
+    use leyline_core::Perspective;
+
+    let image = test_image(200, 150);
+    let neutral = develop(&image, &Settings::default(), None, None).unwrap();
+
+    let corrected = develop(
+        &image,
+        &Settings {
+            perspective: Some(Perspective {
+                vertical: 60,
+                horizontal: 0,
+            }),
+            ..Settings::default()
+        },
+        None,
+        None,
+    )
+    .unwrap();
+    // The bounding box of the transformed frame is wider than the frame: the
+    // bottom edge was spread outward (ADR 0052 §4).
+    assert!(
+        corrected.width > neutral.width,
+        "{} should exceed {}",
+        corrected.width,
+        neutral.width
+    );
+    assert_eq!(corrected.height, neutral.height);
+
+    // Symmetry: the opposite slider produces the same size, mirrored.
+    let mirrored = develop(
+        &image,
+        &Settings {
+            perspective: Some(Perspective {
+                vertical: -60,
+                horizontal: 0,
+            }),
+            ..Settings::default()
+        },
+        None,
+        None,
+    )
+    .unwrap();
+    assert_eq!(
+        (mirrored.width, mirrored.height),
+        (corrected.width, corrected.height)
+    );
+    assert_ne!(mirrored.data, corrected.data);
+
+    // The horizontal slider works on the other axis.
+    let horizontal = develop(
+        &image,
+        &Settings {
+            perspective: Some(Perspective {
+                vertical: 0,
+                horizontal: 60,
+            }),
+            ..Settings::default()
+        },
+        None,
+        None,
+    )
+    .unwrap();
+    assert!(horizontal.height > neutral.height);
+    assert_eq!(horizontal.width, neutral.width);
+}
+
+/// Neutral means absent, and absent means the stage never runs: a perspective
+/// of two zeros renders the decoded image bit for bit and is not recorded.
+#[test]
+fn a_neutral_perspective_is_not_recorded_and_does_not_run() {
+    use leyline_core::Perspective;
+
+    let image = test_image(64, 48);
+    let neutral = develop(&image, &Settings::default(), None, None).unwrap();
+    let zeroed = Settings {
+        perspective: Some(Perspective {
+            vertical: 0,
+            horizontal: 0,
+        }),
+        ..Settings::default()
+    };
+    let mut pinned = zeroed.clone();
+    crate::stages::pin(&mut pinned);
+    assert!(!pinned.stages.contains_key("perspective"));
+    assert_eq!(
+        develop(&image, &zeroed, None, None).unwrap().data,
+        neutral.data
+    );
+}
+
 #[test]
 fn a_radial_mask_darkens_only_its_covered_area() {
     let image = test_image(200, 150);
@@ -1229,6 +1324,10 @@ fn everything() -> Settings {
         vibrance: 10,
         saturation: 10,
         rotation: 5.0,
+        perspective: Some(leyline_core::Perspective {
+            vertical: 20,
+            horizontal: -10,
+        }),
         crop: Some(leyline_core::Crop {
             x: 0.1,
             y: 0.1,

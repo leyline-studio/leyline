@@ -25,6 +25,21 @@ pub fn action(slider: &str, value: f64, current: &Settings) -> Option<(Param, Va
     Some(match slider {
         "exposure" => (Param::Exposure, Value::Float(value)),
         "rotation" => (Param::Rotation, Value::Float(value)),
+        // The two sliders are one tool, so each merges into the other's
+        // current value — the same pattern white balance and noise reduction
+        // follow. Both back at zero clears the override entirely, which is
+        // what keeps a neutral revision free of the field (ADR 0052 §1).
+        "perspective-vertical" | "perspective-horizontal" => {
+            let mut perspective = current.perspective.unwrap_or_default();
+            if slider == "perspective-vertical" {
+                perspective.vertical = value.round() as i32;
+            } else {
+                perspective.horizontal = value.round() as i32;
+            }
+            let perspective =
+                (perspective.vertical != 0 || perspective.horizontal != 0).then_some(perspective);
+            (Param::Perspective, Value::Perspective(perspective))
+        }
         "contrast" => (Param::Contrast, int),
         "highlights" => (Param::Highlights, int),
         "shadows" => (Param::Shadows, int),
@@ -419,7 +434,7 @@ const FULL_FRAME: Crop = Crop {
 
 #[cfg(test)]
 mod tests {
-    use leyline_sdk::{CameraProfile, WhiteBalance};
+    use leyline_sdk::{CameraProfile, Perspective, WhiteBalance};
 
     use super::*;
 
@@ -607,6 +622,44 @@ mod tests {
             ))
         );
         assert_eq!(highlight_reconstruction_action("guess"), None);
+    }
+
+    #[test]
+    fn the_perspective_sliders_merge_and_clear_together() {
+        let neutral = settings(None, None);
+        assert_eq!(
+            action("perspective-vertical", 40.0, &neutral),
+            Some((
+                Param::Perspective,
+                Value::Perspective(Some(Perspective {
+                    vertical: 40,
+                    horizontal: 0
+                }))
+            ))
+        );
+        let tilted = Settings {
+            perspective: Some(Perspective {
+                vertical: 40,
+                horizontal: 0,
+            }),
+            ..settings(None, None)
+        };
+        // Moving one slider keeps the other.
+        assert_eq!(
+            action("perspective-horizontal", -20.0, &tilted),
+            Some((
+                Param::Perspective,
+                Value::Perspective(Some(Perspective {
+                    vertical: 40,
+                    horizontal: -20
+                }))
+            ))
+        );
+        // Back to zero on the only non-zero term clears the override.
+        assert_eq!(
+            action("perspective-vertical", 0.0, &tilted),
+            Some((Param::Perspective, Value::Perspective(None)))
+        );
     }
 
     #[test]

@@ -451,6 +451,18 @@ fn presence(settings: Settings) -> Settings {
     }
 }
 
+/// Straightens converging verticals (ADR 0052) — its own case rather than a
+/// term of `geometry`, whose entries are frozen with it.
+fn perspective(settings: Settings) -> Settings {
+    Settings {
+        perspective: Some(leyline_core::Perspective {
+            vertical: 40,
+            horizontal: -15,
+        }),
+        ..settings
+    }
+}
+
 /// Asks the decoder to reconstruct clipped highlights (ADR 0050). The mode
 /// itself is a decoder configuration, which no synthetic buffer can exercise —
 /// what this case freezes is the other half of `input::v2`: the gain it gives
@@ -507,6 +519,7 @@ fn cases() -> Vec<(String, Settings)> {
             "highlight_reconstruction",
             highlight_reconstruction(base.clone()),
         ),
+        ("perspective", perspective(base.clone())),
         ("fixture_v1", fixture_stage(base.clone(), 1)),
         ("fixture_v2", fixture_stage(base.clone(), 2)),
     ];

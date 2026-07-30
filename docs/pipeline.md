@@ -113,7 +113,7 @@ Netteté
 
 ↓
 
-Rotation / Recadrage
+Rotation / Perspective / Recadrage
 
 ↓
 
@@ -242,6 +242,7 @@ Jamais un delta.
     "highlight_reconstruction": "rebuild",
 
     "rotation": 0.0,
+    "perspective": { "vertical": 35, "horizontal": 0 },
     "crop": { "x": 0.1, "y": 0.2, "width": 0.8, "height": 0.7 }
 }
 ```
@@ -282,6 +283,7 @@ Valeurs neutres du schéma 1 :
 | `output_rendering` | `{ "highlight_rolloff": 50 }` — seul champ dont la valeur par défaut n'est pas « ne rien faire » : il n'existe pas de rendu sans sortie, donc c'est un choix de rendu, gelé avec la version d'étage qui le lit (ADR 0044 §3). L'import d'un JPEG/PNG/TIFF l'ouvre à 0, faute de marge à récupérer |
 | `highlight_reconstruction` | absent — `"clip"`, écrêtage au blanc ; les deux autres valeurs (`"blend"`, `"rebuild"`) exigent `input` en version 2 ([ADR 0050](adr/0050-highlight-reconstruction.md)) |
 | `rotation` | 0.0 |
+| `perspective` | absent — aucune correction ([ADR 0052](adr/0052-perspective-correction.md)) |
 | `crop` | absent — image entière |
 
 ### Unités et conventions
@@ -289,7 +291,8 @@ Valeurs neutres du schéma 1 :
 * `temperature` : Kelvin ;
 * `exposure` : EV ;
 * `rotation` : degrés, sens horaire ;
-* `crop` : coordonnées normalisées [0, 1] relatives à l'image **après** rotation ;
+* `crop` : coordonnées normalisées [0, 1] relatives à l'image **après** rotation et correction de perspective ;
+* `perspective.vertical` / `perspective.horizontal` : entiers dans [-100, +100], 0 = neutre ; ils déplacent les coins du cadre en fractions de celui-ci, donc indépendamment de la taille du rendu (ADR 0052 §5) ;
 * `output_rendering.highlight_rolloff` : 0 = écrêtage franc au blanc, 100 = épaule la plus longue ; récupérer de la marge coûte un peu de blanc, ce que le curseur permet d'arbitrer ;
 * `highlight_reconstruction` : `"clip"` (neutre), `"blend"` ou `"rebuild"` — ce que le **décodeur** fait d'un canal saturé au capteur, avant dématriçage, à ne pas confondre avec l'épaule ci-dessus qui décide de ce que devient la marge à la sortie (ADR 0050) ;
 * les curseurs sans unité physique (`contrast`, `vibrance`...) : entiers dans [-100, +100], 0 = neutre ;
@@ -355,6 +358,7 @@ Le code de chaque version d'étage est conservé dans le moteur pour toujours : 
 | 180 | `noise_color` | 2 | Idem, préservant les contours, seuil plus agressif que la luminance (ADR 0046) |
 | 190 | `sharpen` | 1 | Masque flou sur le plan de luminance |
 | 200 | `rotate` | 1 | Rotation d'angle arbitraire, échantillonnage bilinéaire |
+| 205 | `perspective` | 1 | Homographie à deux curseurs redressant les fuyantes ; la sortie est la boîte englobante du quadrilatère transformé (ADR 0052) |
 | 210 | `crop` | 1 | Recadrage |
 | 900 | `output_rendering` | 1 | Épaule des hautes lumières, puis Rec. 2020 → sRGB et encodage ; toujours actif (ADR 0044 §3) |
 
