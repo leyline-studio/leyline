@@ -20,7 +20,7 @@ pub use path::validate_library_relative_path;
 pub use settings::{
     BrushStroke, CURRENT_SCHEMA, CameraProfile, ColorGrading, ColorGradingZone, ColorRange, Crop,
     CurvePoint, HighlightReconstruction, HslBand, LensCorrection, LocalAdjustment,
-    LocalAdjustmentValues, LuminanceRange, Mask, NoiseReduction, Perspective, Point,
+    LocalAdjustmentValues, LuminanceRange, Lut, Mask, NoiseReduction, Perspective, Point,
     PresetSettings, RangeMask, Settings, SettingsGroup, Sharpening, SpotRemoval, StageVersions,
     ToneCurve, WhiteBalance,
 };

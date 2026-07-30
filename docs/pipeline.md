@@ -159,6 +159,12 @@ Jamais un delta.
         "output_rendering": 1
     },
 
+    "lut": {
+        "enabled": true,
+        "path": "Profiles/LUT/Kodachrome.cube",
+        "checksum": "blake3:2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae",
+        "strength": 75
+    },
     "camera_profile": {
         "enabled": true,
         "path": "Profiles/Camera/Canon EOS 60D.dcp",
@@ -284,6 +290,7 @@ Valeurs neutres du schéma 1 :
 | `highlight_reconstruction` | absent — `"clip"`, écrêtage au blanc ; les deux autres valeurs (`"blend"`, `"rebuild"`) exigent `input` en version 2 ([ADR 0050](adr/0050-highlight-reconstruction.md)) |
 | `rotation` | 0.0 |
 | `perspective` | absent — aucune correction ([ADR 0052](adr/0052-perspective-correction.md)) |
+| `lut` | absent — aucun look appliqué ([ADR 0053](adr/0053-creative-lut.md)) |
 | `crop` | absent — image entière |
 
 ### Unités et conventions
@@ -292,6 +299,7 @@ Valeurs neutres du schéma 1 :
 * `exposure` : EV ;
 * `rotation` : degrés, sens horaire ;
 * `crop` : coordonnées normalisées [0, 1] relatives à l'image **après** rotation et correction de perspective ;
+* `lut.strength` : entier dans [0, 100] — 100 = la LUT telle que son auteur l'a écrite ; le mélange se fait sur l'axe d'affichage, là où la LUT est définie (ADR 0053 §2–3) ;
 * `perspective.vertical` / `perspective.horizontal` : entiers dans [-100, +100], 0 = neutre ; ils déplacent les coins du cadre en fractions de celui-ci, donc indépendamment de la taille du rendu (ADR 0052 §5) ;
 * `output_rendering.highlight_rolloff` : 0 = écrêtage franc au blanc, 100 = épaule la plus longue ; récupérer de la marge coûte un peu de blanc, ce que le curseur permet d'arbitrer ;
 * `highlight_reconstruction` : `"clip"` (neutre), `"blend"` ou `"rebuild"` — ce que le **décodeur** fait d'un canal saturé au capteur, avant dématriçage, à ne pas confondre avec l'épaule ci-dessus qui décide de ce que devient la marge à la sortie (ADR 0050) ;
@@ -352,6 +360,7 @@ Le code de chaque version d'étage est conservé dans le moteur pour toujours : 
 | 150 | `color_grading` | 1 | Trois zones ombres/tons moyens/hautes lumières pondérées par la luminance (ADR 0032) |
 | 160 | `local_adjustments` | 1 | Réglages locaux masqués (brosse/radial/gradient), réutilisant les opérateurs globaux restreints à une couverture (ADR 0029) |
 | 160 | `local_adjustments` | 2 | Idem, plus les masques par plage : la couverture géométrique peut être resserrée par une bande de luminance et une bande de teinte (ADR 0048) |
+| 165 | `lut` | 1 | LUT créative `.cube` appliquée sur l'axe d'affichage, dosée par `strength` ; dernière décision de couleur (ADR 0053) |
 | 170 | `noise_luminance` | 1 | Réduction du bruit de luminance : mélange vers un flou gaussien du plan de luma |
 | 170 | `noise_luminance` | 2 | Idem, préservant les contours : ondelettes à trous et seuillage doux par échelle (ADR 0046) |
 | 180 | `noise_color` | 1 | Réduction du bruit chromatique : mélange vers un flou gaussien des écarts à la luma |

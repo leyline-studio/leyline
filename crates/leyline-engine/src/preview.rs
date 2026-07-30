@@ -149,12 +149,14 @@ pub(crate) fn render_preview(
             asset,
             reason: e.to_string(),
         })?;
+    let lut = crate::lut::resolve_from_settings(&plan.library_root, &plan.settings)?;
     let (decoded, scale) = proxy(&decoded, plan.max_edge);
     let rendered = render_scaled(
         &decoded,
         &plan.settings,
         plan.shot.as_ref(),
         camera_profile.as_ref(),
+        lut.as_ref(),
         crate::source::color(&plan.source_path),
         scale,
     )?;
@@ -246,11 +248,13 @@ pub(crate) fn render_with_settings(
             reason: e.to_string(),
         })?;
     let (decoded, scale) = proxy(&decoded, plan.max_edge);
+    let lut = crate::lut::resolve_from_settings(&plan.library_root, settings)?;
     let rendered = render_scaled(
         &decoded,
         settings,
         plan.shot.as_ref(),
         camera_profile.as_ref(),
+        lut.as_ref(),
         crate::source::color(&plan.source_path),
         scale,
     )?;

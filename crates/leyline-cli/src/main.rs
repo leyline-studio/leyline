@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use leyline_sdk::{
     AssetId, CameraProfile, ColorGrading, ColorGradingZone, ColorLabel, Crop, CurvePoint,
     ExportFormat, ExportRecipe, ExportRequest, ExportSettings, GridQuery, HighlightReconstruction,
-    HslBand, ImportOptions, LensCorrection, Library, LocalAdjustment, Margins, NoiseReduction,
+    HslBand, ImportOptions, LensCorrection, Library, LocalAdjustment, Lut, Margins, NoiseReduction,
     Orientation, PaperSize, Param, Perspective, PickState, Point, PresetId, PreviewKind,
     PrintRecipe, PrintRequest, PrintSettings, RenderingIntent, Settings, SettingsGroup, Sharpening,
     SpotRemoval, ToneCurve, Value, VersionId, Watermark, WatermarkAnchor, WhiteBalance,
@@ -40,6 +40,8 @@ Usage:
   leyline print-presets <library>
   leyline camera-profile <library> <file.dcp>
   leyline camera-profiles <library>
+  leyline lut <library> <file.cube>
+  leyline luts <library>
   leyline rate <library> <stars|none> <version-id>...
   leyline pick <library> <pick|reject|none> <version-id>...
   leyline label <library> <red|yellow|green|blue|purple|none> <version-id>...
@@ -72,6 +74,9 @@ Develop params (docs/pipeline.md §3.2, schema 1):
                                     Needs a revision pinned at input version 2 — reprocess
                                     an older one first
   white-balance <kelvin> <tint>     tint integer, or `white-balance none` for as-shot
+  lut <path|on|off|none>            path is library-relative, as listed by `leyline luts`;
+                                    on/off toggles the LUT already referenced, none removes it
+  lut-strength <0-100>              how much of the look to apply (ADR 0053)
   lens-correction <on|off>
   noise-reduction <luminance> <color>
   sharpening <amount> <radius>
@@ -140,6 +145,8 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("print-presets") => print_presets(&args[1..]),
         Some("camera-profile") => camera_profile(&args[1..]),
         Some("camera-profiles") => camera_profiles(&args[1..]),
+        Some("lut") => lut_import(&args[1..]),
+        Some("luts") => luts(&args[1..]),
         Some("rate") => rate(&args[1..]),
         Some("pick") => pick(&args[1..]),
         Some("label") => label(&args[1..]),
@@ -392,6 +399,32 @@ fn camera_profiles(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+/// Imports a `.cube` LUT into the library (ADR 0053 §1).
+fn lut_import(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root, source] = positional.as_slice() else {
+        return Err("usage: leyline lut <library> <file.cube>".to_owned());
+    };
+    let imported = open(root)?
+        .import_lut(Path::new(source))
+        .map_err(|e| e.to_string())?;
+    println!("{}  {}", imported.relative_path, imported.checksum);
+    Ok(())
+}
+
+fn luts(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root] = positional.as_slice() else {
+        return Err("usage: leyline luts <library>".to_owned());
+    };
+    let luts = open(root)?.luts().map_err(|e| e.to_string())?;
+    for lut in &luts {
+        println!("{}  {}", lut.relative_path, lut.checksum);
+    }
+    println!("{} LUT(s)", luts.len());
+    Ok(())
+}
+
 fn rate(args: &[String]) -> Result<(), String> {
     let (positional, _) = parse(args, &[])?;
     let [root, stars, ids @ ..] = positional.as_slice() else {
@@ -560,6 +593,56 @@ fn develop(args: &[String]) -> Result<(), String> {
                 }
             };
             (Param::CameraProfile, Value::CameraProfile(profile))
+        }
+        // The same shape as `camera-profile`: the checksum is never typed by
+        // hand, it comes from the engine's own listing of what was imported
+        // (ADR 0053 §1).
+        "lut" => {
+            let lut = match at(0)? {
+                "none" | "reset" => None,
+                state @ ("on" | "off") => {
+                    let mut lut = session.settings().lut.clone().ok_or_else(|| {
+                        "no LUT referenced yet; pass a library-relative path first".to_owned()
+                    })?;
+                    lut.enabled = state == "on";
+                    Some(lut)
+                }
+                path => {
+                    let imported = library
+                        .luts()
+                        .map_err(|e| e.to_string())?
+                        .into_iter()
+                        .find(|l| l.relative_path == path)
+                        .ok_or_else(|| {
+                            format!(
+                                "unknown LUT {path:?}; run `leyline luts <library>` to list them"
+                            )
+                        })?;
+                    // A path given alone keeps whatever dose was already set,
+                    // so swapping looks does not silently reset it.
+                    let strength = session
+                        .settings()
+                        .lut
+                        .as_ref()
+                        .map_or(100, |previous| previous.strength);
+                    Some(Lut {
+                        enabled: true,
+                        path: imported.relative_path,
+                        checksum: imported.checksum,
+                        strength,
+                    })
+                }
+            };
+            (Param::Lut, Value::Lut(lut))
+        }
+        "lut-strength" => {
+            let mut lut = session
+                .settings()
+                .lut
+                .clone()
+                .ok_or_else(|| "no LUT referenced yet; pass a path first".to_owned())?;
+            lut.strength = int_at(0)?;
+            (Param::Lut, Value::Lut(Some(lut)))
         }
         "lens-correction" => {
             let enabled = match at(0)? {

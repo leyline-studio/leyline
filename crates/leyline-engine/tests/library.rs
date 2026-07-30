@@ -236,3 +236,87 @@ fn a_soft_proof_transforms_the_view_and_leaves_everything_else_alone() {
             .is_err()
     );
 }
+
+/// A creative LUT is a referenced file (ADR 0053 §1), so it has the same
+/// fail-closed contract as a camera profile: import copies it in, a revision
+/// records its checksum, and a file that changed underneath is an error rather
+/// than a render through something else.
+#[test]
+fn a_lut_is_imported_referenced_and_fails_closed_when_it_changes() {
+    use leyline_core::{Lut, PreviewKind};
+
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("Library");
+    let library = Library::create(&root, "Looks").unwrap();
+    let photo = dir.path().join("photo.png");
+    image::save_buffer(
+        &photo,
+        &[128u8; 8 * 8 * 3],
+        8,
+        8,
+        image::ExtendedColorType::Rgb8,
+    )
+    .unwrap();
+    let report = library
+        .import(
+            &photo,
+            &ImportOptions {
+                copy_files: true,
+                recursive: false,
+            },
+            |_, _| {},
+        )
+        .unwrap();
+    let registered = report.imported[0].registered;
+
+    let source = dir.path().join("Warm.cube");
+    std::fs::write(
+        &source,
+        "LUT_3D_SIZE 2\n0 0 0\n1 0 0\n0 1 0\n1 1 0\n0 0 1\n1 0 1\n0 1 1\n1 1 1\n",
+    )
+    .unwrap();
+    let imported = library.import_lut(&source).unwrap();
+    assert_eq!(imported.relative_path, "Profiles/LUT/Warm.cube");
+    assert!(imported.checksum.starts_with("blake3:"));
+    assert!(root.join("Profiles/LUT/Warm.cube").is_file());
+
+    // A name already taken is refused, never overwritten.
+    assert!(library.import_lut(&source).is_err());
+    assert_eq!(library.luts().unwrap().len(), 1);
+
+    {
+        let mut session = library.edit(registered.version).unwrap();
+        session
+            .set(
+                Param::Lut,
+                Value::Lut(Some(Lut {
+                    enabled: true,
+                    path: imported.relative_path.clone(),
+                    checksum: imported.checksum.clone(),
+                    strength: 80,
+                })),
+            )
+            .unwrap();
+        session.commit().unwrap();
+    }
+    // It renders (the identity LUT above leaves the pixels alone, which is
+    // what makes this about the plumbing rather than about a look).
+    library
+        .preview(registered.asset, PreviewKind::Small)
+        .unwrap();
+
+    // Now the file changes underneath: the recorded checksum no longer
+    // matches, and rendering says so instead of quietly using the new look.
+    std::fs::write(
+        root.join("Profiles/LUT/Warm.cube"),
+        "LUT_3D_SIZE 2\n1 1 1\n1 1 1\n1 1 1\n1 1 1\n1 1 1\n1 1 1\n1 1 1\n1 1 1\n",
+    )
+    .unwrap();
+    let error = library
+        .preview(registered.asset, PreviewKind::Medium)
+        .unwrap_err();
+    assert!(
+        matches!(&error, LeylineError::LutFailed { path, .. } if path == "Profiles/LUT/Warm.cube"),
+        "{error:?}"
+    );
+}

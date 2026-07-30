@@ -93,6 +93,81 @@ pub(crate) fn wire_map(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
+        // Creative LUT (ADR 0053): pick a `.cube`, import it into the library,
+        // reference it on the edited version — the same one-click shape as the
+        // camera profile above, and for the same reason (the checksum comes
+        // from the import, never from a path the user typed).
+        DevelopState::get(window).on_browse_lut(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let Some((_, version)) = app.develop else {
+                return;
+            };
+            let Some(path) = rfd::FileDialog::new()
+                .add_filter("Cube LUT", &["cube"])
+                .pick_file()
+            else {
+                return;
+            };
+            let referenced = (|| {
+                let imported = app.library.import_lut(&path)?;
+                let mut session = app.library.edit(version)?;
+                // A new look keeps the dose already in effect, so trying
+                // several looks at the same strength does not mean re-setting
+                // the slider each time.
+                let strength = session
+                    .settings()
+                    .lut
+                    .as_ref()
+                    .map_or(100, |previous| previous.strength);
+                session.set(
+                    Param::Lut,
+                    Value::Lut(Some(leyline_sdk::Lut {
+                        enabled: true,
+                        path: imported.relative_path,
+                        checksum: imported.checksum,
+                        strength,
+                    })),
+                )?;
+                session.commit().map(|_| ())
+            })();
+            if let Err(error) = referenced
+                .map_err(|e| e.to_string())
+                .and_then(|()| refresh_develop(&mut app, &window))
+            {
+                report_error(&window, &error);
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        DevelopState::get(window).on_clear_lut(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let Some((_, version)) = app.develop else {
+                return;
+            };
+            let cleared = (|| {
+                let mut session = app.library.edit(version)?;
+                session.set(Param::Lut, Value::Lut(None))?;
+                session.commit().map(|_| ())
+            })();
+            if let Err(error) = cleared
+                .map_err(|e| e.to_string())
+                .and_then(|()| refresh_develop(&mut app, &window))
+            {
+                report_error(&window, &error);
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
         MapState::get(window).on_browse_map_pack(move || {
             let Some(window) = handle.upgrade() else {
                 return;

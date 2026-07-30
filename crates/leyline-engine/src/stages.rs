@@ -113,6 +113,9 @@ pub(crate) mod hsl {
 pub(crate) mod color_grading {
     pub(crate) mod v1;
 }
+pub(crate) mod lut {
+    pub(crate) mod v1;
+}
 pub(crate) mod local_adjustments {
     pub(crate) mod v1;
     pub(crate) mod v2;
@@ -185,6 +188,8 @@ pub(crate) struct Context<'a> {
     pub shot: Option<&'a LensShot>,
     /// The already-resolved DCP matrix, for the camera profile stage.
     pub camera_profile: Option<&'a DcpProfile>,
+    /// The already-parsed creative LUT, for the LUT stage (ADR 0053).
+    pub lut: Option<&'a leyline_color::CubeLut>,
     /// Factor by which the image was already reduced for a preview
     /// (ADR 0041). Stages expressing a radius in *pixels* multiply by it;
     /// everything normalized to `[0, 1]` ignores it.
@@ -559,6 +564,26 @@ pub(crate) static STAGES: &[Stage] = &[
                 },
             },
         ],
+    },
+    Stage {
+        // The last color decision, after every operator that grades the image
+        // and before the ones that work on local structure (ADR 0053 §4).
+        //
+        // `active` reads the settings only, like every predicate here: whether
+        // the file resolves is `apply`'s problem, and a reference that cannot be
+        // read is an error rather than a silently skipped stage.
+        name: "lut",
+        active: |settings| settings.lut.as_ref().is_some_and(|lut| lut.enabled),
+        versions: &[Version {
+            version: 1,
+            rank: 165,
+            space: Space::LinearRec2020,
+            apply: |px, ctx| {
+                if let (Some(lut), Some(reference)) = (ctx.lut, ctx.settings.lut.as_ref()) {
+                    lut::v1::apply(px, lut, reference.strength);
+                }
+            },
+        }],
     },
     Stage {
         name: "noise_luminance",
@@ -945,6 +970,7 @@ pub(crate) fn develop_scaled(
     settings: &Settings,
     shot: Option<&LensShot>,
     camera_profile: Option<&DcpProfile>,
+    lut: Option<&leyline_color::CubeLut>,
     source: SourceColor,
     scale: f32,
 ) -> Result<Rendered> {
@@ -953,6 +979,7 @@ pub(crate) fn develop_scaled(
         settings,
         shot,
         camera_profile,
+        lut,
         source,
         scale,
     };

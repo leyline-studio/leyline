@@ -67,6 +67,13 @@ pub(crate) fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<()
             })
             .to_owned(),
     ));
+    DevelopState::get(window).set_lut_name(SharedString::from(
+        settings
+            .lut
+            .as_ref()
+            .map_or("", |lut| lut.path.rsplit('/').next().unwrap_or(&lut.path))
+            .to_owned(),
+    ));
     if app.dev_history_version != Some(version) {
         app.dev_history.clear();
         app.dev_history_version = Some(version);

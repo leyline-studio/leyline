@@ -142,6 +142,20 @@ pub enum LeylineError {
         reason: String,
     },
 
+    /// A revision references a creative LUT (`.cube`, ADR 0053) that is
+    /// missing, unreadable, fails to parse, or whose BLAKE3 checksum no
+    /// longer matches what the revision recorded. Same fail-closed contract
+    /// as [`LeylineError::CameraProfileFailed`], and for the same reason: a
+    /// look that quietly stopped applying is worse than an error.
+    #[error("LUT at {path} failed: {reason}")]
+    LutFailed {
+        /// Library-relative path of the referenced `.cube` file.
+        path: String,
+        /// Human-readable diagnostic (missing file, checksum mismatch,
+        /// parse failure).
+        reason: String,
+    },
+
     /// An underlying I/O operation failed.
     #[error("i/o error: {0}")]
     Io(#[from] std::io::Error),

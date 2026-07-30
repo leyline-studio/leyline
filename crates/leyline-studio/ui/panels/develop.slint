@@ -23,6 +23,7 @@ export component DevelopPanel inherits HorizontalLayout {
     property <bool> expand-tone: true;
     property <bool> expand-presence: false;
     property <bool> expand-camera-profile: false;
+    property <bool> expand-lut: false;
     property <bool> expand-lens: false;
     property <bool> expand-detail: false;
     property <bool> expand-tone-curve: false;
@@ -849,6 +850,59 @@ export component DevelopPanel inherits HorizontalLayout {
                                 clicked => {
                                     DevelopState.develop-edit("camera-profile", DevelopState.dev.camera-profile ? 0 : 1);
                                 }
+                            }
+                        }
+                    }
+
+                    GroupHeader {
+                        label: @tr("Creative LUT");
+                        expanded <=> root.expand-lut;
+                    }
+                    // A look chosen elsewhere and imported into the library
+                    // (ADR 0053), as opposed to the color operators above,
+                    // which are Leyline's own.
+                    if root.expand-lut: VerticalLayout {
+                        spacing: 8px;
+                        Text {
+                            text: DevelopState.lut-name == ""
+                                ? @tr("No LUT — Leyline's own color only")
+                                : DevelopState.lut-name;
+                            color: #9a9a9a;
+                            font-size: 12px;
+                            wrap: word-wrap;
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: start;
+                            FilterChip {
+                                text: @tr("Choose .cube…");
+                                active: false;
+                                clicked => {
+                                    DevelopState.browse-lut();
+                                }
+                            }
+                            if DevelopState.lut-name != "": FilterChip {
+                                active: DevelopState.dev.lut;
+                                text: DevelopState.dev.lut ? @tr("Enabled") : @tr("Disabled");
+                                clicked => {
+                                    DevelopState.develop-edit("lut", DevelopState.dev.lut ? 0 : 1);
+                                }
+                            }
+                            if DevelopState.lut-name != "": FilterChip {
+                                text: @tr("Remove");
+                                active: false;
+                                clicked => {
+                                    DevelopState.clear-lut();
+                                }
+                            }
+                        }
+                        if DevelopState.lut-name != "": EditSlider {
+                            label: @tr("Strength");
+                            minimum: 0;
+                            maximum: 100;
+                            value: DevelopState.dev.lut-strength;
+                            edited(v) => {
+                                DevelopState.develop-edit("lut-strength", v);
                             }
                         }
                     }

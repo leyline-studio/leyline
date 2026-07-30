@@ -16,6 +16,7 @@ mod events;
 mod export;
 mod import;
 mod library;
+mod lut;
 mod mask;
 mod pixels;
 mod presets;
@@ -37,7 +38,9 @@ pub use export::{
 };
 pub use import::{ImportOptions, ImportReport, ImportedFile, SkippedFile, import};
 pub use leyline_preview::Rgb8;
-pub use library::{CatalogRead, CatalogWrite, ImportedCameraProfile, Library, SoftProof};
+pub use library::{
+    CatalogRead, CatalogWrite, ImportedCameraProfile, ImportedLut, Library, SoftProof,
+};
 pub use presets::{FailedApply, PresetApplyReport, apply_batch, capture};
 pub use preview::{Preview, PreviewFile, preview};
 pub use print::{FailedPrint, PrintRecipe, PrintReport, PrintRequest, PrintedVersion};

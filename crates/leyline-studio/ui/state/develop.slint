@@ -44,6 +44,12 @@ export global DevelopState {
     // on the edited version — one click, same shape as `browse-map-pack`.
     // The file name of the referenced profile, empty when none is set.
     callback browse-camera-profile();
+    // Creative LUT (ADR 0053): the referenced `.cube`'s file name, empty when
+    // none is referenced, and the picker that imports one — same one-click
+    // shape as `browse-camera-profile`.
+    in property <string> lut-name;
+    callback browse-lut();
+    callback clear-lut();
     // Screen soft proof (ADR 0034): the destination profile's file name
     // (empty = no proof in effect), the intent index (0 perceptual,
     // 1 relative, 2 saturation, 3 absolute) and whether what the destination

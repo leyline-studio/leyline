@@ -50,6 +50,7 @@ fn develop(
         settings,
         shot,
         camera_profile,
+        None,
         SourceColor::Camera {
             to_xyz: None,
             multipliers: None,
@@ -584,6 +585,84 @@ fn an_empty_local_adjustment_list_is_not_recorded_and_does_not_run() {
 /// ADR 0052: the correction is projective, so a straight line stays straight
 /// while parallel edges stop being parallel — and the canvas grows to hold the
 /// transformed quadrilateral rather than cropping it.
+/// A creative LUT is the one operator whose behavior comes from a file, so its
+/// tests pass the resolved table in the way the render paths do (ADR 0053).
+#[test]
+fn a_lut_grades_the_image_and_its_strength_doses_the_effect() {
+    let image = test_image(64, 48);
+    // A look that pushes everything toward red and drops blue.
+    let look = leyline_color::CubeLut::parse(
+        "LUT_3D_SIZE 2\n\
+         0.20 0.00 0.00\n\
+         1.00 0.00 0.00\n\
+         0.20 0.60 0.00\n\
+         1.00 0.60 0.00\n\
+         0.20 0.00 0.30\n\
+         1.00 0.00 0.30\n\
+         0.20 0.60 0.30\n\
+         1.00 0.60 0.30\n",
+    )
+    .unwrap();
+    let referenced = |strength, enabled| Settings {
+        lut: Some(leyline_core::Lut {
+            enabled,
+            path: "Profiles/LUT/look.cube".to_owned(),
+            checksum: format!("blake3:{}", "0".repeat(64)),
+            strength,
+        }),
+        ..Settings::default()
+    };
+    let render = |settings: &Settings| {
+        super::develop_scaled(
+            &image,
+            settings,
+            None,
+            None,
+            Some(&look),
+            SourceColor::Camera {
+                to_xyz: None,
+                multipliers: None,
+            },
+            1.0,
+        )
+        .unwrap()
+    };
+
+    let plain = render(&Settings::default());
+    let graded = render(&referenced(100, true));
+    assert_ne!(graded.data, plain.data, "a LUT at full strength must show");
+    // Blue is what this look takes away, so its mean must fall.
+    let mean = |data: &[u8], channel: usize| {
+        data.iter()
+            .skip(channel)
+            .step_by(3)
+            .map(|&v| u64::from(v))
+            .sum::<u64>() as f64
+            / (data.len() / 3) as f64
+    };
+    assert!(
+        mean(&graded.data, 2) < mean(&plain.data, 2),
+        "the look drops blue"
+    );
+
+    // Half strength lands between the two.
+    let half = render(&referenced(50, true));
+    let (low, mid, high) = (
+        mean(&graded.data, 2),
+        mean(&half.data, 2),
+        mean(&plain.data, 2),
+    );
+    assert!(low < mid && mid < high, "{low} < {mid} < {high}");
+
+    // Zero strength and a disabled reference both render the plain image, and
+    // a disabled one is not even recorded.
+    assert_eq!(render(&referenced(0, true)).data, plain.data);
+    assert_eq!(render(&referenced(100, false)).data, plain.data);
+    let mut pinned = referenced(100, false);
+    crate::stages::pin(&mut pinned);
+    assert!(!pinned.stages.contains_key("lut"));
+}
+
 #[test]
 fn perspective_widens_the_canvas_and_converges_the_edges() {
     use leyline_core::Perspective;
@@ -1327,6 +1406,12 @@ fn everything() -> Settings {
         perspective: Some(leyline_core::Perspective {
             vertical: 20,
             horizontal: -10,
+        }),
+        lut: Some(leyline_core::Lut {
+            enabled: true,
+            path: "Profiles/LUT/look.cube".to_owned(),
+            checksum: format!("blake3:{}", "0".repeat(64)),
+            strength: 60,
         }),
         crop: Some(leyline_core::Crop {
             x: 0.1,

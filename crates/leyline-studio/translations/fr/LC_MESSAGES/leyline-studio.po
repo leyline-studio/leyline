@@ -1536,3 +1536,20 @@ msgstr "Perspective horizontale"
 
 msgid "Vertical perspective"
 msgstr "Perspective verticale"
+
+# Creative LUT (ADR 0053).
+
+msgid "Choose .cube…"
+msgstr "Choisir un .cube…"
+
+msgid "Creative LUT"
+msgstr "LUT créative"
+
+msgid "No LUT — Leyline's own color only"
+msgstr "Aucune LUT — les couleurs de Leyline seules"
+
+msgid "Remove"
+msgstr "Retirer"
+
+msgid "Strength"
+msgstr "Intensité"

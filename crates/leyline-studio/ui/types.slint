@@ -161,6 +161,10 @@ export struct DevSettings {
     // What the decoder does with channels that saturated at the sensor
     // (ADR 0050): "clip", "blend" or "rebuild".
     highlight-reconstruction: string,
+    // Creative LUT (ADR 0053): whether the referenced look is applied, and its
+    // dose. The file name lives in `lut-name`, empty when none is referenced.
+    lut: bool,
+    lut-strength: float,
     // Fixed order: red, orange, yellow, green, aqua, blue, purple, magenta
     // (ADR 0031) — always exactly 8 entries.
     hsl: [HslBandValues],

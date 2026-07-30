@@ -117,11 +117,13 @@ pub(crate) fn render_export(
             reason: e.to_string(),
         }
     })?;
+    let lut = crate::lut::resolve_from_settings(&plan.library_root, &plan.develop)?;
     let rendered = render(
         &decoded,
         &plan.develop,
         plan.shot.as_ref(),
         camera_profile.as_ref(),
+        lut.as_ref(),
         crate::source::color(&plan.source),
     )?;
 

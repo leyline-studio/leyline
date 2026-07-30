@@ -60,6 +60,19 @@ pub fn action(slider: &str, value: f64, current: &Settings) -> Option<(Param, Va
             profile.enabled = value != 0.0;
             (Param::CameraProfile, Value::CameraProfile(Some(profile)))
         }
+        // Like `camera-profile`: a toggle only ever flips `enabled` on a look
+        // the user already chose, and the strength only moves a reference that
+        // exists (ADR 0053 §1).
+        "lut" => {
+            let mut lut = current.lut.clone()?;
+            lut.enabled = value != 0.0;
+            (Param::Lut, Value::Lut(Some(lut)))
+        }
+        "lut-strength" => {
+            let mut lut = current.lut.clone()?;
+            lut.strength = value.round() as i32;
+            (Param::Lut, Value::Lut(Some(lut)))
+        }
         "lens-correction" => (
             Param::LensCorrection,
             Value::LensCorrection(LensCorrection {
@@ -660,6 +673,35 @@ mod tests {
             action("perspective-vertical", 0.0, &tilted),
             Some((Param::Perspective, Value::Perspective(None)))
         );
+    }
+
+    /// A look is a referenced file: nothing here invents one, exactly like the
+    /// camera profile above.
+    #[test]
+    fn the_lut_controls_only_move_a_look_that_was_already_chosen() {
+        let neutral = settings(None, None);
+        assert_eq!(action("lut", 1.0, &neutral), None);
+        assert_eq!(action("lut-strength", 50.0, &neutral), None);
+
+        let referenced = Settings {
+            lut: Some(leyline_sdk::Lut {
+                enabled: true,
+                path: "Profiles/LUT/look.cube".to_owned(),
+                checksum: format!("blake3:{}", "a".repeat(64)),
+                strength: 100,
+            }),
+            ..neutral
+        };
+        let Some((Param::Lut, Value::Lut(Some(off)))) = action("lut", 0.0, &referenced) else {
+            panic!("expected a LUT update");
+        };
+        assert!(!off.enabled);
+        assert_eq!(off.path, "Profiles/LUT/look.cube");
+        let Some((Param::Lut, Value::Lut(Some(dosed)))) = action("lut-strength", 40.4, &referenced)
+        else {
+            panic!("expected a LUT update");
+        };
+        assert_eq!((dosed.strength, dosed.enabled), (40, true));
     }
 
     #[test]

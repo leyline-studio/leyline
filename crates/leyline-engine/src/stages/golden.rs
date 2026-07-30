@@ -451,6 +451,44 @@ fn presence(settings: Settings) -> Settings {
     }
 }
 
+/// A fixed 2×2×2 look, frozen with the cases exactly like the made-up camera
+/// matrix above: what the freeze needs is that the same table enters the
+/// pipeline every time, not that anyone would grade with it. It swaps green
+/// into red and warms the whites, so a render through it is unmistakably
+/// different from one without.
+fn sample_lut() -> leyline_color::CubeLut {
+    leyline_color::CubeLut::parse(
+        "LUT_3D_SIZE 2\n\
+         0.00 0.00 0.00\n\
+         0.00 0.60 0.10\n\
+         0.90 0.00 0.10\n\
+         0.90 0.60 0.20\n\
+         0.00 0.10 0.80\n\
+         0.10 0.60 0.90\n\
+         0.90 0.10 0.90\n\
+         1.00 0.95 0.85\n",
+    )
+    .expect("the sample LUT is well formed")
+}
+
+/// Applies that look at three quarters strength (ADR 0053) — the reference the
+/// LUT stage is frozen against.
+fn lut(settings: Settings) -> Settings {
+    Settings {
+        lut: Some(leyline_core::Lut {
+            enabled: true,
+            // The stage receives an already-resolved table, so this reference
+            // only has to be a *valid* one; the bytes it names are never read
+            // here (`crate::lut::resolve_from_settings` does that in the
+            // library paths).
+            path: "Profiles/LUT/sample.cube".to_owned(),
+            checksum: format!("blake3:{}", "0".repeat(64)),
+            strength: 75,
+        }),
+        ..settings
+    }
+}
+
 /// Straightens converging verticals (ADR 0052) — its own case rather than a
 /// term of `geometry`, whose entries are frozen with it.
 fn perspective(settings: Settings) -> Settings {
@@ -520,6 +558,7 @@ fn cases() -> Vec<(String, Settings)> {
             highlight_reconstruction(base.clone()),
         ),
         ("perspective", perspective(base.clone())),
+        ("lut", lut(base.clone())),
         ("fixture_v1", fixture_stage(base.clone(), 1)),
         ("fixture_v2", fixture_stage(base.clone(), 2)),
     ];
@@ -572,8 +611,16 @@ fn capture(settings: &Settings, stages: &StageVersions) -> Golden {
         // back rather than nothing to do.
         multipliers: Some([2.0, 1.0, 1.5, 1.0]),
     };
-    let rendered = render(&image, &settings, Some(&shot), Some(&profile), source)
-        .unwrap_or_else(|e| panic!("render failed: {e}"));
+    let look = sample_lut();
+    let rendered = render(
+        &image,
+        &settings,
+        Some(&shot),
+        Some(&profile),
+        Some(&look),
+        source,
+    )
+    .unwrap_or_else(|e| panic!("render failed: {e}"));
 
     let digest = blake3::hash(&rendered.data).to_hex().to_string();
     let step = (rendered.data.len() / 3 / 16).max(1);

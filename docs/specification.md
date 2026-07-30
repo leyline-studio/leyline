@@ -56,6 +56,8 @@ Ces fonctionnalités étaient cadrées comme candidates post-V1 dans [`v2-scope.
 | Mélangeur TSL et color grading | [ADR 0031](adr/0031-hsl-color-grading.md) |
 | Clarté, texture, dehaze | [ADR 0033](adr/0033-clarity-texture-dehaze.md) |
 | Profils caméra DCP — **expérimental** | [ADR 0035](adr/0035-camera-profile-dcp.md), [ADR 0037](adr/0037-dcp-parsing-dependency.md) |
+| Correction de perspective (deux curseurs, homographie) | [ADR 0052](adr/0052-perspective-correction.md) |
+| LUT créative `.cube` importée dans la bibliothèque, dosable | [ADR 0053](adr/0053-creative-lut.md) |
 | Reconstruction des hautes lumières écrêtées (`clip`/`blend`/`rebuild`, avant dématriçage) | [ADR 0050](adr/0050-highlight-reconstruction.md) |
 | Filigrane texte à l'export et épreuvage écran (vue seule) | [ADR 0034](adr/0034-softproofing-watermark-print.md), [ADR 0051](adr/0051-watermark-rasterization-and-soft-proof-surface.md) |
 

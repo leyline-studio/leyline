@@ -173,6 +173,60 @@ fn local_adjustments_refuse_a_malformed_or_out_of_range_payload() {
     assert_eq!(stdout(&out).lines().count(), 1);
 }
 
+/// A creative LUT (ADR 0053) follows the camera-profile shape: import, list,
+/// reference by path, toggle, dose, remove.
+#[test]
+fn lut_import_list_and_reference_round_trip() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = library_with_a_photo(&dir);
+    let source = dir.path().join("Warm.cube");
+    std::fs::write(
+        &source,
+        "LUT_3D_SIZE 2\n0 0 0\n1 0 0\n0 1 0\n1 1 0\n0 0 1\n1 0 1\n0 1 1\n1 1 1\n",
+    )
+    .unwrap();
+
+    let out = run(&["lut", &root, source.to_str().unwrap()]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(stdout(&out).contains("Profiles/LUT/Warm.cube"));
+    assert!(stdout(&out).contains("blake3:"));
+
+    // The same name twice is refused, never overwritten.
+    let out = run(&["lut", &root, source.to_str().unwrap()]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("never overwritten"));
+
+    let out = run(&["luts", &root]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(stdout(&out).contains("1 LUT(s)"));
+
+    for args in [
+        vec!["develop", &root, "1", "lut", "Profiles/LUT/Warm.cube"],
+        vec!["develop", &root, "1", "lut-strength", "60"],
+        vec!["develop", &root, "1", "lut", "off"],
+        vec!["develop", &root, "1", "lut", "on"],
+        vec!["develop", &root, "1", "lut", "none"],
+    ] {
+        let out = run(&args);
+        assert!(out.status.success(), "{args:?}: {}", stderr(&out));
+        assert!(stdout(&out).starts_with("committed revision"));
+    }
+
+    // A path that was never imported is refused rather than stored with a
+    // checksum nothing on disk matches.
+    let out = run(&["develop", &root, "1", "lut", "Profiles/LUT/Nope.cube"]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("unknown LUT"));
+
+    // And the toggle and the dose need something to act on.
+    let out = run(&["develop", &root, "1", "lut", "on"]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("no LUT referenced"));
+    let out = run(&["develop", &root, "1", "lut-strength", "50"]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("no LUT referenced"));
+}
+
 #[test]
 fn camera_profile_import_list_and_reference_round_trip() {
     let dir = tempfile::tempdir().unwrap();

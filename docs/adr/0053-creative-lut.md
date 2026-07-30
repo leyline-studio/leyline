@@ -74,15 +74,15 @@ puisque la LUT n'a pas de valeur définie au-delà. Une LUT est un look de sorti
 la marge au-dessus du blanc est le domaine de `output_rendering`, qui vient
 après.
 
-### 4. Rang 160 : après le color grading, avant le détail
+### 4. Rang 165 : après toute la couleur, avant le détail
 
 La LUT est la **dernière décision de couleur**, donc après la courbe, le
-mélangeur TSL et le color grading — un look s'applique sur l'image étalonnée,
-pas avant elle. Et **avant** le débruitage et l'accentuation : ceux-ci
-travaillent sur des structures locales, qu'une LUT à fort contraste amplifierait
-si elle passait après.
+mélangeur TSL, le color grading *et* les réglages locaux — un look s'applique sur
+l'image étalonnée, pas avant elle. Et **avant** le débruitage et l'accentuation :
+ceux-ci travaillent sur des structures locales, qu'une LUT à fort contraste
+amplifierait si elle passait après.
 
-Rang 160, libre entre `color_grading` (150) et `local_adjustments` (170).
+Rang 165, libre entre `local_adjustments` (160) et `noise_luminance` (170).
 
 ### 5. Interpolation trilinéaire, `.cube` 1D et 3D
 

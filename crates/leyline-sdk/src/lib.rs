@@ -9,7 +9,7 @@ pub use leyline_core::{
     AssetId, BrushStroke, CURRENT_SCHEMA, CameraProfile, CollectionId, CollectionType,
     ColorGrading, ColorGradingZone, ColorLabel, ColorRange, Crop, CurvePoint, ExportPresetId,
     FolderId, HighlightReconstruction, HslBand, JobId, KeywordId, LensCorrection, LeylineError,
-    LocalAdjustment, LocalAdjustmentValues, LuminanceRange, Mask, MediaType, NoiseReduction,
+    LocalAdjustment, LocalAdjustmentValues, LuminanceRange, Lut, Mask, MediaType, NoiseReduction,
     Perspective, PickState, Point, PresetId, PresetSettings, PreviewKind, PrintPresetId, RangeMask,
     Result, RevisionId, Settings, SettingsGroup, Sharpening, SpotRemoval, StageVersions, ToneCurve,
     VersionId, WhiteBalance,
@@ -18,8 +18,8 @@ pub use leyline_core::{
 pub use leyline_engine::{
     CatalogRead, CatalogWrite, DEFAULT_AMEND_WINDOW, EditSession, Event, ExportRecipe,
     ExportReport, ExportRequest, ExportedVersion, FailedApply, FailedExport, FailedPrint,
-    FailedReprocess, ImportOptions, ImportReport, ImportedCameraProfile, ImportedFile, JobResult,
-    Library, Param, PresetApplyReport, Preview, PreviewFile, PrintRecipe, PrintReport,
+    FailedReprocess, ImportOptions, ImportReport, ImportedCameraProfile, ImportedFile, ImportedLut,
+    JobResult, Library, Param, PresetApplyReport, Preview, PreviewFile, PrintRecipe, PrintReport,
     PrintRequest, PrintedVersion, ReprocessReport, Rgb8, SkippedFile, SoftProof, SourceColor,
     Value, WatchError, WatchSessionEvent, WatchedFile, neutral_settings,
 };

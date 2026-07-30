@@ -14,9 +14,11 @@
 //! export, screen soft-proofing, and the print module (ADR 0036), which all
 //! share this one primitive instead of each inventing their own.
 
+mod cube;
 mod dcp;
 mod working_space;
 
+pub use cube::{CubeLut, LutError};
 pub use dcp::{DcpError, DcpProfile, Matrix3};
 pub use working_space::{
     LINEAR_SRGB_TO_REC2020, REC2020_TO_LINEAR_SRGB, apply_matrix, camera_to_rec2020,

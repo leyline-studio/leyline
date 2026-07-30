@@ -108,6 +108,8 @@ pub(crate) fn dev_model(settings: &Settings) -> crate::ui::DevSettings {
                 })
                 .collect::<Vec<_>>(),
         ))),
+        lut: settings.lut.as_ref().is_some_and(|lut| lut.enabled),
+        lut_strength: settings.lut.as_ref().map_or(100, |lut| lut.strength) as f32,
         color_grading_shadows: zone_model(&settings.color_grading.shadows),
         color_grading_midtones: zone_model(&settings.color_grading.midtones),
         color_grading_highlights: zone_model(&settings.color_grading.highlights),

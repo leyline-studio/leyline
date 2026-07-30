@@ -16,8 +16,8 @@ use std::time::{Duration, Instant};
 use leyline_catalog::{Catalog, RevisionRow};
 use leyline_core::{
     CURRENT_SCHEMA, CameraProfile, ColorGrading, Crop, HighlightReconstruction, HslBand,
-    LensCorrection, LeylineError, LocalAdjustment, NoiseReduction, Perspective, Result, RevisionId,
-    Settings, Sharpening, SpotRemoval, ToneCurve, VersionId, WhiteBalance,
+    LensCorrection, LeylineError, LocalAdjustment, Lut, NoiseReduction, Perspective, Result,
+    RevisionId, Settings, Sharpening, SpotRemoval, ToneCurve, VersionId, WhiteBalance,
 };
 
 /// Default amendment window of `docs/catalog.md` §17.
@@ -87,6 +87,10 @@ pub enum Param {
     /// Perspective correction (ADR 0052): the two sliders as one tool, since
     /// they drive one transform; `None` returns to neutral.
     Perspective,
+    /// Creative LUT (ADR 0053): the reference, its enabled flag and its dose
+    /// as one commit unit — the same whole-struct grouping
+    /// [`Param::CameraProfile`] applies to the other referenced resource.
+    Lut,
     /// Crop rectangle; `None` clears it.
     Crop,
     /// Camera profile (ADR 0035): the referenced `.dcp` file, its
@@ -133,6 +137,8 @@ pub enum Value {
     HighlightReconstruction(HighlightReconstruction),
     /// For [`Param::Perspective`]; `None` returns to neutral.
     Perspective(Option<Perspective>),
+    /// For [`Param::Lut`]; `None` removes the reference.
+    Lut(Option<Lut>),
 }
 
 /// What changed since the last commit point.
@@ -407,6 +413,7 @@ fn apply(settings: &mut Settings, param: Param, value: Value) -> Result<()> {
         (Param::Exposure, Value::Float(v)) => settings.exposure = v,
         (Param::Rotation, Value::Float(v)) => settings.rotation = v,
         (Param::Perspective, Value::Perspective(v)) => settings.perspective = v,
+        (Param::Lut, Value::Lut(v)) => settings.lut = v,
         (Param::Contrast, Value::Int(v)) => settings.contrast = v,
         (Param::Highlights, Value::Int(v)) => settings.highlights = v,
         (Param::Shadows, Value::Int(v)) => settings.shadows = v,

@@ -154,6 +154,17 @@ pub struct ImportedCameraProfile {
     pub checksum: String,
 }
 
+/// Where [`Library::import_lut`] copied a `.cube` file to, and its checksum —
+/// everything a caller needs to build the `leyline_core::Lut` it stores in a
+/// revision's settings (ADR 0053 §1).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImportedLut {
+    /// Library-relative path, e.g. `Profiles/LUT/Kodachrome.cube`.
+    pub relative_path: String,
+    /// `"blake3:"` followed by 64 hex digits.
+    pub checksum: String,
+}
+
 /// A screen soft-proof request (ADR 0034): the destination to simulate, how
 /// to get there, and whether to flag what it cannot reproduce.
 ///
@@ -1432,6 +1443,85 @@ impl Library {
         }
         profiles.sort_by(|a, b| a.relative_path.cmp(&b.relative_path));
         Ok(profiles)
+    }
+
+    /// Imports a `.cube` LUT into `Profiles/LUT/` and hands back the
+    /// reference a revision stores (ADR 0053 §1).
+    ///
+    /// The same contract as [`Library::import_camera_profile`], deliberately:
+    /// the file is copied into the library so it stays portable, the returned
+    /// checksum is of the bytes that were copied, and an existing name is
+    /// refused rather than overwritten. The table is *not* parsed here — a
+    /// malformed LUT surfaces when it is rendered through, named by
+    /// [`LeylineError::LutFailed`], which is also what happens to a file that
+    /// changes later.
+    pub fn import_lut(&self, source: &Path) -> Result<ImportedLut> {
+        if self.catalog().is_read_only() {
+            return Err(LeylineError::Db(
+                "library opened read-only; writes are refused".to_owned(),
+            ));
+        }
+        let file_name = source.file_name().ok_or_else(|| {
+            LeylineError::InvalidSettings("LUT source has no file name".to_owned())
+        })?;
+        // The relative path ends up in `settings_json`, which is UTF-8 by
+        // construction (same reasoning as `import_camera_profile`).
+        let file_name = file_name.to_str().ok_or_else(|| {
+            LeylineError::InvalidSettings(format!(
+                "LUT file name is not valid UTF-8: {}",
+                source.display()
+            ))
+        })?;
+        let dir = self.inner.root.join("Profiles").join("LUT");
+        std::fs::create_dir_all(&dir)?;
+        let destination = dir.join(file_name);
+        if destination.exists() {
+            return Err(LeylineError::Io(std::io::Error::new(
+                std::io::ErrorKind::AlreadyExists,
+                format!(
+                    "{} already exists; LUTs are never overwritten",
+                    destination.display()
+                ),
+            )));
+        }
+        std::fs::copy(source, &destination)?;
+        let bytes = std::fs::read(&destination)?;
+        Ok(ImportedLut {
+            relative_path: format!("Profiles/LUT/{file_name}"),
+            checksum: format!("blake3:{}", blake3::hash(&bytes).to_hex()),
+        })
+    }
+
+    /// Lists the LUTs already imported under `Profiles/LUT/`, each with the
+    /// current checksum of its bytes on disk, sorted by path — the counterpart
+    /// of [`Library::camera_profiles`], and how a client turns "the user picked
+    /// this look" into a stored reference without hashing anything itself.
+    /// Files that are not `.cube` are ignored.
+    pub fn luts(&self) -> Result<Vec<ImportedLut>> {
+        let dir = self.inner.root.join("Profiles").join("LUT");
+        if !dir.is_dir() {
+            return Ok(Vec::new());
+        }
+        let mut luts = Vec::new();
+        for entry in std::fs::read_dir(&dir)? {
+            let path = entry?.path();
+            let is_cube = path
+                .extension()
+                .is_some_and(|e| e.eq_ignore_ascii_case("cube"));
+            if !path.is_file() || !is_cube {
+                continue;
+            }
+            let Some(file_name) = path.file_name() else {
+                continue;
+            };
+            let bytes = std::fs::read(&path)?;
+            luts.push(ImportedLut {
+                relative_path: format!("Profiles/LUT/{}", file_name.to_string_lossy()),
+                checksum: format!("blake3:{}", blake3::hash(&bytes).to_hex()),
+            });
+        }
+        luts.sort_by(|a, b| a.relative_path.cmp(&b.relative_path));
+        Ok(luts)
     }
 
     /// Opens (or returns the cached handle to) the active map pack, or

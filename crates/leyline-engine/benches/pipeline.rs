@@ -126,12 +126,32 @@ fn benches(c: &mut Criterion) {
         let settings = Settings {
             ..Settings::default()
         };
-        b.iter(|| render(black_box(&image), black_box(&settings), None, None, SOURCE).unwrap());
+        b.iter(|| {
+            render(
+                black_box(&image),
+                black_box(&settings),
+                None,
+                None,
+                None,
+                SOURCE,
+            )
+            .unwrap()
+        });
     });
 
     group.bench_function("tone", |b| {
         let settings = tone_settings();
-        b.iter(|| render(black_box(&image), black_box(&settings), None, None, SOURCE).unwrap());
+        b.iter(|| {
+            render(
+                black_box(&image),
+                black_box(&settings),
+                None,
+                None,
+                None,
+                SOURCE,
+            )
+            .unwrap()
+        });
     });
 
     group.bench_function("color", |b| {
@@ -140,7 +160,17 @@ fn benches(c: &mut Criterion) {
             saturation: 10,
             ..Settings::default()
         };
-        b.iter(|| render(black_box(&image), black_box(&settings), None, None, SOURCE).unwrap());
+        b.iter(|| {
+            render(
+                black_box(&image),
+                black_box(&settings),
+                None,
+                None,
+                None,
+                SOURCE,
+            )
+            .unwrap()
+        });
     });
 
     group.bench_function("detail", |b| {
@@ -155,7 +185,17 @@ fn benches(c: &mut Criterion) {
             },
             ..Settings::default()
         };
-        b.iter(|| render(black_box(&image), black_box(&settings), None, None, SOURCE).unwrap());
+        b.iter(|| {
+            render(
+                black_box(&image),
+                black_box(&settings),
+                None,
+                None,
+                None,
+                SOURCE,
+            )
+            .unwrap()
+        });
     });
 
     group.bench_function("geometry", |b| {
@@ -169,12 +209,32 @@ fn benches(c: &mut Criterion) {
             }),
             ..Settings::default()
         };
-        b.iter(|| render(black_box(&image), black_box(&settings), None, None, SOURCE).unwrap());
+        b.iter(|| {
+            render(
+                black_box(&image),
+                black_box(&settings),
+                None,
+                None,
+                None,
+                SOURCE,
+            )
+            .unwrap()
+        });
     });
 
     group.bench_function("full", |b| {
         let settings = full_settings();
-        b.iter(|| render(black_box(&image), black_box(&settings), None, None, SOURCE).unwrap());
+        b.iter(|| {
+            render(
+                black_box(&image),
+                black_box(&settings),
+                None,
+                None,
+                None,
+                SOURCE,
+            )
+            .unwrap()
+        });
     });
 
     group.finish();
@@ -193,6 +253,7 @@ fn benches(c: &mut Criterion) {
                 black_box(&image),
                 black_box(&settings),
                 Some(black_box(&shot)),
+                None,
                 None,
                 SOURCE,
             )
@@ -213,6 +274,7 @@ fn benches(c: &mut Criterion) {
                 black_box(&image),
                 black_box(&settings),
                 Some(black_box(&shot)),
+                None,
                 None,
                 SOURCE,
             )
@@ -246,6 +308,7 @@ fn benches(c: &mut Criterion) {
                 black_box(&settings),
                 Some(black_box(&no_tca_shot)),
                 None,
+                None,
                 SOURCE,
             )
             .unwrap()
@@ -271,6 +334,7 @@ fn benches(c: &mut Criterion) {
                     black_box(&settings),
                     Some(black_box(&shot)),
                     Some(black_box(&profile)),
+                    None,
                     SOURCE,
                 )
                 .unwrap()
@@ -304,7 +368,17 @@ fn benches(c: &mut Criterion) {
             "v2_wavelet"
         };
         group.bench_function(name, |b| {
-            b.iter(|| render(black_box(&image), black_box(&settings), None, None, SOURCE).unwrap());
+            b.iter(|| {
+                render(
+                    black_box(&image),
+                    black_box(&settings),
+                    None,
+                    None,
+                    None,
+                    SOURCE,
+                )
+                .unwrap()
+            });
         });
     }
 

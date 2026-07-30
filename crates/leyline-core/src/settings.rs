@@ -96,6 +96,31 @@ pub struct CameraProfile {
     pub checksum: String,
 }
 
+/// A creative LUT reference (ADR 0053): a user-supplied `.cube` file, imported
+/// into the library and referenced by relative path plus checksum — exactly the
+/// shape [`CameraProfile`] established, and for the same reasons (a portable
+/// library, a detectable substitution).
+///
+/// Neutral: absent. A LUT is a *look* chosen elsewhere, not a setting with a
+/// zero.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Lut {
+    /// Whether the LUT is applied — distinct from the field being absent, so a
+    /// look can be turned off without losing which one it was.
+    pub enabled: bool,
+    /// Library-relative path to the `.cube` file (`docs/catalog.md` §2.3),
+    /// conventionally under `Profiles/LUT/`.
+    pub path: String,
+    /// BLAKE3 checksum of the file's bytes when this revision was written,
+    /// `"blake3:<hex>"`. A mismatch at render time is an error, never a silent
+    /// render through a different look.
+    pub checksum: String,
+    /// How much of the look to apply, slider in [0, 100]. 100 is the LUT as
+    /// its author wrote it; a film simulation is very often better below that,
+    /// which is why the dose is part of the setting (ADR 0053 §2).
+    pub strength: i32,
+}
+
 /// Noise reduction strengths, unitless sliders in [0, 100]. Neutral: 0.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(default)]
@@ -549,6 +574,9 @@ pub struct Settings {
     /// sRGB conversion.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub camera_profile: Option<CameraProfile>,
+    /// Creative LUT reference (ADR 0053); `None` = no look applied.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lut: Option<Lut>,
     /// White balance override; `None` = as-shot (neutral).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub white_balance: Option<WhiteBalance>,
@@ -636,6 +664,7 @@ impl Default for Settings {
             schema: CURRENT_SCHEMA,
             stages: StageVersions::new(),
             camera_profile: None,
+            lut: None,
             white_balance: None,
             exposure: 0.0,
             contrast: 0,
@@ -1043,6 +1072,18 @@ impl Settings {
                         .to_owned(),
                 ));
             }
+        }
+        if let Some(lut) = &self.lut {
+            validate_library_relative_path("lut.path", &lut.path)?;
+            let hex = lut.checksum.strip_prefix("blake3:").ok_or_else(|| {
+                LeylineError::InvalidSettings("lut.checksum must start with \"blake3:\"".to_owned())
+            })?;
+            if hex.len() != 64 || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+                return Err(LeylineError::InvalidSettings(
+                    "lut.checksum must be \"blake3:\" followed by 64 hex digits".to_owned(),
+                ));
+            }
+            slider("lut.strength", lut.strength, 0, 100)?;
         }
         if let Some(wb) = &self.white_balance {
             slider("white_balance.tint", wb.tint, -100, 100)?;
