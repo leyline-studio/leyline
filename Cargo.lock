@@ -3233,6 +3233,7 @@ dependencies = [
 name = "leyline-export"
 version = "0.1.0"
 dependencies = [
+ "ab_glyph",
  "image-webp",
  "jpeg-encoder",
  "leyline-color",

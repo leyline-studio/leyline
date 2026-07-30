@@ -17,7 +17,9 @@ use crate::render;
 /// The recipe an [`ExportRequest`] drives an export with: either an ad-hoc
 /// set of settings, or a stored preset resolved (and journaled by id)
 /// at export time.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Not `Eq`/`Copy` since ADR 0051: a watermark carries its text.
+#[derive(Debug, Clone, PartialEq)]
 pub enum ExportRecipe {
     /// Settings supplied by the caller, not stored anywhere.
     Adhoc(ExportSettings),
@@ -31,7 +33,7 @@ pub enum ExportRecipe {
 /// destination directory. The single request shape [`Library::export`] and
 /// [`Library::export_async`] both take, replacing the former split between
 /// an ad-hoc batch and a preset batch.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ExportRequest {
     /// The versions to export, each at its head revision.
     pub versions: Vec<VersionId>,

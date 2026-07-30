@@ -1496,3 +1496,35 @@ msgstr "Mélanger"
 
 msgid "Rebuild"
 msgstr "Reconstruire"
+
+# Soft proofing and watermark (ADR 0034, ADR 0051).
+
+msgid "Soft Proof"
+msgstr "Épreuvage écran"
+
+msgid "Shows the photo as a destination profile would reproduce it. Never stored, never exported."
+msgstr "Montre la photo telle qu'un profil de destination la reproduirait. Jamais enregistré, jamais exporté."
+
+msgid "No proof — the real render"
+msgstr "Aucune épreuve — le rendu réel"
+
+msgid "Choose .icc…"
+msgstr "Choisir un .icc…"
+
+msgid "Stop proofing"
+msgstr "Arrêter l'épreuvage"
+
+msgid "Perceptual"
+msgstr "Perceptuel"
+
+msgid "Relative"
+msgstr "Relatif"
+
+msgid "Absolute"
+msgstr "Absolu"
+
+msgid "Flag out-of-gamut colors"
+msgstr "Signaler les couleurs hors gamut"
+
+msgid "Watermark text (blank = none)"
+msgstr "Texte du filigrane (vide = aucun)"

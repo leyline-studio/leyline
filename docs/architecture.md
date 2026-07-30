@@ -89,6 +89,8 @@ Chaque dépendance lourde a fait l'objet d'une décision écrite.
 | **libgphoto2** | Capture tethering USB | [ADR 0038](adr/0038-tethered-capture.md) |
 | **Rayon** | Parallélisme de données du moteur | [ADR 0012](adr/0012-rayon-data-parallelism.md) |
 | **BLAKE3** | Empreintes de fichiers | [ADR 0006](adr/0006-blake3.md) |
+| **ab_glyph** | Rasterisation des glyphes du filigrane texte | [ADR 0051](adr/0051-watermark-rasterization-and-soft-proof-surface.md) |
+| **DejaVu Sans** (actif, non un crate) | Police embarquée du filigrane, pour un rendu identique sur tout poste | [ADR 0051](adr/0051-watermark-rasterization-and-soft-proof-surface.md) |
 | **rfd** | Sélecteurs de dossier natifs dans Studio | — |
 
 Les raisons de fond, résumées : **Rust** pour des performances proches du C++ avec la sécurité mémoire et une portabilité qui ne coûte rien ; **Slint** parce qu'il est multiplateforme, léger et conçu pour Rust ; **SQLite** parce qu'un catalogue doit être un simple fichier, sans serveur, robuste et rapide — et lisible par n'importe quel outil dans vingt ans.

@@ -8,6 +8,9 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+# Glyph rasterization for the text watermark (ADR 0051 §1): outlines to
+# pixel coverage, nothing else — the layout is a few lines of our own.
+ab_glyph.workspace = true
 image-webp.workspace = true
 jpeg-encoder.workspace = true
 leyline-color.workspace = true

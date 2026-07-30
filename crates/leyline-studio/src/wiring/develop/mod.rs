@@ -16,6 +16,7 @@ pub(crate) mod clipboard;
 pub(crate) mod curve;
 pub(crate) mod history;
 pub(crate) mod masks;
+pub(crate) mod proof;
 pub(crate) mod session;
 pub(crate) mod spot;
 
@@ -37,6 +38,7 @@ pub(crate) fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     curve::wire_curve(app, window);
     spot::wire_spot(app, window);
     masks::wire_masks(app, window);
+    proof::wire_proof(app, window);
     history::wire_history(app, window);
 }
 
@@ -117,12 +119,27 @@ pub(crate) fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<()
         MaskState::get(window).set_selected_mask(-1);
     }
     MaskState::get(window).set_masks(ModelRc::from(Rc::new(VecModel::from(rows))));
-    let file = app
-        .library
-        .preview(asset, PreviewKind::Small)
-        .map_err(|e| e.to_string())?;
-    let image = slint::Image::load_from_path(&file.path)
-        .map_err(|_| format!("cannot load preview {}", file.path.display()))?;
+    // With a proof in effect the view shows the photo *through* a destination
+    // profile (ADR 0034): the same preview, transformed in memory, never
+    // cached — so leaving the proof shows the real render again with nothing
+    // to invalidate.
+    let image = match &app.soft_proof {
+        Some(proof) => {
+            let proofed = app
+                .library
+                .preview_soft_proofed(asset, PreviewKind::Small, proof)
+                .map_err(|e| e.to_string())?;
+            crate::models::rgb8_to_slint_image(&proofed)
+        }
+        None => {
+            let file = app
+                .library
+                .preview(asset, PreviewKind::Small)
+                .map_err(|e| e.to_string())?;
+            slint::Image::load_from_path(&file.path)
+                .map_err(|_| format!("cannot load preview {}", file.path.display()))?
+        }
+    };
     DevelopState::get(window).set_develop_image(image);
     if let Ok(bins) = app.library.histogram(asset, PreviewKind::Small) {
         const CANVAS: (f64, f64) = (256.0, 90.0);

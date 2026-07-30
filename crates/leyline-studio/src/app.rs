@@ -59,6 +59,11 @@ pub(crate) struct App {
     /// Before/After toggle — `None` until the first toggle actually needs
     /// it, reset back to `None` whenever the develop target changes.
     pub(crate) dev_before: Option<slint::Image>,
+    /// The screen soft proof in effect, if any (ADR 0034): while it is set,
+    /// the develop preview is shown *through* this destination profile.
+    /// Nothing about it is stored — it is a way of looking, and it lives
+    /// exactly as long as the window does.
+    pub(crate) soft_proof: Option<leyline_sdk::SoftProof>,
     /// Develop settings copied from one photo (White Balance/Tone/Presence/
     /// Lens Correction/Detail — the same default groups a saved preset
     /// captures, Geometry excluded), waiting to be pasted onto the current

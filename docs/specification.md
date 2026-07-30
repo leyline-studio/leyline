@@ -56,8 +56,10 @@ Ces fonctionnalités étaient cadrées comme candidates post-V1 dans [`v2-scope.
 | Mélangeur TSL et color grading | [ADR 0031](adr/0031-hsl-color-grading.md) |
 | Clarté, texture, dehaze | [ADR 0033](adr/0033-clarity-texture-dehaze.md) |
 | Profils caméra DCP — **expérimental** | [ADR 0035](adr/0035-camera-profile-dcp.md), [ADR 0037](adr/0037-dcp-parsing-dependency.md) |
+| Reconstruction des hautes lumières écrêtées (`clip`/`blend`/`rebuild`, avant dématriçage) | [ADR 0050](adr/0050-highlight-reconstruction.md) |
+| Filigrane texte à l'export et épreuvage écran (vue seule) | [ADR 0034](adr/0034-softproofing-watermark-print.md), [ADR 0051](adr/0051-watermark-rasterization-and-soft-proof-surface.md) |
 
-**Exception à la règle des trois clients** (en tête de ce document) : les réglages locaux masqués et leurs masques par plage sont livrés dans le moteur, le SDK et les sessions d'édition, mais **ne sont pas exposés dans Studio ni dans la CLI** — aucun des quatre types de masque ne l'est. Le manque est antérieur aux masques par plage : il date d'ADR 0029, qui n'a livré que le moteur. Exposer les masques aux clients est un travail à part entière, et reste à faire.
+Les réglages locaux masqués et leurs masques par plage sont exposés dans les trois clients depuis [ADR 0049](adr/0049-local-adjustments-clients.md) : outils de tracé et éditeur dans Studio, payload JSON du `LocalAdjustment` stocké dans la CLI. Ce qu'ADR 0049 laisse hors périmètre, et qui reste à faire : la surimpression de la couverture calculée par le moteur (le « masque rouge »), la pipette de plage, et les poignées de déplacement d'une géométrie déjà tracée.
 
 La mention *expérimental* est littérale : la justesse colorimétrique du chemin matriciel DCP n'a pas été validée contre de vrais `.dcp` Adobe et leurs rendus de référence, et les tables `ProfileHueSatMapData` / `ProfileLookTableData` / `ProfileToneCurve` ne sont pas appliquées. Studio et la CLI le signalent à l'utilisateur.
 
@@ -67,8 +69,8 @@ La mention *expérimental* est littérale : la justesse colorimétrique du chemi
 
 | Sujet | Décision |
 |---|---|
-| Épreuvage écran (vue seule) et filigrane texte (à l'export) | [ADR 0034](adr/0034-softproofing-watermark-print.md) |
 | Profil de bruit mesuré par boîtier et par sensibilité | À trancher par son propre ADR ([ADR 0046](adr/0046-edge-preserving-denoise.md) §7) |
+| Filigrane image (logo) | Coupé par [ADR 0034](adr/0034-softproofing-watermark-print.md) : le problème de référence de ressource n'est pas tranché |
 
 ---
 

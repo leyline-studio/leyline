@@ -171,6 +171,7 @@ fn run() -> Result<(), String> {
         multi_selected: std::collections::BTreeSet::new(),
         develop: None,
         dev_before: None,
+        soft_proof: None,
         dev_clipboard: None,
         dev_history: Vec::new(),
         dev_history_version: None,

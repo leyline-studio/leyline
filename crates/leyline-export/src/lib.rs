@@ -21,7 +21,9 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 mod print;
+mod watermark;
 pub use print::{Margins, Orientation, PaperSize, PrintSettings, encode_print};
+pub use watermark::{Watermark, WatermarkAnchor, WatermarkFont};
 
 /// Errors produced while encoding an export file.
 #[derive(Debug, thiserror::Error)]
@@ -70,7 +72,7 @@ impl ExportFormat {
 }
 
 /// One export recipe — and the `settings_json` of a §27 preset.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ExportSettings {
     /// Output format.
@@ -81,6 +83,10 @@ pub struct ExportSettings {
     /// resolution. The engine applies it before encoding.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_edge: Option<u32>,
+    /// Text watermark composited last, immediately before encoding; `None` =
+    /// none (ADR 0034, ADR 0051).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub watermark: Option<Watermark>,
 }
 
 impl Default for ExportSettings {
@@ -90,6 +96,7 @@ impl Default for ExportSettings {
             format: ExportFormat::Jpeg,
             quality: 90,
             max_edge: None,
+            watermark: None,
         }
     }
 }
@@ -113,6 +120,9 @@ impl ExportSettings {
 
     /// Validates value ranges.
     pub fn validate(&self) -> Result<(), ExportError> {
+        if let Some(watermark) = &self.watermark {
+            watermark.validate()?;
+        }
         if !(1..=100).contains(&self.quality) {
             return Err(ExportError::InvalidSettings(format!(
                 "quality must be in [1, 100], got {}",
@@ -147,6 +157,20 @@ pub fn encode(
             rgb8.len()
         )));
     }
+
+    // The watermark is the last thing that touches the pixels (ADR 0034), and
+    // it touches a copy: `rgb8` is the rendering of a revision, and a
+    // decoration must not be burned into the caller's buffer (ADR 0051 §3).
+    let watermarked;
+    let rgb8 = match &settings.watermark {
+        Some(mark) => {
+            let mut pixels = rgb8.to_vec();
+            watermark::draw(width, height, &mut pixels, mark)?;
+            watermarked = pixels;
+            watermarked.as_slice()
+        }
+        None => rgb8,
+    };
 
     match settings.format {
         ExportFormat::Jpeg => {
@@ -354,6 +378,10 @@ mod tests {
             format: ExportFormat::Png,
             quality: 80,
             max_edge: Some(2048),
+            watermark: Some(Watermark {
+                text: "© 2026".to_owned(),
+                ..Watermark::default()
+            }),
         };
         assert_eq!(
             ExportSettings::parse(&settings.to_json()).unwrap(),
@@ -364,9 +392,31 @@ mod tests {
             ExportSettings::default()
         );
 
-        // §3.4 philosophy: a newer preset is refused, never applied partially.
+        // A watermark is a known field now (ADR 0051), and an object: the
+        // string form ADR 0034 used as its example of an unknown field is
+        // still refused, as is a field this engine has never heard of.
         assert!(matches!(
             ExportSettings::parse(r#"{"format":"jpeg","watermark":"logo.png"}"#),
+            Err(ExportError::InvalidSettings(_))
+        ));
+        assert!(matches!(
+            ExportSettings::parse(r#"{"format":"jpeg","watermark":{"text":"a","glow":true}}"#),
+            Err(ExportError::InvalidSettings(_))
+        ));
+        // A watermark naming only its text is complete: every other field of
+        // the decoration has a default.
+        let only_text =
+            ExportSettings::parse(r#"{"format":"jpeg","watermark":{"text":"© 2026"}}"#).unwrap();
+        assert_eq!(
+            only_text.watermark,
+            Some(Watermark {
+                text: "© 2026".to_owned(),
+                ..Watermark::default()
+            })
+        );
+        // And an empty one is refused rather than silently drawing nothing.
+        assert!(matches!(
+            ExportSettings::parse(r#"{"format":"jpeg","watermark":{"text":""}}"#),
             Err(ExportError::InvalidSettings(_))
         ));
         assert!(matches!(

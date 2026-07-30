@@ -25,12 +25,14 @@ export global DialogState {
     // same property so either input path stays in sync).
     callback browse-import-source();
     callback open-export();
-    // preset index (-1 = ad-hoc), destination, format index, quality text, max-edge text.
-    // Format/quality/max-edge are ignored when a stored preset is chosen.
-    callback run-export(int, string, int, string, string);
-    // Name, format index, quality text, max-edge text — stores the custom
-    // export dialog's current recipe as a reusable preset (§12).
-    callback run-save-export-preset(string, int, string, string);
+    // preset index (-1 = ad-hoc), destination, format index, quality text,
+    // max-edge text, watermark text. Everything after the destination is
+    // ignored when a stored preset is chosen.
+    callback run-export(int, string, int, string, string, string);
+    // Name, format index, quality text, max-edge text, watermark text —
+    // stores the custom export dialog's current recipe as a reusable
+    // preset (§12).
+    callback run-save-export-preset(string, int, string, string, string);
     in property <[string]> export-presets;
     in-out property <int> export-preset: -1;
     in-out property <string> export-preset-name: "";
@@ -40,6 +42,10 @@ export global DialogState {
     in-out property <int> export-format: 0;
     in-out property <string> export-quality-text: "90";
     in-out property <string> export-max-edge-text: "";
+    // Text watermark drawn on the export, empty = none (ADR 0034). Only the
+    // line itself is exposed here; its size, color, opacity and corner keep
+    // the recipe defaults, which a preset can then carry other values for.
+    in-out property <string> export-watermark-text: "";
     in-out property <string> export-destination-text: "";
     callback browse-export-destination();
     callback open-print();

@@ -10,7 +10,7 @@ use std::rc::Rc;
 
 use crate::app::{App, report_error, selected_indices, selected_versions};
 use crate::ui::{DialogState, GridState, StudioWindow, Tr};
-use leyline_sdk::{ExportFormat, ExportRecipe, ExportRequest, ExportSettings};
+use leyline_sdk::{ExportFormat, ExportRecipe, ExportRequest, ExportSettings, Watermark};
 use slint::{ComponentHandle, Global, ModelRc, SharedString, VecModel};
 
 pub(crate) fn wire_export(app: &Rc<RefCell<App>>, window: &StudioWindow) {
@@ -66,7 +66,7 @@ pub(crate) fn wire_export(app: &Rc<RefCell<App>>, window: &StudioWindow) {
         let app = Rc::clone(app);
         let handle = window.as_weak();
         DialogState::get(window).on_run_export(
-            move |preset, destination, format, quality, max_edge| {
+            move |preset, destination, format, quality, max_edge, watermark| {
                 let Some(window) = handle.upgrade() else {
                     return;
                 };
@@ -90,14 +90,15 @@ pub(crate) fn wire_export(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 let recipe = match stored {
                     Some(id) => ExportRecipe::Preset(id),
                     None => {
-                        let settings = match export_settings(format, &quality, &max_edge) {
-                            Ok(settings) => settings,
-                            Err(message) => {
-                                DialogState::get(&window)
-                                    .set_dialog_result(SharedString::from(message));
-                                return;
-                            }
-                        };
+                        let settings =
+                            match export_settings(format, &quality, &max_edge, &watermark) {
+                                Ok(settings) => settings,
+                                Err(message) => {
+                                    DialogState::get(&window)
+                                        .set_dialog_result(SharedString::from(message));
+                                    return;
+                                }
+                            };
                         ExportRecipe::Adhoc(settings)
                     }
                 };
@@ -116,7 +117,7 @@ pub(crate) fn wire_export(app: &Rc<RefCell<App>>, window: &StudioWindow) {
         let app = Rc::clone(app);
         let handle = window.as_weak();
         DialogState::get(window).on_run_save_export_preset(
-            move |name, format, quality, max_edge| {
+            move |name, format, quality, max_edge, watermark| {
                 let Some(window) = handle.upgrade() else {
                     return;
                 };
@@ -126,7 +127,7 @@ pub(crate) fn wire_export(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                     return;
                 }
                 let (name, settings) =
-                    match export_preset_request(&name, format, &quality, &max_edge) {
+                    match export_preset_request(&name, format, &quality, &max_edge, &watermark) {
                         Ok(request) => request,
                         Err(message) => {
                             DialogState::get(&window)
@@ -176,6 +177,7 @@ pub(crate) fn export_settings(
     format: i32,
     quality: &str,
     max_edge: &str,
+    watermark_text: &str,
 ) -> Result<ExportSettings, String> {
     let format = match format {
         0 => ExportFormat::Jpeg,
@@ -197,10 +199,19 @@ pub(crate) fn export_settings(
                 .map_err(|_| format!("bad max edge {max_edge:?}"))?,
         )
     };
+    // Only the line is typed here: its size, color, opacity and corner keep
+    // the recipe's defaults (ADR 0051 §3), which a hand-written preset can
+    // override. An empty line is the absence of a watermark, not an empty one,
+    // which `Watermark::validate` refuses.
+    let watermark = (!watermark_text.trim().is_empty()).then(|| Watermark {
+        text: watermark_text.trim().to_owned(),
+        ..Watermark::default()
+    });
     Ok(ExportSettings {
         format,
         quality,
         max_edge,
+        watermark,
     })
 }
 
@@ -212,12 +223,13 @@ pub(crate) fn export_preset_request(
     format: i32,
     quality: &str,
     max_edge: &str,
+    watermark_text: &str,
 ) -> Result<(String, ExportSettings), String> {
     let name = name.trim();
     if name.is_empty() {
         return Err("name is empty".to_owned());
     }
-    let settings = export_settings(format, quality, max_edge)?;
+    let settings = export_settings(format, quality, max_edge, watermark_text)?;
     Ok((name.to_owned(), settings))
 }
 
@@ -237,13 +249,14 @@ mod tests {
         .into_iter()
         .enumerate()
         {
-            let settings = export_settings(index as i32, "80", "").unwrap();
+            let settings = export_settings(index as i32, "80", "", "").unwrap();
             assert_eq!(
                 settings,
                 ExportSettings {
                     format,
                     quality: 80,
                     max_edge: None,
+                    watermark: None,
                 }
             );
         }
@@ -251,20 +264,40 @@ mod tests {
 
     #[test]
     fn export_settings_parses_a_max_edge() {
-        let settings = export_settings(0, "90", "2048").unwrap();
+        let settings = export_settings(0, "90", "2048", "").unwrap();
         assert_eq!(settings.max_edge, Some(2048));
     }
 
     #[test]
     fn export_settings_rejects_bad_input() {
-        assert!(export_settings(5, "90", "").is_err());
-        assert!(export_settings(0, "not a number", "").is_err());
-        assert!(export_settings(0, "90", "not a number").is_err());
+        assert!(export_settings(5, "90", "", "").is_err());
+        assert!(export_settings(0, "not a number", "", "").is_err());
+        assert!(export_settings(0, "90", "not a number", "").is_err());
+    }
+
+    /// An empty line is the absence of a watermark; a typed one is trimmed
+    /// and carries the recipe defaults (ADR 0051 §3).
+    #[test]
+    fn a_typed_watermark_line_becomes_a_decoration_and_a_blank_one_none() {
+        assert_eq!(export_settings(0, "90", "", "   ").unwrap().watermark, None);
+        let watermark = export_settings(0, "90", "", "  © 2026  ")
+            .unwrap()
+            .watermark
+            .expect("a typed line is a watermark");
+        assert_eq!(watermark.text, "© 2026");
+        assert_eq!(
+            (watermark.anchor, watermark.size, watermark.opacity),
+            (
+                leyline_sdk::WatermarkAnchor::BottomRight,
+                Watermark::default().size,
+                Watermark::default().opacity
+            )
+        );
     }
 
     #[test]
     fn export_preset_request_trims_the_name_and_reuses_export_settings() {
-        let (name, settings) = export_preset_request("  Web  ", 0, "80", "2048").unwrap();
+        let (name, settings) = export_preset_request("  Web  ", 0, "80", "2048", "").unwrap();
         assert_eq!(name, "Web");
         assert_eq!(
             settings,
@@ -272,19 +305,20 @@ mod tests {
                 format: ExportFormat::Jpeg,
                 quality: 80,
                 max_edge: Some(2048),
+                watermark: None,
             }
         );
     }
 
     #[test]
     fn export_preset_request_rejects_a_blank_or_whitespace_only_name() {
-        assert!(export_preset_request("", 0, "80", "").is_err());
-        assert!(export_preset_request("   ", 0, "80", "").is_err());
+        assert!(export_preset_request("", 0, "80", "", "").is_err());
+        assert!(export_preset_request("   ", 0, "80", "", "").is_err());
     }
 
     #[test]
     fn export_preset_request_still_validates_the_recipe() {
-        assert!(export_preset_request("Web", 0, "not a number", "").is_err());
-        assert!(export_preset_request("Web", 5, "80", "").is_err());
+        assert!(export_preset_request("Web", 0, "not a number", "", "").is_err());
+        assert!(export_preset_request("Web", 5, "80", "", "").is_err());
     }
 }

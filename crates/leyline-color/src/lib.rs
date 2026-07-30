@@ -152,6 +152,98 @@ impl OutputTransform {
     }
 }
 
+/// A screen soft-proof transform (ADR 0034, ADR 0051 §4): what the image
+/// would look like once it has been through `destination`, drawn back on an
+/// sRGB display.
+///
+/// Distinct from [`OutputTransform`], which *converts* into a destination
+/// profile for a file that will be read as that profile. A soft proof goes
+/// there and back — sRGB → destination → sRGB — so the result can be shown on
+/// the screen the user is actually looking at, gamut clipping and all.
+///
+/// With `gamut_warning`, LittleCMS itself flags what the destination cannot
+/// reproduce, in its alarm color. Deciding "out of gamut" ourselves by
+/// comparing a round-trip against the original would give the project a second
+/// definition of the term; there is one, and it is this library's.
+pub struct SoftProofTransform {
+    // Its own LittleCMS context, not the global one: the out-of-gamut alarm
+    // color is set on a context, and setting it globally would reach into
+    // every other transform the process holds.
+    transform: Transform<[u8; 3], [u8; 3], lcms2::ThreadContext>,
+}
+
+impl SoftProofTransform {
+    /// Loads a destination profile from disk and builds the proof transform.
+    pub fn load(
+        profile_path: &Path,
+        intent: RenderingIntent,
+        gamut_warning: bool,
+    ) -> Result<Self, ColorError> {
+        let bytes = std::fs::read(profile_path).map_err(|source| ColorError::Read {
+            path: profile_path.to_path_buf(),
+            source,
+        })?;
+        Self::from_icc_bytes(&bytes, intent, gamut_warning)
+    }
+
+    /// Builds the proof transform from a destination profile's ICC bytes.
+    pub fn from_icc_bytes(
+        icc_bytes: &[u8],
+        intent: RenderingIntent,
+        gamut_warning: bool,
+    ) -> Result<Self, ColorError> {
+        // One context per transform, because the alarm color is a property of
+        // the context rather than of the transform.
+        let mut context = lcms2::ThreadContext::new();
+        if gamut_warning {
+            // A saturated magenta, the convention every profile-aware
+            // application uses for "this cannot be reproduced there".
+            let mut codes = [0u16; 16];
+            codes[0] = 0xFFFF;
+            codes[2] = 0xFFFF;
+            context.set_alarm_codes(codes);
+        }
+        let display = Profile::new_srgb_context(&context);
+        let source = Profile::new_srgb_context(&context);
+        let proofing = Profile::new_icc_context(&context, icc_bytes)
+            .map_err(|e| ColorError::InvalidProfile(e.to_string()))?;
+        let flags = if gamut_warning {
+            lcms2::Flags::SOFT_PROOFING | lcms2::Flags::GAMUT_CHECK
+        } else {
+            lcms2::Flags::SOFT_PROOFING
+        };
+        let transform = Transform::new_proofing_context(
+            &context,
+            &source,
+            PixelFormat::RGB_8,
+            &display,
+            PixelFormat::RGB_8,
+            &proofing,
+            intent.to_lcms(),
+            // The proofing leg stays relative colorimetric whatever the
+            // display intent: it answers "does this color exist there", which
+            // is not a question of appearance.
+            LcmsIntent::RelativeColorimetric,
+            flags,
+        )
+        .map_err(|e| ColorError::InvalidProfile(e.to_string()))?;
+        Ok(Self { transform })
+    }
+
+    /// Transforms `rgb8` in place into its soft-proofed appearance.
+    ///
+    /// Panics for a length that is not a multiple of 3, exactly like
+    /// [`OutputTransform::apply`] and for the same reason.
+    pub fn apply(&self, rgb8: &mut [u8]) {
+        assert!(
+            rgb8.len() % 3 == 0,
+            "an RGB8 buffer's length is always a multiple of 3"
+        );
+        let pixels: &mut [[u8; 3]] = bytemuck::cast_slice_mut(rgb8);
+        self.transform.transform_in_place(pixels);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

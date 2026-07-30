@@ -58,6 +58,13 @@ impl Rgb8 {
         &self.data
     }
 
+    /// Pixel data, mutable — for a transform that rewrites samples in place
+    /// without changing the geometry, which is the only thing the invariant
+    /// here protects (a color transform, `leyline_color`).
+    pub fn data_mut(&mut self) -> &mut [u8] {
+        &mut self.data
+    }
+
     /// Reads back a PNG this crate previously wrote (always 8-bit RGB, see
     /// `cache::write_png`) — used to compute a histogram from an
     /// already-rendered/cached preview file without re-running the develop

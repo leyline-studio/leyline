@@ -30,6 +30,7 @@ export component DevelopPanel inherits HorizontalLayout {
     property <bool> expand-color-grading: false;
     property <bool> expand-spot-removal: false;
     property <bool> expand-local: false;
+    property <bool> expand-proof: false;
     property <bool> expand-geometry: false;
     property <bool> expand-history: false;
     // Fixed band order (ADR 0031), parallel to `DevSettings::hsl`.
@@ -1644,6 +1645,88 @@ export component DevelopPanel inherits HorizontalLayout {
                                 edited(v) => {
                                     MaskState.edit-mask(MaskState.selected-mask, "color-softness", v);
                                 }
+                            }
+                        }
+                    }
+
+                    GroupHeader {
+                        label: @tr("Soft Proof");
+                        expanded <=> root.expand-proof;
+                    }
+                    // A way of looking at the photo, not a setting of it
+                    // (ADR 0034): nothing here is stored, and leaving the
+                    // proof shows the real render again.
+                    if root.expand-proof: VerticalLayout {
+                        spacing: 8px;
+                        Text {
+                            text: @tr("Shows the photo as a destination profile would reproduce it. Never stored, never exported.");
+                            color: #666666;
+                            font-size: 11px;
+                            wrap: word-wrap;
+                        }
+                        Text {
+                            text: DevelopState.soft-proof-name == ""
+                                ? @tr("No proof — the real render")
+                                : DevelopState.soft-proof-name;
+                            color: #9a9a9a;
+                            font-size: 12px;
+                            wrap: word-wrap;
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: start;
+                            FilterChip {
+                                text: @tr("Choose .icc…");
+                                active: false;
+                                clicked => {
+                                    DevelopState.browse-soft-proof();
+                                }
+                            }
+                            if DevelopState.soft-proof-name != "": FilterChip {
+                                text: @tr("Stop proofing");
+                                active: false;
+                                clicked => {
+                                    DevelopState.clear-soft-proof();
+                                }
+                            }
+                        }
+                        if DevelopState.soft-proof-name != "": HorizontalLayout {
+                            spacing: 6px;
+                            alignment: start;
+                            FilterChip {
+                                text: @tr("Perceptual");
+                                active: DevelopState.soft-proof-intent == 0;
+                                clicked => {
+                                    DevelopState.set-soft-proof-intent(0);
+                                }
+                            }
+                            FilterChip {
+                                text: @tr("Relative");
+                                active: DevelopState.soft-proof-intent == 1;
+                                clicked => {
+                                    DevelopState.set-soft-proof-intent(1);
+                                }
+                            }
+                            FilterChip {
+                                text: @tr("Saturation");
+                                active: DevelopState.soft-proof-intent == 2;
+                                clicked => {
+                                    DevelopState.set-soft-proof-intent(2);
+                                }
+                            }
+                            FilterChip {
+                                text: @tr("Absolute");
+                                active: DevelopState.soft-proof-intent == 3;
+                                clicked => {
+                                    DevelopState.set-soft-proof-intent(3);
+                                }
+                            }
+                        }
+                        if DevelopState.soft-proof-name != "": FilterChip {
+                            text: @tr("Flag out-of-gamut colors");
+                            active: DevelopState.soft-proof-gamut-warning;
+                            clicked => {
+                                DevelopState.toggle-soft-proof-gamut-warning();
                             }
                         }
                     }

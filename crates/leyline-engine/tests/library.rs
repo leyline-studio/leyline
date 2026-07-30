@@ -148,3 +148,91 @@ fn reprocess_migrates_a_batch_and_notifies_subscribers() {
     assert_eq!(already.already_current, vec![registered.version]);
     assert!(events.try_recv().is_err());
 }
+
+/// Screen soft proofing (ADR 0034, ADR 0051 §4): a view, and nothing else.
+///
+/// Proofing through sRGB itself is the one destination whose answer is known in
+/// advance — the image comes back as it went in — which is exactly what makes
+/// it the right test of the plumbing: any drift here would be the transform
+/// misbuilt, not the profile disagreeing.
+#[test]
+fn a_soft_proof_transforms_the_view_and_leaves_everything_else_alone() {
+    use leyline_core::PreviewKind;
+    use leyline_engine::SoftProof;
+
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::create(&dir.path().join("Library"), "Proof").unwrap();
+    let photo = dir.path().join("photo.png");
+    let pixels: Vec<u8> = (0..16 * 16 * 3).map(|i| (i % 251) as u8).collect();
+    image::save_buffer(&photo, &pixels, 16, 16, image::ExtendedColorType::Rgb8).unwrap();
+    let report = library
+        .import(
+            &photo,
+            &ImportOptions {
+                copy_files: true,
+                recursive: false,
+            },
+            |_, _| {},
+        )
+        .unwrap();
+    let asset = report.imported[0].registered.asset;
+
+    // The destination profile is a file the user picks; sRGB's own bytes are
+    // the one set of profile bytes the engine can produce itself.
+    let profile = dir.path().join("srgb.icc");
+    std::fs::write(&profile, leyline_color::srgb_icc_profile()).unwrap();
+
+    let plain = library.preview(asset, PreviewKind::Small).unwrap();
+    let plain_bytes = std::fs::read(&plain.path).unwrap();
+    let proofed = library
+        .preview_soft_proofed(
+            asset,
+            PreviewKind::Small,
+            &SoftProof {
+                profile: profile.clone(),
+                intent: leyline_color::RenderingIntent::RelativeColorimetric,
+                gamut_warning: false,
+            },
+        )
+        .unwrap();
+
+    // Proofing sRGB against sRGB is a round trip: same geometry, and samples
+    // that moved by at most a rounding step.
+    let reference = leyline_preview::Rgb8::load_png(&plain.path).unwrap();
+    assert_eq!(
+        (proofed.width(), proofed.height()),
+        (reference.width(), reference.height())
+    );
+    let worst = proofed
+        .data()
+        .iter()
+        .zip(reference.data())
+        .map(|(a, b)| a.abs_diff(*b))
+        .max()
+        .unwrap();
+    assert!(worst <= 2, "sRGB proofed against sRGB drifted by {worst}");
+
+    // And nothing was written: the cached preview file is untouched, and no
+    // revision was created (the import's is still the only one).
+    assert_eq!(std::fs::read(&plain.path).unwrap(), plain_bytes);
+    let session = library.edit(report.imported[0].registered.version).unwrap();
+    assert_eq!(session.history().unwrap().len(), 1);
+    drop(session);
+
+    // An unusable profile is an error, not a silently unproofed view.
+    let junk = dir.path().join("junk.icc");
+    std::fs::write(&junk, b"not a profile").unwrap();
+    assert!(
+        library
+            .preview_soft_proofed(
+                asset,
+                PreviewKind::Small,
+                &SoftProof {
+                    profile: junk,
+                    intent: leyline_color::RenderingIntent::RelativeColorimetric,
+                    gamut_warning: true,
+                },
+            )
+            .is_err()
+    );
+}

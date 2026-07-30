@@ -12,7 +12,7 @@ use leyline_sdk::{
     HslBand, ImportOptions, LensCorrection, Library, LocalAdjustment, Margins, NoiseReduction,
     Orientation, PaperSize, Param, PickState, Point, PresetId, PreviewKind, PrintRecipe,
     PrintRequest, PrintSettings, RenderingIntent, Settings, SettingsGroup, Sharpening, SpotRemoval,
-    ToneCurve, Value, VersionId, WhiteBalance,
+    ToneCurve, Value, VersionId, Watermark, WatermarkAnchor, WhiteBalance,
 };
 
 const USAGE: &str = "\
@@ -28,7 +28,9 @@ Usage:
   leyline preview <library> <asset-id> [--kind <thumbnail|small|medium|large|full>]
   leyline export <library> <dest-dir> <version-id>...
                  [--preset <name>] [--format <f>] [--quality <1-100>] [--max-edge <px>]
+                 [--watermark <text>] [--watermark-anchor <a>]
   leyline preset <library> <name> [--format <f>] [--quality <1-100>] [--max-edge <px>]
+                 [--watermark <text>] [--watermark-anchor <a>]
   leyline presets <library>
   leyline exports <library> <asset-id>
   leyline print <library> <dest-dir> <version-id>...
@@ -54,6 +56,10 @@ Options:
   --flat        Do not descend into subdirectories
   --format <f>  Export format: jpeg (default), png, tiff, webp, avif
   --intent <i>  Print rendering intent: perceptual, relative (default), saturation, absolute
+  --watermark <text>
+                Text watermark drawn on the export, last thing before encoding (ADR 0034)
+  --watermark-anchor <a>
+                bottom-right (default), bottom-left, top-right, top-left, center
 
 Develop params (docs/pipeline.md §3.2, schema 1):
   exposure rotation                 decimal
@@ -1029,11 +1035,50 @@ fn recipe(options: &Options) -> Result<ExportSettings, String> {
     if let Some(edge) = options.value("max-edge") {
         settings.max_edge = Some(edge.parse().map_err(|_| format!("bad max edge {edge:?}"))?);
     }
+    // Only the line, like Studio's dialog: the rest of the decoration keeps
+    // the recipe defaults (ADR 0051 §3), and a preset's `settings_json` is
+    // where other values are written.
+    if let Some(text) = options.value("watermark") {
+        settings.watermark = Some(Watermark {
+            text: text.to_owned(),
+            ..Watermark::default()
+        });
+    }
+    if let Some(anchor) = options.value("watermark-anchor") {
+        let anchor = match anchor {
+            "bottom-right" => WatermarkAnchor::BottomRight,
+            "bottom-left" => WatermarkAnchor::BottomLeft,
+            "top-right" => WatermarkAnchor::TopRight,
+            "top-left" => WatermarkAnchor::TopLeft,
+            "center" => WatermarkAnchor::Center,
+            other => {
+                return Err(format!(
+                    "unknown watermark anchor {other:?}, expected \
+                     bottom-right/bottom-left/top-right/top-left/center"
+                ));
+            }
+        };
+        match &mut settings.watermark {
+            Some(watermark) => watermark.anchor = anchor,
+            None => return Err("--watermark-anchor needs --watermark".to_owned()),
+        }
+    }
+    settings.validate().map_err(|e| e.to_string())?;
     Ok(settings)
 }
 
 fn export(args: &[String]) -> Result<(), String> {
-    let (positional, options) = parse(args, &["preset", "format", "quality", "max-edge"])?;
+    let (positional, options) = parse(
+        args,
+        &[
+            "preset",
+            "format",
+            "quality",
+            "max-edge",
+            "watermark",
+            "watermark-anchor",
+        ],
+    )?;
     let [root, destination, ids @ ..] = positional.as_slice() else {
         return Err(
             "usage: leyline export <library> <dest-dir> <version-id>... \
@@ -1051,9 +1096,10 @@ fn export(args: &[String]) -> Result<(), String> {
             if options.value("format").is_some()
                 || options.value("quality").is_some()
                 || options.value("max-edge").is_some()
+                || options.value("watermark").is_some()
             {
                 return Err("--preset already defines the recipe; \
-                     drop --format/--quality/--max-edge"
+                     drop --format/--quality/--max-edge/--watermark"
                     .to_owned());
             }
             let stored = library
@@ -1269,7 +1315,16 @@ fn print_presets(args: &[String]) -> Result<(), String> {
 }
 
 fn preset(args: &[String]) -> Result<(), String> {
-    let (positional, options) = parse(args, &["format", "quality", "max-edge"])?;
+    let (positional, options) = parse(
+        args,
+        &[
+            "format",
+            "quality",
+            "max-edge",
+            "watermark",
+            "watermark-anchor",
+        ],
+    )?;
     let [root, name] = positional.as_slice() else {
         return Err("usage: leyline preset <library> <name> \
              [--format <f>] [--quality <q>] [--max-edge <px>]"

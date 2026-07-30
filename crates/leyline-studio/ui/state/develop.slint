@@ -44,6 +44,19 @@ export global DevelopState {
     // on the edited version — one click, same shape as `browse-map-pack`.
     // The file name of the referenced profile, empty when none is set.
     callback browse-camera-profile();
+    // Screen soft proof (ADR 0034): the destination profile's file name
+    // (empty = no proof in effect), the intent index (0 perceptual,
+    // 1 relative, 2 saturation, 3 absolute) and whether what the destination
+    // cannot reproduce is flagged. None of it is stored anywhere — a proof is
+    // a way of looking at the photo (ADR 0051 §4), which is why it lives on
+    // this global and not in a revision.
+    in property <string> soft-proof-name;
+    in-out property <int> soft-proof-intent: 1;
+    in-out property <bool> soft-proof-gamut-warning: false;
+    callback browse-soft-proof();
+    callback clear-soft-proof();
+    callback set-soft-proof-intent(int);
+    callback toggle-soft-proof-gamut-warning();
     callback enter-develop();
     callback exit-develop();
     // Moves the develop view to the next/previous photo in the grid

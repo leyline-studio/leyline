@@ -20,8 +20,8 @@ pub use leyline_engine::{
     ExportReport, ExportRequest, ExportedVersion, FailedApply, FailedExport, FailedPrint,
     FailedReprocess, ImportOptions, ImportReport, ImportedCameraProfile, ImportedFile, JobResult,
     Library, Param, PresetApplyReport, Preview, PreviewFile, PrintRecipe, PrintReport,
-    PrintRequest, PrintedVersion, ReprocessReport, Rgb8, SkippedFile, SourceColor, Value,
-    WatchError, WatchSessionEvent, WatchedFile, neutral_settings,
+    PrintRequest, PrintedVersion, ReprocessReport, Rgb8, SkippedFile, SoftProof, SourceColor,
+    Value, WatchError, WatchSessionEvent, WatchedFile, neutral_settings,
 };
 
 pub use leyline_catalog::{
@@ -32,6 +32,7 @@ pub use leyline_catalog::{
 
 pub use leyline_color::RenderingIntent;
 pub use leyline_export::{
-    ExportFormat, ExportSettings, Margins, Orientation, PaperSize, PrintSettings,
+    ExportFormat, ExportSettings, Margins, Orientation, PaperSize, PrintSettings, Watermark,
+    WatermarkAnchor, WatermarkFont,
 };
 pub use leyline_map::TilePackInfo;

@@ -22,7 +22,7 @@ use leyline_sdk::{
     Margins, Mask, NoiseReduction, Orientation, PaperSize, PickState, Point, Preview, PreviewKind,
     PrintRecipe, PrintRequest, PrintSettings, RangeMask, RegisteredAsset, RenderingIntent,
     RevisionId, Settings, Sharpening, SkippedFile, SpotRemoval, StageVersions, ToneCurve,
-    VersionId, WatchSessionEvent, WatchedFile,
+    VersionId, WatchSessionEvent, WatchedFile, Watermark, WatermarkAnchor, WatermarkFont,
 };
 
 /// A `Settings` built field by field, every nested type named through the
@@ -207,6 +207,14 @@ fn every_request_is_constructible(version: VersionId) -> (ExportRequest, PrintRe
                 format: ExportFormat::Jpeg,
                 quality: 90,
                 max_edge: Some(2048),
+                watermark: Some(Watermark {
+                    text: "© 2026".to_owned(),
+                    font: WatermarkFont::Sans,
+                    size: 3.0,
+                    color: "#FFFFFF".to_owned(),
+                    opacity: 0.7,
+                    anchor: WatermarkAnchor::BottomRight,
+                }),
             }),
             destination_dir: PathBuf::from("out"),
         },

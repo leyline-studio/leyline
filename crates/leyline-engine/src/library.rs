@@ -154,6 +154,25 @@ pub struct ImportedCameraProfile {
     pub checksum: String,
 }
 
+/// A screen soft-proof request (ADR 0034): the destination to simulate, how
+/// to get there, and whether to flag what it cannot reproduce.
+///
+/// An argument of [`Library::preview_soft_proofed`], never a stored value: a
+/// proof is a way of looking at a photo. Nothing here reaches a revision, a
+/// preset or the preview cache (ADR 0051 §4).
+#[derive(Debug, Clone, PartialEq)]
+pub struct SoftProof {
+    /// The destination ICC profile to simulate — a printer profile, a press
+    /// profile, another display. Read at each call; the user picks the file,
+    /// so no library-relative rule applies (nothing is stored).
+    pub profile: PathBuf,
+    /// How colors are mapped on the way to that destination.
+    pub intent: leyline_color::RenderingIntent,
+    /// Paint what the destination cannot reproduce in LittleCMS's alarm color
+    /// instead of clipping it silently.
+    pub gamut_warning: bool,
+}
+
 impl Library {
     /// Creates a new library: the §3 directory skeleton and its catalog.
     /// The root may exist (empty or not); the catalog must not.
@@ -540,6 +559,40 @@ impl Library {
         })
     }
 
+    /// Renders the asset's current preview as it would appear once it had been
+    /// through `proof`'s destination profile — screen soft-proofing (ADR 0034,
+    /// ADR 0051 §4).
+    ///
+    /// In memory, like [`Library::preview_before`] and for the same reason: a
+    /// proof is a way of *looking* at a photo, not a version of it. Nothing is
+    /// written — no preview cache entry, no revision, no preset — so a proofed
+    /// look can never be mistaken later for what the photo is.
+    ///
+    /// The image is the cached preview when there is one, so proofing costs a
+    /// color transform rather than a develop pass.
+    pub fn preview_soft_proofed(
+        &self,
+        asset: AssetId,
+        kind: PreviewKind,
+        proof: &SoftProof,
+    ) -> Result<leyline_preview::Rgb8> {
+        let transform = leyline_color::SoftProofTransform::load(
+            &proof.profile,
+            proof.intent,
+            proof.gamut_warning,
+        )
+        .map_err(|e| LeylineError::InvalidSettings(e.to_string()))?;
+        let file = self.preview(asset, kind)?;
+        let mut image = leyline_preview::Rgb8::load_png(&file.path).map_err(|e| {
+            LeylineError::DecodeFailed {
+                asset,
+                reason: e.to_string(),
+            }
+        })?;
+        transform.apply(image.data_mut());
+        Ok(image)
+    }
+
     /// Renders a preview as a job (§3.1, §11): returns immediately, then
     /// `PreviewReady` on success and `JobFinished` either way. A cache hit
     /// still emits both — the client logic stays uniform.
@@ -683,7 +736,7 @@ impl Library {
         recipe: &crate::export::ExportRecipe,
     ) -> Result<(ExportSettings, Option<ExportPresetId>)> {
         match recipe {
-            crate::export::ExportRecipe::Adhoc(settings) => Ok((*settings, None)),
+            crate::export::ExportRecipe::Adhoc(settings) => Ok((settings.clone(), None)),
             crate::export::ExportRecipe::Preset(preset) => {
                 let catalog = lock(&self.inner.catalog);
                 let stored = catalog.export_preset(*preset)?;
