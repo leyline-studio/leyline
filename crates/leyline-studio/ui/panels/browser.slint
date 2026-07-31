@@ -9,8 +9,9 @@
 // bug documented above `menu-row` in `studio.slint` is about, so nothing
 // here may gain a position or size override.
 
-import { Cell, CollectionRow } from "../types.slint";
+import { Cell, CollectionRow, FolderRow } from "../types.slint";
 import { CollectionState } from "../state/collection.slint";
+import { FolderState } from "../state/folder.slint";
 import { LibraryState } from "../state/library.slint";
 import { DetailState } from "../state/detail.slint";
 import { DevelopState } from "../state/develop.slint";
@@ -18,7 +19,7 @@ import { DialogState } from "../state/dialog.slint";
 import { FilterState } from "../state/filter.slint";
 import { GridState } from "../state/grid.slint";
 import { MapState } from "../state/map.slint";
-import { DetailRow, FilterChip } from "../widgets/controls.slint";
+import { DetailRow, FilterChip, MiniSlider, ViewModeChips } from "../widgets/controls.slint";
 
 export component BrowserPanel inherits HorizontalLayout {
     // Hands keyboard focus back to the window's `FocusScope` after a text
@@ -31,6 +32,9 @@ export component BrowserPanel inherits HorizontalLayout {
     // grid knows how wide a row currently is.
     out property <int> columns: flick.columns;
 
+    // Thumbnail size (ADR 0055 §3), driven by the toolbar slider under the
+    // grid. Panel-private and never stored: it is how one is looking right
+    // now, not a setting (ADR 0045 §2).
     property <length> cell-size: 176px;
 
     // Moves the selection to `index` and scrolls it into view.
@@ -51,10 +55,16 @@ export component BrowserPanel inherits HorizontalLayout {
         }
     }
 
-        visible: !DevelopState.develop-mode && !MapState.map-mode;
+        visible: !DevelopState.develop-mode && !MapState.map-mode && !GridState.loupe-mode;
 
+        // The sidebar, top to bottom: what the library holds, where it is on
+        // disk, and how it has been grouped by hand (ADR 0055 §2). One
+        // exclusive selection runs across the three — picking a folder drops
+        // the collection and the other way round, since a grid showing "the
+        // intersection of a folder and a collection" would be a filter nobody
+        // asked for.
         Rectangle {
-            width: 190px;
+            width: 200px;
             background: #202020;
 
             VerticalLayout {
@@ -66,7 +76,7 @@ export component BrowserPanel inherits HorizontalLayout {
                 }
 
                 Text {
-                    text: @tr("Collections");
+                    text: @tr("Catalog");
                     color: #9a9a9a;
                     font-size: 11px;
                 }
@@ -74,7 +84,8 @@ export component BrowserPanel inherits HorizontalLayout {
                 Rectangle {
                     height: 24px;
                     border-radius: 4px;
-                    background: CollectionState.active-collection == -1 ? #2f4f6f : transparent;
+                    background: CollectionState.active-collection == -1 && FolderState.active-folder == -1
+                        ? #2f4f6f : transparent;
                     Text {
                         x: 8px;
                         width: parent.width - 16px;
@@ -87,9 +98,63 @@ export component BrowserPanel inherits HorizontalLayout {
                     }
                     TouchArea {
                         clicked => {
-                            CollectionState.select-collection(-1);
+                            // Clears both filters at once — see the panel
+                            // comment above.
+                            FolderState.select-folder(-1);
                         }
                     }
+                }
+
+                Text {
+                    text: @tr("Folders");
+                    color: #9a9a9a;
+                    font-size: 11px;
+                }
+
+                Flickable {
+                    vertical-stretch: 1;
+                    viewport-height: FolderState.folders.length * 26px;
+                    for row[i] in FolderState.folders: Rectangle {
+                        y: i * 26px;
+                        height: 24px;
+                        width: parent.width;
+                        border-radius: 4px;
+                        background: FolderState.active-folder == i ? #2f4f6f : transparent;
+                        Text {
+                            x: 8px + row.depth * 12px;
+                            width: parent.width - self.x - 34px;
+                            height: 100%;
+                            text: row.name;
+                            color: #d0d0d0;
+                            font-size: 12px;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+                        // The count sits in its own right-hand column, and an
+                        // empty folder shows nothing rather than a zero: the
+                        // number is there to find where the photos are.
+                        Text {
+                            x: parent.width - 30px;
+                            width: 26px;
+                            height: 100%;
+                            text: row.count > 0 ? row.count : "";
+                            color: #6f6f6f;
+                            font-size: 11px;
+                            horizontal-alignment: right;
+                            vertical-alignment: center;
+                        }
+                        TouchArea {
+                            clicked => {
+                                FolderState.select-folder(i);
+                            }
+                        }
+                    }
+                }
+
+                Text {
+                    text: @tr("Collections");
+                    color: #9a9a9a;
+                    font-size: 11px;
                 }
 
                 Flickable {
@@ -119,10 +184,29 @@ export component BrowserPanel inherits HorizontalLayout {
                     }
                 }
 
-                Text {
-                    text: @tr("N: new · B: add photo");
-                    color: #666666;
-                    font-size: 10px;
+                // The two gestures that make photos come in and go out, at
+                // the bottom of the panel where Lightroom puts them
+                // (ADR 0055 §2). They replace the grey shortcut line that
+                // used to sit here: a shortcut is discovered afterwards, it
+                // is not a door.
+                HorizontalLayout {
+                    spacing: 6px;
+                    FilterChip {
+                        text: @tr("Import…");
+                        active: false;
+                        clicked => {
+                            DialogState.dialog-result = "";
+                            DialogState.dialog = "import";
+                        }
+                    }
+                    FilterChip {
+                        text: @tr("Export…");
+                        active: false;
+                        enabled: GridState.selected >= 0;
+                        clicked => {
+                            DialogState.open-export();
+                        }
+                    }
                 }
             }
         }
@@ -374,6 +458,33 @@ export component BrowserPanel inherits HorizontalLayout {
                                 }
                             }
                         }
+
+                        // Cell badges (ADR 0055 §5), each in its own corner
+                        // so none of them ever covers another: the grid
+                        // number top-left — it is how one says "the 47th" to
+                        // someone —, the flag beside it, and the mark of a
+                        // photo already worked on at the top right.
+                        Text {
+                            x: 6px;
+                            y: 4px;
+                            text: GridState.window-start + i + 1;
+                            color: #6a6a6a;
+                            font-size: 11px;
+                        }
+                        if cell.flagged || cell.rejected: Text {
+                            x: 30px;
+                            y: 4px;
+                            text: cell.flagged ? "⚑" : "✕";
+                            color: cell.flagged ? #d0d0d0 : #b0574f;
+                            font-size: 11px;
+                        }
+                        if cell.edited: Text {
+                            x: parent.width - 20px;
+                            y: 4px;
+                            text: "◐";
+                            color: #6fa8dc;
+                            font-size: 11px;
+                        }
                     }
 
                     TouchArea {
@@ -583,6 +694,42 @@ export component BrowserPanel inherits HorizontalLayout {
                                 }
                             }
                         }
+                    }
+                }
+            }
+
+            // The toolbar under the grid (ADR 0055 §3): how to look, and how
+            // big. The sort and the filters stay in the bar above — a setting
+            // that lives in two places is a setting one has to look for.
+            HorizontalLayout {
+                height: 26px;
+                spacing: 8px;
+                padding-top: 4px;
+
+                ViewModeChips {
+                    loupe: false;
+                    loupe-available: GridState.selected >= 0;
+                    show-grid => { }
+                    show-loupe => {
+                        GridState.loupe-mode = true;
+                        GridState.loupe-mode-changed();
+                    }
+                }
+                Rectangle {
+                    horizontal-stretch: 1;
+                }
+                Text {
+                    text: @tr("Thumbnails");
+                    color: #7a7a7a;
+                    font-size: 11px;
+                    vertical-alignment: center;
+                }
+                MiniSlider {
+                    minimum: 110;
+                    maximum: 320;
+                    value: root.cell-size / 1px;
+                    edited(v) => {
+                        root.cell-size = v * 1px;
                     }
                 }
             }

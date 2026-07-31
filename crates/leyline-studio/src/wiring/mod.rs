@@ -8,6 +8,7 @@ pub(crate) mod collections;
 pub(crate) mod develop;
 pub(crate) mod dialogs;
 pub(crate) mod filters;
+pub(crate) mod folders;
 pub(crate) mod grid;
 pub(crate) mod keywords;
 pub(crate) mod library;

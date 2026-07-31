@@ -7,8 +7,9 @@
 // its attributes, the keyboard `FocusScope`, and the order the pieces are
 // mounted in.
 
-import { Cell, CollectionRow, ColorGradingZoneValues, CurveMarker, DevSettings, HslBandValues, MapPinMarker, MaskDab, MaskRow, Tr } from "types.slint";
+import { Cell, CollectionRow, ColorGradingZoneValues, CurveMarker, DevSettings, FolderRow, HslBandValues, MapPinMarker, MaskDab, MaskRow, Tr } from "types.slint";
 import { CollectionState } from "state/collection.slint";
+import { FolderState } from "state/folder.slint";
 import { DetailState } from "state/detail.slint";
 import { DevelopState } from "state/develop.slint";
 import { DialogState } from "state/dialog.slint";
@@ -20,6 +21,7 @@ import { MaskState } from "state/mask.slint";
 import { BrowserPanel } from "panels/browser.slint";
 import { DevelopPanel } from "panels/develop.slint";
 import { DialogOverlay } from "panels/dialogs.slint";
+import { LoupePanel } from "panels/loupe.slint";
 import { MapPanel } from "panels/map.slint";
 import { MenuBar } from "panels/menubar.slint";
 
@@ -37,6 +39,8 @@ export {
     DevelopState,
     DialogState,
     FilterState,
+    FolderRow,
+    FolderState,
     GridState,
     HslBandValues,
     LibraryState,
@@ -90,6 +94,14 @@ export component StudioWindow inherits Window {
                 DialogState.open-print();
                 return accept;
             }
+            // Export moved off `E` so the loupe could have it, the letter a
+            // Lightroom user presses without thinking (ADR 0055 §4). Handled
+            // here, before the develop branch, so exporting works from both
+            // views rather than only from the library.
+            if (event.modifiers.control && (event.text == "e" || event.text == "E")) {
+                DialogState.open-export();
+                return accept;
+            }
             if (event.modifiers.control && (event.text == "c" || event.text == "C")) {
                 DevelopState.copy-settings();
                 return accept;
@@ -138,7 +150,17 @@ export component StudioWindow inherits Window {
                 GridState.classify(event.text);
                 return accept;
             }
+            // Leaving the loupe is `G` — the same key that leaves develop —
+            // or Escape, and it is checked before `G` can mean anything else.
+            if (GridState.loupe-mode && (event.text == "g" || event.text == "G" || event.text == Key.Escape)) {
+                GridState.loupe-mode = false;
+                GridState.loupe-mode-changed();
+                return accept;
+            }
             if (event.text == "d" || event.text == "D" || event.text == Key.Return) {
+                // Develop takes over the window: the loupe steps aside
+                // rather than staying up behind it.
+                GridState.loupe-mode = false;
                 DevelopState.enter-develop();
                 return accept;
             }
@@ -147,8 +169,13 @@ export component StudioWindow inherits Window {
                 DialogState.dialog = "import";
                 return accept;
             }
+            // `E` shows the selected photo large without opening an edit
+            // session, and toggles back (ADR 0055 §3-4).
             if (event.text == "e" || event.text == "E") {
-                DialogState.open-export();
+                if (GridState.selected >= 0) {
+                    GridState.loupe-mode = !GridState.loupe-mode;
+                    GridState.loupe-mode-changed();
+                }
                 return accept;
             }
             if (event.text == "t" || event.text == "T") {
@@ -205,6 +232,10 @@ export component StudioWindow inherits Window {
                 keys.focus();
             }
         }
+
+        // Declared after the browser so it paints over it (ADR 0055 §3): the
+        // loupe is the same library, looked at one photo at a time.
+        LoupePanel { }
 
         // Modal overlay: whichever dialog is open, over the view above.
         DialogOverlay { }

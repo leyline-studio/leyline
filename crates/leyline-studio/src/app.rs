@@ -11,8 +11,8 @@ use std::rc::Rc;
 use crate::map_view;
 use crate::ui::{Cell, LibraryState, StudioWindow, Tr};
 use leyline_sdk::{
-    AssetId, CollectionId, Event, ExportPreset, GridItem, GridQuery, JobId, KeywordId, Library,
-    MapPin, Preset, PresetSettings, PrintPreset, RevisionRow, Sort, VersionId,
+    AssetId, CollectionId, Event, ExportPreset, FolderId, GridItem, GridQuery, JobId, KeywordId,
+    Library, MapPin, Preset, PresetSettings, PrintPreset, RevisionRow, Sort, VersionId,
 };
 use slint::{Global, SharedString, VecModel};
 
@@ -91,6 +91,9 @@ pub(crate) struct App {
     pub(crate) dev_presets: Vec<Preset>,
     /// Flattened collection ids, parallel to the sidebar rows.
     pub(crate) collections: Vec<CollectionId>,
+    /// Folder ids of the sidebar's folder tree, in the order it lists them
+    /// (ADR 0055 §2) — the index a click reports is an index into this.
+    pub(crate) folders: Vec<FolderId>,
     /// Keywords of the selected photo, parallel to the panel's rows.
     pub(crate) keywords: Vec<KeywordId>,
     /// The keyword the grid is filtered to, when one is active.

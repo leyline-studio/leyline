@@ -11,7 +11,7 @@ import { DevSettings, MaskRow } from "../types.slint";
 import { DevelopState } from "../state/develop.slint";
 import { GridState } from "../state/grid.slint";
 import { MaskState } from "../state/mask.slint";
-import { EditSlider, FilterChip, GroupHeader, SubHeading } from "../widgets/controls.slint";
+import { EditSlider, Filmstrip, FilterChip, GroupHeader, SubHeading } from "../widgets/controls.slint";
 
 export component DevelopPanel inherits HorizontalLayout {
     // Panel-private state (ADR 0045 §2): none of it crosses to Rust.
@@ -499,36 +499,17 @@ export component DevelopPanel inherits HorizontalLayout {
                 }
             }
 
-            // Filmstrip: the loaded grid window's thumbnails, so
-            // switching photos doesn't require leaving develop mode.
-            // Reuses `GridState.cells` (already populated for the grid) —
-            // no separate data path.
-            Flickable {
-                height: 64px;
-                viewport-width: GridState.cells.length * 64px;
-                HorizontalLayout {
-                    for cell[i] in GridState.cells: TouchArea {
-                        width: 64px;
-                        height: 64px;
-                        clicked => {
-                            DevelopState.develop-switch(GridState.window-start + i);
-                        }
-                        Rectangle {
-                            x: 2px;
-                            y: 2px;
-                            width: parent.width - 4px;
-                            height: parent.height - 4px;
-                            border-radius: 3px;
-                            border-width: GridState.window-start + i == GridState.selected ? 2px : 0px;
-                            border-color: #6fa8dc;
-                            Image {
-                                source: cell.thumbnail;
-                                image-fit: contain;
-                                width: 100%;
-                                height: 100%;
-                            }
-                        }
-                    }
+            // Filmstrip: the loaded grid window's thumbnails, so switching
+            // photos doesn't require leaving develop mode. Reuses
+            // `GridState.cells` (already populated for the grid) — no
+            // separate data path — through the same widget the loupe mounts
+            // (ADR 0055 §5).
+            Filmstrip {
+                cells: GridState.cells;
+                window-start: GridState.window-start;
+                selected: GridState.selected;
+                clicked(index) => {
+                    DevelopState.develop-switch(index);
                 }
             }
         }

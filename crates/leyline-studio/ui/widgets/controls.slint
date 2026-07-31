@@ -5,6 +5,8 @@
 // That is what makes them the one part of the UI that *is* reusable, unlike
 // the singleton panels of `ui/panels/`.
 
+import { Cell } from "../types.slint";
+
 export component DetailRow inherits HorizontalLayout {
     in property <string> label;
     in property <string> value;
@@ -93,6 +95,120 @@ export component FilterChip inherits Rectangle {
         enabled: root.enabled;
         clicked => {
             root.clicked();
+        }
+    }
+}
+
+// The loaded grid window, seen edge-on (ADR 0055 §5): one strip of
+// thumbnails under a photo shown large, in develop as in the loupe.
+//
+// Takes the cell model rather than reading `GridState` itself, like every
+// other control here — that is what lets the two panels mount it without
+// either of them owning it.
+export component Filmstrip inherits Flickable {
+    in property <[Cell]> cells;
+    // Grid index of `cells[0]`, so a click can report a whole-grid index.
+    in property <int> window-start;
+    in property <int> selected;
+    callback clicked(int);
+
+    height: 64px;
+    viewport-width: root.cells.length * 64px;
+
+    HorizontalLayout {
+        for cell[i] in root.cells: TouchArea {
+            width: 64px;
+            height: 64px;
+            clicked => {
+                root.clicked(root.window-start + i);
+            }
+            Rectangle {
+                x: 2px;
+                y: 2px;
+                width: parent.width - 4px;
+                height: parent.height - 4px;
+                border-radius: 3px;
+                border-width: root.window-start + i == root.selected ? 2px : 0px;
+                border-color: #6fa8dc;
+                Image {
+                    source: cell.thumbnail;
+                    image-fit: contain;
+                    width: 100%;
+                    height: 100%;
+                }
+            }
+        }
+    }
+}
+
+// A track and nothing else, for a setting whose effect is the feedback
+// (ADR 0055 §3: the thumbnail size). Unlike `EditSlider` it reports while
+// dragging rather than on release — a size that only changed once the mouse
+// came up would feel broken, and there is nothing expensive behind it.
+export component MiniSlider inherits Rectangle {
+    in property <float> minimum;
+    in property <float> maximum;
+    in property <float> value;
+    callback edited(float);
+
+    property <bool> dragging;
+
+    width: 96px;
+    height: 20px;
+
+    Rectangle {
+        y: parent.height / 2 - 2px;
+        height: 4px;
+        border-radius: 2px;
+        background: #3a3a3a;
+    }
+    Rectangle {
+        x: (root.width - 12px) * (root.value - root.minimum) / (root.maximum - root.minimum);
+        y: parent.height / 2 - 6px;
+        width: 12px;
+        height: 12px;
+        border-radius: 6px;
+        background: root.dragging ? #6fa8dc : #8a8a8a;
+    }
+    TouchArea {
+        moved => {
+            if (self.pressed) {
+                root.dragging = true;
+                root.edited(Math.clamp(root.minimum + (self.mouse-x / self.width) * (root.maximum - root.minimum), root.minimum, root.maximum));
+            }
+        }
+        pointer-event(event) => {
+            if (event.kind == PointerEventKind.up) {
+                root.dragging = false;
+            }
+        }
+    }
+}
+
+// The two ways of looking at a library (ADR 0055 §3), shared by the grid and
+// the loupe so leaving one is never a keyboard-only gesture.
+export component ViewModeChips inherits HorizontalLayout {
+    in property <bool> loupe;
+    // A loupe with no photo in it would be an empty grey rectangle.
+    in property <bool> loupe-available: true;
+    callback show-grid();
+    callback show-loupe();
+
+    spacing: 6px;
+
+    FilterChip {
+        text: @tr("Grid");
+        active: !root.loupe;
+        clicked => {
+            root.show-grid();
+        }
+    }
+    FilterChip {
+        text: @tr("Loupe");
+        active: root.loupe;
+        enabled: root.loupe-available;
+        clicked => {
+            root.show-loupe();
         }
     }
 }

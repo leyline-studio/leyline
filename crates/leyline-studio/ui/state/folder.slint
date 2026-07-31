@@ -1,0 +1,17 @@
+// The folder tree of the sidebar (ADR 0055 §2), and which folder the grid is
+// filtered to.
+//
+// Read-only by decision, not by omission: there is no rename, move or delete
+// callback here, and there will not be one — moving a folder is file
+// management, and Leyline never modifies what it did not write.
+//
+// Rust flattens the tree into `FolderRow`s carrying their depth, exactly as
+// it already does for collections; the UI indents and reports clicks.
+import { FolderRow } from "../types.slint";
+
+export global FolderState {
+    in property <[FolderRow]> folders;
+    // Index into `folders`, or -1 when the grid is not filtered to a folder.
+    in-out property <int> active-folder: -1;
+    callback select-folder(int);
+}

@@ -1078,8 +1078,8 @@ msgstr "Importer…    I"
 
 #: crates/leyline-studio/ui/panels/menubar.slint:75
 msgctxt "MenuBar"
-msgid "Export…    E"
-msgstr "Exporter…    E"
+msgid "Export…    Ctrl+E"
+msgstr "Exporter…    Ctrl+E"
 
 #: crates/leyline-studio/ui/panels/menubar.slint:83
 msgctxt "MenuBar"
@@ -1578,3 +1578,27 @@ msgstr "Aucune photo pour l'instant"
 
 msgid "Watch a folder…"
 msgstr "Surveiller un dossier…"
+
+msgid "Catalog"
+msgstr "Catalogue"
+
+msgid "Folders"
+msgstr "Dossiers"
+
+msgid "Import…"
+msgstr "Importer…"
+
+msgid "Export…"
+msgstr "Exporter…"
+
+msgid "Grid"
+msgstr "Grille"
+
+msgid "Loupe"
+msgstr "Loupe"
+
+msgid "Thumbnails"
+msgstr "Vignettes"
+
+msgid "Loupe (large view)"
+msgstr "Loupe (vue en grand)"

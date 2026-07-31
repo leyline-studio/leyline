@@ -20,4 +20,12 @@ export global GridState {
     callback classify(string);
     // First visible cell and how many cells fit, sent on scroll or resize.
     callback viewport-moved(int, int);
+    // Loupe view (ADR 0055 §3): the selected photo, large, from the same
+    // cached preview develop uses — no edit session is opened, so nothing is
+    // written and there is nothing to undo. `loupe-mode` is `in-out` because
+    // both the UI (a chip, `E`, `G`) and Rust (leaving develop) move it, and
+    // Rust has to know: it only fills `loupe-image` while the loupe is up.
+    in-out property <bool> loupe-mode;
+    in property <image> loupe-image;
+    callback loupe-mode-changed();
 }

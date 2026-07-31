@@ -58,6 +58,7 @@ use wiring::develop::clipboard::wire_settings_clipboard;
 use wiring::develop::wire_develop;
 use wiring::dialogs::wire_dialogs;
 use wiring::filters::{wire_classify, wire_filters};
+use wiring::folders::{refresh_folders, wire_folders};
 use wiring::grid::{load_window, reload, wire_select};
 use wiring::keywords::wire_keywords;
 use wiring::library::wire_library;
@@ -179,6 +180,7 @@ fn run() -> Result<(), String> {
         print_presets: Vec::new(),
         dev_presets: Vec::new(),
         collections: Vec::new(),
+        folders: Vec::new(),
         keywords: Vec::new(),
         keyword_filter: None,
         cells: Rc::new(VecModel::default()),
@@ -232,6 +234,7 @@ fn run() -> Result<(), String> {
     {
         let mut app = app.borrow_mut();
         refresh_collections(&mut app, &window)?;
+        refresh_folders(&mut app, &window)?;
         refresh_presets(&mut app, &window)?;
         reload(&mut app, &window)?;
     }
@@ -244,6 +247,7 @@ fn run() -> Result<(), String> {
     wire_library(&window, other_recent_libraries);
     wire_dialogs(&app, &window);
     wire_collections(&app, &window);
+    wire_folders(&app, &window);
     wire_keywords(&app, &window);
     wire_presets(&app, &window);
     wire_map(&app, &window);

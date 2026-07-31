@@ -10,11 +10,33 @@ use crate::format;
 use crate::models::label_color;
 use crate::ui::{Cell, DetailState, GridState, LibraryState, StudioWindow, Tr};
 use crate::wiring::keywords::keyword_rows;
-use leyline_sdk::{PreviewKind, VersionId};
+use leyline_sdk::{PickState, PreviewKind, VersionId};
 use slint::{ComponentHandle, Global, Model, ModelRc, SharedString, VecModel};
 
 /// Fills the side panel when a cell is clicked or reached with the arrows.
 pub(crate) fn wire_select(app: &Rc<RefCell<App>>, window: &StudioWindow) {
+    {
+        // The loupe was turned on or off (ADR 0055 §3). Nothing is opened
+        // and nothing is written: the same cached preview develop uses is
+        // read straight into the view, and dropped on the way out so a photo
+        // that has since been edited is not still hanging around in memory.
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        GridState::get(window).on_loupe_mode_changed(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let selected = GridState::get(&window).get_selected();
+            match (
+                GridState::get(&window).get_loupe_mode(),
+                item_at(&app, selected).map(|item| item.asset_id),
+            ) {
+                (true, Some(asset)) => show_loupe(&mut app, &window, asset),
+                _ => GridState::get(&window).set_loupe_image(slint::Image::default()),
+            }
+        });
+    }
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
@@ -124,6 +146,9 @@ pub(crate) fn load_window(app: &mut App, window: &StudioWindow) -> Result<(), St
             label: label_color(item.color_label),
             has_label: item.color_label.is_some(),
             multi_selected: app.multi_selected.contains(&(range.start + index)),
+            flagged: item.pick == PickState::Pick,
+            rejected: item.pick == PickState::Reject,
+            edited: item.edited,
         });
     }
     let (visible, above): (VecDeque<usize>, VecDeque<usize>) = missing
@@ -174,11 +199,41 @@ pub(crate) fn reload(app: &mut App, window: &StudioWindow) -> Result<(), String>
     Ok(())
 }
 
+/// Puts one photo in the loupe (ADR 0055 §3).
+///
+/// The same `Small` preview the develop view reads, on purpose: the two share
+/// a cache entry, so looking at a photo before working on it costs the render
+/// once rather than twice. A preview that cannot be produced leaves the loupe
+/// empty and says so in the log — it is a way of looking, never a reason to
+/// interrupt what the user was doing.
+fn show_loupe(app: &mut App, window: &StudioWindow, asset: leyline_sdk::AssetId) {
+    match app
+        .library
+        .preview(asset, PreviewKind::Small)
+        .map_err(|e| e.to_string())
+        .and_then(|file| {
+            slint::Image::load_from_path(&file.path)
+                .map_err(|_| format!("cannot load preview {}", file.path.display()))
+        }) {
+        Ok(image) => GridState::get(window).set_loupe_image(image),
+        Err(error) => {
+            eprintln!("error: {error}");
+            GridState::get(window).set_loupe_image(slint::Image::default());
+        }
+    }
+}
+
 /// Reads and formats everything the side panel shows for one grid row.
 pub(crate) fn show_details(app: &mut App, window: &StudioWindow, index: i32) {
     let Some(asset) = item_at(app, index).map(|item| item.asset_id) else {
         return;
     };
+    // The loupe follows the selection rather than holding one of its own
+    // (ADR 0055 §3), so moving through the filmstrip or the arrows changes
+    // the photo it shows.
+    if GridState::get(window).get_loupe_mode() {
+        show_loupe(app, window, asset);
+    }
     let details = match app.library.catalog().asset_details(asset) {
         Ok(details) => details,
         Err(error) => {
@@ -211,13 +266,13 @@ pub(crate) fn show_details(app: &mut App, window: &StudioWindow, index: i32) {
     DetailState::get(window).set_detail_camera(SharedString::from(
         meta.and_then(|m| m.camera.as_ref()).map_or_else(
             || "—".to_owned(),
-            |c| format!("{} {}", c.manufacturer, c.model),
+            |c| format::maker_and_model(&c.manufacturer, &c.model),
         ),
     ));
     DetailState::get(window).set_detail_lens(SharedString::from(
         meta.and_then(|m| m.lens.as_ref()).map_or_else(
             || "—".to_owned(),
-            |l| format!("{} {}", l.manufacturer, l.model),
+            |l| format::maker_and_model(&l.manufacturer, &l.model),
         ),
     ));
     DetailState::get(window).set_detail_exposure(SharedString::from(

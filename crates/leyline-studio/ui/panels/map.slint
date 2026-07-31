@@ -14,6 +14,13 @@ export component MapPanel inherits HorizontalLayout {
             padding: 12px;
             spacing: 8px;
 
+            // Clears the menu row, like every other whole-window panel: its
+            // own title used to sit under the File menu, and its buttons
+            // under the module switcher (ADR 0055 §1).
+            Rectangle {
+                height: 28px;
+            }
+
             HorizontalLayout {
                 height: 28px;
                 spacing: 8px;

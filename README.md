@@ -9,6 +9,8 @@ on your machine: no account, no cloud, no subscription, no telemetry. Your
 photos stay where you put them, and the catalog holds only references, metadata
 and edit settings — never the images themselves.
 
+![The library](assets/screenshots/library.png)
+
 ![The develop view](assets/screenshots/develop.png)
 
 ## The promise the others don't make

@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::app::{App, item_at, report_error};
-use crate::ui::{CollectionState, DialogState, GridState, StudioWindow, Tr};
+use crate::ui::{CollectionState, DialogState, FolderState, GridState, StudioWindow, Tr};
 use crate::wiring::grid::reload;
 use leyline_sdk::{CollectionId, CollectionNode, CollectionType};
 use slint::{ComponentHandle, Global, ModelRc, SharedString, VecModel};
@@ -28,6 +28,10 @@ pub(crate) fn wire_collections(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             } else {
                 -1
             });
+            // One selection across the whole sidebar (ADR 0055 §2): a
+            // collection replaces the folder filter rather than narrowing it.
+            FolderState::get(&window).set_active_folder(-1);
+            app.query.folder = None;
             app.query.collection = picked;
             if let Err(error) = reload(&mut app, &window) {
                 report_error(&window, &error);

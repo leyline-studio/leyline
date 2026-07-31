@@ -11,6 +11,7 @@ use std::time::Duration;
 use crate::app::{App, MAX_PREVIEW_JOBS, item_at, report_error};
 use crate::models::{export_summary, import_summary, print_summary};
 use crate::ui::{DialogState, GridState, StudioWindow, Tr};
+use crate::wiring::folders::refresh_folders;
 use crate::wiring::grid::{reload, show_details};
 use crate::wiring::map::refresh_map_pins;
 use leyline_sdk::{AssetId, Event, JobResult, PreviewKind};
@@ -170,6 +171,12 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
             if app.develop.is_none()
                 && let Err(error) = reload(app, window)
             {
+                report_error(window, &error);
+            }
+            // An import can also create folders (ADR 0055 §2), and a sidebar
+            // whose tree stops at the last relaunch would send the user
+            // looking for photos it just told them arrived.
+            if let Err(error) = refresh_folders(app, window) {
                 report_error(window, &error);
             }
             // Map mode fetches pins once on entry, but tethered capture

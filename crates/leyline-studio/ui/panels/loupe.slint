@@ -1,0 +1,70 @@
+// The loupe view (ADR 0055 §3): the selected photo, large, with the strip of
+// its neighbours under it (ADR 0045 §3).
+//
+// Same shape as the develop and map panels — a whole-window mode gated on a
+// flag, inheriting a layout and setting no geometry of its own.
+//
+// What makes it worth existing next to develop: **no edit session is
+// opened**. It shows the cached preview and nothing else, so it costs a file
+// read, creates no revision and has nothing to undo. Looking at a photo and
+// working on it are two different intentions, and only one of them should
+// write to the catalog.
+
+import { GridState } from "../state/grid.slint";
+import { DevelopState } from "../state/develop.slint";
+import { Filmstrip, FilterChip, ViewModeChips } from "../widgets/controls.slint";
+
+export component LoupePanel inherits VerticalLayout {
+    visible: GridState.loupe-mode;
+    padding: 12px;
+    spacing: 8px;
+
+    // Clears the menu row above, like every other whole-window panel.
+    Rectangle {
+        height: 28px;
+    }
+
+    HorizontalLayout {
+        height: 24px;
+        spacing: 8px;
+        alignment: start;
+
+        ViewModeChips {
+            loupe: true;
+            show-grid => {
+                GridState.loupe-mode = false;
+                GridState.loupe-mode-changed();
+            }
+            show-loupe => { }
+        }
+        FilterChip {
+            text: @tr("Develop    D");
+            active: false;
+            enabled: GridState.selected >= 0;
+            clicked => {
+                GridState.loupe-mode = false;
+                GridState.loupe-mode-changed();
+                DevelopState.enter-develop();
+            }
+        }
+    }
+
+    Image {
+        source: GridState.loupe-image;
+        image-fit: contain;
+        vertical-stretch: 1;
+    }
+
+    Filmstrip {
+        cells: GridState.cells;
+        window-start: GridState.window-start;
+        selected: GridState.selected;
+        clicked(index) => {
+            // Plain selection, exactly what clicking the same photo in the
+            // grid does — the loupe follows the selection rather than owning
+            // one of its own.
+            GridState.selected = index;
+            GridState.select(index);
+        }
+    }
+}

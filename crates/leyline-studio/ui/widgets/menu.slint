@@ -37,6 +37,39 @@ export component TopMenuLabel inherits Rectangle {
     }
 }
 
+// One entry of the module switcher (ADR 0055 §1). The module one is already
+// in reads as a title, the others as links — no background plate, because a
+// row of buttons at the right end of the menu bar would compete with the menu
+// labels at its left end, and only one of the two is a navigation.
+export component ModuleLabel inherits Rectangle {
+    in property <string> title;
+    in property <bool> current;
+    in property <bool> enabled: true;
+    callback clicked;
+
+    height: 28px;
+    width: label.preferred-width + 14px;
+
+    label := Text {
+        text: root.title;
+        color: !root.enabled ? #555555 : (root.current ? #f0f0f0 : #9a9a9a);
+        font-size: 13px;
+        font-weight: root.current ? 700 : 400;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        width: 100%;
+        height: 100%;
+    }
+    TouchArea {
+        // Clicking the module one is in does nothing, and says so by not
+        // lighting up.
+        enabled: root.enabled && !root.current;
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
 export component MenuDropdown inherits Rectangle {
     // Without explicit sizing, a bare `Rectangle` defaults to filling its
     // parent — here that's the full-window click-catcher, which made every

@@ -23,6 +23,11 @@ export struct Cell {
     // — the single-index focus/anchor kept for keyboard nav and the detail
     // panel.
     multi-selected: bool,
+    // The three badges of a cell (ADR 0055 §5): kept apart rather than
+    // pre-composed into a string, because they sit in different corners.
+    flagged: bool,
+    rejected: bool,
+    edited: bool,
 }
 
 // One row of the collections sidebar, already flattened by Rust.
@@ -30,6 +35,16 @@ export struct CollectionRow {
     name: string,
     depth: int,
     smart: bool,
+}
+
+// One row of the folder tree in the sidebar (ADR 0055 §2). Rust sends the
+// last path segment and the depth it sits at — the panel indents, and never
+// splits a path itself.
+export struct FolderRow {
+    name: string,
+    depth: int,
+    // Photos directly in that folder; shown as-is, blank when none.
+    count: int,
 }
 
 // One tone-curve control point marker, already mapped into the curve

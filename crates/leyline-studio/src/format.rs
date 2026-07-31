@@ -48,6 +48,17 @@ pub fn shutter(value: Rational) -> String {
     }
 }
 
+/// A body or a lens as one line: `Canon EOS 5D Mark IV`.
+///
+/// Either half can be missing — plenty of lenses report a model and no maker
+/// — and joining them blindly then leaves a leading space that reads as a
+/// bad character rather than as a missing brand.
+pub fn maker_and_model(manufacturer: &str, model: &str) -> String {
+    format!("{} {}", manufacturer.trim(), model.trim())
+        .trim()
+        .to_owned()
+}
+
 /// A sensitivity as `ISO 100`.
 pub fn iso(value: u32) -> String {
     format!("ISO {value}")
@@ -147,6 +158,20 @@ mod tests {
         assert_eq!(aperture(rational(8, 1)), "f/8");
         assert_eq!(focal(rational(70, 1)), "70 mm");
         assert_eq!(iso(100), "ISO 100");
+    }
+
+    #[test]
+    fn joins_a_maker_and_a_model_without_leaving_a_stray_space() {
+        assert_eq!(
+            maker_and_model("Canon", "EOS 5D Mark IV"),
+            "Canon EOS 5D Mark IV"
+        );
+        assert_eq!(
+            maker_and_model("", "EF70-200mm f/2.8L IS USM"),
+            "EF70-200mm f/2.8L IS USM"
+        );
+        assert_eq!(maker_and_model("Leica", ""), "Leica");
+        assert_eq!(maker_and_model("", ""), "");
     }
 
     #[test]

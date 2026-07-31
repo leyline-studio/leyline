@@ -21,7 +21,7 @@ import { FilterState } from "../state/filter.slint";
 import { GridState } from "../state/grid.slint";
 import { LibraryState } from "../state/library.slint";
 import { MapState } from "../state/map.slint";
-import { MenuDropdown, MenuRow, MenuSep, SubmenuHeader, TopMenuLabel } from "../widgets/menu.slint";
+import { MenuDropdown, MenuRow, MenuSep, ModuleLabel, SubmenuHeader, TopMenuLabel } from "../widgets/menu.slint";
 
 export component MenuBar inherits Rectangle {
     // Which top-level menu is open: "" or one of "file"/"library"/"photo"/
@@ -63,7 +63,7 @@ export component MenuBar inherits Rectangle {
         }
 
         if root.open-menu == "file": MenuDropdown {
-            x: file-label.x;
+            x: menus.x + file-label.x;
             y: 28px;
             MenuRow {
                 title: @tr("Import…    I");
@@ -74,7 +74,7 @@ export component MenuBar inherits Rectangle {
                 }
             }
             MenuRow {
-                title: @tr("Export…    E");
+                title: @tr("Export…    Ctrl+E");
                 activated => {
                     DialogState.open-export();
                     root.open-menu = "";
@@ -151,7 +151,7 @@ export component MenuBar inherits Rectangle {
         }
 
         if root.open-menu == "library": MenuDropdown {
-            x: library-label.x;
+            x: menus.x + library-label.x;
             y: 28px;
             MenuRow {
                 title: @tr("New Collection…    N");
@@ -188,7 +188,7 @@ export component MenuBar inherits Rectangle {
         }
 
         if root.open-menu == "photo": MenuDropdown {
-            x: photo-label.x;
+            x: menus.x + photo-label.x;
             y: 28px;
             SubmenuHeader {
                 title: @tr("Rate");
@@ -350,7 +350,7 @@ export component MenuBar inherits Rectangle {
         }
 
         if root.open-menu == "develop-menu" && DevelopState.develop-mode: MenuDropdown {
-            x: develop-label.x;
+            x: menus.x + develop-label.x;
             y: 28px;
             MenuRow {
                 title: @tr("Undo    Ctrl+Z");
@@ -419,13 +419,29 @@ export component MenuBar inherits Rectangle {
         }
 
         if root.open-menu == "view": MenuDropdown {
-            x: view-label.x;
+            x: menus.x + view-label.x;
             y: 28px;
             MenuRow {
                 title: @tr("Library    G");
-                enabled: DevelopState.develop-mode;
+                enabled: DevelopState.develop-mode || GridState.loupe-mode;
                 activated => {
-                    DevelopState.exit-develop();
+                    if (DevelopState.develop-mode) {
+                        DevelopState.exit-develop();
+                    }
+                    GridState.loupe-mode = false;
+                    GridState.loupe-mode-changed();
+                    root.open-menu = "";
+                }
+            }
+            // The same photo, large, without an edit session behind it
+            // (ADR 0055 §3).
+            MenuRow {
+                title: @tr("Loupe    E");
+                enabled: !DevelopState.develop-mode && !GridState.loupe-mode
+                    && GridState.selected >= 0;
+                activated => {
+                    GridState.loupe-mode = true;
+                    GridState.loupe-mode-changed();
                     root.open-menu = "";
                 }
             }
@@ -433,14 +449,27 @@ export component MenuBar inherits Rectangle {
                 title: @tr("Develop    D");
                 enabled: !DevelopState.develop-mode && GridState.selected >= 0;
                 activated => {
+                    GridState.loupe-mode = false;
                     DevelopState.enter-develop();
+                    root.open-menu = "";
+                }
+            }
+            MenuRow {
+                title: @tr("Map    M");
+                enabled: !MapState.map-mode;
+                activated => {
+                    if (DevelopState.develop-mode) {
+                        DevelopState.exit-develop();
+                    }
+                    GridState.loupe-mode = false;
+                    MapState.enter-map();
                     root.open-menu = "";
                 }
             }
         }
 
         if root.open-menu == "help": MenuDropdown {
-            x: help-label.x;
+            x: menus.x + help-label.x;
             y: 28px;
             MenuRow {
                 title: @tr("Keyboard Shortcuts…");
@@ -494,57 +523,129 @@ export component MenuBar inherits Rectangle {
         x: 0;
         y: 0;
         height: 28px;
-        alignment: start;
+        // The menus keep the left end, the module switcher takes the right
+        // end (ADR 0055 §1), and neither group is stretched: `space-between`
+        // pushes the two apart while leaving every label at its own width.
+        // The dropdowns below therefore anchor on `menus.x + <label>.x`,
+        // since their `x` is measured from the window rather than from this
+        // inner row.
+        alignment: space-between;
         padding-left: 4px;
-        spacing: 2px;
+        padding-right: 8px;
 
-        file-label := TopMenuLabel {
-            title: @tr("File");
-            active: root.open-menu == "file";
-            clicked => {
-                root.open-menu = root.open-menu == "file" ? "" : "file";
-                root.reset-submenus();
+        menus := HorizontalLayout {
+            spacing: 2px;
+
+            file-label := TopMenuLabel {
+                title: @tr("File");
+                active: root.open-menu == "file";
+                clicked => {
+                    root.open-menu = root.open-menu == "file" ? "" : "file";
+                    root.reset-submenus();
+                }
+            }
+            library-label := TopMenuLabel {
+                title: @tr("Library");
+                active: root.open-menu == "library";
+                clicked => {
+                    root.open-menu = root.open-menu == "library" ? "" : "library";
+                    root.reset-submenus();
+                }
+            }
+            photo-label := TopMenuLabel {
+                title: @tr("Photo");
+                active: root.open-menu == "photo";
+                clicked => {
+                    root.open-menu = root.open-menu == "photo" ? "" : "photo";
+                    root.reset-submenus();
+                }
+            }
+            develop-label := TopMenuLabel {
+                title: @tr("Develop");
+                active: root.open-menu == "develop-menu";
+                enabled: DevelopState.develop-mode;
+                clicked => {
+                    root.open-menu = root.open-menu == "develop-menu" ? "" : "develop-menu";
+                    root.reset-submenus();
+                }
+            }
+            view-label := TopMenuLabel {
+                title: @tr("View");
+                active: root.open-menu == "view";
+                clicked => {
+                    root.open-menu = root.open-menu == "view" ? "" : "view";
+                    root.reset-submenus();
+                }
+            }
+            help-label := TopMenuLabel {
+                title: @tr("Help");
+                active: root.open-menu == "help";
+                clicked => {
+                    root.open-menu = root.open-menu == "help" ? "" : "help";
+                    root.reset-submenus();
+                }
             }
         }
-        library-label := TopMenuLabel {
-            title: @tr("Library");
-            active: root.open-menu == "library";
-            clicked => {
-                root.open-menu = root.open-menu == "library" ? "" : "library";
-                root.reset-submenus();
+
+        // Module switcher (ADR 0055 §1): the three whole-window views, in the
+        // corner where someone arriving from Lightroom looks first. Each
+        // entry leaves the current view before entering its own, so the two
+        // exclusive modes can never both be on. *Print* is deliberately
+        // absent — it is a dialog, an action that ends, not a place one stays
+        // (ADR 0055 §1, Alternatives).
+        HorizontalLayout {
+            spacing: 0px;
+
+            ModuleLabel {
+                title: @tr("Library");
+                current: !DevelopState.develop-mode && !MapState.map-mode;
+                clicked => {
+                    if (DevelopState.develop-mode) {
+                        DevelopState.exit-develop();
+                    }
+                    if (MapState.map-mode) {
+                        MapState.exit-map();
+                    }
+                    root.open-menu = "";
+                }
             }
-        }
-        photo-label := TopMenuLabel {
-            title: @tr("Photo");
-            active: root.open-menu == "photo";
-            clicked => {
-                root.open-menu = root.open-menu == "photo" ? "" : "photo";
-                root.reset-submenus();
+            Text {
+                text: "|";
+                color: #4a4a4a;
+                font-size: 13px;
+                vertical-alignment: center;
             }
-        }
-        develop-label := TopMenuLabel {
-            title: @tr("Develop");
-            active: root.open-menu == "develop-menu";
-            enabled: DevelopState.develop-mode;
-            clicked => {
-                root.open-menu = root.open-menu == "develop-menu" ? "" : "develop-menu";
-                root.reset-submenus();
+            ModuleLabel {
+                title: @tr("Develop");
+                current: DevelopState.develop-mode;
+                // Develop is about *a* photo: without a selection there is
+                // nothing to develop, exactly as the Develop menu is already
+                // greyed out in that case.
+                enabled: GridState.selected >= 0;
+                clicked => {
+                    if (MapState.map-mode) {
+                        MapState.exit-map();
+                    }
+                    DevelopState.enter-develop();
+                    root.open-menu = "";
+                }
             }
-        }
-        view-label := TopMenuLabel {
-            title: @tr("View");
-            active: root.open-menu == "view";
-            clicked => {
-                root.open-menu = root.open-menu == "view" ? "" : "view";
-                root.reset-submenus();
+            Text {
+                text: "|";
+                color: #4a4a4a;
+                font-size: 13px;
+                vertical-alignment: center;
             }
-        }
-        help-label := TopMenuLabel {
-            title: @tr("Help");
-            active: root.open-menu == "help";
-            clicked => {
-                root.open-menu = root.open-menu == "help" ? "" : "help";
-                root.reset-submenus();
+            ModuleLabel {
+                title: @tr("Map");
+                current: MapState.map-mode;
+                clicked => {
+                    if (DevelopState.develop-mode) {
+                        DevelopState.exit-develop();
+                    }
+                    MapState.enter-map();
+                    root.open-menu = "";
+                }
             }
         }
     }
