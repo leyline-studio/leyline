@@ -19,6 +19,12 @@ export component DevelopPanel inherits HorizontalLayout {
     // Accordion state — basic adjustments start open, the rest start
     // collapsed so a photo that only needs exposure/white-balance doesn't
     // force scrolling past groups that weren't touched.
+    // Progressive disclosure (ADR 0054 §2): Basic shows what has an obvious
+    // equivalent in any photo tool, Full shows the fifteen groups and the six
+    // tools. Panel-private, like every other bit of interface state here: Rust
+    // never reads it, and it deliberately survives nothing — not a file, not a
+    // preset, not a session (§3).
+    property <bool> basic-mode: true;
     property <bool> expand-white-balance: true;
     property <bool> expand-tone: true;
     property <bool> expand-presence: false;
@@ -130,7 +136,7 @@ export component DevelopPanel inherits HorizontalLayout {
                         root.dev-zoomed = false;
                     }
                 }
-                FilterChip {
+                if !root.basic-mode: FilterChip {
                     text: @tr("Spot Removal");
                     active: root.active-tool == "spot";
                     clicked => {
@@ -142,7 +148,8 @@ export component DevelopPanel inherits HorizontalLayout {
                 // and Spot Removal they assume the fit-to-window letterbox,
                 // so picking one drops the loupe back to fit; each also opens
                 // the panel section that shows what the gesture just wrote.
-                FilterChip {
+                // Full mode only (ADR 0054 §2).
+                if !root.basic-mode: FilterChip {
                     text: @tr("Radial");
                     active: root.active-tool == "radial";
                     clicked => {
@@ -152,7 +159,7 @@ export component DevelopPanel inherits HorizontalLayout {
                         root.expand-local = true;
                     }
                 }
-                FilterChip {
+                if !root.basic-mode: FilterChip {
                     text: @tr("Gradient");
                     active: root.active-tool == "gradient";
                     clicked => {
@@ -162,7 +169,7 @@ export component DevelopPanel inherits HorizontalLayout {
                         root.expand-local = true;
                     }
                 }
-                FilterChip {
+                if !root.basic-mode: FilterChip {
                     text: @tr("Brush");
                     active: root.active-tool == "brush";
                     clicked => {
@@ -540,6 +547,32 @@ export component DevelopPanel inherits HorizontalLayout {
                         height: 28px;
                     }
 
+                    // Leaving Full mode drops any tool it alone showed, so a
+                    // click on the image cannot keep tracing a mask whose
+                    // panel is no longer visible (ADR 0054, Conséquences).
+                    HorizontalLayout {
+                        spacing: 6px;
+                        alignment: start;
+                        FilterChip {
+                            text: @tr("Basic");
+                            active: root.basic-mode;
+                            clicked => {
+                                root.basic-mode = true;
+                                if (root.active-tool != "select" && root.active-tool != "crop") {
+                                    root.active-tool = "select";
+                                    root.spot-pending = false;
+                                }
+                            }
+                        }
+                        FilterChip {
+                            text: @tr("Full");
+                            active: !root.basic-mode;
+                            clicked => {
+                                root.basic-mode = false;
+                            }
+                        }
+                    }
+
                     Text {
                         text: @tr("Presets");
                         color: #9a9a9a;
@@ -721,21 +754,21 @@ export component DevelopPanel inherits HorizontalLayout {
                     if root.expand-presence: VerticalLayout {
                         spacing: 12px;
                         EditSlider {
-                            label: @tr("Clarity");
-                            minimum: -100;
-                            maximum: 100;
-                            value: DevelopState.dev.clarity;
-                            edited(v) => {
-                                DevelopState.develop-edit("clarity", v);
-                            }
-                        }
-                        EditSlider {
                             label: @tr("Texture");
                             minimum: -100;
                             maximum: 100;
                             value: DevelopState.dev.texture;
                             edited(v) => {
                                 DevelopState.develop-edit("texture", v);
+                            }
+                        }
+                        EditSlider {
+                            label: @tr("Clarity");
+                            minimum: -100;
+                            maximum: 100;
+                            value: DevelopState.dev.clarity;
+                            edited(v) => {
+                                DevelopState.develop-edit("clarity", v);
                             }
                         }
                         EditSlider {
@@ -750,13 +783,15 @@ export component DevelopPanel inherits HorizontalLayout {
                         // What the *decoder* does with a channel that
                         // saturated at the sensor (ADR 0050), as opposed to
                         // the roll-off below, which decides what becomes of
-                        // the headroom on the way out.
-                        Text {
+                        // the headroom on the way out. Full mode only: it
+                        // supposes knowing what a clipped channel is
+                        // (ADR 0054 §2).
+                        if !root.basic-mode: Text {
                             text: @tr("Clipped highlights");
                             color: #9a9a9a;
                             font-size: 12px;
                         }
-                        HorizontalLayout {
+                        if !root.basic-mode: HorizontalLayout {
                             spacing: 6px;
                             alignment: start;
                             FilterChip {
@@ -782,15 +817,6 @@ export component DevelopPanel inherits HorizontalLayout {
                             }
                         }
                         EditSlider {
-                            label: @tr("Highlight roll-off");
-                            minimum: 0;
-                            maximum: 100;
-                            value: DevelopState.dev.highlight-rolloff;
-                            edited(v) => {
-                                DevelopState.develop-edit("highlight-rolloff", v);
-                            }
-                        }
-                        EditSlider {
                             label: @tr("Vibrance");
                             minimum: -100;
                             maximum: 100;
@@ -808,13 +834,26 @@ export component DevelopPanel inherits HorizontalLayout {
                                 DevelopState.develop-edit("saturation", v);
                             }
                         }
+                        // An output decision rather than a presence one, and
+                        // one that supposes knowing what headroom above white
+                        // is: Full mode, after the sequence rather than inside
+                        // it (ADR 0054 §2).
+                        if !root.basic-mode: EditSlider {
+                            label: @tr("Highlight roll-off");
+                            minimum: 0;
+                            maximum: 100;
+                            value: DevelopState.dev.highlight-rolloff;
+                            edited(v) => {
+                                DevelopState.develop-edit("highlight-rolloff", v);
+                            }
+                        }
                     }
 
-                    GroupHeader {
+                    if !root.basic-mode: GroupHeader {
                         label: @tr("Camera profile");
                         expanded <=> root.expand-camera-profile;
                     }
-                    if root.expand-camera-profile: VerticalLayout {
+                    if !root.basic-mode && root.expand-camera-profile: VerticalLayout {
                         spacing: 8px;
                         // The matrix path has not been validated against
                         // Adobe's own renders yet (`docs/pipeline.md`
@@ -854,14 +893,14 @@ export component DevelopPanel inherits HorizontalLayout {
                         }
                     }
 
-                    GroupHeader {
+                    if !root.basic-mode: GroupHeader {
                         label: @tr("Creative LUT");
                         expanded <=> root.expand-lut;
                     }
                     // A look chosen elsewhere and imported into the library
                     // (ADR 0053), as opposed to the color operators above,
                     // which are Leyline's own.
-                    if root.expand-lut: VerticalLayout {
+                    if !root.basic-mode && root.expand-lut: VerticalLayout {
                         spacing: 8px;
                         Text {
                             text: DevelopState.lut-name == ""
@@ -967,11 +1006,11 @@ export component DevelopPanel inherits HorizontalLayout {
                         }
                     }
 
-                    GroupHeader {
+                    if !root.basic-mode: GroupHeader {
                         label: @tr("Tone Curve");
                         expanded <=> root.expand-tone-curve;
                     }
-                    if root.expand-tone-curve: VerticalLayout {
+                    if !root.basic-mode && root.expand-tone-curve: VerticalLayout {
                         spacing: 8px;
                         Text {
                             text: @tr("Click to add a point, click a point to remove it.");
@@ -1034,11 +1073,11 @@ export component DevelopPanel inherits HorizontalLayout {
                         }
                     }
 
-                    GroupHeader {
+                    if !root.basic-mode: GroupHeader {
                         label: @tr("HSL Mixer");
                         expanded <=> root.expand-hsl;
                     }
-                    if root.expand-hsl: VerticalLayout {
+                    if !root.basic-mode && root.expand-hsl: VerticalLayout {
                         spacing: 14px;
                         for band[i] in DevelopState.dev.hsl: VerticalLayout {
                             spacing: 6px;
@@ -1078,11 +1117,11 @@ export component DevelopPanel inherits HorizontalLayout {
                         }
                     }
 
-                    GroupHeader {
+                    if !root.basic-mode: GroupHeader {
                         label: @tr("Color Grading");
                         expanded <=> root.expand-color-grading;
                     }
-                    if root.expand-color-grading: VerticalLayout {
+                    if !root.basic-mode && root.expand-color-grading: VerticalLayout {
                         spacing: 14px;
                         VerticalLayout {
                             spacing: 6px;
@@ -1212,11 +1251,11 @@ export component DevelopPanel inherits HorizontalLayout {
                         }
                     }
 
-                    GroupHeader {
+                    if !root.basic-mode: GroupHeader {
                         label: @tr("Spot Removal");
                         expanded <=> root.expand-spot-removal;
                     }
-                    if root.expand-spot-removal: VerticalLayout {
+                    if !root.basic-mode && root.expand-spot-removal: VerticalLayout {
                         spacing: 8px;
                         Text {
                             text: @tr("Pick the Spot Removal tool above, click a clean source, then the spot to fix.");
@@ -1331,7 +1370,7 @@ export component DevelopPanel inherits HorizontalLayout {
                         }
                     }
 
-                    GroupHeader {
+                    if !root.basic-mode: GroupHeader {
                         label: @tr("Local Adjustments");
                         expanded <=> root.expand-local;
                     }
@@ -1339,7 +1378,7 @@ export component DevelopPanel inherits HorizontalLayout {
                     // masks of ADR 0048 (ADR 0049): a list of entries, the
                     // selected one's values below it. Geometry is traced on the
                     // image with the three tools above, never typed here.
-                    if root.expand-local: VerticalLayout {
+                    if !root.basic-mode && root.expand-local: VerticalLayout {
                         spacing: 8px;
                         Text {
                             text: @tr("Pick Radial, Gradient or Brush above and draw on the photo. Click a row to edit it; drawing again moves the selected mask.");
@@ -1703,14 +1742,14 @@ export component DevelopPanel inherits HorizontalLayout {
                         }
                     }
 
-                    GroupHeader {
+                    if !root.basic-mode: GroupHeader {
                         label: @tr("Soft Proof");
                         expanded <=> root.expand-proof;
                     }
                     // A way of looking at the photo, not a setting of it
                     // (ADR 0034): nothing here is stored, and leaving the
                     // proof shows the real render again.
-                    if root.expand-proof: VerticalLayout {
+                    if !root.basic-mode && root.expand-proof: VerticalLayout {
                         spacing: 8px;
                         Text {
                             text: @tr("Shows the photo as a destination profile would reproduce it. Never stored, never exported.");

@@ -1553,3 +1553,23 @@ msgstr "Retirer"
 
 msgid "Strength"
 msgstr "Intensité"
+
+# First run and Basic/Full disclosure (ADR 0054).
+
+msgid "Basic"
+msgstr "Basique"
+
+msgid "Full"
+msgstr "Complet"
+
+msgid "Import a folder of photos, or watch one so new shots arrive on their own."
+msgstr "Importez un dossier de photos, ou surveillez-en un pour que les nouvelles prises arrivent toutes seules."
+
+msgid "Import photos…"
+msgstr "Importer des photos…"
+
+msgid "No photos yet"
+msgstr "Aucune photo pour l'instant"
+
+msgid "Watch a folder…"
+msgstr "Surveiller un dossier…"

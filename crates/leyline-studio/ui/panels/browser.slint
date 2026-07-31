@@ -259,6 +259,58 @@ export component BrowserPanel inherits HorizontalLayout {
                 font-size: 13px;
             }
 
+            // An empty library says what to do, where the photos would be
+            // (ADR 0054 §1) — the grid is the first thing a new user looks at,
+            // and a bare one told them nothing.
+            // Left-aligned with its own padding rather than centred: the
+            // centring depended on the column's width reaching this block,
+            // which it does not do predictably here, and an empty state that
+            // drifts is worse than one that sits where the first thumbnail
+            // would.
+            if GridState.total-cells == 0: VerticalLayout {
+                vertical-stretch: 1;
+                alignment: start;
+                spacing: 10px;
+                padding-top: 32px;
+                padding-left: 8px;
+                padding-right: 24px;
+
+                Text {
+                    text: @tr("No photos yet");
+                    color: #e6e6e6;
+                    font-size: 18px;
+                }
+                Text {
+                    // `word-wrap` needs a width to wrap against, and a width
+                    // read off the parent is a layout cycle — Slint answers
+                    // that one with "Recursion detected" at startup, the
+                    // geometry hazard of ADR 0045 §3 in its most literal form.
+                    width: 420px;
+                    text: @tr("Import a folder of photos, or watch one so new shots arrive on their own.");
+                    color: #9a9a9a;
+                    font-size: 13px;
+                    wrap: word-wrap;
+                }
+                HorizontalLayout {
+                    spacing: 10px;
+                    alignment: start;
+                    FilterChip {
+                        text: @tr("Import photos…");
+                        active: true;
+                        clicked => {
+                            DialogState.dialog = "import";
+                        }
+                    }
+                    FilterChip {
+                        text: @tr("Watch a folder…");
+                        active: false;
+                        clicked => {
+                            DialogState.open-watch();
+                        }
+                    }
+                }
+            }
+
             flick := Flickable {
                 property <int> columns: max(1, Math.floor(self.width / root.cell-size));
                 // Virtual scrolling: only the loaded window has cells, but

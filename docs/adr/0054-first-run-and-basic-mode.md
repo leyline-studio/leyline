@@ -50,14 +50,24 @@ Deux niveaux de dévoilement, choisis par un interrupteur en tête du panneau :
 
 | | Basique (défaut) | Complet |
 | :--- | :--- | :--- |
-| Groupes | Balance des blancs, Tonalité, Présence, Détail, Géométrie, Historique | les quinze |
+| Groupes | Balance des blancs, Tonalité, Présence, Correction d'objectif, Détail, Géométrie, Historique | les quinze |
 | Outils sur l'image | Sélection, Recadrage | les six |
 
 Le partage n'est pas arbitraire : **Basique contient ce qui a un équivalent
 évident dans n'importe quel outil photo** — une température, une exposition, un
-recadrage. Complet contient ce qui suppose de savoir ce qu'on cherche : masques
+recadrage, un interrupteur de correction d'objectif. Complet contient ce qui suppose de savoir ce qu'on cherche : masques
 locaux, LUT, épreuvage, profil DCP, courbe, TSL, color grading, suppression de
 tache, reconstruction des hautes lumières.
+
+**L'ordre à l'intérieur de Basique suit le geste, pas l'ordre du modèle de
+données.** Balance des blancs, puis exposition, contraste, hautes lumières,
+ombres, blancs, noirs, puis texture, clarté, voile, éclat, saturation : c'est
+l'ordre dans lequel le panneau *Basic* de Lightroom est enseigné, parce qu'il
+suit la façon dont l'œil lit une image — la lumière d'abord, la matière ensuite,
+la couleur en dernier. Deux ajustements en découlent : *Texture* passe avant
+*Clarté*, et l'**épaule des hautes lumières** (`highlight_rolloff`) sort de la
+séquence pour rejoindre le mode Complet, étant une décision de *sortie* et non
+de présence.
 
 Trois propriétés à tenir :
 
