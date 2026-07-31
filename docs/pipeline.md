@@ -586,6 +586,8 @@ Prétendre l'inverse serait promettre ce qu'aucun moteur ne tient. Lightroom ne 
 
 Conséquence pratique : la chaîne d'outils est **épinglée sur une version exacte** dans `rust-toolchain.toml`. En changer est un acte délibéré, qui impose de rejouer les rendus de référence et de consigner toute dérive constatée — jamais l'effet de bord d'un correctif.
 
+Seconde conséquence, sur les rendus de référence eux-mêmes : leurs empreintes ont été bénies sur **une** plateforme, donc le garde qui les compare (`every_pinned_render_is_still_bit_identical`) ne s'exécute que là — sur les autres, il vérifierait une identité binaire que le paragraphe ci-dessus refuse justement de promettre, et il échoue effectivement sur macOS, au dernier bit, dans le seul cas qui appelle `powf`. Les deux autres gardes du manifeste ne comparent aucun pixel et tournent partout. Mesurer la dérive reste possible n'importe où : `cargo test -- --ignored`.
+
 ## 5.3 Déterminisme
 
 Les traitements doivent être **déterministes** : tout élément non déterministe (graine aléatoire, ordre des threads affectant le résultat) doit être fixé et enregistré dans les paramètres. Le parallélisme reste autorisé tant qu'il ne change ni la formule ni l'ordre des opérations pour un échantillon donné (ADR 0012).

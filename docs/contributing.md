@@ -73,6 +73,8 @@ make golden          # vérifier
 make golden-bless    # ajouter les entrées manquantes
 ```
 
+Le premier de ces gardes ne tourne que sur la plateforme de référence, celle où les empreintes ont été bénies : comparer des octets entre plateformes reviendrait à promettre ce que [`pipeline.md`](pipeline.md) §5.2 refuse d'affirmer. Les deux autres tournent partout.
+
 Le bénissage est **additif** : il n'écrase jamais une entrée existante. Si une empreinte déjà au manifeste change, c'est un défaut — du code gelé a été touché — et il se corrige dans le code, pas dans le manifeste. Les cas eux-mêmes sont gelés pour la même raison : exercer un opérateur autrement, c'est un nouveau cas.
 
 ## Toucher à l'interface de Studio

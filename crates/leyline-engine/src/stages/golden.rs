@@ -686,6 +686,24 @@ fn bless() {
 
 /// The freeze itself: every entry in the manifest still renders, through the
 /// stage versions it records, exactly the pixels it recorded.
+///
+/// **Runs on the reference platform only**, and that is not a weakening of the
+/// guard — it is what the guard actually promises. `docs/pipeline.md` §5.1
+/// makes bit-identity conditional on "the same platform and toolchain", and
+/// §5.2 says in as many words that `powf`/`ln`/`exp` come from the system math
+/// library and do not agree to the last bit between platforms. The manifest's
+/// digests were blessed on Linux with the pinned toolchain; asserting them on
+/// macOS asserts something the specification explicitly refuses to promise, and
+/// it does fail there — on the one case that calls `powf` (clarity/texture/
+/// dehaze), with every sampled pixel identical and only the digest apart.
+///
+/// The two guards below are pure registry checks, so they keep running
+/// everywhere. And `cargo test -- --ignored` still runs this one on any
+/// platform, for whoever wants to *measure* the drift rather than trip over it.
+#[cfg_attr(
+    not(target_os = "linux"),
+    ignore = "golden digests are pinned to the reference platform (docs/pipeline.md §5.2)"
+)]
 #[test]
 fn every_pinned_render_is_still_bit_identical() {
     if std::env::var_os("LEYLINE_BLESS_GOLDEN").is_some() {

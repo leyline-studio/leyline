@@ -254,7 +254,15 @@ mod tests {
             .expect("a Ready event within the stability window");
         match event {
             WatchSessionEvent::Ready(file) => {
-                assert_eq!(file.path, dir.path().join("shot.jpg"));
+                // Both sides are canonicalized: on macOS the temp directory
+                // lives under `/var`, which is a symlink to `/private/var`,
+                // and `notify` reports the resolved path while `TempDir`
+                // hands back the symlinked one. Comparing them raw is a
+                // platform difference, not a behavior.
+                assert_eq!(
+                    file.path.canonicalize().unwrap(),
+                    dir.path().join("shot.jpg").canonicalize().unwrap()
+                );
             }
             other => panic!("expected Ready, got {other:?}"),
         }
