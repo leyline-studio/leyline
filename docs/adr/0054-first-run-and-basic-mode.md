@@ -89,6 +89,15 @@ référence dans `assets/` :
   Et le signe explicite (`+12`) n'apparaît que sur les réglages à deux sens : une
   température en kelvins est une quantité, pas un écart.
 
+Sous l'histogramme, **quatre valeurs de prise de vue** : sensibilité, focale,
+ouverture, temps de pose, réparties sur la largeur. C'est ce qu'on vérifie *en
+corrigeant* une exposition — « est-ce que c'était déjà à 3200 ISO ? » — alors
+que le reste des métadonnées (fichier, dimensions, boîtier, objectif,
+mots-clés) reste où il est, dans le panneau de la bibliothèque. Elles décrivent
+le fichier et non la révision : elles viennent du catalogue, ne changent qu'en
+changeant de photo, et un fichier qui n'en a enregistré aucune n'affiche pas
+une ligne de tirets — la ligne disparaît.
+
 Le panneau ne liste plus les préréglages : c'est la *modification en cours*, pas
 la bibliothèque des modifications. Enregistrer, appliquer et supprimer un
 préréglage vivent dans le menu **Develop**, où étaient déjà les deux premiers.

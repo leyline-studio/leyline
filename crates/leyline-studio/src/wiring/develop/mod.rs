@@ -161,6 +161,7 @@ pub(crate) fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<()
             develop::histogram_layout(&bins[2], scale_max, CANVAS.0, CANVAS.1),
         ));
     }
+    show_capture_info(app, window, asset);
     // The develop target just changed (entered develop, or navigated to a
     // neighboring photo): any cached "before" render is for the wrong photo
     // now, and Compare Before/After starts back on "after" each time.
@@ -168,6 +169,44 @@ pub(crate) fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<()
     DevelopState::get(window).set_dev_compare(false);
     DevelopState::get(window).set_develop_image_before(slint::Image::default());
     Ok(())
+}
+
+/// Fills the four capture values shown under the histogram — sensitivity,
+/// focal length, aperture, time (ADR 0054 §2).
+///
+/// They describe the *file*, not the revision, so they come from the catalog
+/// rather than the edit session, and a photo whose file recorded none of them
+/// leaves all four empty: the panel then shows no row at all rather than a
+/// line of dashes. A read failure is treated the same way — the capture strip
+/// is an aid, never a reason to fail refreshing the view.
+fn show_capture_info(app: &mut App, window: &StudioWindow, asset: AssetId) {
+    let meta = app
+        .library
+        .catalog()
+        .asset_details(asset)
+        .ok()
+        .and_then(|details| details.metadata);
+    let state = DevelopState::get(window);
+    state.set_dev_iso(SharedString::from(
+        meta.as_ref()
+            .and_then(|m| m.iso)
+            .map_or_else(String::new, format::iso),
+    ));
+    state.set_dev_focal(SharedString::from(
+        meta.as_ref()
+            .and_then(|m| m.focal_length)
+            .map_or_else(String::new, format::focal),
+    ));
+    state.set_dev_aperture(SharedString::from(
+        meta.as_ref()
+            .and_then(|m| m.aperture)
+            .map_or_else(String::new, format::aperture),
+    ));
+    state.set_dev_shutter(SharedString::from(
+        meta.as_ref()
+            .and_then(|m| m.shutter)
+            .map_or_else(String::new, format::shutter),
+    ));
 }
 
 /// Opens develop mode for an explicit `(asset, version)` pair rather than

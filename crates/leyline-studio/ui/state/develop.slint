@@ -27,6 +27,14 @@ export global DevelopState {
     in property <string> dev-histogram-r;
     in property <string> dev-histogram-g;
     in property <string> dev-histogram-b;
+    // How the photo was taken, under the histogram: four values kept apart
+    // rather than one sentence, because the panel spreads them across its
+    // width. Each arrives already formatted (`format::iso`, `focal`,
+    // `aperture`, `shutter`) and empty when the file didn't record it.
+    in property <string> dev-iso;
+    in property <string> dev-focal;
+    in property <string> dev-aperture;
+    in property <string> dev-shutter;
     // Tone-curve graph state, mirrored from the current revision's
     // settings: line commands and marker positions, both already in the
     // canvas' own pixel space (`develop::curve_layout`).

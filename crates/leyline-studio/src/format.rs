@@ -48,6 +48,11 @@ pub fn shutter(value: Rational) -> String {
     }
 }
 
+/// A sensitivity as `ISO 100`.
+pub fn iso(value: u32) -> String {
+    format!("ISO {value}")
+}
+
 /// An aperture as `f/5.6`.
 pub fn aperture(value: Rational) -> String {
     format!("f/{}", trim(value.as_f64()))
@@ -82,8 +87,8 @@ pub fn dimensions(width: Option<u32>, height: Option<u32>) -> String {
 /// Absent values are simply skipped; all absent gives an empty string.
 pub fn exposure_line(meta: &Metadata) -> String {
     let mut parts = Vec::new();
-    if let Some(iso) = meta.iso {
-        parts.push(format!("ISO {iso}"));
+    if let Some(value) = meta.iso {
+        parts.push(iso(value));
     }
     if let Some(value) = meta.shutter {
         parts.push(shutter(value));
@@ -141,6 +146,7 @@ mod tests {
         assert_eq!(aperture(rational(56, 10)), "f/5.6");
         assert_eq!(aperture(rational(8, 1)), "f/8");
         assert_eq!(focal(rational(70, 1)), "70 mm");
+        assert_eq!(iso(100), "ISO 100");
     }
 
     #[test]

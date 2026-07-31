@@ -582,6 +582,42 @@ export component DevelopPanel inherits HorizontalLayout {
                         }
                     }
 
+                    // How the photo was taken, right under the histogram that
+                    // shows what came of it: sensitivity, focal length,
+                    // aperture, time. Read-only, and never a placeholder — a
+                    // file that recorded none of it shows nothing rather than
+                    // a row of dashes. The full metadata stays one keystroke
+                    // away in the library panel; this is the part one checks
+                    // *while* correcting an exposure.
+                    if DevelopState.dev-iso != "" || DevelopState.dev-focal != ""
+                        || DevelopState.dev-aperture != "" || DevelopState.dev-shutter != "":
+                    HorizontalLayout {
+                        alignment: space-between;
+                        padding-left: 4px;
+                        padding-right: 4px;
+                        padding-bottom: 2px;
+                        Text {
+                            text: DevelopState.dev-iso;
+                            color: #7a7a7a;
+                            font-size: 11px;
+                        }
+                        Text {
+                            text: DevelopState.dev-focal;
+                            color: #7a7a7a;
+                            font-size: 11px;
+                        }
+                        Text {
+                            text: DevelopState.dev-aperture;
+                            color: #7a7a7a;
+                            font-size: 11px;
+                        }
+                        Text {
+                            text: DevelopState.dev-shutter;
+                            color: #7a7a7a;
+                            font-size: 11px;
+                        }
+                    }
+
                     // Leaving Full mode drops any tool it alone showed, so a
                     // click on the image cannot keep tracing a mask whose
                     // panel is no longer visible (ADR 0054, Conséquences).
