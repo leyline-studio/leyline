@@ -20,7 +20,7 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use leyline_catalog::{
-    Catalog, CollectionNode, ExportPreset, KeywordNode, Preset, PrintPreset, SmartRules,
+    Catalog, CollectionNode, ExportPreset, FolderNode, KeywordNode, Preset, PrintPreset, SmartRules,
 };
 use leyline_core::{
     AssetId, CollectionId, ColorLabel, ExportPresetId, JobId, KeywordId, LeylineError, PickState,
@@ -413,6 +413,13 @@ impl Library {
     /// The collection tree, children under their parents (§9).
     pub fn collections(&self) -> Result<Vec<CollectionNode>> {
         self.catalog().collections()
+    }
+
+    /// Every folder of the library with its photo count, in display order
+    /// (§8) — what a sidebar folder tree lists (ADR 0055 §2). Read-only:
+    /// nothing here renames, moves or deletes a folder.
+    pub fn folders(&self) -> Result<Vec<FolderNode>> {
+        self.catalog().folders()
     }
 
     /// Imports files (`docs/engine-api.md` §6). `progress` receives

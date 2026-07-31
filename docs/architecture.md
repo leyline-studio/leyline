@@ -89,6 +89,7 @@ Chaque dépendance lourde a fait l'objet d'une décision écrite.
 | **libgphoto2** | Capture tethering USB | [ADR 0038](adr/0038-tethered-capture.md) |
 | **Rayon** | Parallélisme de données du moteur | [ADR 0012](adr/0012-rayon-data-parallelism.md) |
 | **BLAKE3** | Empreintes de fichiers | [ADR 0006](adr/0006-blake3.md) |
+| **kamadak-exif** | Lecture des EXIF des fichiers que LibRaw ne lit pas | [ADR 0056](adr/0056-non-raw-exif-import.md) |
 | **ab_glyph** | Rasterisation des glyphes du filigrane texte | [ADR 0051](adr/0051-watermark-rasterization-and-soft-proof-surface.md) |
 | **DejaVu Sans** (actif, non un crate) | Police embarquée du filigrane, pour un rendu identique sur tout poste | [ADR 0051](adr/0051-watermark-rasterization-and-soft-proof-surface.md) |
 | **rfd** | Sélecteurs de dossier natifs dans Studio | — |

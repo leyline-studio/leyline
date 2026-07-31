@@ -138,6 +138,16 @@ fn import_one(
         None
     };
 
+    // What LibRaw did not read still has EXIF, and the capture date is the
+    // most visible of it (ADR 0056). LibRaw keeps absolute precedence, so
+    // this runs only where there is nothing today; and it runs before the
+    // asset is written, since it feeds `NewAsset` as much as `metadata`.
+    let exif = if raw.is_none() {
+        crate::exif::read_exif(file)
+    } else {
+        None
+    };
+
     // Non-RAW images are probed for their dimensions when the header is
     // readable; unlike RAW files they still import when it is not —
     // decode problems surface at render time (preview, export), never as
@@ -169,8 +179,13 @@ fn import_one(
             checksum,
             width: raw.as_ref().map(|m| m.width).or(probed.map(|(w, _)| w)),
             height: raw.as_ref().map(|m| m.height).or(probed.map(|(_, h)| h)),
-            capture_date: raw.as_ref().and_then(|m| m.capture_ms),
-            capture_offset_minutes: None,
+            capture_date: raw
+                .as_ref()
+                .and_then(|m| m.capture_ms)
+                .or_else(|| exif.as_ref().and_then(|facts| facts.capture_date)),
+            // Only the EXIF path can know it: LibRaw reports a timestamp
+            // without ever saying which zone it was written in (ADR 0056 §4).
+            capture_offset_minutes: exif.as_ref().and_then(|facts| facts.capture_offset_minutes),
         },
         // The initial revision is stored, so it is pinned like any other
         // (`docs/pipeline.md` §3.3): neutral values, plus the versions of the
@@ -180,6 +195,12 @@ fn import_one(
     )?;
     if let Some(raw) = raw {
         catalog.set_metadata(registered.asset, &exif_metadata(&raw))?;
+    } else if let Some(metadata) = exif.and_then(|facts| facts.metadata) {
+        // Best-effort, unlike the RAW path: a metadata block the catalog
+        // refuses must not turn an otherwise correct import into a skip
+        // (ADR 0056 §5). The asset is already in, and only its metadata row
+        // would be lost.
+        let _ = catalog.set_metadata(registered.asset, &metadata);
     }
 
     // An XMP sidecar next to the *source* file seeds the fresh asset

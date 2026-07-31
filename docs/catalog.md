@@ -339,6 +339,8 @@ Convention :
 * `capture_offset_minutes` **connu** (EXIF `OffsetTimeOriginal`, ou GPS) : `capture_date` contient le véritable instant UTC ; l'affichage applique l'offset pour retrouver l'heure locale.
 * `capture_offset_minutes` **NULL** : l'heure murale EXIF est stockée telle quelle, interprétée comme UTC. L'affichage la restitue sans conversion.
 
+Cette colonne a un producteur depuis [ADR 0056](adr/0056-non-raw-exif-import.md) : l'import d'un fichier **non-RAW** lit `OffsetTimeOriginal` quand il est présent et renseigne alors les deux colonnes ensemble. Le chemin RAW, lui, ne fournit pas d'offset et laisse la colonne NULL — deuxième cas ci-dessus.
+
 Dans les deux cas :
 
 * le tri chronologique utilise `capture_date` directement ;

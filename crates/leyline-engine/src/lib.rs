@@ -13,6 +13,7 @@ mod camera_profile;
 mod decode_cache;
 mod downscale;
 mod events;
+mod exif;
 mod export;
 mod import;
 mod library;
