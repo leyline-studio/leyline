@@ -28,6 +28,7 @@ pub use assets::{CHECKSUM_LEN, NewAsset, RegisteredAsset};
 pub use collections::{CollectionNode, RatingRule, SmartRules};
 pub use details::AssetDetails;
 pub use exports::{ExportPreset, ExportRecord};
+pub use folders::FolderNode;
 pub use grid::{GridItem, GridQuery, Sort};
 pub use keywords::KeywordNode;
 pub use map::MapPin;

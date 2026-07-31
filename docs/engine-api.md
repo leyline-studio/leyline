@@ -261,6 +261,7 @@ pub struct GridItem {
     pub pick: PickState,
     pub width: Option<u32>,
     pub height: Option<u32>,
+    pub edited: bool,                    // plus que sa révision initiale (ADR 0055 §5)
 }
 
 impl Library {
@@ -309,6 +310,16 @@ impl Library {
     pub fn collections(&self) -> Result<Vec<CollectionNode>>;
 }
 ```
+
+Les **dossiers** se lisent par la même forme, en lecture seule (ADR 0055 §2) — rien ici ne renomme, ne déplace ni ne supprime un dossier, c'est de la gestion de fichiers :
+
+```rust
+impl Library {
+    pub fn folders(&self) -> Result<Vec<FolderNode>>;   // chemin, parent, nombre de photos
+}
+```
+
+Les lignes arrivent triées par chemin, c'est-à-dire en profondeur d'abord : un client peut indenter sur le nombre de segments sans parcourir d'arbre.
 
 Une collection intelligente s'interroge via `GridQuery { collection: Some(id), .. }` : le moteur traduit `SmartRules` en SQL (catalogue §26), le client ne voit pas la différence avec une collection manuelle.
 

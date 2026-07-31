@@ -39,7 +39,56 @@ fn validate_relative_path(path: &str) -> Result<()> {
     Ok(())
 }
 
+/// One row of the folder tree, as a sidebar lists it (ADR 0055 §2).
+///
+/// Flat rather than nested, unlike [`crate::CollectionNode`]: folder rows are
+/// produced already in display order by the path sort, so a tree would be
+/// built only to be flattened again.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FolderNode {
+    /// The folder itself.
+    pub folder: FolderId,
+    /// Its parent, absent for a root folder.
+    pub parent: Option<FolderId>,
+    /// Library-relative, forward-slashed path (§2.3).
+    pub relative_path: String,
+    /// Photos **directly** in this folder, missing ones excluded — the count
+    /// a folder row shows next to its name, which answers "is there anything
+    /// in there" rather than "how big is this subtree".
+    pub photo_count: u32,
+}
+
 impl Catalog {
+    /// Every folder, with its photo count, ordered by path.
+    ///
+    /// Sorting on the full relative path *is* depth-first order — a child's
+    /// path always starts with its parent's — so the caller can indent on
+    /// segment count without walking anything.
+    pub fn folders(&self) -> Result<Vec<FolderNode>> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT f.id, f.parent_id, f.relative_path, COUNT(a.id)
+                 FROM folders f
+                 LEFT JOIN assets a ON a.folder_id = f.id AND a.is_missing = 0
+                 GROUP BY f.id
+                 ORDER BY f.relative_path",
+            )
+            .map_err(db_err)?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok(FolderNode {
+                    folder: FolderId::new(row.get::<_, i64>(0)?),
+                    parent: row.get::<_, Option<i64>>(1)?.map(FolderId::new),
+                    relative_path: row.get::<_, String>(2)?,
+                    photo_count: row.get::<_, i64>(3)?.try_into().unwrap_or(u32::MAX),
+                })
+            })
+            .map_err(db_err)?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(db_err)
+    }
+
     /// Returns the folder at `relative_path`, creating it — and every missing
     /// ancestor — if needed. Idempotent.
     ///

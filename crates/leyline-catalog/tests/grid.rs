@@ -273,3 +273,31 @@ fn grid_shows_the_current_version_not_all_versions() {
     assert!(versions(&items).contains(&bw));
     assert!(!versions(&items).contains(&heron.version));
 }
+
+#[test]
+fn a_cell_says_whether_its_version_has_been_developed() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+    let untouched = add(&mut catalog, "Photos", "a.CR3", Some(1_000));
+    let worked_on = add(&mut catalog, "Photos", "b.CR3", Some(2_000));
+
+    // A committed adjustment is what turns the badge on — not a rating, not
+    // a label, not a collection membership (ADR 0055 §5).
+    let settings = Settings {
+        exposure: 0.5,
+        ..Settings::default()
+    };
+    catalog
+        .commit_revision(worked_on.version, &settings)
+        .unwrap();
+
+    let items = catalog.grid(&GridQuery::default()).unwrap();
+    let edited = |version: VersionId| {
+        items
+            .iter()
+            .find(|item| item.version_id == version)
+            .map(|item| item.edited)
+    };
+    assert_eq!(edited(untouched.version), Some(false));
+    assert_eq!(edited(worked_on.version), Some(true));
+}

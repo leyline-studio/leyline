@@ -108,6 +108,10 @@ pub struct GridItem {
     pub width: Option<u32>,
     /// Pixel height of the asset, when known.
     pub height: Option<u32>,
+    /// Whether this version carries more than the revision it was born with
+    /// — what a grid cell's "already developed" badge shows (ADR 0055 §5).
+    /// True as soon as one adjustment has been committed, whatever it was.
+    pub edited: bool,
 }
 
 impl Catalog {
@@ -133,7 +137,9 @@ impl Catalog {
             query,
             &filter,
             "v.id, a.id, a.filename, a.capture_date, v.rating, v.color_label,
-             v.pick_state, a.width, a.height",
+             v.pick_state, a.width, a.height,
+             (SELECT r.parent_revision_id IS NOT NULL FROM develop_revisions r
+               WHERE r.id = v.head_revision_id)",
             true,
         )?;
         sql.push_str(" LIMIT ?");
@@ -156,6 +162,9 @@ impl Catalog {
                     pick: PickState::from_i64(row.get(6)?).unwrap_or(PickState::None),
                     width: row.get(7)?,
                     height: row.get(8)?,
+                    // A head revision with no parent is the one `add_asset`
+                    // wrote: the photo is still exactly as it came in.
+                    edited: row.get::<_, Option<bool>>(9)?.unwrap_or(false),
                 })
             })
             .map_err(db_err)?;
