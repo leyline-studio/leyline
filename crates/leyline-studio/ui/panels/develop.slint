@@ -11,7 +11,7 @@ import { DevSettings, MaskRow } from "../types.slint";
 import { DevelopState } from "../state/develop.slint";
 import { GridState } from "../state/grid.slint";
 import { MaskState } from "../state/mask.slint";
-import { EditSlider, FilterChip, GroupHeader } from "../widgets/controls.slint";
+import { EditSlider, FilterChip, GroupHeader, SubHeading } from "../widgets/controls.slint";
 
 export component DevelopPanel inherits HorizontalLayout {
     // Panel-private state (ADR 0045 §2): none of it crosses to Rust.
@@ -25,9 +25,9 @@ export component DevelopPanel inherits HorizontalLayout {
     // never reads it, and it deliberately survives nothing — not a file, not a
     // preset, not a session (§3).
     property <bool> basic-mode: true;
-    property <bool> expand-white-balance: true;
-    property <bool> expand-tone: true;
-    property <bool> expand-presence: false;
+    // White balance, tone and presence are one foldable group now, read as a
+    // single sequence (ADR 0054 §2), so they share one flag.
+    property <bool> expand-basic: true;
     property <bool> expand-camera-profile: false;
     property <bool> expand-lut: false;
     property <bool> expand-lens: false;
@@ -547,82 +547,6 @@ export component DevelopPanel inherits HorizontalLayout {
                         height: 28px;
                     }
 
-                    // Leaving Full mode drops any tool it alone showed, so a
-                    // click on the image cannot keep tracing a mask whose
-                    // panel is no longer visible (ADR 0054, Conséquences).
-                    HorizontalLayout {
-                        spacing: 6px;
-                        alignment: start;
-                        FilterChip {
-                            text: @tr("Basic");
-                            active: root.basic-mode;
-                            clicked => {
-                                root.basic-mode = true;
-                                if (root.active-tool != "select" && root.active-tool != "crop") {
-                                    root.active-tool = "select";
-                                    root.spot-pending = false;
-                                }
-                            }
-                        }
-                        FilterChip {
-                            text: @tr("Full");
-                            active: !root.basic-mode;
-                            clicked => {
-                                root.basic-mode = false;
-                            }
-                        }
-                    }
-
-                    Text {
-                        text: @tr("Presets");
-                        color: #9a9a9a;
-                        font-size: 11px;
-                    }
-                    for name[i] in DevelopState.dev-presets: HorizontalLayout {
-                        spacing: 6px;
-                        TouchArea {
-                            horizontal-stretch: 1;
-                            Text {
-                                text: name;
-                                color: #e6e6e6;
-                                font-size: 12px;
-                                overflow: elide;
-                                width: 100%;
-                                height: 100%;
-                                vertical-alignment: center;
-                            }
-                            clicked => {
-                                DevelopState.apply-preset(i);
-                            }
-                        }
-                        TouchArea {
-                            width: 16px;
-                            height: 16px;
-                            Text {
-                                text: "×";
-                                color: #9a9a9a;
-                                font-size: 12px;
-                                horizontal-alignment: center;
-                                vertical-alignment: center;
-                                width: 100%;
-                                height: 100%;
-                            }
-                            clicked => {
-                                DevelopState.delete-preset(i);
-                            }
-                        }
-                    }
-                    HorizontalLayout {
-                        alignment: end;
-                        FilterChip {
-                            text: @tr("Save as preset…");
-                            active: false;
-                            clicked => {
-                                DevelopState.open-preset-dialog();
-                            }
-                        }
-                    }
-
                     // Histogram (RGB, sqrt-scaled so one dominant bin
                     // doesn't flatten the rest, `develop::histogram_layout`):
                     // read-only, refreshed whenever the develop preview
@@ -658,16 +582,52 @@ export component DevelopPanel inherits HorizontalLayout {
                         }
                     }
 
-                    GroupHeader {
-                        label: @tr("White balance");
-                        expanded <=> root.expand-white-balance;
+                    // Leaving Full mode drops any tool it alone showed, so a
+                    // click on the image cannot keep tracing a mask whose
+                    // panel is no longer visible (ADR 0054, Conséquences).
+                    HorizontalLayout {
+                        spacing: 6px;
+                        alignment: start;
+                        FilterChip {
+                            text: @tr("Basic");
+                            active: root.basic-mode;
+                            clicked => {
+                                root.basic-mode = true;
+                                if (root.active-tool != "select" && root.active-tool != "crop") {
+                                    root.active-tool = "select";
+                                    root.spot-pending = false;
+                                }
+                            }
+                        }
+                        FilterChip {
+                            text: @tr("Full");
+                            active: !root.basic-mode;
+                            clicked => {
+                                root.basic-mode = false;
+                            }
+                        }
                     }
-                    if root.expand-white-balance: VerticalLayout {
-                        spacing: 12px;
+
+                    // One panel, three sub-headings: the light first, the
+                    // matter next, the colour last — the order the Basic panel
+                    // is taught in, and the reason it is one group rather than
+                    // three (ADR 0054 §2).
+                    GroupHeader {
+                        label: @tr("Basic");
+                        expanded <=> root.expand-basic;
+                    }
+                    if root.expand-basic: VerticalLayout {
+                        spacing: 6px;
                         EditSlider {
                             label: @tr("Temperature");
                             minimum: 2000;
                             maximum: 12000;
+                            // Not zero: the neutral of a temperature is the
+                            // daylight it is measured against (`Settings`
+                            // default, 6500 K).
+                            neutral: 6500;
+                            track-from: #4a6fd0;
+                            track-to: #d8b45a;
                             value: DevelopState.dev.wb-temp;
                             edited(v) => {
                                 DevelopState.develop-edit("wb-temp", v);
@@ -677,19 +637,17 @@ export component DevelopPanel inherits HorizontalLayout {
                             label: @tr("Tint");
                             minimum: -100;
                             maximum: 100;
+                            track-from: #4fae54;
+                            track-to: #b756c4;
                             value: DevelopState.dev.wb-tint;
                             edited(v) => {
                                 DevelopState.develop-edit("wb-tint", v);
                             }
                         }
-                    }
 
-                    GroupHeader {
-                        label: @tr("Tone");
-                        expanded <=> root.expand-tone;
-                    }
-                    if root.expand-tone: VerticalLayout {
-                        spacing: 12px;
+                        SubHeading {
+                            label: @tr("Tone");
+                        }
                         EditSlider {
                             label: @tr("Exposure");
                             minimum: -5;
@@ -745,14 +703,10 @@ export component DevelopPanel inherits HorizontalLayout {
                                 DevelopState.develop-edit("blacks", v);
                             }
                         }
-                    }
 
-                    GroupHeader {
-                        label: @tr("Presence");
-                        expanded <=> root.expand-presence;
-                    }
-                    if root.expand-presence: VerticalLayout {
-                        spacing: 12px;
+                        SubHeading {
+                            label: @tr("Presence");
+                        }
                         EditSlider {
                             label: @tr("Texture");
                             minimum: -100;
@@ -820,6 +774,9 @@ export component DevelopPanel inherits HorizontalLayout {
                             label: @tr("Vibrance");
                             minimum: -100;
                             maximum: 100;
+                            // Grey to colour, the direction the slider goes.
+                            track-from: #6b6b6b;
+                            track-to: #d05a8c;
                             value: DevelopState.dev.vibrance;
                             edited(v) => {
                                 DevelopState.develop-edit("vibrance", v);
@@ -829,6 +786,8 @@ export component DevelopPanel inherits HorizontalLayout {
                             label: @tr("Saturation");
                             minimum: -100;
                             maximum: 100;
+                            track-from: #6b6b6b;
+                            track-to: #4fae54;
                             value: DevelopState.dev.saturation;
                             edited(v) => {
                                 DevelopState.develop-edit("saturation", v);

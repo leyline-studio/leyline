@@ -1253,6 +1253,11 @@ msgctxt "MenuBar"
 msgid "Apply Preset"
 msgstr "Appliquer un preset"
 
+#: crates/leyline-studio/ui/panels/menubar.slint:394
+msgctxt "MenuBar"
+msgid "Delete Preset"
+msgstr "Supprimer un preset"
+
 #: crates/leyline-studio/ui/panels/menubar.slint:392
 msgctxt "MenuBar"
 msgid "Back to Library    G"

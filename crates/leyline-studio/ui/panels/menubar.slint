@@ -34,6 +34,7 @@ export component MenuBar inherits Rectangle {
     property <bool> label-submenu-open: false;
     property <bool> flag-submenu-open: false;
     property <bool> apply-preset-submenu-open: false;
+    property <bool> delete-preset-submenu-open: false;
     property <bool> open-recent-submenu-open: false;
 
     // `public` for the same reason `open-menu` is `in-out`: closing a menu
@@ -43,6 +44,7 @@ export component MenuBar inherits Rectangle {
         root.label-submenu-open = false;
         root.flag-submenu-open = false;
         root.apply-preset-submenu-open = false;
+        root.delete-preset-submenu-open = false;
         root.open-recent-submenu-open = false;
     }
 
@@ -382,6 +384,25 @@ export component MenuBar inherits Rectangle {
                     title: name;
                     activated => {
                         DevelopState.apply-preset(index);
+                        root.open-menu = "";
+                        root.reset-submenus();
+                    }
+                }
+            }
+            // The develop panel no longer lists the presets itself — the
+            // settings panel is the edit, not the library of edits (ADR 0054
+            // §2) — so deleting one lives here, next to saving and applying,
+            // rather than nowhere.
+            SubmenuHeader {
+                title: @tr("Delete Preset");
+                expanded <=> root.delete-preset-submenu-open;
+                enabled: DevelopState.dev-presets.length > 0;
+            }
+            if root.delete-preset-submenu-open: VerticalLayout {
+                for name[index] in DevelopState.dev-presets: MenuRow {
+                    title: name;
+                    activated => {
+                        DevelopState.delete-preset(index);
                         root.open-menu = "";
                         root.reset-submenus();
                     }

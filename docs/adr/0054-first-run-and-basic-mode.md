@@ -69,6 +69,30 @@ la couleur en dernier. Deux ajustements en découlent : *Texture* passe avant
 séquence pour rejoindre le mode Complet, étant une décision de *sortie* et non
 de présence.
 
+**Et la séquence est *un seul* groupe.** Balance des blancs, tonalité et
+présence ne sont plus trois groupes repliables mais un groupe *Basique* unique,
+divisé par deux intertitres non cliquables (*Tonalité*, *Présence*). Un
+intertitre qui se replie est une invitation à le replier, et la séquence — la
+lumière, la matière, la couleur — est justement ce qu'on veut lire d'un bout à
+l'autre. Trois conséquences de forme, prises sur les captures d'écran de
+référence dans `assets/` :
+
+* **un réglage tient sur une ligne** : nom aligné à droite dans une colonne
+  fixe, piste, valeur. Deux lignes par réglage divisaient par deux ce qu'on voit
+  d'une modification à la fois ; sur une ligne, toute la tonalité tient dans un
+  écran ;
+* **la piste montre ce que le réglage fait** quand elle le peut : la température
+  va du bleu à l'ambre, la teinte du vert au magenta, l'éclat et la saturation
+  du gris à la couleur. Les réglages tonals gardent une piste grise ;
+* **un double-clic remet un réglage au neutre** — zéro presque partout, 6500 K
+  pour la température, borné à la plage pour un réglage qui n'atteint pas zéro.
+  Et le signe explicite (`+12`) n'apparaît que sur les réglages à deux sens : une
+  température en kelvins est une quantité, pas un écart.
+
+Le panneau ne liste plus les préréglages : c'est la *modification en cours*, pas
+la bibliothèque des modifications. Enregistrer, appliquer et supprimer un
+préréglage vivent dans le menu **Develop**, où étaient déjà les deux premiers.
+
 Trois propriétés à tenir :
 
 * **le mode ne change aucun rendu.** Un réglage posé en Complet reste actif et
