@@ -16,19 +16,22 @@ L'objectif n'est pas de reproduire Lightroom fonctionnalité par fonctionnalité
 
 ---
 
-## État du projet — juillet 2026
+## État du projet — août 2026
 
 **Le périmètre V1 est intégralement livré**, sur les trois clients (Studio, CLI, SDK) : import, catalogue, miniatures, EXIF, pipeline de développement non destructif complet, correction d'objectif, gestion des couleurs, presets, retraitement, export JPEG/TIFF/WebP/AVIF, impression, tethering, dossier surveillé, vue carte, installateurs et interface multilingue.
 
-**Une bonne partie du périmètre V2 l'est aussi** : courbe tonale, suppression de tache, réglages locaux masqués, mélangeur TSL et color grading, clarté/texture/dehaze, profils caméra DCP (expérimental).
+**Les sept fonctionnalités cadrées pour la V2 le sont aussi** ([`v2-scope.md`](v2-scope.md)) : courbe tonale, suppression de tache, réglages locaux masqués et masques par plage, mélangeur TSL et color grading, clarté/texture/dehaze, filigrane texte et épreuvage écran, profils caméra DCP (expérimental). S'y ajoutent le débruitage préservant les contours, la lecture des sidecars XMP, la reconstruction des hautes lumières, la correction de perspective et les LUT créatives `.cube`.
+
+Le rendu repose sur un pipeline d'étages versionnés ([ADR 0042](adr/0042-versioned-stage-pipeline.md), [ADR 0043](adr/0043-collapse-prerelease-render-history.md)) travaillant en lumière linéaire large gamut ([ADR 0044](adr/0044-linear-wide-gamut-working-space.md)) : c'est ce qui porte la promesse de reproductibilité de [`pipeline.md`](pipeline.md) §5.
 
 Ce qui reste ouvert :
 
 | Sujet | État |
 |---|---|
-| Épreuvage écran et filigrane | Décidé ([ADR 0034](adr/0034-softproofing-watermark-print.md)), non implémenté |
-| Pipeline d'étages versionnés | Migration en cours ([ADR 0042](adr/0042-versioned-stage-pipeline.md)) |
-| Justesse colorimétrique des profils DCP | Non validée contre de vrais `.dcp` Adobe — fonctionnalité signalée comme expérimentale |
+| Justesse colorimétrique des profils DCP | Non validée contre de vrais `.dcp` Adobe — fonctionnalité signalée comme expérimentale ([ADR 0035](adr/0035-camera-profile-dcp.md)) |
+| Retouches locales : surimpression du masque, pipette de plage, poignées de déplacement | Laissé hors périmètre par [ADR 0049](adr/0049-local-adjustments-clients.md) |
+| Profil de bruit mesuré par boîtier et par sensibilité | À trancher par son propre ADR ([ADR 0046](adr/0046-edge-preserving-denoise.md) §7) |
+| Première publication | Aucun binaire publié, aucune version coupée ; la documentation est en français |
 
 Le reste du travail est de la robustesse, de la performance et du polissage, non des fonctionnalités manquantes.
 
@@ -46,7 +49,7 @@ Le reste du travail est de la robustesse, de la performance et du polissage, non
 
 4. [`contributing.md`](contributing.md) — style, commits, licence, CLA, et la procédure d'ajout ou de correction d'un étage de rendu.
 5. [`pipeline.md`](pipeline.md) — le contrat de rendu. À lire **avant** de toucher au moteur : il définit ce qu'est une version d'étage et ce que le projet promet sur la reproductibilité d'un rendu (§5).
-6. [`adr/`](adr/README.md) — 43 décisions structurantes, chacune avec son contexte, ses alternatives écartées et ses conséquences. C'est là que se trouve le *pourquoi* de presque tout ce qui surprend dans le code.
+6. [`adr/`](adr/README.md) — 58 décisions structurantes, chacune avec son contexte, ses alternatives écartées et ses conséquences. C'est là que se trouve le *pourquoi* de presque tout ce qui surprend dans le code.
 
 **Pour intégrer le moteur** — [`engine-api.md`](engine-api.md), puis le crate `leyline-sdk`, qui est la surface publique stable.
 

@@ -8,7 +8,7 @@
 
 ## État de ce document
 
-> **Attention au temps des verbes.** Ce document a été écrit lorsque les sept fonctionnalités ci-dessous étaient absentes, et il en parle au présent (« aucun réglage local aujourd'hui »). Six d'entre elles ont depuis été décidées **et implémentées**. Son analyse reste utile — c'est le raisonnement qui a mené aux ADR correspondants — mais il ne décrit plus l'état du produit. Pour cet état, voir [`specification.md`](specification.md).
+> **Attention au temps des verbes.** Ce document a été écrit lorsque les sept fonctionnalités ci-dessous étaient absentes, et il en parle au présent (« aucun réglage local aujourd'hui »). Toutes ont depuis été décidées **et implémentées**. Son analyse reste utile — c'est le raisonnement qui a mené aux ADR correspondants — mais il ne décrit plus l'état du produit. Pour cet état, voir [`specification.md`](specification.md).
 
 | § | Fonctionnalité | État |
 |---|---|---|
@@ -17,7 +17,7 @@
 | 4 | Color grading / mélangeur TSL | ✅ Livré — process 9, [ADR 0031](adr/0031-hsl-color-grading.md) |
 | 5 | Suppression de tache | ✅ Livré — process 7, clonage seul, [ADR 0032](adr/0032-spot-removal-clone.md) |
 | 6 | Dehaze / texture / clarté | ✅ Livré — process 10, [ADR 0033](adr/0033-clarity-texture-dehaze.md) |
-| 7 | Épreuvage, filigrane, impression | ⚠️ Partiel — impression livrée ([ADR 0036](adr/0036-print-module.md)) ; épreuvage et filigrane décidés ([ADR 0034](adr/0034-softproofing-watermark-print.md)) mais **non implémentés** |
+| 7 | Épreuvage, filigrane, impression | ✅ Livré — impression ([ADR 0036](adr/0036-print-module.md)), puis épreuvage écran et filigrane texte ([ADR 0034](adr/0034-softproofing-watermark-print.md), [ADR 0051](adr/0051-watermark-rasterization-and-soft-proof-surface.md)) ; le filigrane image reste coupé |
 | 8 | Profils caméra au-delà de Lensfun | ✅ Livré — process 11, **expérimental**, [ADR 0035](adr/0035-camera-profile-dcp.md) / [ADR 0037](adr/0037-dcp-parsing-dependency.md) |
 
 ---
