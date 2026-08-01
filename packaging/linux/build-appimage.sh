@@ -9,4 +9,10 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
 
+# cargo-packager does not build the binary itself, it packages one that
+# already exists at the target path — without this it fails late with a
+# "Failed to copy file ... No such file or directory" on
+# `target/release/leyline-studio`, which reads like a packaging bug rather
+# than a missing build. Same order as `packaging/windows/build-nsis.sh`.
+cargo build --release -p leyline-studio
 cargo packager --release -p leyline-studio -f appimage "$@"

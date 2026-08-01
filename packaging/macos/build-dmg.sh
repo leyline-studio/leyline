@@ -9,4 +9,8 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
 
+# cargo-packager packages an existing binary, it does not build one — see the
+# same two-step order in `packaging/linux/build-appimage.sh` and
+# `packaging/windows/build-nsis.sh`.
+cargo build --release -p leyline-studio
 cargo packager --release -p leyline-studio -f dmg "$@"

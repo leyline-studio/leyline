@@ -6,9 +6,9 @@
 # (the golden bless variable, the RAW test opt-in, the Windows packaging
 # environment) are easy to get subtly wrong from memory.
 #
-# `make check` is the gate to run before every commit: there is no remote CI
-# yet (see `docs/contributing.md`), so this is the only thing standing between
-# a mistake and `main`.
+# `make check` is the gate to run before every commit: the GitHub CI replays
+# the same three steps (see `docs/contributing.md`), but only after the push —
+# this is what stands between a mistake and `main`.
 
 # rustup installs into ~/.cargo/bin, which some login shells don't export.
 # A no-op when cargo is already on PATH.
