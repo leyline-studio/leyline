@@ -20,12 +20,13 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use leyline_catalog::{
-    Catalog, CollectionNode, ExportPreset, FolderNode, KeywordNode, Preset, PrintPreset, SmartRules,
+    Catalog, CollectionNode, ExportPreset, FolderNode, KeywordNode, Preset, PresetFolder,
+    PrintPreset, SmartRules,
 };
 use leyline_core::{
     AssetId, CollectionId, ColorLabel, ExportPresetId, JobId, KeywordId, LeylineError, PickState,
-    PresetId, PresetSettings, PreviewKind, PrintPresetId, Result, Settings, SettingsGroup,
-    VersionId,
+    PresetFolderId, PresetId, PresetSettings, PreviewKind, PrintPresetId, Result, Settings,
+    SettingsGroup, VersionId,
 };
 use leyline_export::{ExportSettings, PrintSettings};
 use leyline_preview::PreviewCache;
@@ -981,6 +982,12 @@ impl Library {
     }
 
     /// Lists every stored develop preset, ordered by name (§10.3).
+    /// Reads one stored develop preset, its shelf and its version included.
+    pub fn preset(&self, preset: PresetId) -> Result<Preset> {
+        self.catalog().preset(preset)
+    }
+
+    /// Every stored develop preset, favourites first then by name (§10.3).
     pub fn presets(&self) -> Result<Vec<Preset>> {
         self.catalog().presets()
     }
@@ -1009,7 +1016,16 @@ impl Library {
         let stored = self.catalog().preset(preset)?;
         let fields = PresetSettings::parse(&stored.preset_json)?;
         let mut catalog = lock(&self.inner.catalog);
-        let report = crate::presets::apply_batch(&mut catalog, &fields, versions, &mut progress);
+        // Each revision records the preset *and the version of it* that was
+        // applied (ADR 0058 §5), which is what makes "developed with an older
+        // version of this preset" answerable later.
+        let report = crate::presets::apply_batch_from(
+            &mut catalog,
+            &fields,
+            Some((preset, stored.revision)),
+            versions,
+            &mut progress,
+        );
         drop(catalog);
         for &version in &report.applied {
             self.emit(Event::VersionChanged {
@@ -1017,6 +1033,62 @@ impl Library {
             });
         }
         Ok(report)
+    }
+
+    /// Replaces a preset's settings with those of `version`, bumping its
+    /// version counter (ADR 0058 §6).
+    ///
+    /// Revisions already produced by it are untouched: this decides what the
+    /// *next* application writes (`docs/presets.md` §2).
+    pub fn update_preset(
+        &self,
+        preset: PresetId,
+        version: VersionId,
+        groups: &[SettingsGroup],
+    ) -> Result<u32> {
+        let captured = self.capture_settings(version, groups)?;
+        self.catalog_mut()
+            .update_preset(preset, &captured.to_json())
+    }
+
+    /// Files a preset in a folder, or at the root with `None` (ADR 0058 §2).
+    pub fn file_preset(&self, preset: PresetId, folder: Option<PresetFolderId>) -> Result<()> {
+        self.catalog_mut().file_preset(preset, folder)
+    }
+
+    /// Marks a preset as a favourite, or stops.
+    pub fn favourite_preset(&self, preset: PresetId, favourite: bool) -> Result<()> {
+        self.catalog_mut().favourite_preset(preset, favourite)
+    }
+
+    /// The preset folders, by name (ADR 0058 §2).
+    pub fn preset_folders(&self) -> Result<Vec<PresetFolder>> {
+        self.catalog().preset_folders()
+    }
+
+    /// Creates a preset folder.
+    pub fn create_preset_folder(&self, name: &str) -> Result<PresetFolderId> {
+        self.catalog_mut().create_preset_folder(name)
+    }
+
+    /// Renames a preset folder.
+    pub fn rename_preset_folder(&self, folder: PresetFolderId, name: &str) -> Result<()> {
+        self.catalog_mut().rename_preset_folder(folder, name)
+    }
+
+    /// Deletes a preset folder; its presets return to the root.
+    pub fn delete_preset_folder(&self, folder: PresetFolderId) -> Result<()> {
+        self.catalog_mut().delete_preset_folder(folder)
+    }
+
+    /// The versions whose current revision came from `preset`, each with the
+    /// version of the preset it was made with (ADR 0058 §6).
+    ///
+    /// The pair `(version, n)` where `n` is lower than the preset's own
+    /// revision is exactly "this photo carries an older version of this
+    /// preset" — what re-applying is offered on.
+    pub fn versions_from_preset(&self, preset: PresetId) -> Result<Vec<(VersionId, u32)>> {
+        self.catalog().versions_from_preset(preset)
     }
 
     /// Applies a stored preset to several versions as a job (§3.1, §10.3):

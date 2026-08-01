@@ -9,7 +9,8 @@
 
 use leyline_catalog::Catalog;
 use leyline_core::{
-    CURRENT_SCHEMA, LeylineError, PresetSettings, Result, Settings, SettingsGroup, VersionId,
+    CURRENT_SCHEMA, LeylineError, PresetId, PresetSettings, Result, Settings, SettingsGroup,
+    VersionId,
 };
 
 use crate::session::{EditSession, Param, Value};
@@ -60,13 +61,30 @@ pub fn apply_batch(
     catalog: &mut Catalog,
     preset: &PresetSettings,
     versions: &[VersionId],
+    progress: impl FnMut(u64, u64),
+) -> PresetApplyReport {
+    apply_batch_from(catalog, preset, None, versions, progress)
+}
+
+/// [`apply_batch`], recording which stored preset — and which version of it —
+/// produced each revision (ADR 0058 §5).
+///
+/// `from_preset` is `None` for a set of settings that is not a stored preset:
+/// pasted settings, or a preset applied from a file. Provenance names a
+/// catalog row, and inventing one for something that has none would be worse
+/// than saying nothing.
+pub fn apply_batch_from(
+    catalog: &mut Catalog,
+    preset: &PresetSettings,
+    from_preset: Option<(PresetId, u32)>,
+    versions: &[VersionId],
     mut progress: impl FnMut(u64, u64),
 ) -> PresetApplyReport {
     let values = param_values(preset);
     let total = versions.len() as u64;
     let mut report = PresetApplyReport::default();
     for (done, &version) in versions.iter().enumerate() {
-        match apply_one(catalog, version, &values) {
+        match apply_one(catalog, version, &values, from_preset) {
             Ok(()) => report.applied.push(version),
             Err(error) => report.failed.push(FailedApply {
                 version,
@@ -81,12 +99,17 @@ pub fn apply_batch(
 /// Opens a fresh session on `version`, sets every captured field, and
 /// commits once — never an amendment (`docs/presets.md` §5.1): a session
 /// that has never committed has no amendment chain to extend.
-fn apply_one(catalog: &mut Catalog, version: VersionId, values: &[(Param, Value)]) -> Result<()> {
+fn apply_one(
+    catalog: &mut Catalog,
+    version: VersionId,
+    values: &[(Param, Value)],
+    from_preset: Option<(PresetId, u32)>,
+) -> Result<()> {
     let mut session = EditSession::open(&mut *catalog, version)?;
     for (param, value) in values {
         session.set(*param, value.clone())?;
     }
-    session.commit()?;
+    session.commit_from(from_preset)?;
     Ok(())
 }
 

@@ -33,7 +33,7 @@ pub use grid::{GridItem, GridQuery, Sort};
 pub use keywords::KeywordNode;
 pub use map::MapPin;
 pub use metadata::{CameraInfo, LensInfo, Metadata, Rational};
-pub use presets::Preset;
+pub use presets::{Preset, PresetFolder};
 pub use previews::{NewPreview, PreviewRow};
 pub use prints::PrintPreset;
 pub use revisions::{Amendment, RevisionRow};

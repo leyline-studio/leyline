@@ -52,6 +52,12 @@ Usage:
   leyline preset-list <library>
   leyline preset-apply <library> <name> <version-id>...
   leyline preset-rm <library> <name>
+  leyline preset-update <library> <name> <version-id> --groups <g,g,...>
+                                    redefines the preset from that photo and
+                                    bumps its version (ADR 0058)
+  leyline preset-reapply <library> <name>
+                                    re-applies it to every photo still carrying
+                                    an older version of it
 
 Options:
   --reference   Reference files in place instead of copying into Photos/
@@ -157,6 +163,8 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("preset-list") => preset_list(&args[1..]),
         Some("preset-apply") => preset_apply(&args[1..]),
         Some("preset-rm") => preset_rm(&args[1..]),
+        Some("preset-update") => preset_update(&args[1..]),
+        Some("preset-reapply") => preset_reapply(&args[1..]),
         Some("--help") | Some("help") | None => {
             print!("{USAGE}");
             Ok(())
@@ -985,6 +993,75 @@ fn preset_save(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+/// Redefines a preset from a photo's current settings (ADR 0058 §6).
+fn preset_update(args: &[String]) -> Result<(), String> {
+    let (positional, options) = parse(args, &["groups"])?;
+    let [root, name, version] = positional.as_slice() else {
+        return Err(
+            "usage: leyline preset-update <library> <name> <version-id> --groups <g,g,...>"
+                .to_owned(),
+        );
+    };
+    let version = VersionId::new(
+        version
+            .parse()
+            .map_err(|_| format!("bad version id {version:?}"))?,
+    );
+    let groups = groups(
+        options
+            .value("groups")
+            .ok_or("--groups is required, e.g. --groups tone,presence")?,
+    )?;
+    let library = open(root)?;
+    let preset = find_preset(&library, name)?;
+    let revision = library
+        .update_preset(preset, version, &groups)
+        .map_err(|e| e.to_string())?;
+    println!("preset {name:?} is now at version {revision}");
+    println!(
+        "photos developed with an earlier version keep their pixels; `preset-reapply` moves them forward"
+    );
+    Ok(())
+}
+
+/// Re-applies a preset to the photos still carrying an older version of it
+/// (ADR 0058 §6) — ordinary revisions, undoable one by one.
+fn preset_reapply(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root, name] = positional.as_slice() else {
+        return Err("usage: leyline preset-reapply <library> <name>".to_owned());
+    };
+    let library = open(root)?;
+    let preset = find_preset(&library, name)?;
+    let current = library.preset(preset).map_err(|e| e.to_string())?.revision;
+    let outdated: Vec<VersionId> = library
+        .versions_from_preset(preset)
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .filter(|&(_, revision)| revision < current)
+        .map(|(version, _)| version)
+        .collect();
+    if outdated.is_empty() {
+        println!("nothing to do: no photo carries an earlier version of {name:?}");
+        return Ok(());
+    }
+    let report = library
+        .apply_preset(preset, &outdated, |done, total| {
+            eprint!("\rre-applying {done}/{total}")
+        })
+        .map_err(|e| e.to_string())?;
+    eprintln!();
+    println!(
+        "{} photo(s) moved to version {current}, {} failed",
+        report.applied.len(),
+        report.failed.len()
+    );
+    for failure in &report.failed {
+        eprintln!("  {} — {}", failure.version, failure.reason);
+    }
+    Ok(())
+}
+
 fn preset_list(args: &[String]) -> Result<(), String> {
     let (positional, _) = parse(args, &[])?;
     let [root] = positional.as_slice() else {
@@ -993,8 +1070,12 @@ fn preset_list(args: &[String]) -> Result<(), String> {
     let stored = open(root)?.presets().map_err(|e| e.to_string())?;
     for preset in &stored {
         println!(
-            "{:<6} {:20} {}",
-            preset.preset, preset.name, preset.preset_json
+            "{:<6} {}{:20} v{}  {}",
+            preset.preset,
+            if preset.favourite { "★ " } else { "  " },
+            preset.name,
+            preset.revision,
+            preset.preset_json
         );
     }
     println!("{} preset(s)", stored.len());

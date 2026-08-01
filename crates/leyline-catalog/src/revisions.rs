@@ -10,7 +10,7 @@
 //! amendment window applies — belongs to the engine's edit session
 //! (`docs/engine-api.md` §10.1).
 
-use leyline_core::{AssetId, LeylineError, Result, RevisionId, Settings, VersionId};
+use leyline_core::{AssetId, LeylineError, PresetId, Result, RevisionId, Settings, VersionId};
 
 use crate::{Catalog, db_err, now_ms};
 
@@ -51,6 +51,21 @@ impl Catalog {
         version: VersionId,
         settings: &Settings,
     ) -> Result<RevisionId> {
+        self.commit_revision_from(version, settings, None)
+    }
+
+    /// [`Catalog::commit_revision`], recording that a preset produced it
+    /// (ADR 0058 §5): the preset and the version of it that was applied.
+    ///
+    /// The pair is catalog metadata and nothing else — no renderer reads it,
+    /// and `settings_json` is untouched, which is what keeps two identical
+    /// sets of settings rendering identically whatever their origin.
+    pub fn commit_revision_from(
+        &mut self,
+        version: VersionId,
+        settings: &Settings,
+        from_preset: Option<(PresetId, u32)>,
+    ) -> Result<RevisionId> {
         self.ensure_writable()?;
         settings.validate()?;
         let now = now_ms();
@@ -58,9 +73,18 @@ impl Catalog {
         let tx = self.conn.transaction().map_err(db_err)?;
         let (asset, head) = version_row(&tx, version)?;
         tx.execute(
-            "INSERT INTO develop_revisions (asset_id, parent_revision_id, settings_json, created_at)
-             VALUES (?1, ?2, ?3, ?4)",
-            rusqlite::params![asset.get(), head.get(), settings.to_json(), now],
+            "INSERT INTO develop_revisions
+                 (asset_id, parent_revision_id, settings_json, created_at,
+                  from_preset_id, from_preset_revision)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![
+                asset.get(),
+                head.get(),
+                settings.to_json(),
+                now,
+                from_preset.map(|(preset, _)| preset.get()),
+                from_preset.map(|(_, revision)| i64::from(revision)),
+            ],
         )
         .map_err(db_err)?;
         let revision = RevisionId::new(tx.last_insert_rowid());

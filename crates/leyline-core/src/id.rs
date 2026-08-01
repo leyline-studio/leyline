@@ -79,6 +79,10 @@ id_type!(
     PresetId(i64)
 );
 id_type!(
+    /// Identifier of a develop-preset folder (ADR 0058 §2).
+    PresetFolderId(i64)
+);
+id_type!(
     /// Identifier of an asynchronous engine job.
     JobId(u64)
 );

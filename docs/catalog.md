@@ -1640,7 +1640,28 @@ CREATE TABLE develop_presets (
 
 Presets de développement (`docs/presets.md`) : un jeu **partiel** de réglages, jamais un `settings_json` complet (§17). Le catalogue traite `preset_json` comme une chaîne opaque, au même titre qu'`export_presets.settings_json` (§27) — c'est le moteur (`leyline-core::PresetSettings`) qui en interprète la structure.
 
-Aucune clé étrangère vers `develop_revisions` : une révision créée par l'application d'un preset est une révision ordinaire, sans trace de son origine, conformément à la règle « une révision représente une intention utilisateur, jamais un événement d'interface » (§17). Renommer ou supprimer un preset n'a donc aucun effet rétroactif sur l'historique déjà écrit avec lui.
+Depuis [ADR 0058](adr/0058-preset-provenance-and-shelf.md), une révision produite par l'application d'un preset **enregistre lequel**, et dans quelle version de ce preset (`develop_revisions.from_preset_id`, `from_preset_revision`) — ce qui permet de répondre à « quelles photos ont été développées avec celui-ci, et lesquelles avec une version antérieure ? ».
+
+Cela n'écorne pas la règle de §17. Ce qui reste vrai, et qui est l'essentiel :
+
+* **les réglages d'une révision restent un état**, jamais un journal : la provenance vit dans deux colonnes que le moteur de rendu ne lit **jamais**, et rien n'en entre dans `settings_json` (ADR 0058 §5) ;
+* **renommer, modifier ou supprimer un preset n'a aucun effet rétroactif** : les révisions déjà écrites gardent leurs réglages et donc leurs pixels. Une suppression met simplement la référence à `NULL` (`ON DELETE SET NULL`), elle n'efface pas la révision.
+
+Un preset porte aussi son rangement (`folder_id`, `favourite`) et son compteur de version (`preset_revision`, incrémenté à chaque modification).
+
+```sql
+CREATE TABLE preset_folders (
+
+    id INTEGER PRIMARY KEY,
+
+    name TEXT NOT NULL,
+
+    created_at INTEGER NOT NULL
+
+);
+```
+
+Un seul niveau de dossiers (ADR 0058 §2) : ils se renomment, se suppriment — leurs presets remontent alors à la racine — et peuvent être vides.
 
 ---
 

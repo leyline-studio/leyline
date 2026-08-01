@@ -10,9 +10,9 @@ pub use leyline_core::{
     ColorGrading, ColorGradingZone, ColorLabel, ColorRange, Crop, CurvePoint, ExportPresetId,
     FolderId, HighlightReconstruction, HslBand, JobId, KeywordId, LensCorrection, LeylineError,
     LocalAdjustment, LocalAdjustmentValues, LuminanceRange, Lut, Mask, MediaType, NoiseReduction,
-    Perspective, PickState, Point, PresetId, PresetSettings, PreviewKind, PrintPresetId, RangeMask,
-    Result, RevisionId, Settings, SettingsGroup, Sharpening, SpotRemoval, StageVersions, ToneCurve,
-    VersionId, WhiteBalance,
+    Perspective, PickState, Point, PresetFolderId, PresetId, PresetSettings, PreviewKind,
+    PrintPresetId, RangeMask, Result, RevisionId, Settings, SettingsGroup, Sharpening, SpotRemoval,
+    StageVersions, ToneCurve, VersionId, WhiteBalance,
 };
 
 pub use leyline_engine::{
@@ -26,8 +26,8 @@ pub use leyline_engine::{
 
 pub use leyline_catalog::{
     CameraInfo, CollectionNode, ExportPreset, ExportRecord, FolderNode, GridItem, GridQuery,
-    KeywordNode, LensInfo, LibraryInfo, MapPin, Metadata, Preset, PrintPreset, RatingRule,
-    Rational, RegisteredAsset, RevisionRow, SmartRules, Sort, VersionInfo,
+    KeywordNode, LensInfo, LibraryInfo, MapPin, Metadata, Preset, PresetFolder, PrintPreset,
+    RatingRule, Rational, RegisteredAsset, RevisionRow, SmartRules, Sort, VersionInfo,
 };
 
 pub use leyline_color::RenderingIntent;

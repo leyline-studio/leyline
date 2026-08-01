@@ -10,7 +10,7 @@ use crate::db_err;
 use leyline_core::Result;
 
 /// Migration scripts: index `n` migrates the database to `user_version` `n + 1`.
-const MIGRATIONS: &[&str] = &[SCHEMA_V1];
+const MIGRATIONS: &[&str] = &[SCHEMA_V1, SCHEMA_V2];
 
 /// The schema version produced by the newest migration.
 pub(crate) const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
@@ -336,4 +336,36 @@ CREATE INDEX idx_develop_versions_asset ON develop_versions(asset_id);
 CREATE INDEX idx_develop_versions_rating ON develop_versions(rating);
 CREATE INDEX idx_develop_versions_color ON develop_versions(color_label);
 CREATE INDEX idx_develop_versions_pick ON develop_versions(pick_state);
+";
+
+/// Version 2: preset shelving and provenance (ADR 0058).
+///
+/// Purely additive — two tables' worth of columns and one new table — so an
+/// existing library opens and carries on. Nothing here is read by the render
+/// pipeline: a preset's identity is catalog metadata, never a pixel input,
+/// which is exactly why it is not in `settings_json` (ADR 0058 §5).
+const SCHEMA_V2: &str = "
+-- §27 Preset folders: one level, renamable, may be empty (ADR 0058 §2).
+CREATE TABLE preset_folders (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+);
+
+-- A preset can sit in a folder, be a favourite, and carries a revision
+-- counter bumped by every update (ADR 0058 §6).
+ALTER TABLE develop_presets ADD COLUMN folder_id INTEGER
+    REFERENCES preset_folders(id) ON DELETE SET NULL;
+ALTER TABLE develop_presets ADD COLUMN favourite INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE develop_presets ADD COLUMN preset_revision INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE develop_presets ADD COLUMN updated_at INTEGER;
+
+-- Which preset produced a revision, and which version of it (ADR 0058 §5).
+-- Both NULL for every revision made by hand, which is most of them.
+ALTER TABLE develop_revisions ADD COLUMN from_preset_id INTEGER
+    REFERENCES develop_presets(id) ON DELETE SET NULL;
+ALTER TABLE develop_revisions ADD COLUMN from_preset_revision INTEGER;
+
+CREATE INDEX idx_presets_folder ON develop_presets(folder_id);
+CREATE INDEX idx_develop_from_preset ON develop_revisions(from_preset_id);
 ";

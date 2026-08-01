@@ -16,8 +16,8 @@ use std::time::{Duration, Instant};
 use leyline_catalog::{Catalog, RevisionRow};
 use leyline_core::{
     CURRENT_SCHEMA, CameraProfile, ColorGrading, Crop, HighlightReconstruction, HslBand,
-    LensCorrection, LeylineError, LocalAdjustment, Lut, NoiseReduction, Perspective, Result,
-    RevisionId, Settings, Sharpening, SpotRemoval, ToneCurve, VersionId, WhiteBalance,
+    LensCorrection, LeylineError, LocalAdjustment, Lut, NoiseReduction, Perspective, PresetId,
+    Result, RevisionId, Settings, Sharpening, SpotRemoval, ToneCurve, VersionId, WhiteBalance,
 };
 
 /// Default amendment window of `docs/catalog.md` §17.
@@ -269,6 +269,17 @@ impl<C: DerefMut<Target = Catalog>> EditSession<C> {
     /// the head is amended in place. Otherwise a new revision is committed.
     /// With nothing pending, the current head is returned unchanged.
     pub fn commit(&mut self) -> Result<RevisionId> {
+        self.commit_from(None)
+    }
+
+    /// [`EditSession::commit`], attributing the revision to the preset that
+    /// produced it (ADR 0058 §5).
+    ///
+    /// A commit carrying a preset is never an amendment: applying a preset is
+    /// a new revision by specification (`docs/presets.md` §5.1), and folding
+    /// it into the previous one would lose exactly the provenance being
+    /// recorded.
+    pub fn commit_from(&mut self, from_preset: Option<(PresetId, u32)>) -> Result<RevisionId> {
         let now = Instant::now();
         let head = match self.pending {
             Pending::Clean => return self.catalog.version_head(self.version),
@@ -277,9 +288,10 @@ impl<C: DerefMut<Target = Catalog>> EditSession<C> {
                 // persists would tell the session it had recorded versions
                 // the catalog never saw.
                 crate::stages::pin(&mut self.settings);
-                let in_window = self.last_commit.is_some_and(|(p, at)| {
-                    p == param && now.duration_since(at) <= self.amend_window
-                });
+                let in_window = from_preset.is_none()
+                    && self.last_commit.is_some_and(|(p, at)| {
+                        p == param && now.duration_since(at) <= self.amend_window
+                    });
                 let amended = if in_window {
                     self.catalog.try_amend_head(self.version, &self.settings)?
                 } else {
@@ -287,14 +299,20 @@ impl<C: DerefMut<Target = Catalog>> EditSession<C> {
                 };
                 let head = match amended {
                     Some(amendment) => amendment.revision,
-                    None => self.catalog.commit_revision(self.version, &self.settings)?,
+                    None => self.catalog.commit_revision_from(
+                        self.version,
+                        &self.settings,
+                        from_preset,
+                    )?,
                 };
                 self.last_commit = Some((param, now));
                 head
             }
             Pending::Many => {
                 crate::stages::pin(&mut self.settings);
-                let head = self.catalog.commit_revision(self.version, &self.settings)?;
+                let head =
+                    self.catalog
+                        .commit_revision_from(self.version, &self.settings, from_preset)?;
                 self.last_commit = None;
                 head
             }
