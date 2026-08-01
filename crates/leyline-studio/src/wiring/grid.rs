@@ -199,14 +199,14 @@ pub(crate) fn reload(app: &mut App, window: &StudioWindow) -> Result<(), String>
     Ok(())
 }
 
-/// Puts one photo in the loupe (ADR 0055 §3).
+/// One photo's `Small` preview, ready to display.
 ///
-/// The same `Small` preview the develop view reads, on purpose: the two share
-/// a cache entry, so looking at a photo before working on it costs the render
-/// once rather than twice. A preview that cannot be produced leaves the loupe
-/// empty and says so in the log — it is a way of looking, never a reason to
-/// interrupt what the user was doing.
-fn show_loupe(app: &mut App, window: &StudioWindow, asset: leyline_sdk::AssetId) {
+/// The same size the develop view reads, on purpose: the loupe, the compare
+/// view, the survey and develop all share one cache entry, so looking at a
+/// photo before working on it costs the render once rather than four times. A
+/// preview that cannot be produced comes back empty and says so in the log —
+/// looking at a photo is never a reason to interrupt what the user was doing.
+pub(crate) fn preview_image(app: &mut App, asset: leyline_sdk::AssetId) -> slint::Image {
     match app
         .library
         .preview(asset, PreviewKind::Small)
@@ -215,12 +215,18 @@ fn show_loupe(app: &mut App, window: &StudioWindow, asset: leyline_sdk::AssetId)
             slint::Image::load_from_path(&file.path)
                 .map_err(|_| format!("cannot load preview {}", file.path.display()))
         }) {
-        Ok(image) => GridState::get(window).set_loupe_image(image),
+        Ok(image) => image,
         Err(error) => {
             eprintln!("error: {error}");
-            GridState::get(window).set_loupe_image(slint::Image::default());
+            slint::Image::default()
         }
     }
+}
+
+/// Puts one photo in the loupe (ADR 0055 §3).
+fn show_loupe(app: &mut App, window: &StudioWindow, asset: leyline_sdk::AssetId) {
+    let image = preview_image(app, asset);
+    GridState::get(window).set_loupe_image(image);
 }
 
 /// Reads and formats everything the side panel shows for one grid row.

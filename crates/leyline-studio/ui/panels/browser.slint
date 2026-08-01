@@ -27,6 +27,10 @@ export component BrowserPanel inherits HorizontalLayout {
     // instead of typing into the box. A callback rather than a global: this
     // is UI-internal plumbing that never reaches Rust (ADR 0045 §2).
     callback return-focus();
+    // Panel folding, owned by the window (ADR 0055 §6): the sidebar and the
+    // metadata panel go first, the toolbar under the grid with `Maj+Tab`.
+    in property <bool> side-panels-hidden;
+    in property <bool> chrome-hidden;
     // How many thumbnails fit per row. Exposed because the window's Up/Down
     // arrow shortcuts move the selection by exactly one row, and only the
     // grid knows how wide a row currently is.
@@ -55,7 +59,8 @@ export component BrowserPanel inherits HorizontalLayout {
         }
     }
 
-        visible: !DevelopState.develop-mode && !MapState.map-mode && !GridState.loupe-mode;
+        visible: !DevelopState.develop-mode && !MapState.map-mode
+            && !GridState.loupe-mode && !GridState.compare-mode && !GridState.survey-mode;
 
         // The sidebar, top to bottom: what the library holds, where it is on
         // disk, and how it has been grouped by hand (ADR 0055 §2). One
@@ -63,7 +68,7 @@ export component BrowserPanel inherits HorizontalLayout {
         // the collection and the other way round, since a grid showing "the
         // intersection of a folder and a collection" would be a filter nobody
         // asked for.
-        Rectangle {
+        if !root.side-panels-hidden: Rectangle {
             width: 200px;
             background: #202020;
 
@@ -701,7 +706,7 @@ export component BrowserPanel inherits HorizontalLayout {
             // The toolbar under the grid (ADR 0055 §3): how to look, and how
             // big. The sort and the filters stay in the bar above — a setting
             // that lives in two places is a setting one has to look for.
-            HorizontalLayout {
+            if !root.chrome-hidden: HorizontalLayout {
                 height: 26px;
                 spacing: 8px;
                 padding-top: 4px;
@@ -735,7 +740,7 @@ export component BrowserPanel inherits HorizontalLayout {
             }
         }
 
-        Rectangle {
+        if !root.side-panels-hidden: Rectangle {
             width: 300px;
             background: #212121;
 

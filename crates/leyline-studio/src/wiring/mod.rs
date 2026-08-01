@@ -14,3 +14,4 @@ pub(crate) mod keywords;
 pub(crate) mod library;
 pub(crate) mod map;
 pub(crate) mod presets;
+pub(crate) mod views;

@@ -37,6 +37,14 @@ export struct CollectionRow {
     smart: bool,
 }
 
+// One photo of the survey view (ADR 0057 §4): the preview Rust already had
+// in cache, and the name under it. Its index in the list is what a removal
+// reports back.
+export struct SurveyCell {
+    image: image,
+    filename: string,
+}
+
 // One row of the folder tree in the sidebar (ADR 0055 §2). Rust sends the
 // last path segment and the depth it sits at — the panel indents, and never
 // splits a path itself.

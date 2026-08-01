@@ -5,7 +5,7 @@
 // sends `cells` for rows `window-start .. window-start + cells.length` out
 // of `total-cells`, and refills it as `viewport-moved` reports scrolling.
 
-import { Cell } from "../types.slint";
+import { Cell, SurveyCell } from "../types.slint";
 export global GridState {
     // The loaded window of grid cells; cell `i` shows grid row
     // `window-start + i` out of `total-cells` matching rows.
@@ -28,4 +28,27 @@ export global GridState {
     in-out property <bool> loupe-mode;
     in property <image> loupe-image;
     callback loupe-mode-changed();
+
+    // Compare view (ADR 0057): the photo being defended on the left, the one
+    // challenging it on the right. Both are cached previews, like the loupe's
+    // — no edit session, nothing written.
+    in-out property <bool> compare-mode;
+    in property <image> compare-select-image;
+    in property <image> compare-candidate-image;
+    in property <string> compare-select-name;
+    in property <string> compare-candidate-name;
+    callback compare-mode-changed();
+    // Moves the *candidate* by ±1 through the grid, never the select (§3).
+    callback compare-candidate-step(int);
+    // Promotes the candidate: it becomes the select, the select becomes the
+    // candidate, and the sort has advanced by one photo.
+    callback compare-swap();
+
+    // Survey view (ADR 0057 §4): the multi-selection, or the lone selected
+    // photo when there is no multi-selection. Removing an entry drops it from
+    // the selection — nothing is deleted, and nothing is stored.
+    in-out property <bool> survey-mode;
+    in property <[SurveyCell]> survey-cells;
+    callback survey-mode-changed();
+    callback survey-remove(int);
 }

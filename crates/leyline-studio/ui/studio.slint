@@ -7,7 +7,7 @@
 // its attributes, the keyboard `FocusScope`, and the order the pieces are
 // mounted in.
 
-import { Cell, CollectionRow, ColorGradingZoneValues, CurveMarker, DevSettings, FolderRow, HslBandValues, MapPinMarker, MaskDab, MaskRow, Tr } from "types.slint";
+import { Cell, CollectionRow, ColorGradingZoneValues, CurveMarker, DevSettings, FolderRow, HslBandValues, MapPinMarker, MaskDab, MaskRow, SurveyCell, Tr } from "types.slint";
 import { CollectionState } from "state/collection.slint";
 import { FolderState } from "state/folder.slint";
 import { DetailState } from "state/detail.slint";
@@ -21,7 +21,9 @@ import { MaskState } from "state/mask.slint";
 import { BrowserPanel } from "panels/browser.slint";
 import { DevelopPanel } from "panels/develop.slint";
 import { DialogOverlay } from "panels/dialogs.slint";
+import { ComparePanel } from "panels/compare.slint";
 import { LoupePanel } from "panels/loupe.slint";
+import { SurveyPanel } from "panels/survey.slint";
 import { MapPanel } from "panels/map.slint";
 import { MenuBar } from "panels/menubar.slint";
 
@@ -49,6 +51,7 @@ export {
     MaskDab,
     MaskRow,
     MaskState,
+    SurveyCell,
     Tr,
 }
 
@@ -68,6 +71,15 @@ export component StudioWindow inherits Window {
     min-height: 700px;
     background: #1b1b1b;
     forward-focus: keys;
+
+    // Panel folding (ADR 0055 §6). Declared on the window rather than in a
+    // global because it is interface state that three panels read and Rust
+    // never does (ADR 0045 §2): the window owns it, the panels take it as an
+    // input. `Tab` drops the side panels, `Maj+Tab` drops the toolbars and
+    // the filmstrip too — the menu row always stays, since it carries the
+    // module switcher and therefore the way out.
+    property <bool> side-panels-hidden: false;
+    property <bool> chrome-hidden: false;
 
     keys := FocusScope {
         key-pressed(event) => {
@@ -92,6 +104,24 @@ export component StudioWindow inherits Window {
             }
             if (event.modifiers.control && (event.text == "p" || event.text == "P")) {
                 DialogState.open-print();
+                return accept;
+            }
+            // Panel folding (ADR 0055 §6), before every view-specific branch
+            // so it works the same in the library, the loupe and develop.
+            // `Maj+Tab` folds everything and unfolds everything: from any
+            // state, one press gets the interface back.
+            if (event.text == Key.Tab || event.text == Key.Backtab) {
+                // Shift+Tab arrives as `Backtab` on some platforms with the
+                // modifier already consumed, so the key itself counts too.
+                if (event.modifiers.shift || event.text == Key.Backtab) {
+                    root.chrome-hidden = !root.chrome-hidden;
+                    root.side-panels-hidden = root.chrome-hidden;
+                } else {
+                    root.side-panels-hidden = !root.side-panels-hidden;
+                    if (!root.side-panels-hidden) {
+                        root.chrome-hidden = false;
+                    }
+                }
                 return accept;
             }
             // Export moved off `E` so the loupe could have it, the letter a
@@ -157,6 +187,81 @@ export component StudioWindow inherits Window {
                 GridState.loupe-mode-changed();
                 return accept;
             }
+            if (GridState.loupe-mode && (event.text == "z" || event.text == "Z")) {
+                loupe.zoomed = !loupe.zoomed;
+                return accept;
+            }
+            // Compare (ADR 0057): the arrows move the candidate and only the
+            // candidate, `↑` promotes it, `Z` zooms both views at once.
+            if (GridState.compare-mode) {
+                if (event.text == "g" || event.text == "G" || event.text == Key.Escape
+                    || event.text == "c" || event.text == "C") {
+                    GridState.compare-mode = false;
+                    GridState.compare-mode-changed();
+                    return accept;
+                }
+                if (event.text == Key.LeftArrow) {
+                    GridState.compare-candidate-step(-1);
+                    return accept;
+                }
+                if (event.text == Key.RightArrow) {
+                    GridState.compare-candidate-step(1);
+                    return accept;
+                }
+                if (event.text == Key.UpArrow) {
+                    GridState.compare-swap();
+                    return accept;
+                }
+                if (event.text == "z" || event.text == "Z") {
+                    compare.zoomed = !compare.zoomed;
+                    return accept;
+                }
+                if (event.text == "d" || event.text == "D") {
+                    GridState.compare-mode = false;
+                    GridState.compare-mode-changed();
+                    DevelopState.enter-develop();
+                    return accept;
+                }
+                GridState.classify(event.text);
+                return accept;
+            }
+            if (GridState.survey-mode) {
+                if (event.text == "g" || event.text == "G" || event.text == Key.Escape
+                    || event.text == "n" || event.text == "N") {
+                    GridState.survey-mode = false;
+                    GridState.survey-mode-changed();
+                    return accept;
+                }
+                if (event.text == "d" || event.text == "D") {
+                    GridState.survey-mode = false;
+                    GridState.survey-mode-changed();
+                    DevelopState.enter-develop();
+                    return accept;
+                }
+                GridState.classify(event.text);
+                return accept;
+            }
+            // `C` and `N` are the Lightroom keys for these two views; both
+            // leave the loupe behind, since three ways of looking at once is
+            // none (ADR 0057 §1).
+            if (event.text == "c" || event.text == "C") {
+                if (GridState.selected >= 0) {
+                    GridState.loupe-mode = false;
+                    GridState.loupe-mode-changed();
+                    GridState.compare-mode = true;
+                    GridState.compare-mode-changed();
+                }
+                return accept;
+            }
+            if ((event.text == "n" || event.text == "N") && !event.modifiers.control) {
+                if (GridState.selected >= 0) {
+                    GridState.loupe-mode = false;
+                    GridState.loupe-mode-changed();
+                    GridState.survey-mode = true;
+                    GridState.survey-mode-changed();
+                }
+                return accept;
+            }
             if (event.text == "d" || event.text == "D" || event.text == Key.Return) {
                 // Develop takes over the window: the loupe steps aside
                 // rather than staying up behind it.
@@ -186,7 +291,9 @@ export component StudioWindow inherits Window {
                 MapState.enter-map();
                 return accept;
             }
-            if (event.text == "n" || event.text == "N") {
+            // New Collection moved off `N` so the survey view could have it,
+            // the same trade `E`/`Ctrl+E` made in ADR 0055 §4.
+            if (event.modifiers.control && (event.text == "n" || event.text == "N")) {
                 DialogState.dialog-result = "";
                 DialogState.dialog = "collection";
                 return accept;
@@ -223,11 +330,16 @@ export component StudioWindow inherits Window {
             accept
         }
 
-        develop := DevelopPanel { }
+        develop := DevelopPanel {
+            side-panels-hidden: root.side-panels-hidden;
+            chrome-hidden: root.chrome-hidden;
+        }
 
         MapPanel { }
 
         browser := BrowserPanel {
+            side-panels-hidden: root.side-panels-hidden;
+            chrome-hidden: root.chrome-hidden;
             return-focus => {
                 keys.focus();
             }
@@ -235,7 +347,19 @@ export component StudioWindow inherits Window {
 
         // Declared after the browser so it paints over it (ADR 0055 §3): the
         // loupe is the same library, looked at one photo at a time.
-        LoupePanel { }
+        loupe := LoupePanel {
+            chrome-hidden: root.chrome-hidden;
+        }
+
+        // The other two ways of looking at the same selection (ADR 0057),
+        // mounted next to the loupe and gated the same way.
+        compare := ComparePanel {
+            chrome-hidden: root.chrome-hidden;
+        }
+
+        SurveyPanel {
+            chrome-hidden: root.chrome-hidden;
+        }
 
         // Modal overlay: whichever dialog is open, over the view above.
         DialogOverlay { }

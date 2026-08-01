@@ -12,9 +12,27 @@
 
 import { GridState } from "../state/grid.slint";
 import { DevelopState } from "../state/develop.slint";
-import { Filmstrip, FilterChip, ViewModeChips } from "../widgets/controls.slint";
+import { Filmstrip, FilterChip, ViewModeChips, ZoomableImage } from "../widgets/controls.slint";
 
 export component LoupePanel inherits VerticalLayout {
+    // Panel folding, owned by the window (ADR 0055 §6). The loupe has no
+    // side panel to fold, only its chips and its filmstrip.
+    in property <bool> chrome-hidden;
+
+    // Zoom and viewpoint, panel-private: the loupe drives one image, the
+    // compare view drives two (ADR 0057 §2).
+    // `in-out`: the window's `Z` shortcut toggles it from outside.
+    in-out property <bool> zoomed: false;
+    property <float> center-x: 0.5;
+    property <float> center-y: 0.5;
+    // A different photo starts fitted and centred again.
+    property <image> loaded: GridState.loupe-image;
+    changed loaded => {
+        root.zoomed = false;
+        root.center-x = 0.5;
+        root.center-y = 0.5;
+    }
+
     visible: GridState.loupe-mode;
     padding: 12px;
     spacing: 8px;
@@ -24,7 +42,7 @@ export component LoupePanel inherits VerticalLayout {
         height: 28px;
     }
 
-    HorizontalLayout {
+    if !root.chrome-hidden: HorizontalLayout {
         height: 24px;
         spacing: 8px;
         alignment: start;
@@ -38,6 +56,13 @@ export component LoupePanel inherits VerticalLayout {
             show-loupe => { }
         }
         FilterChip {
+            text: root.zoomed ? @tr("Fit") : @tr("100%    Z");
+            active: root.zoomed;
+            clicked => {
+                root.zoomed = !root.zoomed;
+            }
+        }
+        FilterChip {
             text: @tr("Develop    D");
             active: false;
             enabled: GridState.selected >= 0;
@@ -49,13 +74,21 @@ export component LoupePanel inherits VerticalLayout {
         }
     }
 
-    Image {
-        source: GridState.loupe-image;
-        image-fit: contain;
+    // The same widget the compare view mounts twice (ADR 0057 §2) — which is
+    // how the loupe gained the 100 % zoom it did not have.
+    ZoomableImage {
         vertical-stretch: 1;
+        source: GridState.loupe-image;
+        zoomed: root.zoomed;
+        center-x: root.center-x;
+        center-y: root.center-y;
+        panned(x, y) => {
+            root.center-x = x;
+            root.center-y = y;
+        }
     }
 
-    Filmstrip {
+    if !root.chrome-hidden: Filmstrip {
         cells: GridState.cells;
         window-start: GridState.window-start;
         selected: GridState.selected;

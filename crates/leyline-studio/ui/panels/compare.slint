@@ -1,0 +1,145 @@
+// The compare view (ADR 0057): two photos side by side, at the same place and
+// the same magnification, so the one that is sharp can be told from the one
+// that is nearly sharp (ADR 0045 §3).
+//
+// Left is the **select** — the photo currently being defended — and right is
+// the **candidate**; the arrows move only the candidate, and `↑` promotes it
+// (§3). Both are cached previews: no edit session, nothing written.
+//
+// The zoom and the centre live here rather than in each view, because sharing
+// them *is* the feature (§2).
+
+import { GridState } from "../state/grid.slint";
+import { DevelopState } from "../state/develop.slint";
+import { Filmstrip, FilterChip, ZoomableImage } from "../widgets/controls.slint";
+
+export component ComparePanel inherits VerticalLayout {
+    in property <bool> chrome-hidden;
+
+    // One viewpoint for the two images (ADR 0057 §2).
+    // `in-out`: the window's `Z` shortcut toggles it from outside.
+    in-out property <bool> zoomed: false;
+    property <float> center-x: 0.5;
+    property <float> center-y: 0.5;
+
+    // A new pair resets the viewpoint: the place that mattered on the last
+    // two photos means nothing on these.
+    property <image> loaded: GridState.compare-select-image;
+    changed loaded => {
+        root.zoomed = false;
+        root.center-x = 0.5;
+        root.center-y = 0.5;
+    }
+
+    visible: GridState.compare-mode;
+    padding: 12px;
+    spacing: 8px;
+
+    Rectangle {
+        height: 28px;
+    }
+
+    if !root.chrome-hidden: HorizontalLayout {
+        height: 24px;
+        spacing: 8px;
+        alignment: start;
+
+        FilterChip {
+            text: @tr("Grid    G");
+            active: false;
+            clicked => {
+                GridState.compare-mode = false;
+                GridState.compare-mode-changed();
+            }
+        }
+        FilterChip {
+            text: @tr("Swap    ↑");
+            active: false;
+            clicked => {
+                GridState.compare-swap();
+            }
+        }
+        FilterChip {
+            text: root.zoomed ? @tr("Fit") : @tr("100%    Z");
+            active: root.zoomed;
+            clicked => {
+                root.zoomed = !root.zoomed;
+            }
+        }
+        FilterChip {
+            text: @tr("Develop    D");
+            active: false;
+            enabled: GridState.selected >= 0;
+            clicked => {
+                GridState.compare-mode = false;
+                GridState.compare-mode-changed();
+                DevelopState.enter-develop();
+            }
+        }
+    }
+
+    HorizontalLayout {
+        vertical-stretch: 1;
+        spacing: 8px;
+
+        VerticalLayout {
+            spacing: 4px;
+            horizontal-stretch: 1;
+            ZoomableImage {
+                vertical-stretch: 1;
+                source: GridState.compare-select-image;
+                zoomed: root.zoomed;
+                center-x: root.center-x;
+                center-y: root.center-y;
+                panned(x, y) => {
+                    root.center-x = x;
+                    root.center-y = y;
+                }
+            }
+            Text {
+                text: GridState.compare-select-name;
+                color: #e6e6e6;
+                font-size: 12px;
+                horizontal-alignment: center;
+                overflow: elide;
+            }
+        }
+
+        VerticalLayout {
+            spacing: 4px;
+            horizontal-stretch: 1;
+            ZoomableImage {
+                vertical-stretch: 1;
+                source: GridState.compare-candidate-image;
+                zoomed: root.zoomed;
+                center-x: root.center-x;
+                center-y: root.center-y;
+                panned(x, y) => {
+                    root.center-x = x;
+                    root.center-y = y;
+                }
+            }
+            Text {
+                // The candidate says so, because which side is which is the
+                // one thing a glance cannot recover.
+                text: GridState.compare-candidate-name == ""
+                    ? @tr("No candidate — ← → to choose one")
+                    : @tr("{} (candidate)", GridState.compare-candidate-name);
+                color: #9a9a9a;
+                font-size: 12px;
+                horizontal-alignment: center;
+                overflow: elide;
+            }
+        }
+    }
+
+    if !root.chrome-hidden: Filmstrip {
+        cells: GridState.cells;
+        window-start: GridState.window-start;
+        selected: GridState.selected;
+        clicked(index) => {
+            GridState.selected = index;
+            GridState.select(index);
+        }
+    }
+}

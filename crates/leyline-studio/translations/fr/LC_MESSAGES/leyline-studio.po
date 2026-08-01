@@ -1124,8 +1124,8 @@ msgstr "Quitter"
 
 #: crates/leyline-studio/ui/panels/menubar.slint:155
 msgctxt "MenuBar"
-msgid "New Collection…    N"
-msgstr "Nouvelle collection…    N"
+msgid "New Collection…    Ctrl+N"
+msgstr "Nouvelle collection…    Ctrl+N"
 
 #: crates/leyline-studio/ui/panels/menubar.slint:163
 msgctxt "MenuBar"
@@ -1602,3 +1602,33 @@ msgstr "Vignettes"
 
 msgid "Loupe (large view)"
 msgstr "Loupe (vue en grand)"
+
+msgid "Compare    C"
+msgstr "Comparaison    C"
+
+msgid "Survey    N"
+msgstr "Mosaïque    N"
+
+msgid "Compare two photos"
+msgstr "Comparer deux photos"
+
+msgid "Survey the selection"
+msgstr "Mosaïque de la sélection"
+
+msgid "Fold the panels"
+msgstr "Replier les panneaux"
+
+msgid "Grid    G"
+msgstr "Grille    G"
+
+msgid "Swap    ↑"
+msgstr "Échanger    ↑"
+
+msgid "Click ✕ to drop a photo from the selection"
+msgstr "Cliquez ✕ pour retirer une photo de la sélection"
+
+msgid "No candidate — ← → to choose one"
+msgstr "Aucune candidate — ← → pour en choisir une"
+
+msgid "{} (candidate)"
+msgstr "{} (candidate)"

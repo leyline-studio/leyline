@@ -154,7 +154,7 @@ export component MenuBar inherits Rectangle {
             x: menus.x + library-label.x;
             y: 28px;
             MenuRow {
-                title: @tr("New Collection…    N");
+                title: @tr("New Collection…    Ctrl+N");
                 activated => {
                     DialogState.dialog-result = "";
                     DialogState.dialog = "collection";
@@ -423,13 +423,18 @@ export component MenuBar inherits Rectangle {
             y: 28px;
             MenuRow {
                 title: @tr("Library    G");
-                enabled: DevelopState.develop-mode || GridState.loupe-mode;
+                enabled: DevelopState.develop-mode || GridState.loupe-mode
+                    || GridState.compare-mode || GridState.survey-mode;
                 activated => {
                     if (DevelopState.develop-mode) {
                         DevelopState.exit-develop();
                     }
                     GridState.loupe-mode = false;
                     GridState.loupe-mode-changed();
+                    GridState.compare-mode = false;
+                    GridState.compare-mode-changed();
+                    GridState.survey-mode = false;
+                    GridState.survey-mode-changed();
                     root.open-menu = "";
                 }
             }
@@ -442,6 +447,33 @@ export component MenuBar inherits Rectangle {
                 activated => {
                     GridState.loupe-mode = true;
                     GridState.loupe-mode-changed();
+                    root.open-menu = "";
+                }
+            }
+            // The two comparison views (ADR 0057), between the loupe and
+            // develop: they look at several photos where the loupe looks at
+            // one, and none of them opens an edit session.
+            MenuRow {
+                title: @tr("Compare    C");
+                enabled: !DevelopState.develop-mode && !GridState.compare-mode
+                    && GridState.selected >= 0;
+                activated => {
+                    GridState.loupe-mode = false;
+                    GridState.loupe-mode-changed();
+                    GridState.compare-mode = true;
+                    GridState.compare-mode-changed();
+                    root.open-menu = "";
+                }
+            }
+            MenuRow {
+                title: @tr("Survey    N");
+                enabled: !DevelopState.develop-mode && !GridState.survey-mode
+                    && GridState.selected >= 0;
+                activated => {
+                    GridState.loupe-mode = false;
+                    GridState.loupe-mode-changed();
+                    GridState.survey-mode = true;
+                    GridState.survey-mode-changed();
                     root.open-menu = "";
                 }
             }

@@ -64,6 +64,7 @@ use wiring::keywords::wire_keywords;
 use wiring::library::wire_library;
 use wiring::map::wire_map;
 use wiring::presets::{refresh_presets, wire_presets};
+use wiring::views::wire_views;
 
 /// The bundled-translation language to try at startup (ADR 0019): the
 /// primary subtag of the system locale (`fr_FR.UTF-8` → `fr`, `en-US` →
@@ -181,6 +182,8 @@ fn run() -> Result<(), String> {
         dev_presets: Vec::new(),
         collections: Vec::new(),
         folders: Vec::new(),
+        compare_candidate: None,
+        survey: Vec::new(),
         keywords: Vec::new(),
         keyword_filter: None,
         cells: Rc::new(VecModel::default()),
@@ -251,6 +254,7 @@ fn run() -> Result<(), String> {
     wire_keywords(&app, &window);
     wire_presets(&app, &window);
     wire_map(&app, &window);
+    wire_views(&app, &window);
     {
         // Scrolling or resizing moves the visible window: fetch the matching
         // rows from the catalog when the loaded window no longer covers it.

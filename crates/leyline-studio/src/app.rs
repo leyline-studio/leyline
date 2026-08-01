@@ -94,6 +94,13 @@ pub(crate) struct App {
     /// Folder ids of the sidebar's folder tree, in the order it lists them
     /// (ADR 0055 §2) — the index a click reports is an index into this.
     pub(crate) folders: Vec<FolderId>,
+    /// Grid index of the compare view's *candidate* (ADR 0057 §3), the photo
+    /// challenging the selected one. `None` outside compare, and whenever the
+    /// grid holds nothing to challenge with.
+    pub(crate) compare_candidate: Option<i32>,
+    /// Grid indices shown by the survey view, in display order (ADR 0057 §4)
+    /// — the index a removal reports is an index into this.
+    pub(crate) survey: Vec<usize>,
     /// Keywords of the selected photo, parallel to the panel's rows.
     pub(crate) keywords: Vec<KeywordId>,
     /// The keyword the grid is filtered to, when one is active.

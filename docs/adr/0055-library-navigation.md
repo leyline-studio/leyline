@@ -90,8 +90,9 @@ Elle porte deux choses, et pas une de plus :
   révision créée, aucun historique, rien à écrire, et donc un affichage
   immédiat. Les flèches y naviguent, `G` revient à la grille.
 
-*Comparaison* (C) et *mosaïque* (N) sont hors périmètre : ce sont deux
-dispositions de plus, à décider quand quelqu'un les réclamera.
+*Comparaison* (C) et *mosaïque* (N) ne sont pas ici : elles demandent un état
+de zoom partagé entre deux images, ce que la loupe n'a pas, et font donc
+l'objet d'une décision à elles — [ADR 0057](0057-compare-and-survey.md).
 
 Le tri et les filtres restent en haut, où ils sont : les répéter en bas serait
 deux endroits pour un réglage.
@@ -126,7 +127,23 @@ lecture près :
 
 Étoiles et pastille de couleur restent où elles sont.
 
-### 6. Trois propriétés à tenir
+### 6. `Tab` replie les panneaux, `Maj+Tab` tout le reste
+
+Une photo se juge sur la photo. `Tab` masque les panneaux latéraux — la
+bibliothèque à gauche, les métadonnées ou les réglages à droite — et
+`Maj+Tab` masque en plus les barres d'outils et le filmstrip, ne laissant que
+l'image et la barre de menus.
+
+**La barre de menus reste**, toujours : elle porte le sélecteur de module
+(§1), c'est-à-dire la seule sortie qui ne demande pas de connaître un
+raccourci. Une interface qui se replie jusqu'à ne plus dire comment en sortir
+est un piège, pas un mode plein écran.
+
+C'est de l'état d'interface pur, il vit le temps de la fenêtre et Rust ne le
+lit jamais (§6 ci-dessous). Les deux raccourcis sont ceux de Lightroom, à
+l'identique.
+
+### 7. Trois propriétés à tenir
 
 * **rien de tout cela ne se stocke** : module courant, mode de vue, taille de
   vignette et dossier sélectionné sont de l'état d'interface, ils vivent le
@@ -139,9 +156,6 @@ lecture près :
 
 ## Hors périmètre
 
-* **Le repli des panneaux** (`Tab` / `Maj+Tab` chez Lightroom). Utile, sans
-  rapport avec l'orientation d'un nouvel arrivant, et à décider avec le reste
-  d'une éventuelle gestion des espaces de travail.
 * **Le Navigateur** (l'aperçu en haut du panneau gauche). Il ne sert vraiment
   qu'à se déplacer dans une image zoomée au-delà de 100 % ; la grille et la
   loupe montrent déjà la photo.
@@ -158,9 +172,9 @@ lecture près :
   comptes, et un booléen « développée » par ligne de grille —, aucune
   écriture, aucun changement de schéma. `docs/catalog.md` est mis à jour.
 * **Un raccourci change** (`E`), avec sa documentation dans le même geste (§4).
-* **La grille gagne trois états d'interface** (mode de vue, taille de
-  vignette, dossier courant) qui restent du côté UI, et le test mécanique
-  d'ADR 0045 §2 continue de passer.
+* **La grille gagne quatre états d'interface** (mode de vue, taille de
+  vignette, dossier courant, repli des panneaux) qui restent du côté UI, et le
+  test mécanique d'ADR 0045 §2 continue de passer.
 * **La ligne de raccourcis grise du panneau gauche disparaît**, remplacée par
   deux boutons.
 
