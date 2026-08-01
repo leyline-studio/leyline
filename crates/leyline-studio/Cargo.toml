@@ -64,9 +64,12 @@ license-file = "../../LICENSE"
 # master asset changes — see `icon:` on `StudioWindow` in `ui/studio.slint`
 # for the same source used as the in-app window/taskbar icon, and
 # `windows-manifest.rc` / `crates/leyline-cli/windows-icon.rc` for the .exe
-# icon. `assets/leyline-studio-square.png` (the wordmark badge) remains the
-# source for marketing/README use, not the icon — it was tried for the icon
-# once and found illegible at 16-32px (see commit 3e704146).
+# icon. `assets/leyline-studio-logo.png` is the single brand master for
+# every icon size; the wide wordmark `assets/leyline-studio.png` covers
+# README and the About dialog, where there is room for the full lockup. A
+# square wordmark badge was tried as the icon once and found illegible at
+# 16-32px (see commit 3e704146), which is why the logo — not a badge — is
+# the source here.
 icons = [
     "../../packaging/icons/32x32.png",
     "../../packaging/icons/128x128.png",
