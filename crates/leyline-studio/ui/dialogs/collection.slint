@@ -55,3 +55,156 @@ export component CollectionDialog inherits VerticalLayout {
         }
     }
 }
+
+// Renaming a collection: the same one field as creating one, prefilled
+// (`docs/catalog.md` §24). Kept in this file rather than in three more:
+// four dialogs of thirty lines about one subject are one subject, and
+// splitting them would only spread the same import list.
+export component RenameCollectionDialog inherits VerticalLayout {
+    spacing: 12px;
+    Text {
+        text: @tr("Rename collection");
+        color: #f0f0f0;
+        font-size: 15px;
+        font-weight: 600;
+    }
+    Text {
+        text: @tr("Name");
+        color: #9a9a9a;
+        font-size: 12px;
+    }
+    Rectangle {
+        height: 28px;
+        background: #1b1b1b;
+        border-radius: 4px;
+        border-width: 1px;
+        border-color: #3a3a3a;
+        new-name := TextInput {
+            x: 8px;
+            width: parent.width - 16px;
+            height: 100%;
+            text: CollectionState.target-name;
+            color: #e6e6e6;
+            font-size: 12px;
+            vertical-alignment: center;
+            single-line: true;
+            accepted => {
+                CollectionState.run-rename(self.text);
+            }
+        }
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: end;
+        FilterChip {
+            text: @tr("Cancel");
+            active: false;
+            clicked => {
+                DialogState.dialog = "";
+            }
+        }
+        FilterChip {
+            text: @tr("Rename");
+            active: true;
+            clicked => {
+                CollectionState.run-rename(new-name.text);
+            }
+        }
+    }
+}
+
+// Moving a collection: the list Rust prepared, which already excludes the
+// collection itself and everything under it — a move into its own subtree
+// would make it vanish from every read that starts at the root.
+export component MoveCollectionDialog inherits VerticalLayout {
+    spacing: 12px;
+    Text {
+        text: @tr("Move “{}” to", CollectionState.target-name);
+        color: #f0f0f0;
+        font-size: 15px;
+        font-weight: 600;
+    }
+    Rectangle {
+        height: 220px;
+        background: #1b1b1b;
+        border-radius: 4px;
+        border-width: 1px;
+        border-color: #3a3a3a;
+        Flickable {
+            viewport-height: CollectionState.move-targets.length * 26px;
+            for label[i] in CollectionState.move-targets: Rectangle {
+                y: i * 26px;
+                width: parent.width;
+                height: 26px;
+                background: touch.has-hover ? #2f4f6f : transparent;
+                Text {
+                    x: 8px;
+                    width: parent.width - 16px;
+                    height: 100%;
+                    text: label;
+                    color: #e6e6e6;
+                    font-size: 12px;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+                touch := TouchArea {
+                    clicked => {
+                        CollectionState.run-move(i);
+                    }
+                }
+            }
+        }
+    }
+    HorizontalLayout {
+        alignment: end;
+        FilterChip {
+            text: @tr("Cancel");
+            active: false;
+            clicked => {
+                DialogState.dialog = "";
+            }
+        }
+    }
+}
+
+// Deleting: says how many collections go, because a subtree goes as a whole,
+// and says what does *not* go, because that is the question one actually has
+// at that moment.
+export component DeleteCollectionDialog inherits VerticalLayout {
+    spacing: 12px;
+    Text {
+        text: CollectionState.target-doomed > 1
+            ? @tr("Delete “{}” and the {} collections under it?", CollectionState.target-name, CollectionState.target-doomed - 1)
+            : @tr("Delete “{}”?", CollectionState.target-name);
+        color: #f0f0f0;
+        font-size: 15px;
+        font-weight: 600;
+        wrap: word-wrap;
+        width: 380px;
+    }
+    Text {
+        text: @tr("No photo is deleted: a collection is a grouping, and only the grouping goes.");
+        color: #9a9a9a;
+        font-size: 12px;
+        wrap: word-wrap;
+        width: 380px;
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: end;
+        FilterChip {
+            text: @tr("Cancel");
+            active: false;
+            clicked => {
+                DialogState.dialog = "";
+            }
+        }
+        FilterChip {
+            text: @tr("Delete");
+            active: true;
+            clicked => {
+                CollectionState.run-delete();
+            }
+        }
+    }
+}

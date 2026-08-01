@@ -250,6 +250,10 @@ export global Tr {
     public pure function enter-a-name() -> string {
         return @tr("Enter a name.");
     }
+    // The root of the collection tree, as the "Move to…" list names it.
+    public pure function top-level() -> string {
+        return @tr("Top level");
+    }
     public pure function creation-failed(error: string) -> string {
         return @tr("Creation failed: {}", error);
     }

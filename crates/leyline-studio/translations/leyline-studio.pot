@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2026-08-01 11:38+0000\n"
+"POT-Creation-Date: 2026-08-01 14:38+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -55,6 +55,62 @@ msgstr ""
 #: crates/leyline-studio/ui/dialogs/collection.slint:50
 msgctxt "CollectionDialog"
 msgid "Create"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/collection.slint:66
+msgctxt "RenameCollectionDialog"
+msgid "Rename collection"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/collection.slint:72
+msgctxt "RenameCollectionDialog"
+msgid "Name"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/collection.slint:100
+msgctxt "RenameCollectionDialog"
+msgid "Cancel"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/collection.slint:107
+msgctxt "RenameCollectionDialog"
+msgid "Rename"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/collection.slint:122
+msgctxt "MoveCollectionDialog"
+msgid "Move “{}” to"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/collection.slint:161
+msgctxt "MoveCollectionDialog"
+msgid "Cancel"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/collection.slint:177
+msgctxt "DeleteCollectionDialog"
+msgid "Delete “{}” and the {} collections under it?"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/collection.slint:178
+msgctxt "DeleteCollectionDialog"
+msgid "Delete “{}”?"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/collection.slint:186
+msgctxt "DeleteCollectionDialog"
+msgid ""
+"No photo is deleted: a collection is a grouping, and only the grouping goes."
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/collection.slint:196
+msgctxt "DeleteCollectionDialog"
+msgid "Cancel"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/collection.slint:203
+msgctxt "DeleteCollectionDialog"
+msgid "Delete"
 msgstr ""
 
 #: crates/leyline-studio/ui/dialogs/export.slint:14
@@ -497,225 +553,240 @@ msgctxt "BrowserPanel"
 msgid "Collections"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:200
+#: crates/leyline-studio/ui/panels/browser.slint:199
+msgctxt "BrowserPanel"
+msgid "Rename…"
+msgstr ""
+
+#: crates/leyline-studio/ui/panels/browser.slint:205
+msgctxt "BrowserPanel"
+msgid "Move to…"
+msgstr ""
+
+#: crates/leyline-studio/ui/panels/browser.slint:212
+msgctxt "BrowserPanel"
+msgid "Delete…"
+msgstr ""
+
+#: crates/leyline-studio/ui/panels/browser.slint:230
 msgctxt "BrowserPanel"
 msgid "Import…"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:208
+#: crates/leyline-studio/ui/panels/browser.slint:238
 msgctxt "BrowserPanel"
 msgid "Export…"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:273
+#: crates/leyline-studio/ui/panels/browser.slint:303
 msgctxt "BrowserPanel"
 msgid "⚑ Picked"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:280
+#: crates/leyline-studio/ui/panels/browser.slint:310
 msgctxt "BrowserPanel"
 msgid "✕ Rejected"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:287
+#: crates/leyline-studio/ui/panels/browser.slint:317
 msgctxt "BrowserPanel"
 msgid "– Unflagged"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:325
+#: crates/leyline-studio/ui/panels/browser.slint:355
 msgctxt "BrowserPanel"
 msgid "Search…"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:337
+#: crates/leyline-studio/ui/panels/browser.slint:367
 msgctxt "BrowserPanel"
 msgid "Sort: {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:368
+#: crates/leyline-studio/ui/panels/browser.slint:398
 msgctxt "BrowserPanel"
 msgid "No photos yet"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:378
+#: crates/leyline-studio/ui/panels/browser.slint:408
 msgctxt "BrowserPanel"
 msgid "Import a folder of photos, or watch one so new shots arrive on their own."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:387
+#: crates/leyline-studio/ui/panels/browser.slint:417
 msgctxt "BrowserPanel"
 msgid "Import photos…"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:394
+#: crates/leyline-studio/ui/panels/browser.slint:424
 msgctxt "BrowserPanel"
 msgid "Watch a folder…"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:521
+#: crates/leyline-studio/ui/panels/browser.slint:551
 msgctxt "BrowserPanel"
 msgid "Develop    D"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:530
+#: crates/leyline-studio/ui/panels/browser.slint:560
 msgctxt "BrowserPanel"
 msgid "Rate"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:532
+#: crates/leyline-studio/ui/panels/browser.slint:562
 msgctxt "BrowserPanel"
 msgid "1 star    1"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:540
+#: crates/leyline-studio/ui/panels/browser.slint:570
 msgctxt "BrowserPanel"
 msgid "2 stars    2"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:548
+#: crates/leyline-studio/ui/panels/browser.slint:578
 msgctxt "BrowserPanel"
 msgid "3 stars    3"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:556
+#: crates/leyline-studio/ui/panels/browser.slint:586
 msgctxt "BrowserPanel"
 msgid "4 stars    4"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:564
+#: crates/leyline-studio/ui/panels/browser.slint:594
 msgctxt "BrowserPanel"
 msgid "5 stars    5"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:573
+#: crates/leyline-studio/ui/panels/browser.slint:603
 msgctxt "BrowserPanel"
 msgid "Clear Rating    0"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:582
+#: crates/leyline-studio/ui/panels/browser.slint:612
 msgctxt "BrowserPanel"
 msgid "Label"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:584
+#: crates/leyline-studio/ui/panels/browser.slint:614
 msgctxt "BrowserPanel"
 msgid "Red    6"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:592
+#: crates/leyline-studio/ui/panels/browser.slint:622
 msgctxt "BrowserPanel"
 msgid "Yellow    7"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:600
+#: crates/leyline-studio/ui/panels/browser.slint:630
 msgctxt "BrowserPanel"
 msgid "Green    8"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:608
+#: crates/leyline-studio/ui/panels/browser.slint:638
 msgctxt "BrowserPanel"
 msgid "Blue    9"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:617
+#: crates/leyline-studio/ui/panels/browser.slint:647
 msgctxt "BrowserPanel"
 msgid "Flag"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:619
+#: crates/leyline-studio/ui/panels/browser.slint:649
 msgctxt "BrowserPanel"
 msgid "Pick    P"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:627
+#: crates/leyline-studio/ui/panels/browser.slint:657
 msgctxt "BrowserPanel"
 msgid "Reject    X"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:635
+#: crates/leyline-studio/ui/panels/browser.slint:665
 msgctxt "BrowserPanel"
 msgid "Clear    U"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:645
+#: crates/leyline-studio/ui/panels/browser.slint:675
 msgctxt "BrowserPanel"
 msgid "Add to Collection    B"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:654
+#: crates/leyline-studio/ui/panels/browser.slint:684
 msgctxt "BrowserPanel"
 msgid "Remove from Collection    Shift+B"
 msgstr ""
 
 #. Shift+R, scoped to one version.
-#: crates/leyline-studio/ui/panels/browser.slint:669
+#: crates/leyline-studio/ui/panels/browser.slint:699
 msgctxt "BrowserPanel"
 msgid "Reprocess"
 msgstr ""
 
 #. source of a copy is always singular.
-#: crates/leyline-studio/ui/panels/browser.slint:681
+#: crates/leyline-studio/ui/panels/browser.slint:711
 msgctxt "BrowserPanel"
 msgid "Copy Settings"
 msgstr ""
 
 #. collapse it down to this one cell.
-#: crates/leyline-studio/ui/panels/browser.slint:695
+#: crates/leyline-studio/ui/panels/browser.slint:725
 msgctxt "BrowserPanel"
 msgid "Paste Settings"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:727
+#: crates/leyline-studio/ui/panels/browser.slint:757
 msgctxt "BrowserPanel"
 msgid "Thumbnails"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:757
+#: crates/leyline-studio/ui/panels/browser.slint:787
 msgctxt "BrowserPanel"
 msgid "No photo selected"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:766
+#: crates/leyline-studio/ui/panels/browser.slint:796
 msgctxt "BrowserPanel"
 msgid "Path"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:770
+#: crates/leyline-studio/ui/panels/browser.slint:800
 msgctxt "BrowserPanel"
 msgid "Captured"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:774
+#: crates/leyline-studio/ui/panels/browser.slint:804
 msgctxt "BrowserPanel"
 msgid "Size"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:778
+#: crates/leyline-studio/ui/panels/browser.slint:808
 msgctxt "BrowserPanel"
 msgid "File"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:782
+#: crates/leyline-studio/ui/panels/browser.slint:812
 msgctxt "BrowserPanel"
 msgid "Camera"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:786
+#: crates/leyline-studio/ui/panels/browser.slint:816
 msgctxt "BrowserPanel"
 msgid "Lens"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:790
+#: crates/leyline-studio/ui/panels/browser.slint:820
 msgctxt "BrowserPanel"
 msgid "Exposure"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:795
+#: crates/leyline-studio/ui/panels/browser.slint:825
 msgctxt "BrowserPanel"
 msgid "Keywords"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:856
+#: crates/leyline-studio/ui/panels/browser.slint:886
 msgctxt "BrowserPanel"
 msgid "Add keyword (Nature/Birds)…"
 msgstr ""
@@ -1756,37 +1827,42 @@ msgctxt "Tr"
 msgid "Enter a name."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:254
+#: crates/leyline-studio/ui/types.slint:255
+msgctxt "Tr"
+msgid "Top level"
+msgstr ""
+
+#: crates/leyline-studio/ui/types.slint:258
 msgctxt "Tr"
 msgid "Creation failed: {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:257
+#: crates/leyline-studio/ui/types.slint:261
 msgctxt "Tr"
 msgid "Open a photo in develop first."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:260
+#: crates/leyline-studio/ui/types.slint:264
 msgctxt "Tr"
 msgid "Pick at least one group."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:263
+#: crates/leyline-studio/ui/types.slint:267
 msgctxt "Tr"
 msgid "Save failed: {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:266
+#: crates/leyline-studio/ui/types.slint:270
 msgctxt "Tr"
 msgid "Error: {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:269
+#: crates/leyline-studio/ui/types.slint:273
 msgctxt "Tr"
 msgid "Select a collection in the sidebar first."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:272
+#: crates/leyline-studio/ui/types.slint:276
 msgctxt "Tr"
 msgid "Preset saved."
 msgstr ""

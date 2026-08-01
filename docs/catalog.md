@@ -1056,6 +1056,30 @@ Une collection intelligente est générée automatiquement à partir de règles.
 
 ---
 
+## Renommer, déplacer, supprimer
+
+Une collection est un rangement, pas une donnée : les trois opérations qui la
+gèrent ne touchent **jamais** une version, une révision ou un fichier.
+
+* **Renommer** change `name`, rien d'autre. Un nom vide est refusé ; les noms
+  ne sont pas uniques (deux albums « Portraits » sous deux parents différents
+  sont légitimes, et sous le même parent c'est le problème de l'utilisateur,
+  pas une erreur du catalogue).
+* **Déplacer** change `parent_collection_id` — la racine étant `NULL`. Un
+  déplacement qui ferait d'une collection sa propre descendante est **refusé** :
+  l'arbre resterait cohérent pour SQLite, mais le sous-arbre déplacé
+  disparaîtrait de toute lecture partant de la racine.
+* **Supprimer** emporte le **sous-arbre entier**, du bas vers le haut — la
+  clé étrangère `parent_collection_id` est `ON DELETE RESTRICT`, un parent ne
+  peut donc pas partir avant ses enfants. Chaque suppression n'entraîne que la
+  disparition des appartenances (`collection_versions`, `ON DELETE CASCADE`),
+  conformément à l'invariant §29 : *les collections supprimées entraînent
+  uniquement la suppression des relations, jamais des versions ni des assets*.
+  Le nombre de collections qu'un ordre de suppression emporte est connu avant
+  de l'exécuter, pour que l'interface puisse le dire.
+
+---
+
 # 25. Collection Versions
 
 ```sql

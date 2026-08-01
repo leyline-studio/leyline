@@ -53,7 +53,7 @@ use library::{
 };
 use models::{label_color, sort_label};
 use ui::{FilterState, GridState, LibraryState, StudioWindow};
-use wiring::collections::{refresh_collections, wire_collections};
+use wiring::collections::{refresh_collections, wire_collection_management, wire_collections};
 use wiring::develop::clipboard::wire_settings_clipboard;
 use wiring::develop::wire_develop;
 use wiring::dialogs::wire_dialogs;
@@ -181,6 +181,8 @@ fn run() -> Result<(), String> {
         print_presets: Vec::new(),
         dev_presets: Vec::new(),
         collections: Vec::new(),
+        collection_depths: Vec::new(),
+        move_targets: Vec::new(),
         folders: Vec::new(),
         compare_candidate: None,
         survey: Vec::new(),
@@ -250,6 +252,7 @@ fn run() -> Result<(), String> {
     wire_library(&window, other_recent_libraries);
     wire_dialogs(&app, &window);
     wire_collections(&app, &window);
+    wire_collection_management(&app, &window);
     wire_folders(&app, &window);
     wire_keywords(&app, &window);
     wire_presets(&app, &window);

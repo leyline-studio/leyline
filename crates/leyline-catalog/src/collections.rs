@@ -123,6 +123,79 @@ impl Catalog {
         Ok(collection)
     }
 
+    /// Renames a collection (§24).
+    ///
+    /// A blank name is refused; anything else is accepted, duplicates
+    /// included — two albums called "Portraits" under different parents are
+    /// legitimate, and under the same parent that is the user's business.
+    pub fn rename_collection(&mut self, collection: CollectionId, name: &str) -> Result<()> {
+        self.ensure_writable()?;
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(invalid("a collection needs a name"));
+        }
+        require_collection(&self.conn, collection)?;
+        self.conn
+            .execute(
+                "UPDATE collections SET name = ?2 WHERE id = ?1",
+                rusqlite::params![collection.get(), name],
+            )
+            .map_err(db_err)?;
+        Ok(())
+    }
+
+    /// Moves a collection under `parent`, or to the root with `None` (§24).
+    ///
+    /// Refuses a move that would make the collection its own descendant: the
+    /// rows would stay valid for SQLite, but the whole subtree would vanish
+    /// from every read that starts at the root.
+    pub fn move_collection(
+        &mut self,
+        collection: CollectionId,
+        parent: Option<CollectionId>,
+    ) -> Result<()> {
+        self.ensure_writable()?;
+        require_collection(&self.conn, collection)?;
+        if let Some(parent) = parent {
+            require_collection(&self.conn, parent)?;
+            if parent == collection || descendants(&self.conn, collection)?.contains(&parent) {
+                return Err(invalid("a collection cannot be moved inside itself"));
+            }
+        }
+        self.conn
+            .execute(
+                "UPDATE collections SET parent_collection_id = ?2 WHERE id = ?1",
+                rusqlite::params![collection.get(), parent.map(CollectionId::get)],
+            )
+            .map_err(db_err)?;
+        Ok(())
+    }
+
+    /// Deletes a collection and everything under it, returning how many
+    /// collections went (§24).
+    ///
+    /// Bottom-up, because `parent_collection_id` is `ON DELETE RESTRICT`: a
+    /// parent cannot leave before its children. Only memberships follow
+    /// (`collection_versions`, `ON DELETE CASCADE`) — no version, no
+    /// revision and no file is touched, which is the invariant of §29.
+    pub fn delete_collection(&mut self, collection: CollectionId) -> Result<u32> {
+        self.ensure_writable()?;
+        require_collection(&self.conn, collection)?;
+        // `descendants` lists parents before children; reversing it takes the
+        // deepest first, and the collection itself goes last — a parent
+        // cannot leave before its children.
+        let mut doomed = descendants(&self.conn, collection)?;
+        doomed.reverse();
+        doomed.push(collection);
+        let tx = self.conn.transaction().map_err(db_err)?;
+        for victim in &doomed {
+            tx.execute("DELETE FROM collections WHERE id = ?1", [victim.get()])
+                .map_err(db_err)?;
+        }
+        tx.commit().map_err(db_err)?;
+        Ok(u32::try_from(doomed.len()).unwrap_or(u32::MAX))
+    }
+
     /// Creates a smart collection under `parent` (or at the root): its
     /// members come from the rules, evaluated by the grid query.
     pub fn create_smart_collection(
@@ -365,6 +438,42 @@ pub(crate) fn require_collection(
     collection: CollectionId,
 ) -> Result<()> {
     collection_type(conn, collection).map(|_| ())
+}
+
+/// An invalid-argument error, in the shape the rest of the catalog uses for
+/// them (see `folders::validate_relative_path`).
+fn invalid(reason: &str) -> LeylineError {
+    LeylineError::Io(std::io::Error::new(
+        std::io::ErrorKind::InvalidInput,
+        reason.to_owned(),
+    ))
+}
+
+/// Every collection under `root`, parents before their children.
+///
+/// Walked level by level rather than by a recursive CTE so the order is the
+/// one both callers need: a deletion goes through it backwards to reach the
+/// deepest first, and a cycle check only asks whether an id is in it.
+fn descendants(conn: &rusqlite::Connection, root: CollectionId) -> Result<Vec<CollectionId>> {
+    let mut found: Vec<CollectionId> = Vec::new();
+    let mut frontier = vec![root];
+    while let Some(parent) = frontier.pop() {
+        let mut stmt = conn
+            .prepare("SELECT id FROM collections WHERE parent_collection_id = ?1 ORDER BY id")
+            .map_err(db_err)?;
+        let children = stmt
+            .query_map([parent.get()], |row| {
+                row.get::<_, i64>(0).map(CollectionId::new)
+            })
+            .map_err(db_err)?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(db_err)?;
+        for child in children {
+            found.push(child);
+            frontier.push(child);
+        }
+    }
+    Ok(found)
 }
 
 /// Returns the collection's type, failing with `CollectionMissing`.

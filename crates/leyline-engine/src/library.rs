@@ -415,6 +415,26 @@ impl Library {
         self.catalog().collections()
     }
 
+    /// Renames a collection (§9, `docs/catalog.md` §24).
+    pub fn rename_collection(&self, id: CollectionId, name: &str) -> Result<()> {
+        self.catalog_mut().rename_collection(id, name)
+    }
+
+    /// Moves a collection under `parent`, or to the root with `None` (§9).
+    ///
+    /// A move that would make the collection its own descendant is refused.
+    pub fn move_collection(&self, id: CollectionId, parent: Option<CollectionId>) -> Result<()> {
+        self.catalog_mut().move_collection(id, parent)
+    }
+
+    /// Deletes a collection and everything under it, returning how many
+    /// collections went (§9).
+    ///
+    /// A grouping disappears; no version, no revision and no file is touched.
+    pub fn delete_collection(&self, id: CollectionId) -> Result<u32> {
+        self.catalog_mut().delete_collection(id)
+    }
+
     /// Every folder of the library with its photo count, in display order
     /// (§8) — what a sidebar folder tree lists (ADR 0055 §2). Read-only:
     /// nothing here renames, moves or deletes a folder.

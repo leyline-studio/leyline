@@ -1632,3 +1632,36 @@ msgstr "Aucune candidate — ← → pour en choisir une"
 
 msgid "{} (candidate)"
 msgstr "{} (candidate)"
+
+msgid "Rename…"
+msgstr "Renommer…"
+
+msgid "Move to…"
+msgstr "Déplacer vers…"
+
+msgid "Delete…"
+msgstr "Supprimer…"
+
+msgid "Rename collection"
+msgstr "Renommer la collection"
+
+msgid "Rename"
+msgstr "Renommer"
+
+msgid "Delete"
+msgstr "Supprimer"
+
+msgid "Top level"
+msgstr "Premier niveau"
+
+msgid "Move “{}” to"
+msgstr "Déplacer « {} » vers"
+
+msgid "Delete “{}”?"
+msgstr "Supprimer « {} » ?"
+
+msgid "Delete “{}” and the {} collections under it?"
+msgstr "Supprimer « {} » et les {} collections qu'elle contient ?"
+
+msgid "No photo is deleted: a collection is a grouping, and only the grouping goes."
+msgstr "Aucune photo n'est supprimée : une collection est un rangement, et seul le rangement disparaît."

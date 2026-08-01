@@ -6,7 +6,7 @@
 
 import { DialogState } from "../state/dialog.slint";
 import { AboutDialog } from "../dialogs/about.slint";
-import { CollectionDialog } from "../dialogs/collection.slint";
+import { CollectionDialog, DeleteCollectionDialog, MoveCollectionDialog, RenameCollectionDialog } from "../dialogs/collection.slint";
 import { ExportDialog } from "../dialogs/export.slint";
 import { ImportDialog } from "../dialogs/import.slint";
 import { PresetDialog } from "../dialogs/preset.slint";
@@ -48,6 +48,15 @@ export component DialogOverlay inherits Rectangle {
                 if DialogState.dialog == "watch": WatchDialog { }
 
                 if DialogState.dialog == "collection": CollectionDialog { }
+
+                // Managing the tree itself (`docs/catalog.md` §24): each
+                // opens from the sidebar's context menu, after Rust has
+                // filled in what only the catalog knows.
+                if DialogState.dialog == "collection-rename": RenameCollectionDialog { }
+
+                if DialogState.dialog == "collection-move": MoveCollectionDialog { }
+
+                if DialogState.dialog == "collection-delete": DeleteCollectionDialog { }
 
                 if DialogState.dialog == "preset": PresetDialog { }
 

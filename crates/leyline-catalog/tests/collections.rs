@@ -188,3 +188,84 @@ fn missing_collections_are_reported() {
         Err(LeylineError::CollectionMissing(id)) if id.get() == 999
     ));
 }
+
+#[test]
+fn renaming_changes_the_name_and_refuses_a_blank_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+    let album = catalog.create_collection(None, "Portrait").unwrap();
+
+    catalog.rename_collection(album, "  Portraits  ").unwrap();
+    let name = catalog
+        .collections()
+        .unwrap()
+        .into_iter()
+        .find(|node| node.collection == album)
+        .map(|node| node.name);
+    assert_eq!(name.as_deref(), Some("Portraits"), "the name is trimmed");
+
+    assert!(catalog.rename_collection(album, "   ").is_err());
+    assert!(
+        catalog
+            .rename_collection(CollectionId::new(9_999), "Ghost")
+            .is_err()
+    );
+}
+
+#[test]
+fn moving_reparents_and_refuses_to_swallow_its_own_subtree() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+    let travel = catalog.create_collection(None, "Travel").unwrap();
+    let iceland = catalog.create_collection(Some(travel), "Iceland").unwrap();
+    let reykjavik = catalog
+        .create_collection(Some(iceland), "Reykjavik")
+        .unwrap();
+    let portfolio = catalog.create_collection(None, "Portfolio").unwrap();
+
+    // Down into another tree, then back up to the root.
+    catalog.move_collection(portfolio, Some(iceland)).unwrap();
+    catalog.move_collection(portfolio, None).unwrap();
+
+    // A collection cannot become its own descendant, at any depth: the rows
+    // would stay valid and the subtree would vanish from every read.
+    assert!(catalog.move_collection(travel, Some(reykjavik)).is_err());
+    assert!(catalog.move_collection(travel, Some(travel)).is_err());
+    // Moving a child under a sibling of its parent stays legitimate.
+    catalog.move_collection(reykjavik, Some(portfolio)).unwrap();
+}
+
+#[test]
+fn deleting_takes_the_subtree_and_the_memberships_but_no_photo() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+    let versions = three_versions(&mut catalog);
+    let travel = catalog.create_collection(None, "Travel").unwrap();
+    let iceland = catalog.create_collection(Some(travel), "Iceland").unwrap();
+    let _deep = catalog
+        .create_collection(Some(iceland), "Reykjavik")
+        .unwrap();
+    let keep = catalog.create_collection(None, "Portfolio").unwrap();
+    catalog.add_to_collection(iceland, &versions).unwrap();
+    catalog.add_to_collection(keep, &versions).unwrap();
+
+    let gone = catalog.delete_collection(travel).unwrap();
+    assert_eq!(gone, 3, "the collection and its two descendants");
+
+    let left: Vec<String> = catalog
+        .collections()
+        .unwrap()
+        .into_iter()
+        .map(|node| node.name)
+        .collect();
+    assert_eq!(left, vec!["Portfolio".to_owned()]);
+
+    // The invariant of §29: memberships go, versions stay — and the photos
+    // are still in the collection that was not deleted.
+    assert_eq!(catalog.collection_versions(keep).unwrap(), versions);
+    assert!(matches!(
+        catalog.collection_versions(iceland),
+        Err(LeylineError::CollectionMissing(_))
+    ));
+    assert_eq!(catalog.grid(&Default::default()).unwrap().len(), 3);
+}

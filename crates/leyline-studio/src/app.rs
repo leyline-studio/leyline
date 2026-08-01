@@ -91,6 +91,14 @@ pub(crate) struct App {
     pub(crate) dev_presets: Vec<Preset>,
     /// Flattened collection ids, parallel to the sidebar rows.
     pub(crate) collections: Vec<CollectionId>,
+    /// Depth of each sidebar row, parallel to `collections` — kept because
+    /// the subtree of a row is the run of following rows deeper than it,
+    /// which is how a deletion knows what it would take before doing it
+    /// (`docs/catalog.md` §24).
+    pub(crate) collection_depths: Vec<i32>,
+    /// Where the collection being moved may land, parallel to
+    /// `CollectionState.move-targets`; `None` is the root.
+    pub(crate) move_targets: Vec<Option<CollectionId>>,
     /// Folder ids of the sidebar's folder tree, in the order it lists them
     /// (ADR 0055 §2) — the index a click reports is an index into this.
     pub(crate) folders: Vec<FolderId>,

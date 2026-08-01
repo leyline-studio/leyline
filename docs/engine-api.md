@@ -308,8 +308,17 @@ impl Library {
     pub fn reorder_collection(&self, id: CollectionId, order: &[VersionId]) -> Result<()>;
 
     pub fn collections(&self) -> Result<Vec<CollectionNode>>;
+
+    pub fn rename_collection(&self, id: CollectionId, name: &str) -> Result<()>;
+    pub fn move_collection(&self, id: CollectionId, parent: Option<CollectionId>) -> Result<()>;
+    // Emporte le sous-arbre ; rend le nombre de collections supprimées.
+    pub fn delete_collection(&self, id: CollectionId) -> Result<u32>;
 }
 ```
+
+Les trois dernières ne touchent aucune version, aucune révision, aucun fichier
+(catalogue §24) : un déplacement circulaire est refusé, et une suppression
+emporte les descendants et les seules appartenances.
 
 Les **dossiers** se lisent par la même forme, en lecture seule (ADR 0055 §2) — rien ici ne renomme, ne déplace ni ne supprime un dossier, c'est de la gestion de fichiers :
 

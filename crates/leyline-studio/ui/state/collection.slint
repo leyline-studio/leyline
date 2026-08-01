@@ -1,8 +1,14 @@
-// Collections sidebar: the tree, the active collection, and membership
-// changes (ADR 0045 §1).
+// Collections sidebar: the tree, the active collection, membership changes,
+// and the three operations that manage the tree itself (ADR 0045 §1,
+// `docs/catalog.md` §24).
 //
 // Rust flattens the tree into `CollectionRow`s with their depth; the UI
 // only indents and reports clicks.
+//
+// Renaming, moving and deleting ask Rust *before* their dialog opens
+// (`open-*`), because each needs something only the catalog side knows: the
+// current name, the parents a collection may legally move to, and how many
+// collections a deletion would take with it.
 import { CollectionRow } from "../types.slint";
 
 export global CollectionState {
@@ -12,4 +18,23 @@ export global CollectionState {
     callback run-new-collection(string);
     callback add-to-collection();
     callback remove-from-collection();
+
+    // The collection a management dialog is about: an index into
+    // `collections`, -1 when none is.
+    in-out property <int> target-collection: -1;
+    in property <string> target-name;
+    // How many collections the pending deletion would take, the target
+    // included — a subtree goes as a whole (`docs/catalog.md` §24).
+    in property <int> target-doomed;
+    // Where the target may legally move: "Top level" first, then every
+    // collection that is neither the target nor one of its descendants.
+    in property <[string]> move-targets;
+
+    callback open-rename(int);
+    callback open-move(int);
+    callback open-delete(int);
+    callback run-rename(string);
+    // Index into `move-targets`.
+    callback run-move(int);
+    callback run-delete();
 }

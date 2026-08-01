@@ -186,6 +186,36 @@ export component BrowserPanel inherits HorizontalLayout {
                                 CollectionState.select-collection(i);
                             }
                         }
+
+                        // Managing the tree (`docs/catalog.md` §24), on the
+                        // right click that ADR 0021 already established as
+                        // the second path to everything: the three entries
+                        // open dialogs, because each needs something Rust
+                        // has to look up first — the current name, the legal
+                        // parents, the size of the subtree.
+                        ContextMenuArea {
+                            Menu {
+                                MenuItem {
+                                    title: @tr("Rename…");
+                                    activated => {
+                                        CollectionState.open-rename(i);
+                                    }
+                                }
+                                MenuItem {
+                                    title: @tr("Move to…");
+                                    activated => {
+                                        CollectionState.open-move(i);
+                                    }
+                                }
+                                MenuSeparator { }
+                                MenuItem {
+                                    title: @tr("Delete…");
+                                    activated => {
+                                        CollectionState.open-delete(i);
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
