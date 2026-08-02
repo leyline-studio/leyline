@@ -62,6 +62,15 @@ mod tag_id {
     pub const FORWARD_MATRIX_1: u16 = 50964;
     pub const FORWARD_MATRIX_2: u16 = 50965;
     pub const PROFILE_NAME: u16 = 50936;
+    // The table tags (ADR 0063). Their numbering is easy to get wrong from
+    // memory — 50937 is the *dims*, not the first data block — so it was
+    // taken from the DNG specification rather than reconstructed.
+    pub const HUE_SAT_MAP_DIMS: u16 = 50937;
+    pub const HUE_SAT_MAP_DATA_1: u16 = 50938;
+    pub const HUE_SAT_MAP_DATA_2: u16 = 50939;
+    pub const TONE_CURVE: u16 = 50940;
+    pub const LOOK_TABLE_DIMS: u16 = 50981;
+    pub const LOOK_TABLE_DATA: u16 = 50982;
 }
 
 /// What can go wrong reading a `.dcp` file.
@@ -93,10 +102,300 @@ pub struct DcpProfile {
     /// One entry when the file declares a single illuminant, two when it
     /// declares both — the common case (ADR 0062).
     calibrations: Vec<Calibration>,
+    /// The look table (ADR 0063), applied late and shared by both
+    /// illuminants — the DNG format declares only one.
+    look_table: Option<HsvTable>,
+    /// The hue/saturation maps, one per calibration illuminant.
+    hue_sat_map_1: Option<HsvTable>,
+    hue_sat_map_2: Option<HsvTable>,
+    /// The profile's tone curve as `(x, y)` control points, ascending in
+    /// `x`. A "linear" profile carries exactly two — `(0,0)` and `(1,1)`,
+    /// the identity, written out literally.
+    tone_curve: Vec<(f32, f32)>,
     /// `ColorMatrix`, XYZ→camera, per illuminant. Needed on its own to
     /// find the scene white point from the camera's as-shot neutral, which
     /// is a chicken-and-egg the DNG spec resolves by iteration.
     xyz_to_camera: Vec<Calibration>,
+}
+
+/// XYZ (D50) → linear ProPhoto RGB (ROMM), the space DNG tables are defined
+/// against. ProPhoto's white point *is* D50, so no chromatic adaptation
+/// belongs here — adding one is a natural mistake that tilts every colour.
+const XYZ_D50_TO_PROPHOTO: Matrix3 = [
+    [1.3459433, -0.2556075, -0.0511118],
+    [-0.5445989, 1.5081673, 0.0205351],
+    [0.0000000, 0.0000000, 1.2118128],
+];
+
+/// The inverse of [`XYZ_D50_TO_PROPHOTO`].
+const PROPHOTO_TO_XYZ_D50: Matrix3 = [
+    [0.7976749, 0.1351917, 0.0313534],
+    [0.2880402, 0.7118741, 0.0000857],
+    [0.0000000, 0.0000000, 0.8252100],
+];
+
+/// A profile resolved for one scene light, ready to convert pixels
+/// (ADR 0063).
+///
+/// Everything that depends on the light — the matrix, the blended
+/// hue/saturation map — is settled once here rather than per pixel: neither
+/// changes within an image, and doing it per sample would dominate the cost
+/// of the conversion itself.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PreparedProfile {
+    camera_to_xyz_d50: Matrix3,
+    hue_sat_map: Option<HsvTable>,
+    look_table: Option<HsvTable>,
+    /// Control points, or empty for the identity.
+    tone_curve: Vec<(f32, f32)>,
+}
+
+impl PreparedProfile {
+    /// Converts one camera-native linear RGB sample into the linear
+    /// Rec. 2020 working space, through every table the profile carries.
+    ///
+    /// The order is the specification's, and it is not the one the names
+    /// suggest: the look table runs **before** the tone curve (ADR 0063 §1).
+    pub fn camera_to_working(&self, camera_rgb: [f32; 3]) -> [f32; 3] {
+        let mut rgb = camera_rgb;
+
+        // 1. Hue/saturation map, early, on the camera's own values.
+        if let Some(map) = &self.hue_sat_map {
+            rgb = through_hsv(rgb, |h, s, v| map.apply(h, s, v));
+        }
+
+        // 2. Camera → XYZ(D50) → ProPhoto, where the remaining tables live.
+        let xyz = apply_f32(self.camera_to_xyz_d50, rgb);
+        let mut pro = apply_f32(XYZ_D50_TO_PROPHOTO, xyz);
+
+        // 3. Look table, then tone curve. Both are defined on [0, 1] while
+        //    the working buffer deliberately is not (ADR 0044): a sample
+        //    above white passes through untouched rather than being clipped
+        //    to receive a look (ADR 0063 §2).
+        if let Some(table) = &self.look_table {
+            let bounded = pro.iter().all(|c| (0.0..=1.0).contains(c));
+            if bounded {
+                pro = through_hsv(pro, |h, s, v| table.apply(h, s, v));
+            }
+        }
+        if !self.tone_curve.is_empty() {
+            for c in &mut pro {
+                if (0.0..=1.0).contains(c) {
+                    *c = tone_curve_at(&self.tone_curve, *c);
+                }
+            }
+        }
+
+        // 4. Back out to the working space.
+        let xyz = apply_f32(PROPHOTO_TO_XYZ_D50, pro);
+        let working =
+            xyz_d50_to_linear_rec2020([f64::from(xyz[0]), f64::from(xyz[1]), f64::from(xyz[2])]);
+        [working[0] as f32, working[1] as f32, working[2] as f32]
+    }
+}
+
+/// Runs `f` on the sample's hue/saturation/value and returns to RGB.
+fn through_hsv(rgb: [f32; 3], f: impl FnOnce(f32, f32, f32) -> (f32, f32, f32)) -> [f32; 3] {
+    let (h, s, v) = rgb_to_hsv(rgb);
+    let (h, s, v) = f(h, s, v);
+    hsv_to_rgb(h, s, v)
+}
+
+/// RGB to hue (degrees), saturation and value, all on `[0, 1]` inputs.
+fn rgb_to_hsv(rgb: [f32; 3]) -> (f32, f32, f32) {
+    let max = rgb[0].max(rgb[1]).max(rgb[2]);
+    let min = rgb[0].min(rgb[1]).min(rgb[2]);
+    let span = max - min;
+    let hue = if span <= 0.0 {
+        0.0
+    } else if max == rgb[0] {
+        60.0 * (((rgb[1] - rgb[2]) / span) % 6.0)
+    } else if max == rgb[1] {
+        60.0 * ((rgb[2] - rgb[0]) / span + 2.0)
+    } else {
+        60.0 * ((rgb[0] - rgb[1]) / span + 4.0)
+    };
+    let saturation = if max <= 0.0 { 0.0 } else { span / max };
+    (hue.rem_euclid(360.0), saturation, max)
+}
+
+/// The inverse of [`rgb_to_hsv`].
+fn hsv_to_rgb(hue: f32, saturation: f32, value: f32) -> [f32; 3] {
+    let h = hue.rem_euclid(360.0) / 60.0;
+    let sector = h.floor();
+    let f = h - sector;
+    let (p, q, t) = (
+        value * (1.0 - saturation),
+        value * (1.0 - saturation * f),
+        value * (1.0 - saturation * (1.0 - f)),
+    );
+    match sector as i32 % 6 {
+        0 => [value, t, p],
+        1 => [q, value, p],
+        2 => [p, value, t],
+        3 => [p, q, value],
+        4 => [t, p, value],
+        _ => [value, p, q],
+    }
+}
+
+/// The tone curve's value at `x`, by linear interpolation between control
+/// points. Outside the declared range the nearest end holds.
+fn tone_curve_at(points: &[(f32, f32)], x: f32) -> f32 {
+    match points.binary_search_by(|(px, _)| px.total_cmp(&x)) {
+        Ok(i) => points[i].1,
+        Err(0) => points[0].1,
+        Err(i) if i >= points.len() => points[points.len() - 1].1,
+        Err(i) => {
+            let (x0, y0) = points[i - 1];
+            let (x1, y1) = points[i];
+            if (x1 - x0).abs() < f32::EPSILON {
+                y0
+            } else {
+                y0 + (y1 - y0) * (x - x0) / (x1 - x0)
+            }
+        }
+    }
+}
+
+/// `m · v` in `f32`.
+fn apply_f32(m: Matrix3, v: [f32; 3]) -> [f32; 3] {
+    [
+        (m[0][0] * f64::from(v[0]) + m[0][1] * f64::from(v[1]) + m[0][2] * f64::from(v[2])) as f32,
+        (m[1][0] * f64::from(v[0]) + m[1][1] * f64::from(v[1]) + m[1][2] * f64::from(v[2])) as f32,
+        (m[2][0] * f64::from(v[0]) + m[2][1] * f64::from(v[1]) + m[2][2] * f64::from(v[2])) as f32,
+    ]
+}
+
+/// A profile's hue/saturation/value correction table (ADR 0063).
+///
+/// A sampled cube — hue × saturation × value — of three deltas per entry: a
+/// hue *shift* in degrees, a saturation *scale*, a value *scale*. It is what
+/// gives a profile its look, where the matrix only gives it correctness.
+///
+/// Dimensions vary widely between profiles (4 608 to 81 000 entries among the
+/// three real ones inventoried), so nothing about the shape is assumed.
+#[derive(Debug, Clone, PartialEq)]
+pub struct HsvTable {
+    hue_divisions: usize,
+    sat_divisions: usize,
+    val_divisions: usize,
+    /// `hue_divisions * sat_divisions * val_divisions` triples.
+    data: Vec<[f32; 3]>,
+}
+
+impl HsvTable {
+    /// Builds a table from its declared dimensions and flat data, refusing a
+    /// pair that does not describe a whole cube.
+    fn new(dims: &[u32], data: &[f32]) -> Option<HsvTable> {
+        let [hue, sat, val] = dims else {
+            return None;
+        };
+        let (hue, sat, val) = (*hue as usize, *sat as usize, *val as usize);
+        if hue == 0 || sat == 0 || val == 0 || data.len() != hue * sat * val * 3 {
+            return None;
+        }
+        Some(HsvTable {
+            hue_divisions: hue,
+            sat_divisions: sat,
+            val_divisions: val,
+            data: data.chunks_exact(3).map(|c| [c[0], c[1], c[2]]).collect(),
+        })
+    }
+
+    /// The entry at a lattice point, hue wrapping around.
+    fn at(&self, h: usize, s: usize, v: usize) -> [f32; 3] {
+        let h = h % self.hue_divisions;
+        let s = s.min(self.sat_divisions - 1);
+        let v = v.min(self.val_divisions - 1);
+        self.data[(v * self.sat_divisions + s) * self.hue_divisions + h]
+    }
+
+    /// Applies the table to one HSV sample: `hue` in degrees `[0, 360)`,
+    /// `sat` and `val` in `[0, 1]`.
+    ///
+    /// Trilinear, with **hue cyclic**: the last hue division is adjacent to
+    /// the first. Treating hue as an open axis instead leaves a visible seam
+    /// on reds, which is exactly the kind of defect that survives a test on
+    /// a synthetic gradient and shows up on a face.
+    pub fn apply(&self, hue: f32, sat: f32, val: f32) -> (f32, f32, f32) {
+        let hue_scale = self.hue_divisions as f32 / 360.0;
+        let h = (hue.rem_euclid(360.0)) * hue_scale;
+        let h0 = h.floor();
+        let hf = h - h0;
+        let h0 = h0 as usize;
+
+        let sat_scale = (self.sat_divisions - 1) as f32;
+        let s = (sat.clamp(0.0, 1.0) * sat_scale).min(sat_scale);
+        let s0 = s.floor();
+        let sf = s - s0;
+        let s0 = s0 as usize;
+
+        // A single value division is a legitimate shape — two of the three
+        // real profiles use it — and degenerates to no interpolation here.
+        let (v0, vf) = if self.val_divisions == 1 {
+            (0usize, 0.0)
+        } else {
+            let val_scale = (self.val_divisions - 1) as f32;
+            let v = (val.clamp(0.0, 1.0) * val_scale).min(val_scale);
+            let floor = v.floor();
+            (floor as usize, v - floor)
+        };
+
+        let mut out = [0.0f32; 3];
+        for (dv, wv) in [(0usize, 1.0 - vf), (1, vf)] {
+            if wv == 0.0 {
+                continue;
+            }
+            for (ds, ws) in [(0usize, 1.0 - sf), (1, sf)] {
+                if ws == 0.0 {
+                    continue;
+                }
+                for (dh, wh) in [(0usize, 1.0 - hf), (1, hf)] {
+                    if wh == 0.0 {
+                        continue;
+                    }
+                    let entry = self.at(h0 + dh, s0 + ds, v0 + dv);
+                    let weight = wv * ws * wh;
+                    for i in 0..3 {
+                        out[i] += entry[i] * weight;
+                    }
+                }
+            }
+        }
+
+        // Hue is a shift in degrees; saturation and value are scales.
+        (hue + out[0], (sat * out[1]).clamp(0.0, 1.0), val * out[2])
+    }
+
+    /// `a` and `b` blended by `weight` on `a` — the same mireds weight the
+    /// matrices use, so a profile never interpolates its matrices under one
+    /// light and its tables under another (ADR 0063 §4).
+    fn blend(a: &HsvTable, b: &HsvTable, weight: f32) -> Option<HsvTable> {
+        if a.hue_divisions != b.hue_divisions
+            || a.sat_divisions != b.sat_divisions
+            || a.val_divisions != b.val_divisions
+        {
+            return None;
+        }
+        Some(HsvTable {
+            hue_divisions: a.hue_divisions,
+            sat_divisions: a.sat_divisions,
+            val_divisions: a.val_divisions,
+            data: a
+                .data
+                .iter()
+                .zip(&b.data)
+                .map(|(x, y)| {
+                    [
+                        x[0] * weight + y[0] * (1.0 - weight),
+                        x[1] * weight + y[1] * (1.0 - weight),
+                        x[2] * weight + y[2] * (1.0 - weight),
+                    ]
+                })
+                .collect(),
+        })
+    }
 }
 
 /// One illuminant's calibration: the matrix, and the light it was measured
@@ -452,6 +751,43 @@ impl<'a> Ifd<'a> {
         }
     }
 
+    /// A tag read as 32-bit floats — how every DCP table is stored.
+    fn floats(&self, tag: u16) -> Option<Vec<f32>> {
+        let (kind, _, _) = *self.entries.get(&tag)?;
+        if kind != 11 {
+            return None;
+        }
+        let bytes = self.value_bytes(tag)?;
+        Some(
+            bytes
+                .chunks_exact(4)
+                .map(|c| {
+                    let raw = c.try_into().unwrap();
+                    if self.little_endian {
+                        f32::from_le_bytes(raw)
+                    } else {
+                        f32::from_be_bytes(raw)
+                    }
+                })
+                .collect(),
+        )
+    }
+
+    /// A tag read as unsigned 32-bit integers — the table dimensions.
+    fn longs(&self, tag: u16) -> Option<Vec<u32>> {
+        let (kind, _, _) = *self.entries.get(&tag)?;
+        if kind != 4 {
+            return None;
+        }
+        let bytes = self.value_bytes(tag)?;
+        Some(
+            bytes
+                .chunks_exact(4)
+                .map(|c| self.u32_at(c.try_into().unwrap()))
+                .collect(),
+        )
+    }
+
     /// An ASCII tag, trailing NUL removed.
     fn ascii(&self, tag: u16) -> Option<String> {
         let bytes = self.value_bytes(tag)?;
@@ -526,10 +862,30 @@ impl DcpProfile {
         }
         let xyz_to_camera = pair(Some(color_matrix_1), color_matrix_2);
 
+        // The tables (ADR 0063). A profile declaring dimensions that do not
+        // match its data is treated as having no table rather than refused:
+        // the matrices are still usable, and a look is not worth losing a
+        // profile over.
+        let hsm_dims = ifd.longs(tag_id::HUE_SAT_MAP_DIMS);
+        let table = |dims: &Option<Vec<u32>>, tag: u16| -> Option<HsvTable> {
+            HsvTable::new(dims.as_ref()?, &ifd.floats(tag)?)
+        };
+        let hue_sat_map_1 = table(&hsm_dims, tag_id::HUE_SAT_MAP_DATA_1);
+        let hue_sat_map_2 = table(&hsm_dims, tag_id::HUE_SAT_MAP_DATA_2);
+        let look_table = table(&ifd.longs(tag_id::LOOK_TABLE_DIMS), tag_id::LOOK_TABLE_DATA);
+        let tone_curve = ifd
+            .floats(tag_id::TONE_CURVE)
+            .map(|v| v.chunks_exact(2).map(|c| (c[0], c[1])).collect())
+            .unwrap_or_default();
+
         Ok(DcpProfile {
             name,
             camera_to_xyz_d50,
             calibrations,
+            look_table,
+            hue_sat_map_1,
+            hue_sat_map_2,
+            tone_curve,
             xyz_to_camera,
         })
     }
@@ -550,6 +906,60 @@ impl DcpProfile {
                 mix3(cool.matrix, mix, warm.matrix, 1.0 - mix)
             }
         }
+    }
+
+    /// Settles everything that depends on the scene's light, once
+    /// (ADR 0063 §4).
+    ///
+    /// The two hue/saturation maps are blended by the **same** mireds weight
+    /// the matrices use: a profile must never interpolate its matrices under
+    /// one light and its tables under another.
+    pub fn prepare(&self, temperature_k: f64) -> PreparedProfile {
+        let hue_sat_map = match (&self.hue_sat_map_1, &self.hue_sat_map_2) {
+            (Some(a), Some(b)) => {
+                let weight = match self.calibrations.as_slice() {
+                    [cool, warm, ..] => {
+                        mireds_mix(temperature_k, cool.temperature, warm.temperature) as f32
+                    }
+                    _ => 1.0,
+                };
+                HsvTable::blend(a, b, weight).or_else(|| Some(a.clone()))
+            }
+            (Some(only), None) | (None, Some(only)) => Some(only.clone()),
+            (None, None) => None,
+        };
+        PreparedProfile {
+            camera_to_xyz_d50: self.camera_to_xyz_at(temperature_k),
+            hue_sat_map,
+            look_table: self.look_table.clone(),
+            // Two points is the identity a "linear" profile writes out
+            // literally; carrying it would cost a lookup per sample to
+            // change nothing.
+            tone_curve: if self.tone_curve.len() > 2 {
+                self.tone_curve.clone()
+            } else {
+                Vec::new()
+            },
+        }
+    }
+
+    /// A one-line description of which tables this profile carries — for
+    /// diagnostics and for the tests that check a real file was read whole.
+    pub fn tables_summary(&self) -> String {
+        let shape = |t: &Option<HsvTable>| match t {
+            Some(t) => format!(
+                "{}x{}x{}",
+                t.hue_divisions, t.sat_divisions, t.val_divisions
+            ),
+            None => "aucune".to_owned(),
+        };
+        format!(
+            "hue_sat_map_1 {}, hue_sat_map_2 {}, look_table {}, tone_curve {} point(s)",
+            shape(&self.hue_sat_map_1),
+            shape(&self.hue_sat_map_2),
+            shape(&self.look_table),
+            self.tone_curve.len()
+        )
     }
 
     /// The scene temperature implied by the camera's as-shot neutral, in
@@ -935,6 +1345,10 @@ mod tests {
                 },
             ],
             xyz_to_camera: Vec::new(),
+            look_table: None,
+            hue_sat_map_1: None,
+            hue_sat_map_2: None,
+            tone_curve: Vec::new(),
         };
 
         // Under tungsten the tungsten calibration is used outright, and the
@@ -965,8 +1379,155 @@ mod tests {
                 temperature: 2850.0,
             }],
             xyz_to_camera: Vec::new(),
+            look_table: None,
+            hue_sat_map_1: None,
+            hue_sat_map_2: None,
+            tone_curve: Vec::new(),
         };
         assert_eq!(single.camera_to_xyz_at(9000.0), tungsten);
+    }
+
+    /// Hue is a *cyclic* axis: the last division is adjacent to the first.
+    /// Treating it as open leaves a seam on reds — a defect that survives a
+    /// synthetic gradient and shows up on a face (ADR 0063 §3).
+    #[test]
+    fn the_hue_axis_of_a_table_wraps_around() {
+        // Two hue divisions, one saturation, one value: a table whose only
+        // content is the wrap. Division 0 shifts +10°, division 1 shifts
+        // −10°, both leaving saturation and value alone.
+        let table = HsvTable::new(&[2, 1, 1], &[10.0, 1.0, 1.0, -10.0, 1.0, 1.0])
+            .expect("a 2x1x1 table is well formed");
+
+        // Just past the last division, interpolation must come back towards
+        // division 0 rather than clamp on division 1.
+        let (near_end, _, _) = table.apply(359.0, 0.5, 0.5);
+        let (at_start, _, _) = table.apply(0.0, 0.5, 0.5);
+        assert!(
+            (near_end - 359.0 - 10.0).abs() < 1.0,
+            "359 degrees should be almost entirely division 0 again: {near_end}"
+        );
+        assert!((at_start - 10.0).abs() < 1e-4, "{at_start}");
+
+        // Halfway between the two divisions the shift averages out.
+        let (mid, _, _) = table.apply(90.0, 0.5, 0.5);
+        assert!((mid - 90.0).abs() < 1e-4, "midpoint should cancel: {mid}");
+    }
+
+    /// Saturation and value are *scales*, hue is a *shift* — mixing the two
+    /// up is silent and wrong.
+    #[test]
+    fn a_table_shifts_hue_and_scales_the_rest() {
+        let table = HsvTable::new(&[1, 1, 1], &[30.0, 2.0, 0.5]).unwrap();
+        let (h, s, v) = table.apply(100.0, 0.4, 0.8);
+        assert!((h - 130.0).abs() < 1e-4, "hue shifts: {h}");
+        assert!((s - 0.8).abs() < 1e-4, "saturation scales: {s}");
+        assert!((v - 0.4).abs() < 1e-4, "value scales: {v}");
+
+        // Saturation is a ratio, so it saturates at 1 rather than running
+        // past it.
+        let (_, clamped, _) = table.apply(0.0, 0.9, 0.5);
+        assert!((clamped - 1.0).abs() < 1e-6, "{clamped}");
+    }
+
+    /// A malformed pair of dimensions and data yields no table, never a
+    /// panic and never a half-read cube.
+    #[test]
+    fn dimensions_that_do_not_match_the_data_yield_no_table() {
+        assert!(HsvTable::new(&[2, 2, 2], &[0.0; 3]).is_none());
+        assert!(HsvTable::new(&[0, 1, 1], &[]).is_none());
+        assert!(HsvTable::new(&[1, 1], &[0.0; 3]).is_none());
+    }
+
+    /// A profile with no tables must convert exactly as the matrix path
+    /// does — that equivalence is what makes reprocessing into `v3` safe,
+    /// and the golden renders cannot show it because their fixture has no
+    /// tables to begin with.
+    #[test]
+    fn a_profile_without_tables_converts_like_the_matrix_alone() {
+        let matrix: Matrix3 = [[0.75, 0.06, 0.14], [0.21, 0.89, -0.10], [0.0, -0.43, 1.25]];
+        let profile = DcpProfile {
+            name: None,
+            camera_to_xyz_d50: matrix,
+            calibrations: vec![Calibration {
+                matrix,
+                temperature: 6500.0,
+            }],
+            xyz_to_camera: Vec::new(),
+            look_table: None,
+            hue_sat_map_1: None,
+            hue_sat_map_2: None,
+            tone_curve: Vec::new(),
+        };
+
+        let prepared = profile.prepare(6500.0);
+        for sample in [[0.5, 0.5, 0.5], [0.8, 0.2, 0.1], [0.1, 0.4, 0.7]] {
+            let through_tables = prepared.camera_to_working(sample);
+            let matrix_only = profile.camera_to_linear_rec2020_at(
+                6500.0,
+                [
+                    f64::from(sample[0]),
+                    f64::from(sample[1]),
+                    f64::from(sample[2]),
+                ],
+            );
+            for i in 0..3 {
+                let gap = (f64::from(through_tables[i]) - matrix_only[i]).abs();
+                assert!(gap < 1e-5, "{sample:?} channel {i}: {gap}");
+            }
+        }
+    }
+
+    /// The highlight rule (ADR 0063 §2): a sample above white crosses the
+    /// tables untouched rather than being clipped to receive a look. The
+    /// working buffer is unbounded above white on purpose (ADR 0044), and
+    /// that is worth more than a look on a blown highlight.
+    #[test]
+    fn a_highlight_above_white_crosses_the_tables_unchanged() {
+        let matrix: Matrix3 = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
+        // A look table that would darken everything it touches by half.
+        let crusher = HsvTable::new(&[1, 1, 1], &[0.0, 1.0, 0.5]).unwrap();
+        let profile = DcpProfile {
+            name: None,
+            camera_to_xyz_d50: matrix,
+            calibrations: vec![Calibration {
+                matrix,
+                temperature: 6500.0,
+            }],
+            xyz_to_camera: Vec::new(),
+            look_table: Some(crusher),
+            hue_sat_map_1: None,
+            hue_sat_map_2: None,
+            tone_curve: Vec::new(),
+        };
+        let prepared = profile.prepare(6500.0);
+
+        // Inside the range, the table bites.
+        let inside = prepared.camera_to_working([0.4, 0.4, 0.4]);
+        let untouched = DcpProfile {
+            look_table: None,
+            ..profile.clone()
+        }
+        .prepare(6500.0)
+        .camera_to_working([0.4, 0.4, 0.4]);
+        assert!(
+            inside[1] < untouched[1] * 0.9,
+            "the table should darken inside the range: {inside:?} vs {untouched:?}"
+        );
+
+        // Above white it does not: the headroom survives.
+        let above = prepared.camera_to_working([3.0, 3.0, 3.0]);
+        let above_untouched = DcpProfile {
+            look_table: None,
+            ..profile.clone()
+        }
+        .prepare(6500.0)
+        .camera_to_working([3.0, 3.0, 3.0]);
+        for i in 0..3 {
+            assert!(
+                (above[i] - above_untouched[i]).abs() < 1e-4,
+                "a highlight must cross untouched: {above:?} vs {above_untouched:?}"
+            );
+        }
     }
 
     /// Robertson's method against the illuminants the table is built for.

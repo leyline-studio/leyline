@@ -57,7 +57,7 @@ Ces fonctionnalités étaient cadrées comme candidates post-V1 dans [`v2-scope.
 | Masques par plage — bande de luminance et bande de teinte, raffinant un masque géométrique | [ADR 0048](adr/0048-range-masks.md) |
 | Mélangeur TSL et color grading | [ADR 0031](adr/0031-hsl-color-grading.md) |
 | Clarté, texture, dehaze | [ADR 0033](adr/0033-clarity-texture-dehaze.md) |
-| Profils caméra DCP — **expérimental** | [ADR 0035](adr/0035-camera-profile-dcp.md), [ADR 0037](adr/0037-dcp-parsing-dependency.md) |
+| Profils caméra DCP — matrices, illuminants interpolés et tables ([ADR 0062](adr/0062-dcp-illuminant-interpolation.md), [ADR 0063](adr/0063-dcp-tables.md)) — **expérimental** | [ADR 0035](adr/0035-camera-profile-dcp.md), [ADR 0037](adr/0037-dcp-parsing-dependency.md) |
 | Correction de perspective (deux curseurs, homographie) | [ADR 0052](adr/0052-perspective-correction.md) |
 | LUT créative `.cube` importée dans la bibliothèque, dosable | [ADR 0053](adr/0053-creative-lut.md) |
 | Reconstruction des hautes lumières écrêtées (`clip`/`blend`/`rebuild`, avant dématriçage) | [ADR 0050](adr/0050-highlight-reconstruction.md) |

@@ -78,6 +78,7 @@ pub(crate) mod input {
 pub(crate) mod camera_profile {
     pub(crate) mod v1;
     pub(crate) mod v2;
+    pub(crate) mod v3;
 }
 pub(crate) mod lens {
     pub(crate) mod v1;
@@ -404,6 +405,19 @@ pub(crate) static STAGES: &[Stage] = &[
                     if let Some(profile) = ctx.camera_profile {
                         let temperature = scene_temperature(ctx, profile);
                         camera_profile::v2::apply_camera_profile(px, profile, temperature);
+                    }
+                },
+            },
+            // And the profile's tables on top of its matrices (ADR 0063) —
+            // the look, where `v2` stopped at the colorimetry.
+            Version {
+                version: 3,
+                rank: 10,
+                space: Space::LinearRec2020,
+                apply: |px, ctx| {
+                    if let Some(profile) = ctx.camera_profile {
+                        let temperature = scene_temperature(ctx, profile);
+                        camera_profile::v3::apply_camera_profile(px, profile, temperature);
                     }
                 },
             },
