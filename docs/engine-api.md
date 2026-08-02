@@ -52,6 +52,7 @@ Le client s'abonne à un flux d'événements :
 pub enum Event {
     AssetsAdded { asset_ids: Vec<AssetId> },
     AssetsChanged { asset_ids: Vec<AssetId> },
+    AssetsRemoved { asset_ids: Vec<AssetId> },
     VersionChanged { version_id: VersionId },
     PreviewReady { asset_id: AssetId, kind: PreviewKind },
     JobProgress { job_id: JobId, done: u64, total: u64 },
@@ -78,7 +79,7 @@ pub enum JobResult {
 * `PreviewReady` porte l'asset (pas la version) : la surface preview est asset-based (§11), la preview rendue est toujours celle de la version courante de l'asset.
 * `TetherConnected`/`TetherDisconnected` bornent le cycle de vie d'une session `tether_connect`/`tether_disconnect` (§6bis) — chaque photo capturée pendant la session notifie via `AssetsAdded`, exactement comme un import : ce n'est pas un événement distinct, seulement une source différente pour le même import.
 * `WatchStarted`/`WatchStopped` suivent le même principe pour `watch_start`/`watch_stop` (§6ter, `docs/adr/0039-watched-folder-import.md`) : chaque fichier stabilisé dans le dossier surveillé notifie via `AssetsAdded`.
-* **État livré** : `subscribe` et les jobs `import_async`, `preview_async`, `export_async` émettent `JobProgress`, `AssetsAdded`, `PreviewReady` et `JobFinished`. Les écritures de la façade notifient : classement (§8) → un `VersionChanged` par version du lot ; mots-clés (§8) → `AssetsChanged` avec le lot ; chaque écriture d'historique d'une session d'édition (§10.1 — commit, amendement, undo, redo) → `VersionChanged`. L'application d'un preset (§10.3) ne notifie rien de plus : c'est un commit de session par version ciblée, donc les mêmes `VersionChanged` que §10.1, portés par le job `apply_preset_async`. Un client qui écrit via `catalog_mut()` directement contourne les notifications : passer par la façade. `close()` (§5) émet `LibraryClosed` à tous les abonnés du flux partagé ; les autres clones de la `Library` restent utilisables — seule la connexion catalogue ferme, et seulement quand le dernier clone est abandonné.
+* **État livré** : `subscribe` et les jobs `import_async`, `preview_async`, `export_async` émettent `JobProgress`, `AssetsAdded`, `PreviewReady` et `JobFinished`. Les écritures de la façade notifient : classement (§8) → un `VersionChanged` par version du lot ; mots-clés (§8) → `AssetsChanged` avec le lot ; le retrait d'assets (ADR 0060, `remove_assets`/`delete_assets`) → `AssetsRemoved` avec ceux qui existaient réellement ; chaque écriture d'historique d'une session d'édition (§10.1 — commit, amendement, undo, redo) → `VersionChanged`. L'application d'un preset (§10.3) ne notifie rien de plus : c'est un commit de session par version ciblée, donc les mêmes `VersionChanged` que §10.1, portés par le job `apply_preset_async`. Un client qui écrit via `catalog_mut()` directement contourne les notifications : passer par la façade. `close()` (§5) émet `LibraryClosed` à tous les abonnés du flux partagé ; les autres clones de la `Library` restent utilisables — seule la connexion catalogue ferme, et seulement quand le dernier clone est abandonné.
 
 ## 3.3 Threading
 

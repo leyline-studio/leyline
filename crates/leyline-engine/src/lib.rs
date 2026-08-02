@@ -40,7 +40,8 @@ pub use export::{
 pub use import::{ImportOptions, ImportReport, ImportedFile, SkippedFile, import};
 pub use leyline_preview::Rgb8;
 pub use library::{
-    CatalogRead, CatalogWrite, ImportedCameraProfile, ImportedLut, Library, SoftProof,
+    CatalogRead, CatalogWrite, ImportedCameraProfile, ImportedLut, Library, RemovalReport,
+    SoftProof,
 };
 pub use presets::{FailedApply, PresetApplyReport, apply_batch, capture};
 pub use preview::{Preview, PreviewFile, preview};

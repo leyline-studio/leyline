@@ -1665,3 +1665,61 @@ msgstr "Supprimer « {} » et les {} collections qu'elle contient ?"
 
 msgid "No photo is deleted: a collection is a grouping, and only the grouping goes."
 msgstr "Aucune photo n'est supprimée : une collection est un rangement, et seul le rangement disparaît."
+
+#: crates/leyline-studio/ui/dialogs/confirm.slint:35
+msgctxt "ConfirmDialog"
+msgid "Cancel"
+msgstr "Annuler"
+
+#: crates/leyline-studio/ui/panels/menubar.slint:356
+msgctxt "MenuBar"
+msgid "Remove from Catalog…"
+msgstr "Retirer du catalogue…"
+
+#: crates/leyline-studio/ui/panels/menubar.slint:364
+msgctxt "MenuBar"
+msgid "Delete from Disk…"
+msgstr "Supprimer du disque…"
+
+#: crates/leyline-studio/ui/types.slint:239
+msgctxt "Tr"
+msgid "Remove {} photo from the catalog?"
+msgid_plural "Remove {} photos from the catalog?"
+msgstr[0] "Retirer {} photo du catalogue ?"
+msgstr[1] "Retirer {} photos du catalogue ?"
+
+#: crates/leyline-studio/ui/types.slint:242
+msgctxt "Tr"
+msgid ""
+"The files stay exactly where they are, and can be imported again. Develop "
+"settings, keywords and collection membership go with the photos."
+msgstr ""
+"Les fichiers restent exactement où ils sont, et pourront être réimportés. "
+"Les réglages de développement, les mots-clés et l'appartenance aux "
+"collections partent avec les photos."
+
+#: crates/leyline-studio/ui/types.slint:245
+msgctxt "Tr"
+msgid "Remove"
+msgstr "Retirer"
+
+#: crates/leyline-studio/ui/types.slint:248
+msgctxt "Tr"
+msgid "Delete {} photo from the disk?"
+msgid_plural "Delete {} photos from the disk?"
+msgstr[0] "Supprimer {} photo du disque ?"
+msgstr[1] "Supprimer {} photos du disque ?"
+
+#: crates/leyline-studio/ui/types.slint:251
+msgctxt "Tr"
+msgid ""
+"The photos leave the catalog, and their files — with their XMP sidecars — "
+"are sent to the system trash, from where they can still be recovered."
+msgstr ""
+"Les photos quittent le catalogue, et leurs fichiers — avec leurs sidecars "
+"XMP — partent à la corbeille du système, d'où ils restent récupérables."
+
+#: crates/leyline-studio/ui/types.slint:254
+msgctxt "Tr"
+msgid "Delete"
+msgstr "Supprimer"

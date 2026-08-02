@@ -6,6 +6,7 @@
 
 import { DialogState } from "../state/dialog.slint";
 import { AboutDialog } from "../dialogs/about.slint";
+import { ConfirmDialog } from "../dialogs/confirm.slint";
 import { CollectionDialog, DeleteCollectionDialog, MoveCollectionDialog, RenameCollectionDialog } from "../dialogs/collection.slint";
 import { ExportDialog } from "../dialogs/export.slint";
 import { ImportDialog } from "../dialogs/import.slint";
@@ -57,6 +58,8 @@ export component DialogOverlay inherits Rectangle {
                 if DialogState.dialog == "collection-move": MoveCollectionDialog { }
 
                 if DialogState.dialog == "collection-delete": DeleteCollectionDialog { }
+
+                if DialogState.dialog == "confirm": ConfirmDialog { }
 
                 if DialogState.dialog == "preset": PresetDialog { }
 

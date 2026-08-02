@@ -39,6 +39,10 @@ roxmltree = "0.21"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
+# Deleting a photo from disk (ADR 0060) goes to the system trash, never a
+# permanent unlink: an irreversible delete of a RAW is the one action where
+# a photo tool owes the user a way back.
+trash = "5"
 uuid = { version = "1", features = ["v4"] }
 tempfile = "3"
 cc = "1"

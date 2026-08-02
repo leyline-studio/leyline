@@ -29,6 +29,13 @@ pub enum Event {
         /// The assets touched.
         asset_ids: Vec<AssetId>,
     },
+    /// Assets left the catalog (ADR 0060), whether or not their files were
+    /// also sent to the trash. Any view still showing them — grid,
+    /// filmstrip, map — holds dead rows until it acts on this.
+    AssetsRemoved {
+        /// The assets that actually existed and were removed.
+        asset_ids: Vec<AssetId>,
+    },
     /// A version's develop state moved (commit, undo, redo).
     VersionChanged {
         /// The version touched.

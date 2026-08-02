@@ -592,7 +592,7 @@ Cette architecture donne :
 
 * Undo gratuit : reculer le pointeur de tête ;
 * Redo gratuit : l'avancer ;
-* Historique complet : les révisions ne sont jamais supprimées ;
+* Historique complet : les révisions d'un asset vivant ne sont jamais supprimées — c'est ce qui rend l'undo et les snapshots fiables. Retirer l'asset lui-même du catalogue (ADR 0060) n'est pas une réécriture d'historique et emporte ses révisions avec lui, par la cascade du schéma ;
 * Snapshots : n'importe quelle révision peut être nommée ;
 * **Versions virtuelles : une simple branche partant d'une révision existante.**
 

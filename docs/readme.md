@@ -72,6 +72,7 @@ Les documents **de lecture** se lisent d'un bout à l'autre. Les documents **de 
 | [`presets.md`](presets.md) | Presets de développement : modèle et comportement | Référence |
 | [`v2-scope.md`](v2-scope.md) | Cadrage des fonctionnalités post-V1 | Référence |
 | [`v2-implementation-plan.md`](v2-implementation-plan.md) | Séquencement recommandé de ces fonctionnalités | Référence |
+| [`competitive-plan.md`](competitive-plan.md) | Où Leyline perd face aux logiciels établis, et dans quel ordre le reprendre | Référence |
 | [`adr/`](adr/README.md) | Pourquoi telle décision plutôt qu'une autre | Référence |
 
 ---

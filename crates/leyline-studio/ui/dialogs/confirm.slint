@@ -1,0 +1,51 @@
+// The generic confirmation dialog (ADR 0060 §4).
+//
+// Studio went without one until removing photos needed it. It is generic on
+// purpose: title, message and accept label all come from the caller, so the
+// next irreversible act reuses this instead of growing a fourth
+// near-identical dialog file.
+//
+// One of the dialogs hosted by `panels/dialogs.slint` (ADR 0045 §3).
+
+import { DialogState } from "../state/dialog.slint";
+import { FilterChip } from "../widgets/controls.slint";
+
+export component ConfirmDialog inherits VerticalLayout {
+    spacing: 12px;
+    Text {
+        text: DialogState.confirm-title;
+        color: #f0f0f0;
+        font-size: 15px;
+        font-weight: 600;
+        wrap: word-wrap;
+        width: 380px;
+    }
+    Text {
+        text: DialogState.confirm-message;
+        color: #9a9a9a;
+        font-size: 12px;
+        wrap: word-wrap;
+        width: 380px;
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: end;
+        FilterChip {
+            text: @tr("Cancel");
+            active: false;
+            clicked => {
+                DialogState.dialog = "";
+            }
+        }
+        // The destructive action is never the one the eye lands on first:
+        // Cancel comes first in the row, and the accept chip only carries
+        // the highlight when what it does is reversible.
+        FilterChip {
+            text: DialogState.confirm-accept-text;
+            active: !DialogState.confirm-danger;
+            clicked => {
+                DialogState.confirm-accept();
+            }
+        }
+    }
+}

@@ -24,7 +24,7 @@ mod revisions;
 mod search;
 mod versions;
 
-pub use assets::{CHECKSUM_LEN, NewAsset, RegisteredAsset};
+pub use assets::{CHECKSUM_LEN, DeletedAssets, NewAsset, RegisteredAsset};
 pub use collections::{CollectionNode, RatingRule, SmartRules};
 pub use details::AssetDetails;
 pub use exports::{ExportPreset, ExportRecord};

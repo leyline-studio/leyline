@@ -347,6 +347,27 @@ export component MenuBar inherits Rectangle {
                     root.open-menu = "";
                 }
             }
+            MenuSep { }
+            // Two entries, never one with a modifier (ADR 0060): confusing
+            // "stop cataloguing this" with "destroy this file" is the
+            // mistake a photo tool cannot afford even once, so the two acts
+            // never share a control.
+            MenuRow {
+                title: @tr("Remove from Catalog…");
+                enabled: GridState.selected >= 0;
+                activated => {
+                    GridState.remove-selected();
+                    root.open-menu = "";
+                }
+            }
+            MenuRow {
+                title: @tr("Delete from Disk…");
+                enabled: GridState.selected >= 0;
+                activated => {
+                    GridState.delete-selected();
+                    root.open-menu = "";
+                }
+            }
         }
 
         if root.open-menu == "develop-menu" && DevelopState.develop-mode: MenuDropdown {

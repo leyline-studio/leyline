@@ -7,6 +7,7 @@
 
 use leyline_core::{AssetId, FolderId, MediaType, RevisionId, Settings, VersionId};
 use leyline_core::{LeylineError, Result};
+use rusqlite::OptionalExtension;
 
 use crate::{Catalog, db_err, now_ms};
 
@@ -39,6 +40,23 @@ pub struct NewAsset {
     pub capture_date: Option<i64>,
     /// Capture UTC offset in minutes, when the EXIF or GPS provides it.
     pub capture_offset_minutes: Option<i32>,
+}
+
+/// What [`Catalog::delete_assets`] took out of the catalog.
+///
+/// The three vectors describe the same removal from three angles: which
+/// assets actually existed, which files on disk they named, and which
+/// preview files in the cache became orphans. `assets` and `file_paths`
+/// are index-aligned; `preview_paths` is not, an asset having any number
+/// of cached previews.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DeletedAssets {
+    /// The assets that existed and were removed, in the order given.
+    pub assets: Vec<AssetId>,
+    /// Their library-relative file paths, aligned with `assets`.
+    pub file_paths: Vec<String>,
+    /// Cache-relative paths of the preview files left orphaned.
+    pub preview_paths: Vec<String>,
 }
 
 /// Identifiers created by [`Catalog::add_asset`].
@@ -130,6 +148,79 @@ impl Catalog {
             version,
             revision,
         })
+    }
+
+    /// Removes assets from the catalog, in one transaction (ADR 0060 §1).
+    ///
+    /// Everything hanging off an asset — metadata, develop versions and
+    /// revisions, keyword links, preview rows, export history — is carried
+    /// away by the schema's `ON DELETE CASCADE`. Two things are *not*, and
+    /// are this method's whole substance:
+    ///
+    /// * `search_index` is an FTS5 **virtual** table, and foreign keys do
+    ///   not apply to virtual tables. Left alone, it would keep answering
+    ///   searches with photos that no longer exist. It is deleted here,
+    ///   explicitly.
+    /// * Preview files live in the cache **outside** SQLite. The cascade
+    ///   drops their rows and would orphan their bytes on disk, so their
+    ///   paths are collected before the delete and returned for the caller
+    ///   to unlink.
+    ///
+    /// The returned [`DeletedAssets`] also carries each asset's
+    /// library-relative file path, read before the rows vanish: a caller
+    /// deleting the files themselves (ADR 0060 §2) cannot look them up
+    /// afterwards. Unknown ids are ignored rather than refused — removing
+    /// what is already gone is the caller's intent either way.
+    pub fn delete_assets(&mut self, assets: &[AssetId]) -> Result<DeletedAssets> {
+        self.ensure_writable()?;
+        if assets.is_empty() {
+            return Ok(DeletedAssets::default());
+        }
+        let tx = self.conn.transaction().map_err(db_err)?;
+
+        let mut deleted = DeletedAssets::default();
+        for asset in assets {
+            let id = asset.get();
+
+            let file: Option<String> = tx
+                .query_row(
+                    "SELECT f.relative_path || '/' || a.filename
+                     FROM assets a JOIN folders f ON f.id = a.folder_id
+                     WHERE a.id = ?1",
+                    [id],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map_err(db_err)?;
+            // An id that matches nothing contributes nothing, and must not
+            // make the rest of the batch fail.
+            let Some(file) = file else {
+                continue;
+            };
+
+            {
+                let mut stmt = tx
+                    .prepare("SELECT relative_path FROM previews WHERE asset_id = ?1")
+                    .map_err(db_err)?;
+                let rows = stmt
+                    .query_map([id], |row| row.get::<_, String>(0))
+                    .map_err(db_err)?;
+                for path in rows {
+                    deleted.preview_paths.push(path.map_err(db_err)?);
+                }
+            }
+
+            tx.execute("DELETE FROM search_index WHERE asset_id = ?1", [id])
+                .map_err(db_err)?;
+            tx.execute("DELETE FROM assets WHERE id = ?1", [id])
+                .map_err(db_err)?;
+
+            deleted.assets.push(*asset);
+            deleted.file_paths.push(file);
+        }
+
+        tx.commit().map_err(db_err)?;
+        Ok(deleted)
     }
 
     /// Returns the asset already carrying this checksum, if any — the

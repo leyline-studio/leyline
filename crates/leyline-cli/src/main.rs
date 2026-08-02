@@ -42,6 +42,12 @@ Usage:
   leyline camera-profiles <library>
   leyline lut <library> <file.cube>
   leyline luts <library>
+  leyline remove <library> <asset-id>...
+                                    takes the photos out of the catalog; the
+                                    files are left exactly where they are
+  leyline delete <library> <asset-id>... --yes
+                                    same, and sends the files (and their .xmp
+                                    sidecars) to the system trash
   leyline rate <library> <stars|none> <version-id>...
   leyline pick <library> <pick|reject|none> <version-id>...
   leyline label <library> <red|yellow|green|blue|purple|none> <version-id>...
@@ -153,6 +159,8 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("camera-profiles") => camera_profiles(&args[1..]),
         Some("lut") => lut_import(&args[1..]),
         Some("luts") => luts(&args[1..]),
+        Some("remove") => remove(&args[1..]),
+        Some("delete") => delete(&args[1..]),
         Some("rate") => rate(&args[1..]),
         Some("pick") => pick(&args[1..]),
         Some("label") => label(&args[1..]),
@@ -359,6 +367,19 @@ fn preview(args: &[String]) -> Result<(), String> {
 }
 
 /// Parses the version ids at the tail of a classement command.
+fn asset_ids(ids: &[String]) -> Result<Vec<AssetId>, String> {
+    if ids.is_empty() {
+        return Err("expected at least one asset id".to_owned());
+    }
+    ids.iter()
+        .map(|id| {
+            id.parse()
+                .map(AssetId::new)
+                .map_err(|_| format!("bad asset id {id:?}"))
+        })
+        .collect()
+}
+
 fn version_ids(ids: &[String]) -> Result<Vec<VersionId>, String> {
     if ids.is_empty() {
         return Err("expected at least one version id".to_owned());
@@ -431,6 +452,61 @@ fn luts(args: &[String]) -> Result<(), String> {
     }
     println!("{} LUT(s)", luts.len());
     Ok(())
+}
+
+/// `remove` — out of the catalog, files untouched (ADR 0060 §1).
+fn remove(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root, ids @ ..] = positional.as_slice() else {
+        return Err("usage: leyline remove <library> <asset-id>...".to_owned());
+    };
+    let assets = asset_ids(ids)?;
+    let report = open(root)?
+        .remove_assets(&assets)
+        .map_err(|e| e.to_string())?;
+    println!(
+        "removed {} asset(s) from the catalog; no file was touched",
+        report.removed.len()
+    );
+    Ok(())
+}
+
+/// `delete` — out of the catalog *and* to the system trash (ADR 0060 §2).
+///
+/// `--yes` is mandatory rather than a convenience: this is the one command
+/// in the CLI that takes a photo off the user's disk, and a shell has no
+/// confirmation dialog to fall back on.
+fn delete(args: &[String]) -> Result<(), String> {
+    let (positional, options) = parse(args, &[])?;
+    let [root, ids @ ..] = positional.as_slice() else {
+        return Err("usage: leyline delete <library> <asset-id>... --yes\n\
+             sends the files to the system trash; use `leyline remove` to \
+             keep them"
+            .to_owned());
+    };
+    if !options.switch("yes") {
+        return Err("refusing to delete files without --yes".to_owned());
+    }
+    let assets = asset_ids(ids)?;
+    let report = open(root)?
+        .delete_assets(&assets)
+        .map_err(|e| e.to_string())?;
+    println!(
+        "removed {} asset(s); {} file(s) sent to the trash",
+        report.removed.len(),
+        report.trashed.len()
+    );
+    for (path, reason) in &report.failed {
+        eprintln!("could not trash {}: {reason}", path.display());
+    }
+    if report.failed.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "{} file(s) could not be trashed",
+            report.failed.len()
+        ))
+    }
 }
 
 fn rate(args: &[String]) -> Result<(), String> {

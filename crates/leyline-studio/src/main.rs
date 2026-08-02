@@ -64,6 +64,7 @@ use wiring::keywords::wire_keywords;
 use wiring::library::wire_library;
 use wiring::map::wire_map;
 use wiring::presets::{refresh_presets, wire_presets};
+use wiring::removal::wire_removal;
 use wiring::views::wire_views;
 
 /// The bundled-translation language to try at startup (ADR 0019): the
@@ -171,6 +172,7 @@ fn run() -> Result<(), String> {
         total: 0,
         viewport: (0, 0),
         multi_selected: std::collections::BTreeSet::new(),
+        pending_removal: None,
         develop: None,
         dev_before: None,
         soft_proof: None,
@@ -246,6 +248,7 @@ fn run() -> Result<(), String> {
 
     wire_select(&app, &window);
     wire_classify(&app, &window);
+    wire_removal(&app, &window);
     wire_settings_clipboard(&app, &window);
     wire_filters(&app, &window);
     wire_develop(&app, &window);

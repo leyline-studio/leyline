@@ -166,6 +166,26 @@ pub struct ImportedLut {
     pub checksum: String,
 }
 
+/// What a removal actually did (ADR 0060 §4).
+///
+/// The three fields answer three different questions, and a caller that
+/// conflates them will mislead its user: what left the catalog, what left
+/// the disk, and what refused to move.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RemovalReport {
+    /// Assets that existed and are no longer in the catalog. Ids that
+    /// matched nothing are silently absent — asking to remove what is
+    /// already gone is not an error.
+    pub removed: Vec<AssetId>,
+    /// Files sent to the system trash, sidecars included. Always empty for
+    /// [`Library::remove_assets`], which touches no file.
+    pub trashed: Vec<PathBuf>,
+    /// Files that exist but could not be trashed, each with the reason.
+    /// A locked or permission-denied file lands here; a file already gone
+    /// does not.
+    pub failed: Vec<(PathBuf, String)>,
+}
+
 /// A screen soft-proof request (ADR 0034): the destination to simulate, how
 /// to get there, and whether to flag what it cannot reproduce.
 ///
@@ -369,6 +389,76 @@ impl Library {
             asset_ids: assets.to_vec(),
         });
         Ok(())
+    }
+
+    /// Removes assets from the catalog, leaving their files untouched
+    /// (ADR 0060 §1). Emits `AssetsRemoved`.
+    ///
+    /// This is the operation that makes ADR 0043 §5 applicable again: with
+    /// the asset gone its checksum is unknown, so the file re-imports
+    /// instead of being skipped as a duplicate.
+    pub fn remove_assets(&self, assets: &[AssetId]) -> Result<RemovalReport> {
+        self.remove_inner(assets, false)
+    }
+
+    /// Removes assets from the catalog *and* sends their files to the
+    /// system trash (ADR 0060 §2). Emits `AssetsRemoved`.
+    ///
+    /// The XMP sidecar goes with the file. Nothing outside the library root
+    /// is ever touched: even a referenced import lives under it, since the
+    /// catalog stores root-relative paths only (ADR 0010).
+    ///
+    /// A file already missing is not an error — the catalog must be able to
+    /// clean up after a photo the user moved away behind Leyline's back.
+    /// A file that exists and resists is reported in
+    /// [`RemovalReport::failed`], never swallowed.
+    pub fn delete_assets(&self, assets: &[AssetId]) -> Result<RemovalReport> {
+        self.remove_inner(assets, true)
+    }
+
+    /// Shared body of [`Library::remove_assets`] and
+    /// [`Library::delete_assets`] — the catalog side is identical, only the
+    /// fate of the source files differs.
+    fn remove_inner(&self, assets: &[AssetId], trash_files: bool) -> Result<RemovalReport> {
+        let deleted = self.catalog_mut().delete_assets(assets)?;
+        if deleted.assets.is_empty() {
+            return Ok(RemovalReport::default());
+        }
+
+        // Preview files are outside SQLite: the cascade dropped their rows
+        // and would leave their bytes behind. A cache file that refuses to
+        // go is not worth failing a removal over — the cache is derived and
+        // can be cleared wholesale.
+        for path in &deleted.preview_paths {
+            let _ = self.inner.cache.remove(path);
+        }
+
+        let mut report = RemovalReport {
+            removed: deleted.assets,
+            trashed: Vec::new(),
+            failed: Vec::new(),
+        };
+
+        if trash_files {
+            for relative in &deleted.file_paths {
+                let file = self.inner.root.join(relative);
+                let sidecar = crate::xmp::sidecar_path(&file);
+                for target in [file, sidecar] {
+                    if !target.exists() {
+                        continue;
+                    }
+                    match trash::delete(&target) {
+                        Ok(()) => report.trashed.push(target),
+                        Err(error) => report.failed.push((target, error.to_string())),
+                    }
+                }
+            }
+        }
+
+        self.emit(Event::AssetsRemoved {
+            asset_ids: report.removed.clone(),
+        });
+        Ok(report)
     }
 
     /// Creates a keyword under `parent`, or at the root (§8).

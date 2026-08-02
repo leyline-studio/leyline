@@ -320,3 +320,120 @@ fn a_lut_is_imported_referenced_and_fails_closed_when_it_changes() {
         "{error:?}"
     );
 }
+
+/// The cycle ADR 0060 exists for: a photo in the catalog cannot be
+/// re-imported because its checksum is known, and becomes importable again
+/// once removed. This is the remedy ADR 0043 §5 prescribes for a develop
+/// library inherited from before the render-history collapse.
+#[test]
+fn removing_an_asset_frees_the_file_to_be_imported_again() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("Library");
+    let library = Library::create(&root, "Removal").unwrap();
+    let source = dir.path().join("shot.png");
+    image::save_buffer(
+        &source,
+        &[7u8; 4 * 4 * 3],
+        4,
+        4,
+        image::ExtendedColorType::Rgb8,
+    )
+    .unwrap();
+    let copy = ImportOptions {
+        copy_files: true,
+        recursive: false,
+    };
+
+    let asset = library.import(&source, &copy, |_, _| {}).unwrap().imported[0]
+        .registered
+        .asset;
+
+    // Before the removal: the same bytes are refused as a duplicate,
+    // which is exactly what blocked ADR 0043 §5's remedy.
+    let blocked = library.import(&source, &copy, |_, _| {}).unwrap();
+    assert!(blocked.imported.is_empty());
+    assert_eq!(blocked.skipped.len(), 1);
+    assert!(blocked.skipped[0].reason.contains("duplicate"));
+
+    let events = library.subscribe();
+    let report = library.remove_assets(&[asset]).unwrap();
+    assert_eq!(report.removed, vec![asset]);
+    // `remove` never touches a file, whatever else it does.
+    assert!(report.trashed.is_empty());
+    assert!(report.failed.is_empty());
+    assert!(root.join("Photos/shot.png").is_file());
+    assert_eq!(library.catalog().count(&GridQuery::default()).unwrap(), 0);
+    assert!(matches!(
+        events
+            .try_iter()
+            .find(|e| matches!(e, Event::AssetsRemoved { .. })),
+        Some(Event::AssetsRemoved { asset_ids }) if asset_ids == vec![asset]
+    ));
+
+    // After the removal the checksum is free, so the copy the first import
+    // left under `Photos/` re-imports by reference. Re-importing the
+    // *outside* source in copy mode would still be refused, and rightly:
+    // its destination file is already there. Repairing an inherited
+    // library therefore means re-importing what the library already holds.
+    let reference = ImportOptions {
+        copy_files: false,
+        recursive: false,
+    };
+    let again = library
+        .import(&root.join("Photos/shot.png"), &reference, |_, _| {})
+        .unwrap();
+    assert_eq!(again.skipped, vec![]);
+    assert_eq!(again.imported.len(), 1);
+}
+
+/// `delete` differs from `remove` on exactly one axis: the file. The trash
+/// is the system's, so this asserts the contract rather than the mechanism
+/// — the file either left or was reported as resisting, never silently
+/// left behind under a successful-looking report.
+#[test]
+fn deleting_an_asset_also_takes_its_file_and_sidecar() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("Library");
+    let library = Library::create(&root, "Deletion").unwrap();
+    let source = dir.path().join("gone.png");
+    image::save_buffer(
+        &source,
+        &[3u8; 4 * 4 * 3],
+        4,
+        4,
+        image::ExtendedColorType::Rgb8,
+    )
+    .unwrap();
+    let asset = library
+        .import(
+            &source,
+            &ImportOptions {
+                copy_files: true,
+                recursive: false,
+            },
+            |_, _| {},
+        )
+        .unwrap()
+        .imported[0]
+        .registered
+        .asset;
+
+    let file = root.join("Photos/gone.png");
+    let sidecar = root.join("Photos/gone.xmp");
+    std::fs::write(&sidecar, b"<x:xmpmeta/>").unwrap();
+
+    let report = library.delete_assets(&[asset]).unwrap();
+    assert_eq!(report.removed, vec![asset]);
+    assert_eq!(library.catalog().count(&GridQuery::default()).unwrap(), 0);
+
+    // Whatever the platform's trash does, a file that still exists must be
+    // named in `failed` — never dropped from the report.
+    for path in [&file, &sidecar] {
+        assert!(
+            !path.exists() || report.failed.iter().any(|(p, _)| p == path),
+            "{} survived without being reported",
+            path.display()
+        );
+    }
+    assert_eq!(report.trashed.len() + report.failed.len(), 2);
+}

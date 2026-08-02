@@ -169,3 +169,78 @@ fn read_only_handles_refuse_writes_explicitly() {
         Err(LeylineError::Db(_))
     ));
 }
+
+#[test]
+fn delete_assets_takes_the_whole_graph_and_frees_the_checksum() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+
+    let asset = sample_asset(&mut catalog, "IMG_0001.CR3");
+    let checksum = asset.checksum;
+    let registered = catalog.add_asset(&asset, &Settings::default()).unwrap();
+
+    // A cached preview: its row cascades, but its file on disk is the
+    // caller's to unlink, so the path must come back out.
+    catalog
+        .record_preview(&leyline_catalog::NewPreview {
+            asset: registered.asset,
+            revision: registered.revision,
+            kind: leyline_core::PreviewKind::Small,
+            width: 1024,
+            height: 683,
+            relative_path: "ab/cd/preview.png".to_owned(),
+        })
+        .unwrap();
+
+    let deleted = catalog.delete_assets(&[registered.asset]).unwrap();
+    assert_eq!(deleted.assets, vec![registered.asset]);
+    assert_eq!(deleted.file_paths, vec!["Photos/Wildlife/IMG_0001.CR3"]);
+    assert_eq!(deleted.preview_paths, vec!["ab/cd/preview.png"]);
+
+    // Every table hanging off the asset is empty — the six that cascade,
+    // plus `search_index`, which is an FTS5 virtual table where foreign
+    // keys do not apply and which would otherwise keep answering searches
+    // with a photo that no longer exists.
+    for table in [
+        "assets",
+        "metadata",
+        "develop_revisions",
+        "develop_versions",
+        "develop_current",
+        "previews",
+        "asset_keywords",
+        "export_history",
+        "search_index",
+    ] {
+        let count: i64 = catalog
+            .connection()
+            .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 0, "{table} still holds rows after the delete");
+    }
+
+    // The point of the whole feature (ADR 0060, ADR 0043 §5): the
+    // checksum is free again, so the file re-imports instead of being
+    // skipped as a duplicate.
+    assert_eq!(catalog.find_asset_by_checksum(&checksum).unwrap(), None);
+    let again = sample_asset(&mut catalog, "IMG_0001.CR3");
+    catalog.add_asset(&again, &Settings::default()).unwrap();
+}
+
+#[test]
+fn delete_assets_ignores_unknown_ids_and_an_empty_batch() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+
+    let asset = sample_asset(&mut catalog, "IMG_0002.CR3");
+    let registered = catalog.add_asset(&asset, &Settings::default()).unwrap();
+
+    assert_eq!(catalog.delete_assets(&[]).unwrap().assets, vec![]);
+
+    // Removing what is already gone is the caller's intent either way:
+    // the unknown id contributes nothing and does not fail the batch.
+    let ghost = leyline_core::AssetId::new(registered.asset.get() + 999);
+    let deleted = catalog.delete_assets(&[ghost, registered.asset]).unwrap();
+    assert_eq!(deleted.assets, vec![registered.asset]);
+    assert_eq!(deleted.file_paths.len(), 1);
+}

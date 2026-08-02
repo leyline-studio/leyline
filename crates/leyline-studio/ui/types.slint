@@ -232,6 +232,27 @@ export global Tr {
     public pure function reprocessed(reprocessed: int, already-current: int, failed: int) -> string {
         return @tr("Reprocessed {} photo(s), {} already current, {} failed", reprocessed, already-current, failed);
     }
+    // Removal (ADR 0060). The two messages differ on one thing only — what
+    // happens to the files — because that is the whole distinction between
+    // the two menu entries, and the only sentence worth reading twice.
+    public pure function remove-from-catalog-title(n: int) -> string {
+        return @tr("Remove {} photo from the catalog?" | "Remove {} photos from the catalog?" % n, n);
+    }
+    public pure function remove-from-catalog-message() -> string {
+        return @tr("The files stay exactly where they are, and can be imported again. Develop settings, keywords and collection membership go with the photos.");
+    }
+    public pure function remove-from-catalog-accept() -> string {
+        return @tr("Remove");
+    }
+    public pure function delete-from-disk-title(n: int) -> string {
+        return @tr("Delete {} photo from the disk?" | "Delete {} photos from the disk?" % n, n);
+    }
+    public pure function delete-from-disk-message() -> string {
+        return @tr("The photos leave the catalog, and their files — with their XMP sidecars — are sent to the system trash, from where they can still be recovered.");
+    }
+    public pure function delete-from-disk-accept() -> string {
+        return @tr("Delete");
+    }
     public pure function enter-source-folder() -> string {
         return @tr("Enter a source folder.");
     }

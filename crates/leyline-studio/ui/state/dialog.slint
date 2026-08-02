@@ -10,10 +10,20 @@
 // Rust. The two input paths stay in sync because they bind the same
 // property.
 export global DialogState {
-    // Modal dialog state: "" (none), "import", "export", "print", "tether"
-    // or "watch".
+    // Modal dialog state: "" (none), "import", "export", "print", "tether",
+    // "watch" or "confirm".
     in-out property <string> dialog;
     in-out property <string> dialog-result;
+    // The generic confirmation dialog (ADR 0060 §4). Studio had none until
+    // removal needed one, and removal is exactly the kind of act that must
+    // not happen on a mis-click: `confirm-danger` styles the accept button
+    // as destructive, and `confirm-accept` carries no payload — the caller
+    // that opened the dialog already knows what it asked about.
+    in-out property <string> confirm-title;
+    in-out property <string> confirm-message;
+    in-out property <string> confirm-accept-text;
+    in-out property <bool> confirm-danger: false;
+    callback confirm-accept();
     callback run-import(string, bool, bool);
     in-out property <bool> import-copy: true;
     in-out property <bool> import-recursive: true;

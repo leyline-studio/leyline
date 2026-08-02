@@ -113,6 +113,12 @@ pub(crate) struct App {
     pub(crate) keywords: Vec<KeywordId>,
     /// The keyword the grid is filtered to, when one is active.
     pub(crate) keyword_filter: Option<KeywordId>,
+    /// The removal the confirmation dialog is currently asking about
+    /// (ADR 0060): the assets, and whether their files go to the trash.
+    /// Held here rather than re-derived on accept because the selection can
+    /// change under an open dialog — what the user confirmed is what must
+    /// happen, not whatever is selected a moment later.
+    pub(crate) pending_removal: Option<(Vec<AssetId>, bool)>,
     /// The live cell model, so thumbnails can be filled in row by row.
     pub(crate) cells: Rc<VecModel<Cell>>,
     /// Grid rows still waiting for a thumbnail, drained by the event pump.
@@ -236,6 +242,25 @@ pub(crate) fn selected_versions(app: &App, focused: i32) -> Vec<VersionId> {
             item_at(app, signed).map(|item| item.version_id)
         })
         .collect()
+}
+
+/// The asset ids of [`selected_indices`], deduplicated: several versions of
+/// one photo occupy several grid cells but name a single asset, and ADR 0060
+/// removes *assets*, so a multi-selection spanning two versions of the same
+/// photo must not ask the engine to remove it twice.
+pub(crate) fn selected_assets(app: &App, focused: i32) -> Vec<leyline_sdk::AssetId> {
+    let mut assets = Vec::new();
+    for index in selected_indices(app, focused) {
+        let Ok(signed) = i32::try_from(index) else {
+            continue;
+        };
+        if let Some(item) = item_at(app, signed)
+            && !assets.contains(&item.asset_id)
+        {
+            assets.push(item.asset_id);
+        }
+    }
+    assets
 }
 
 #[cfg(test)]

@@ -345,3 +345,31 @@ fn unknown_command_prints_usage_and_fails() {
     assert!(!out.status.success());
     assert!(stderr(&out).contains("unknown command"));
 }
+
+#[test]
+fn remove_takes_the_asset_out_of_the_catalog_and_leaves_the_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = library_with_a_photo(&dir);
+
+    assert!(stdout(&run(&["ls", &root])).contains("1 version(s)"));
+    let out = run(&["remove", &root, "1"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(stdout(&out).contains("no file was touched"));
+
+    assert!(stdout(&run(&["ls", &root])).contains("0 version(s)"));
+    assert!(Path::new(&root).join("Photos/photo.png").is_file());
+}
+
+#[test]
+fn delete_refuses_to_touch_a_file_without_yes() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = library_with_a_photo(&dir);
+
+    // The one CLI command that takes a photo off the disk, in a place with
+    // no confirmation dialog: the guard is the command's whole safety.
+    let out = run(&["delete", &root, "1"]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("--yes"));
+    assert!(stdout(&run(&["ls", &root])).contains("1 version(s)"));
+    assert!(Path::new(&root).join("Photos/photo.png").is_file());
+}

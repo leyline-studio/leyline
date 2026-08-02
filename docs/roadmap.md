@@ -34,9 +34,11 @@ Interface de bureau : navigateur, filtres, classement, module de développement,
 
 JPEG, TIFF, PNG, WebP, AVIF, presets d'export et export par lots.
 
-## Phase 7 — Optimisations ✅
+## Phase 7 — Optimisations ⚠️
 
-Parallélisme Rayon ([ADR 0012](adr/0012-rayon-data-parallelism.md)), benchmarks Criterion, rendu d'aperçu à la résolution d'affichage ([ADR 0041](adr/0041-interactive-preview-rendering.md)).
+Parallélisme Rayon ([ADR 0012](adr/0012-rayon-data-parallelism.md)), benchmarks Criterion, rendu d'aperçu à la résolution d'affichage et mise à l'échelle des rayons ([ADR 0041](adr/0041-interactive-preview-rendering.md) §1 et §2).
+
+**Reste ouvert :** le cache d'états intermédiaires d'[ADR 0041](adr/0041-interactive-preview-rendering.md) §3 est décidé mais **non implémenté** — seul `DecodeCache` existe, qui évite le re-décodage et non le re-calcul. Voir [`competitive-plan.md`](competitive-plan.md) §B1.
 
 ## Phase 8 — Distribution ✅
 
@@ -56,6 +58,8 @@ Les onze modules `processN.rs` dupliqués (14 968 lignes, 70 à 93 % de duplicat
 ## En cours
 
 Le cadrage post-V1 est refermé : l'épreuvage écran et le filigrane texte, derniers éléments restés ouverts, sont livrés ([ADR 0051](adr/0051-watermark-rasterization-and-soft-proof-surface.md)). Le travail porte désormais sur la prise en main et le confort d'usage de Studio — ADR 0054 à 0058 — et sur ce que [`readme.md`](readme.md) liste comme encore ouvert : la colorimétrie DCP à valider, les finitions d'outillage des retouches locales, le profil de bruit par boîtier.
+
+Le pas suivant est cadré par [`competitive-plan.md`](competitive-plan.md), issu d'une comparaison à froid avec les logiciels établis : justesse du rendu (colorimétrie DCP, dématriçage, profil de bruit), performance (cache d'étages, export, GPU sur le seul chemin preview) et, à l'horizon, une IA locale optionnelle sous conditions strictes.
 
 ---
 

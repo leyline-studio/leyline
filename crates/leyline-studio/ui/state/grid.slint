@@ -51,4 +51,11 @@ export global GridState {
     in property <[SurveyCell]> survey-cells;
     callback survey-mode-changed();
     callback survey-remove(int);
+
+    // Taking photos out of the catalog (ADR 0060). Both act on the whole
+    // multi-selection, and both open the confirmation dialog rather than
+    // doing anything themselves — Rust fills in the wording, since only it
+    // knows how many photos are involved.
+    callback remove-selected();
+    callback delete-selected();
 }

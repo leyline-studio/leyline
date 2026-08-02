@@ -12,6 +12,7 @@ Toutes les fonctionnalités listées comme livrées le sont sur les **trois clie
 
 * Import d'un dossier (RAW, DNG, JPEG, PNG, TIFF), en copie ou par référence
 * Catalogue SQLite — bibliothèques, collections (manuelles et dynamiques), mots-clés, notes, libellés de couleur, statut de sélection
+* Retirer des photos du catalogue, ou les supprimer du disque vers la corbeille du système — deux gestes distincts ([ADR 0060](adr/0060-asset-removal.md))
 * Miniatures et aperçus en cache
 * Lecture EXIF, recherche plein texte
 * Sidecars XMP : écriture à la demande, et lecture comme amorce à l'import — le chemin de migration depuis un autre logiciel ([ADR 0047](adr/0047-xmp-sidecar-read.md))

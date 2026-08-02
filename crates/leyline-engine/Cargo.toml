@@ -24,6 +24,7 @@ notify.workspace = true
 rayon.workspace = true
 roxmltree.workspace = true
 thiserror.workspace = true
+trash.workspace = true
 
 [features]
 # On by default, so an ordinary `cargo build`/`cargo test` is unchanged.
