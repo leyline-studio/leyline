@@ -119,6 +119,13 @@ pub(crate) struct App {
     /// change under an open dialog — what the user confirmed is what must
     /// happen, not whatever is selected a moment later.
     pub(crate) pending_removal: Option<(Vec<AssetId>, bool)>,
+    /// The asset the loupe is waiting on a render for, if any. The loupe
+    /// no longer blocks the event loop to render (ADR 0055 §3): it shows
+    /// what exists now and swaps in the fresh file when `PreviewReady`
+    /// names this asset. Cleared as soon as it lands, or when the loupe
+    /// moves to another photo — a late event for a photo the user has
+    /// already left must not overwrite what they are looking at.
+    pub(crate) loupe_pending: Option<AssetId>,
     /// The live cell model, so thumbnails can be filled in row by row.
     pub(crate) cells: Rc<VecModel<Cell>>,
     /// Grid rows still waiting for a thumbnail, drained by the event pump.

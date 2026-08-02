@@ -173,6 +173,7 @@ fn run() -> Result<(), String> {
         viewport: (0, 0),
         multi_selected: std::collections::BTreeSet::new(),
         pending_removal: None,
+        loupe_pending: None,
         develop: None,
         dev_before: None,
         soft_proof: None,

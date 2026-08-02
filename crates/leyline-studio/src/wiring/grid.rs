@@ -10,16 +10,17 @@ use crate::format;
 use crate::models::label_color;
 use crate::ui::{Cell, DetailState, GridState, LibraryState, StudioWindow, Tr};
 use crate::wiring::keywords::keyword_rows;
-use leyline_sdk::{PickState, PreviewKind, VersionId};
+use leyline_sdk::{PickState, Preview, PreviewKind, VersionId};
 use slint::{ComponentHandle, Global, Model, ModelRc, SharedString, VecModel};
 
 /// Fills the side panel when a cell is clicked or reached with the arrows.
 pub(crate) fn wire_select(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         // The loupe was turned on or off (ADR 0055 §3). Nothing is opened
-        // and nothing is written: the same cached preview develop uses is
-        // read straight into the view, and dropped on the way out so a photo
-        // that has since been edited is not still hanging around in memory.
+        // and nothing is written: a cached preview is read into the view,
+        // and dropped on the way out so a photo that has since been edited
+        // is not still hanging around in memory. What is *not* cached is
+        // rendered by a job rather than inline — see `show_loupe`.
         let app = Rc::clone(app);
         let handle = window.as_weak();
         GridState::get(window).on_loupe_mode_changed(move || {
@@ -223,10 +224,73 @@ pub(crate) fn preview_image(app: &mut App, asset: leyline_sdk::AssetId) -> slint
     }
 }
 
-/// Puts one photo in the loupe (ADR 0055 §3).
+/// The size class the loupe displays. Named here rather than spelled at
+/// each call site so the loupe's kind and the pump's filter cannot drift
+/// apart — a mismatch would leave the loupe permanently waiting for an
+/// event that names another kind.
+pub(crate) const LOUPE_KIND: PreviewKind = PreviewKind::Small;
+
+/// Puts one photo in the loupe (ADR 0055 §3), without ever blocking the
+/// event loop.
+///
+/// The loupe used to call `Library::preview`, which renders the whole
+/// pipeline inline when nothing is cached — on the UI thread, so every
+/// first look at a photo froze the window for as long as the render took.
+/// `preview_state` is the engine's answer to exactly that (`engine-api.md`
+/// §11): it hands back whatever can be shown *now* and queues the rest.
+///
+/// A stale preview is shown rather than withheld: a slightly out-of-date
+/// image beats a blank window, and the fresh one replaces it the moment
+/// `PreviewReady` arrives.
 fn show_loupe(app: &mut App, window: &StudioWindow, asset: leyline_sdk::AssetId) {
-    let image = preview_image(app, asset);
-    GridState::get(window).set_loupe_image(image);
+    let state = match app.library.preview_state(asset, LOUPE_KIND) {
+        Ok(state) => state,
+        Err(error) => {
+            eprintln!("error: {error}");
+            return;
+        }
+    };
+    match state {
+        Preview::Ready(path) => {
+            app.loupe_pending = None;
+            set_loupe_image(window, &path);
+        }
+        Preview::Stale { path, .. } => {
+            // Still pending: the job under way will render the head
+            // revision, and the pump swaps it in.
+            app.loupe_pending = Some(asset);
+            set_loupe_image(window, &path);
+        }
+        Preview::Generating(_) => {
+            // Nothing to show yet. Clearing beats leaving the previous
+            // photo on screen, which would read as "this is that photo".
+            app.loupe_pending = Some(asset);
+            GridState::get(window).set_loupe_image(slint::Image::default());
+        }
+    }
+}
+
+/// Loads a cache file into the loupe, or leaves it blank on failure.
+fn set_loupe_image(window: &StudioWindow, path: &std::path::Path) {
+    match slint::Image::load_from_path(path) {
+        Ok(image) => GridState::get(window).set_loupe_image(image),
+        Err(_) => eprintln!("error: cannot load preview {}", path.display()),
+    }
+}
+
+/// Fills the loupe when the render it was waiting for lands.
+pub(crate) fn loupe_preview_ready(
+    app: &mut App,
+    window: &StudioWindow,
+    asset: leyline_sdk::AssetId,
+) {
+    if app.loupe_pending != Some(asset) || !GridState::get(window).get_loupe_mode() {
+        return;
+    }
+    app.loupe_pending = None;
+    if let Ok(Some(file)) = app.library.cached_preview(asset, LOUPE_KIND) {
+        set_loupe_image(window, &file.path);
+    }
 }
 
 /// Reads and formats everything the side panel shows for one grid row.

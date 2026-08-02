@@ -51,6 +51,11 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
         } => {
             set_thumbnail_cell(app, asset_id);
         }
+        // The loupe's own render, queued rather than run inline so the
+        // window never freezes on a first look at a photo.
+        Event::PreviewReady { asset_id, kind } if kind == crate::wiring::grid::LOUPE_KIND => {
+            crate::wiring::grid::loupe_preview_ready(app, window, asset_id);
+        }
         Event::JobProgress {
             job_id,
             done,
