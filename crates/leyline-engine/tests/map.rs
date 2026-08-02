@@ -25,11 +25,49 @@ fn sample_pack(path: &std::path::Path) {
     .unwrap();
 }
 
+#[cfg(not(feature = "bundled-basemap"))]
 #[test]
 fn without_a_pack_the_map_facade_returns_none_not_an_error() {
     let (_dir, library) = open_test_library("MapNoPack");
     assert_eq!(library.map_pack_info().unwrap(), None);
     assert_eq!(library.map_tile(0, 0, 0).unwrap(), None);
+}
+
+#[cfg(feature = "bundled-basemap")]
+#[test]
+fn without_a_pack_the_embedded_world_basemap_answers() {
+    // ADR 0059: a build carrying the basemap has no empty map state — the
+    // world is there before anything is imported.
+    let (_dir, library) = open_test_library("MapBundled");
+    let info = library.map_pack_info().unwrap().unwrap();
+    assert_eq!(info.name.as_deref(), Some("Leyline world basemap"));
+    assert_eq!(
+        info.attribution.as_deref(),
+        Some("Natural Earth (public domain)")
+    );
+    assert_eq!(info.min_zoom, Some(0));
+    assert_eq!(info.max_zoom, Some(5));
+    assert_eq!(info.format.as_deref(), Some("jpg"));
+    // The whole world at z0 is a single tile, and every pack ships it.
+    assert!(library.map_tile(0, 0, 0).unwrap().is_some());
+    // Past the pack's own depth, still `None` rather than an error.
+    assert_eq!(library.map_tile(9, 0, 0).unwrap(), None);
+}
+
+#[cfg(feature = "bundled-basemap")]
+#[test]
+fn an_imported_pack_outranks_the_embedded_basemap() {
+    // The fallback is a fallback: the moment the user brings a pack, it is
+    // the one served — the two are never composed (ADR 0059).
+    let (dir, library) = open_test_library("MapBundledOverridden");
+    let source = dir.path().join("region.mbtiles");
+    sample_pack(&source);
+
+    library.import_map_pack(&source).unwrap();
+
+    assert_eq!(library.map_tile(0, 0, 0).unwrap(), Some(vec![1, 2, 3]));
+    let info = library.map_pack_info().unwrap().unwrap();
+    assert_ne!(info.name.as_deref(), Some("Leyline world basemap"));
 }
 
 #[test]

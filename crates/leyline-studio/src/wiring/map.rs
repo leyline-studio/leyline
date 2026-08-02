@@ -327,7 +327,7 @@ pub(crate) fn refresh_map_pins(app: &mut App, window: &StudioWindow) {
 /// show.
 pub(crate) fn apply_pack_info(app: &App, window: &StudioWindow) -> Option<String> {
     let info = app.library.map_pack_info().ok().flatten();
-    MapState::get(window).set_map_pack_imported(info.is_some());
+    MapState::get(window).set_map_pack_available(info.is_some());
     let unsupported = unsupported_pack_message(info.as_ref());
     MapState::get(window).set_map_pack_attribution(SharedString::from(
         info.and_then(|i| i.attribution).unwrap_or_default(),
@@ -340,7 +340,7 @@ pub(crate) fn apply_pack_info(app: &App, window: &StudioWindow) -> Option<String
 /// `MapSession::visible_pins` so a later `map-pin-clicked(index)` resolves
 /// against exactly the pins this call just put on screen.
 pub(crate) fn render_map(app: &mut App, window: &StudioWindow) {
-    if !MapState::get(window).get_map_pack_imported() {
+    if !MapState::get(window).get_map_pack_available() {
         return;
     }
     let Some(state) = &app.map else {

@@ -49,7 +49,7 @@ Le reste du travail est de la robustesse, de la performance et du polissage, non
 
 4. [`contributing.md`](contributing.md) — style, commits, licence, CLA, et la procédure d'ajout ou de correction d'un étage de rendu.
 5. [`pipeline.md`](pipeline.md) — le contrat de rendu. À lire **avant** de toucher au moteur : il définit ce qu'est une version d'étage et ce que le projet promet sur la reproductibilité d'un rendu (§5).
-6. [`adr/`](adr/README.md) — 58 décisions structurantes, chacune avec son contexte, ses alternatives écartées et ses conséquences. C'est là que se trouve le *pourquoi* de presque tout ce qui surprend dans le code.
+6. [`adr/`](adr/README.md) — 59 décisions structurantes, chacune avec son contexte, ses alternatives écartées et ses conséquences. C'est là que se trouve le *pourquoi* de presque tout ce qui surprend dans le code.
 
 **Pour intégrer le moteur** — [`engine-api.md`](engine-api.md), puis le crate `leyline-sdk`, qui est la surface publique stable.
 

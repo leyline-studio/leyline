@@ -17,7 +17,7 @@ Toutes les fonctionnalités listées comme livrées le sont sur les **trois clie
 * Sidecars XMP : écriture à la demande, et lecture comme amorce à l'import — le chemin de migration depuis un autre logiciel ([ADR 0047](adr/0047-xmp-sidecar-read.md))
 * Capture tethering USB — chaque photo importée dès la prise de vue ([ADR 0038](adr/0038-tethered-capture.md))
 * Import automatique par dossier surveillé ([ADR 0039](adr/0039-watched-folder-import.md))
-* Vue carte GPS, tuiles MBTiles hors-ligne fournies par l'utilisateur, aucun appel réseau ([ADR 0040](adr/0040-gps-map-view.md))
+* Vue carte GPS : fond de carte mondial embarqué ([ADR 0059](adr/0059-bundled-world-basemap.md)), affiné par un pack MBTiles hors-ligne que l'utilisateur apporte s'il veut du détail ; aucun appel réseau ([ADR 0040](adr/0040-gps-map-view.md))
 
 **Développement non destructif**
 

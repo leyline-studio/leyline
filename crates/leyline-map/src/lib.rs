@@ -70,6 +70,22 @@ impl TilePack {
         Ok(TilePack { conn })
     }
 
+    /// Opens an MBTiles archive that lives in the binary rather than on
+    /// disk — the world basemap Leyline Studio ships with
+    /// ([ADR 0059](../../docs/adr/0059-bundled-world-basemap.md)).
+    ///
+    /// `sqlite3_deserialize` attaches the bytes as a read-only database in
+    /// place, so nothing is extracted, copied or cached: a `&'static [u8]`
+    /// from `include_bytes!` is already exactly what SQLite needs. Every
+    /// other method behaves identically to a pack opened from a file — the
+    /// queries don't know the difference.
+    pub fn from_static(bytes: &'static [u8]) -> Result<TilePack> {
+        let mut conn = Connection::open_in_memory().map_err(db_err)?;
+        conn.deserialize_bytes(rusqlite::MAIN_DB, bytes)
+            .map_err(db_err)?;
+        Ok(TilePack { conn })
+    }
+
     /// Raw tile bytes (PNG/JPEG/WebP — whatever the pack stores, see
     /// [`TilePackInfo::format`]) for one tile in XYZ convention, or `None`
     /// outside the pack's coverage.
@@ -197,6 +213,30 @@ mod tests {
         let (_dir, path) = sample_pack();
         let pack = TilePack::open(&path).unwrap();
         assert_eq!(pack.tile(1, 0, 0).unwrap(), Some(vec![1, 2, 3]));
+    }
+
+    #[test]
+    fn a_pack_read_from_memory_answers_exactly_like_the_same_file() {
+        // What `TilePack::from_static` does for the embedded world basemap
+        // (ADR 0059), without needing the 9 Mo asset in a unit test: the
+        // bytes of a real pack file, handed to SQLite instead of a path.
+        // Leaked on purpose — `deserialize_bytes` wants `&'static [u8]`
+        // because SQLite reads the buffer for as long as the connection
+        // lives, which is exactly what `include_bytes!` gives in the real
+        // call site.
+        let (_dir, path) = sample_pack();
+        let bytes: &'static [u8] = Vec::leak(std::fs::read(&path).unwrap());
+
+        let from_file = TilePack::open(&path).unwrap();
+        let from_memory = TilePack::from_static(bytes).unwrap();
+
+        assert_eq!(from_memory.tile(1, 0, 0).unwrap(), Some(vec![1, 2, 3]));
+        assert_eq!(
+            from_memory.tile(1, 0, 0).unwrap(),
+            from_file.tile(1, 0, 0).unwrap()
+        );
+        assert_eq!(from_memory.tile(1, 1, 1).unwrap(), None);
+        assert_eq!(from_memory.info().unwrap(), from_file.info().unwrap());
     }
 
     #[test]

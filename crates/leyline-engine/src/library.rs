@@ -1623,16 +1623,37 @@ impl Library {
         Ok(luts)
     }
 
-    /// Opens (or returns the cached handle to) the active map pack, or
-    /// `None` when none has been imported yet.
+    /// The world basemap compiled into the binary (ADR 0059), when this
+    /// build carries one. Natural Earth I, zoom 0–5, JPEG tiles: enough to
+    /// place GPS pins on continents and coastlines from the first launch,
+    /// never a substitute for a pack the user imports.
+    #[cfg(feature = "bundled-basemap")]
+    const BUNDLED_BASEMAP: &'static [u8] =
+        include_bytes!("../../../assets/basemap/world-z0-5.mbtiles");
+
+    /// Opens (or returns the cached handle to) the active map pack: the one
+    /// the user imported if there is one, the embedded world basemap
+    /// otherwise (ADR 0059), and `None` when this build embeds none.
+    ///
+    /// An imported pack always wins. The two are never composed into one
+    /// view — Leyline serves one pack, it does not blend a fine regional
+    /// pack over a coarse world one.
     fn with_map_pack<T>(&self, f: impl FnOnce(&leyline_map::TilePack) -> T) -> Result<Option<T>> {
         let mut slot = lock(&self.inner.map_pack);
         if slot.is_none() {
             let path = self.map_pack_path();
-            if !path.is_file() {
-                return Ok(None);
-            }
-            let pack = leyline_map::TilePack::open(&path).map_err(map_err)?;
+            let pack = if path.is_file() {
+                leyline_map::TilePack::open(&path).map_err(map_err)?
+            } else {
+                #[cfg(feature = "bundled-basemap")]
+                {
+                    leyline_map::TilePack::from_static(Self::BUNDLED_BASEMAP).map_err(map_err)?
+                }
+                #[cfg(not(feature = "bundled-basemap"))]
+                {
+                    return Ok(None);
+                }
+            };
             *slot = Some(pack);
         }
         Ok(slot.as_ref().map(f))

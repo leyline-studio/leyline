@@ -22,6 +22,9 @@ leyline-map.workspace = true
 # dependency). Nothing in this crate's own surface changes either way.
 default = ["tether"]
 tether = ["leyline-engine/tether"]
+# Same forwarding, for the embedded world basemap (ADR 0059). Off by
+# default: only a client that renders a map wants those 9 Mo.
+bundled-basemap = ["leyline-engine/bundled-basemap"]
 
 [dev-dependencies]
 serde_json.workspace = true

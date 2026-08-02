@@ -32,7 +32,9 @@ blake3 = "1"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "tiff"] }
 jpeg-encoder = "0.6"
 kamadak-exif = "0.6"
-rusqlite = { version = "0.37", features = ["bundled"] }
+# `serialize` exposes `sqlite3_deserialize`, which is how `leyline-map`
+# opens the embedded world basemap without extracting it (ADR 0059).
+rusqlite = { version = "0.37", features = ["bundled", "serialize"] }
 roxmltree = "0.21"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

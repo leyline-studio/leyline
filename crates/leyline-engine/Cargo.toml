@@ -39,6 +39,13 @@ thiserror.workspace = true
 default = ["tether"]
 tether = ["dep:leyline-tether"]
 
+# The world basemap Leyline Studio ships with (ADR 0059): ~9 Mo of tiles
+# compiled into the binary. Off by default because only a client that
+# *renders* a map has any use for it — the CLI and the SDK deliberately
+# expose no map rendering (ADR 0040), so they would carry the weight for
+# nothing. Leyline Studio turns it on through its own forwarding feature.
+bundled-basemap = []
+
 [dev-dependencies]
 image.workspace = true
 serde.workspace = true

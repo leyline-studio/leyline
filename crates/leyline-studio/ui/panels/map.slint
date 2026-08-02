@@ -34,14 +34,14 @@ export component MapPanel inherits HorizontalLayout {
                 Rectangle {
                     horizontal-stretch: 1;
                 }
-                if MapState.map-pack-imported: FilterChip {
+                if MapState.map-pack-available: FilterChip {
                     text: "−";
                     active: false;
                     clicked => {
                         MapState.map-zoom-out();
                     }
                 }
-                if MapState.map-pack-imported: FilterChip {
+                if MapState.map-pack-available: FilterChip {
                     text: "+";
                     active: false;
                     clicked => {
@@ -64,7 +64,7 @@ export component MapPanel inherits HorizontalLayout {
                 }
             }
 
-            if !MapState.map-pack-imported: VerticalLayout {
+            if !MapState.map-pack-available: VerticalLayout {
                 alignment: center;
                 Text {
                     text: MapState.map-status == "" ? @tr("No map pack imported yet. Import an offline MBTiles map pack to place GPS-tagged photos on a map.") : MapState.map-status;
@@ -75,7 +75,7 @@ export component MapPanel inherits HorizontalLayout {
                 }
             }
 
-            if MapState.map-pack-imported: Rectangle {
+            if MapState.map-pack-available: Rectangle {
                 width: 720px;
                 height: 480px;
                 clip: true;

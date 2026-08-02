@@ -81,7 +81,10 @@ l'utilisateur — jamais d'appel réseau depuis Leyline lui-même.**
   mais aucune commande CLI de rendu n'est ajoutée.
 * Sans pack importé, la vue Carte affiche un état vide invitant à en
   importer un — jamais d'appel réseau de repli, jamais de carte
-  placeholder qui donnerait l'illusion d'une connexion.
+  placeholder qui donnerait l'illusion d'une connexion. *Amendé par
+  [ADR 0059](0059-bundled-world-basemap.md)* : le repli est désormais un
+  fond mondial embarqué, donc hors ligne comme le reste. L'état vide ne
+  subsiste que dans une compilation sans la feature `bundled-basemap`.
 
 ## Alternatives écartées
 
@@ -94,11 +97,15 @@ l'utilisateur — jamais d'appel réseau depuis Leyline lui-même.**
   (WebGPU), gros risque d'intégration pour un gain de rendu (tuiles
   vectorielles stylées) que la V1 n'a pas besoin de payer — les tuiles
   matricielles MBTiles suffisent pour afficher des punaises sur une carte.
-* **Bundler un pack de tuiles par défaut** : écarté — même une seule
-  région à résolution utile pèse des centaines de Mo à plusieurs Go,
-  incompatible avec un installateur léger ; laisser l'utilisateur choisir
-  sa propre région est aussi plus respectueux (pas de téléchargement
-  imposé au premier lancement).
+* **Bundler un pack de tuiles régional par défaut** : écarté — une région
+  à résolution utile pèse des centaines de Mo à plusieurs Go, incompatible
+  avec un installateur léger ; laisser l'utilisateur choisir sa propre
+  région est aussi plus respectueux (pas de téléchargement imposé au
+  premier lancement). **Cette formulation, d'origine, disait « un pack par
+  défaut » sans qualifier sa résolution, et allait donc trop loin** : un
+  fond *mondial* à zoom faible ne coûte que 9 Mo, et [ADR 0059](0059-bundled-world-basemap.md)
+  l'a depuis embarqué. Ce qui reste écarté ici, et le reste, c'est de
+  livrer du détail régional.
 * **Stocker le chemin du pack dans le catalogue** (nouvelle colonne/table
   `library`) : écarté pour la V1 — une convention de fichier
   (`Map/pack.mbtiles`) suffit tant qu'un seul pack actif à la fois est
