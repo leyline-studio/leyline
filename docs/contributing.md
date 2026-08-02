@@ -93,6 +93,29 @@ Le test est mécanique : si aucun `.get_x()`/`.set_x()`/`.on_x()` côté Rust ne
 
 Slint 1.13 a, dans ce projet, un défaut de planification de repaint : donner à `keys` (le `FocusScope` de `studio.slint`) ou à un ancêtre de ses repeaters — la grille, la liste des collections — **un override de position ou de taille, même inerte**, suffit à faire rester des zones blanches jusqu'à ce qu'un changement structurel force un rafraîchissement. C'est pourquoi les panneaux héritent du type d'élément qu'ils remplacent et ne posent aucune géométrie, et pourquoi une colonne qui doit dégager la hauteur de la barre de menus le fait avec un `Rectangle` d'espacement en enfant supplémentaire. Le commentaire au-dessus de `menu-row` dans `studio.slint` détaille le diagnostic.
 
+### La fenêtre ne doit jamais hériter d'un maximum de son contenu
+
+Slint déduit les contraintes d'une fenêtre de ce qu'elle contient, et le
+backend winit les transmet au gestionnaire de fenêtres. Une colonne faite de
+lignes à hauteur fixe annonce donc un **maximum** borné, qui remonte jusqu'à
+`StudioWindow` et devient un `program specified maximum size` : la fenêtre ne
+peut plus être maximisée, et chaque recomposition qui change cette borne —
+ouvrir un dialogue, en fermer un, créer une collection — la ré-applique, ce
+qui ramène brutalement une fenêtre maximisée à la taille du contenu.
+
+`StudioWindow` déclare pour cette raison un `max-width`/`max-height`
+volontairement énorme : c'est la seule façon d'exprimer « pas de maximum »
+en Slint 1.13, et ça neutralise la classe entière de régressions.
+
+Pour vérifier, sous X11 :
+
+```bash
+xprop -id "$(xdotool search --name 'Leyline Studio' | head -1)" WM_NORMAL_HINTS
+```
+
+Un `program specified maximum size` autre que celui déclaré signale qu'un
+panneau a recommencé à contraindre la fenêtre.
+
 ### Le catalogue de traduction se périme en silence
 
 `slint-tr-extractor` inscrit le fichier et la ligne de chaque `@tr(...)`, et le `msgctxt` est **le nom du composant**. Déplacer une chaîne d'un composant à un autre change donc sa clé et la détache de sa traduction, sans le moindre avertissement. Après toute tranche d'interface :

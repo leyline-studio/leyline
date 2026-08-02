@@ -69,6 +69,18 @@ export component StudioWindow inherits Window {
     // the *initial* screen-relative size and don't constrain later resizes.
     min-width: 1024px;
     min-height: 700px;
+    // A main window's maximum size must never be dictated by what happens to
+    // be on screen. Slint derives a window's constraints from its content,
+    // and a column of fixed-height rows reports a bounded maximum, which the
+    // winit backend forwards to the window manager as
+    // `program specified maximum size`. Two things followed: the window
+    // could not be maximized at all, and every recomposition that changed
+    // that bound (opening or closing a dialog, creating a collection)
+    // re-applied it — a maximized window snapped back to the content's
+    // maximum. Declaring the maximum here overrides the computed one, which
+    // is the only way to say "no maximum" in Slint 1.13.
+    max-width: 100000px;
+    max-height: 100000px;
     background: #1b1b1b;
     forward-focus: keys;
 
