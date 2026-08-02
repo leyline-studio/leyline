@@ -65,8 +65,27 @@ d'avance, quelle que soit la qualité du reste du pipeline.
    version d'étage** obligatoire (`pipeline.md` §5.1), jamais une modification
    de l'étage publié.
 
-**Prérequis.** Des `.dcp` Adobe et des rendus de référence pour les boîtiers
-disponibles (les ~17 000 CR2 Canon 60D réels sont l'échantillon naturel).
+**Prérequis — et blocage constaté le 2026-08-02.** Il faut des `.dcp` Adobe et
+des rendus de référence pour les boîtiers disponibles (les ~17 000 CR2 Canon 60D
+réels sont l'échantillon naturel). **Aucun `.dcp` n'existe sur la machine de
+développement**, et rien n'y est installé qui en fournisse — ni RawTherapee, qui
+en livre habituellement une collection, ni darktable, ni le DNG Converter
+d'Adobe. A1.1 est donc **bloquée sur un artefact à apporter**, pas sur du code.
+
+Trois façons de la débloquer, par ordre de préférence :
+
+1. **Installer RawTherapee** et reprendre les `.dcp` qu'il distribue — c'est la
+   source la plus simple, et elle donne aussi un second rendu de référence.
+2. **Le DNG Converter d'Adobe**, gratuit, qui installe la collection complète
+   des profils par boîtier.
+3. **Une charte ColorChecker photographiée** : la validation la plus honnête, et
+   la seule qui ne dépende d'aucun autre logiciel — on compare les plages rendues
+   aux valeurs sRGB de référence de la charte. Ne demande pas de `.dcp` du tout,
+   mais demande une prise de vue.
+
+Tant que rien de tout cela n'est disponible, la mention « expérimental » reste,
+et c'est le comportement correct : elle dit exactement ce qui n'a pas été
+vérifié.
 
 **Risque.** Faible sur le point 1, moyen sur le point 2 : l'interpolation des
 tables `HueSatMap` est un travail de précision, où une erreur passe inaperçue
