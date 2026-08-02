@@ -119,14 +119,33 @@ Une fois le niveau normalisé : **écart médian 0,0027 sur 1,0**, 90ᵉ centile
 0,0060, rapports de canaux à 0,007 près. La colorimétrie concorde avec une
 implémentation indépendante.
 
-Ce qui n'est pas expliqué : un gain global de ×1,083, uniforme sur les trois
-canaux donc tonal. Le niveau de blanc du capteur en est la piste principale —
-RawTherapee le fait dépendre de la sensibilité (`camconst.json` : 12 550 à
-ISO 2500 pour le 60D) quand LibRaw nous donne 16 383, et nous ignorons le
-`linear_max` de 11 222 que LibRaw mesure par ailleurs. La direction est la
-bonne, l'ampleur ne correspond pas exactement, et rien n'a été corrigé sur
-cette base : déplacer la normalisation déplacerait tous les pixels de toutes
-les photos.
+**Le protocole est désormais reproductible sans intervention manuelle** :
+`rawtherapee-cli -s` sans sidecar rend avec des valeurs neutres, et un `.pp3`
+minimal fixe le profil d'entrée et l'espace de sortie. La référence produite
+ainsi reproduit un export fait à la main à 0,001 près.
+
+Ce qui n'est pas expliqué : un **gain de ×1,083 en espace encodé**, soit
+**×1,185 en linéaire**. Trois choses ont été établies à son sujet :
+
+* il est **indépendant du profil caméra** — sans aucun profil des deux côtés,
+  le même ×1,0829 apparaît. Ce n'est donc pas de la gestion des couleurs, mais
+  de la normalisation du RAW ;
+* c'est un **gain, pas une courbe** : le rapport est constant sur tous les tons
+  moyens et converge vers 1,0 au blanc, là où les deux moteurs écrêtent ;
+* le niveau de blanc du capteur en reste la piste, sans la refermer. LibRaw
+  nous donne `maximum = 16 383` et mesure par ailleurs un `linear_max = 11 222`
+  que nous ignorons ; `camconst.json` de RawTherapee donne 12 550 à ISO 2500
+  pour ce boîtier. Le rapport 16 383 / 12 550 vaut 1,305, pas 1,185 : la
+  direction est bonne, l'ampleur ne colle pas.
+
+Rien n'est corrigé sur cette base : déplacer la normalisation déplacerait tous
+les pixels de toutes les photos, et une hypothèse à moitié vérifiée ne le
+justifie pas.
+
+**Darktable ne peut pas servir de troisième avis en l'état** : son rendu par
+défaut applique un mappage tonal *scene-referred* (filmic), dont la signature
+en S est nette — rapport à 1,43 dans les tons moyens, 0,96 au blanc. Le
+comparer demanderait de désactiver ce module.
 
 La mention « expérimental » reste, pour ce gain non expliqué et pour l'absence
 de comparaison à Adobe lui-même.
