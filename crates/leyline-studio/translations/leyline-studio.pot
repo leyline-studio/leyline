@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2026-08-02 22:03+0000\n"
+"POT-Creation-Date: 2026-08-02 22:46+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -223,12 +223,19 @@ msgctxt "ImportDialog"
 msgid "Recursive"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/import.slint:75
+#. thing left to do.
+#: crates/leyline-studio/ui/dialogs/import.slint:77
+msgctxt "ImportDialog"
+msgid "Close"
+msgstr ""
+
+#. thing left to do.
+#: crates/leyline-studio/ui/dialogs/import.slint:77
 msgctxt "ImportDialog"
 msgid "Cancel"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/import.slint:82
+#: crates/leyline-studio/ui/dialogs/import.slint:87
 msgctxt "ImportDialog"
 msgid "Import"
 msgstr ""

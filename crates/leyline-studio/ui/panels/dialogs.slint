@@ -5,6 +5,7 @@
 // decides which one is mounted and gives them a common frame.
 
 import { DialogState } from "../state/dialog.slint";
+import { ProgressBar } from "../widgets/controls.slint";
 import { AboutDialog } from "../dialogs/about.slint";
 import { ConfirmDialog } from "../dialogs/confirm.slint";
 import { CollectionDialog, DeleteCollectionDialog, MoveCollectionDialog, RenameCollectionDialog } from "../dialogs/collection.slint";
@@ -18,6 +19,16 @@ import { WatchDialog } from "../dialogs/watch.slint";
 
 export component DialogOverlay inherits Rectangle {
         visible: DialogState.dialog != "";
+
+        // Every dialog opens clean. Without this, a second import shows the
+        // first one's bar and summary before it has done anything, which
+        // reads as a job that finished instantly.
+        property <string> open-dialog: DialogState.dialog;
+        changed open-dialog => {
+            DialogState.job-progress = -1;
+            DialogState.job-done = false;
+            DialogState.dialog-result = "";
+        }
         background: #000000aa;
         TouchArea {
             clicked => {
@@ -70,6 +81,11 @@ export component DialogOverlay inherits Rectangle {
                 if DialogState.dialog == "shortcuts": ShortcutsDialog { }
 
                 if DialogState.dialog == "about": AboutDialog { }
+
+                if DialogState.job-progress >= 0: ProgressBar {
+                    value: DialogState.job-progress;
+                    caption: DialogState.job-caption;
+                }
 
                 if DialogState.dialog-result != "": Text {
                     text: DialogState.dialog-result;

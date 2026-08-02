@@ -63,6 +63,22 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
         } => {
             let done = i32::try_from(done).unwrap_or(i32::MAX);
             let total = i32::try_from(total).unwrap_or(i32::MAX);
+            // The bar and the count say the same thing in two registers: a
+            // proportion answers "how long", a count answers "how much".
+            // Seventeen thousand photos need both.
+            if app.import_job == Some(job_id)
+                || app.export_job == Some(job_id)
+                || app.print_job == Some(job_id)
+            {
+                let state = DialogState::get(window);
+                state.set_job_progress(if total > 0 {
+                    done as f32 / total as f32
+                } else {
+                    0.0
+                });
+                state.set_job_caption(SharedString::from(format!("{done} / {total}")));
+                state.set_job_done(false);
+            }
             if app.import_job == Some(job_id) {
                 DialogState::get(window)
                     .set_dialog_result(Tr::get(window).invoke_importing_progress(done, total));
@@ -75,6 +91,17 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
             }
         }
         Event::JobFinished { job_id, result } => {
+            // Whatever the outcome, the dialog stops waiting: the bar reads
+            // full and the way out is spelled out rather than guessed at.
+            if app.import_job == Some(job_id)
+                || app.export_job == Some(job_id)
+                || app.print_job == Some(job_id)
+            {
+                let state = DialogState::get(window);
+                state.set_job_progress(1.0);
+                state.set_job_caption(SharedString::new());
+                state.set_job_done(true);
+            }
             if app.import_job == Some(job_id) {
                 app.import_job = None;
                 DialogState::get(window).set_dialog_result(match result {

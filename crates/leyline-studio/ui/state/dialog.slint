@@ -14,6 +14,18 @@ export global DialogState {
     // "watch" or "confirm".
     in-out property <string> dialog;
     in-out property <string> dialog-result;
+    // The long job a dialog is waiting on: completed fraction and the count
+    // beside it. `job-progress < 0` means no job is running, which is what
+    // hides the bar — a bar stuck at zero reads as a job that failed to
+    // start.
+    in-out property <float> job-progress: -1;
+    in-out property <string> job-caption: "";
+    // The job this dialog was waiting on has finished. It is what turns
+    // "Cancel" into "Close": after a completed import that word no longer
+    // means "close", it means "undo what I just did", so nobody presses it
+    // — and the only remaining way out was clicking outside, which is a
+    // guess and not an affordance.
+    in-out property <bool> job-done: false;
     // The generic confirmation dialog (ADR 0060 §4). Studio had none until
     // removal needed one, and removal is exactly the kind of act that must
     // not happen on a mis-click: `confirm-danger` styles the accept button

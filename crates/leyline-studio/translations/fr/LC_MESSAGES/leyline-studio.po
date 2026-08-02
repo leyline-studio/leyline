@@ -1767,3 +1767,8 @@ msgstr "À propos"
 msgctxt "AboutDialog"
 msgid "Build"
 msgstr "Build"
+
+#: crates/leyline-studio/ui/dialogs/import.slint:77
+msgctxt "ImportDialog"
+msgid "Close"
+msgstr "Fermer"

@@ -72,13 +72,18 @@ export component ImportDialog inherits VerticalLayout {
         spacing: 8px;
         alignment: end;
         FilterChip {
-            text: @tr("Cancel");
-            active: false;
+            // Highlighted once the job is done, because it is then the only
+            // thing left to do.
+            text: DialogState.job-done ? @tr("Close") : @tr("Cancel");
+            active: DialogState.job-done;
             clicked => {
                 DialogState.dialog = "";
             }
         }
-        FilterChip {
+        // Hidden while a job runs and once it has finished: re-importing the
+        // same folder from a dialog still showing its own result is never
+        // what anyone means.
+        if !DialogState.job-done && DialogState.job-progress < 0: FilterChip {
             text: @tr("Import");
             active: true;
             clicked => {
