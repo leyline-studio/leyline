@@ -79,6 +79,12 @@ struct Inner {
     cache: PreviewCache,
     catalog: Mutex<Catalog>,
     decodes: Mutex<DecodeCache>,
+    /// Intermediate buffers of the preview pipeline (ADR 0041 §3). Lives
+    /// here, beside the decode cache, rather than in an `EditSession`:
+    /// Studio's develop view renders through `Library::preview`, so a
+    /// session-held cache would never be hit by the very interaction it
+    /// exists for. Purely derived — dropping it changes no pixel.
+    stage_cache: Mutex<crate::stages::StageCache>,
     /// One sender per subscriber; pruned when a receiver is dropped.
     subscribers: Mutex<Vec<Sender<Event>>>,
     /// Next job id, unique within this process.
@@ -263,6 +269,7 @@ impl Library {
                 cache: PreviewCache::new(root.join("Cache")),
                 catalog: Mutex::new(catalog),
                 decodes: Mutex::new(DecodeCache::new(DECODE_CACHE_CAPACITY)),
+                stage_cache: Mutex::new(crate::stages::StageCache::default()),
                 subscribers: Mutex::new(Vec::new()),
                 #[cfg(feature = "tether")]
                 tether: Mutex::new(None),
@@ -643,7 +650,8 @@ impl Library {
         };
         let image = {
             let mut decodes = lock(&self.inner.decodes);
-            crate::preview::render_preview(&mut decodes, asset, &plan)?
+            let mut stage_cache = lock(&self.inner.stage_cache);
+            crate::preview::render_preview(&mut decodes, &mut stage_cache, asset, &plan)?
         };
         let mut catalog = lock(&self.inner.catalog);
         crate::preview::record_render(&mut catalog, &self.inner.cache, asset, kind, &plan, &image)

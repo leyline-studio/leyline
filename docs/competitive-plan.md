@@ -119,21 +119,21 @@ CR2 réel de **3888×2592** (10 Mpx), machine de référence i9-9900K, 16 thread
 
 Les boîtiers courants sont à 45–60 Mpx, soit **4 à 6×** ces temps.
 
-## B1 — Livrer le cache d'étages d'ADR 0041 §3 *(le plus rentable, et déjà conçu)*
+## B1 — Cache d'étages d'ADR 0041 §3 — **livré le 2026-08-02**
 
-**État — à corriger dans la roadmap.** ADR 0041 décide **trois** choses : le
-proxy à résolution d'affichage (§1), la mise à l'échelle des rayons (§2), et un
-**cache d'états intermédiaires tenu par la session d'édition** (§3). Les deux
-premières sont livrées ; **la troisième ne l'est pas** — seul `DecodeCache`
-existe, qui évite le re-décodage et non le re-calcul, ce qu'ADR 0041 range
-lui-même parmi les alternatives insuffisantes.
+**État initial.** ADR 0041 décide **trois** choses : le proxy à résolution
+d'affichage (§1), la mise à l'échelle des rayons (§2), et un **cache d'états
+intermédiaires** (§3). Les deux premières étaient livrées ; la troisième ne
+l'était pas — seul `DecodeCache` existait, qui évite le re-décodage et non le
+re-calcul, ce qu'ADR 0041 range lui-même parmi les alternatives insuffisantes.
+La roadmap cochait pourtant la phase 7.
 
-**Ce que ça vaut.** Aujourd'hui chaque rendu repart du buffer décodé : bouger
+**Ce que ça valait.** Chaque rendu repartait du buffer décodé : bouger
 `sharpening` (dernier étage, ~13 ms) rejoue dehaze, clarté, texture, TSL et les
 réglages locaux à l'identique. C'est **la** différence structurelle avec
 Lightroom, Capture One et darktable, qui ne rejouent que l'aval du nœud édité.
 
-**Pourquoi le faire en premier.** La conception est faite et acceptée — points
+**Pourquoi en premier.** La conception était faite et acceptée — points
 de contrôle avant les étages chers, `(index d'étage, empreinte des réglages
 amont, buffer)`, ~30 Mo par session, chemin preview uniquement. Le cache est
 **purement dérivé** : le jeter à tout instant ne change aucun pixel. Donc
@@ -141,7 +141,13 @@ amont, buffer)`, ~30 Mo par session, chemin preview uniquement. Le cache est
 dépendance nouvelle**. C'est le meilleur rapport gain/risque de tout ce
 document.
 
-**Reste à faire.** L'implémenter, et corriger la roadmap qui coche la phase 7.
+**Livré.** Mesuré à **−78 %** sur un curseur de fin de pipeline (~60 ms → ~14 ms,
+carte 1024×683, `--release`). Deux choses que l'implémentation a apprises et qui
+sont consignées dans ADR 0041 : le cache vit sur la `Library`, pas sur la session
+d'édition — la vue develop rend par `Library::preview` — et un seuil de point de
+contrôle désigne une position, pas un rang exact, sans quoi trois des quatre
+points ne sont jamais pris. Le prérequis réel était d'apprendre à chaque étage
+quels réglages il lit (`Stage::reads`), ce qu'aucun ADR n'avait posé.
 
 ## B2 — Le chemin export et impression
 
@@ -253,7 +259,7 @@ L'ordre suit le rapport **gain ressenti / risque**, pas la difficulté.
 
 | # | Item | Pourquoi ici | Nouvelle version d'étage ? |
 |---|---|---|---|
-| 1 | **B1** — cache d'étages | Conçu, accepté, risque nul, gain immédiat à chaque curseur | Non |
+| ~~1~~ | ~~**B1** — cache d'étages~~ | **Livré le 2026-08-02, −78 %** | Non |
 | 2 | **A1.1** — valider le DCP | Borné, déjà listé comme ouvert, décide du verdict visuel | Non (si pas de bug) |
 | 3 | **A2** — choix du dématriçage | Câblage d'une capacité déjà présente dans LibRaw | Oui (`input`) |
 | 4 | **A1.2** — appliquer les tables DCP | Le vrai gain colorimétrique, mais demande A1.1 d'abord | Oui |

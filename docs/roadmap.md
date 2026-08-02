@@ -34,11 +34,9 @@ Interface de bureau : navigateur, filtres, classement, module de développement,
 
 JPEG, TIFF, PNG, WebP, AVIF, presets d'export et export par lots.
 
-## Phase 7 — Optimisations ⚠️
+## Phase 7 — Optimisations ✅
 
-Parallélisme Rayon ([ADR 0012](adr/0012-rayon-data-parallelism.md)), benchmarks Criterion, rendu d'aperçu à la résolution d'affichage et mise à l'échelle des rayons ([ADR 0041](adr/0041-interactive-preview-rendering.md) §1 et §2).
-
-**Reste ouvert :** le cache d'états intermédiaires d'[ADR 0041](adr/0041-interactive-preview-rendering.md) §3 est décidé mais **non implémenté** — seul `DecodeCache` existe, qui évite le re-décodage et non le re-calcul. Voir [`competitive-plan.md`](competitive-plan.md) §B1.
+Parallélisme Rayon ([ADR 0012](adr/0012-rayon-data-parallelism.md)), benchmarks Criterion, et [ADR 0041](adr/0041-interactive-preview-rendering.md) en entier : rendu d'aperçu à la résolution d'affichage, mise à l'échelle des rayons, et cache d'états intermédiaires du chemin preview (−78 % sur un curseur de fin de pipeline).
 
 ## Phase 8 — Distribution ✅
 

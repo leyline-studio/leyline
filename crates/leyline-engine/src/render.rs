@@ -127,6 +127,42 @@ pub fn render_scaled(
     stages::develop_scaled(image, settings, shot, camera_profile, lut, source, scale)
 }
 
+/// [`render_scaled`] with the preview pipeline's stage cache (ADR 0041 §3).
+///
+/// Same guards, same pixels — `cache` only decides how much of the plan has
+/// to be replayed. Deliberately `pub(crate)` and preview-only: export and
+/// print go through [`render_scaled`], unchanged and uncached.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn render_scaled_cached(
+    image: &RawImage,
+    settings: &Settings,
+    shot: Option<&LensShot>,
+    camera_profile: Option<&leyline_color::DcpProfile>,
+    lut: Option<&leyline_color::CubeLut>,
+    source: SourceColor,
+    scale: f32,
+    asset: leyline_core::AssetId,
+    cache: &mut stages::StageCache,
+) -> Result<Rendered> {
+    if settings.schema > CURRENT_SCHEMA {
+        return Err(LeylineError::NewerSettings {
+            schema: settings.schema,
+        });
+    }
+    settings.validate()?;
+    stages::develop_scaled_cached(
+        image,
+        settings,
+        shot,
+        camera_profile,
+        lut,
+        source,
+        scale,
+        asset,
+        cache,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1877,3 +1877,159 @@ fn the_decoder_configuration_comes_from_the_input_version() {
         );
     }
 }
+
+/// The stage cache (ADR 0041 §3) is an optimisation, never a rendering:
+/// whatever it reuses, the pixels must equal a cold render's, edit after
+/// edit. This walks a plausible slider session — nudge a late stage, then
+/// an early one, then back — because the cache is only interesting when
+/// something upstream *did* change and something else did not.
+#[test]
+fn the_stage_cache_never_changes_a_pixel() {
+    use super::{StageCache, develop_scaled, develop_scaled_cached};
+    use leyline_core::AssetId;
+
+    let image = test_image(64, 48);
+    let asset = AssetId::new(1);
+    let mut cache = StageCache::default();
+
+    // Every step leaves at least one stage of an earlier one in place, so a
+    // checkpoint is genuinely reused rather than always invalidated.
+    let mut settings = leyline_core::Settings {
+        dehaze: 30,
+        clarity: 20,
+        contrast: 15,
+        ..Default::default()
+    };
+
+    /// One labelled slider move of the simulated session.
+    type Step = (&'static str, fn(&mut leyline_core::Settings));
+
+    let steps: [Step; 6] = [
+        ("cold", |_| {}),
+        ("late stage only", |s| s.sharpening.amount = 40),
+        ("late stage again", |s| s.sharpening.amount = 60),
+        ("upstream tonal", |s| s.contrast = -20),
+        ("expensive block", |s| s.dehaze = 5),
+        ("back to a late stage", |s| s.sharpening.amount = 10),
+    ];
+
+    for (label, edit) in steps {
+        edit(&mut settings);
+        super::pin(&mut settings);
+
+        let cold = develop_scaled(
+            &image,
+            &settings,
+            None,
+            None,
+            None,
+            super::SourceColor::Srgb,
+            1.0,
+        )
+        .unwrap();
+        let cached = develop_scaled_cached(
+            &image,
+            &settings,
+            None,
+            None,
+            None,
+            super::SourceColor::Srgb,
+            1.0,
+            asset,
+            &mut cache,
+        )
+        .unwrap();
+
+        assert_eq!(cached.width, cold.width, "{label}");
+        assert_eq!(cached.height, cold.height, "{label}");
+        assert_eq!(cached.data, cold.data, "cached render differs at: {label}");
+    }
+}
+
+/// Changing the asset or the proxy scale invalidates everything: neither is
+/// a setting, so no fingerprint covers them, and reusing across either
+/// would composite one photo's buffer into another's render.
+#[test]
+fn the_stage_cache_is_dropped_across_assets_and_scales() {
+    use super::{StageCache, develop_scaled, develop_scaled_cached};
+    use leyline_core::AssetId;
+
+    let first = test_image(64, 48);
+    let second = test_image(48, 64);
+    let mut settings = leyline_core::Settings {
+        dehaze: 25,
+        sharpening: Sharpening {
+            amount: 30,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    super::pin(&mut settings);
+
+    let mut cache = StageCache::default();
+    develop_scaled_cached(
+        &first,
+        &settings,
+        None,
+        None,
+        None,
+        super::SourceColor::Srgb,
+        1.0,
+        AssetId::new(1),
+        &mut cache,
+    )
+    .unwrap();
+
+    // Another asset through the same cache must render as if cold.
+    let other = develop_scaled_cached(
+        &second,
+        &settings,
+        None,
+        None,
+        None,
+        super::SourceColor::Srgb,
+        1.0,
+        AssetId::new(2),
+        &mut cache,
+    )
+    .unwrap();
+    let cold = develop_scaled(
+        &second,
+        &settings,
+        None,
+        None,
+        None,
+        super::SourceColor::Srgb,
+        1.0,
+    )
+    .unwrap();
+    assert_eq!(other.data, cold.data, "a cached buffer crossed assets");
+
+    // And so must another scale of the same asset.
+    let scaled = develop_scaled_cached(
+        &second,
+        &settings,
+        None,
+        None,
+        None,
+        super::SourceColor::Srgb,
+        0.5,
+        AssetId::new(2),
+        &mut cache,
+    )
+    .unwrap();
+    let cold_scaled = develop_scaled(
+        &second,
+        &settings,
+        None,
+        None,
+        None,
+        super::SourceColor::Srgb,
+        0.5,
+    )
+    .unwrap();
+    assert_eq!(
+        scaled.data, cold_scaled.data,
+        "a cached buffer crossed scales"
+    );
+}

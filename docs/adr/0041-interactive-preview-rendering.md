@@ -93,7 +93,15 @@ donnera à taille d'affichage égale.
 ### 3. Le pipeline preview met en cache des étages intermédiaires
 
 Le rendu preview gagne un cache d'**états intermédiaires**, en mémoire, tenu par
-la session d'édition ouverte (`docs/engine-api.md` §10.1) et jeté avec elle.
+la `Library` à côté du cache de décodage, et jeté avec elle.
+
+> **Amendement du 2026-08-02, à l'implémentation.** Ce paragraphe disait
+> « tenu par la session d'édition ouverte ». C'était intenable : la vue
+> develop de Studio rend par `Library::preview`, jamais par une
+> `EditSession`, si bien qu'un cache porté par la session n'aurait jamais
+> été touché par l'interaction même qu'il vise. Il vit donc où vit déjà
+> `DecodeCache`. Rien d'autre ne change — le cache reste purement dérivé,
+> propre au chemin preview, et jeté à volonté.
 
 Le pipeline est une **séquence linéaire** d'étages. Chaque point de contrôle
 retient `(index d'étage, empreinte des réglages de tous les étages amont,
@@ -110,6 +118,17 @@ locaux. À la résolution proxy un buffer coûte ~8 Mo (0,7 Mpx × 3 canaux ×
 session, et une raison de plus pour que ce cache **n'existe que sur le chemin
 preview**, jamais en export où les buffers pleine résolution le rendraient
 prohibitif.
+
+**Un seuil désigne une position, pas un étage.** Un point de contrôle se pose
+avant le premier étage dont le rang atteint le seuil, jamais devant un rang
+exact : l'étage qui occupe ce rang est souvent neutre, donc absent du plan.
+La mesure l'a montré — en visant le rang exact, trois des quatre points de
+contrôle n'étaient jamais pris, et le gain tombait à 10 %.
+
+**Résultat mesuré le 2026-08-02** (carte de test 1024×683, bloc tonal +
+clarté + texture + dehaze + netteté actifs, `--release`) : déplacer le
+curseur de netteté, dernier étage du plan, passe de **~60 ms à ~14 ms**,
+soit **−78 %**. C'est le gain qu'annonçait le §Contexte.
 
 Le cache est purement **dérivé** : le jeter à tout instant ne change aucun
 pixel, seulement le temps de rendu. C'est ce qui le rend sûr — il ne peut pas

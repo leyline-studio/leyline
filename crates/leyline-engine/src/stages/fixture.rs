@@ -34,6 +34,9 @@ pub(crate) const V2_LIFT: f32 = 0.25;
 pub(crate) static STAGES: &[Stage] = &[Stage {
     name: NAME,
     active: |settings: &Settings| settings.extra.contains_key(MARKER),
+    // Driven by the `extra` passthrough rather than a named setting, so
+    // that is what a checkpoint before it must depend on.
+    reads: &["extra"],
     versions: &[
         Version {
             version: 1,

@@ -258,6 +258,30 @@ pub(crate) struct Stage {
     /// Runtime availability — no EXIF match, no profile — is the `apply`
     /// function's business, and leaves the pixels untouched there.
     pub active: fn(&Settings) -> bool,
+    /// Top-level `settings_json` keys this operator's rendering reads
+    /// (ADR 0041 §3).
+    ///
+    /// This is what makes a stage checkpoint possible: a cached buffer
+    /// taken after stage *n* stays valid exactly as long as none of the
+    /// keys the first *n* stages declare has changed. Hashing the whole of
+    /// `Settings` instead would invalidate every checkpoint on every edit,
+    /// which is precisely the waste the cache exists to remove.
+    ///
+    /// **A missing key here is a correctness bug, not a slow render**: the
+    /// pipeline would reuse a buffer that the changed setting should have
+    /// invalidated, and put wrong pixels on screen. Two entries are less
+    /// obvious than the rest and were found by reading the `apply` bodies
+    /// rather than the `active` predicates:
+    ///
+    /// * `input` reads `camera_profile`, because whether a profile is
+    ///   resolved changes how it enters the working space;
+    /// * `spot_removal` and `local_adjustments` read `rotation`, their
+    ///   coordinates being expressed before it.
+    ///
+    /// `schema` and `stages` are deliberately absent: they are folded into
+    /// every fingerprint by [`prefix_fingerprint`], since a change to
+    /// either one rebuilds the plan itself.
+    pub reads: &'static [&'static str],
     /// Versions, oldest first.
     pub versions: &'static [Version],
 }
@@ -293,6 +317,7 @@ pub(crate) static STAGES: &[Stage] = &[
         // the rendering that no revision recorded.
         name: "input",
         active: |_| true,
+        reads: &["highlight_reconstruction", "camera_profile"],
         versions: &[
             Version {
                 version: 1,
@@ -332,6 +357,7 @@ pub(crate) static STAGES: &[Stage] = &[
                 .as_ref()
                 .is_some_and(|profile| profile.enabled)
         },
+        reads: &["camera_profile"],
         versions: &[Version {
             version: 1,
             rank: 10,
@@ -346,6 +372,7 @@ pub(crate) static STAGES: &[Stage] = &[
     Stage {
         name: "lens",
         active: |settings| settings.lens_correction.enabled,
+        reads: &["lens_correction"],
         versions: &[Version {
             version: 1,
             rank: 20,
@@ -372,6 +399,7 @@ pub(crate) static STAGES: &[Stage] = &[
     Stage {
         name: "spot_removal",
         active: |settings| !settings.spot_removal.is_empty(),
+        reads: &["spot_removal", "rotation"],
         versions: &[Version {
             version: 1,
             rank: 30,
@@ -388,6 +416,7 @@ pub(crate) static STAGES: &[Stage] = &[
     Stage {
         name: "gains",
         active: |settings| settings.white_balance.is_some() || settings.exposure != 0.0,
+        reads: &["exposure", "white_balance"],
         versions: &[Version {
             version: 1,
             rank: 40,
@@ -404,6 +433,7 @@ pub(crate) static STAGES: &[Stage] = &[
     Stage {
         name: "contrast",
         active: |settings| settings.contrast != 0,
+        reads: &["contrast"],
         versions: &[Version {
             version: 1,
             rank: 50,
@@ -414,6 +444,7 @@ pub(crate) static STAGES: &[Stage] = &[
     Stage {
         name: "highlights_shadows",
         active: |settings| settings.highlights != 0 || settings.shadows != 0,
+        reads: &["highlights", "shadows"],
         versions: &[Version {
             version: 1,
             rank: 60,
@@ -430,6 +461,7 @@ pub(crate) static STAGES: &[Stage] = &[
     Stage {
         name: "whites_blacks",
         active: |settings| settings.whites != 0 || settings.blacks != 0,
+        reads: &["blacks", "whites"],
         versions: &[Version {
             version: 1,
             rank: 70,
@@ -442,6 +474,7 @@ pub(crate) static STAGES: &[Stage] = &[
     Stage {
         name: "tone_curve",
         active: |settings| !settings.tone_curve.points.is_empty(),
+        reads: &["tone_curve"],
         versions: &[Version {
             version: 1,
             rank: 80,
@@ -452,6 +485,7 @@ pub(crate) static STAGES: &[Stage] = &[
     Stage {
         name: "clarity",
         active: |settings| settings.clarity != 0,
+        reads: &["clarity"],
         versions: &[Version {
             version: 1,
             rank: 90,
@@ -468,6 +502,7 @@ pub(crate) static STAGES: &[Stage] = &[
     Stage {
         name: "texture",
         active: |settings| settings.texture != 0,
+        reads: &["texture"],
         versions: &[Version {
             version: 1,
             rank: 100,
@@ -484,6 +519,7 @@ pub(crate) static STAGES: &[Stage] = &[
     Stage {
         name: "dehaze",
         active: |settings| settings.dehaze != 0,
+        reads: &["dehaze"],
         versions: &[Version {
             version: 1,
             rank: 110,
@@ -496,6 +532,7 @@ pub(crate) static STAGES: &[Stage] = &[
     Stage {
         name: "vibrance",
         active: |settings| settings.vibrance != 0,
+        reads: &["vibrance"],
         versions: &[Version {
             version: 1,
             rank: 120,
@@ -506,6 +543,7 @@ pub(crate) static STAGES: &[Stage] = &[
     Stage {
         name: "saturation",
         active: |settings| settings.saturation != 0,
+        reads: &["saturation"],
         versions: &[Version {
             version: 1,
             rank: 130,
@@ -516,6 +554,7 @@ pub(crate) static STAGES: &[Stage] = &[
     Stage {
         name: "hsl",
         active: |settings| settings.hsl.iter().any(|band| *band != HslBand::default()),
+        reads: &["hsl"],
         versions: &[Version {
             version: 1,
             rank: 140,
@@ -526,6 +565,7 @@ pub(crate) static STAGES: &[Stage] = &[
     Stage {
         name: "color_grading",
         active: |settings| settings.color_grading != ColorGrading::default(),
+        reads: &["color_grading"],
         versions: &[Version {
             version: 1,
             rank: 150,
@@ -536,6 +576,7 @@ pub(crate) static STAGES: &[Stage] = &[
     Stage {
         name: "local_adjustments",
         active: |settings| !settings.local_adjustments.is_empty(),
+        reads: &["local_adjustments", "rotation"],
         versions: &[
             Version {
                 version: 1,
@@ -574,6 +615,7 @@ pub(crate) static STAGES: &[Stage] = &[
         // read is an error rather than a silently skipped stage.
         name: "lut",
         active: |settings| settings.lut.as_ref().is_some_and(|lut| lut.enabled),
+        reads: &["lut"],
         versions: &[Version {
             version: 1,
             rank: 165,
@@ -588,6 +630,7 @@ pub(crate) static STAGES: &[Stage] = &[
     Stage {
         name: "noise_luminance",
         active: |settings| settings.noise_reduction.luminance != 0,
+        reads: &["noise_reduction"],
         versions: &[
             Version {
                 version: 1,
@@ -619,6 +662,7 @@ pub(crate) static STAGES: &[Stage] = &[
     Stage {
         name: "noise_color",
         active: |settings| settings.noise_reduction.color != 0,
+        reads: &["noise_reduction"],
         versions: &[
             Version {
                 version: 1,
@@ -650,6 +694,7 @@ pub(crate) static STAGES: &[Stage] = &[
     Stage {
         name: "sharpen",
         active: |settings| settings.sharpening.amount != 0,
+        reads: &["sharpening"],
         versions: &[Version {
             version: 1,
             rank: 190,
@@ -666,6 +711,7 @@ pub(crate) static STAGES: &[Stage] = &[
     Stage {
         name: "rotate",
         active: |settings| settings.rotation.rem_euclid(360.0) != 0.0,
+        reads: &["rotation"],
         versions: &[Version {
             version: 1,
             rank: 200,
@@ -683,6 +729,7 @@ pub(crate) static STAGES: &[Stage] = &[
                 .perspective
                 .is_some_and(|p| p.vertical != 0 || p.horizontal != 0)
         },
+        reads: &["perspective"],
         versions: &[Version {
             version: 1,
             rank: 205,
@@ -697,6 +744,7 @@ pub(crate) static STAGES: &[Stage] = &[
     Stage {
         name: "crop",
         active: |settings| settings.crop.is_some(),
+        reads: &["crop"],
         versions: &[Version {
             version: 1,
             rank: 210,
@@ -714,6 +762,7 @@ pub(crate) static STAGES: &[Stage] = &[
         // neutral value but a missing step (ADR 0044 §3).
         name: "output_rendering",
         active: |_| true,
+        reads: &["output_rendering"],
         versions: &[Version {
             version: 1,
             rank: 900,
@@ -960,6 +1009,181 @@ fn plan(settings: &Settings) -> Result<Vec<(&'static Stage, &'static Version)>> 
             .map(|(stage, version)| (stage.name, version.version, version.space)),
     )?;
     Ok(plan)
+}
+
+/// Fingerprints everything the first `applied` stages of `plan` depend on
+/// (ADR 0041 §3): a checkpoint taken after that many stages is reusable
+/// exactly while this value is unchanged.
+///
+/// The render *context* — decoded source, lens shot, camera profile, LUT,
+/// scale — is deliberately not covered. None of it lives in `Settings`,
+/// and it identifies the cache as a whole rather than one checkpoint
+/// within it, so the caller drops the whole cache when it changes.
+pub(crate) fn prefix_fingerprint(
+    settings: &Settings,
+    plan: &[(&'static Stage, &'static Version)],
+    applied: usize,
+) -> u64 {
+    let keys: Vec<&str> = plan
+        .iter()
+        .take(applied)
+        .flat_map(|(stage, _)| stage.reads.iter().copied())
+        .collect();
+    settings.fingerprint(&keys)
+}
+
+/// Ranks a checkpoint is taken *before* (ADR 0041 §3), one snapshot each.
+///
+/// They sit where the ADR put them — after lens correction and spot removal
+/// (expensive, almost never touched in a burst of slider moves), after the
+/// tonal block, after clarity/texture/dehaze, and after local adjustments —
+/// expressed as the rank of the stage that follows, so a checkpoint lands
+/// in the right place whether or not the stages around it are active.
+const CHECKPOINT_BEFORE_RANK: &[u16] = &[40, 90, 120, 165];
+
+/// Intermediate buffers of the preview pipeline (ADR 0041 §3).
+///
+/// Without it every render restarts from the decoded image, so nudging
+/// `sharpening` — the last stage — replays dehaze, clarity, texture, HSL
+/// and every local adjustment to produce the exact pixels they produced a
+/// moment earlier. That is the structural difference with Lightroom,
+/// Capture One and darktable, which only replay downstream of the edited
+/// node.
+///
+/// Purely derived: dropping it at any moment changes no pixel, only the
+/// time taken. That is what makes it safe, and why it needs no stage
+/// version and touches no part of `docs/pipeline.md` §5.
+///
+/// Preview path only. Export and print render at full resolution, where
+/// these buffers would cost hundreds of megabytes to spare a single
+/// render that happens once.
+#[derive(Debug, Default)]
+pub(crate) struct StageCache {
+    /// What the buffers were rendered from: asset and proxy scale. Neither
+    /// is a setting, so neither is covered by [`prefix_fingerprint`] — a
+    /// change here invalidates everything at once.
+    context: Option<(leyline_core::AssetId, u32)>,
+    checkpoints: Vec<Checkpoint>,
+}
+
+/// One intermediate buffer, and what it is only valid for.
+#[derive(Debug)]
+struct Checkpoint {
+    /// How many stages of the plan had been applied when it was taken.
+    applied: usize,
+    /// [`prefix_fingerprint`] over exactly those stages.
+    fingerprint: u64,
+    pixels: Pixels,
+}
+
+impl StageCache {
+    /// Forgets everything rendered for another asset or another proxy
+    /// scale.
+    fn retarget(&mut self, asset: leyline_core::AssetId, scale: f32) {
+        let context = (asset, scale.to_bits());
+        if self.context != Some(context) {
+            self.context = Some(context);
+            self.checkpoints.clear();
+        }
+    }
+
+    /// The deepest checkpoint still valid for `settings`, if any.
+    ///
+    /// Deepest wins: it is the one that skips the most work. A checkpoint
+    /// whose fingerprint no longer matches is dropped rather than kept —
+    /// the settings that produced it are gone, and nothing will bring
+    /// them back within this session.
+    fn resume_from(
+        &mut self,
+        settings: &Settings,
+        plan: &[(&'static Stage, &'static Version)],
+    ) -> Option<(usize, Pixels)> {
+        self.checkpoints
+            .retain(|c| c.fingerprint == prefix_fingerprint(settings, plan, c.applied));
+        self.checkpoints
+            .iter()
+            .max_by_key(|c| c.applied)
+            .map(|c| (c.applied, c.pixels.clone()))
+    }
+
+    /// Records a buffer taken after `applied` stages, replacing any
+    /// checkpoint already held at that depth.
+    fn store(
+        &mut self,
+        settings: &Settings,
+        plan: &[(&'static Stage, &'static Version)],
+        applied: usize,
+        pixels: &Pixels,
+    ) {
+        let fingerprint = prefix_fingerprint(settings, plan, applied);
+        self.checkpoints.retain(|c| c.applied != applied);
+        self.checkpoints.push(Checkpoint {
+            applied,
+            fingerprint,
+            pixels: pixels.clone(),
+        });
+    }
+}
+
+/// Renders like [`develop_scaled`], reusing and refreshing `cache`.
+///
+/// Same pixels as [`develop_scaled`], always: the cache only decides where
+/// the work starts, never what it computes. `stage_cache_matches_a_cold_render`
+/// is what holds that claim.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn develop_scaled_cached(
+    image: &RawImage,
+    settings: &Settings,
+    shot: Option<&LensShot>,
+    camera_profile: Option<&DcpProfile>,
+    lut: Option<&leyline_color::CubeLut>,
+    source: SourceColor,
+    scale: f32,
+    asset: leyline_core::AssetId,
+    cache: &mut StageCache,
+) -> Result<Rendered> {
+    let plan = plan(settings)?;
+    let ctx = Context {
+        settings,
+        shot,
+        camera_profile,
+        lut,
+        source,
+        scale,
+    };
+
+    // Where the snapshots go, resolved against *this* plan. A threshold
+    // names a position in the pipeline, not a stage: matching an exact
+    // rank would silently skip a checkpoint whenever the stage sitting at
+    // it happens to be neutral — which is the common case, and which
+    // measurement caught leaving three of the four checkpoints untaken.
+    let cuts: Vec<usize> = CHECKPOINT_BEFORE_RANK
+        .iter()
+        .filter_map(|&rank| plan.iter().position(|(_, v)| v.rank >= rank))
+        .collect();
+
+    cache.retarget(asset, scale);
+    let (mut applied, mut px) = match cache.resume_from(settings, &plan) {
+        Some((applied, pixels)) => (applied, pixels),
+        None => (0, Pixels::from_raw(image)?),
+    };
+
+    while applied < plan.len() {
+        // Snapshot before the stage that opens a block, not after the one
+        // that closed it: what matters is that the buffer entering an
+        // expensive run is kept, whatever ran before it.
+        if cuts.contains(&applied) {
+            cache.store(settings, &plan, applied, &px);
+        }
+        (plan[applied].1.apply)(&mut px, &ctx);
+        applied += 1;
+    }
+
+    Ok(Rendered {
+        width: px.width,
+        height: px.height,
+        data: px.to_rgb8(),
+    })
 }
 
 /// Renders a decoded image through the stages its settings record.

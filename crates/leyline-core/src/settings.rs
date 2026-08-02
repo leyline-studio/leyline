@@ -710,6 +710,46 @@ impl Settings {
         serde_json::to_string(self).expect("settings serialization cannot fail")
     }
 
+    /// Hashes the rendering identity of `keys`, plus the schema and the
+    /// pinned stage versions (ADR 0041 §3).
+    ///
+    /// Two settings sharing this value drive the named settings — and the
+    /// pipeline built from them — identically, so a buffer rendered under
+    /// one may be reused under the other. `schema` and `stages` are always
+    /// folded in because a change to either rebuilds the pipeline itself,
+    /// whatever the keys.
+    ///
+    /// Values are compared through their JSON form rather than field by
+    /// field: `f64` has no `Hash`, and JSON is already the shape the
+    /// reproducibility contract stores (`docs/pipeline.md` §3.2). An
+    /// unknown key contributes nothing — a caller naming a field that does
+    /// not exist gets a fingerprint that simply does not depend on it.
+    pub fn fingerprint(&self, keys: &[&str]) -> u64 {
+        use std::hash::{Hash, Hasher};
+
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        self.schema.hash(&mut hasher);
+        for (name, version) in &self.stages {
+            name.hash(&mut hasher);
+            version.hash(&mut hasher);
+        }
+
+        let json = serde_json::to_value(self).expect("settings serialization cannot fail");
+        let object = json.as_object().expect("settings serialize to an object");
+        // Sorted and deduplicated so the value depends on *which* settings
+        // were named, never on the order they were named in.
+        let mut keys: Vec<&str> = keys.to_vec();
+        keys.sort_unstable();
+        keys.dedup();
+        for key in keys {
+            key.hash(&mut hasher);
+            if let Some(value) = object.get(key) {
+                value.to_string().hash(&mut hasher);
+            }
+        }
+        hasher.finish()
+    }
+
     /// Validates value ranges for schema 1.
     ///
     /// Only meaningful before *writing* a schema-1 revision; documents from

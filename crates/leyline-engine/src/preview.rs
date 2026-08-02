@@ -15,7 +15,7 @@ use leyline_preview::{PreviewCache, PreviewError, Rgb8};
 use leyline_raw::RawImage;
 
 use crate::decode_cache::DecodeCache;
-use crate::render::{self, render_scaled};
+use crate::render::{self, render_scaled, render_scaled_cached};
 
 /// Fuses `preview`, `cached_preview` and `preview_async` (§11) into one
 /// call: the client always gets something to show immediately (`Ready` or
@@ -132,6 +132,7 @@ pub(crate) fn plan_preview(
 /// run with no catalog lock held (ADR 0023).
 pub(crate) fn render_preview(
     decodes: &mut DecodeCache,
+    stage_cache: &mut crate::stages::StageCache,
     asset: AssetId,
     plan: &RenderPlan,
 ) -> Result<Rgb8> {
@@ -151,7 +152,7 @@ pub(crate) fn render_preview(
         })?;
     let lut = crate::lut::resolve_from_settings(&plan.library_root, &plan.settings)?;
     let (decoded, scale) = proxy(&decoded, plan.max_edge);
-    let rendered = render_scaled(
+    let rendered = render_scaled_cached(
         &decoded,
         &plan.settings,
         plan.shot.as_ref(),
@@ -159,6 +160,8 @@ pub(crate) fn render_preview(
         lut.as_ref(),
         crate::source::color(&plan.source_path),
         scale,
+        asset,
+        stage_cache,
     )?;
     Rgb8::new(rendered.width, rendered.height, rendered.data).map_err(preview_err)
 }
@@ -318,7 +321,15 @@ pub fn preview(
         PreviewPlan::Cached(file) => return Ok(file),
         PreviewPlan::Render(plan) => plan,
     };
-    let image = render_preview(decodes, asset, &plan)?;
+    // This standalone entry point has no long-lived cache to lend, so it
+    // renders with a throwaway one: correct by construction, and no slower
+    // than before, since a fresh cache simply never hits.
+    let image = render_preview(
+        decodes,
+        &mut crate::stages::StageCache::default(),
+        asset,
+        &plan,
+    )?;
     record_render(catalog, cache, asset, kind, &plan, &image)
 }
 
@@ -389,7 +400,13 @@ mod tests {
                 PreviewPlan::Render(plan) => plan,
                 PreviewPlan::Cached(_) => panic!("nothing cached yet"),
             };
-        let image = render_preview(&mut decodes, asset, &plan).unwrap();
+        let image = render_preview(
+            &mut decodes,
+            &mut crate::stages::StageCache::default(),
+            asset,
+            &plan,
+        )
+        .unwrap();
         let file = record_render(
             &mut catalog,
             &cache,
@@ -437,7 +454,13 @@ mod tests {
         // The render itself doesn't touch the catalog, so it can genuinely
         // run here, in between reading the plan and recording it — exactly
         // where `Library::preview` releases the catalog lock.
-        let image = render_preview(&mut decodes, asset, &plan).unwrap();
+        let image = render_preview(
+            &mut decodes,
+            &mut crate::stages::StageCache::default(),
+            asset,
+            &plan,
+        )
+        .unwrap();
 
         // Concurrent amendment of the exact revision the plan targeted —
         // same id, rewritten settings — called directly on the catalog
@@ -488,7 +511,13 @@ mod tests {
                 PreviewPlan::Cached(_) => panic!("nothing cached yet"),
             };
         let rendered_revision = plan.head;
-        let image = render_preview(&mut decodes, asset, &plan).unwrap();
+        let image = render_preview(
+            &mut decodes,
+            &mut crate::stages::StageCache::default(),
+            asset,
+            &plan,
+        )
+        .unwrap();
 
         // A plain commit creates a new revision and moves the head — it
         // never rewrites `rendered_revision`'s own settings.
