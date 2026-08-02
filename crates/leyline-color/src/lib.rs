@@ -19,7 +19,7 @@ mod dcp;
 mod working_space;
 
 pub use cube::{CubeLut, LutError};
-pub use dcp::{DcpError, DcpProfile, Matrix3};
+pub use dcp::{DcpError, DcpProfile, FALLBACK_TEMPERATURE_K, Matrix3, xyz_d50_to_linear_rec2020};
 pub use working_space::{
     LINEAR_SRGB_TO_REC2020, REC2020_TO_LINEAR_SRGB, apply_matrix, camera_to_rec2020,
 };

@@ -31,6 +31,11 @@
 //! tags that matrix is built from. A profile whose look is largely carried
 //! by those tables will therefore render differently here than in Adobe's
 //! own converter — a known gap, not a silently-dropped requirement.
+//! Since ADR 0062 the two calibration illuminants are **interpolated for the
+//! scene's light** rather than averaged — the simplification this module used
+//! to carry, measured at up to 0.044 on a saturated red. The averaged path is
+//! still here, unchanged, because `camera_profile::v1` is frozen on it.
+//!
 //! **What is verified, as of 2026-08:** real third-party `.dcp` files parse
 //! (two Canon linear profiles), and the matrix path keeps a neutral sensor
 //! triple neutral through camera→XYZ(D50)→sRGB — a check that needs no
@@ -84,6 +89,151 @@ pub struct DcpProfile {
     /// `ForwardMatrix` tags the file declared (see the module doc for the
     /// exact resolution rule).
     camera_to_xyz_d50: Matrix3,
+    /// The per-illuminant calibrations, sorted by temperature ascending.
+    /// One entry when the file declares a single illuminant, two when it
+    /// declares both — the common case (ADR 0062).
+    calibrations: Vec<Calibration>,
+    /// `ColorMatrix`, XYZ→camera, per illuminant. Needed on its own to
+    /// find the scene white point from the camera's as-shot neutral, which
+    /// is a chicken-and-egg the DNG spec resolves by iteration.
+    xyz_to_camera: Vec<Calibration>,
+}
+
+/// One illuminant's calibration: the matrix, and the light it was measured
+/// under.
+#[derive(Debug, Clone, PartialEq)]
+struct Calibration {
+    matrix: Matrix3,
+    /// Colour temperature in kelvin.
+    temperature: f64,
+}
+
+/// Colour temperature of a DNG `CalibrationIlluminant` code, in kelvin.
+///
+/// These are the DNG SDK's own values, not the physically exact ones —
+/// illuminant A is 2856 K in the standard and 2850 K here. The goal is to
+/// reproduce the reference implementation's blend, so its numbers are the
+/// right ones (ADR 0062 §1).
+fn illuminant_temperature(code: u32) -> Option<f64> {
+    Some(match code {
+        1 => 6500.0,      // Daylight
+        2 => 4200.0,      // Fluorescent
+        3 | 17 => 2850.0, // Tungsten, Standard Light A
+        4 => 5500.0,      // Flash
+        10 => 5500.0,     // Fine weather
+        11 => 6500.0,     // Cloudy weather
+        12 => 7500.0,     // Shade
+        13 => 5700.0,     // Daylight fluorescent
+        14 => 4600.0,     // Day white fluorescent
+        15 => 3800.0,     // Cool white fluorescent
+        16 => 2900.0,     // White fluorescent
+        18 => 4874.0,     // Standard light B
+        19 => 6774.0,     // Standard light C
+        20 => 5500.0,     // D55
+        21 => 6500.0,     // D65
+        22 => 7500.0,     // D75
+        23 => 5000.0,     // D50
+        24 => 3200.0,     // ISO studio tungsten
+        _ => return None,
+    })
+}
+
+/// Robertson's isotemperature lines, as the DNG SDK tabulates them:
+/// `(reciprocal megakelvin, u, v, slope)`.
+///
+/// Standard published colorimetry (Wyszecki & Stiles), and the same table
+/// every DNG-conformant implementation uses — which is what makes two
+/// implementations agree on a temperature rather than merely agree in
+/// spirit.
+const ROBERTSON: [[f64; 4]; 31] = [
+    [0.0, 0.18006, 0.26352, -0.24341],
+    [10.0, 0.18066, 0.26589, -0.25479],
+    [20.0, 0.18133, 0.26846, -0.26876],
+    [30.0, 0.18208, 0.27119, -0.28539],
+    [40.0, 0.18293, 0.27407, -0.30470],
+    [50.0, 0.18388, 0.27709, -0.32675],
+    [60.0, 0.18494, 0.28021, -0.35156],
+    [70.0, 0.18611, 0.28342, -0.37915],
+    [80.0, 0.18740, 0.28668, -0.40955],
+    [90.0, 0.18880, 0.28997, -0.44278],
+    [100.0, 0.19032, 0.29326, -0.47888],
+    [125.0, 0.19462, 0.30141, -0.58204],
+    [150.0, 0.19962, 0.30921, -0.70471],
+    [175.0, 0.20525, 0.31647, -0.84901],
+    [200.0, 0.21142, 0.32312, -1.0182],
+    [225.0, 0.21807, 0.32909, -1.2168],
+    [250.0, 0.22511, 0.33439, -1.4512],
+    [275.0, 0.23247, 0.33904, -1.7298],
+    [300.0, 0.24010, 0.34308, -2.0637],
+    [325.0, 0.24702, 0.34655, -2.4681],
+    [350.0, 0.25591, 0.34951, -2.9641],
+    [375.0, 0.26400, 0.35200, -3.5814],
+    [400.0, 0.27218, 0.35407, -4.3633],
+    [425.0, 0.28039, 0.35577, -5.3762],
+    [450.0, 0.28863, 0.35714, -6.7262],
+    [475.0, 0.29685, 0.35823, -8.5955],
+    [500.0, 0.30505, 0.35907, -11.324],
+    [525.0, 0.31320, 0.35968, -15.628],
+    [550.0, 0.32129, 0.36011, -23.325],
+    [575.0, 0.32931, 0.36038, -40.770],
+    [600.0, 0.33724, 0.36051, -116.45],
+];
+
+/// The blend weight of the cooler calibration for a scene temperature,
+/// linear in mireds and clamped to the calibrated interval (ADR 0062 §1).
+fn mireds_mix(temperature_k: f64, cool_k: f64, warm_k: f64) -> f64 {
+    if temperature_k <= cool_k {
+        return 1.0;
+    }
+    if temperature_k >= warm_k {
+        return 0.0;
+    }
+    let (inv, inv_cool, inv_warm) = (1.0 / temperature_k, 1.0 / cool_k, 1.0 / warm_k);
+    ((inv - inv_warm) / (inv_cool - inv_warm)).clamp(0.0, 1.0)
+}
+
+/// `a·wa + b·wb`, elementwise.
+fn mix3(a: Matrix3, wa: f64, b: Matrix3, wb: f64) -> Matrix3 {
+    let mut out = [[0.0; 3]; 3];
+    for i in 0..3 {
+        for j in 0..3 {
+            out[i][j] = a[i][j] * wa + b[i][j] * wb;
+        }
+    }
+    out
+}
+
+/// D65, the fallback when nothing says what the light was.
+pub const FALLBACK_TEMPERATURE_K: f64 = 6500.0;
+
+/// The colour temperature of a chromaticity, by Robertson's method.
+fn xy_to_temperature(x: f64, y: f64) -> f64 {
+    let denom = 1.5 - x + 6.0 * y;
+    if denom.abs() < 1e-12 {
+        return FALLBACK_TEMPERATURE_K;
+    }
+    let (u, v) = (2.0 * x / denom, 3.0 * y / denom);
+    let mut last_dt = 0.0;
+    for index in 1..=30 {
+        let slope = ROBERTSON[index][3];
+        let len = (1.0 + slope * slope).sqrt();
+        let (du, dv) = (1.0 / len, slope / len);
+        let uu = u - ROBERTSON[index][1];
+        let vv = v - ROBERTSON[index][2];
+        let mut dt = -uu * dv + vv * du;
+        if dt <= 0.0 || index == 30 {
+            dt = (-dt.min(0.0)).abs();
+            let f = if index == 1 { 0.0 } else { dt / (last_dt + dt) };
+            let r = ROBERTSON[index - 1][0] * f + ROBERTSON[index][0] * (1.0 - f);
+            return if r.abs() < 1e-12 {
+                FALLBACK_TEMPERATURE_K
+            } else {
+                1.0e6 / r
+            };
+        }
+        last_dt = dt;
+    }
+    FALLBACK_TEMPERATURE_K
 }
 
 /// The version number a real `.dcp` writes where TIFF writes 42.
@@ -320,11 +470,12 @@ impl DcpProfile {
         let color_matrix_2 = read_matrix(&ifd, tag_id::COLOR_MATRIX_2)?;
         let forward_matrix_1 = read_matrix(&ifd, tag_id::FORWARD_MATRIX_1)?;
         let forward_matrix_2 = read_matrix(&ifd, tag_id::FORWARD_MATRIX_2)?;
-        // Read but not yet consumed by `camera_to_xyz_d50`'s resolution —
-        // see the module doc's stated simplification (averaged, not
-        // CCT-interpolated).
-        let _calibration_illuminant_1 = ifd.integer(tag_id::CALIBRATION_ILLUMINANT_1);
-        let _calibration_illuminant_2 = ifd.integer(tag_id::CALIBRATION_ILLUMINANT_2);
+        let illuminant_1 = ifd
+            .integer(tag_id::CALIBRATION_ILLUMINANT_1)
+            .and_then(illuminant_temperature);
+        let illuminant_2 = ifd
+            .integer(tag_id::CALIBRATION_ILLUMINANT_2)
+            .and_then(illuminant_temperature);
         let name = ifd.ascii(tag_id::PROFILE_NAME).filter(|n| !n.is_empty());
 
         // Prefer the forward matrix/matrices (the DNG spec's documented
@@ -345,10 +496,109 @@ impl DcpProfile {
             }
         };
 
+        // The per-illuminant calibrations `camera_profile::v2` interpolates
+        // between (ADR 0062). A file declaring one illuminant, or matrices
+        // for only one, yields a single entry — and a single entry means no
+        // interpolation to do, whatever the scene temperature.
+        let pair = |a: Option<Matrix3>, b: Option<Matrix3>| -> Vec<Calibration> {
+            let mut out = Vec::new();
+            if let (Some(m), Some(t)) = (a, illuminant_1) {
+                out.push(Calibration {
+                    matrix: m,
+                    temperature: t,
+                });
+            }
+            if let (Some(m), Some(t)) = (b, illuminant_2) {
+                out.push(Calibration {
+                    matrix: m,
+                    temperature: t,
+                });
+            }
+            out.sort_by(|x, y| x.temperature.total_cmp(&y.temperature));
+            out
+        };
+
+        let mut calibrations = pair(forward_matrix_1, forward_matrix_2);
+        if calibrations.is_empty() {
+            // No forward matrices: invert the colour matrices, exactly as
+            // the averaged path does, one illuminant at a time.
+            calibrations = pair(invert(color_matrix_1), color_matrix_2.and_then(invert));
+        }
+        let xyz_to_camera = pair(Some(color_matrix_1), color_matrix_2);
+
         Ok(DcpProfile {
             name,
             camera_to_xyz_d50,
+            calibrations,
+            xyz_to_camera,
         })
+    }
+
+    /// Camera→XYZ(D50) for a scene of `temperature_k`, interpolated between
+    /// the profile's calibrations (ADR 0062 §1).
+    ///
+    /// The blend is linear in **reciprocal** temperature — mireds — which is
+    /// where a colour difference is perceptually even. Blending on kelvin
+    /// instead is the natural mistake, and it is wrong in the middle of the
+    /// interval, exactly where interpolation is supposed to help.
+    pub fn camera_to_xyz_at(&self, temperature_k: f64) -> Matrix3 {
+        match self.calibrations.as_slice() {
+            [] => self.camera_to_xyz_d50,
+            [only] => only.matrix,
+            [cool, warm, ..] => {
+                let mix = mireds_mix(temperature_k, cool.temperature, warm.temperature);
+                mix3(cool.matrix, mix, warm.matrix, 1.0 - mix)
+            }
+        }
+    }
+
+    /// The scene temperature implied by the camera's as-shot neutral, in
+    /// kelvin (ADR 0062 §2).
+    ///
+    /// Chicken and egg: the matrix that turns the neutral into a chromaticity
+    /// depends on the temperature, which is what we are trying to find. The
+    /// DNG spec resolves it by iterating from D50 until the chromaticity
+    /// settles, and caps the passes so a pathological profile cannot spin.
+    pub fn temperature_from_neutral(&self, neutral: [f64; 3]) -> f64 {
+        const MAX_PASSES: usize = 30;
+        const SETTLED: f64 = 1e-7;
+
+        let (mut x, mut y) = (0.3457, 0.3585); // D50
+        for _ in 0..MAX_PASSES {
+            let temperature = xy_to_temperature(x, y);
+            let xyz_to_camera = match self.xyz_to_camera.as_slice() {
+                [] => return FALLBACK_TEMPERATURE_K,
+                [only] => only.matrix,
+                [cool, warm, ..] => {
+                    let mix = mireds_mix(temperature, cool.temperature, warm.temperature);
+                    mix3(cool.matrix, mix, warm.matrix, 1.0 - mix)
+                }
+            };
+            let Some(camera_to_xyz) = invert(xyz_to_camera) else {
+                return FALLBACK_TEMPERATURE_K;
+            };
+            let xyz = [
+                camera_to_xyz[0][0] * neutral[0]
+                    + camera_to_xyz[0][1] * neutral[1]
+                    + camera_to_xyz[0][2] * neutral[2],
+                camera_to_xyz[1][0] * neutral[0]
+                    + camera_to_xyz[1][1] * neutral[1]
+                    + camera_to_xyz[1][2] * neutral[2],
+                camera_to_xyz[2][0] * neutral[0]
+                    + camera_to_xyz[2][1] * neutral[1]
+                    + camera_to_xyz[2][2] * neutral[2],
+            ];
+            let sum = xyz[0] + xyz[1] + xyz[2];
+            if sum.abs() < 1e-12 {
+                return FALLBACK_TEMPERATURE_K;
+            }
+            let (nx, ny) = (xyz[0] / sum, xyz[1] / sum);
+            if (nx - x).abs() + (ny - y).abs() < SETTLED {
+                return xy_to_temperature(nx, ny);
+            }
+            (x, y) = (nx, ny);
+        }
+        xy_to_temperature(x, y)
     }
 
     /// Converts one linear camera-native RGB sample (in `[0, 1]`, as
@@ -374,6 +624,32 @@ impl DcpProfile {
         let xyz_d65 = apply(BRADFORD_D50_TO_D65, xyz_d50);
         crate::working_space::apply_matrix(crate::working_space::XYZ_D65_TO_REC2020, xyz_d65)
     }
+
+    /// The same conversion, through the calibration interpolated for a scene
+    /// of `temperature_k` rather than the average of the two (ADR 0062).
+    ///
+    /// Callers converting a whole image should resolve the matrix once with
+    /// [`DcpProfile::camera_to_xyz_at`] and reuse it, rather than calling
+    /// this per pixel: the blend does not change within one render.
+    pub fn camera_to_linear_rec2020_at(
+        &self,
+        temperature_k: f64,
+        camera_rgb: [f64; 3],
+    ) -> [f64; 3] {
+        let xyz_d50 = apply(self.camera_to_xyz_at(temperature_k), camera_rgb);
+        let xyz_d65 = apply(BRADFORD_D50_TO_D65, xyz_d50);
+        crate::working_space::apply_matrix(crate::working_space::XYZ_D65_TO_REC2020, xyz_d65)
+    }
+}
+
+/// XYZ (D50) to the linear Rec. 2020 working space (ADR 0044).
+///
+/// Exposed so a caller resolving a profile's matrix once per image — which
+/// is what [`DcpProfile::camera_to_xyz_at`] invites — can finish the
+/// conversion itself instead of paying a matrix blend per pixel.
+pub fn xyz_d50_to_linear_rec2020(xyz_d50: [f64; 3]) -> [f64; 3] {
+    let xyz_d65 = apply(BRADFORD_D50_TO_D65, xyz_d50);
+    crate::working_space::apply_matrix(crate::working_space::XYZ_D65_TO_REC2020, xyz_d65)
 }
 
 /// The standard XYZ (D50) to linear sRGB matrix (Bruce Lindbloom's
@@ -604,6 +880,107 @@ mod tests {
     #[test]
     fn not_a_tiff_file_is_rejected() {
         assert!(DcpProfile::parse(b"not a tiff file at all").is_err());
+    }
+
+    /// The blend is linear in mireds, not in kelvin (ADR 0062 §1) — the
+    /// difference is invisible at the ends and largest exactly where
+    /// interpolation is supposed to earn its keep.
+    #[test]
+    fn the_illuminant_blend_is_linear_in_mireds() {
+        // At and beyond each calibration, the calibration itself.
+        assert_eq!(mireds_mix(2850.0, 2850.0, 6500.0), 1.0);
+        assert_eq!(mireds_mix(2000.0, 2850.0, 6500.0), 1.0);
+        assert_eq!(mireds_mix(6500.0, 2850.0, 6500.0), 0.0);
+        assert_eq!(mireds_mix(9000.0, 2850.0, 6500.0), 0.0);
+
+        // Halfway in mireds is 3963 K, not the 4675 K a kelvin blend would
+        // put there. Getting this backwards is the whole point of the test.
+        let mid_mireds: f64 = 1.0 / ((1.0 / 2850.0 + 1.0 / 6500.0) / 2.0);
+        assert!((mid_mireds - 3962.6).abs() < 1.0, "{mid_mireds}");
+        assert!((mireds_mix(mid_mireds, 2850.0, 6500.0) - 0.5).abs() < 1e-9);
+
+        // And the reverse reading, which is the one that surprises: at the
+        // *kelvin* midpoint (4675 K) the blend is nowhere near even — the
+        // daylight calibration already carries 70 % of it, because in mireds
+        // 4675 K sits far closer to 6500 K than to 2850 K. A kelvin-linear
+        // blend would say 0.5 here, and be wrong by that whole margin.
+        let mix = mireds_mix(4675.0, 2850.0, 6500.0);
+        assert!(
+            (mix - 0.305).abs() < 0.01,
+            "kelvin midpoint should lean daylight, not sit at 0.5: {mix}"
+        );
+    }
+
+    /// The claim ADR 0062 rests on: with two calibrations, interpolating is
+    /// *not* averaging — and the gap is where the light actually is.
+    ///
+    /// The golden renders cannot show this: their fixture profile declares a
+    /// single illuminant, so `v1` and `v2` agree there by construction. This
+    /// builds the two-illuminant case they lack.
+    #[test]
+    fn interpolating_two_calibrations_differs_from_averaging_them() {
+        let tungsten: Matrix3 = [[0.8, 0.1, 0.1], [0.2, 0.9, -0.1], [0.0, -0.4, 1.3]];
+        let daylight: Matrix3 = [[0.7, 0.2, 0.1], [0.3, 0.9, -0.2], [0.0, -0.2, 1.0]];
+        let profile = DcpProfile {
+            name: None,
+            camera_to_xyz_d50: average(tungsten, daylight),
+            calibrations: vec![
+                Calibration {
+                    matrix: tungsten,
+                    temperature: 2850.0,
+                },
+                Calibration {
+                    matrix: daylight,
+                    temperature: 6500.0,
+                },
+            ],
+            xyz_to_camera: Vec::new(),
+        };
+
+        // Under tungsten the tungsten calibration is used outright, and the
+        // average is measurably elsewhere.
+        let at_tungsten = profile.camera_to_xyz_at(2850.0);
+        assert_eq!(at_tungsten, tungsten);
+        let averaged = profile.camera_to_xyz_d50;
+        let gap = (0..3)
+            .flat_map(|i| (0..3).map(move |j| (i, j)))
+            .map(|(i, j)| (at_tungsten[i][j] - averaged[i][j]).abs())
+            .fold(0.0_f64, f64::max);
+        assert!(
+            gap > 0.05,
+            "averaging should be visibly off under tungsten: {gap}"
+        );
+
+        // Under daylight, symmetrically.
+        assert_eq!(profile.camera_to_xyz_at(6500.0), daylight);
+
+        // And a single-calibration profile has nothing to interpolate, so it
+        // must return that one matrix whatever the light — the case the
+        // golden fixture exercises.
+        let single = DcpProfile {
+            name: None,
+            camera_to_xyz_d50: tungsten,
+            calibrations: vec![Calibration {
+                matrix: tungsten,
+                temperature: 2850.0,
+            }],
+            xyz_to_camera: Vec::new(),
+        };
+        assert_eq!(single.camera_to_xyz_at(9000.0), tungsten);
+    }
+
+    /// Robertson's method against the illuminants the table is built for.
+    #[test]
+    fn known_chromaticities_recover_their_temperature() {
+        // D65 and illuminant A, standard chromaticities.
+        for (x, y, expected) in [(0.31271, 0.32902, 6504.0), (0.44757, 0.40745, 2856.0)] {
+            let found = xy_to_temperature(x, y);
+            let error = (found - expected).abs() / expected;
+            assert!(
+                error < 0.02,
+                "xy ({x}, {y}) gave {found} K, expected ~{expected}"
+            );
+        }
     }
 
     /// A real `.dcp` is a *bare tag directory* carrying DCP's own version

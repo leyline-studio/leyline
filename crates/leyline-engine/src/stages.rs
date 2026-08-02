@@ -77,6 +77,7 @@ pub(crate) mod input {
 }
 pub(crate) mod camera_profile {
     pub(crate) mod v1;
+    pub(crate) mod v2;
 }
 pub(crate) mod lens {
     pub(crate) mod v1;
@@ -376,17 +377,37 @@ pub(crate) static STAGES: &[Stage] = &[
                 .as_ref()
                 .is_some_and(|profile| profile.enabled)
         },
-        reads: &["camera_profile"],
-        versions: &[Version {
-            version: 1,
-            rank: 10,
-            space: Space::LinearRec2020,
-            apply: |px, ctx| {
-                if let Some(profile) = ctx.camera_profile {
-                    camera_profile::v1::apply_camera_profile(px, profile);
-                }
+        // `white_balance` since ADR 0062: `v2` picks the calibration from
+        // the scene temperature, so a checkpoint taken before this stage is
+        // only valid while that temperature holds. Omitting it here would
+        // let the stage cache reuse a buffer rendered under another light —
+        // wrong pixels, silently (ADR 0041 §3).
+        reads: &["camera_profile", "white_balance"],
+        versions: &[
+            Version {
+                version: 1,
+                rank: 10,
+                space: Space::LinearRec2020,
+                apply: |px, ctx| {
+                    if let Some(profile) = ctx.camera_profile {
+                        camera_profile::v1::apply_camera_profile(px, profile);
+                    }
+                },
             },
-        }],
+            // Same conversion, the calibration interpolated for the light
+            // instead of averaged (ADR 0062).
+            Version {
+                version: 2,
+                rank: 10,
+                space: Space::LinearRec2020,
+                apply: |px, ctx| {
+                    if let Some(profile) = ctx.camera_profile {
+                        let temperature = scene_temperature(ctx, profile);
+                        camera_profile::v2::apply_camera_profile(px, profile, temperature);
+                    }
+                },
+            },
+        ],
     },
     Stage {
         name: "lens",
@@ -1052,6 +1073,36 @@ pub(crate) fn prefix_fingerprint(
         .flat_map(|(stage, _)| stage.reads.iter().copied())
         .collect();
     settings.fingerprint(&keys)
+}
+
+/// The scene's colour temperature, for a profile that calibrates against
+/// two illuminants (ADR 0062 §2).
+///
+/// The revision's own white balance when it names one — Leyline stores it in
+/// kelvin already, so no estimation is needed and none is done. Otherwise
+/// the camera's as-shot neutral, which the decoder reports as channel
+/// multipliers, run through the DNG spec's iteration. With neither, D65,
+/// because a calibration at one end of the interval is a defensible choice
+/// where an average of both is not.
+fn scene_temperature(ctx: &Context<'_>, profile: &DcpProfile) -> f64 {
+    if let Some(wb) = &ctx.settings.white_balance {
+        return f64::from(wb.temperature);
+    }
+    if let SourceColor::Camera {
+        multipliers: Some(multipliers),
+        ..
+    } = ctx.source
+    {
+        // The as-shot neutral is the reciprocal of the multipliers the
+        // decoder would apply: the camera colour that white balances to
+        // grey. A zero multiplier is a malformed file, not a neutral.
+        let neutral = [multipliers[0], multipliers[1], multipliers[2]];
+        if neutral.iter().all(|m| *m > 0.0) {
+            let reciprocal = [1.0 / neutral[0], 1.0 / neutral[1], 1.0 / neutral[2]];
+            return profile.temperature_from_neutral(reciprocal);
+        }
+    }
+    leyline_color::FALLBACK_TEMPERATURE_K
 }
 
 /// Ranks a checkpoint is taken *before* (ADR 0041 §3), one snapshot each.
