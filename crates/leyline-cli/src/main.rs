@@ -7,7 +7,7 @@
 use std::path::{Path, PathBuf};
 
 use leyline_sdk::{
-    AssetId, CameraProfile, ColorGrading, ColorGradingZone, ColorLabel, Crop, CurvePoint,
+    AssetId, CameraProfile, ColorGrading, ColorGradingZone, ColorLabel, Crop, CurvePoint, Demosaic,
     ExportFormat, ExportRecipe, ExportRequest, ExportSettings, GridQuery, HighlightReconstruction,
     HslBand, ImportOptions, LensCorrection, Library, LocalAdjustment, Lut, Margins, NoiseReduction,
     Orientation, PaperSize, Param, Perspective, PickState, Point, PresetId, PreviewKind,
@@ -85,6 +85,12 @@ Develop params (docs/pipeline.md §3.2, schema 1):
                                     the sensor (ADR 0050); clip is the neutral default.
                                     Needs a revision pinned at input version 2 — reprocess
                                     an older one first
+  demosaic <ahd|vng|dcb|dht>        which interpolation reconstructs the missing
+                                    channels (ADR 0061); ahd is the neutral default.
+                                    Needs a revision pinned at input version 3 —
+                                    reprocess an older one first. Has no effect on
+                                    thumbnail/small previews, which decode at half
+                                    size and skip interpolation entirely
   white-balance <kelvin> <tint>     tint integer, or `white-balance none` for as-shot
   lut <path|on|off|none>            path is library-relative, as listed by `leyline luts`;
                                     on/off toggles the LUT already referenced, none removes it
@@ -627,6 +633,20 @@ fn develop(args: &[String]) -> Result<(), String> {
                 Param::HighlightReconstruction,
                 Value::HighlightReconstruction(mode),
             )
+        }
+        "demosaic" => {
+            let algorithm = match at(0)? {
+                "ahd" => Demosaic::Ahd,
+                "vng" => Demosaic::Vng,
+                "dcb" => Demosaic::Dcb,
+                "dht" => Demosaic::Dht,
+                other => {
+                    return Err(format!(
+                        "unknown demosaic algorithm {other:?}, expected ahd/vng/dcb/dht"
+                    ));
+                }
+            };
+            (Param::Demosaic, Value::Demosaic(algorithm))
         }
         "vibrance" => (Param::Vibrance, Value::Int(int_at(0)?)),
         "saturation" => (Param::Saturation, Value::Int(int_at(0)?)),

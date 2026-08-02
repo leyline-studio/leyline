@@ -83,8 +83,30 @@ Trois façons de la débloquer, par ordre de préférence :
    aux valeurs sRGB de référence de la charte. Ne demande pas de `.dcp` du tout,
    mais demande une prise de vue.
 
-Tant que rien de tout cela n'est disponible, la mention « expérimental » reste,
-et c'est le comportement correct : elle dit exactement ce qui n'a pas été
+**Piste apportée le 2026-08-02 :** des collections de **profils linéaires**
+`.dcp` par marque circulent en téléchargement (par exemple
+`olivier-rocq.com/lightroom/profil-lineaire/`), et **Adobe DNG Profile Editor**,
+gratuit, en fabrique. Un profil *linéaire* est un cas de validation
+particulièrement bien choisi : n'ayant ni `ProfileToneCurve` ni look table, il
+n'exerce que le chemin matriciel — exactement ce que Leyline implémente, et rien
+de ce qu'il n'implémente pas encore.
+
+Ce que cette piste débloque, et ce qu'elle ne débloque pas :
+
+* ✅ **Le parsing du conteneur contre de vrais fichiers.** Les fixtures
+  actuelles sont auto-construites : elles prouvent un aller-retour avec
+  nous-mêmes, pas la lecture d'un `.dcp` écrit par Adobe.
+* ✅ **La résolution de la matrice caméra→XYZ**, vérifiable contre un calcul
+  indépendant tiré de la spec DNG, sans aucun autre logiciel.
+* ❌ **La comparaison au rendu d'Adobe.** Elle exige toujours Lightroom ou ACR
+  pour produire la référence. Un profil téléchargé ne la remplace pas.
+
+Attention aussi : ces profils sont l'œuvre de tiers, pas les profils d'usine
+d'Adobe. Ils valident notre lecture et notre algèbre, pas notre fidélité au
+rendu « Camera Standard ».
+
+Tant que la référence de rendu manque, la mention « expérimental » reste, et
+c'est le comportement correct : elle dit exactement ce qui n'a pas été
 vérifié.
 
 **Risque.** Faible sur le point 1, moyen sur le point 2 : l'interpolation des

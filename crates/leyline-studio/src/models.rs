@@ -118,6 +118,12 @@ pub(crate) fn dev_model(settings: &Settings) -> crate::ui::DevSettings {
             leyline_sdk::HighlightReconstruction::Blend => "blend",
             leyline_sdk::HighlightReconstruction::Rebuild => "rebuild",
         }),
+        demosaic: SharedString::from(match settings.demosaic {
+            leyline_sdk::Demosaic::Ahd => "ahd",
+            leyline_sdk::Demosaic::Vng => "vng",
+            leyline_sdk::Demosaic::Dcb => "dcb",
+            leyline_sdk::Demosaic::Dht => "dht",
+        }),
         color_grading_balance: settings.color_grading.balance as f32,
         color_grading_blending: settings.color_grading.blending as f32,
     }

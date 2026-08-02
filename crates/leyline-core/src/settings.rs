@@ -166,6 +166,39 @@ impl HighlightReconstruction {
     }
 }
 
+/// Which interpolation reconstructs the two missing channels of every sensor
+/// site (ADR 0061) — the very first rendering decision, taken by the decoder.
+///
+/// Requires `input` at version 3 or later. A non-neutral value on a revision
+/// pinned at an earlier `input` is refused by [`Settings::validate`] rather
+/// than silently dropped, the same capability rule ADR 0050 set.
+///
+/// Has **no effect on `Thumbnail` and `Small` previews**: those decode at half
+/// size, which skips interpolation altogether.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Demosaic {
+    /// Adaptive Homogeneity-Directed: good everywhere, best nowhere.
+    #[default]
+    Ahd,
+    /// Variable Number of Gradients: gentler on gradients, less maze
+    /// artifacting on flat areas.
+    Vng,
+    /// DCB: cleaner hard edges — the one to reach for when moire is the
+    /// problem.
+    Dcb,
+    /// DHT: the finest on high-frequency detail, and the slowest.
+    Dht,
+}
+
+impl Demosaic {
+    /// Whether this is the neutral value — the predicate that keeps it out of
+    /// a stored `settings_json` when nothing was asked for.
+    pub fn is_ahd(&self) -> bool {
+        *self == Demosaic::Ahd
+    }
+}
+
 /// The pipeline carries highlights above white — a window brighter than the
 /// wall beside it — all the way to the end. This says what becomes of them
 /// when the image has to fit on a screen or in a file.
@@ -643,6 +676,12 @@ pub struct Settings {
     #[serde(default, skip_serializing_if = "HighlightReconstruction::is_clip")]
     pub highlight_reconstruction: HighlightReconstruction,
 
+    /// Which interpolation the decoder uses (ADR 0061). Neutral:
+    /// [`Demosaic::Ahd`], which is why it is absent from a stored document
+    /// that never asked for anything.
+    #[serde(default, skip_serializing_if = "Demosaic::is_ahd")]
+    pub demosaic: Demosaic,
+
     /// Rotation in degrees, clockwise. Neutral: 0.
     pub rotation: f64,
     /// Perspective correction (ADR 0052); `None` = neutral.
@@ -686,6 +725,7 @@ impl Default for Settings {
             noise_reduction: NoiseReduction::default(),
             output_rendering: OutputRendering::default(),
             highlight_reconstruction: HighlightReconstruction::default(),
+            demosaic: Demosaic::default(),
             sharpening: Sharpening::default(),
             rotation: 0.0,
             perspective: None,
@@ -775,6 +815,17 @@ impl Settings {
         // a *decoder* configuration, and `input::v1` has no code that reads
         // it. Keeping the pinned version and dropping the mode would leave
         // the user with a setting that does nothing (ADR 0050 §5).
+        // Same capability rule as `highlight_reconstruction` below: a
+        // setting the pinned version cannot express is refused by name, so
+        // the user learns their revision needs reprocessing instead of
+        // watching a control do nothing (ADR 0061 §2).
+        if !self.demosaic.is_ahd() && matches!(self.stages.get("input"), Some(&v) if v < 3) {
+            return Err(LeylineError::InvalidSettings(
+                "demosaic needs stage input version 3, but this revision \
+                 pins an earlier one; reprocess it first"
+                    .to_owned(),
+            ));
+        }
         if !self.highlight_reconstruction.is_clip() && self.stages.get("input") == Some(&1) {
             return Err(LeylineError::InvalidSettings(
                 "highlight_reconstruction needs stage input version 2, but this revision \

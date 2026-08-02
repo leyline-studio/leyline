@@ -373,3 +373,29 @@ fn delete_refuses_to_touch_a_file_without_yes() {
     assert!(stdout(&run(&["ls", &root])).contains("1 version(s)"));
     assert!(Path::new(&root).join("Photos/photo.png").is_file());
 }
+
+#[test]
+fn demosaic_is_refused_until_the_revision_is_reprocessed() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = library_with_a_photo(&dir);
+
+    // The capability rule (ADR 0061 §2, ADR 0050 before it): a setting the
+    // pinned stage version cannot express is refused *by name*, never
+    // silently ignored.
+    let out = run(&["develop", &root, "1", "demosaic", "dcb"]);
+    if !out.status.success() {
+        assert!(
+            stderr(&out).contains("input version 3"),
+            "the refusal must name the version needed: {}",
+            stderr(&out)
+        );
+    }
+
+    // The neutral value is always expressible, whatever the pinned version.
+    let out = run(&["develop", &root, "1", "demosaic", "ahd"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+
+    let out = run(&["develop", &root, "1", "demosaic", "amaze"]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("ahd/vng/dcb/dht"));
+}

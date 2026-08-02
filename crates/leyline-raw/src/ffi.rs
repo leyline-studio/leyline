@@ -47,6 +47,7 @@ unsafe extern "C" {
         no_auto_bright: c_int,
         camera_native: c_int,
         highlight: c_int,
+        user_qual: c_int,
     );
     pub(crate) fn leyline_shim_cam_xyz(data: *const LibrawData, out: *mut f64) -> c_int;
     pub(crate) fn leyline_shim_cam_mul(data: *const LibrawData, out: *mut f64) -> c_int;

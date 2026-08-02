@@ -59,6 +59,51 @@ pub struct DecodeParams {
     /// (`Default`) leaves this off and gets LibRaw's ordinary gamma-
     /// encoded sRGB.
     pub camera_native: bool,
+    /// Which interpolation reconstructs the two missing channels of every
+    /// sensor site (ADR 0061). `Default` is [`Demosaic::Ahd`], LibRaw's own
+    /// default and what this crate asked for implicitly before that
+    /// decision.
+    ///
+    /// Ignored when [`DecodeParams::half_size`] is set: half-size decoding
+    /// takes one pixel per 2x2 Bayer group and skips interpolation
+    /// altogether.
+    pub demosaic: Demosaic,
+}
+
+/// Which interpolation reconstructs the missing channels (ADR 0061).
+///
+/// Four of LibRaw's values, named for what they do. AMaZE and LMMSE are
+/// absent because they live in the GPL2/GPL3 demosaic packs, dropped from
+/// LibRaw's own distribution at 0.19 and not present in the library linked
+/// here — offering them would offer a choice that silently falls back to
+/// AHD.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Demosaic {
+    /// Adaptive Homogeneity-Directed: good everywhere, best nowhere.
+    /// LibRaw quality 3, and its default.
+    #[default]
+    Ahd,
+    /// Variable Number of Gradients: gentler on gradients, less maze
+    /// artifacting on flat areas. LibRaw quality 1.
+    Vng,
+    /// DCB: cleaner rendering of hard edges — the one to reach for when
+    /// moire is the problem. LibRaw quality 4.
+    Dcb,
+    /// DHT: the finest on high-frequency detail, and the slowest. LibRaw
+    /// quality 11.
+    Dht,
+}
+
+impl Demosaic {
+    /// The `params.user_qual` value LibRaw expects.
+    fn libraw_quality(self) -> i32 {
+        match self {
+            Demosaic::Ahd => 3,
+            Demosaic::Vng => 1,
+            Demosaic::Dcb => 4,
+            Demosaic::Dht => 11,
+        }
+    }
 }
 
 /// What the decoder does with a channel that saturated at the sensor
@@ -295,6 +340,7 @@ pub fn decode(path: &Path, params: &DecodeParams) -> Result<Decoded, RawError> {
             c_int::from(!params.auto_brighten),
             c_int::from(params.camera_native),
             params.highlight.libraw_mode(),
+            params.demosaic.libraw_quality(),
         );
         check(ffi::libraw_unpack(handle.0))?;
         check(ffi::libraw_dcraw_process(handle.0))?;

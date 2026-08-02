@@ -86,6 +86,8 @@ export global DevelopState {
     // a `develop-edit` with a number, because the three modes are not points
     // on a scale.
     callback develop-set-highlight-reconstruction(string);
+    // ADR 0061 — a named algorithm, never a slider: DCB is not "more VNG".
+    callback develop-set-demosaic(string);
     // HSL mixer band edit (ADR 0031): band index (0..8, fixed order red..
     // magenta), field ("hue"/"saturation"/"luminance"), released value.
     callback develop-edit-hsl-band(int, string, float);

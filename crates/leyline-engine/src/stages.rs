@@ -73,6 +73,7 @@ pub(crate) mod kernel {
 pub(crate) mod input {
     pub(crate) mod v1;
     pub(crate) mod v2;
+    pub(crate) mod v3;
 }
 pub(crate) mod camera_profile {
     pub(crate) mod v1;
@@ -317,7 +318,7 @@ pub(crate) static STAGES: &[Stage] = &[
         // the rendering that no revision recorded.
         name: "input",
         active: |_| true,
-        reads: &["highlight_reconstruction", "camera_profile"],
+        reads: &["highlight_reconstruction", "camera_profile", "demosaic"],
         versions: &[
             Version {
                 version: 1,
@@ -340,6 +341,24 @@ pub(crate) static STAGES: &[Stage] = &[
                 space: Space::LinearRec2020,
                 apply: |px, ctx| {
                     input::v2::to_working_space(
+                        px,
+                        ctx.source,
+                        ctx.camera_profile.is_some(),
+                        ctx.settings.highlight_reconstruction,
+                    );
+                },
+            },
+            // Same buffer work again, a decoder that is told *which*
+            // interpolation to use (ADR 0061). Like `v2` before it, the
+            // whole difference lives in `INPUT_DECODE`: `v3` at a neutral
+            // `demosaic` renders bit for bit like `v2`, which is what makes
+            // reprocessing into it safe to offer.
+            Version {
+                version: 3,
+                rank: 0,
+                space: Space::LinearRec2020,
+                apply: |px, ctx| {
+                    input::v3::to_working_space(
                         px,
                         ctx.source,
                         ctx.camera_profile.is_some(),
@@ -783,8 +802,11 @@ pub(crate) static STAGES: &[Stage] = &[
 /// freezes two things together — what the decoder is asked for, and what the
 /// stage then does to the buffer — because both change pixels and a revision
 /// cites a single number for them.
-static INPUT_DECODE: &[(u16, DecodeConfig)] =
-    &[(1, input::v1::decode_params), (2, input::v2::decode_params)];
+static INPUT_DECODE: &[(u16, DecodeConfig)] = &[
+    (1, input::v1::decode_params),
+    (2, input::v2::decode_params),
+    (3, input::v3::decode_params),
+];
 
 /// What one `input` version asks the decoder for.
 ///

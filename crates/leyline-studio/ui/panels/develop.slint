@@ -791,6 +791,55 @@ export component DevelopPanel inherits HorizontalLayout {
                                 }
                             }
                         }
+                        // Demosaic (ADR 0061), Complete mode only: the very
+                        // first rendering decision, and one that supposes
+                        // knowing what a Bayer sensor is (ADR 0054 §2). The
+                        // caption is not decoration — the choice genuinely
+                        // does nothing at these preview sizes, and a control
+                        // that appears inert reads as broken.
+                        if !root.basic-mode: Text {
+                            text: @tr("Demosaic");
+                            color: #9a9a9a;
+                            font-size: 12px;
+                        }
+                        if !root.basic-mode: HorizontalLayout {
+                            spacing: 6px;
+                            alignment: start;
+                            FilterChip {
+                                text: @tr("AHD");
+                                active: DevelopState.dev.demosaic == "ahd";
+                                clicked => {
+                                    DevelopState.develop-set-demosaic("ahd");
+                                }
+                            }
+                            FilterChip {
+                                text: @tr("VNG");
+                                active: DevelopState.dev.demosaic == "vng";
+                                clicked => {
+                                    DevelopState.develop-set-demosaic("vng");
+                                }
+                            }
+                            FilterChip {
+                                text: @tr("DCB");
+                                active: DevelopState.dev.demosaic == "dcb";
+                                clicked => {
+                                    DevelopState.develop-set-demosaic("dcb");
+                                }
+                            }
+                            FilterChip {
+                                text: @tr("DHT");
+                                active: DevelopState.dev.demosaic == "dht";
+                                clicked => {
+                                    DevelopState.develop-set-demosaic("dht");
+                                }
+                            }
+                        }
+                        if !root.basic-mode: Text {
+                            text: @tr("Visible at full size and on export only — small previews skip interpolation.");
+                            color: #6f6f6f;
+                            font-size: 11px;
+                            wrap: word-wrap;
+                        }
                         EditSlider {
                             label: @tr("Vibrance");
                             minimum: -100;

@@ -1743,3 +1743,17 @@ msgstr ""
 "Aucune photo de cette bibliothèque ne porte de coordonnées GPS. Leyline les "
 "lit dans les métadonnées du fichier lui-même — il n'invente jamais une "
 "position, et n'en demande jamais au réseau."
+
+#: crates/leyline-studio/ui/panels/develop.slint:794
+msgctxt "DevelopPanel"
+msgid "Demosaic"
+msgstr "Dématriçage"
+
+#: crates/leyline-studio/ui/panels/develop.slint:835
+msgctxt "DevelopPanel"
+msgid ""
+"Visible at full size and on export only — small previews skip "
+"interpolation."
+msgstr ""
+"Visible seulement à pleine taille et à l'export — les petits aperçus ne "
+"passent pas par l'interpolation."

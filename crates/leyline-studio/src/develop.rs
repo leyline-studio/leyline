@@ -5,7 +5,7 @@
 //! the session applies whatever comes back.
 
 use leyline_sdk::{
-    ColorGrading, Crop, CurvePoint, HighlightReconstruction, HslBand, LensCorrection,
+    ColorGrading, Crop, CurvePoint, Demosaic, HighlightReconstruction, HslBand, LensCorrection,
     NoiseReduction, Param, Point, Settings, Sharpening, SpotRemoval, ToneCurve, Value,
 };
 
@@ -154,6 +154,23 @@ pub fn highlight_reconstruction_action(mode: &str) -> Option<(Param, Value)> {
         Param::HighlightReconstruction,
         Value::HighlightReconstruction(mode),
     ))
+}
+
+/// Decodes the demosaic picker (ADR 0061): `"ahd"`, `"vng"`, `"dcb"` or
+/// `"dht"`. An unknown name is no update rather than a guess.
+///
+/// A name and not a number, for the same reason as the mode above: the
+/// algorithms are not points on a scale, and a slider would invite an
+/// interpolation between them that does not exist.
+pub fn demosaic_action(algorithm: &str) -> Option<(Param, Value)> {
+    let algorithm = match algorithm {
+        "ahd" => Demosaic::Ahd,
+        "vng" => Demosaic::Vng,
+        "dcb" => Demosaic::Dcb,
+        "dht" => Demosaic::Dht,
+        _ => return None,
+    };
+    Some((Param::Demosaic, Value::Demosaic(algorithm)))
 }
 
 /// Decodes one HSL mixer band's slider release (ADR 0031). `index` is the
@@ -616,6 +633,27 @@ mod tests {
                 })
             ))
         );
+    }
+
+    #[test]
+    fn the_demosaic_picker_names_its_four_algorithms() {
+        for (name, expected) in [
+            ("ahd", Demosaic::Ahd),
+            ("vng", Demosaic::Vng),
+            ("dcb", Demosaic::Dcb),
+            ("dht", Demosaic::Dht),
+        ] {
+            assert_eq!(
+                demosaic_action(name),
+                Some((Param::Demosaic, Value::Demosaic(expected))),
+                "{name}"
+            );
+        }
+        // AMaZE and LMMSE live in LibRaw's GPL demosaic packs, absent from
+        // the linked build (ADR 0061): naming one must be no update, never
+        // a silent fall back to AHD.
+        assert_eq!(demosaic_action("amaze"), None);
+        assert_eq!(demosaic_action("lmmse"), None);
     }
 
     #[test]

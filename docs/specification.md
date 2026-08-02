@@ -26,6 +26,7 @@ Toutes les fonctionnalités listées comme livrées le sont sur les **trois clie
 * Ombres / hautes lumières, blancs / noirs
 * Vibrance / saturation
 * Rotation, recadrage
+* Choix de l'algorithme de dématriçage : AHD, VNG, DCB, DHT ([ADR 0061](adr/0061-demosaic-algorithm.md))
 * Réduction du bruit (luminance et chroma, préservant les contours — [ADR 0046](adr/0046-edge-preserving-denoise.md)), netteté
 * Correction d'objectif via Lensfun : distorsion, vignettage, aberration chromatique transversale ([ADR 0016](adr/0016-process-3-lens-correction.md), [0017](adr/0017-process-4-vignetting.md), [0018](adr/0018-process-5-tca.md))
 * Gestion des couleurs via LittleCMS ([ADR 0015](adr/0015-color-management-srgb.md), [ADR 0027](adr/0027-color-management-beyond-srgb.md))

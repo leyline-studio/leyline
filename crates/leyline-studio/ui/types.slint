@@ -184,6 +184,10 @@ export struct DevSettings {
     // What the decoder does with channels that saturated at the sensor
     // (ADR 0050): "clip", "blend" or "rebuild".
     highlight-reconstruction: string,
+    // Which interpolation the decoder uses (ADR 0061): "ahd", "vng", "dcb"
+    // or "dht". No effect on thumbnail/small previews, which decode at half
+    // size and skip interpolation — the panel says so.
+    demosaic: string,
     // Creative LUT (ADR 0053): whether the referenced look is applied, and its
     // dose. The file name lives in `lut-name`, empty when none is referenced.
     lut: bool,

@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 
 use leyline_catalog::{Catalog, RevisionRow};
 use leyline_core::{
-    CURRENT_SCHEMA, CameraProfile, ColorGrading, Crop, HighlightReconstruction, HslBand,
+    CURRENT_SCHEMA, CameraProfile, ColorGrading, Crop, Demosaic, HighlightReconstruction, HslBand,
     LensCorrection, LeylineError, LocalAdjustment, Lut, NoiseReduction, Perspective, PresetId,
     Result, RevisionId, Settings, Sharpening, SpotRemoval, ToneCurve, VersionId, WhiteBalance,
 };
@@ -56,6 +56,8 @@ pub enum Param {
     /// (ADR 0050) — a decoder configuration rather than an operator, so a
     /// revision pinned at `input: 1` refuses it instead of dropping it.
     HighlightReconstruction,
+    /// Which interpolation the decoder uses (ADR 0061).
+    Demosaic,
     /// Vibrance slider.
     Vibrance,
     /// Saturation slider.
@@ -135,6 +137,8 @@ pub enum Value {
     CameraProfile(Option<CameraProfile>),
     /// For [`Param::HighlightReconstruction`].
     HighlightReconstruction(HighlightReconstruction),
+    /// For [`Param::Demosaic`].
+    Demosaic(Demosaic),
     /// For [`Param::Perspective`]; `None` returns to neutral.
     Perspective(Option<Perspective>),
     /// For [`Param::Lut`]; `None` removes the reference.
@@ -446,6 +450,7 @@ fn apply(settings: &mut Settings, param: Param, value: Value) -> Result<()> {
         (Param::HighlightReconstruction, Value::HighlightReconstruction(v)) => {
             settings.highlight_reconstruction = v;
         }
+        (Param::Demosaic, Value::Demosaic(v)) => settings.demosaic = v,
         (Param::Vibrance, Value::Int(v)) => settings.vibrance = v,
         (Param::Saturation, Value::Int(v)) => settings.saturation = v,
         (Param::ToneCurve, Value::ToneCurve(v)) => settings.tone_curve = v,

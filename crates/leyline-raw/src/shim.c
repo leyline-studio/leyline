@@ -12,7 +12,7 @@
 void leyline_shim_set_options(libraw_data_t *d, int use_camera_wb,
                               int half_size, int output_bps,
                               int no_auto_bright, int camera_native,
-                              int highlight) {
+                              int highlight, int user_qual) {
     d->params.use_camera_wb = use_camera_wb;
     d->params.half_size = half_size;
     d->params.output_bps = output_bps;
@@ -23,6 +23,11 @@ void leyline_shim_set_options(libraw_data_t *d, int use_camera_wb,
      * default is 0, which is what Leyline asked for implicitly until
      * ADR 0050 gave it a name. */
     d->params.highlight = highlight;
+    /* Which interpolation reconstructs the missing channels (ADR 0061):
+     * 3 = AHD (LibRaw's default and ours), 1 = VNG, 4 = DCB, 11 = DHT.
+     * Ignored by LibRaw when half_size is set, which skips interpolation
+     * entirely. */
+    d->params.user_qual = user_qual;
     if (camera_native) {
         /* Raw camera color space (ADR 0035): no color matrix applied, so a
          * camera profile (DCP) can operate on genuinely camera-native

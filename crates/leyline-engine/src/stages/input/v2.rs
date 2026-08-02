@@ -69,6 +69,10 @@ pub(crate) fn decode_params(settings: &Settings, half_size: bool) -> DecodeParam
             HighlightReconstruction::Blend => HighlightMode::Blend,
             HighlightReconstruction::Rebuild => HighlightMode::Rebuild,
         },
+        // Named, not chosen: AHD is LibRaw's own default, which is exactly
+        // what this frozen version received implicitly before ADR 0061 gave
+        // the choice a name. Spelling it out changes no pixel.
+        demosaic: leyline_raw::Demosaic::Ahd,
     }
 }
 
