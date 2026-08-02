@@ -74,8 +74,13 @@ et sert dès qu'aucun pack utilisateur n'est actif.**
 
 ## Conséquences
 
-* L'installateur Windows passe d'environ 22 à 31 Mo, l'AppImage de 16 à
-  25 Mo. On reste sous le quart de darktable.
+* Poids réel, mesuré après coup sur les paquets construits : l'AppImage
+  passe de 16 à **24 Mo**, l'installateur Windows de 22 à **30 Mo**. On
+  reste sous le tiers de darktable (108 Mo).
+* `packaging/windows/build-nsis.sh` compile avec `--no-default-features`
+  pour retirer le tethering : la feature doit donc y être **renommée
+  explicitement**, sinon l'installateur Windows part sans le fond de carte.
+  C'est la mesure du paquet qui l'a révélé, pas un test.
 * La vue Carte n'a plus d'état vide au premier lancement : elle montre le
   monde, et les punaises GPS dessus. Le bouton « Importer un pack… » ne
   disparaît pas pour autant — il devient ce qu'il aurait toujours dû être,

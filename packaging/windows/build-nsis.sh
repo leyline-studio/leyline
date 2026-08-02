@@ -136,7 +136,17 @@ cp /usr/x86_64-w64-mingw32/lib/libwinpthread-1.dll "$vendor_dir/"
 # — `tether_connect` still exists and reports why it cannot run — so nothing
 # in Studio, the CLI or the SDK surface changes shape for this build. Drop
 # this flag the day libgphoto2 is packaged for Windows.
-build_flags=(--release --target x86_64-pc-windows-gnu -p leyline-studio --no-default-features)
+#
+# `--no-default-features` is a blunt instrument: it drops *every* default,
+# so each one that must survive has to be named again. `bundled-basemap`
+# (ADR 0059) is one of them — without it the Windows installer shipped
+# without the world basemap, and its size gave it away (22 Mo instead of
+# 31). Any new default feature of `leyline-studio` belongs in this list
+# too, unless it is deliberately unwanted on Windows.
+build_flags=(
+    --release --target x86_64-pc-windows-gnu -p leyline-studio
+    --no-default-features --features bundled-basemap
+)
 
 # cargo-packager does not build the binary itself here, it packages one that
 # already exists at the target path.
