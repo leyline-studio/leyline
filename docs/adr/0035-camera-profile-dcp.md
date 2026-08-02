@@ -224,6 +224,25 @@ précédente (chemin LibRaw-sRGB par défaut d'ADR 0015) :
 > Reste non vérifiée, et donc la mention « expérimental » reste : la
 > concordance avec le *rendu* d'Adobe, qui exige Lightroom ou ACR.
 
+> **Note du 2026-08-03, après comparaison à un rendu indépendant.** Le chemin
+> DCP complet — conteneur, matrices, illuminants interpolés ([ADR 0062](0062-dcp-illuminant-interpolation.md))
+> et tables ([ADR 0063](0063-dcp-tables.md)) — a été confronté à un rendu
+> RawTherapee du même RAW avec le même profil, profil de traitement neutre.
+> **Une fois le niveau normalisé, l'écart médian est de 0,0027 sur 1,0**, soit
+> moins d'un niveau sur 255, et les rapports de canaux s'accordent à 0,007
+> près. La colorimétrie n'est donc plus non validée : elle concorde avec une
+> implémentation indépendante et mature de la même spécification.
+>
+> Ce qui reste, et qui justifie de garder la mention « expérimental » :
+>
+> * un **gain global de ×1,083** (espace encodé) subsiste, uniforme sur les
+>   trois canaux — tonal, pas chromatique. Piste principale : le niveau de
+>   blanc du capteur, que RawTherapee fait dépendre de la sensibilité
+>   (12 550 à ISO 2500 pour ce boîtier) là où LibRaw nous donne 16 383. Cette
+>   piste va dans le bon sens mais ne referme pas l'écart à elle seule, et
+>   n'a donc pas été corrigée à l'aveugle ;
+> * aucune comparaison à Adobe lui-même, faute de convertisseur disponible.
+
 ## Conséquences
 
 * **Le champ `process` garde sa lisibilité sémantique** (ADR 0028) : le nouveau

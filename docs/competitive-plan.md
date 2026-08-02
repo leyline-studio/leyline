@@ -113,9 +113,23 @@ Attention aussi : ces profils sont l'œuvre de tiers, pas les profils d'usine
 d'Adobe. Ils valident notre lecture et notre algèbre, pas notre fidélité au
 rendu « Camera Standard ».
 
-Tant que la référence de rendu manque, la mention « expérimental » reste, et
-c'est le comportement correct : elle dit exactement ce qui n'a pas été
-vérifié.
+**Résultat du 2026-08-03.** La référence est arrivée, sous la forme d'un rendu
+RawTherapee du même RAW avec le même profil et un profil de traitement neutre.
+Une fois le niveau normalisé : **écart médian 0,0027 sur 1,0**, 90ᵉ centile
+0,0060, rapports de canaux à 0,007 près. La colorimétrie concorde avec une
+implémentation indépendante.
+
+Ce qui n'est pas expliqué : un gain global de ×1,083, uniforme sur les trois
+canaux donc tonal. Le niveau de blanc du capteur en est la piste principale —
+RawTherapee le fait dépendre de la sensibilité (`camconst.json` : 12 550 à
+ISO 2500 pour le 60D) quand LibRaw nous donne 16 383, et nous ignorons le
+`linear_max` de 11 222 que LibRaw mesure par ailleurs. La direction est la
+bonne, l'ampleur ne correspond pas exactement, et rien n'a été corrigé sur
+cette base : déplacer la normalisation déplacerait tous les pixels de toutes
+les photos.
+
+La mention « expérimental » reste, pour ce gain non expliqué et pour l'absence
+de comparaison à Adobe lui-même.
 
 **Risque.** Faible sur le point 1, moyen sur le point 2 : l'interpolation des
 tables `HueSatMap` est un travail de précision, où une erreur passe inaperçue
