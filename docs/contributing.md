@@ -27,7 +27,7 @@ make check      # fmt + clippy + tests — à passer avant chaque commit
 
 Une CI GitHub Actions ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) rejoue ces trois étapes — `fmt`, `clippy -D warnings`, `test --workspace` — sur chaque push vers `main`, chaque tag `v*` et chaque pull request, sur Linux, Windows et macOS. La branche Windows est en `continue-on-error` : le livrable Windows est compilé de façon croisée depuis Linux ([ADR 0019](adr/0019-distribution-i18n.md)), il n'existe pas encore de build natif MSVC. Elle arrive après coup : `make check` reste ce qui sépare une erreur de `main`.
 
-Les autres, au besoin : `make run` / `make cli` (avec `ARGS=…`), `make golden` et `make golden-bless` (rendus de référence, section suivante), `make test-raw LEYLINE_TEST_RAW=…` (les tests ignorés qui exigent un vrai RAW), `make bench`, `make i18n` (voir plus bas), et `make windows` / `make appimage` / `make dmg` pour les paquets ([ADR 0019](adr/0019-distribution-i18n.md)).
+Les autres, au besoin : `make run` / `make cli` (avec `ARGS=…`), `make golden` et `make golden-bless` (rendus de référence, section suivante), `make test-raw LEYLINE_TEST_RAW=…` (les tests ignorés qui exigent un vrai RAW), `LEYLINE_TEST_DCP=…` (un dossier de vrais profils `.dcp`, non versionnés : œuvre de tiers de licence inconnue), `make bench`, `make i18n` (voir plus bas), et `make windows` / `make appimage` / `make dmg` pour les paquets ([ADR 0019](adr/0019-distribution-i18n.md)).
 
 ## Ajouter ou corriger un étage de rendu
 

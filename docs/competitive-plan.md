@@ -93,13 +93,21 @@ de ce qu'il n'implémente pas encore.
 
 Ce que cette piste débloque, et ce qu'elle ne débloque pas :
 
-* ✅ **Le parsing du conteneur contre de vrais fichiers.** Les fixtures
-  actuelles sont auto-construites : elles prouvent un aller-retour avec
-  nous-mêmes, pas la lecture d'un `.dcp` écrit par Adobe.
-* ✅ **La résolution de la matrice caméra→XYZ**, vérifiable contre un calcul
-  indépendant tiré de la spec DNG, sans aucun autre logiciel.
+* ✅ **Fait le 2026-08-02** — et le premier vrai fichier a trouvé un bug
+  bloquant : Leyline ne lisait **aucun** `.dcp` authentique. Voir plus bas.
+* ✅ **Fait** : un gris neutre du capteur ressort neutre à travers
+  caméra→XYZ(D50)→sRGB, sur les deux profils réels. Test permanent, activé par
+  `LEYLINE_TEST_DCP`.
 * ❌ **La comparaison au rendu d'Adobe.** Elle exige toujours Lightroom ou ACR
   pour produire la référence. Un profil téléchargé ne la remplace pas.
+
+**Le bug trouvé.** Un `.dcp` authentique est une *IFD nue* — un répertoire de
+tags, sans aucune image — portant le numéro de version `0x4352` là où TIFF met
+42. Le lecteur s'appuyait sur `tiff::Decoder`, qui exige les deux : le 42 et un
+`ImageWidth`. Les seules fixtures existantes étant des images TIFF avec des tags
+DCP greffés, elles passaient toutes pendant qu'aucun profil réel n'était
+lisible. C'est le prix exact d'une suite de tests qui ne dialogue qu'avec
+elle-même.
 
 Attention aussi : ces profils sont l'œuvre de tiers, pas les profils d'usine
 d'Adobe. Ils valident notre lecture et notre algèbre, pas notre fidélité au

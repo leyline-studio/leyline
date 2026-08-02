@@ -214,6 +214,16 @@ précédente (chemin LibRaw-sRGB par défaut d'ADR 0015) :
 > diagramme §3.1 et le tableau §3.3 seront amendés par la PR qui livre le
 > module process.
 
+> **Note du 2026-08-02, après confrontation à de vrais profils.** Le premier
+> `.dcp` authentique essayé a révélé que **aucun** ne pouvait être lu : un
+> profil est une IFD nue portant la version `0x4352`, là où le lecteur
+> attendait un TIFF standard avec une image. Corrigé par un lecteur d'IFD
+> maison — ce que le §Décision décrivait déjà, mais que l'implémentation
+> avait délégué à `tiff::Decoder`. Sont désormais vérifiés : la lecture de
+> vrais fichiers, et la préservation d'un gris neutre à travers la matrice.
+> Reste non vérifiée, et donc la mention « expérimental » reste : la
+> concordance avec le *rendu* d'Adobe, qui exige Lightroom ou ACR.
+
 ## Conséquences
 
 * **Le champ `process` garde sa lisibilité sémantique** (ADR 0028) : le nouveau
