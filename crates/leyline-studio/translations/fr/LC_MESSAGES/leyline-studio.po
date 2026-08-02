@@ -1723,3 +1723,23 @@ msgstr ""
 msgctxt "Tr"
 msgid "Delete"
 msgstr "Supprimer"
+
+#: crates/leyline-studio/ui/panels/map.slint:70
+msgctxt "MapPanel"
+msgid ""
+"This build ships no map background. Import an offline MBTiles map pack to "
+"place GPS-tagged photos on a map."
+msgstr ""
+"Cette version est livrée sans fond de carte. Importez un pack MBTiles "
+"hors-ligne pour situer sur une carte les photos géolocalisées."
+
+#: crates/leyline-studio/ui/panels/map.slint:140
+msgctxt "MapPanel"
+msgid ""
+"No photo in this library has GPS coordinates. Leyline reads them from the "
+"file's own metadata — it never invents a position, and never asks the "
+"network for one."
+msgstr ""
+"Aucune photo de cette bibliothèque ne porte de coordonnées GPS. Leyline les "
+"lit dans les métadonnées du fichier lui-même — il n'invente jamais une "
+"position, et n'en demande jamais au réseau."

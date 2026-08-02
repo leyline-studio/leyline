@@ -14,6 +14,11 @@ export global MapState {
     in property <image> map-image;
     in property <[MapPinMarker]> map-pins;
     in property <bool> map-pack-available;
+    // How many photos in the library carry GPS coordinates at all — not how
+    // many are currently on screen. Zero is a legitimate state and the most
+    // common one (few cameras geotag), so the view says why it is empty
+    // instead of showing a silent world.
+    in property <int> map-pin-total;
     in property <string> map-pack-attribution;
     in property <string> map-status;
     callback enter-map();
@@ -22,6 +27,10 @@ export global MapState {
     // same shape as File ▸ Open Library…): unlike `browse-import-source`
     // there's no text field to fill in first, so no separate "run" step.
     callback browse-map-pack();
+    // The canvas' real pixel size, reported on every layout pass: the map
+    // fills the window rather than sitting at a fixed size, and Rust
+    // composites tiles at exactly this many pixels.
+    callback map-resized(float, float);
     // Drag delta in canvas pixels.
     callback map-pan(float, float);
     callback map-zoom-in();

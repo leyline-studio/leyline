@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2026-08-02 15:12+0000\n"
+"POT-Creation-Date: 2026-08-02 15:27+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1471,11 +1471,19 @@ msgctxt "MapPanel"
 msgid "Close"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/map.slint:70
+#: crates/leyline-studio/ui/panels/map.slint:74
 msgctxt "MapPanel"
 msgid ""
-"No map pack imported yet. Import an offline MBTiles map pack to place "
-"GPS-tagged photos on a map."
+"This build ships no map background. Import an offline MBTiles map pack to "
+"place GPS-tagged photos on a map."
+msgstr ""
+
+#: crates/leyline-studio/ui/panels/map.slint:158
+msgctxt "MapPanel"
+msgid ""
+"No photo in this library has GPS coordinates. Leyline reads them from the "
+"file's own metadata — it never invents a position, and never asks the "
+"network for one."
 msgstr ""
 
 #: crates/leyline-studio/ui/panels/menubar.slint:69

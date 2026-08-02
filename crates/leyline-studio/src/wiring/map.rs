@@ -39,6 +39,29 @@ pub(crate) fn wire_map(app: &Rc<RefCell<App>>, window: &StudioWindow) {
         });
     }
     {
+        // The canvas fills the window, so its size is layout output, not a
+        // constant. Re-rendering only when the size actually changed keeps
+        // a window drag from recompositing tiles on layout passes that
+        // moved nothing.
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        MapState::get(window).on_map_resized(move |width, height| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let size = (width.max(0.0) as u32, height.max(0.0) as u32);
+            let mut app = app.borrow_mut();
+            let Some(state) = &mut app.map else {
+                return;
+            };
+            if state.canvas == size {
+                return;
+            }
+            state.canvas = size;
+            render_map(&mut app, &window);
+        });
+    }
+    {
         let app = Rc::clone(app);
         let handle = window.as_weak();
         MapState::get(window).on_exit_map(move || {
@@ -282,6 +305,7 @@ pub(crate) fn new_map_session(pins: Vec<MapPin>, library: &Library) -> MapSessio
         min_zoom,
         max_zoom,
         visible_pins: Vec::new(),
+        canvas: (map_view::DEFAULT_WIDTH, map_view::DEFAULT_HEIGHT),
     }
 }
 
@@ -346,13 +370,18 @@ pub(crate) fn render_map(app: &mut App, window: &StudioWindow) {
     let Some(state) = &app.map else {
         return;
     };
-    let (canvas, projected) = map_view::render(&app.library, &state.view, &state.pins);
+    let (canvas, projected) =
+        map_view::render(&app.library, &state.view, &state.pins, state.canvas);
     MapState::get(window).set_map_image(map_view::to_slint_image(&canvas));
     let markers: Vec<crate::ui::MapPinMarker> = projected
         .iter()
         .map(|pin| crate::ui::MapPinMarker { x: pin.x, y: pin.y })
         .collect();
     MapState::get(window).set_map_pins(ModelRc::from(Rc::new(VecModel::from(markers))));
+    // The *library's* total, not the visible count: a user who panned away
+    // from their only geotagged photo has not stopped having one, and must
+    // not be told the library holds none.
+    MapState::get(window).set_map_pin_total(i32::try_from(state.pins.len()).unwrap_or(i32::MAX));
 
     let visible_pins = projected
         .iter()

@@ -64,10 +64,14 @@ export component MapPanel inherits HorizontalLayout {
                 }
             }
 
+            // Only reachable in a build without the bundled world basemap
+            // (ADR 0059), since that basemap makes a pack always available
+            // otherwise. The old wording here said "no map pack imported
+            // yet", which stopped being true the day the basemap shipped.
             if !MapState.map-pack-available: VerticalLayout {
                 alignment: center;
                 Text {
-                    text: MapState.map-status == "" ? @tr("No map pack imported yet. Import an offline MBTiles map pack to place GPS-tagged photos on a map.") : MapState.map-status;
+                    text: MapState.map-status == "" ? @tr("This build ships no map background. Import an offline MBTiles map pack to place GPS-tagged photos on a map.") : MapState.map-status;
                     color: #9a9a9a;
                     font-size: 13px;
                     horizontal-alignment: center;
@@ -76,15 +80,27 @@ export component MapPanel inherits HorizontalLayout {
             }
 
             if MapState.map-pack-available: Rectangle {
-                width: 720px;
-                height: 480px;
+                // No geometry of its own: the map is the point of this
+                // view, so it takes every pixel the window has left after
+                // the title row. Its real size goes back to Rust on each
+                // layout pass — the tile compositing happens at exactly
+                // this many pixels, so the canvas is never scaled and never
+                // letterboxed.
+                vertical-stretch: 1;
                 clip: true;
                 background: #1a1a1a;
 
+                changed width => {
+                    MapState.map-resized(self.width / 1px, self.height / 1px);
+                }
+                changed height => {
+                    MapState.map-resized(self.width / 1px, self.height / 1px);
+                }
+
                 Image {
                     source: MapState.map-image;
-                    width: 720px;
-                    height: 480px;
+                    width: 100%;
+                    height: 100%;
                 }
 
                 // Drag-to-pan: recomputed once on release, not on every
@@ -119,6 +135,31 @@ export component MapPanel inherits HorizontalLayout {
                         background: #e05c3e;
                         border-width: 1.5px;
                         border-color: #ffffff;
+                    }
+                }
+
+                // Why the map is empty. Without this the view is
+                // indistinguishable from a broken one: the world is drawn,
+                // nothing is on it, and nothing says whether that is the
+                // library's doing or the app's. Placed over the canvas
+                // rather than replacing it — panning a world map is still
+                // useful, and an empty map is not an error state.
+                if MapState.map-pin-total == 0: Rectangle {
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                    width: min(parent.width - 32px, 420px);
+                    height: no-gps.height + 24px;
+                    background: #000000cc;
+                    border-radius: 6px;
+                    no-gps := Text {
+                        x: 12px;
+                        y: 12px;
+                        width: parent.width - 24px;
+                        text: @tr("No photo in this library has GPS coordinates. Leyline reads them from the file's own metadata — it never invents a position, and never asks the network for one.");
+                        color: #d8d8d8;
+                        font-size: 12px;
+                        horizontal-alignment: center;
+                        wrap: word-wrap;
                     }
                 }
 

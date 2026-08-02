@@ -9,12 +9,20 @@
 use image::{ImageBuffer, Rgb, RgbImage};
 use leyline_sdk::{Library, MapPin, VersionId};
 
-/// Fixed canvas size, matching the `map-canvas` `Rectangle` in
-/// `studio.slint` — the two must stay in step, same as every other
-/// fixed-size canvas in this app (develop loupe, histogram).
-pub const WIDTH: u32 = 720;
-/// Canvas height, see [`WIDTH`].
-pub const HEIGHT: u32 = 480;
+/// Canvas size used before the layout has reported its own.
+///
+/// The map canvas is *not* a fixed-size surface: it fills the window, and
+/// `panels/map.slint` reports its real pixel size back on every layout
+/// change (ADR 0040). These values only cover the instant between opening
+/// the map and the first such report, and the smallest sane window.
+pub const DEFAULT_WIDTH: u32 = 720;
+/// Fallback canvas height, see [`DEFAULT_WIDTH`].
+pub const DEFAULT_HEIGHT: u32 = 480;
+/// Never composite a canvas smaller than this on either axis. A layout can
+/// briefly report 0 (before the first real pass, or a fully collapsed
+/// pane), and a zero-sized `ImageBuffer` would divide by zero in the
+/// projection below.
+pub const MIN_CANVAS: u32 = 16;
 /// MBTiles/OSM tile edge length — the size every tile source in practice
 /// uses.
 const TILE_SIZE: f64 = 256.0;
@@ -125,27 +133,34 @@ pub struct ProjectedPin {
     pub version_id: VersionId,
 }
 
-/// Renders the current viewport: composites every tile the active map pack
-/// covers into one `WIDTH`x`HEIGHT` RGB image, and projects every pin into
-/// the same canvas space, dropping the ones that fall outside it. Tiles
+/// Renders the current viewport at `size`: composites every tile the active
+/// map pack covers into one RGB image of exactly that size, and projects
+/// every pin into the same canvas space, dropping the ones that fall
+/// outside it. Tiles
 /// the pack doesn't have (outside its coverage, zoomed past what it
 /// contains) are left as flat fill rather than failing the whole render —
 /// same best-effort stance as a missing thumbnail elsewhere in the app.
-pub fn render(library: &Library, view: &View, pins: &[MapPin]) -> (RgbImage, Vec<ProjectedPin>) {
-    let mut canvas: RgbImage = ImageBuffer::from_pixel(WIDTH, HEIGHT, Rgb([222, 220, 214]));
+pub fn render(
+    library: &Library,
+    view: &View,
+    pins: &[MapPin],
+    size: (u32, u32),
+) -> (RgbImage, Vec<ProjectedPin>) {
+    let (width, height) = (size.0.max(MIN_CANVAS), size.1.max(MIN_CANVAS));
+    let mut canvas: RgbImage = ImageBuffer::from_pixel(width, height, Rgb([222, 220, 214]));
     // Every shift below is driven by this, never by `view.zoom` directly:
     // the view can be handed any `u8`, but the grid only exists up to
     // `MAX_ZOOM`.
     let zoom = view.zoom.min(MAX_ZOOM);
     let (center_x, center_y) = lonlat_to_pixel(view.center_lon, view.center_lat, zoom);
-    let origin_x = center_x - f64::from(WIDTH) / 2.0;
-    let origin_y = center_y - f64::from(HEIGHT) / 2.0;
+    let origin_x = center_x - f64::from(width) / 2.0;
+    let origin_y = center_y - f64::from(height) / 2.0;
 
     let side = 1i64 << zoom;
     let first_tile_x = (origin_x / TILE_SIZE).floor() as i64;
     let first_tile_y = (origin_y / TILE_SIZE).floor() as i64;
-    let last_tile_x = ((origin_x + f64::from(WIDTH)) / TILE_SIZE).floor() as i64;
-    let last_tile_y = ((origin_y + f64::from(HEIGHT)) / TILE_SIZE).floor() as i64;
+    let last_tile_x = ((origin_x + f64::from(width)) / TILE_SIZE).floor() as i64;
+    let last_tile_y = ((origin_y + f64::from(height)) / TILE_SIZE).floor() as i64;
 
     for tile_y in first_tile_y..=last_tile_y {
         if tile_y < 0 || tile_y >= side {
@@ -173,7 +188,7 @@ pub fn render(library: &Library, view: &View, pins: &[MapPin]) -> (RgbImage, Vec
             let (px, py) = lonlat_to_pixel(pin.longitude, pin.latitude, zoom);
             let x = px - origin_x;
             let y = py - origin_y;
-            (x >= 0.0 && y >= 0.0 && x <= f64::from(WIDTH) && y <= f64::from(HEIGHT)).then_some(
+            (x >= 0.0 && y >= 0.0 && x <= f64::from(width) && y <= f64::from(height)).then_some(
                 ProjectedPin {
                     x: x as f32,
                     y: y as f32,
@@ -237,6 +252,9 @@ fn blit(dest: &mut RgbImage, src: &RgbImage, x: i64, y: i64) {
 
 #[cfg(test)]
 mod tests {
+    /// A canvas size for the tests that do not care which one.
+    const SIZE: (u32, u32) = (DEFAULT_WIDTH, DEFAULT_HEIGHT);
+
     use super::*;
 
     #[test]
@@ -296,8 +314,8 @@ mod tests {
                 center_lon: 2.3522,
                 center_lat: 48.8566,
             };
-            let (canvas, _) = render(&library, &view, &[]);
-            assert_eq!((canvas.width(), canvas.height()), (WIDTH, HEIGHT));
+            let (canvas, _) = render(&library, &view, &[], SIZE);
+            assert_eq!((canvas.width(), canvas.height()), SIZE);
         }
     }
 
@@ -370,13 +388,24 @@ mod tests {
     }
 
     #[test]
-    fn render_produces_a_canvas_of_the_fixed_size_even_without_a_pack() {
+    fn render_produces_a_canvas_of_the_asked_size_even_without_a_pack() {
         let dir = tempfile::tempdir().unwrap();
         let library = Library::create(&dir.path().join("Library"), "MapView").unwrap();
         let view = View::initial(&[], 0, 19);
-        let (canvas, pins) = render(&library, &view, &[]);
-        assert_eq!((canvas.width(), canvas.height()), (WIDTH, HEIGHT));
-        assert!(pins.is_empty());
+
+        // The canvas follows the window, so the size is an argument, not a
+        // constant: whatever the layout reports is what comes back.
+        for size in [SIZE, (1920, 1040), (301, 97)] {
+            let (canvas, pins) = render(&library, &view, &[], size);
+            assert_eq!((canvas.width(), canvas.height()), size);
+            assert!(pins.is_empty());
+        }
+
+        // A layout can briefly report zero — before the first real pass, or
+        // on a collapsed pane. A zero-sized canvas would divide by zero in
+        // the projection, so it is floored instead of trusted.
+        let (canvas, _) = render(&library, &view, &[], (0, 0));
+        assert_eq!((canvas.width(), canvas.height()), (MIN_CANVAS, MIN_CANVAS));
     }
 
     #[test]
@@ -394,9 +423,13 @@ mod tests {
             latitude: view.center_lat,
             longitude: view.center_lon,
         }];
-        let (_canvas, projected) = render(&library, &view, &pins);
-        assert_eq!(projected.len(), 1);
-        assert!((projected[0].x - WIDTH as f32 / 2.0).abs() < 1.0);
-        assert!((projected[0].y - HEIGHT as f32 / 2.0).abs() < 1.0);
+        // Centred at any canvas size: the pin lands in the middle of
+        // whatever surface the window gave us, not of a fixed 720x480.
+        for size in [SIZE, (1920, 1040)] {
+            let (_canvas, projected) = render(&library, &view, &pins, size);
+            assert_eq!(projected.len(), 1);
+            assert!((projected[0].x - size.0 as f32 / 2.0).abs() < 1.0);
+            assert!((projected[0].y - size.1 as f32 / 2.0).abs() < 1.0);
+        }
     }
 }

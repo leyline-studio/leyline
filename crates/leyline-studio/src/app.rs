@@ -168,6 +168,10 @@ pub(crate) struct MapSession {
     /// same order as the `map-pins` Slint model — what `map-pin-clicked`'s
     /// index resolves against.
     pub(crate) visible_pins: Vec<(AssetId, VersionId)>,
+    /// Canvas size in pixels, as the layout last reported it. The map fills
+    /// the window, so this is the size tiles are composited at — it stays
+    /// at the fallback only until the first layout pass.
+    pub(crate) canvas: (u32, u32),
 }
 
 /// Thumbnail render jobs kept in flight at once: enough to hide latency,
