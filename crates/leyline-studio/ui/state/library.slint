@@ -14,6 +14,11 @@ export global LibraryState {
     // at startup (see `run` in main.rs) — kept in sync with Cargo.toml
     // automatically.
     in property <string> app-version;
+    // What this binary was built from — commit, target, compiler — as one
+    // pre-formatted block. Rust assembles it: the UI never formats a stored
+    // value itself, and this one is meant to be pasted whole into a bug
+    // report.
+    in property <string> build-details;
     in property <string> status-line;
     // Paths of other libraries opened before, most recent first (never
     // includes the currently open one) — File ▸ Open Recent.

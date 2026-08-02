@@ -228,7 +228,14 @@ pub(crate) fn preview_image(app: &mut App, asset: leyline_sdk::AssetId) -> slint
 /// each call site so the loupe's kind and the pump's filter cannot drift
 /// apart — a mismatch would leave the loupe permanently waiting for an
 /// event that names another kind.
-pub(crate) const LOUPE_KIND: PreviewKind = PreviewKind::Small;
+///
+/// `Medium` (2048 px) rather than `Small` (1024): the loupe fills the
+/// window, and 1024 px upscaled onto a 1920-wide screen is visibly soft —
+/// which defeats the point of a view whose whole job is to look closely.
+/// The extra render cost is affordable now that it no longer blocks the
+/// event loop (`show_loupe`) and that the stage cache absorbs the repeat
+/// (ADR 0041 §3).
+pub(crate) const LOUPE_KIND: PreviewKind = PreviewKind::Medium;
 
 /// Puts one photo in the loupe (ADR 0055 §3), without ever blocking the
 /// event loop.

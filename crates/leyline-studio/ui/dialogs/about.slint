@@ -1,4 +1,10 @@
-// Help ▸ About Leyline (ADR 0020): version, library location, licence.
+// Help ▸ About Leyline (ADR 0020): version, library location, licence, and
+// the build details a bug report needs.
+//
+// Two panes rather than the five tabs RawTherapee shows: credits and the
+// full GPL text already live in the repository, and repeating them in a
+// dialog is filler. What is *not* elsewhere — which commit this binary came
+// from — is what a bug report cannot do without.
 //
 // One of the dialogs hosted by `panels/dialogs.slint` (ADR 0045 §3).
 
@@ -8,6 +14,9 @@ import { FilterChip } from "../widgets/controls.slint";
 
 export component AboutDialog inherits VerticalLayout {
     spacing: 12px;
+    // Which pane is showing. Local to the dialog: nothing outside it needs
+    // to know, and nothing about it is worth storing (ADR 0045 §2).
+    property <bool> show-build: false;
     HorizontalLayout {
         alignment: center;
         // The wide wordmark banner, not the square app
@@ -29,13 +38,39 @@ export component AboutDialog inherits VerticalLayout {
         font-size: 11px;
         horizontal-alignment: center;
     }
-    Text {
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: center;
+        FilterChip {
+            text: @tr("About");
+            active: !root.show-build;
+            clicked => {
+                root.show-build = false;
+            }
+        }
+        FilterChip {
+            text: @tr("Build");
+            active: root.show-build;
+            clicked => {
+                root.show-build = true;
+            }
+        }
+    }
+    if root.show-build: Text {
+        // Selectable so it can be pasted straight into a report rather than
+        // copied out by hand.
+        text: LibraryState.build-details;
+        color: #c8c8c8;
+        font-size: 11px;
+        wrap: word-wrap;
+    }
+    if !root.show-build: Text {
         text: @tr("Local-first, non-destructive RAW development.");
         color: #c8c8c8;
         font-size: 12px;
         wrap: word-wrap;
     }
-    Text {
+    if !root.show-build: Text {
         text: @tr("Library: {}", LibraryState.library-path);
         color: #909090;
         font-size: 11px;

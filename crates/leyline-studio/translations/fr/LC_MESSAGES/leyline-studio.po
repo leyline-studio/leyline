@@ -1757,3 +1757,13 @@ msgid ""
 msgstr ""
 "Visible seulement à pleine taille et à l'export — les petits aperçus ne "
 "passent pas par l'interpolation."
+
+#: crates/leyline-studio/ui/dialogs/about.slint:40
+msgctxt "AboutDialog"
+msgid "About"
+msgstr "À propos"
+
+#: crates/leyline-studio/ui/dialogs/about.slint:47
+msgctxt "AboutDialog"
+msgid "Build"
+msgstr "Build"

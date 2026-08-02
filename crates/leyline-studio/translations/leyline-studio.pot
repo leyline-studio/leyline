@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2026-08-02 17:20+0000\n"
+"POT-Creation-Date: 2026-08-02 22:03+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -12,27 +12,37 @@ msgstr ""
 "Language: \n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-#: crates/leyline-studio/ui/dialogs/about.slint:27
+#: crates/leyline-studio/ui/dialogs/about.slint:36
 msgctxt "AboutDialog"
 msgid "Version {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/about.slint:33
+#: crates/leyline-studio/ui/dialogs/about.slint:45
+msgctxt "AboutDialog"
+msgid "About"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/about.slint:52
+msgctxt "AboutDialog"
+msgid "Build"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/about.slint:68
 msgctxt "AboutDialog"
 msgid "Local-first, non-destructive RAW development."
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/about.slint:39
+#: crates/leyline-studio/ui/dialogs/about.slint:74
 msgctxt "AboutDialog"
 msgid "Library: {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/about.slint:51
+#: crates/leyline-studio/ui/dialogs/about.slint:86
 msgctxt "AboutDialog"
 msgid "Licensed under {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/about.slint:60
+#: crates/leyline-studio/ui/dialogs/about.slint:95
 msgctxt "AboutDialog"
 msgid "Close"
 msgstr ""

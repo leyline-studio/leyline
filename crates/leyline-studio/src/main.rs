@@ -229,6 +229,15 @@ fn run() -> Result<(), String> {
     // Surfaced in Help ▸ About Leyline: build-time constant from Cargo.toml's
     // `version.workspace = true`, so it stays in sync without a manual edit.
     LibraryState::get(&window).set_app_version(SharedString::from(env!("CARGO_PKG_VERSION")));
+    // Recorded by `build.rs`; every field degrades to "inconnu" rather than
+    // failing a build made from a source tarball with no git checkout.
+    LibraryState::get(&window).set_build_details(SharedString::from(format!(
+        "Version {}\nCommit {}\nCible {}\n{}",
+        env!("CARGO_PKG_VERSION"),
+        env!("LEYLINE_COMMIT"),
+        env!("LEYLINE_TARGET"),
+        env!("LEYLINE_RUSTC"),
+    )));
     FilterState::get(&window).set_filter_label(-1);
     FilterState::get(&window).set_filter_pick(-1);
     FilterState::get(&window)

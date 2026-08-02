@@ -15,6 +15,46 @@ fn main() {
         .expect("ui/studio.slint must compile");
 
     embed_windows_manifest();
+    emit_build_facts();
+}
+
+/// Records what this binary was built from, for the About dialog's Version
+/// tab.
+///
+/// It is not decoration: a bug report that names a version alone cannot
+/// distinguish two builds a week apart, and asking a user to go and find
+/// their commit costs a round trip on every report. Everything here is
+/// best-effort — a build from a source tarball has no git checkout, and
+/// that is a normal way to build this project, not a failure.
+fn emit_build_facts() {
+    let commit = std::process::Command::new("git")
+        .args(["rev-parse", "--short", "HEAD"])
+        .output()
+        .ok()
+        .filter(|out| out.status.success())
+        .and_then(|out| String::from_utf8(out.stdout).ok())
+        .map(|s| s.trim().to_owned())
+        .unwrap_or_else(|| "inconnu".to_owned());
+    println!("cargo:rustc-env=LEYLINE_COMMIT={commit}");
+
+    // Re-run when HEAD moves, so the recorded commit cannot go stale.
+    println!("cargo:rerun-if-changed=../../.git/HEAD");
+
+    let target = std::env::var("TARGET").unwrap_or_else(|_| "inconnu".to_owned());
+    println!("cargo:rustc-env=LEYLINE_TARGET={target}");
+
+    let rustc = std::env::var("RUSTC")
+        .ok()
+        .and_then(|rustc| {
+            std::process::Command::new(rustc)
+                .arg("--version")
+                .output()
+                .ok()
+        })
+        .and_then(|out| String::from_utf8(out.stdout).ok())
+        .map(|s| s.trim().to_owned())
+        .unwrap_or_else(|| "inconnu".to_owned());
+    println!("cargo:rustc-env=LEYLINE_RUSTC={rustc}");
 }
 
 /// Embeds a DPI-aware application manifest (`windows-manifest.xml`, wired in
