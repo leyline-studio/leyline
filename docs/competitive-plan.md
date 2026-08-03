@@ -147,7 +147,9 @@ selon qu'un reflet est tombé ou non dans le cadre. C'est exactement ce que
 `auto_brighten: false` était censé interdire. Le boîtier, lui, écrit la
 réponse dans le fichier (`linear_max` : 12 279 à ISO 100, 15 094 à ISO 400,
 11 222 ailleurs) — même découpage en groupes d'ISO que la table mesurée de
-RawTherapee, et personne ne la lisait. `input::v4` la lit désormais.
+RawTherapee, et personne ne la lisait. `input::v4` la lit désormais — et un relevé sur 250 fichiers du corpus a montré
+au passage que cette métadonnée suit aussi **l'ouverture**, à ~1 % du tableau
+`aperture_scaling` que RawTherapee maintient à la main.
 
 **L'écart avec RawTherapee, lui, n'est pas refermé.** Après correction il passe
 de ×1,16 à ×1,03 sur le fichier ISO 100, mais **augmente** de ×1,08 à ×1,13 sur

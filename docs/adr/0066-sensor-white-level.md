@@ -41,20 +41,37 @@ bas, par un réglage que personne n'avait regardé.
 
 Le fichier porte la réponse. LibRaw lit dans les métadonnées Canon une **marge
 de linéarité** — le niveau au-delà duquel le capteur cesse de répondre
-proportionnellement — et la range dans `linear_max`. Sur ce boîtier elle ne
-dépend que de la sensibilité :
+proportionnellement — et la range dans `linear_max`. C'est une valeur **écrite
+par le boîtier pour cette prise-là**, jamais dérivée des pixels : c'est ce qui
+la rend utilisable ici.
 
-| Groupe d'ISO | `linear_max` |
+Elle suit d'abord la sensibilité, en trois groupes :
+
+| Groupe d'ISO (60D) | `linear_max` |
 |---|---|
 | 100, 125 | 12 279 |
 | 200 … 3200 | 15 094 |
 | 160, 320, 640, 1250, 2500 | 11 222 |
 
-Le découpage en trois groupes est **le même** que celui de la table mesurée que
-RawTherapee maintient de son côté (`camconst.json`) : deux observateurs
-indépendants du même comportement matériel. `identify` s'en sert d'ailleurs
-pour renseigner `maximum` — et `unpack` l'écrase ensuite par le plafond du
-format.
+Le découpage est **le même** que celui de la table mesurée que RawTherapee
+maintient de son côté (`camconst.json`) : deux observateurs indépendants du
+même comportement matériel. `identify` s'en sert d'ailleurs pour renseigner
+`maximum` — et `unpack` l'écrase ensuite par le plafond du format.
+
+Et elle suit aussi **l'ouverture**, ce qu'un relevé sur 250 fichiers réels du
+corpus a montré après coup — la métadonnée du boîtier porte déjà ce que
+RawTherapee doit modéliser à la main dans un tableau `aperture_scaling` :
+
+| Ouverture (60D, ISO 100) | `linear_max` | Rapport à f/4 | `aperture_scaling` de RT |
+|---|---|---|---|
+| f/1,8 | 13 926 | 1,134 | 1,140 |
+| f/2,8 | 12 749 | 1,038 | 1,030 |
+| f/3,2 | 12 632 | 1,029 | 1,015 |
+| f/4 et au-delà | 12 279 | 1,000 | 1,000 |
+
+Les deux sources concordent à ~1 %. C'est l'argument décisif de cette décision :
+**le fichier sait déjà ce qu'une table tierce devrait apprendre boîtier par
+boîtier, et il le sait prise par prise.**
 
 ## Décision
 
@@ -72,8 +89,9 @@ Et dans les deux cas, **l'ajustement par le contenu est coupé**
 l'image pour les boîtiers sans métadonnée, c'est-à-dire précisément là où on ne
 peut rien vérifier.
 
-Le niveau ne dépend donc plus que du boîtier et de sa sensibilité. Deux photos
-d'une même série se rendent enfin pareil.
+Le niveau ne dépend donc plus que de ce que le boîtier a enregistré pour cette
+prise — sensibilité, ouverture — et jamais de ce que la photo contient. Deux
+photos d'une même série se rendent enfin pareil.
 
 ### 2. Une nouvelle version de l'étage `input`
 
@@ -121,15 +139,20 @@ raison de ne pas prétendre que le sujet est clos.
   écrase la valeur) et `user_sat` (écriture).
 * Les bibliothèques existantes ne changent pas d'aspect tant qu'un reprocess ne
   le demande pas.
+* **Le repli est réel et testé** : sur 250 CR2 du corpus (60D et 5D Mark IV),
+  aucun fichier sans marge ; les DNG d'un HTC 10 du même corpus n'en portent
+  aucune et retombent donc sur le plafond du format, ce qui est exactement le
+  chemin prévu.
 
 ## Alternatives écartées
 
 * **Reprendre la table `camconst.json` de RawTherapee** (GPL-3.0, donc
-  juridiquement possible ici avec attribution) : plus précise, et c'est une
-  base de données tierce à maintenir, à étendre boîtier par boîtier, et à
-  reprendre à chaque nouvelle mesure de leur côté. La métadonnée du fichier
-  répond pour tous les boîtiers sans rien maintenir. À rouvrir si un jour la
-  différence entre les deux sources se montre visible.
+  juridiquement possible ici avec attribution) : c'est une base de données
+  tierce à maintenir, à étendre boîtier par boîtier, et à reprendre à chaque
+  nouvelle mesure de leur côté — alors que le relevé ci-dessus montre que la
+  métadonnée du fichier dit déjà la même chose, ouverture comprise, à ~1 %
+  près, pour tous les boîtiers et sans rien maintenir. Décision de l'auteur, en
+  outre : ne rien reprendre d'un autre projet.
 * **Garder l'ajustement par le contenu** (le défaut de LibRaw) : c'est le
   défaut corrigé ici.
 * **Régler `adjust_maximum_thr` plus haut** plutôt que de le couper : déplace
