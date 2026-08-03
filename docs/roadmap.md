@@ -38,6 +38,8 @@ JPEG, TIFF, PNG, WebP, AVIF, presets d'export et export par lots.
 
 Parallélisme Rayon ([ADR 0012](adr/0012-rayon-data-parallelism.md)), benchmarks Criterion, et [ADR 0041](adr/0041-interactive-preview-rendering.md) en entier : rendu d'aperçu à la résolution d'affichage, mise à l'échelle des rayons, et cache d'états intermédiaires du chemin preview (−78 % sur un curseur de fin de pipeline).
 
+Le chemin **export**, qu'ADR 0041 laisse volontairement hors de ses optimisations, est mesuré depuis le 2026-08-03 (`benches/export.rs`) : décodage, rendu pleine résolution et encodage par format, tous linéaires en pixels. Les chiffres et les deux suites qu'ils désignent — vitesse d'encodage AVIF, recouvrement encodage/rendu dans un lot — sont dans [`competitive-plan.md`](competitive-plan.md) §B2.
+
 ## Phase 8 — Distribution ✅
 
 Installateur par plateforme et internationalisation FR/EN ([ADR 0019](adr/0019-distribution-i18n.md)).

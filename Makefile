@@ -51,7 +51,7 @@ test-raw: ## Run the ignored tests against a real RAW (needs LEYLINE_TEST_RAW)
 		echo "error: no such file: $(LEYLINE_TEST_RAW)"; exit 1; }
 	LEYLINE_TEST_RAW="$(LEYLINE_TEST_RAW)" cargo test -p leyline-engine -- --ignored
 
-bench: ## Criterion benchmarks (pipeline + import)
+bench: ## Criterion benchmarks (pipeline + import + export)
 	cargo bench -p leyline-engine
 
 # --- reference renders (docs/contributing.md) -------------------------------

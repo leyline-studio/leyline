@@ -65,5 +65,9 @@ harness = false
 name = "import"
 harness = false
 
+[[bench]]
+name = "export"
+harness = false
+
 [lints]
 workspace = true

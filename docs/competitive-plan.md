@@ -61,9 +61,14 @@ d'avance, quelle que soit la qualité du reste du pipeline.
 1. **Valider l'existant** — protocole de comparaison contre des `.dcp` Adobe et
    des rendus de référence, mesure de l'écart, puis **lever ou confirmer** la
    mention « expérimental ». Ne change aucun pixel s'il n'y a pas de bug.
+   **Fait les 2026-08-02/03** — voir le résultat plus bas.
 2. **Appliquer les tables manquantes** — change le rendu, donc **nouvelle
    version d'étage** obligatoire (`pipeline.md` §5.1), jamais une modification
-   de l'étage publié.
+   de l'étage publié. **Livré le 2026-08-02** :
+   [ADR 0062](adr/0062-dcp-illuminant-interpolation.md) pour l'interpolation des
+   illuminants (`camera_profile::v2`) et
+   [ADR 0063](adr/0063-dcp-tables.md) pour `HueSatMap`, `LookTable` et
+   `ProfileToneCurve` (`camera_profile::v3`).
 
 **Prérequis — et blocage constaté le 2026-08-02.** Il faut des `.dcp` Adobe et
 des rendus de référence pour les boîtiers disponibles (les ~17 000 CR2 Canon 60D
@@ -154,10 +159,10 @@ de comparaison à Adobe lui-même.
 tables `HueSatMap` est un travail de précision, où une erreur passe inaperçue
 sur une image de test et saute aux yeux sur une peau.
 
-## A2 — Exposer le choix de l'algorithme de dématriçage
+## A2 — Exposer le choix de l'algorithme de dématriçage — **livré le 2026-08-02**
 
-**État.** `params.user_qual` n'est ni exposé ni choisi : on prend le défaut de
-LibRaw. [ADR 0050](adr/0050-highlight-reconstruction.md) §143 laisse
+**État initial.** `params.user_qual` n'était ni exposé ni choisi : on prenait le
+défaut de LibRaw. [ADR 0050](adr/0050-highlight-reconstruction.md) §143 laisse
 explicitement la question ouverte.
 
 **Pourquoi ça compte.** RawTherapee propose AMaZE, LMMSE, DCB ; le choix se voit
@@ -171,6 +176,12 @@ version d'étage casserait `pipeline.md` §5.1.
 
 **Risque.** Faible. Le travail est du câblage et de la validation, pas de
 l'algorithmique.
+
+**Livré** par [ADR 0061](adr/0061-demosaic-algorithm.md) : quatre valeurs
+nommées (`ahd` par défaut, `vng`, `dcb`, `dht`), écrites dans la révision,
+portées par `input::v3`. AMaZE et LMMSE sont absents faute d'être présents dans
+la bibliothèque liée — les proposer aurait été proposer un choix qui retombe
+silencieusement sur AHD.
 
 ## A3 — Profil de bruit mesuré par boîtier et par sensibilité
 
@@ -231,15 +242,61 @@ contrôle désigne une position, pas un rang exact, sans quoi trois des quatre
 points ne sont jamais pris. Le prérequis réel était d'apprendre à chaque étage
 quels réglages il lit (`Stage::reads`), ce qu'aucun ADR n'avait posé.
 
-## B2 — Le chemin export et impression
+## B2 — Le chemin export et impression — **mesuré le 2026-08-03**
 
 **État.** ADR 0041 exclut explicitement l'export et l'impression de ses
 optimisations : pleine résolution, sans cache d'étages, **bit pour bit
-identiques**. C'était le bon arbitrage pour un ADR centré sur l'interactif.
+identiques**. C'était le bon arbitrage pour un ADR centré sur l'interactif —
+mais il laissait le chemin export sans un seul chiffre.
 
-**Ce qui reste.** Aucune mesure n'existe sur un export pleine résolution de
-fichier moderne. Un export par lots de 500 fichiers 45 Mpx est un usage réel et
-non chiffré. **Premier pas : mesurer**, avant de décider quoi que ce soit.
+**Mesuré.** `crates/leyline-engine/benches/export.rs`, i9-9900K 16 threads
+(la machine de référence d'ADR 0041), `--release`. Les trois coûts d'un export
+sont pesés séparément, parce qu'ils ne se comportent pas pareil :
+
+| Étape | 10 Mpx | 45 Mpx | Parallèle ? |
+|---|---|---|---|
+| Décodage LibRaw, pleine taille | **0,85 s** | 2,76 s à 30 Mpx (mesuré sur un 5D IV) | oui |
+| Rendu, révision neutre | 0,045 s | **0,19 s** | oui (~8,7×) |
+| Rendu, édition complète | 1,12 s | **4,33 s** | oui (~8,7×) |
+| Encodage WebP | — | **0,61 s** | **non** |
+| Encodage JPEG | — | **0,87 s** | **non** |
+| Encodage TIFF | — | **1,62 s** | **non** |
+| Encodage PNG | — | **2,55 s** | **non** |
+| Encodage AVIF | 5,05 s | **21,8 s** | oui (~7,5×) |
+
+Tout est **linéaire en pixels** : ×4,3 de surface donne ×3,9 sur le rendu, ×4,3
+sur l'AVIF, ×3,3 sur le décodage. Rien ne s'effondre à la montée en taille, et
+rien ne profite non plus d'un effet d'échelle.
+
+**Ce que ça donne bout à bout.** Un fichier 30 Mpx, édition complète, JPEG :
+2,8 s de décodage + 2,9 s de rendu + 0,6 s d'encodage ≈ **6,3 s**. Le lot de
+500 fichiers évoqué plus haut prend donc **~52 minutes**. En AVIF, le même lot
+passe à **~3 heures**, l'encodage devenant à lui seul les trois quarts du temps.
+
+**Trois constats, dans l'ordre où ils comptent :**
+
+1. **L'AVIF est hors norme** — 25× le coût du JPEG à taille égale. La vitesse
+   d'encodage `ravif` est figée à `speed(6)` dans le code, sans que rien ne
+   l'expose ni ne le documente. C'est le seul réglage du document qui pourrait
+   diviser un temps par trois sans toucher à un pixel du rendu.
+2. **Les encodeurs rapides sont mono-thread** (JPEG, PNG, TIFF, WebP : temps
+   utilisateur ≈ temps réel), pendant que le lot traite **un fichier à la
+   fois**. Sur 16 cœurs, chaque encodage laisse donc 15 cœurs inoccupés — de
+   l'ordre de 10 à 15 % du temps d'un lot JPEG. Recouvrir l'encodage du fichier
+   *n* avec le rendu du *n+1* est le gain structurel évident, et il ne change
+   aucun pixel : c'est de l'ordonnancement, pas du calcul.
+3. **Le rendu domine et il est déjà parallèle** (~8,7× sur 16 threads). Il n'y
+   a pas de gaspillage à récupérer là sans changer les opérateurs eux-mêmes —
+   et le cache d'étages de B1 est interdit ici par la promesse §5.1.
+
+**Ce qui n'est pas mesuré :** l'impression (chemin PDF), et le coût mémoire
+d'un pipeline 45 Mpx, qui décidera de la profondeur du pipelinage envisagé au
+point 2.
+
+**Suites possibles, chacune avec son ADR :** exposer la vitesse d'encodage AVIF
+(et son défaut), et pipeliner le lot d'export. Aucune des deux ne touche à la
+reproductibilité : la première ne concerne que le codec, la seconde que l'ordre
+d'exécution.
 
 ## B3 — GPU : rouvrir la question, sur le chemin preview seul
 
@@ -342,10 +399,10 @@ L'ordre suit le rapport **gain ressenti / risque**, pas la difficulté.
 | # | Item | Pourquoi ici | Nouvelle version d'étage ? |
 |---|---|---|---|
 | ~~1~~ | ~~**B1** — cache d'étages~~ | **Livré le 2026-08-02, −78 %** | Non |
-| 2 | **A1.1** — valider le DCP | Borné, déjà listé comme ouvert, décide du verdict visuel | Non (si pas de bug) |
-| 3 | **A2** — choix du dématriçage | Câblage d'une capacité déjà présente dans LibRaw | Oui (`input`) |
-| 4 | **A1.2** — appliquer les tables DCP | Le vrai gain colorimétrique, mais demande A1.1 d'abord | Oui |
-| 5 | **B2** — mesurer l'export | Aucune décision possible sans chiffres | Non |
+| ~~2~~ | ~~**A1.1** — valider le DCP~~ | **Fait le 2026-08-02/03** : bug du conteneur corrigé, algèbre validée contre RawTherapee (écart médian 0,0027) ; « expérimental » maintenu pour le gain ×1,185 inexpliqué | Non |
+| ~~3~~ | ~~**A2** — choix du dématriçage~~ | **Livré le 2026-08-02** ([ADR 0061](adr/0061-demosaic-algorithm.md)) | Oui (`input::v3`) |
+| ~~4~~ | ~~**A1.2** — appliquer les tables DCP~~ | **Livré le 2026-08-02** ([ADR 0062](adr/0062-dcp-illuminant-interpolation.md), [ADR 0063](adr/0063-dcp-tables.md)) | Oui (`camera_profile::v2`, `v3`) |
+| ~~5~~ | ~~**B2** — mesurer l'export~~ | **Mesuré le 2026-08-03**, voir §3 : bench `export.rs`, deux suites possibles identifiées | Non |
 | 6 | **A3** — profil de bruit | Coûteux en données ; donne une partie du gain visé par C1 | Oui |
 | 7 | **B3** — GPU preview | À rouvrir seulement si B1 ne suffit pas | Non (chemin preview) |
 | 8 | **C2** — masques IA | Horizon ; seul item IA compatible avec §5.1 sans compromis | Non (masque matérialisé) |
@@ -353,6 +410,10 @@ L'ordre suit le rapport **gain ressenti / risque**, pas la difficulté.
 
 **Dépendances dures :** A1.2 après A1.1 ; B3 après B1 (exigé par ADR 0041).
 Tout le reste peut sortir dans n'importe quel ordre.
+
+**Reste ouvert au 2026-08-03 :** A3 (profil de bruit), B3 (GPU preview, à ne
+rouvrir que si B1 ne suffit pas), C2 puis C1, et les deux suites de B2 —
+vitesse d'encodage AVIF, et pipelinage du lot d'export.
 
 ---
 
@@ -366,7 +427,8 @@ n'en tient lieu pour aucun.
 | A1.2 | Interpolation des tables, ordre d'application, nouvelle version d'étage |
 | A2 | Algorithme par défaut, valeurs exposées, écriture dans la révision |
 | A3 | Origine des mesures et leur licence, format de stockage |
-| B1 | Rien — [ADR 0041](adr/0041-interactive-preview-rendering.md) §3 est déjà l'ADR. Reste à l'implémenter |
+| B1 | Rien — [ADR 0041](adr/0041-interactive-preview-rendering.md) §3 est déjà l'ADR. **Implémenté le 2026-08-02** |
+| B2 (suites) | Vitesse d'encodage AVIF exposée et son défaut ; recouvrement encodage/rendu dans un lot, et ce que devient l'ordre du rapport |
 | B3 | Périmètre preview-seul, backend, et ce que devient §5.1 dans le texte |
 | C1, C2 | Les six conditions du §4 ci-dessus, modèle, runtime, distribution des poids |
 
