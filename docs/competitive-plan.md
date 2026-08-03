@@ -129,31 +129,66 @@ implémentation indépendante.
 minimal fixe le profil d'entrée et l'espace de sortie. La référence produite
 ainsi reproduit un export fait à la main à 0,001 près.
 
-Ce qui n'est pas expliqué : un **gain de ×1,083 en espace encodé**, soit
-**×1,185 en linéaire**. Trois choses ont été établies à son sujet :
+### L'écart de niveau, expliqué le 2026-08-03
 
-* il est **indépendant du profil caméra** — sans aucun profil des deux côtés,
-  le même ×1,0829 apparaît. Ce n'est donc pas de la gestion des couleurs, mais
-  de la normalisation du RAW ;
-* c'est un **gain, pas une courbe** : le rapport est constant sur tous les tons
-  moyens et converge vers 1,0 au blanc, là où les deux moteurs écrêtent ;
-* le niveau de blanc du capteur en reste la piste, sans la refermer. LibRaw
-  nous donne `maximum = 16 383` et mesure par ailleurs un `linear_max = 11 222`
-  que nous ignorons ; `camconst.json` de RawTherapee donne 12 550 à ISO 2500
-  pour ce boîtier. Le rapport 16 383 / 12 550 vaut 1,305, pas 1,185 : la
-  direction est bonne, l'ampleur ne colle pas.
+Restait un **gain de ×1,185 en linéaire** : RawTherapee rend plus clair que
+Leyline, uniformément. Trois choses avaient été établies — indépendant du
+profil caméra, donc pas de la couleur ; un gain et non une courbe ; et le
+niveau de blanc du capteur comme piste, sans que les chiffres collent.
 
-Rien n'est corrigé sur cette base : déplacer la normalisation déplacerait tous
-les pixels de toutes les photos, et une hypothèse à moitié vérifiée ne le
-justifie pas.
+**Ils collent maintenant : la piste était la bonne, c'est la comparaison qui
+mélangeait deux fichiers.** L'ancien calcul opposait le `linear_max = 11 222`
+d'un fichier à la valeur `camconst` d'un autre groupe d'ISO.
+
+Ce que les deux moteurs prennent pour « blanc », sur un Canon 60D :
+
+| Source | ISO 100/125 | ISO 200…3200 | ISO 160/320/640/1250/2500 |
+|---|---|---|---|
+| LibRaw `maximum` — ce que Leyline divise par | 16 383 | 16 383 | 16 383 |
+| LibRaw `linear_max` — métadonnée du boîtier, **ignorée** | 12 279 | 15 094 | 11 222 |
+| `camconst.json` de RawTherapee | 13 480 | 15 200 | 12 550 |
+
+Les deux dernières lignes **partagent le même découpage en trois groupes
+d'ISO** : ce n'est pas une coïncidence, c'est le même comportement matériel vu
+de deux côtés. Leyline, lui, normalise par le plafond théorique du 14 bits, le
+même pour tous les fichiers.
+
+**La prédiction, et sa vérification.** Si l'écart n'est que ce choix, il doit
+suivre le groupe d'ISO du fichier — et non rester à 1,185 :
+
+| Fichier | ISO | Rapport prédit (16 383 / blanc RT) | Rapport mesuré |
+|---|---|---|---|
+| IMG_9040 | 100 | 1,215 | **~1,19** |
+| IMG_9046 | 400 | 1,078 | **1,085** |
+
+Deux fichiers, deux prédictions différentes, deux mesures qui tombent à moins
+de 2 %. **L'écart est expliqué.** Le désactivateur du roll-off des hautes
+lumières ne change rien à ce rapport, ce qui écarte au passage notre propre
+courbe de sortie comme explication.
+
+**Ce que ça coûte, concrètement.** Un rendu neutre est 8 à 19 % trop sombre
+selon la sensibilité, et surtout **un pixel saturé du capteur ne ressort pas
+blanc** : à ISO 100 il arrive à 0,82. C'est exactement le « l'image sort moins
+bien à l'ouverture » qui ouvre ce document.
+
+**Rien n'est corrigé pour autant** : changer la normalisation déplace tous les
+pixels de toutes les photos, et exige donc une **nouvelle version de l'étage
+`input`** (`pipeline.md` §5.1) — les révisions existantes continuant de rendre
+comme avant jusqu'à un reprocess. Le choix de la source de vérité est une
+décision à part entière, avec au moins trois candidats — `linear_max` de la
+métadonnée, une table par boîtier et par ISO à la `camconst` (RawTherapee est
+GPL-3.0, donc réutilisable ici), ou l'ajustement par le contenu de l'image que
+LibRaw propose (`adjust_maximum_thr`, à écarter : deux photos de la même scène
+rendraient différemment). **Cela demande son ADR.**
 
 **Darktable ne peut pas servir de troisième avis en l'état** : son rendu par
 défaut applique un mappage tonal *scene-referred* (filmic), dont la signature
 en S est nette — rapport à 1,43 dans les tons moyens, 0,96 au blanc. Le
 comparer demanderait de désactiver ce module.
 
-La mention « expérimental » reste, pour ce gain non expliqué et pour l'absence
-de comparaison à Adobe lui-même.
+La mention « expérimental » ne tient donc plus qu'à **l'absence de comparaison
+à Adobe lui-même** : le gain, lui, est expliqué et attribué — au niveau de
+blanc, pas à la couleur.
 
 **Risque.** Faible sur le point 1, moyen sur le point 2 : l'interpolation des
 tables `HueSatMap` est un travail de précision, où une erreur passe inaperçue
