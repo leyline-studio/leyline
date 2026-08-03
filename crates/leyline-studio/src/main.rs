@@ -57,7 +57,7 @@ use wiring::collections::{refresh_collections, wire_collection_management, wire_
 use wiring::develop::clipboard::wire_settings_clipboard;
 use wiring::develop::wire_develop;
 use wiring::dialogs::wire_dialogs;
-use wiring::filters::{wire_classify, wire_filters};
+use wiring::filters::{refresh_shot_facets, wire_classify, wire_filters};
 use wiring::folders::{refresh_folders, wire_folders};
 use wiring::grid::{load_window, reload, wire_select};
 use wiring::keywords::wire_keywords;
@@ -253,6 +253,7 @@ fn run() -> Result<(), String> {
         refresh_collections(&mut app, &window)?;
         refresh_folders(&mut app, &window)?;
         refresh_presets(&mut app, &window)?;
+        refresh_shot_facets(&app, &window)?;
         reload(&mut app, &window)?;
     }
 

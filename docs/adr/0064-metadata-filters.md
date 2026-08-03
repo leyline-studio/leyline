@@ -89,6 +89,30 @@ panneau repliable sous la barre de filtres — pas un onglet latéral : ces
 filtres se combinent avec la note et le libellé déjà présents, et les séparer
 en deux endroits ferait chercher.
 
+Trois précisions venues de l'implémentation :
+
+* La forme écrite d'un intervalle est **lue par le moteur**
+  (`ShotRange::parse`), pas par chaque client : la CLI et Studio prennent la
+  même chaîne, donc `1/200-` ne peut pas vouloir dire deux choses. Les bornes
+  acceptent les fractions, parce qu'une vitesse s'écrit `1/200` partout
+  ailleurs. Une valeur seule vaut pour les deux bornes.
+* Un intervalle inversé (`3200-400`) est **refusé**, jamais répondu par une
+  grille vide : zéro photo se lit « la bibliothèque n'en contient pas », ce
+  qui serait faux.
+* La CLI gagne aussi `leyline facets <library>`, qui imprime ce que
+  `shot_facets` rend. Sans elle, les listes de §3 n'existeraient que dans
+  Studio et un utilisateur de la CLI devrait deviner l'orthographe exacte
+  d'un boîtier pour s'en servir — l'inverse de ce que §3 promet.
+
+Dans Studio, boîtiers et objectifs sont des **puces**, comme les libellés et
+les drapeaux de la même barre, plutôt qu'une liste déroulante : le nombre de
+boîtiers d'une bibliothèque se compte sur les doigts, et une puce montre à la
+fois ce qui existe et ce qui est actif. Les quatre grandeurs continues sont
+des champs de saisie : les deux bornes étant facultatives, un curseur à deux
+poignées devrait inventer une façon de dire « pas de borne du tout ». La puce
+qui déplie le panneau porte le nombre de critères actifs, pour qu'une grille
+filtrée ne paraisse jamais entière quand le panneau est replié.
+
 ## Conséquences
 
 * `GridQuery` gagne six champs. Sa construction reste un chaînage de `AND`

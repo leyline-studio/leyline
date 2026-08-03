@@ -248,6 +248,12 @@ pub struct GridQuery {
     pub keywords: Vec<KeywordId>,        // hiérarchique : inclut les descendants
     pub text: Option<String>,            // FTS5
     pub capture_range: Option<(i64, i64)>,
+    pub camera: Option<String>,          // prise de vue (ADR 0064) : modèle, ou « fabricant modèle »
+    pub lens: Option<String>,
+    pub iso: ShotRange,
+    pub aperture: ShotRange,
+    pub focal_length: ShotRange,
+    pub shutter_speed: ShotRange,
     pub sort: Sort,
     pub range: Range<u32>,               // pagination par fenêtre
 }
@@ -265,14 +271,40 @@ pub struct GridItem {
     pub edited: bool,                    // plus que sa révision initiale (ADR 0055 §5)
 }
 
+/// Intervalle inclusif, bornes toutes deux facultatives (ADR 0064 §1).
+pub struct ShotRange {
+    pub min: Option<f64>,
+    pub max: Option<f64>,
+}
+
+impl ShotRange {
+    pub fn at_least(min: f64) -> ShotRange;
+    pub fn at_most(max: f64) -> ShotRange;
+    pub fn between(min: f64, max: f64) -> ShotRange;
+    pub fn is_unbounded(&self) -> bool;
+    /// Lit la forme écrite `min-max`, `min-`, `-max`, ou une valeur seule ;
+    /// les bornes acceptent les fractions (`1/200`). Vide = filtre absent.
+    pub fn parse(text: &str) -> Result<ShotRange>;
+}
+
 impl Library {
     pub fn count(&self, query: &GridQuery) -> Result<u64>;
     pub fn grid(&self, query: &GridQuery) -> Result<Vec<GridItem>>;
     pub fn asset(&self, id: AssetId) -> Result<AssetDetails>;   // EXIF complet, versions, chemins
+    pub fn shot_facets(&self) -> Result<ShotFacets>;            // boîtiers, objectifs et bornes observés
 }
 ```
 
 `grid` + `range` permettent le défilement virtuel : l'UI ne charge jamais que la fenêtre visible, quelle que soit la taille du catalogue.
+
+Les six filtres de prise de vue (ADR 0064) se combinent par **et** avec les
+autres et entre eux. Une photo dont la métadonnée manque ne satisfait aucun
+d'eux : elle sort de la grille dès qu'un de ces filtres est posé. Un
+intervalle inversé est **refusé** (`InvalidSettings`) plutôt que répondu par
+une grille vide. Les listes dans lesquelles boîtier et objectif se choisissent
+viennent de `shot_facets`, calculé sur toute la bibliothèque (catalogue §43) —
+un client les rafraîchit sur `AssetsAdded` / `AssetsRemoved`, pas à chaque
+frappe.
 
 ---
 

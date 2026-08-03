@@ -6,6 +6,7 @@
 //! for range searches, so the rationals stay the single reference.
 
 use leyline_core::{AssetId, LeylineError, Result};
+use rusqlite::types::Value as SqlValue;
 
 use crate::{Catalog, db_err};
 
@@ -227,6 +228,120 @@ impl Catalog {
             Err(e) => Err(db_err(e)),
         }
     }
+
+    /// The shot values present in the library: the bodies and lenses actually
+    /// used, and the observed bounds of the four continuous quantities
+    /// (ADR 0064 §3).
+    ///
+    /// Computed over the **whole** library, not over the filtered selection
+    /// in progress: a list that shrank as filters were added would cost a
+    /// recount per keystroke and be harder to predict. Bodies and lenses come
+    /// back in the exact form the camera and lens filters expect.
+    pub fn shot_facets(&self) -> Result<ShotFacets> {
+        let names = |table: &str, column: &str| -> Result<Vec<String>> {
+            let mut stmt = self
+                .conn
+                .prepare(&format!(
+                    "SELECT DISTINCT {FULL_NAME} AS name
+                     FROM metadata m JOIN {table} t ON t.id = m.{column}
+                     ORDER BY name COLLATE NOCASE"
+                ))
+                .map_err(db_err)?;
+            let rows = stmt
+                .query_map([], |row| row.get::<_, String>(0))
+                .map_err(db_err)?;
+            rows.collect::<std::result::Result<Vec<_>, _>>()
+                .map_err(db_err)
+        };
+
+        let bounds = self
+            .conn
+            .query_row(
+                "SELECT MIN(iso), MAX(iso),
+                        MIN(aperture_f), MAX(aperture_f),
+                        MIN(focal_length_mm), MAX(focal_length_mm),
+                        MIN(shutter_speed_s), MAX(shutter_speed_s)
+                 FROM metadata",
+                [],
+                |row| {
+                    let pair = |index: usize| -> rusqlite::Result<Option<(f64, f64)>> {
+                        Ok(match (row.get(index)?, row.get(index + 1)?) {
+                            (Some(min), Some(max)) => Some((min, max)),
+                            _ => None,
+                        })
+                    };
+                    Ok((pair(0)?, pair(2)?, pair(4)?, pair(6)?))
+                },
+            )
+            .map_err(db_err)?;
+
+        Ok(ShotFacets {
+            cameras: names("cameras", "camera_id")?,
+            lenses: names("lenses", "lens_id")?,
+            iso: bounds.0,
+            aperture: bounds.1,
+            focal_length: bounds.2,
+            shutter_speed: bounds.3,
+        })
+    }
+}
+
+/// The values available to the shot filters (ADR 0064 §3): what the library
+/// actually contains, so a filter list never offers a body nobody shot with.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct ShotFacets {
+    /// Bodies used, as `manufacturer model` (or the model alone when the
+    /// maker is unknown), sorted.
+    pub cameras: Vec<String>,
+    /// Lenses used, same form, sorted.
+    pub lenses: Vec<String>,
+    /// Lowest and highest ISO recorded, when any asset carries one.
+    pub iso: Option<(f64, f64)>,
+    /// Widest and narrowest aperture recorded, as f-numbers.
+    pub aperture: Option<(f64, f64)>,
+    /// Shortest and longest focal length recorded, in millimeters.
+    pub focal_length: Option<(f64, f64)>,
+    /// Fastest and slowest shutter speed recorded, in seconds.
+    pub shutter_speed: Option<(f64, f64)>,
+}
+
+/// How a body or a lens is named once it leaves the catalog: the maker and
+/// the model, or the model alone when the maker is blank.
+const FULL_NAME: &str = "CASE WHEN TRIM(t.manufacturer) = '' THEN TRIM(t.model)
+                             ELSE TRIM(t.manufacturer) || ' ' || TRIM(t.model) END";
+
+/// Appends the clause matching an asset's body against `camera`, either the
+/// model alone or `manufacturer model`.
+///
+/// This is the **single** definition of that correspondence (ADR 0064 §2):
+/// smart collections and the grid's camera filter both call it, so the same
+/// question cannot get two answers.
+pub(crate) fn camera_clause(sql: &mut String, params: &mut Vec<SqlValue>, camera: &str) {
+    name_clause(sql, params, "cameras", "camera_id", camera);
+}
+
+/// The same, for the lens: a lens is chosen from a list built by
+/// [`Catalog::shot_facets`], and matched exactly as a body is.
+pub(crate) fn lens_clause(sql: &mut String, params: &mut Vec<SqlValue>, lens: &str) {
+    name_clause(sql, params, "lenses", "lens_id", lens);
+}
+
+/// Shared body of the two clauses above. An asset with no metadata row, or
+/// none for this column, matches nothing — a filtered grid that quietly kept
+/// the undocumented photos would make every filter a lie (ADR 0064 §1).
+fn name_clause(
+    sql: &mut String,
+    params: &mut Vec<SqlValue>,
+    table: &str,
+    column: &str,
+    value: &str,
+) {
+    sql.push_str(&format!(
+        " AND EXISTS (SELECT 1 FROM metadata m JOIN {table} t ON t.id = m.{column}
+                      WHERE m.asset_id = a.id AND (TRIM(t.model) = ? OR {FULL_NAME} = ?))"
+    ));
+    params.push(SqlValue::Text(value.to_owned()));
+    params.push(SqlValue::Text(value.to_owned()));
 }
 
 /// Builds a rational from two optional columns.

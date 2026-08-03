@@ -44,8 +44,93 @@ pub enum Sort {
     CollectionOrder,
 }
 
+/// An inclusive interval on a shot quantity, both bounds optional
+/// (ADR 0064 §1): `ISO ≥ 3200` is asked far more often than `ISO in
+/// [3200, 6400]`, so neither bound is required. Unbounded on both sides
+/// filters nothing.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct ShotRange {
+    /// Lower bound, inclusive.
+    pub min: Option<f64>,
+    /// Upper bound, inclusive.
+    pub max: Option<f64>,
+}
+
+impl ShotRange {
+    /// A range bounded below only.
+    pub fn at_least(min: f64) -> ShotRange {
+        ShotRange {
+            min: Some(min),
+            max: None,
+        }
+    }
+
+    /// A range bounded above only.
+    pub fn at_most(max: f64) -> ShotRange {
+        ShotRange {
+            min: None,
+            max: Some(max),
+        }
+    }
+
+    /// A range bounded on both sides.
+    pub fn between(min: f64, max: f64) -> ShotRange {
+        ShotRange {
+            min: Some(min),
+            max: Some(max),
+        }
+    }
+
+    /// Whether this range constrains nothing.
+    pub fn is_unbounded(&self) -> bool {
+        self.min.is_none() && self.max.is_none()
+    }
+
+    /// Reads the written form of an interval — `min-max`, `min-`, `-max`, or
+    /// a single value standing for both bounds — as the CLI and Studio both
+    /// take it (ADR 0064 §5). Blank text is the absent filter.
+    ///
+    /// Bounds may be fractions: `1/200` is how a shutter speed is read
+    /// everywhere else, and making the filter the one place it is not would
+    /// be a small cruelty.
+    pub fn parse(text: &str) -> Result<ShotRange> {
+        let text = text.trim();
+        if text.is_empty() {
+            return Ok(ShotRange::default());
+        }
+        let number = |part: &str| -> Result<f64> {
+            let refused = || {
+                LeylineError::InvalidSettings(format!(
+                    "cannot read {text:?} as a range: expected <min>-<max>, <min>- or -<max>"
+                ))
+            };
+            match part.split_once('/') {
+                Some((numerator, denominator)) => {
+                    let numerator: f64 = numerator.trim().parse().map_err(|_| refused())?;
+                    let denominator: f64 = denominator.trim().parse().map_err(|_| refused())?;
+                    if denominator == 0.0 {
+                        return Err(refused());
+                    }
+                    Ok(numerator / denominator)
+                }
+                None => part.trim().parse().map_err(|_| refused()),
+            }
+        };
+        if let Some(max) = text.strip_prefix('-') {
+            Ok(ShotRange::at_most(number(max)?))
+        } else if let Some(min) = text.strip_suffix('-') {
+            Ok(ShotRange::at_least(number(min)?))
+        } else if let Some((min, max)) = text.split_once('-') {
+            Ok(ShotRange::between(number(min)?, number(max)?))
+        } else {
+            let exact = number(text)?;
+            Ok(ShotRange::between(exact, exact))
+        }
+    }
+}
+
 /// A grid request: filters, sort, and the visible window.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct GridQuery {
     /// Only assets directly in this folder.
     pub folder: Option<FolderId>,
@@ -63,6 +148,19 @@ pub struct GridQuery {
     pub text: Option<String>,
     /// Only assets captured in `[start, end]`, UTC epoch milliseconds.
     pub capture_range: Option<(i64, i64)>,
+    /// Only assets shot with this body, named as [`Catalog::shot_facets`]
+    /// names it — or by model alone (ADR 0064 §2).
+    pub camera: Option<String>,
+    /// Only assets shot with this lens, named the same way.
+    pub lens: Option<String>,
+    /// Only assets whose ISO falls in this range.
+    pub iso: ShotRange,
+    /// Only assets whose f-number falls in this range.
+    pub aperture: ShotRange,
+    /// Only assets whose focal length, in millimeters, falls in this range.
+    pub focal_length: ShotRange,
+    /// Only assets whose shutter speed, in seconds, falls in this range.
+    pub shutter_speed: ShotRange,
     /// Sort order.
     pub sort: Sort,
     /// Window of rows to return (virtual scrolling).
@@ -81,6 +179,12 @@ impl Default for GridQuery {
             keywords: Vec::new(),
             text: None,
             capture_range: None,
+            camera: None,
+            lens: None,
+            iso: ShotRange::default(),
+            aperture: ShotRange::default(),
+            focal_length: ShotRange::default(),
+            shutter_speed: ShotRange::default(),
             sort: Sort::CaptureDate { ascending: false },
             range: 0..1000,
         }
@@ -247,14 +351,7 @@ fn build(
             params.push(SqlValue::Integer(i64::from(rating.gte)));
         }
         if let Some(camera) = &rules.camera {
-            sql.push_str(
-                " AND EXISTS (SELECT 1 FROM metadata m JOIN cameras cam ON cam.id = m.camera_id
-                              WHERE m.asset_id = a.id
-                                AND (cam.model = ?
-                                     OR cam.manufacturer || ' ' || cam.model = ?))",
-            );
-            params.push(SqlValue::Text(camera.clone()));
-            params.push(SqlValue::Text(camera.clone()));
+            crate::metadata::camera_clause(&mut sql, &mut params, camera);
         }
         for path in &rules.keywords {
             sql.push_str(
@@ -311,6 +408,20 @@ fn build(
         params.push(SqlValue::Integer(start));
         params.push(SqlValue::Integer(end));
     }
+    if let Some(camera) = query.camera.as_deref() {
+        crate::metadata::camera_clause(&mut sql, &mut params, camera);
+    }
+    if let Some(lens) = query.lens.as_deref() {
+        crate::metadata::lens_clause(&mut sql, &mut params, lens);
+    }
+    for (name, column, range) in [
+        ("iso", "iso", query.iso),
+        ("aperture", "aperture_f", query.aperture),
+        ("focal length", "focal_length_mm", query.focal_length),
+        ("shutter speed", "shutter_speed_s", query.shutter_speed),
+    ] {
+        shot_range_clause(&mut sql, &mut params, name, column, range)?;
+    }
 
     if ordered {
         let direction = |ascending| if ascending { "ASC" } else { "DESC" };
@@ -350,4 +461,43 @@ fn build(
         }
     }
     Ok((sql, params))
+}
+
+/// Appends one continuous shot filter, on an indexed column of `metadata`
+/// (`docs/catalog.md` §32). An asset without that measurement does not
+/// satisfy the criterion and drops out, as ADR 0064 §1 requires.
+///
+/// A reversed range is refused rather than answered with an empty grid: it
+/// can only be a mistake, and a silent zero would look like a library that
+/// holds nothing of the kind.
+fn shot_range_clause(
+    sql: &mut String,
+    params: &mut Vec<SqlValue>,
+    name: &str,
+    column: &str,
+    range: ShotRange,
+) -> Result<()> {
+    if range.is_unbounded() {
+        return Ok(());
+    }
+    if let (Some(min), Some(max)) = (range.min, range.max)
+        && min > max
+    {
+        return Err(LeylineError::InvalidSettings(format!(
+            "{name} filter: minimum {min} is above maximum {max}"
+        )));
+    }
+    sql.push_str(&format!(
+        " AND EXISTS (SELECT 1 FROM metadata m WHERE m.asset_id = a.id AND m.{column} IS NOT NULL"
+    ));
+    if let Some(min) = range.min {
+        sql.push_str(&format!(" AND m.{column} >= ?"));
+        params.push(SqlValue::Real(min));
+    }
+    if let Some(max) = range.max {
+        sql.push_str(&format!(" AND m.{column} <= ?"));
+        params.push(SqlValue::Real(max));
+    }
+    sql.push(')');
+    Ok(())
 }

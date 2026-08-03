@@ -11,6 +11,7 @@ use std::time::Duration;
 use crate::app::{App, MAX_PREVIEW_JOBS, item_at, report_error};
 use crate::models::{export_summary, import_summary, print_summary};
 use crate::ui::{DialogState, GridState, StudioWindow, Tr};
+use crate::wiring::filters::refresh_shot_facets;
 use crate::wiring::folders::refresh_folders;
 use crate::wiring::grid::{reload, show_details};
 use crate::wiring::map::refresh_map_pins;
@@ -205,6 +206,11 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
             {
                 report_error(window, &error);
             }
+            // Newly imported photos can bring a body or a lens the library
+            // had never seen (ADR 0064 §3).
+            if let Err(error) = refresh_shot_facets(app, window) {
+                report_error(window, &error);
+            }
             // An import can also create folders (ADR 0055 §2), and a sidebar
             // whose tree stops at the last relaunch would send the user
             // looking for photos it just told them arrived.
@@ -217,6 +223,14 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
             // one belongs on the map right away, not on the next entry.
             if app.map.is_some() {
                 refresh_map_pins(app, window);
+            }
+        }
+        // Photos left the library: a body or a lens may have left with the
+        // last of its photos, and a filter list still offering it would send
+        // the user to an empty grid.
+        Event::AssetsRemoved { .. } => {
+            if let Err(error) = refresh_shot_facets(app, window) {
+                report_error(window, &error);
             }
         }
         Event::TetherConnected => {

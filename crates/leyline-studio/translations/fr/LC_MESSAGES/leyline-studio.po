@@ -1772,3 +1772,33 @@ msgstr "Build"
 msgctxt "ImportDialog"
 msgid "Close"
 msgstr "Fermer"
+
+#: crates/leyline-studio/ui/panels/browser.slint:369
+msgctxt "BrowserPanel"
+msgid "Shot ({})"
+msgstr "Prise de vue ({})"
+
+#: crates/leyline-studio/ui/panels/browser.slint:370
+msgctxt "BrowserPanel"
+msgid "Shot"
+msgstr "Prise de vue"
+
+#: crates/leyline-studio/ui/panels/browser.slint:389
+msgctxt "BrowserPanel"
+msgid "Body"
+msgstr "Boîtier"
+
+#: crates/leyline-studio/ui/panels/browser.slint:409
+msgctxt "BrowserPanel"
+msgid "Lens"
+msgstr "Objectif"
+
+#: crates/leyline-studio/ui/panels/browser.slint:471
+msgctxt "BrowserPanel"
+msgid "Clear"
+msgstr "Effacer"
+
+#: crates/leyline-studio/ui/panels/browser.slint:487
+msgctxt "BrowserPanel"
+msgid "No camera or lens recorded in this library yet."
+msgstr "Aucun boîtier ni objectif enregistré dans cette bibliothèque."

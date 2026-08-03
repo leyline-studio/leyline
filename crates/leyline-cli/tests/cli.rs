@@ -399,3 +399,56 @@ fn demosaic_is_refused_until_the_revision_is_reprocessed() {
     assert!(!out.status.success());
     assert!(stderr(&out).contains("ahd/vng/dcb/dht"));
 }
+
+#[test]
+fn shot_filters_reach_the_grid_and_refuse_nonsense() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = library_with_a_photo(&dir);
+
+    // A PNG carries no EXIF, so it satisfies no shot criterion — the photo
+    // listed without filters disappears behind any of them (ADR 0064 §1).
+    assert!(stdout(&run(&["ls", &root])).contains("1 version(s)"));
+    for filter in [
+        ["--iso", "3200-"],
+        ["--aperture", "-2.8"],
+        ["--focal", "24-70"],
+        ["--shutter", "-1/500"],
+        ["--camera", "EOS 60D"],
+        ["--lens", "EF 50mm f/1.8 STM"],
+    ] {
+        let out = run(&["ls", &root, filter[0], filter[1]]);
+        assert!(out.status.success(), "{} {}", filter[0], stderr(&out));
+        assert!(
+            stdout(&out).contains("0 version(s)"),
+            "{} {}",
+            filter[0],
+            stdout(&out)
+        );
+    }
+
+    // A backwards interval and an unreadable one are told, not answered
+    // with an empty list that would read as "the library has none".
+    let out = run(&["ls", &root, "--iso", "3200-400"]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("above maximum"), "{}", stderr(&out));
+
+    let out = run(&["ls", &root, "--focal", "wide"]);
+    assert!(!out.status.success());
+    let message = stderr(&out);
+    assert!(
+        message.contains("--focal") && message.contains("cannot read"),
+        "{message}"
+    );
+}
+
+#[test]
+fn facets_list_what_the_library_was_shot_with() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = library_with_a_photo(&dir);
+
+    // Nothing to offer here, and that is the honest answer: the only photo
+    // has no EXIF at all.
+    let out = run(&["facets", &root]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(stdout(&out).is_empty(), "{}", stdout(&out));
+}

@@ -1686,3 +1686,38 @@ CREATE TABLE print_presets (
 Parallèle exact d'`export_presets` (§27) : `settings_json` est opaque ici aussi, c'est `leyline_export::PrintSettings` qui en interprète la structure (papier, orientation, marges, DPI, profil ICC de destination, intention de rendu).
 
 Contrairement à l'export, l'impression n'a pas de table d'historique : imprimer ne modifie aucune révision et ne produit aucun artefact que le catalogue doive pouvoir retrouver plus tard (ADR 0036) — le fichier PDF rendu est un artefact ponctuel, pas un état à journaliser. Les données de job (quelles versions, combien de copies) ne sont jamais stockées, exactement comme `ExportRequest.versions` reste séparé d'`export_presets`.
+
+---
+
+# 43. Shot Facets (ADR 0064)
+
+`Catalog::shot_facets()` répond à « avec quoi cette bibliothèque a-t-elle été
+photographiée ? » — la liste dans laquelle les filtres boîtier et objectif de
+`GridQuery` se choisissent, et les bornes observées des quatre grandeurs
+continues.
+
+```rust
+pub struct ShotFacets {
+    pub cameras: Vec<String>,            // « fabricant modèle », triés
+    pub lenses: Vec<String>,
+    pub iso: Option<(f64, f64)>,         // bornes observées, None si aucune photo n'en porte
+    pub aperture: Option<(f64, f64)>,
+    pub focal_length: Option<(f64, f64)>,
+    pub shutter_speed: Option<(f64, f64)>,
+}
+```
+
+Aucune table ni aucun index nouveau : un `SELECT DISTINCT` par jointure sur
+`cameras` / `lenses`, et un seul `MIN`/`MAX` sur les colonnes générées de
+`metadata`, toutes indexées (§32).
+
+Deux points de méthode :
+
+* Les noms rendus sont **exactement** ceux que `GridQuery::camera` et
+  `GridQuery::lens` acceptent — un client n'a rien à reconstruire, et la
+  correspondance (modèle seul ou `fabricant modèle`) est celle des collections
+  intelligentes (§26), écrite une seule fois dans le code.
+* Le calcul porte sur **toute** la bibliothèque, jamais sur la sélection
+  filtrée en cours : les listes ne bougent donc que quand la bibliothèque
+  change, ce qui est aussi la règle de rafraîchissement des clients
+  (`AssetsAdded`, `AssetsRemoved`).

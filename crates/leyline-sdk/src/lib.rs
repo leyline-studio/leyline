@@ -27,7 +27,8 @@ pub use leyline_engine::{
 pub use leyline_catalog::{
     CameraInfo, CollectionNode, ExportPreset, ExportRecord, FolderNode, GridItem, GridQuery,
     KeywordNode, LensInfo, LibraryInfo, MapPin, Metadata, Preset, PresetFolder, PrintPreset,
-    RatingRule, Rational, RegisteredAsset, RevisionRow, SmartRules, Sort, VersionInfo,
+    RatingRule, Rational, RegisteredAsset, RevisionRow, ShotFacets, ShotRange, SmartRules, Sort,
+    VersionInfo,
 };
 
 pub use leyline_color::RenderingIntent;

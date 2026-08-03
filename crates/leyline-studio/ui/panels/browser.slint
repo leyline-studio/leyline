@@ -19,7 +19,7 @@ import { DialogState } from "../state/dialog.slint";
 import { FilterState } from "../state/filter.slint";
 import { GridState } from "../state/grid.slint";
 import { MapState } from "../state/map.slint";
-import { DetailRow, FilterChip, MiniSlider, ViewModeChips } from "../widgets/controls.slint";
+import { DetailRow, FilterChip, MiniSlider, RangeField, ViewModeChips } from "../widgets/controls.slint";
 
 export component BrowserPanel inherits HorizontalLayout {
     // Hands keyboard focus back to the window's `FocusScope` after a text
@@ -35,6 +35,11 @@ export component BrowserPanel inherits HorizontalLayout {
     // arrow shortcuts move the selection by exactly one row, and only the
     // grid knows how wide a row currently is.
     out property <int> columns: flick.columns;
+
+    // Whether the shot-filter row under the bar is unfolded (ADR 0064 §5).
+    // Panel-private: what is folded is a way of looking, not a filter, and
+    // Rust has no use for it.
+    property <bool> shot-panel-open: false;
 
     // Thumbnail size (ADR 0055 §3), driven by the toolbar slider under the
     // grid. Panel-private and never stored: it is how one is looking right
@@ -359,6 +364,19 @@ export component BrowserPanel inherits HorizontalLayout {
                     }
                 }
 
+                FilterChip {
+                    // No emoji: the camera pictogram is a colour glyph that
+                    // simply vanishes on the fonts of a bare X session, and a
+                    // chip whose label disappears is worse than a plain one.
+                    text: FilterState.shot-count > 0
+                        ? @tr("Shot ({})", FilterState.shot-count)
+                        : @tr("Shot");
+                    active: FilterState.shot-count > 0;
+                    clicked => {
+                        shot-panel-open = !shot-panel-open;
+                    }
+                }
+
                 Rectangle {
                     horizontal-stretch: 1;
                 }
@@ -369,6 +387,109 @@ export component BrowserPanel inherits HorizontalLayout {
                     clicked => {
                         FilterState.cycle-sort();
                     }
+                }
+            }
+
+            // The shot filters (ADR 0064 §5): folded under the bar rather
+            // than off in a side tab, because they narrow the same grid as
+            // the stars and the labels just above, and looking for them
+            // somewhere else would be looking twice.
+            if shot-panel-open: VerticalLayout {
+                spacing: 6px;
+
+                if FilterState.shot-cameras.length > 0: HorizontalLayout {
+                    spacing: 6px;
+                    alignment: start;
+                    Text {
+                        text: @tr("Body");
+                        color: #9a9a9a;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                        width: 44px;
+                    }
+                    for camera[i] in FilterState.shot-cameras: FilterChip {
+                        text: camera;
+                        active: FilterState.shot-camera == i;
+                        clicked => {
+                            FilterState.camera-filter(i);
+                        }
+                    }
+                }
+
+                if FilterState.shot-lenses.length > 0: HorizontalLayout {
+                    spacing: 6px;
+                    alignment: start;
+                    Text {
+                        text: @tr("Lens");
+                        color: #9a9a9a;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                        width: 44px;
+                    }
+                    for lens[i] in FilterState.shot-lenses: FilterChip {
+                        text: lens;
+                        active: FilterState.shot-lens == i;
+                        clicked => {
+                            FilterState.lens-filter(i);
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 12px;
+                    alignment: start;
+                    iso-range := RangeField {
+                        label: "ISO";
+                        placeholder: "3200-";
+                        accepted(text) => {
+                            FilterState.shot-range("iso", text);
+                            root.return-focus();
+                        }
+                    }
+                    aperture-range := RangeField {
+                        label: "f/";
+                        placeholder: "-2.8";
+                        accepted(text) => {
+                            FilterState.shot-range("aperture", text);
+                            root.return-focus();
+                        }
+                    }
+                    focal-range := RangeField {
+                        label: "mm";
+                        placeholder: "24-70";
+                        accepted(text) => {
+                            FilterState.shot-range("focal", text);
+                            root.return-focus();
+                        }
+                    }
+                    shutter-range := RangeField {
+                        label: "s";
+                        placeholder: "-1/500";
+                        accepted(text) => {
+                            FilterState.shot-range("shutter", text);
+                            root.return-focus();
+                        }
+                    }
+                    FilterChip {
+                        text: @tr("Clear");
+                        active: false;
+                        enabled: FilterState.shot-count > 0;
+                        clicked => {
+                            iso-range.clear();
+                            aperture-range.clear();
+                            focal-range.clear();
+                            shutter-range.clear();
+                            FilterState.clear-shot-filters();
+                        }
+                    }
+                }
+
+                // The library holds nothing to filter on yet: say so, rather
+                // than show an empty row that looks broken.
+                if FilterState.shot-cameras.length == 0 && FilterState.shot-lenses.length == 0: Text {
+                    text: @tr("No camera or lens recorded in this library yet.");
+                    color: #666666;
+                    font-size: 12px;
                 }
             }
 

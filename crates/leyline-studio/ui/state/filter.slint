@@ -23,4 +23,23 @@ export global FilterState {
     callback keyword-filter(int);
     callback clear-keyword-filter();
     callback search(string);
+
+    // Shot filters (ADR 0064). The two lists are what the library was
+    // actually shot with, sent by Rust after every import or removal — a
+    // body nobody used is never offered.
+    in property <[string]> shot-cameras;
+    in property <[string]> shot-lenses;
+    // Index of the active body / lens in the lists above, -1 when off.
+    in property <int> shot-camera: -1;
+    in property <int> shot-lens: -1;
+    // How many shot criteria are on, shown on the chip that opens the panel
+    // so a filtered grid never looks unfiltered when the panel is folded.
+    in property <int> shot-count;
+    callback camera-filter(int);
+    callback lens-filter(int);
+    // A written interval — `min-max`, `min-` or `-max` — for one of "iso",
+    // "aperture", "focal", "shutter". Rust parses it: the same reader serves
+    // the CLI, so the two clients cannot disagree on what `1/200-` means.
+    callback shot-range(string, string);
+    callback clear-shot-filters();
 }

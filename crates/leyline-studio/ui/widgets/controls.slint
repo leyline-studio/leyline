@@ -110,6 +110,62 @@ export component FilterChip inherits Rectangle {
 // The centre is in **normalised image coordinates** — 0.5, 0.5 is the middle
 // of the photo whatever its pixel dimensions — so two images of different
 // sizes stay on the same relative area (§2, Alternatives).
+// One shot-filter interval, typed rather than dragged (ADR 0064 §1).
+//
+// Typed because both bounds are optional: a two-handle slider would have to
+// invent a way of saying "no upper bound at all", and "ISO ≥ 3200" is the
+// common request. The text is read by Rust, never here.
+export component RangeField inherits HorizontalLayout {
+    in property <string> label;
+    in property <string> placeholder;
+    callback accepted(string);
+
+    // Empties the field from outside, for the panel's Clear chip: once the
+    // user has typed, the input owns its text and no binding can take it
+    // back.
+    public function clear() {
+        input.text = "";
+    }
+
+    spacing: 5px;
+
+    Text {
+        text: root.label;
+        color: #9a9a9a;
+        font-size: 12px;
+        vertical-alignment: center;
+    }
+
+    Rectangle {
+        width: 84px;
+        height: 24px;
+        background: #1b1b1b;
+        border-radius: 12px;
+        border-width: 1px;
+        border-color: input.text == "" ? #333333 : #6fa8dc;
+        input := TextInput {
+            x: 9px;
+            width: parent.width - 18px;
+            height: 100%;
+            color: #e6e6e6;
+            font-size: 12px;
+            vertical-alignment: center;
+            single-line: true;
+            accepted => {
+                root.accepted(self.text);
+            }
+        }
+        if input.text == "" && !input.has-focus: Text {
+            x: 9px;
+            height: 100%;
+            text: root.placeholder;
+            color: #666666;
+            font-size: 12px;
+            vertical-alignment: center;
+        }
+    }
+}
+
 export component ZoomableImage inherits Rectangle {
     in property <image> source;
     in property <bool> zoomed;

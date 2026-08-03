@@ -9,8 +9,8 @@ use crate::classify;
 use crate::classify::Action;
 use crate::ui::{FilterState, GridState, StudioWindow};
 use crate::wiring::grid::reload;
-use leyline_sdk::{ColorLabel, PickState};
-use slint::{ComponentHandle, Global, SharedString};
+use leyline_sdk::{ColorLabel, GridQuery, PickState, ShotRange};
+use slint::{ComponentHandle, Global, Model, ModelRc, SharedString, VecModel};
 
 /// Applies a classement key (`0`–`9`, `p`, `x`, `u`) to the selection — every
 /// multi-selected photo when there is one, otherwise just the focused photo.
@@ -125,6 +125,97 @@ pub(crate) fn wire_filters(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
+        FilterState::get(window).on_camera_filter(move |index| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let clicked = FilterState::get(&window)
+                .get_shot_cameras()
+                .row_data(usize::try_from(index).unwrap_or(usize::MAX));
+            // Clicking the active body turns the filter off, the same way
+            // the label dots and the pick chips just above already behave.
+            app.query.camera = match (clicked, app.query.camera.take()) {
+                (Some(clicked), Some(active)) if active == clicked.as_str() => None,
+                (Some(clicked), _) => Some(clicked.to_string()),
+                (None, active) => active,
+            };
+            publish_shot_filters(&app, &window);
+            on_error(&window, reload(&mut app, &window));
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        FilterState::get(window).on_lens_filter(move |index| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let clicked = FilterState::get(&window)
+                .get_shot_lenses()
+                .row_data(usize::try_from(index).unwrap_or(usize::MAX));
+            app.query.lens = match (clicked, app.query.lens.take()) {
+                (Some(clicked), Some(active)) if active == clicked.as_str() => None,
+                (Some(clicked), _) => Some(clicked.to_string()),
+                (None, active) => active,
+            };
+            publish_shot_filters(&app, &window);
+            on_error(&window, reload(&mut app, &window));
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        FilterState::get(window).on_shot_range(move |which, text| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            // An unreadable interval is said, not swallowed: an empty grid
+            // would read as "the library holds none of those".
+            let range = match ShotRange::parse(text.as_str()) {
+                Ok(range) => range,
+                Err(error) => {
+                    report_error(&window, &error.to_string());
+                    return;
+                }
+            };
+            match which.as_str() {
+                "iso" => app.query.iso = range,
+                "aperture" => app.query.aperture = range,
+                "focal" => app.query.focal_length = range,
+                "shutter" => app.query.shutter_speed = range,
+                _ => return,
+            }
+            publish_shot_filters(&app, &window);
+            on_error(&window, reload(&mut app, &window));
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        FilterState::get(window).on_clear_shot_filters(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            // Also the way back when the last photo of a body has been
+            // removed: its chip is gone from the list, so nothing else could
+            // turn that filter off any more.
+            app.query.camera = None;
+            app.query.lens = None;
+            app.query.iso = ShotRange::default();
+            app.query.aperture = ShotRange::default();
+            app.query.focal_length = ShotRange::default();
+            app.query.shutter_speed = ShotRange::default();
+            publish_shot_filters(&app, &window);
+            on_error(&window, reload(&mut app, &window));
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
         FilterState::get(window).on_cycle_sort(move || {
             let Some(window) = handle.upgrade() else {
                 return;
@@ -139,4 +230,55 @@ pub(crate) fn wire_filters(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             on_error(&window, reload(&mut app, &window));
         });
     }
+}
+
+/// Sends the bodies and lenses the library was shot with to the filter panel
+/// (ADR 0064 §3).
+///
+/// Called when the library's contents change — an import, a removal — and
+/// not on every keystroke: the lists describe the whole library, so nothing
+/// a filter does can alter them.
+pub(crate) fn refresh_shot_facets(app: &App, window: &StudioWindow) -> Result<(), String> {
+    let facets = app
+        .library
+        .catalog()
+        .shot_facets()
+        .map_err(|e| e.to_string())?;
+    let shared = |values: &[String]| {
+        let rows: Vec<SharedString> = values.iter().map(SharedString::from).collect();
+        ModelRc::from(Rc::new(VecModel::from(rows)))
+    };
+    FilterState::get(window).set_shot_cameras(shared(&facets.cameras));
+    FilterState::get(window).set_shot_lenses(shared(&facets.lenses));
+    publish_shot_filters(app, window);
+    Ok(())
+}
+
+/// Mirrors the query's shot filters into the panel: which chip is lit, and
+/// how many criteria are on — the count is what a folded panel shows, so a
+/// narrowed grid never looks unfiltered.
+fn publish_shot_filters(app: &App, window: &StudioWindow) {
+    let state = FilterState::get(window);
+    let index = |value: Option<&String>, list: ModelRc<SharedString>| {
+        value
+            .and_then(|value| list.iter().position(|row| row.as_str() == value))
+            .and_then(|i| i32::try_from(i).ok())
+            .unwrap_or(-1)
+    };
+    state.set_shot_camera(index(app.query.camera.as_ref(), state.get_shot_cameras()));
+    state.set_shot_lens(index(app.query.lens.as_ref(), state.get_shot_lenses()));
+    state.set_shot_count(shot_count(&app.query));
+}
+
+/// How many shot criteria the query carries.
+fn shot_count(query: &GridQuery) -> i32 {
+    let ranges = [
+        query.iso,
+        query.aperture,
+        query.focal_length,
+        query.shutter_speed,
+    ];
+    let discrete = i32::from(query.camera.is_some()) + i32::from(query.lens.is_some());
+    let continuous = ranges.iter().filter(|r| !r.is_unbounded()).count();
+    discrete + i32::try_from(continuous).unwrap_or(0)
 }

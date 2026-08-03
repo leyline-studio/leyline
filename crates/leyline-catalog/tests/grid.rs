@@ -1,8 +1,11 @@
 //! Integration tests: the grid query (`docs/engine-api.md` §7).
 
-use leyline_catalog::{Catalog, GridQuery, NewAsset, RegisteredAsset, Sort};
+use leyline_catalog::{
+    CameraInfo, Catalog, GridQuery, LensInfo, Metadata, NewAsset, Rational, RegisteredAsset,
+    ShotFacets, ShotRange, Sort,
+};
 use leyline_core::Settings;
-use leyline_core::{ColorLabel, LeylineError, MediaType, PickState, VersionId};
+use leyline_core::{AssetId, ColorLabel, LeylineError, MediaType, PickState, VersionId};
 
 fn new_catalog(dir: &tempfile::TempDir) -> Catalog {
     Catalog::create(&dir.path().join("catalog.db"), "Grid").unwrap()
@@ -300,4 +303,257 @@ fn a_cell_says_whether_its_version_has_been_developed() {
     };
     assert_eq!(edited(untouched.version), Some(false));
     assert_eq!(edited(worked_on.version), Some(true));
+}
+
+/// Gives the three seeded assets their shot metadata: the heron on a 60D at
+/// ISO 3200, the eagle on a 5D Mark IV at ISO 400, the street shot on
+/// nothing at all — a photo whose EXIF says nothing is exactly the case the
+/// shot filters have to get right (ADR 0064 §1).
+fn with_shot_metadata(catalog: &mut Catalog, heron: AssetId, eagle: AssetId) {
+    catalog
+        .set_metadata(
+            heron,
+            &Metadata {
+                camera: Some(CameraInfo {
+                    manufacturer: "Canon".to_owned(),
+                    model: "EOS 60D".to_owned(),
+                }),
+                lens: Some(LensInfo {
+                    manufacturer: "Canon".to_owned(),
+                    model: "EF 50mm f/1.8 STM".to_owned(),
+                    mount: None,
+                }),
+                iso: Some(3200),
+                shutter: Some(Rational {
+                    numerator: 1,
+                    denominator: 200,
+                }),
+                aperture: Some(Rational {
+                    numerator: 18,
+                    denominator: 10,
+                }),
+                focal_length: Some(Rational {
+                    numerator: 50,
+                    denominator: 1,
+                }),
+                ..Metadata::default()
+            },
+        )
+        .unwrap();
+    catalog
+        .set_metadata(
+            eagle,
+            &Metadata {
+                camera: Some(CameraInfo {
+                    manufacturer: "Canon".to_owned(),
+                    model: "EOS 5D Mark IV".to_owned(),
+                }),
+                lens: Some(LensInfo {
+                    manufacturer: "Canon".to_owned(),
+                    model: "EF 70-200mm f/2.8L".to_owned(),
+                    mount: None,
+                }),
+                iso: Some(400),
+                shutter: Some(Rational {
+                    numerator: 1,
+                    denominator: 1000,
+                }),
+                aperture: Some(Rational {
+                    numerator: 80,
+                    denominator: 10,
+                }),
+                focal_length: Some(Rational {
+                    numerator: 200,
+                    denominator: 1,
+                }),
+                ..Metadata::default()
+            },
+        )
+        .unwrap();
+}
+
+#[test]
+fn shot_filters_select_by_body_lens_and_range() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+    let [heron, eagle, _street] = seeded(&mut catalog);
+    with_shot_metadata(&mut catalog, heron.asset, eagle.asset);
+
+    let matched = |query: &GridQuery| versions(&catalog.grid(query).unwrap());
+
+    // The body is matched by model alone or by "manufacturer model" — the
+    // semantics smart collections already used (ADR 0064 §2).
+    for name in ["EOS 60D", "Canon EOS 60D"] {
+        let query = GridQuery {
+            camera: Some(name.to_owned()),
+            ..GridQuery::default()
+        };
+        assert_eq!(matched(&query), vec![heron.version], "camera {name:?}");
+        assert_eq!(catalog.count(&query).unwrap(), 1);
+    }
+
+    let query = GridQuery {
+        lens: Some("Canon EF 70-200mm f/2.8L".to_owned()),
+        ..GridQuery::default()
+    };
+    assert_eq!(matched(&query), vec![eagle.version]);
+
+    // Continuous criteria: one bound, the other, or both.
+    let ranges: [(&str, GridQuery, Vec<VersionId>); 5] = [
+        (
+            "iso >= 3200",
+            GridQuery {
+                iso: ShotRange::at_least(3200.0),
+                ..GridQuery::default()
+            },
+            vec![heron.version],
+        ),
+        (
+            "iso <= 800",
+            GridQuery {
+                iso: ShotRange::at_most(800.0),
+                ..GridQuery::default()
+            },
+            vec![eagle.version],
+        ),
+        (
+            "aperture 1.4-2.8",
+            GridQuery {
+                aperture: ShotRange::between(1.4, 2.8),
+                ..GridQuery::default()
+            },
+            vec![heron.version],
+        ),
+        (
+            "focal >= 100",
+            GridQuery {
+                focal_length: ShotRange::at_least(100.0),
+                ..GridQuery::default()
+            },
+            vec![eagle.version],
+        ),
+        (
+            "shutter <= 1/500",
+            GridQuery {
+                shutter_speed: ShotRange::at_most(1.0 / 500.0),
+                ..GridQuery::default()
+            },
+            vec![eagle.version],
+        ),
+    ];
+    for (name, query, expected) in ranges {
+        assert_eq!(matched(&query), expected, "{name}");
+    }
+
+    // And they compose with each other and with the rest of the query.
+    let query = GridQuery {
+        camera: Some("EOS 60D".to_owned()),
+        iso: ShotRange::at_least(6400.0),
+        ..GridQuery::default()
+    };
+    assert!(matched(&query).is_empty());
+}
+
+#[test]
+fn a_photo_without_metadata_never_satisfies_a_shot_filter() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+    let [heron, eagle, street] = seeded(&mut catalog);
+    with_shot_metadata(&mut catalog, heron.asset, eagle.asset);
+
+    // The street shot has no metadata row at all: an absent measurement is
+    // not a match, however wide the interval.
+    let wide_open = GridQuery {
+        iso: ShotRange::between(0.0, 1_000_000.0),
+        ..GridQuery::default()
+    };
+    let matched = versions(&catalog.grid(&wide_open).unwrap());
+    assert_eq!(matched.len(), 2);
+    assert!(!matched.contains(&street.version));
+}
+
+#[test]
+fn a_reversed_range_is_refused_rather_than_answered_with_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+    seeded(&mut catalog);
+
+    let query = GridQuery {
+        iso: ShotRange::between(3200.0, 400.0),
+        ..GridQuery::default()
+    };
+    assert!(matches!(
+        catalog.grid(&query),
+        Err(LeylineError::InvalidSettings(_))
+    ));
+    assert!(matches!(
+        catalog.count(&query),
+        Err(LeylineError::InvalidSettings(_))
+    ));
+}
+
+#[test]
+fn facets_list_the_whole_library_not_the_current_selection() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+    let [heron, eagle, _street] = seeded(&mut catalog);
+
+    // An empty library offers nothing rather than a bogus interval.
+    let empty = catalog.shot_facets().unwrap();
+    assert_eq!(empty, ShotFacets::default());
+
+    with_shot_metadata(&mut catalog, heron.asset, eagle.asset);
+    let facets = catalog.shot_facets().unwrap();
+    assert_eq!(facets.cameras, ["Canon EOS 5D Mark IV", "Canon EOS 60D"]);
+    assert_eq!(
+        facets.lenses,
+        ["Canon EF 50mm f/1.8 STM", "Canon EF 70-200mm f/2.8L"]
+    );
+    assert_eq!(facets.iso, Some((400.0, 3200.0)));
+    assert_eq!(facets.aperture, Some((1.8, 8.0)));
+    assert_eq!(facets.focal_length, Some((50.0, 200.0)));
+    assert_eq!(facets.shutter_speed, Some((0.001, 0.005)));
+
+    // Every listed body is a value the camera filter accepts as it stands.
+    for camera in &facets.cameras {
+        let query = GridQuery {
+            camera: Some(camera.clone()),
+            ..GridQuery::default()
+        };
+        assert_eq!(catalog.count(&query).unwrap(), 1, "facet {camera:?}");
+    }
+}
+
+#[test]
+fn a_written_interval_reads_the_same_for_every_client() {
+    // The four written forms of ADR 0064 §5, plus the fraction a shutter
+    // speed is normally written with.
+    assert_eq!(
+        ShotRange::parse("100-800").unwrap(),
+        ShotRange::between(100.0, 800.0)
+    );
+    assert_eq!(
+        ShotRange::parse("3200-").unwrap(),
+        ShotRange::at_least(3200.0)
+    );
+    assert_eq!(ShotRange::parse(" -2.8 ").unwrap(), ShotRange::at_most(2.8));
+    assert_eq!(
+        ShotRange::parse("50").unwrap(),
+        ShotRange::between(50.0, 50.0)
+    );
+    assert_eq!(
+        ShotRange::parse("-1/500").unwrap(),
+        ShotRange::at_most(0.002)
+    );
+
+    // Blank is the absent filter, not an error: an emptied text field in
+    // Studio simply stops filtering.
+    assert!(ShotRange::parse("  ").unwrap().is_unbounded());
+
+    for refused in ["wide", "1/0", "24-", "-", "24-oo"] {
+        if refused == "24-" {
+            continue;
+        }
+        assert!(ShotRange::parse(refused).is_err(), "{refused:?}");
+    }
 }

@@ -12,7 +12,7 @@ use leyline_sdk::{
     HslBand, ImportOptions, LensCorrection, Library, LocalAdjustment, Lut, Margins, NoiseReduction,
     Orientation, PaperSize, Param, Perspective, PickState, Point, PresetId, PreviewKind,
     PrintRecipe, PrintRequest, PrintSettings, RenderingIntent, Settings, SettingsGroup, Sharpening,
-    SpotRemoval, ToneCurve, Value, VersionId, Watermark, WatermarkAnchor, WhiteBalance,
+    ShotRange, SpotRemoval, ToneCurve, Value, VersionId, Watermark, WatermarkAnchor, WhiteBalance,
 };
 
 const USAGE: &str = "\
@@ -25,6 +25,14 @@ Usage:
   leyline tether <library>
   leyline watch <library> <folder>
   leyline ls <library> [--text <query>] [--rating <min>]
+               [--camera <name>] [--lens <name>] [--iso <range>]
+               [--aperture <range>] [--focal <range>] [--shutter <range>]
+                                    shot filters (ADR 0064); a range is written
+                                    <min>-<max>, <min>- or -<max>, and speeds
+                                    may be fractions: --shutter -1/500
+  leyline facets <library>          the bodies, lenses and value ranges the
+                                    library actually holds — what the filters
+                                    above take
   leyline preview <library> <asset-id> [--kind <thumbnail|small|medium|large|full>]
   leyline export <library> <dest-dir> <version-id>...
                  [--preset <name>] [--format <f>] [--quality <1-100>] [--max-edge <px>]
@@ -153,6 +161,7 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("tether") => tether(&args[1..]),
         Some("watch") => watch(&args[1..]),
         Some("ls") => ls(&args[1..]),
+        Some("facets") => facets(&args[1..]),
         Some("preview") => preview(&args[1..]),
         Some("export") => export(&args[1..]),
         Some("preset") => preset(&args[1..]),
@@ -310,9 +319,20 @@ fn import(args: &[String]) -> Result<(), String> {
 }
 
 fn ls(args: &[String]) -> Result<(), String> {
-    let (positional, options) = parse(args, &["text", "rating"])?;
+    let (positional, options) = parse(
+        args,
+        &[
+            "text", "rating", "camera", "lens", "iso", "aperture", "focal", "shutter",
+        ],
+    )?;
     let [root] = positional.as_slice() else {
-        return Err("usage: leyline ls <library> [--text <query>] [--rating <min>]".to_owned());
+        return Err(
+            "usage: leyline ls <library> [--text <query>] [--rating <min>]\n\
+                    \x20                      [--camera <name>] [--lens <name>]\n\
+                    \x20                      [--iso <range>] [--aperture <range>]\n\
+                    \x20                      [--focal <range>] [--shutter <range>]"
+                .to_owned(),
+        );
     };
     let library = open(root)?;
     let query = GridQuery {
@@ -321,6 +341,12 @@ fn ls(args: &[String]) -> Result<(), String> {
             .value("rating")
             .map(|r| r.parse().map_err(|_| format!("bad rating {r:?}")))
             .transpose()?,
+        camera: options.value("camera").map(str::to_owned),
+        lens: options.value("lens").map(str::to_owned),
+        iso: shot_range("iso", options.value("iso"))?,
+        aperture: shot_range("aperture", options.value("aperture"))?,
+        focal_length: shot_range("focal", options.value("focal"))?,
+        shutter_speed: shot_range("shutter", options.value("shutter"))?,
         ..GridQuery::default()
     };
     let items = library.catalog().grid(&query).map_err(|e| e.to_string())?;
@@ -335,6 +361,51 @@ fn ls(args: &[String]) -> Result<(), String> {
         );
     }
     println!("{} version(s)", items.len());
+    Ok(())
+}
+
+/// One `--iso`/`--aperture`/`--focal`/`--shutter` value, read by the engine
+/// so the CLI and Studio cannot drift on what `1/200-` means.
+fn shot_range(name: &str, text: Option<&str>) -> Result<ShotRange, String> {
+    match text {
+        None => Ok(ShotRange::default()),
+        Some(text) => ShotRange::parse(text).map_err(|e| format!("--{name}: {e}")),
+    }
+}
+
+/// Prints what the library was shot with: the values the `ls` filters take,
+/// listed from the catalog itself so nothing has to be guessed (ADR 0064 §3).
+fn facets(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root] = positional.as_slice() else {
+        return Err("usage: leyline facets <library>".to_owned());
+    };
+    let library = open(root)?;
+    let facets = library.catalog().shot_facets().map_err(|e| e.to_string())?;
+    for camera in &facets.cameras {
+        println!("camera   {camera}");
+    }
+    for lens in &facets.lenses {
+        println!("lens     {lens}");
+    }
+    let bounds = |name: &str, range: Option<(f64, f64)>, show: &dyn Fn(f64) -> String| {
+        if let Some((min, max)) = range {
+            println!("{name:<8} {} – {}", show(min), show(max));
+        }
+    };
+    let plain = |value: f64| format!("{value}");
+    bounds("iso", facets.iso, &plain);
+    bounds("aperture", facets.aperture, &|value| format!("f/{value}"));
+    bounds("focal", facets.focal_length, &|value| format!("{value}mm"));
+    // A speed reads as the fraction it was shot at: `1/30`, not
+    // `0.03333333333333333s`, which is the same number and no help at all.
+    bounds("shutter", facets.shutter_speed, &|value| {
+        if value > 0.0 && value < 1.0 {
+            format!("1/{}s", (1.0 / value).round())
+        } else {
+            format!("{value}s")
+        }
+    });
     Ok(())
 }
 

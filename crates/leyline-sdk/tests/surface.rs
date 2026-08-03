@@ -21,8 +21,9 @@ use leyline_sdk::{
     LensCorrection, LeylineError, Library, LocalAdjustment, LocalAdjustmentValues, LuminanceRange,
     Margins, Mask, NoiseReduction, Orientation, PaperSize, PickState, Point, Preview, PreviewKind,
     PrintRecipe, PrintRequest, PrintSettings, RangeMask, RegisteredAsset, RenderingIntent,
-    RevisionId, Settings, Sharpening, SkippedFile, SpotRemoval, StageVersions, ToneCurve,
-    VersionId, WatchSessionEvent, WatchedFile, Watermark, WatermarkAnchor, WatermarkFont,
+    RevisionId, Settings, Sharpening, ShotFacets, ShotRange, SkippedFile, SpotRemoval,
+    StageVersions, ToneCurve, VersionId, WatchSessionEvent, WatchedFile, Watermark,
+    WatermarkAnchor, WatermarkFont,
 };
 
 /// A `Settings` built field by field, every nested type named through the
@@ -255,6 +256,21 @@ fn a_library_round_trip_needs_nothing_but_the_sdk() {
     let grid: Vec<GridItem> = library.catalog().grid(&GridQuery::default()).unwrap();
     assert!(grid.is_empty());
     assert_eq!(library.catalog().count(&GridQuery::default()).unwrap(), 0);
+
+    // The shot filters and the lists they are chosen from (ADR 0064), named
+    // from the SDK: a client never has to reach into the catalog crate.
+    let shot = GridQuery {
+        camera: Some("EOS 60D".to_owned()),
+        lens: Some("EF 50mm f/1.8 STM".to_owned()),
+        iso: ShotRange::at_least(3200.0),
+        aperture: ShotRange::at_most(2.8),
+        focal_length: ShotRange::between(24.0, 70.0),
+        shutter_speed: ShotRange::default(),
+        ..GridQuery::default()
+    };
+    assert_eq!(library.catalog().count(&shot).unwrap(), 0);
+    let facets: ShotFacets = library.catalog().shot_facets().unwrap();
+    assert!(facets.cameras.is_empty() && facets.iso.is_none());
     assert!(library.collections().unwrap().is_empty());
     library.close().unwrap();
 
