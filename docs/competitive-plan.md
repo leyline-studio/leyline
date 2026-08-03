@@ -289,14 +289,59 @@ passe à **~3 heures**, l'encodage devenant à lui seul les trois quarts du temp
    a pas de gaspillage à récupérer là sans changer les opérateurs eux-mêmes —
    et le cache d'étages de B1 est interdit ici par la promesse §5.1.
 
+### Face à RawTherapee et darktable
+
+Des chiffres absolus ne disent pas si l'export est lent — seulement combien il
+prend. Même machine, mêmes fichiers, même sortie JPEG q90, RAW → fichier de
+bout en bout (décodage compris), le 2026-08-03 :
+
+| Fichier | Traitement | Leyline | RawTherapee 5.12 | darktable 5.6 |
+|---|---|---|---|---|
+| 30 Mpx (5D IV) | neutre / défaut | **2,88 s** | 3,53 s | 5,44 s |
+| 10 Mpx (60D) | neutre / défaut | **0,90 s** | 1,10 s | 1,70 s |
+| 30 Mpx | édition comparable | 5,79 s | **5,69 s** | — |
+| 10 Mpx | édition comparable | **1,92 s** | 2,02 s | — |
+
+L'« édition comparable » applique des deux côtés balance des blancs, exposition,
+contraste, hautes lumières, ombres, noirs, vibrance, débruitage, accentuation,
+rotation et recadrage ; darktable en est absent faute d'un XMP équivalent, son
+rendu par défaut faisant déjà tourner sa chaîne *scene-referred* complète.
+
+**Le verdict est bon, et il n'était pas acquis** : sur le chemin neutre Leyline
+est le plus rapide des trois, et de loin le plus économe — 6,8 s de CPU là où
+RawTherapee en consomme 17,7 pour le même fichier. Chargé de réglages, l'écart
+avec RawTherapee tombe à 2 % (5,79 s contre 5,69), toujours avec ~18 % de CPU
+en moins. **Il n'y a donc pas de retard de performance à rattraper sur
+l'export.** Ce document supposait le contraire.
+
+### L'exception AVIF, et ce qu'elle coûte vraiment
+
+darktable exporte le même 30 Mpx en AVIF en **3,5 s**, là où Leyline met
+**14,7 s** — mais son fichier pèse 8,4 Mo contre 0,98 Mo pour le nôtre. Ce
+n'est donc pas le même travail, et l'écart brut ne prouve rien.
+
+Ce qui prouve quelque chose, c'est de bouger notre propre curseur. Le même
+export, `ravif` réglé sur trois vitesses :
+
+| `with_speed` | Temps | Fichier |
+|---|---|---|
+| 6 (valeur figée aujourd'hui) | 14,7 s | 0,98 Mo |
+| 9 | 11,1 s | 0,99 Mo |
+| 10 | **6,6 s** | 1,12 Mo |
+
+Passer de 6 à 9 rend **25 % du temps pour 1 % de poids** ; passer à 10 rend
+**55 % du temps pour 14 %**. Une valeur figée dans le code décide donc seule de
+cet arbitrage, sans que personne puisse le voir ni le changer. C'est le meilleur
+rapport gain/effort qui reste dans tout ce document.
+
 **Ce qui n'est pas mesuré :** l'impression (chemin PDF), et le coût mémoire
 d'un pipeline 45 Mpx, qui décidera de la profondeur du pipelinage envisagé au
 point 2.
 
 **Suites possibles, chacune avec son ADR :** exposer la vitesse d'encodage AVIF
-(et son défaut), et pipeliner le lot d'export. Aucune des deux ne touche à la
-reproductibilité : la première ne concerne que le codec, la seconde que l'ordre
-d'exécution.
+(et son défaut, que la mesure ci-dessus place plutôt vers 9 ou 10), et pipeliner
+le lot d'export. Aucune des deux ne touche à la reproductibilité : la première
+ne concerne que le codec, la seconde que l'ordre d'exécution.
 
 ## B3 — GPU : rouvrir la question, sur le chemin preview seul
 
@@ -319,6 +364,24 @@ exactement la séparation qu'ADR 0041 a déjà instaurée pour d'autres raisons.
 d'après-cache en main, comme ADR 0041 le demande. Si B1 suffit à rendre
 l'interaction fluide, le GPU ne se justifie plus au prix d'une dépendance et
 d'un second chemin de rendu à maintenir.
+
+**Réponse au 2026-08-03 : la condition n'est pas remplie, et le GPU ne se
+justifie pas.** Trois mesures le disent :
+
+* **B1 a rendu l'interaction fluide** — ~14 ms sur un curseur de fin de
+  pipeline, soit sous le seuil où l'œil voit une latence. Il n'y a plus de
+  gêne à supprimer sur le chemin où le GPU serait autorisé.
+* **Sur l'export, le GPU est interdit** par la promesse `pipeline.md` §5.1, et
+  c'est précisément le chemin qui prend des secondes. Un GPU qui ne peut pas
+  toucher au seul endroit qui coûte cher ne règle rien.
+* **Il n'y a pas de retard à rattraper** : à réglages comparables, Leyline
+  exporte aussi vite que RawTherapee et plus vite que darktable, tous deux sur
+  CPU eux aussi (voir B2). Le concurrent qu'on voudrait rattraper au GPU ne
+  l'utilise pas non plus.
+
+Et là où du temps est réellement gaspillé — 15 cœurs inoccupés pendant chaque
+encodage — la réponse est l'ordonnancement, pas un second processeur. **À
+reprendre si un jour l'interaction redevient le point douloureux**, pas avant.
 
 ---
 
@@ -404,7 +467,7 @@ L'ordre suit le rapport **gain ressenti / risque**, pas la difficulté.
 | ~~4~~ | ~~**A1.2** — appliquer les tables DCP~~ | **Livré le 2026-08-02** ([ADR 0062](adr/0062-dcp-illuminant-interpolation.md), [ADR 0063](adr/0063-dcp-tables.md)) | Oui (`camera_profile::v2`, `v3`) |
 | ~~5~~ | ~~**B2** — mesurer l'export~~ | **Mesuré le 2026-08-03**, voir §3 : bench `export.rs`, deux suites possibles identifiées | Non |
 | 6 | **A3** — profil de bruit | Coûteux en données ; donne une partie du gain visé par C1 | Oui |
-| 7 | **B3** — GPU preview | À rouvrir seulement si B1 ne suffit pas | Non (chemin preview) |
+| ~~7~~ | ~~**B3** — GPU preview~~ | **Écarté le 2026-08-03** : B1 a rendu l'interaction fluide, le GPU est interdit à l'export par §5.1, et la comparaison montre qu'il n'y a rien à rattraper (voir §3) | — |
 | 8 | **C2** — masques IA | Horizon ; seul item IA compatible avec §5.1 sans compromis | Non (masque matérialisé) |
 | 9 | **C1** — débruitage IA | Horizon lointain ; question de déterminisme non résolue | À trancher |
 
