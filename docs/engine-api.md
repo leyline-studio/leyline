@@ -164,6 +164,24 @@ pub struct ImportOptions {
     pub recursive: bool,
 }
 
+/// Ce qu'un scan regarde (ADR 0065 §1).
+pub struct ScanOptions {
+    pub recursive: bool,
+    pub thumbnails: bool,      // extraire l'imagette embarquée de chaque fichier
+}
+
+/// Un fichier qu'un import prendrait, décrit sans être pris.
+pub struct ImportCandidate {
+    pub path: PathBuf,
+    pub filename: String,
+    pub media_type: MediaType,
+    pub file_size: u64,
+    pub capture_date: Option<i64>,
+    pub camera: Option<String>,
+    pub already_imported: bool,        // indice par nom+taille, pas un verdict
+    pub thumbnail: Option<Vec<u8>>,    // JPEG, arête ≤ 256 px, orienté
+}
+
 impl Library {
     /// Le cœur synchrone : tient le catalogue pendant tout le lot.
     pub fn import(&self, source: &Path, options: &ImportOptions,
@@ -171,8 +189,35 @@ impl Library {
     /// Le job : retourne immédiatement, progresse par `JobProgress`,
     /// annonce `AssetsAdded` puis `JobFinished` avec le rapport.
     pub fn import_async(&self, source: &Path, options: &ImportOptions) -> JobId;
+
+    /// Import sélectif (ADR 0065 §4) : exactement ces fichiers-là, qui
+    /// doivent vivre sous `source`. Même pipeline, même rapport, mêmes
+    /// événements ; un fichier hors de `source` est écarté, pas rangé au
+    /// hasard.
+    pub fn import_files(&self, source: &Path, files: &[PathBuf],
+                        options: &ImportOptions,
+                        progress: impl FnMut(u64, u64)) -> Result<ImportReport>;
+    pub fn import_files_async(&self, source: &Path, files: &[PathBuf],
+                              options: &ImportOptions) -> JobId;
+
+    /// Ce qu'un import prendrait, **sans rien écrire** (ADR 0065 §1).
+    pub fn scan_import(&self, source: &Path, options: &ScanOptions,
+                       progress: impl FnMut(u64, u64)) -> Result<Vec<ImportCandidate>>;
+    /// Le job correspondant : `JobProgress` par fichier, puis
+    /// `JobFinished` avec `JobResult::Scan`. Rien n'étant écrit, rien
+    /// d'autre n'est annoncé — ni `AssetsAdded`, ni `AssetsChanged`.
+    pub fn scan_import_async(&self, source: &Path, options: &ScanOptions) -> JobId;
 }
 ```
+
+**Regarder avant de prendre** (ADR 0065). Un scan énumère exactement ce que
+l'import retiendrait — même parcours, même filtre d'extension, même tri, le
+code d'énumération étant partagé — et ne lit que des en-têtes. L'imagette d'un
+candidat est celle que le boîtier a écrite dans le fichier (`leyline_raw::thumbnail`),
+réduite et réorientée : jamais un rendu du pipeline, puisqu'un candidat n'a pas
+de révision à rendre. Le marquage `already_imported` compare nom et taille
+(catalogue §43) ; l'empreinte BLAKE3 de l'import reste la seule réponse exacte,
+et c'est elle qui refuse.
 
 L'import est un travail : extraction EXIF, checksum BLAKE3, création de la révision initiale et de la version `Default` (catalogue §18) — en flux, avec `JobProgress` par fichier candidat. Chaque asset importé avec succès reçoit aussi sa miniature (`PreviewKind::Thumbnail`) avant que `import`/`import_async` ne retourne, via le même cœur que `preview_async` (§11) : le client n'a plus besoin de la déclencher lui-même après coup. Un échec de rendu de miniature n'annule jamais l'import de l'asset — il reste importé, sans miniature en cache, et retombe sur le chemin paresseux existant (`cached_preview` puis `preview_async`) la première fois qu'il doit s'afficher. Ce rendu est fait séquentiellement, asset par asset : la miniature partage le verrou du catalogue avec le reste de l'import (§11), le paralléliser demanderait de revoir ce verrouillage, pas seulement d'itérer avec `rayon`.
 

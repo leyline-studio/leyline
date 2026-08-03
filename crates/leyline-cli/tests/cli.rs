@@ -452,3 +452,74 @@ fn facets_list_what_the_library_was_shot_with() {
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(stdout(&out).is_empty(), "{}", stdout(&out));
 }
+
+#[test]
+fn scan_lists_what_an_import_would_take_without_taking_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("Lib");
+    let root_s = root.to_str().unwrap().to_owned();
+    assert!(run(&["new", &root_s]).status.success());
+
+    let source = dir.path().join("Card");
+    std::fs::create_dir(&source).unwrap();
+    sample_png(&source.join("a.png"));
+    std::fs::write(source.join("notes.txt"), b"not a photo").unwrap();
+    let source_s = source.to_str().unwrap().to_owned();
+
+    let out = run(&["scan", &root_s, &source_s]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    let listing = stdout(&out);
+    assert!(listing.contains("a.png"), "{listing}");
+    assert!(!listing.contains("notes.txt"), "{listing}");
+    assert!(listing.contains("1 candidate(s), 0 already"), "{listing}");
+
+    // Nothing was written: the library is still empty.
+    assert!(stdout(&run(&["ls", &root_s])).contains("0 version(s)"));
+
+    // Once imported, the same scan says so — that mark is what a second
+    // pass over the same card is for.
+    assert!(run(&["import", &root_s, &source_s]).status.success());
+    let listing = stdout(&run(&["scan", &root_s, &source_s]));
+    assert!(listing.contains("1 candidate(s), 1 already"), "{listing}");
+}
+
+#[test]
+fn import_only_takes_the_named_files_and_says_when_one_is_missing() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("Lib");
+    let root_s = root.to_str().unwrap().to_owned();
+    assert!(run(&["new", &root_s]).status.success());
+
+    let source = dir.path().join("Card");
+    std::fs::create_dir(&source).unwrap();
+    // Two distinct images: identical bytes would make the second a
+    // duplicate of the first, which is a different test.
+    sample_png(&source.join("keep.png"));
+    image::save_buffer(
+        source.join("leave.png"),
+        &[64u8; 8 * 8 * 3],
+        8,
+        8,
+        image::ExtendedColorType::Rgb8,
+    )
+    .unwrap();
+    let source_s = source.to_str().unwrap().to_owned();
+
+    let out = run(&["import", &root_s, &source_s, "--only", "keep.png"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(
+        stdout(&out).contains("1 imported, 0 skipped"),
+        "{}",
+        stdout(&out)
+    );
+    let listing = stdout(&run(&["ls", &root_s]));
+    assert!(
+        listing.contains("keep.png") && !listing.contains("leave.png"),
+        "{listing}"
+    );
+
+    // A name that matches nothing is refused: the user asked for that photo.
+    let out = run(&["import", &root_s, &source_s, "--only", "absent.png"]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("no such file"), "{}", stderr(&out));
+}

@@ -103,7 +103,26 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
                 state.set_job_caption(SharedString::new());
                 state.set_job_done(true);
             }
-            if app.import_job == Some(job_id) {
+            if app.scan_job == Some(job_id) {
+                // A scan is not a job the dialog's progress bar owns: it
+                // wrote nothing, and what it produced is a list to look at,
+                // not an outcome to announce (ADR 0065 §1).
+                app.scan_job = None;
+                match result {
+                    JobResult::Scan(candidates) => {
+                        let found = candidates.len();
+                        crate::wiring::dialogs::import::show_candidates(app, window, candidates);
+                        DialogState::get(window).set_dialog_result(
+                            Tr::get(window).invoke_scan_found(i32::try_from(found).unwrap_or(0)),
+                        );
+                    }
+                    JobResult::Failed(reason) => {
+                        DialogState::get(window)
+                            .set_dialog_result(SharedString::from(reason.as_str()));
+                    }
+                    _ => {}
+                }
+            } else if app.import_job == Some(job_id) {
                 app.import_job = None;
                 DialogState::get(window).set_dialog_result(match result {
                     JobResult::Import(report) => {
@@ -117,6 +136,11 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
                 // No explicit reload here: a successful import already
                 // emitted `AssetsAdded` (handled below), and an import that
                 // added nothing (every file skipped) leaves the grid as-is.
+                //
+                // The candidate list did its job and is released with the
+                // choice it served (ADR 0065, Conséquences); the dialog goes
+                // back to meaning "this whole folder".
+                crate::wiring::dialogs::import::clear_candidates(app, window);
             } else if app.export_job == Some(job_id) {
                 app.export_job = None;
                 DialogState::get(window).set_dialog_result(match result {

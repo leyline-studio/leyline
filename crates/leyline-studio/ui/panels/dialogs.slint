@@ -28,6 +28,12 @@ export component DialogOverlay inherits Rectangle {
             DialogState.job-progress = -1;
             DialogState.job-done = false;
             DialogState.dialog-result = "";
+            // Same reason for the import contact sheet (ADR 0065 §5): a
+            // list of what some other folder held, still ticked, is worse
+            // than no list — the dialog reopens meaning "this folder".
+            DialogState.import-candidates = [];
+            DialogState.import-scanned = false;
+            DialogState.import-chosen = 0;
         }
         background: #000000aa;
         TouchArea {

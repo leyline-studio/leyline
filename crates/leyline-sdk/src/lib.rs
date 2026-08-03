@@ -18,10 +18,11 @@ pub use leyline_core::{
 pub use leyline_engine::{
     CatalogRead, CatalogWrite, DEFAULT_AMEND_WINDOW, EditSession, Event, ExportRecipe,
     ExportReport, ExportRequest, ExportedVersion, FailedApply, FailedExport, FailedPrint,
-    FailedReprocess, ImportOptions, ImportReport, ImportedCameraProfile, ImportedFile, ImportedLut,
-    JobResult, Library, Param, PresetApplyReport, Preview, PreviewFile, PrintRecipe, PrintReport,
-    PrintRequest, PrintedVersion, RemovalReport, ReprocessReport, Rgb8, SkippedFile, SoftProof,
-    SourceColor, Value, WatchError, WatchSessionEvent, WatchedFile, neutral_settings,
+    FailedReprocess, ImportCandidate, ImportOptions, ImportReport, ImportedCameraProfile,
+    ImportedFile, ImportedLut, JobResult, Library, Param, PresetApplyReport, Preview, PreviewFile,
+    PrintRecipe, PrintReport, PrintRequest, PrintedVersion, RemovalReport, ReprocessReport, Rgb8,
+    ScanOptions, SkippedFile, SoftProof, SourceColor, Value, WatchError, WatchSessionEvent,
+    WatchedFile, neutral_settings,
 };
 
 pub use leyline_catalog::{

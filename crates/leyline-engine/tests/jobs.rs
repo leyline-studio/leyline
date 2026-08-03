@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use leyline_core::{JobId, PreviewKind, VersionId};
 use leyline_engine::{
-    Event, ExportRecipe, ExportRequest, ImportOptions, JobResult, Library, Preview,
+    Event, ExportRecipe, ExportRequest, ImportOptions, JobResult, Library, Preview, ScanOptions,
 };
 use leyline_export::ExportSettings;
 
@@ -682,5 +682,101 @@ fn many_concurrent_preview_jobs_all_complete_behind_the_bounded_pool() {
             matches!(finished.get(&job), Some(JobResult::Preview(_))),
             "job {job:?} did not finish with a Preview result"
         );
+    }
+}
+
+#[test]
+fn a_scan_job_reports_what_is_there_and_announces_nothing_else() {
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::create(&dir.path().join("Library"), "Jobs").unwrap();
+    let events = library.subscribe();
+
+    let source = dir.path().join("Card");
+    std::fs::create_dir(&source).unwrap();
+    sample_png(&source.join("a.png"));
+
+    let job = library.scan_import_async(
+        &source,
+        &ScanOptions {
+            recursive: false,
+            thumbnails: true,
+        },
+    );
+    let received = drain_until_finished(&events, job);
+
+    // A scan writes nothing, so it announces nothing about assets.
+    assert!(
+        !received
+            .iter()
+            .any(|e| matches!(e, Event::AssetsAdded { .. } | Event::AssetsChanged { .. })),
+        "{received:?}"
+    );
+    match received.last() {
+        Some(Event::JobFinished {
+            result: JobResult::Scan(candidates),
+            ..
+        }) => {
+            assert_eq!(candidates.len(), 1);
+            assert_eq!(candidates[0].filename, "a.png");
+            assert!(candidates[0].thumbnail.is_some());
+        }
+        other => panic!("expected a scan JobFinished, got {other:?}"),
+    }
+    assert_eq!(
+        library
+            .catalog()
+            .count(&leyline_catalog::GridQuery::default())
+            .unwrap(),
+        0
+    );
+}
+
+#[test]
+fn a_selective_import_job_takes_only_the_chosen_files() {
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::create(&dir.path().join("Library"), "Jobs").unwrap();
+    let events = library.subscribe();
+
+    let source = dir.path().join("Card");
+    std::fs::create_dir(&source).unwrap();
+    sample_png(&source.join("a.png"));
+    image::save_buffer(
+        source.join("b.png"),
+        &[10u8; 4 * 2 * 3],
+        4,
+        2,
+        image::ExtendedColorType::Rgb8,
+    )
+    .unwrap();
+
+    let job = library.import_files_async(
+        &source,
+        &[source.join("b.png")],
+        &ImportOptions {
+            copy_files: true,
+            recursive: false,
+        },
+    );
+    let received = drain_until_finished(&events, job);
+
+    // Same event contract as a whole-folder import: progress, AssetsAdded,
+    // then the report.
+    assert!(received.iter().any(|e| matches!(
+        e,
+        Event::JobProgress {
+            done: 1,
+            total: 1,
+            ..
+        }
+    )));
+    match received.last() {
+        Some(Event::JobFinished {
+            result: JobResult::Import(report),
+            ..
+        }) => {
+            assert_eq!(report.imported.len(), 1);
+            assert_eq!(report.imported[0].relative_path, "Photos/b.png");
+        }
+        other => panic!("expected an import JobFinished, got {other:?}"),
     }
 }

@@ -39,6 +39,7 @@ use crate::presets::PresetApplyReport;
 use crate::preview::{Preview, PreviewFile};
 use crate::print::{PrintRecipe, PrintReport, PrintRequest};
 use crate::reprocess::ReprocessReport;
+use crate::scan::{ImportCandidate, ScanOptions};
 use crate::session::EditSession;
 
 /// Decoded images kept in memory for preview renders. Two covers the
@@ -568,6 +569,80 @@ impl Library {
         Ok(report)
     }
 
+    /// Imports exactly the files given, which must live under `source`
+    /// (ADR 0065 §4) — the counterpart of [`Library::import`] for a client
+    /// that has let the user choose from a [`Library::scan_import`].
+    ///
+    /// Same pipeline, same report, same thumbnail pass; a file outside
+    /// `source` is skipped, never filed at random.
+    pub fn import_files(
+        &self,
+        source: &Path,
+        files: &[PathBuf],
+        options: &ImportOptions,
+        progress: impl FnMut(u64, u64),
+    ) -> Result<ImportReport> {
+        let report = {
+            let mut catalog = lock(&self.inner.catalog);
+            crate::import::import_files(
+                &mut catalog,
+                &self.inner.root,
+                source,
+                files,
+                options,
+                progress,
+            )
+        }?;
+        self.generate_import_thumbnails(&report.imported);
+        Ok(report)
+    }
+
+    /// Lists what an import of `source` would take, **writing nothing**
+    /// (ADR 0065 §1): names, capture facts, likely duplicates, and — when
+    /// asked — the preview each file carries inside itself.
+    ///
+    /// Reads headers only. Prefer [`Library::scan_import_async`] from an
+    /// interactive client: a full card is hundreds of files.
+    pub fn scan_import(
+        &self,
+        source: &Path,
+        options: &ScanOptions,
+        progress: impl FnMut(u64, u64),
+    ) -> Result<Vec<ImportCandidate>> {
+        let catalog = lock(&self.inner.catalog);
+        crate::scan::scan(&catalog, source, options, progress)
+    }
+
+    /// Scans as a job (§3.1): returns immediately, progresses as
+    /// `JobProgress` per file, then `JobFinished` with `JobResult::Scan`.
+    ///
+    /// Nothing is written, so nothing is announced beyond the job itself —
+    /// no `AssetsAdded`, no `AssetsChanged`.
+    pub fn scan_import_async(&self, source: &Path, options: &ScanOptions) -> JobId {
+        let job = self.new_job();
+        let library = self.clone();
+        let source = source.to_owned();
+        let options = options.clone();
+        self.spawn_job(move || {
+            let scanned = library.scan_import(&source, &options, |done, total| {
+                library.emit(Event::JobProgress {
+                    job_id: job,
+                    done,
+                    total,
+                });
+            });
+            let result = match scanned {
+                Ok(candidates) => JobResult::Scan(candidates),
+                Err(error) => JobResult::Failed(error.to_string()),
+            };
+            library.emit(Event::JobFinished {
+                job_id: job,
+                result,
+            });
+        });
+        job
+    }
+
     /// Best-effort thumbnail pass for freshly imported assets (§6, §11).
     ///
     /// Run serially: [`Library::preview`] holds the catalog lock for the
@@ -587,18 +662,45 @@ impl Library {
     /// `JobProgress` per candidate file, then `AssetsAdded` and
     /// `JobFinished` with the report.
     pub fn import_async(&self, source: &Path, options: &ImportOptions) -> JobId {
+        self.spawn_import(source, None, options)
+    }
+
+    /// Imports a chosen list as a job — [`Library::import_files`] with the
+    /// event contract of [`Library::import_async`] (ADR 0065 §5).
+    pub fn import_files_async(
+        &self,
+        source: &Path,
+        files: &[PathBuf],
+        options: &ImportOptions,
+    ) -> JobId {
+        self.spawn_import(source, Some(files.to_vec()), options)
+    }
+
+    /// The body both import jobs share: whole folder when `files` is `None`,
+    /// exactly that list otherwise. One place emits the events, so the two
+    /// cannot drift on what an import announces.
+    fn spawn_import(
+        &self,
+        source: &Path,
+        files: Option<Vec<PathBuf>>,
+        options: &ImportOptions,
+    ) -> JobId {
         let job = self.new_job();
         let library = self.clone();
         let source = source.to_owned();
         let options = *options;
         self.spawn_job(move || {
-            let imported = library.import(&source, &options, |done, total| {
+            let progress = |done, total| {
                 library.emit(Event::JobProgress {
                     job_id: job,
                     done,
                     total,
                 });
-            });
+            };
+            let imported = match &files {
+                None => library.import(&source, &options, progress),
+                Some(files) => library.import_files(&source, files, &options, progress),
+            };
             let result = match imported {
                 Ok(report) => {
                     let asset_ids: Vec<AssetId> = report

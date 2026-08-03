@@ -11,8 +11,9 @@ use std::rc::Rc;
 use crate::map_view;
 use crate::ui::{Cell, LibraryState, StudioWindow, Tr};
 use leyline_sdk::{
-    AssetId, CollectionId, Event, ExportPreset, FolderId, GridItem, GridQuery, JobId, KeywordId,
-    Library, MapPin, Preset, PresetSettings, PrintPreset, RevisionRow, Sort, VersionId,
+    AssetId, CollectionId, Event, ExportPreset, FolderId, GridItem, GridQuery, ImportCandidate,
+    JobId, KeywordId, Library, MapPin, Preset, PresetSettings, PrintPreset, RevisionRow, Sort,
+    VersionId,
 };
 use slint::{Global, SharedString, VecModel};
 
@@ -135,6 +136,15 @@ pub(crate) struct App {
     pub(crate) events: std::sync::mpsc::Receiver<Event>,
     /// The import job the dialog is waiting on, when one runs.
     pub(crate) import_job: Option<JobId>,
+    /// The import scan the dialog is waiting on (ADR 0065 §5).
+    pub(crate) scan_job: Option<JobId>,
+    /// What the last scan found, each line with the tick the user gave it.
+    /// Empty until a scan runs: the dialog then still means "import this
+    /// whole folder", exactly as it did before.
+    pub(crate) candidates: Vec<(ImportCandidate, bool)>,
+    /// The folder those candidates came from — what an import of a chosen
+    /// list needs to place the files under `Photos/`.
+    pub(crate) candidate_source: std::path::PathBuf,
     /// The export job the dialog is waiting on, when one runs.
     pub(crate) export_job: Option<JobId>,
     /// The print job the dialog is waiting on, when one runs (ADR 0036).

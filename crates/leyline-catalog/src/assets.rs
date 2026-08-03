@@ -238,6 +238,34 @@ impl Catalog {
         }
     }
 
+    /// Every asset's file name and size, in no particular order.
+    ///
+    /// What an import scan compares its candidates against (ADR 0065 §3): a
+    /// name and a size say "you have probably already imported this one"
+    /// without reading a single byte of the file. The exact answer stays the
+    /// checksum of [`Catalog::find_asset_by_checksum`], which is what the
+    /// import itself uses to refuse.
+    ///
+    /// Returned whole rather than queried per candidate: no index leads with
+    /// `filename` (`docs/catalog.md` §32), so a lookup per file would scan
+    /// the table once per file.
+    pub fn asset_names_and_sizes(&self) -> Result<Vec<(String, u64)>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT filename, file_size FROM assets")
+            .map_err(db_err)?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, i64>(1)?.max(0) as u64,
+                ))
+            })
+            .map_err(db_err)?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(db_err)
+    }
+
     /// Returns the library-relative path of an asset's file, always derived
     /// from its folder (`docs/catalog.md` §9: no stored asset path).
     pub fn asset_relative_path(&self, asset: AssetId) -> Result<String> {

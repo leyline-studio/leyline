@@ -49,6 +49,7 @@ bundled-basemap = []
 
 [dev-dependencies]
 image.workspace = true
+leyline-raw.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true

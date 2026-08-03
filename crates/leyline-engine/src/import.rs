@@ -65,16 +65,39 @@ pub fn import(
     library_root: &Path,
     source: &Path,
     options: &ImportOptions,
+    progress: impl FnMut(u64, u64),
+) -> Result<ImportReport> {
+    let files = collect_files(source, options.recursive)?;
+    import_files(catalog, library_root, source, &files, options, progress)
+}
+
+/// Imports exactly `files`, which must live under `source` (ADR 0065 §4).
+///
+/// The same per-file pipeline as [`import`] — this is what [`import`] itself
+/// runs once it has enumerated the folder. A file outside `source` is
+/// skipped rather than filed somewhere arbitrary: `source` is what gives a
+/// copied file its place under `Photos/`.
+pub fn import_files(
+    catalog: &mut Catalog,
+    library_root: &Path,
+    source: &Path,
+    files: &[PathBuf],
+    options: &ImportOptions,
     mut progress: impl FnMut(u64, u64),
 ) -> Result<ImportReport> {
-    let mut files = Vec::new();
-    collect(source, options.recursive, &mut files)?;
-    files.sort();
-
     let total = files.len() as u64;
     let mut report = ImportReport::default();
     for (done, file) in files.iter().enumerate() {
-        match import_one(catalog, library_root, source, file, options) {
+        let outside = source.is_dir() && !file.starts_with(source);
+        let outcome = if outside {
+            Err(Skip(format!(
+                "file sits outside the import source {}",
+                source.display()
+            )))
+        } else {
+            import_one(catalog, library_root, source, file, options)
+        };
+        match outcome {
             Ok(imported) => report.imported.push(imported),
             Err(Skip(reason)) => report.skipped.push(SkippedFile {
                 path: file.clone(),
@@ -239,6 +262,18 @@ fn initial_settings(media_type: MediaType) -> leyline_core::Settings {
         settings.output_rendering.highlight_rolloff = 0;
     }
     settings
+}
+
+/// Every file under `source` an import would consider, sorted by path —
+/// hidden entries excluded, extensions not yet judged.
+///
+/// Shared with the scan (ADR 0065 §1): two enumerations that could diverge
+/// would make the list a client shows differ from what an import then takes.
+pub(crate) fn collect_files(source: &Path, recursive: bool) -> Result<Vec<PathBuf>> {
+    let mut files = Vec::new();
+    collect(source, recursive, &mut files)?;
+    files.sort();
+    Ok(files)
 }
 
 /// Collects candidate files under `source`, hidden entries excluded.

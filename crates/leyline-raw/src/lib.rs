@@ -212,6 +212,31 @@ pub struct RawImage {
     pub data: Vec<u8>,
 }
 
+/// The preview a camera wrote inside its own RAW file (ADR 0065 §2).
+///
+/// Extracting it costs a header read and a copy — no sensor data is unpacked
+/// and no interpolation runs. That is the whole point: it is how a file can
+/// be *looked at* before anyone decides to import it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Thumbnail {
+    /// The preview, in whichever form the body stored it.
+    pub kind: ThumbnailKind,
+    /// The RAW's own orientation tag ([`RawMetadata::flip`]), for a preview
+    /// that carries none of its own — LibRaw applies no rotation here, unlike
+    /// [`decode`].
+    pub flip: i32,
+}
+
+/// How a body stored its embedded preview.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ThumbnailKind {
+    /// A JPEG, byte for byte as the camera wrote it. The usual case.
+    Jpeg(Vec<u8>),
+    /// An uncompressed RGB bitmap: a few bodies (and some DNG writers)
+    /// store one instead.
+    Bitmap(RawImage),
+}
+
 /// Result of [`decode`]: pixels plus the identification metadata.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Decoded {
@@ -322,6 +347,56 @@ impl Drop for ProcessedImage {
 /// data. Cheap: header parsing only.
 pub fn identify(path: &Path) -> Result<RawMetadata, RawError> {
     Ok(Handle::open(path)?.metadata())
+}
+
+/// Extracts the preview the camera embedded in a RAW file, without decoding
+/// any sensor data (ADR 0065 §2).
+///
+/// `Ok(None)` when the file carries no preview, or one this LibRaw build
+/// cannot extract: both are ordinary facts about a file — a scan showing
+/// every other photo must not stop on them.
+pub fn thumbnail(path: &Path) -> Result<Option<Thumbnail>, RawError> {
+    let handle = Handle::open(path)?;
+    // SAFETY: the handle is valid; unpack_thumb follows open, and
+    // make_mem_thumb follows unpack_thumb — LibRaw's mandated order.
+    unsafe {
+        let flip = ffi::leyline_shim_flip(handle.0);
+        match ffi::libraw_unpack_thumb(handle.0) {
+            0 => {}
+            ffi::LIBRAW_NO_THUMBNAIL | ffi::LIBRAW_UNSUPPORTED_THUMBNAIL => return Ok(None),
+            code => return Err(check(code).unwrap_err()),
+        }
+
+        let mut errc: c_int = 0;
+        let thumb = ffi::libraw_dcraw_make_mem_thumb(handle.0, &mut errc);
+        if thumb.is_null() {
+            return match errc {
+                ffi::LIBRAW_NO_THUMBNAIL | ffi::LIBRAW_UNSUPPORTED_THUMBNAIL => Ok(None),
+                code => Err(check(code).err().unwrap_or_else(|| {
+                    RawError::Decode("libraw_dcraw_make_mem_thumb returned NULL".to_owned())
+                })),
+            };
+        }
+        let thumb = ProcessedImage(thumb);
+
+        let len = ffi::leyline_shim_image_size(thumb.0) as usize;
+        let bytes = std::slice::from_raw_parts(ffi::leyline_shim_image_data(thumb.0), len);
+        let kind = match ffi::leyline_shim_image_type(thumb.0) {
+            ffi::LIBRAW_IMAGE_JPEG => ThumbnailKind::Jpeg(bytes.to_vec()),
+            ffi::LIBRAW_IMAGE_BITMAP if ffi::leyline_shim_image_colors(thumb.0) == 3 => {
+                ThumbnailKind::Bitmap(RawImage {
+                    width: ffi::leyline_shim_image_width(thumb.0).max(0) as u32,
+                    height: ffi::leyline_shim_image_height(thumb.0).max(0) as u32,
+                    bits: ffi::leyline_shim_image_bits(thumb.0) as u8,
+                    data: bytes.to_vec(),
+                })
+            }
+            // A layout no caller could read: treated as "no usable preview"
+            // rather than an error, for the same reason as above.
+            _ => return Ok(None),
+        };
+        Ok(Some(Thumbnail { kind, flip }))
+    }
 }
 
 /// Decodes a RAW file to an RGB image.
@@ -519,6 +594,54 @@ mod tests {
         assert!(matches!(err, RawError::Unsupported), "got {err:?}");
         let err = decode(file.path(), &DecodeParams::default()).unwrap_err();
         assert!(matches!(err, RawError::Unsupported), "got {err:?}");
+        let err = thumbnail(file.path()).unwrap_err();
+        assert!(matches!(err, RawError::Unsupported), "got {err:?}");
+    }
+
+    /// The embedded preview of a real RAW file (ADR 0065 §2). Same sample
+    /// as the decode test: `LEYLINE_TEST_RAW=... cargo test -p leyline-raw
+    /// -- --ignored`.
+    #[test]
+    #[ignore = "needs a real RAW file via LEYLINE_TEST_RAW"]
+    fn extracts_the_embedded_preview_of_a_real_raw_file() {
+        let path = std::env::var("LEYLINE_TEST_RAW").expect("set LEYLINE_TEST_RAW");
+        let path = Path::new(&path);
+        let thumb = thumbnail(path).unwrap().expect("this body writes one");
+        assert_eq!(thumb.flip, identify(path).unwrap().flip);
+        match &thumb.kind {
+            ThumbnailKind::Jpeg(bytes) => {
+                // Really a JPEG, not whatever LibRaw had lying around.
+                assert!(bytes.len() > 1024);
+                assert_eq!(&bytes[..2], &[0xFF, 0xD8]);
+            }
+            ThumbnailKind::Bitmap(image) => {
+                assert!(image.width > 0 && image.height > 0);
+                assert_eq!(
+                    image.data.len(),
+                    image.width as usize * image.height as usize * 3
+                );
+            }
+        }
+
+        // Extracting it costs no sensor decode: it must stay far cheaper
+        // than the smallest full decode, which is the reason it exists.
+        let start = std::time::Instant::now();
+        thumbnail(path).unwrap();
+        let embedded = start.elapsed();
+        let start = std::time::Instant::now();
+        decode(
+            path,
+            &DecodeParams {
+                half_size: true,
+                ..DecodeParams::default()
+            },
+        )
+        .unwrap();
+        assert!(
+            embedded < start.elapsed(),
+            "embedded preview took {embedded:?}, half-size decode {:?}",
+            start.elapsed()
+        );
     }
 
     /// End-to-end decode of a real RAW file. Needs a sample: run with

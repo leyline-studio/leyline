@@ -11,8 +11,9 @@ use leyline_sdk::{
     ExportFormat, ExportRecipe, ExportRequest, ExportSettings, GridQuery, HighlightReconstruction,
     HslBand, ImportOptions, LensCorrection, Library, LocalAdjustment, Lut, Margins, NoiseReduction,
     Orientation, PaperSize, Param, Perspective, PickState, Point, PresetId, PreviewKind,
-    PrintRecipe, PrintRequest, PrintSettings, RenderingIntent, Settings, SettingsGroup, Sharpening,
-    ShotRange, SpotRemoval, ToneCurve, Value, VersionId, Watermark, WatermarkAnchor, WhiteBalance,
+    PrintRecipe, PrintRequest, PrintSettings, RenderingIntent, ScanOptions, Settings,
+    SettingsGroup, Sharpening, ShotRange, SpotRemoval, ToneCurve, Value, VersionId, Watermark,
+    WatermarkAnchor, WhiteBalance,
 };
 
 const USAGE: &str = "\
@@ -21,7 +22,13 @@ Leyline — open-source RAW photo development
 Usage:
   leyline new <library> [--name <name>]
   leyline info <library>
-  leyline import <library> <source> [--reference] [--flat]
+  leyline import <library> <source> [--reference] [--flat] [--only <name>]...
+                                    --only, répétable, n'importe que ces
+                                    fichiers-là parmi ceux que `scan` liste
+  leyline scan <library> <source> [--flat]
+                                    ce qu'un import prendrait, sans rien écrire
+                                    (ADR 0065) ; « = » marque un fichier que la
+                                    bibliothèque contient déjà
   leyline tether <library>
   leyline watch <library> <folder>
   leyline ls <library> [--text <query>] [--rating <min>]
@@ -158,6 +165,7 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("new") => new(&args[1..]),
         Some("info") => info(&args[1..]),
         Some("import") => import(&args[1..]),
+        Some("scan") => scan(&args[1..]),
         Some("tether") => tether(&args[1..]),
         Some("watch") => watch(&args[1..]),
         Some("ls") => ls(&args[1..]),
@@ -235,6 +243,15 @@ impl Options {
             .find(|(n, _)| n == name)
             .map(|(_, v)| v.as_str())
     }
+    /// Every occurrence of a repeatable option, in the order given —
+    /// `--only a --only b` selects two files (ADR 0065 §5).
+    fn all(&self, name: &str) -> Vec<&str> {
+        self.values
+            .iter()
+            .filter(|(n, _)| n == name)
+            .map(|(_, v)| v.as_str())
+            .collect()
+    }
 }
 
 fn open(root: &str) -> Result<Library, String> {
@@ -283,21 +300,35 @@ fn info(args: &[String]) -> Result<(), String> {
 }
 
 fn import(args: &[String]) -> Result<(), String> {
-    let (positional, options) = parse(args, &[])?;
+    let (positional, options) = parse(args, &["only"])?;
     let [root, source] = positional.as_slice() else {
-        return Err("usage: leyline import <library> <source> [--reference] [--flat]".to_owned());
+        return Err(
+            "usage: leyline import <library> <source> [--reference] [--flat] [--only <name>]..."
+                .to_owned(),
+        );
     };
     let library = open(root)?;
-    let report = library
-        .import(
-            Path::new(source),
-            &ImportOptions {
-                copy_files: !options.switch("reference"),
-                recursive: !options.switch("flat"),
-            },
-            |done, total| eprint!("\rimporting {done}/{total}"),
-        )
-        .map_err(|e| e.to_string())?;
+    let source = Path::new(source);
+    let import_options = ImportOptions {
+        copy_files: !options.switch("reference"),
+        recursive: !options.switch("flat"),
+    };
+    let chosen = options.all("only");
+    let report = if chosen.is_empty() {
+        library.import(source, &import_options, |done, total| {
+            eprint!("\rimporting {done}/{total}")
+        })
+    } else {
+        // A selective import (ADR 0065 §5): each `--only` names a file the
+        // scan listed, matched on its name so the whole path need not be
+        // retyped. A name matching nothing is an error, not a silent
+        // no-op — the user asked for that photo.
+        let files = select(&library, source, &import_options, &chosen)?;
+        library.import_files(source, &files, &import_options, |done, total| {
+            eprint!("\rimporting {done}/{total}")
+        })
+    }
+    .map_err(|e| e.to_string())?;
     if !report.imported.is_empty() || !report.skipped.is_empty() {
         eprintln!();
     }
@@ -314,6 +345,75 @@ fn import(args: &[String]) -> Result<(), String> {
         "{} imported, {} skipped",
         report.imported.len(),
         report.skipped.len()
+    );
+    Ok(())
+}
+
+/// Resolves `--only` names against what a scan of `source` actually holds.
+fn select(
+    library: &Library,
+    source: &Path,
+    options: &ImportOptions,
+    chosen: &[&str],
+) -> Result<Vec<PathBuf>, String> {
+    let candidates = library
+        .scan_import(
+            source,
+            &ScanOptions {
+                recursive: options.recursive,
+                // Nobody is looking at pictures here.
+                thumbnails: false,
+            },
+            |_, _| {},
+        )
+        .map_err(|e| e.to_string())?;
+    let mut files = Vec::new();
+    for name in chosen {
+        let found = candidates
+            .iter()
+            .find(|candidate| candidate.filename == *name)
+            .ok_or_else(|| format!("--only {name:?}: no such file under {}", source.display()))?;
+        files.push(found.path.clone());
+    }
+    Ok(files)
+}
+
+/// Lists what an import would take, without importing anything (ADR 0065).
+fn scan(args: &[String]) -> Result<(), String> {
+    let (positional, options) = parse(args, &[])?;
+    let [root, source] = positional.as_slice() else {
+        return Err("usage: leyline scan <library> <source> [--flat]".to_owned());
+    };
+    let library = open(root)?;
+    let candidates = library
+        .scan_import(
+            Path::new(source),
+            &ScanOptions {
+                recursive: !options.switch("flat"),
+                thumbnails: false,
+            },
+            |done, total| eprint!("\rscanning {done}/{total}"),
+        )
+        .map_err(|e| e.to_string())?;
+    if !candidates.is_empty() {
+        eprintln!();
+    }
+    for candidate in &candidates {
+        println!(
+            "{} {:<24} {:>10} {} {}",
+            // The mark is the point of the listing: it says which ones
+            // `import` would refuse as duplicates.
+            if candidate.already_imported { "=" } else { " " },
+            candidate.filename,
+            candidate.file_size,
+            candidate.camera.as_deref().unwrap_or("-"),
+            candidate.path.display(),
+        );
+    }
+    let already = candidates.iter().filter(|c| c.already_imported).count();
+    println!(
+        "{} candidate(s), {already} already in the library",
+        candidates.len()
     );
     Ok(())
 }

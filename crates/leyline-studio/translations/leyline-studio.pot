@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2026-08-03 08:52+0000\n"
+"POT-Creation-Date: 2026-08-03 13:26+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -223,19 +223,60 @@ msgctxt "ImportDialog"
 msgid "Recursive"
 msgstr ""
 
+#: crates/leyline-studio/ui/dialogs/import.slint:74
+msgctxt "ImportDialog"
+msgid "Rescan"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/import.slint:74
+msgctxt "ImportDialog"
+msgid "Look first"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/import.slint:91
+msgctxt "ImportDialog"
+msgid "Nothing importable here."
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/import.slint:92
+msgctxt "ImportDialog"
+msgid "{} of {} chosen"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/import.slint:101
+msgctxt "ImportDialog"
+msgid "All"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/import.slint:108
+msgctxt "ImportDialog"
+msgid "None"
+msgstr ""
+
+#. already in the library (ADR 0065 §3).
+#: crates/leyline-studio/ui/dialogs/import.slint:153
+msgctxt "ImportDialog"
+msgid "already imported · {}"
+msgstr ""
+
 #. thing left to do.
-#: crates/leyline-studio/ui/dialogs/import.slint:77
+#: crates/leyline-studio/ui/dialogs/import.slint:185
 msgctxt "ImportDialog"
 msgid "Close"
 msgstr ""
 
 #. thing left to do.
-#: crates/leyline-studio/ui/dialogs/import.slint:77
+#: crates/leyline-studio/ui/dialogs/import.slint:185
 msgctxt "ImportDialog"
 msgid "Cancel"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/import.slint:87
+#: crates/leyline-studio/ui/dialogs/import.slint:199
+msgctxt "ImportDialog"
+msgid "Import {}"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/import.slint:200
 msgctxt "ImportDialog"
 msgid "Import"
 msgstr ""
@@ -1846,157 +1887,169 @@ msgctxt "SurveyPanel"
 msgid "Click ✕ to drop a photo from the selection"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:213
+#: crates/leyline-studio/ui/types.slint:230
 msgctxt "Tr"
 msgid "{} photo"
 msgid_plural "{} photos"
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/leyline-studio/ui/types.slint:216
+#: crates/leyline-studio/ui/types.slint:233
 msgctxt "Tr"
 msgid "Importing {}/{}…"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:219
+#: crates/leyline-studio/ui/types.slint:236
 msgctxt "Tr"
 msgid "Exporting {}/{}…"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:222
+#: crates/leyline-studio/ui/types.slint:239
 msgctxt "Tr"
 msgid "Import failed: {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:225
+#: crates/leyline-studio/ui/types.slint:242
 msgctxt "Tr"
 msgid "Export failed: {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:228
+#: crates/leyline-studio/ui/types.slint:245
 msgctxt "Tr"
 msgid "Printing {}/{}…"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:231
+#: crates/leyline-studio/ui/types.slint:248
 msgctxt "Tr"
 msgid "Print failed: {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:234
+#: crates/leyline-studio/ui/types.slint:251
 msgctxt "Tr"
 msgid "Printing…"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:237
+#: crates/leyline-studio/ui/types.slint:254
 msgctxt "Tr"
 msgid "Reprocessed {} photo(s), {} already current, {} failed"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:243
+#: crates/leyline-studio/ui/types.slint:260
 msgctxt "Tr"
 msgid "Remove {} photo from the catalog?"
 msgid_plural "Remove {} photos from the catalog?"
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/leyline-studio/ui/types.slint:246
+#: crates/leyline-studio/ui/types.slint:263
 msgctxt "Tr"
 msgid ""
 "The files stay exactly where they are, and can be imported again. Develop "
 "settings, keywords and collection membership go with the photos."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:249
+#: crates/leyline-studio/ui/types.slint:266
 msgctxt "Tr"
 msgid "Remove"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:252
+#: crates/leyline-studio/ui/types.slint:269
 msgctxt "Tr"
 msgid "Delete {} photo from the disk?"
 msgid_plural "Delete {} photos from the disk?"
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/leyline-studio/ui/types.slint:255
+#: crates/leyline-studio/ui/types.slint:272
 msgctxt "Tr"
 msgid ""
 "The photos leave the catalog, and their files — with their XMP sidecars — "
 "are sent to the system trash, from where they can still be recovered."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:258
+#: crates/leyline-studio/ui/types.slint:275
 msgctxt "Tr"
 msgid "Delete"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:261
+#: crates/leyline-studio/ui/types.slint:278
 msgctxt "Tr"
 msgid "Enter a source folder."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:264
+#: crates/leyline-studio/ui/types.slint:281
 msgctxt "Tr"
 msgid "Importing…"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:267
+#: crates/leyline-studio/ui/types.slint:284
+msgctxt "Tr"
+msgid "Looking at what is there…"
+msgstr ""
+
+#: crates/leyline-studio/ui/types.slint:287
+msgctxt "Tr"
+msgid "{} photo found."
+msgid_plural "{} photos found."
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/leyline-studio/ui/types.slint:290
 msgctxt "Tr"
 msgid "Select a photo first."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:270
+#: crates/leyline-studio/ui/types.slint:293
 msgctxt "Tr"
 msgid "Enter a destination folder."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:273
+#: crates/leyline-studio/ui/types.slint:296
 msgctxt "Tr"
 msgid "Exporting…"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:276
+#: crates/leyline-studio/ui/types.slint:299
 msgctxt "Tr"
 msgid "Enter a name."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:280
+#: crates/leyline-studio/ui/types.slint:303
 msgctxt "Tr"
 msgid "Top level"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:283
+#: crates/leyline-studio/ui/types.slint:306
 msgctxt "Tr"
 msgid "Creation failed: {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:286
+#: crates/leyline-studio/ui/types.slint:309
 msgctxt "Tr"
 msgid "Open a photo in develop first."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:289
+#: crates/leyline-studio/ui/types.slint:312
 msgctxt "Tr"
 msgid "Pick at least one group."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:292
+#: crates/leyline-studio/ui/types.slint:315
 msgctxt "Tr"
 msgid "Save failed: {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:295
+#: crates/leyline-studio/ui/types.slint:318
 msgctxt "Tr"
 msgid "Error: {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:298
+#: crates/leyline-studio/ui/types.slint:321
 msgctxt "Tr"
 msgid "Select a collection in the sidebar first."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:301
+#: crates/leyline-studio/ui/types.slint:324
 msgctxt "Tr"
 msgid "Preset saved."
 msgstr ""

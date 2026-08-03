@@ -67,7 +67,115 @@ export component ImportDialog inherits VerticalLayout {
         Rectangle {
             horizontal-stretch: 1;
         }
+        // Looking before taking (ADR 0065): fills the list below without
+        // writing anything, so the choice is made on what is there rather
+        // than on a folder name.
+        if !DialogState.job-done && DialogState.job-progress < 0: FilterChip {
+            text: DialogState.import-scanned ? @tr("Rescan") : @tr("Look first");
+            active: false;
+            clicked => {
+                DialogState.scan-import(import-source.text, DialogState.import-recursive);
+            }
+        }
     }
+
+    // The contact sheet. Present only once a scan has run: without one the
+    // dialog keeps its original meaning, "import this whole folder".
+    if DialogState.import-scanned && DialogState.job-progress < 0: VerticalLayout {
+        spacing: 8px;
+
+        HorizontalLayout {
+            spacing: 8px;
+            Text {
+                text: DialogState.import-candidates.length == 0
+                    ? @tr("Nothing importable here.")
+                    : @tr("{} of {} chosen", DialogState.import-chosen, DialogState.import-candidates.length);
+                color: #9a9a9a;
+                font-size: 12px;
+                vertical-alignment: center;
+            }
+            Rectangle {
+                horizontal-stretch: 1;
+            }
+            if DialogState.import-candidates.length > 0: FilterChip {
+                text: @tr("All");
+                active: false;
+                clicked => {
+                    DialogState.select-candidates(true);
+                }
+            }
+            if DialogState.import-candidates.length > 0: FilterChip {
+                text: @tr("None");
+                active: false;
+                clicked => {
+                    DialogState.select-candidates(false);
+                }
+            }
+        }
+
+        Flickable {
+            // Tall enough for six lines; longer cards scroll rather than
+            // push the buttons off the bottom of the window.
+            height: min(DialogState.import-candidates.length * 60px, 360px);
+            viewport-height: DialogState.import-candidates.length * 60px;
+            for row[i] in DialogState.import-candidates: Rectangle {
+                y: i * 60px;
+                height: 56px;
+                width: parent.width;
+                border-radius: 4px;
+                background: row.selected ? #2f4f6f : #1e1e1e;
+
+                HorizontalLayout {
+                    padding-left: 8px;
+                    padding-right: 8px;
+                    spacing: 10px;
+
+                    Image {
+                        width: 72px;
+                        height: 100%;
+                        source: row.thumbnail;
+                        image-fit: contain;
+                    }
+
+                    VerticalLayout {
+                        horizontal-stretch: 1;
+                        alignment: center;
+                        spacing: 2px;
+                        Text {
+                            text: row.filename;
+                            color: #e6e6e6;
+                            font-size: 12px;
+                            overflow: elide;
+                        }
+                        Text {
+                            // The mark that matters: this one is probably
+                            // already in the library (ADR 0065 §3).
+                            text: row.already ? @tr("already imported · {}", row.detail) : row.detail;
+                            color: row.already ? #d8b23c : #8a8a8a;
+                            font-size: 11px;
+                            overflow: elide;
+                        }
+                    }
+
+                    Text {
+                        width: 20px;
+                        height: 100%;
+                        text: row.selected ? "☑" : "☐";
+                        color: row.selected ? #e6e6e6 : #6f6f6f;
+                        font-size: 15px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+                TouchArea {
+                    clicked => {
+                        DialogState.toggle-candidate(i);
+                    }
+                }
+            }
+        }
+    }
+
     HorizontalLayout {
         spacing: 8px;
         alignment: end;
@@ -84,8 +192,14 @@ export component ImportDialog inherits VerticalLayout {
         // same folder from a dialog still showing its own result is never
         // what anyone means.
         if !DialogState.job-done && DialogState.job-progress < 0: FilterChip {
-            text: @tr("Import");
+            // After a scan the button takes what is ticked, and says how
+            // many — a button reading "Import" over a list of forty photos
+            // with three ticked would be lying about what it does.
+            text: DialogState.import-scanned
+                ? @tr("Import {}", DialogState.import-chosen)
+                : @tr("Import");
             active: true;
+            enabled: !DialogState.import-scanned || DialogState.import-chosen > 0;
             clicked => {
                 DialogState.run-import(import-source.text, DialogState.import-copy, DialogState.import-recursive);
             }

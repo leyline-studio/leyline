@@ -25,6 +25,7 @@ mod preview;
 mod print;
 mod render;
 mod reprocess;
+mod scan;
 mod session;
 mod source;
 mod stages;
@@ -37,7 +38,7 @@ pub use export::{
     ExportRecipe, ExportReport, ExportRequest, ExportedVersion, FailedExport, export_batch,
     export_version,
 };
-pub use import::{ImportOptions, ImportReport, ImportedFile, SkippedFile, import};
+pub use import::{ImportOptions, ImportReport, ImportedFile, SkippedFile, import, import_files};
 pub use leyline_preview::Rgb8;
 pub use library::{
     CatalogRead, CatalogWrite, ImportedCameraProfile, ImportedLut, Library, RemovalReport,
@@ -48,6 +49,7 @@ pub use preview::{Preview, PreviewFile, preview};
 pub use print::{FailedPrint, PrintRecipe, PrintReport, PrintRequest, PrintedVersion};
 pub use render::{LensShot, Rendered, lens_shot, render, render_scaled};
 pub use reprocess::{FailedReprocess, ReprocessReport, reprocess_batch};
+pub use scan::{ImportCandidate, ScanOptions, scan};
 pub use session::{DEFAULT_AMEND_WINDOW, EditSession, Param, Value};
 pub use stages::{SourceColor, neutral_settings};
 pub use watch::{WatchError, WatchSessionEvent, WatchedFile};

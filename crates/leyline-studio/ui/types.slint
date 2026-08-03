@@ -45,6 +45,23 @@ export struct SurveyCell {
     filename: string,
 }
 
+// One line of the import contact sheet (ADR 0065 §5): a file the library
+// does not have yet, shown before anyone decides to take it.
+//
+// The picture is the preview the camera itself wrote inside the file — no
+// asset exists yet, so there is nothing else it could be.
+export struct CandidateRow {
+    filename: string,
+    // Body and size, in one already-formatted line: Rust formats, the panel
+    // displays (ADR 0045 §2).
+    detail: string,
+    thumbnail: image,
+    // A file of that name and size is already in the library. Unticked by
+    // default, never hidden.
+    already: bool,
+    selected: bool,
+}
+
 // One row of the folder tree in the sidebar (ADR 0055 §2). Rust sends the
 // last path segment and the depth it sits at — the panel indents, and never
 // splits a path itself.
@@ -262,6 +279,12 @@ export global Tr {
     }
     public pure function importing-ellipsis() -> string {
         return @tr("Importing…");
+    }
+    public pure function scanning-ellipsis() -> string {
+        return @tr("Looking at what is there…");
+    }
+    public pure function scan-found(n: int) -> string {
+        return @tr("{} photo found." | "{} photos found." % n, n);
     }
     public pure function select-photo-first() -> string {
         return @tr("Select a photo first.");

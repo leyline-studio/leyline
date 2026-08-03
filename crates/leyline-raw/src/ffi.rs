@@ -22,6 +22,13 @@ pub(crate) const LIBRAW_FILE_UNSUPPORTED: c_int = -2;
 pub(crate) const LIBRAW_DATA_ERROR: c_int = -100_008;
 /// `LibRaw_errors::LIBRAW_IO_ERROR`.
 pub(crate) const LIBRAW_IO_ERROR: c_int = -100_009;
+/// `LibRaw_errors::LIBRAW_NO_THUMBNAIL` — the file carries none.
+pub(crate) const LIBRAW_NO_THUMBNAIL: c_int = -5;
+/// `LibRaw_errors::LIBRAW_UNSUPPORTED_THUMBNAIL` — it carries one LibRaw
+/// cannot extract.
+pub(crate) const LIBRAW_UNSUPPORTED_THUMBNAIL: c_int = -6;
+/// `LibRaw_image_formats::LIBRAW_IMAGE_JPEG`.
+pub(crate) const LIBRAW_IMAGE_JPEG: c_int = 1;
 /// `LibRaw_image_formats::LIBRAW_IMAGE_BITMAP`.
 pub(crate) const LIBRAW_IMAGE_BITMAP: c_int = 2;
 
@@ -31,6 +38,11 @@ unsafe extern "C" {
     pub(crate) fn libraw_unpack(data: *mut LibrawData) -> c_int;
     pub(crate) fn libraw_dcraw_process(data: *mut LibrawData) -> c_int;
     pub(crate) fn libraw_dcraw_make_mem_image(
+        data: *mut LibrawData,
+        errc: *mut c_int,
+    ) -> *mut LibrawProcessedImage;
+    pub(crate) fn libraw_unpack_thumb(data: *mut LibrawData) -> c_int;
+    pub(crate) fn libraw_dcraw_make_mem_thumb(
         data: *mut LibrawData,
         errc: *mut c_int,
     ) -> *mut LibrawProcessedImage;

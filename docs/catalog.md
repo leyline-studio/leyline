@@ -1721,3 +1721,21 @@ Deux points de méthode :
   filtrée en cours : les listes ne bougent donc que quand la bibliothèque
   change, ce qui est aussi la règle de rafraîchissement des clients
   (`AssetsAdded`, `AssetsRemoved`).
+
+---
+
+# 44. Noms et tailles des assets (ADR 0065)
+
+`Catalog::asset_names_and_sizes()` rend le nom de fichier et la taille de
+chaque asset, en une requête.
+
+C'est ce qu'un scan d'import compare à ses candidats (ADR 0065 §3) : un
+fichier de même nom et de même taille est **très probablement** déjà dans la
+bibliothèque. L'indice se calcule sans lire un octet des fichiers, là où
+l'empreinte exigerait de lire toute la carte avant que l'utilisateur ait rien
+choisi. La réponse exacte reste `find_asset_by_checksum` (§12), et c'est elle
+qui refuse un doublon à l'import.
+
+Rendu en bloc plutôt qu'interrogé par candidat : aucun index ne commence par
+`filename` (§32), une recherche par fichier balaierait donc `assets` une fois
+par fichier.

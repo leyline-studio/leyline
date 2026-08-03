@@ -1,15 +1,19 @@
 //! Wires the import dialog (ADR 0045 §4).
 //!
-//! Mirrors `ui/dialogs/import.slint`.
+//! Mirrors `ui/dialogs/import.slint`. Two ways in: hand the engine a folder
+//! and let it take everything, or look first and tick what to keep
+//! (ADR 0065). The ticks live here, in Rust — the panel reports clicks and
+//! displays what comes back.
 
 use std::cell::RefCell;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use crate::app::App;
-use crate::ui::{DialogState, StudioWindow, Tr};
-use leyline_sdk::ImportOptions;
-use slint::{ComponentHandle, Global, SharedString};
+use crate::format;
+use crate::ui::{CandidateRow, DialogState, StudioWindow, Tr};
+use leyline_sdk::{ImportCandidate, ImportOptions, ScanOptions};
+use slint::{ComponentHandle, Global, ModelRc, SharedString, VecModel};
 
 pub(crate) fn wire_import(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
@@ -31,6 +35,69 @@ pub(crate) fn wire_import(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
+        DialogState::get(window).on_scan_import(move |source, recursive| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            if source.is_empty() {
+                DialogState::get(&window)
+                    .set_dialog_result(Tr::get(&window).invoke_enter_source_folder());
+                return;
+            }
+            // A previous list would otherwise stay on screen, describing a
+            // folder nobody is looking at any more.
+            clear_candidates(&mut app, &window);
+            let job = app.library.scan_import_async(
+                Path::new(source.as_str()),
+                &ScanOptions {
+                    recursive,
+                    thumbnails: true,
+                },
+            );
+            app.scan_job = Some(job);
+            app.candidate_source = PathBuf::from(source.as_str());
+            DialogState::get(&window)
+                .set_dialog_result(Tr::get(&window).invoke_scanning_ellipsis());
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        DialogState::get(window).on_toggle_candidate(move |index| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let Ok(index) = usize::try_from(index) else {
+                return;
+            };
+            if let Some((_, selected)) = app.candidates.get_mut(index) {
+                *selected = !*selected;
+            }
+            publish_candidates(&app, &window);
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        DialogState::get(window).on_select_candidates(move |all| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            for (candidate, selected) in &mut app.candidates {
+                // "All" means all the ones a fresh scan would have ticked:
+                // a photo the library already holds stays out unless it is
+                // ticked on purpose (ADR 0065 §3).
+                *selected = all && !candidate.already_imported;
+            }
+            publish_candidates(&app, &window);
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
         DialogState::get(window).on_run_import(move |source, copy, recursive| {
             let Some(window) = handle.upgrade() else {
                 return;
@@ -45,12 +112,101 @@ pub(crate) fn wire_import(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 copy_files: copy,
                 recursive,
             };
-            let job = app
-                .library
-                .import_async(Path::new(source.as_str()), &options);
+            let chosen: Vec<PathBuf> = app
+                .candidates
+                .iter()
+                .filter(|(_, selected)| *selected)
+                .map(|(candidate, _)| candidate.path.clone())
+                .collect();
+            // The ticks count only while the dialog is still showing the
+            // list they belong to, and only for the folder it was made
+            // from. Otherwise the dialog keeps its original meaning: the
+            // whole folder, exactly as before ADR 0065.
+            let scanned = DialogState::get(&window).get_import_scanned()
+                && app.candidate_source == Path::new(source.as_str());
+            let job = if !scanned || chosen.is_empty() {
+                app.library
+                    .import_async(Path::new(source.as_str()), &options)
+            } else {
+                let source = app.candidate_source.clone();
+                app.library.import_files_async(&source, &chosen, &options)
+            };
             app.import_job = Some(job);
             DialogState::get(&window)
                 .set_dialog_result(Tr::get(&window).invoke_importing_ellipsis());
         });
     }
+}
+
+/// Shows what a finished scan found, each line ticked unless the library
+/// looks like it already holds it (ADR 0065 §3).
+pub(crate) fn show_candidates(
+    app: &mut App,
+    window: &StudioWindow,
+    candidates: Vec<ImportCandidate>,
+) {
+    app.candidates = candidates
+        .into_iter()
+        .map(|candidate| {
+            let selected = !candidate.already_imported;
+            (candidate, selected)
+        })
+        .collect();
+    DialogState::get(window).set_import_scanned(true);
+    publish_candidates(app, window);
+}
+
+/// Drops the current list, back to "import this whole folder".
+pub(crate) fn clear_candidates(app: &mut App, window: &StudioWindow) {
+    app.candidates.clear();
+    app.candidate_source = PathBuf::new();
+    DialogState::get(window).set_import_scanned(false);
+    publish_candidates(app, window);
+}
+
+/// Mirrors the candidate list into the dialog.
+fn publish_candidates(app: &App, window: &StudioWindow) {
+    let rows: Vec<CandidateRow> = app
+        .candidates
+        .iter()
+        .map(|(candidate, selected)| CandidateRow {
+            filename: SharedString::from(candidate.filename.as_str()),
+            detail: SharedString::from(detail(candidate)),
+            thumbnail: thumbnail_image(candidate),
+            already: candidate.already_imported,
+            selected: *selected,
+        })
+        .collect();
+    let chosen = app.candidates.iter().filter(|(_, s)| *s).count();
+    DialogState::get(window).set_import_chosen(i32::try_from(chosen).unwrap_or(i32::MAX));
+    DialogState::get(window).set_import_candidates(ModelRc::from(Rc::new(VecModel::from(rows))));
+}
+
+/// The one-line description under a candidate's name: what took it and how
+/// big it is, the two facts that separate a keeper from a stray file.
+fn detail(candidate: &ImportCandidate) -> String {
+    let size = format::file_size(candidate.file_size);
+    match &candidate.camera {
+        Some(camera) => format!("{camera} · {size}"),
+        None => size,
+    }
+}
+
+/// Decodes a candidate's embedded preview for display. A file that carries
+/// none — or one whose preview will not decode — shows an empty frame: it
+/// is still a file the user may want, and the name is right there.
+fn thumbnail_image(candidate: &ImportCandidate) -> slint::Image {
+    let Some(bytes) = candidate.thumbnail.as_deref() else {
+        return slint::Image::default();
+    };
+    let Ok(decoded) = image::load_from_memory(bytes) else {
+        return slint::Image::default();
+    };
+    let rgba = decoded.into_rgba8();
+    let buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(
+        rgba.as_raw(),
+        rgba.width(),
+        rgba.height(),
+    );
+    slint::Image::from_rgba8(buffer)
 }

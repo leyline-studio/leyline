@@ -1802,3 +1802,55 @@ msgstr "Effacer"
 msgctxt "BrowserPanel"
 msgid "No camera or lens recorded in this library yet."
 msgstr "Aucun boîtier ni objectif enregistré dans cette bibliothèque."
+
+#: crates/leyline-studio/ui/dialogs/import.slint:73
+msgctxt "ImportDialog"
+msgid "Look first"
+msgstr "Regarder d'abord"
+
+#: crates/leyline-studio/ui/dialogs/import.slint:73
+msgctxt "ImportDialog"
+msgid "Rescan"
+msgstr "Rescanner"
+
+#: crates/leyline-studio/ui/dialogs/import.slint:89
+msgctxt "ImportDialog"
+msgid "Nothing importable here."
+msgstr "Rien d'importable ici."
+
+#: crates/leyline-studio/ui/dialogs/import.slint:90
+msgctxt "ImportDialog"
+msgid "{} of {} chosen"
+msgstr "{} sur {} retenues"
+
+#: crates/leyline-studio/ui/dialogs/import.slint:101
+msgctxt "ImportDialog"
+msgid "All"
+msgstr "Tout"
+
+#: crates/leyline-studio/ui/dialogs/import.slint:108
+msgctxt "ImportDialog"
+msgid "None"
+msgstr "Rien"
+
+#: crates/leyline-studio/ui/dialogs/import.slint:155
+msgctxt "ImportDialog"
+msgid "already imported · {}"
+msgstr "déjà importée · {}"
+
+#: crates/leyline-studio/ui/dialogs/import.slint:196
+msgctxt "ImportDialog"
+msgid "Import {}"
+msgstr "Importer {}"
+
+#: crates/leyline-studio/ui/types.slint:284
+msgctxt "Tr"
+msgid "Looking at what is there…"
+msgstr "Lecture de ce qui s'y trouve…"
+
+#: crates/leyline-studio/ui/types.slint:287
+msgctxt "Tr"
+msgid "{} photo found."
+msgid_plural "{} photos found."
+msgstr[0] "{} photo trouvée."
+msgstr[1] "{} photos trouvées."

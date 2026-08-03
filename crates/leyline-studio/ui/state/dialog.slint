@@ -9,6 +9,8 @@
 // types into them, and the native pickers (`browse-*`) fill them in from
 // Rust. The two input paths stay in sync because they bind the same
 // property.
+import { CandidateRow } from "../types.slint";
+
 export global DialogState {
     // Modal dialog state: "" (none), "import", "export", "print", "tether",
     // "watch" or "confirm".
@@ -46,6 +48,21 @@ export global DialogState {
     // faster alternative, not a replacement (both are `<=>` bound to the
     // same property so either input path stays in sync).
     callback browse-import-source();
+    // Looking before taking (ADR 0065). The scan writes nothing; it fills
+    // `import-candidates` with what the source holds, each line ticked or
+    // not. Rust owns the ticks — the panel reports clicks and displays what
+    // comes back (ADR 0045 §1).
+    callback scan-import(string, bool);
+    in-out property <[CandidateRow]> import-candidates;
+    // A scan has run, even if it found nothing: it is what turns the
+    // dialog from "import this folder" into "import these photos".
+    in-out property <bool> import-scanned: false;
+    // How many lines are ticked, shown on the button that will take them.
+    in-out property <int> import-chosen: 0;
+    callback toggle-candidate(int);
+    // Ticks or unticks every line at once; the already-imported ones are
+    // left alone, since ticking them is a deliberate act.
+    callback select-candidates(bool);
     callback open-export();
     // preset index (-1 = ad-hoc), destination, format index, quality text,
     // max-edge text, watermark text. Everything after the destination is

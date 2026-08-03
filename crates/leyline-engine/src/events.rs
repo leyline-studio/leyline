@@ -15,6 +15,7 @@ use crate::presets::PresetApplyReport;
 use crate::preview::PreviewFile;
 use crate::print::PrintReport;
 use crate::reprocess::ReprocessReport;
+use crate::scan::ImportCandidate;
 
 /// A notification from the engine (`docs/engine-api.md` §3.2).
 #[derive(Debug, Clone, PartialEq)]
@@ -106,6 +107,9 @@ pub enum JobResult {
     Preview(PreviewFile),
     /// A print batch completed (per-version failures included).
     Print(PrintReport),
+    /// An import scan completed: what the source holds, nothing written
+    /// (ADR 0065 §1).
+    Scan(Vec<ImportCandidate>),
     /// The job failed before producing anything.
     Failed(String),
 }
