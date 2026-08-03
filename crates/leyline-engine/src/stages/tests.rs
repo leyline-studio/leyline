@@ -1878,6 +1878,41 @@ fn the_decoder_configuration_comes_from_the_input_version() {
     }
 }
 
+/// The white level a revision decodes by comes from its `input` version, and
+/// from nowhere else (ADR 0066).
+///
+/// The golden renders cannot freeze this one: they render a synthetic buffer
+/// and never reach LibRaw, so `v3` and `v4` produce identical pixels there.
+/// What separates them is exactly this configuration, so this is where it is
+/// pinned — the same gap the highlight mode of ADR 0050 left.
+#[test]
+fn the_white_level_reaches_the_decoder_only_from_input_v4() {
+    use leyline_core::StageVersions;
+    use leyline_raw::WhiteLevel;
+
+    // A fresh revision pins the current `input`, which asks for the level the
+    // camera itself recorded.
+    let settings = Settings::default();
+    assert_eq!(
+        crate::stages::decode_params(&settings, false).white_level,
+        WhiteLevel::CameraLinearityMargin
+    );
+
+    // Every version before it divided by the format's ceiling, and still
+    // does: a revision left in `v3` renders exactly as it always has.
+    for version in [1u16, 2, 3] {
+        let pinned = Settings {
+            stages: StageVersions::from([("input".to_owned(), version)]),
+            ..Settings::default()
+        };
+        assert_eq!(
+            crate::stages::decode_params(&pinned, false).white_level,
+            WhiteLevel::FormatCeiling,
+            "input::v{version}"
+        );
+    }
+}
+
 /// The stage cache (ADR 0041 §3) is an optimisation, never a rendering:
 /// whatever it reuses, the pixels must equal a cold render's, edit after
 /// edit. This walks a plausible slider session — nudge a late stage, then

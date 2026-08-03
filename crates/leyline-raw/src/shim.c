@@ -42,6 +42,45 @@ void leyline_shim_set_options(libraw_data_t *d, int use_camera_wb,
     }
 }
 
+/* The linearity margin the camera itself recorded — the raw level above
+ * which its sensor stops responding proportionally (ADR 0066).
+ *
+ * Read it **after open_file and before unpack**: identify fills `maximum`
+ * from this metadata, and unpack then overwrites `maximum` with the format's
+ * theoretical ceiling (16383 for a 14-bit Canon). `linear_max` keeps the
+ * camera's value across both.
+ *
+ * Returns the smallest positive entry over the four channels, or 0 when the
+ * body wrote none — the caller's cue to keep the ceiling. */
+int leyline_shim_linear_max(const libraw_data_t *d) {
+    int best = 0;
+    for (int c = 0; c < 4; c++) {
+        long v = (long)d->color.linear_max[c];
+        if (v <= 0) continue;
+        if (best == 0 || v < best) best = (int)v;
+    }
+    return best;
+}
+
+/* Overrides the saturation level `scale_colors` normalizes by. LibRaw
+ * applies it as `maximum` when positive, which is exactly the substitution
+ * ADR 0066 asks for; a non-positive value leaves LibRaw's own choice. */
+void leyline_shim_set_user_sat(libraw_data_t *d, int saturation) {
+    d->params.user_sat = saturation;
+}
+
+/* Turns off LibRaw's content-dependent white point (ADR 0066 §1).
+ *
+ * `adjust_maximum_thr` defaults to 0.75: LibRaw then lowers `maximum` to the
+ * brightest sample **of that frame** whenever it exceeds 0.75 of the format
+ * ceiling. Two shots of the same scene, one with a specular highlight and one
+ * without, therefore normalize by different levels — a brightness step that
+ * comes from the picture's content, which is precisely what `no_auto_bright`
+ * was set to forbid. Zero disables it. */
+void leyline_shim_set_adjust_maximum_thr(libraw_data_t *d, float threshold) {
+    d->params.adjust_maximum_thr = threshold;
+}
+
 /* --- colorimetry ------------------------------------------------------ */
 
 /* The camera's XYZ->camera matrix, as LibRaw fills it during identify from

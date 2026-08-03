@@ -23,7 +23,7 @@
 //! version module next to this one, never an edit here (ADR 0042 §1).
 
 use leyline_core::{Demosaic, HighlightReconstruction, Settings};
-use leyline_raw::{DecodeParams, Demosaic as RawDemosaic, HighlightMode};
+use leyline_raw::{DecodeParams, Demosaic as RawDemosaic, HighlightMode, WhiteLevel};
 
 pub(crate) use super::v2::to_working_space;
 
@@ -50,5 +50,9 @@ pub(crate) fn decode_params(settings: &Settings, half_size: bool) -> DecodeParam
             Demosaic::Dcb => RawDemosaic::Dcb,
             Demosaic::Dht => RawDemosaic::Dht,
         },
+        // Named rather than defaulted since ADR 0066 gave the choice a
+        // name: this version divides by the raw format's ceiling, which is
+        // what it has always done and must keep doing.
+        white_level: WhiteLevel::FormatCeiling,
     }
 }

@@ -74,6 +74,7 @@ pub(crate) mod input {
     pub(crate) mod v1;
     pub(crate) mod v2;
     pub(crate) mod v3;
+    pub(crate) mod v4;
 }
 pub(crate) mod camera_profile {
     pub(crate) mod v1;
@@ -361,6 +362,24 @@ pub(crate) static STAGES: &[Stage] = &[
                 space: Space::LinearRec2020,
                 apply: |px, ctx| {
                     input::v3::to_working_space(
+                        px,
+                        ctx.source,
+                        ctx.camera_profile.is_some(),
+                        ctx.settings.highlight_reconstruction,
+                    );
+                },
+            },
+            // Same buffer work once more, a decoder told which level the
+            // *camera* calls white (ADR 0066). Unlike `v2` and `v3`, this
+            // one is deliberately **not** bit-identical to its predecessor
+            // at neutral settings: a photo reprocessed into it comes out
+            // brighter, which is the correction it exists for.
+            Version {
+                version: 4,
+                rank: 0,
+                space: Space::LinearRec2020,
+                apply: |px, ctx| {
+                    input::v4::to_working_space(
                         px,
                         ctx.source,
                         ctx.camera_profile.is_some(),
@@ -841,6 +860,7 @@ static INPUT_DECODE: &[(u16, DecodeConfig)] = &[
     (1, input::v1::decode_params),
     (2, input::v2::decode_params),
     (3, input::v3::decode_params),
+    (4, input::v4::decode_params),
 ];
 
 /// What one `input` version asks the decoder for.

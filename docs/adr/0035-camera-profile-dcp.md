@@ -235,16 +235,13 @@ précédente (chemin LibRaw-sRGB par défaut d'ADR 0015) :
 >
 > Ce qui reste, et qui justifie de garder la mention « expérimental » :
 >
-> * ~~un **gain global de ×1,083**~~ — **expliqué le 2026-08-03** : c'est le
->   niveau de blanc, et rien d'autre. Leyline divise par le plafond théorique
->   du 14 bits (`maximum = 16 383`) là où RawTherapee prend la saturation
->   réelle du capteur, qui dépend de la sensibilité. La prédiction a été
->   vérifiée sur deux fichiers de groupes d'ISO différents : rapport prédit
->   1,215 et 1,078, mesuré 1,19 et 1,085. LibRaw porte d'ailleurs la valeur du
->   boîtier dans `linear_max`, que ce chemin ignore. Détail et tableaux dans
->   [`competitive-plan.md`](../competitive-plan.md) §A1 ; la correction demande
->   sa propre ADR et une nouvelle version de l'étage `input`. **Ce n'est pas un
->   défaut de colorimétrie** : la couleur, elle, concorde ;
+> * un **gain global de ×1,083** (espace encodé) subsiste, uniforme sur les
+>   trois canaux — tonal, pas chromatique. L'enquête du 2026-08-03 a trouvé un
+>   vrai défaut de niveau de blanc au passage ([ADR 0066](0066-sensor-white-level.md)) :
+>   le décodeur laissait LibRaw choisir ce niveau d'après le pixel le plus clair
+>   de chaque image. Sa correction **ne referme pas cet écart-ci** — il reste un
+>   facteur ~1,14 non attribué. Ce qui est acquis : **ce n'est pas la couleur**,
+>   qui concorde à 0,0027 près ;
 > * aucune comparaison à Adobe lui-même, faute de convertisseur disponible.
 
 ## Conséquences

@@ -61,6 +61,9 @@ unsafe extern "C" {
         highlight: c_int,
         user_qual: c_int,
     );
+    pub(crate) fn leyline_shim_linear_max(data: *const LibrawData) -> c_int;
+    pub(crate) fn leyline_shim_set_user_sat(data: *mut LibrawData, saturation: c_int);
+    pub(crate) fn leyline_shim_set_adjust_maximum_thr(data: *mut LibrawData, threshold: f32);
     pub(crate) fn leyline_shim_cam_xyz(data: *const LibrawData, out: *mut f64) -> c_int;
     pub(crate) fn leyline_shim_cam_mul(data: *const LibrawData, out: *mut f64) -> c_int;
     pub(crate) fn leyline_shim_make(data: *const LibrawData) -> *const c_char;

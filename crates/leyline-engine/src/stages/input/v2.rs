@@ -39,7 +39,7 @@
 
 use leyline_color::{LINEAR_SRGB_TO_REC2020, apply_matrix, camera_to_rec2020};
 use leyline_core::{HighlightReconstruction, Settings};
-use leyline_raw::{DecodeParams, HighlightMode};
+use leyline_raw::{DecodeParams, HighlightMode, WhiteLevel};
 
 use crate::pixels::Pixels;
 use crate::stages::SourceColor;
@@ -73,6 +73,10 @@ pub(crate) fn decode_params(settings: &Settings, half_size: bool) -> DecodeParam
         // what this frozen version received implicitly before ADR 0061 gave
         // the choice a name. Spelling it out changes no pixel.
         demosaic: leyline_raw::Demosaic::Ahd,
+        // Named rather than defaulted since ADR 0066 gave the choice a
+        // name: this version divides by the raw format's ceiling, which is
+        // what it has always done and must keep doing.
+        white_level: WhiteLevel::FormatCeiling,
     }
 }
 

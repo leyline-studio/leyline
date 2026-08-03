@@ -129,6 +129,39 @@ implémentation indépendante.
 minimal fixe le profil d'entrée et l'espace de sortie. La référence produite
 ainsi reproduit un export fait à la main à 0,001 près.
 
+### L'écart de niveau, le 2026-08-03 : un défaut trouvé, l'écart non refermé
+
+Restait un **gain de ×1,185 en linéaire** : RawTherapee rend plus clair que
+Leyline, uniformément. La piste retenue était le niveau de blanc du capteur.
+
+**Elle a mené à un vrai défaut — mais pas à l'explication de l'écart.** Les
+deux résultats sont distincts et il faut les lire séparément.
+
+**Le défaut, corrigé ([ADR 0066](adr/0066-sensor-white-level.md)).** Leyline ne
+divisait pas par 16 383 comme on le croyait : `adjust_maximum_thr`, un réglage
+LibRaw laissé à son défaut de 0,75, abaisse le niveau de blanc jusqu'à
+**l'échantillon le plus lumineux de l'image en cours**. Sur quatre fichiers
+d'une même série, Canon 60D, ISO 100, même exposition, le niveau retenu était
+13 794 pour l'un et 16 383 pour les trois autres — 19 % d'écart de luminosité
+selon qu'un reflet est tombé ou non dans le cadre. C'est exactement ce que
+`auto_brighten: false` était censé interdire. Le boîtier, lui, écrit la
+réponse dans le fichier (`linear_max` : 12 279 à ISO 100, 15 094 à ISO 400,
+11 222 ailleurs) — même découpage en groupes d'ISO que la table mesurée de
+RawTherapee, et personne ne la lisait. `input::v4` la lit désormais.
+
+**L'écart avec RawTherapee, lui, n'est pas refermé.** Après correction il passe
+de ×1,16 à ×1,03 sur le fichier ISO 100, mais **augmente** de ×1,08 à ×1,13 sur
+un fichier ISO 400 — là où `v3` étirait le blanc jusqu'au pixel le plus clair
+d'une image qui n'en avait pas de très clair. Les diviseurs effectifs des deux
+moteurs sont maintenant connus des deux côtés, et **ils n'expliquent pas** le
+facteur ~1,14 qui subsiste. Ce n'est donc pas le niveau de blanc, et la
+question reste ouverte.
+
+**Le protocole est désormais reproductible sans intervention manuelle** :
+`rawtherapee-cli -s` sans sidecar rend avec des valeurs neutres, et un `.pp3`
+minimal fixe le profil d'entrée et l'espace de sortie. La référence produite
+ainsi reproduit un export fait à la main à 0,001 près.
+
 ### L'écart de niveau, expliqué le 2026-08-03
 
 Restait un **gain de ×1,185 en linéaire** : RawTherapee rend plus clair que
@@ -186,9 +219,10 @@ défaut applique un mappage tonal *scene-referred* (filmic), dont la signature
 en S est nette — rapport à 1,43 dans les tons moyens, 0,96 au blanc. Le
 comparer demanderait de désactiver ce module.
 
-La mention « expérimental » ne tient donc plus qu'à **l'absence de comparaison
-à Adobe lui-même** : le gain, lui, est expliqué et attribué — au niveau de
-blanc, pas à la couleur.
+La mention « expérimental » reste : pour l'absence de comparaison à Adobe
+lui-même, et pour ce facteur ~1,14 qui n'est toujours pas attribué. Ce qui est
+acquis, c'est que **ce n'est pas la couleur** — la colorimétrie, elle,
+concorde.
 
 **Risque.** Faible sur le point 1, moyen sur le point 2 : l'interpolation des
 tables `HueSatMap` est un travail de précision, où une erreur passe inaperçue

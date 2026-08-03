@@ -68,6 +68,36 @@ pub struct DecodeParams {
     /// takes one pixel per 2x2 Bayer group and skips interpolation
     /// altogether.
     pub demosaic: Demosaic,
+    /// Which raw level the decoder treats as white (ADR 0066). `Default` is
+    /// [`WhiteLevel::FormatCeiling`], what this crate asked for implicitly
+    /// before that decision.
+    pub white_level: WhiteLevel,
+}
+
+/// What the decoder normalizes the sensor's numbers by — the level it calls
+/// white (ADR 0066).
+///
+/// A raw file's samples mean nothing until something says which value is
+/// "fully exposed". Choosing wrong does not shift a colour, it shifts
+/// *everything*: pick a level above the sensor's real saturation and a
+/// blown highlight comes out grey, with the whole image proportionally dark.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum WhiteLevel {
+    /// The raw format's theoretical ceiling — 16383 for a 14-bit file,
+    /// whatever the body. What LibRaw leaves in `maximum` after unpacking,
+    /// and what this crate used before ADR 0066.
+    #[default]
+    FormatCeiling,
+    /// The linearity margin the camera itself recorded, when it recorded one
+    /// — the level above which its own sensor stops responding
+    /// proportionally. Falls back to [`WhiteLevel::FormatCeiling`] for a body
+    /// that writes none, so no file is left without an answer.
+    ///
+    /// This mode also switches off LibRaw's `adjust_maximum_thr`, whose
+    /// default (0.75) picks the white level from the brightest sample **of
+    /// the frame being decoded**. Either way, the level then depends on the
+    /// camera and its sensitivity — never on what the photograph contains.
+    CameraLinearityMargin,
 }
 
 /// Which interpolation reconstructs the missing channels (ADR 0061).
@@ -407,6 +437,22 @@ pub fn decode(path: &Path, params: &DecodeParams) -> Result<Decoded, RawError> {
     // SAFETY: the handle is valid; the calls follow LibRaw's mandated order
     // (open → set params → unpack → process → make_mem_image).
     unsafe {
+        // Before `unpack`, and only here: identify fills `maximum` from the
+        // camera's own metadata, then unpack overwrites it with the format's
+        // ceiling. Handing the metadata value back as `user_sat` is what
+        // makes the decoder normalize by the sensor rather than by the word
+        // size (ADR 0066).
+        if params.white_level == WhiteLevel::CameraLinearityMargin {
+            // Off first, unconditionally: LibRaw's default lowers the white
+            // level to the brightest sample of *this frame*, so leaving it on
+            // would keep the fallback path content-dependent for a body that
+            // writes no margin.
+            ffi::leyline_shim_set_adjust_maximum_thr(handle.0, 0.0);
+            let margin = ffi::leyline_shim_linear_max(handle.0);
+            if margin > 0 {
+                ffi::leyline_shim_set_user_sat(handle.0, margin);
+            }
+        }
         ffi::leyline_shim_set_options(
             handle.0,
             1,
@@ -596,6 +642,53 @@ mod tests {
         assert!(matches!(err, RawError::Unsupported), "got {err:?}");
         let err = thumbnail(file.path()).unwrap_err();
         assert!(matches!(err, RawError::Unsupported), "got {err:?}");
+    }
+
+    /// The white level a decode normalizes by is the camera's, not the
+    /// frame's (ADR 0066). Needs a sample:
+    /// `LEYLINE_TEST_RAW=... cargo test -p leyline-raw -- --ignored`.
+    #[test]
+    #[ignore = "needs a real RAW file via LEYLINE_TEST_RAW"]
+    fn the_camera_white_level_changes_the_decode_and_stays_put() {
+        let path = std::env::var("LEYLINE_TEST_RAW").expect("set LEYLINE_TEST_RAW");
+        let path = Path::new(&path);
+        let decode = |white_level| {
+            decode(
+                path,
+                &DecodeParams {
+                    sixteen_bit: true,
+                    white_level,
+                    ..DecodeParams::default()
+                },
+            )
+            .unwrap()
+            .image
+            .data
+        };
+
+        let ceiling = decode(WhiteLevel::FormatCeiling);
+        let camera = decode(WhiteLevel::CameraLinearityMargin);
+        let mean = |data: &[u8]| -> f64 {
+            let sum: u64 = data
+                .chunks_exact(2)
+                .map(|c| u64::from(u16::from_ne_bytes([c[0], c[1]])))
+                .sum();
+            sum as f64 / (data.len() / 2) as f64
+        };
+        // A body that records a linearity margin below the format ceiling
+        // renders brighter for it — that is the whole correction. A body
+        // that records none falls back, and this assertion would be the
+        // wrong one to make; every camera in the test corpus records one.
+        assert!(
+            mean(&camera) > mean(&ceiling),
+            "camera white level {} vs format ceiling {}",
+            mean(&camera),
+            mean(&ceiling)
+        );
+
+        // And it is a property of the file, not of the run: same bytes twice
+        // (`docs/pipeline.md` §5.1).
+        assert_eq!(camera, decode(WhiteLevel::CameraLinearityMargin));
     }
 
     /// The embedded preview of a real RAW file (ADR 0065 §2). Same sample
