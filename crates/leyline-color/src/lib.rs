@@ -33,17 +33,29 @@ use std::sync::OnceLock;
 use lcms2::{Intent as LcmsIntent, PixelFormat, Profile, Transform};
 use serde::{Deserialize, Serialize};
 
+/// Byte range of the creation date/time field in an ICC profile header
+/// (ICC.1:2010 §7.2.1): year, month, day, hour, minute, second, each a
+/// big-endian `u16`.
+const ICC_CREATION_DATE: std::ops::Range<usize> = 24..36;
+
 /// Returns the canonical sRGB ICC profile, encoded as ICC bytes.
 ///
 /// Generated once via LittleCMS's built-in sRGB primaries/transfer curve
-/// and cached: every export shares the same profile bytes.
+/// and cached: every export shares the same profile bytes — *every* export,
+/// not just those of one run. LittleCMS stamps the wall clock into the
+/// header's creation date, which put the time of day inside every exported
+/// file and made two identical exports differ by a byte, against the
+/// bit-for-bit promise of `docs/pipeline.md` §5.1. The field is optional in
+/// the spec and carries no colorimetry, so it is zeroed.
 pub fn srgb_icc_profile() -> &'static [u8] {
     static PROFILE: OnceLock<Vec<u8>> = OnceLock::new();
     PROFILE
         .get_or_init(|| {
-            lcms2::Profile::new_srgb()
+            let mut icc = lcms2::Profile::new_srgb()
                 .icc()
-                .expect("LittleCMS's built-in sRGB profile always serializes")
+                .expect("LittleCMS's built-in sRGB profile always serializes");
+            icc[ICC_CREATION_DATE].fill(0);
+            icc
         })
         .as_slice()
 }
@@ -263,6 +275,20 @@ mod tests {
     #[test]
     fn repeated_calls_return_the_same_bytes() {
         assert_eq!(srgb_icc_profile(), srgb_icc_profile());
+    }
+
+    /// The profile carries no wall clock: it is embedded in every exported
+    /// file, so a date there would make two identical exports differ by a
+    /// byte — which is exactly what `docs/pipeline.md` §5.1 promises they
+    /// won't. A `OnceLock` only makes the bytes stable *within* a run; the
+    /// promise is across runs, and only a zeroed field gives that.
+    #[test]
+    fn the_profile_carries_no_creation_date() {
+        assert_eq!(
+            &srgb_icc_profile()[ICC_CREATION_DATE],
+            &[0u8; 12],
+            "LittleCMS stamps the current time here unless it is cleared"
+        );
     }
 
     #[test]
