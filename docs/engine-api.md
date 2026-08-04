@@ -592,6 +592,9 @@ pub struct ExportRequest {
     pub versions: Vec<VersionId>,
     pub recipe: ExportRecipe,
     pub destination_dir: PathBuf,
+    /// Photos en vol, `None` = le défaut du moteur (4, ADR 0068).
+    /// Propriété de l'exécution, pas de la recette : jamais dans un preset.
+    pub concurrency: Option<usize>,
 }
 
 impl Library {
@@ -613,6 +616,8 @@ impl Library {
 Studio pilote désormais ses dialogues d'import et d'export ainsi que ses vignettes de grille par ce flux : `import_async`/`export_async` pour les dialogues (progression affichée depuis `JobProgress`, résultat depuis `JobFinished`), `preview_async` pour les vignettes (jusqu'à 3 rendus en vol, remplis depuis `PreviewReady`).
 
 L'export rend chaque version à sa révision de tête, avec les versions d'étages qu'elle déclare (`pipeline.md` §3.3), et journalise dans `export_history`. Les pixels rendus sont en sRGB (`adr/0015-color-management-srgb.md`) ; `leyline-export` embarque le profil ICC sRGB canonique (généré par LittleCMS, `leyline-color::srgb_icc_profile`) dans les fichiers JPEG, PNG et TIFF — WebP et AVIF s'en passent, faute de support ICC dans leurs bibliothèques d'encodage.
+
+`Library::export` traite **plusieurs photos à la fois** ([ADR 0068](adr/0068-concurrent-export-batch.md)) : 4 en vol par défaut, réglable par `ExportRequest::concurrency`, parce que le pipeline d'une seule photo n'utilise pas trois cœurs sur seize. Les photos sont portées par des threads ordinaires et non des tâches rayon — même raison qu'au §3.1 — pendant que le rendu continue d'utiliser le pool rayon global à l'intérieur de chaque photo. Les noms de sortie sont réservés d'avance, en ordre de requête, dans une passe de planification qui prend le verrou catalogue **une seule fois pour tout le lot** : deux versions d'un même asset se disputent le même nom de façon déterministe (la seconde échoue, comme avant) au lieu de courir vers le même chemin. Le rapport et la progression sont inchangés — ordre de requête, `(done, total)` par fichier écrit — et les fichiers produits sont identiques octet pour octet quel que soit le degré.
 
 Comme `Library::preview` (§11, `adr/0023-catalog-lock-narrowing-preview.md`), `Library::export` ne tient le verrou catalogue que pour la lecture des réglages (résolution du preset le cas échéant) et l'écriture du journal — jamais pendant le décodage/rendu/encodage d'une version (`adr/0024-catalog-lock-narrowing-export.md`). Une requête à plusieurs versions ne bloque donc plus la navigation, la recherche ou l'édition de métadonnées pour toute sa durée, seulement version par version.
 

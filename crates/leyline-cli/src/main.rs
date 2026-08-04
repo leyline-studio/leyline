@@ -43,9 +43,11 @@ Usage:
   leyline preview <library> <asset-id> [--kind <thumbnail|small|medium|large|full>]
   leyline export <library> <dest-dir> <version-id>...
                  [--preset <name>] [--format <f>] [--quality <1-100>] [--max-edge <px>]
-                 [--avif-speed <1-10>] [--watermark <text>] [--watermark-anchor <a>]
+                 [--avif-speed <1-10>] [--concurrency <n>]
+                 [--watermark <text>] [--watermark-anchor <a>]
   leyline preset <library> <name> [--format <f>] [--quality <1-100>] [--max-edge <px>]
-                 [--avif-speed <1-10>] [--watermark <text>] [--watermark-anchor <a>]
+                 [--avif-speed <1-10>] [--concurrency <n>]
+                 [--watermark <text>] [--watermark-anchor <a>]
   leyline presets <library>
   leyline exports <library> <asset-id>
   leyline print <library> <dest-dir> <version-id>...
@@ -89,6 +91,10 @@ Options:
                 thorough, 10 encodes ~6x faster for 0 to 14% more bytes. Trades
                 time against size only — the image is the same. Other formats
                 ignore it
+  --concurrency <n>
+                Photos an export batch keeps in flight, 4 by default
+                (ADR 0068). Higher is faster up to about 6 and costs ~0.7 GB
+                of peak memory per photo at 30 Mpx
   --intent <i>  Print rendering intent: perceptual, relative (default), saturation, absolute
   --watermark <text>
                 Text watermark drawn on the export, last thing before encoding (ADR 0034)
@@ -1529,6 +1535,7 @@ fn export(args: &[String]) -> Result<(), String> {
             "format",
             "quality",
             "avif-speed",
+            "concurrency",
             "max-edge",
             "watermark",
             "watermark-anchor",
@@ -1568,10 +1575,19 @@ fn export(args: &[String]) -> Result<(), String> {
         }
         None => ExportRecipe::Adhoc(recipe(&options)?),
     };
+    let concurrency = match options.value("concurrency") {
+        Some(value) => Some(
+            value
+                .parse::<usize>()
+                .map_err(|_| format!("bad concurrency {value:?}"))?,
+        ),
+        None => None,
+    };
     let request = ExportRequest {
         versions,
         recipe: recipe_kind,
         destination_dir: destination,
+        concurrency,
     };
     let report = library
         .export(&request, progress)

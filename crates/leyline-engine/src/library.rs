@@ -52,6 +52,22 @@ const DECODE_CACHE_CAPACITY: usize = 2;
 /// high core count desktop gains nothing from an even wider pool.
 const JOB_POOL_MAX_THREADS: usize = 16;
 
+/// One version of a planned batch: where to write it, or why it was refused
+/// before anything was decoded (ADR 0068 §2). The reason is carried as text
+/// because a slot is read once per version, long after the catalog lock that
+/// produced it is gone.
+type PlannedExport = std::result::Result<(crate::export::ExportPlan, PathBuf), String>;
+
+/// Photos an export batch keeps in flight by default (ADR 0068 §1).
+///
+/// One photo's pipeline cannot fill a modern machine — a 12-file batch of
+/// 30 Mpx RAWs measured 280 % of 1600 % on sixteen threads — so the batch
+/// runs several. Four takes 2.57× of the 3.67× on offer for ~2.7 GB of peak
+/// memory at 30 Mpx; six would take 3.42× for 4 GB. The cap is deliberately
+/// low because the cost of being wrong is paging, which loses far more than
+/// the concurrency wins. `ExportRequest::concurrency` overrides it.
+const DEFAULT_EXPORT_CONCURRENCY: usize = 4;
+
 /// Sizes the shared job pool (§3.3): one worker per core, clamped so an
 /// unusual host (one logical core, or an exotic many-core workstation)
 /// still gets a sane bound. This is the engine's only concurrency ceiling
@@ -920,23 +936,145 @@ impl Library {
     pub fn export(
         &self,
         request: &ExportRequest,
-        mut progress: impl FnMut(u64, u64),
+        progress: impl FnMut(u64, u64),
     ) -> Result<ExportReport> {
         let (settings, preset) = self.resolve_export_recipe(&request.recipe)?;
         settings.validate().map_err(crate::export::export_err)?;
-        let total = request.versions.len() as u64;
-        let mut report = ExportReport::default();
-        for (done, &version) in request.versions.iter().enumerate() {
-            match self.export_one(version, &settings, preset, &request.destination_dir) {
-                Ok(path) => report
-                    .exported
-                    .push(crate::export::ExportedVersion { version, path }),
-                Err(error) => report.failed.push(crate::export::FailedExport {
-                    version,
-                    reason: error.to_string(),
-                }),
+        let planned = self.plan_batch(&request.versions, &settings, &request.destination_dir)?;
+        let in_flight = request
+            .concurrency
+            .unwrap_or(DEFAULT_EXPORT_CONCURRENCY)
+            .clamp(1, request.versions.len().max(1));
+        self.run_export_batch(planned, &settings, preset, in_flight, progress)
+    }
+
+    /// Plans every version of a batch in one catalog lock, in request order,
+    /// and gives each its output path (ADR 0068 §2).
+    ///
+    /// Reserving the names here — rather than letting each render check the
+    /// filesystem when it gets there — is what keeps two versions of one
+    /// asset colliding *deterministically*: the later one in request order
+    /// fails, as it always has, instead of the two racing for the same path
+    /// and one silently overwriting the other.
+    #[allow(clippy::type_complexity)]
+    fn plan_batch(
+        &self,
+        versions: &[VersionId],
+        settings: &ExportSettings,
+        destination_dir: &Path,
+    ) -> Result<Vec<(VersionId, PlannedExport)>> {
+        let catalog = lock(&self.inner.catalog);
+        let mut claimed: std::collections::HashSet<String> = std::collections::HashSet::new();
+        Ok(versions
+            .iter()
+            .map(|&version| {
+                let planned = crate::export::plan_export(&catalog, &self.inner.root, version)
+                    .and_then(|plan| {
+                        let name = crate::export::output_name(&plan, settings);
+                        let destination = destination_dir.join(&name);
+                        if !claimed.insert(name) {
+                            // An earlier version of this batch already owns
+                            // the name. Same outcome as meeting the file on
+                            // disk, decided before anything is decoded.
+                            crate::export::refuse_existing(&destination)?;
+                            return Err(LeylineError::Io(std::io::Error::new(
+                                std::io::ErrorKind::AlreadyExists,
+                                format!(
+                                    "{} is already written by an earlier version of this \
+                                     batch; exports never overwrite",
+                                    destination.display()
+                                ),
+                            )));
+                        }
+                        crate::export::refuse_existing(&destination)?;
+                        Ok((plan, destination))
+                    });
+                (version, planned.map_err(|error| error.to_string()))
+            })
+            .collect())
+    }
+
+    /// Renders, encodes and journals a planned batch, `in_flight` photos at
+    /// a time (ADR 0068).
+    ///
+    /// The workers are plain threads, never rayon tasks: rayon's work
+    /// stealing may run *another* task on a thread that is already inside
+    /// one, and the catalog mutex is not reentrant (`docs/engine-api.md`
+    /// §3.1). Pixel-level `par_iter` inside each render keeps using rayon's
+    /// global pool — that nesting is precisely why four photos are enough to
+    /// fill sixteen cores.
+    fn run_export_batch(
+        &self,
+        planned: Vec<(VersionId, PlannedExport)>,
+        settings: &ExportSettings,
+        preset: Option<ExportPresetId>,
+        in_flight: usize,
+        mut progress: impl FnMut(u64, u64),
+    ) -> Result<ExportReport> {
+        let total = planned.len() as u64;
+        // One slot per version, filled in place, so the report keeps request
+        // order however the renders finish.
+        let outcomes: Vec<std::sync::Mutex<Option<std::result::Result<PathBuf, String>>>> =
+            (0..planned.len()).map(|_| std::sync::Mutex::new(None)).collect();
+        let next = std::sync::atomic::AtomicUsize::new(0);
+        let (done_tx, done_rx) = std::sync::mpsc::channel::<()>();
+
+        std::thread::scope(|scope| {
+            for _ in 0..in_flight {
+                let (next, outcomes, planned) = (&next, &outcomes, &planned);
+                let done_tx = done_tx.clone();
+                scope.spawn(move || {
+                    loop {
+                        let index = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        let Some((_, planned)) = planned.get(index) else {
+                            return;
+                        };
+                        let outcome = match planned {
+                            Ok((plan, destination)) => {
+                                crate::export::render_export_to(plan, settings, destination)
+                                    .and_then(|()| {
+                                        let mut catalog = lock(&self.inner.catalog);
+                                        crate::export::journal_export(
+                                            &mut catalog,
+                                            plan,
+                                            preset,
+                                            settings,
+                                            destination,
+                                        )?;
+                                        Ok(destination.clone())
+                                    })
+                                    .map_err(|error| error.to_string())
+                            }
+                            Err(reason) => Err(reason.clone()),
+                        };
+                        *lock(&outcomes[index]) = Some(outcome);
+                        // A closed receiver only means the batch is being
+                        // torn down; the work itself is already done.
+                        let _ = done_tx.send(());
+                    }
+                });
             }
-            progress(done as u64 + 1, total);
+            drop(done_tx);
+            let mut done = 0;
+            while done_rx.recv().is_ok() {
+                done += 1;
+                progress(done, total);
+            }
+        });
+
+        let mut report = ExportReport::default();
+        for ((version, _), outcome) in planned.iter().zip(outcomes) {
+            match outcome.into_inner().unwrap_or_else(|e| e.into_inner()) {
+                Some(Ok(path)) => report.exported.push(crate::export::ExportedVersion {
+                    version: *version,
+                    path,
+                }),
+                Some(Err(reason)) => report.failed.push(crate::export::FailedExport {
+                    version: *version,
+                    reason,
+                }),
+                None => unreachable!("every slot is filled before the scope ends"),
+            }
         }
         Ok(report)
     }

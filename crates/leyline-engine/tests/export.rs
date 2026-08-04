@@ -171,6 +171,7 @@ fn library_export_narrows_the_lock_and_still_exports_every_version() {
                 versions: versions.clone(),
                 recipe: ExportRecipe::Adhoc(ExportSettings::default()),
                 destination_dir: out,
+                concurrency: None,
             },
             |done, total| ticks.push((done, total)),
         )
@@ -190,6 +191,159 @@ fn library_export_narrows_the_lock_and_still_exports_every_version() {
         .collect();
     for asset in assets {
         assert_eq!(library.catalog().export_history(asset).unwrap().len(), 1);
+    }
+}
+
+/// ADR 0068: the batch runs several photos at once, and that must be an
+/// ordering change and nothing else. The same request at concurrency 1 and
+/// at 4 has to produce **byte-identical files** — `pipeline.md` §5.1 read at
+/// its strongest — plus a report in request order either way.
+#[test]
+fn concurrency_changes_the_schedule_and_not_one_byte_of_the_output() {
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::create(&dir.path().join("Library"), "Concurrent").unwrap();
+    let source = dir.path().join("Shoot");
+    std::fs::create_dir(&source).unwrap();
+    // Enough files that four in flight actually interleave, each a
+    // different image so a mixed-up buffer would show.
+    for index in 0..8u8 {
+        let shade = 20 + index * 25;
+        image::save_buffer(
+            source.join(format!("{index}.png")),
+            &[shade; 16 * 16 * 3],
+            16,
+            16,
+            image::ExtendedColorType::Rgb8,
+        )
+        .unwrap();
+    }
+    let report = library
+        .import(
+            &source,
+            &ImportOptions {
+                copy_files: true,
+                recursive: false,
+            },
+            |_, _| {},
+        )
+        .unwrap();
+    let versions: Vec<VersionId> = report
+        .imported
+        .iter()
+        .map(|f| f.registered.version)
+        .collect();
+    assert_eq!(versions.len(), 8);
+
+    let run = |name: &str, concurrency: usize| {
+        let out = dir.path().join(name);
+        let mut ticks = Vec::new();
+        let report = library
+            .export(
+                &ExportRequest {
+                    versions: versions.clone(),
+                    recipe: ExportRecipe::Adhoc(ExportSettings::default()),
+                    destination_dir: out.clone(),
+                    concurrency: Some(concurrency),
+                },
+                |done, total| ticks.push((done, total)),
+            )
+            .unwrap();
+        // Progress counts completions, whatever order they finish in.
+        assert_eq!(
+            ticks,
+            (1..=8).map(|done| (done, 8)).collect::<Vec<_>>(),
+            "at concurrency {concurrency}"
+        );
+        (report, out)
+    };
+
+    let (serial, serial_dir) = run("serial", 1);
+    let (concurrent, concurrent_dir) = run("concurrent", 4);
+
+    // The report keeps request order regardless of completion order.
+    assert_eq!(serial.failed, vec![]);
+    assert_eq!(concurrent.failed, vec![]);
+    let requested: Vec<VersionId> = versions.clone();
+    let ordered = |report: &leyline_engine::ExportReport| -> Vec<VersionId> {
+        report.exported.iter().map(|e| e.version).collect()
+    };
+    assert_eq!(ordered(&serial), requested);
+    assert_eq!(ordered(&concurrent), requested);
+
+    // And the files themselves are identical, byte for byte.
+    for exported in &serial.exported {
+        let name = exported.path.file_name().unwrap();
+        let one = std::fs::read(serial_dir.join(name)).unwrap();
+        let many = std::fs::read(concurrent_dir.join(name)).unwrap();
+        assert_eq!(
+            one,
+            many,
+            "{} differs between a serial and a concurrent batch",
+            name.to_string_lossy()
+        );
+    }
+}
+
+/// Two versions of one asset want the same output name. The later one in
+/// request order loses — and it has to lose *deterministically*, which is
+/// why the batch reserves names before it renders anything (ADR 0068 §2):
+/// left to the filesystem, two concurrent renders could both pass the
+/// existence check and one would silently overwrite the other.
+#[test]
+fn a_name_taken_by_an_earlier_version_of_the_batch_fails_the_later_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::create(&dir.path().join("Library"), "Collide").unwrap();
+    let source = dir.path().join("Shoot");
+    std::fs::create_dir(&source).unwrap();
+    image::save_buffer(
+        source.join("only.png"),
+        &[128; 8 * 8 * 3],
+        8,
+        8,
+        image::ExtendedColorType::Rgb8,
+    )
+    .unwrap();
+    let report = library
+        .import(
+            &source,
+            &ImportOptions {
+                copy_files: true,
+                recursive: false,
+            },
+            |_, _| {},
+        )
+        .unwrap();
+    let first = report.imported[0].registered.version;
+    // A virtual copy of the same asset: same file on disk, so same stem.
+    let second = library
+        .catalog_mut()
+        .create_version(first, "Copy", None)
+        .unwrap();
+
+    for concurrency in [1, 4] {
+        let out = dir.path().join(format!("out{concurrency}"));
+        let report = library
+            .export(
+                &ExportRequest {
+                    versions: vec![first, second],
+                    recipe: ExportRecipe::Adhoc(ExportSettings::default()),
+                    destination_dir: out,
+                    concurrency: Some(concurrency),
+                },
+                |_, _| {},
+            )
+            .unwrap();
+        assert_eq!(
+            report.exported.iter().map(|e| e.version).collect::<Vec<_>>(),
+            vec![first],
+            "the first version in request order wins, at concurrency {concurrency}"
+        );
+        assert_eq!(
+            report.failed.iter().map(|f| f.version).collect::<Vec<_>>(),
+            vec![second],
+            "and the second loses, at concurrency {concurrency}"
+        );
+        assert!(report.failed[0].reason.contains("never overwrite"));
     }
 }
 
@@ -232,6 +386,7 @@ fn presets_are_validated_stored_and_drive_batches() {
                 versions: vec![VersionId::new(999)],
                 recipe: ExportRecipe::Preset(preset),
                 destination_dir: dir.path().join("out"),
+                concurrency: None,
             },
             |_, _| {},
         )
@@ -245,6 +400,7 @@ fn presets_are_validated_stored_and_drive_batches() {
                 versions: vec![VersionId::new(999)],
                 recipe: ExportRecipe::Preset(ExportPresetId::new(999)),
                 destination_dir: dir.path().join("out"),
+                concurrency: None,
             },
             |_, _| {},
         ),

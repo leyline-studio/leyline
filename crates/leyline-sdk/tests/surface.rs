@@ -219,6 +219,7 @@ fn every_request_is_constructible(version: VersionId) -> (ExportRequest, PrintRe
                 }),
             }),
             destination_dir: PathBuf::from("out"),
+            concurrency: None,
         },
         PrintRequest {
             versions: vec![version],

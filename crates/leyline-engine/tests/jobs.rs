@@ -384,6 +384,7 @@ fn an_export_job_reports_per_version_failures_in_the_report() {
         versions: vec![VersionId::new(999)],
         recipe: ExportRecipe::Adhoc(ExportSettings::default()),
         destination_dir: dir.path().join("out"),
+        concurrency: None,
     });
     let received = drain_until_finished(&events, job);
 

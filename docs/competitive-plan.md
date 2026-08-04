@@ -356,6 +356,12 @@ passe à **~3 heures**, l'encodage devenant à lui seul les trois quarts du temp
    l'ordre de 10 à 15 % du temps d'un lot JPEG. Recouvrir l'encodage du fichier
    *n* avec le rendu du *n+1* est le gain structurel évident, et il ne change
    aucun pixel : c'est de l'ordonnancement, pas du calcul.
+   **Corrigé le 2026-08-04 ([ADR 0068](adr/0068-concurrent-export-batch.md)) :**
+   ce chiffrage visait le bon symptôme mais trop petit. Mesuré sur le lot
+   lui-même et non fichier par fichier, l'export n'utilise **289 % de 1 600 %** —
+   il manque treize cœurs, pas ceux d'un encodage. Traiter plusieurs photos à
+   la fois rend 2,81×, là où recouvrir deux étages d'un même fichier n'aurait
+   rendu qu'une fraction des 10 à 15 % annoncés ici.
 3. **Le rendu domine et il est déjà parallèle** (~8,7× sur 16 threads). Il n'y
    a pas de gaspillage à récupérer là sans changer les opérateurs eux-mêmes —
    et le cache d'étages de B1 est interdit ici par la promesse §5.1.
@@ -413,9 +419,15 @@ point 2.
 **livrée, [ADR 0067](adr/0067-avif-encode-speed.md)** : `avif_speed` dans
 `ExportSettings`, défaut porté de 6 à 9 (28 % du temps et 53 % du CPU rendus
 pour 1,3 % de poids sur le chemin complet), `--avif-speed` dans la CLI et un
-champ dans Studio — puis pipeliner le lot d'export. Aucune des deux ne touche à
-la reproductibilité : la première ne concerne que le codec, la seconde que
-l'ordre d'exécution.
+champ dans Studio — puis pipeliner le lot d'export — **livrée aussi, et le
+constat 2 ci-dessus était faux d'un ordre de grandeur**,
+[ADR 0068](adr/0068-concurrent-export-batch.md) : ce n'est pas l'encodage
+mono-thread qui laisse des cœurs libres, c'est le pipeline d'une seule photo
+qui n'utilise que **289 % de 1 600 %** sur seize threads. Traiter 4 photos à la
+fois donne **2,81×** (et non 10 à 15 %), 6 donnent 3,41×, 8 régressent. Aucune
+des deux ne touche à la reproductibilité : la première ne concerne que le
+codec, la seconde que l'ordre d'exécution — vérifié, les douze fichiers d'un
+lot sont identiques octet pour octet à tous les degrés.
 
 ## B3 — GPU : rouvrir la question, sur le chemin preview seul
 

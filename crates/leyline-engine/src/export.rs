@@ -41,6 +41,14 @@ pub struct ExportRequest {
     pub recipe: ExportRecipe,
     /// Directory the rendered files are written into.
     pub destination_dir: PathBuf,
+    /// How many photos [`crate::Library::export`] keeps in flight, `None`
+    /// for the engine's default (ADR 0068 §1).
+    ///
+    /// A property of *this run*, not of the recipe — which is why it lives
+    /// here and never in a preset's `settings_json`. Raising it trades peak
+    /// memory (~0.7 GB per 30 Mpx photo in flight) for wall time; 0 is read
+    /// as 1.
+    pub concurrency: Option<usize>,
 }
 
 /// Everything [`render_export`] needs to decode, develop, scale and encode
@@ -48,7 +56,7 @@ pub struct ExportRequest {
 /// doesn't need to stay locked for the render (ADR 0024, mirroring
 /// ADR 0023's preview split).
 pub(crate) struct ExportPlan {
-    asset: AssetId,
+    pub(crate) asset: AssetId,
     develop: Settings,
     source: PathBuf,
     shot: Option<crate::render::LensShot>,
@@ -105,6 +113,45 @@ pub(crate) fn render_export(
     settings: &ExportSettings,
     destination_dir: &Path,
 ) -> Result<PathBuf> {
+    let destination = destination_dir.join(output_name(plan, settings));
+    refuse_existing(&destination)?;
+    render_export_to(plan, settings, &destination)?;
+    Ok(destination)
+}
+
+/// The file name an export writes for `plan` under `settings`: the source's
+/// stem with the format's extension (`IMG_0001.CR3` → `IMG_0001.jpg`).
+///
+/// Split out so a batch can reserve every name up front, in request order,
+/// before any rendering starts — the only way two versions of one asset
+/// collide deterministically rather than racing for the same path
+/// (ADR 0068 §2).
+pub(crate) fn output_name(plan: &ExportPlan, settings: &ExportSettings) -> String {
+    format!("{}.{}", plan.stem, settings.format.extension())
+}
+
+/// Refuses a destination that already exists — exports never overwrite.
+pub(crate) fn refuse_existing(destination: &Path) -> Result<()> {
+    if destination.exists() {
+        return Err(LeylineError::Io(std::io::Error::new(
+            std::io::ErrorKind::AlreadyExists,
+            format!(
+                "{} already exists; exports never overwrite",
+                destination.display()
+            ),
+        )));
+    }
+    Ok(())
+}
+
+/// [`render_export`] with the destination already decided and checked — the
+/// half a concurrent batch runs, holding no catalog lock (ADR 0024) and no
+/// knowledge of the other photos in flight (ADR 0068 §3).
+pub(crate) fn render_export_to(
+    plan: &ExportPlan,
+    settings: &ExportSettings,
+    destination: &Path,
+) -> Result<()> {
     let camera_profile = crate::camera_profile::resolve_from_settings(
         &plan.library_root,
         &plan.develop,
@@ -138,20 +185,11 @@ pub(crate) fn render_export(
         _ => &image,
     };
 
-    let filename = format!("{}.{}", plan.stem, settings.format.extension());
-    let destination = destination_dir.join(&filename);
-    if destination.exists() {
-        return Err(LeylineError::Io(std::io::Error::new(
-            std::io::ErrorKind::AlreadyExists,
-            format!(
-                "{} already exists; exports never overwrite",
-                destination.display()
-            ),
-        )));
+    if let Some(parent) = destination.parent() {
+        std::fs::create_dir_all(parent)?;
     }
-    std::fs::create_dir_all(destination_dir)?;
     leyline_export::encode(
-        &destination,
+        destination,
         output.width(),
         output.height(),
         output.data(),
@@ -159,7 +197,7 @@ pub(crate) fn render_export(
     )
     .map_err(export_err)?;
 
-    Ok(destination)
+    Ok(())
 }
 
 /// Journals a successful export against its asset — the write half of

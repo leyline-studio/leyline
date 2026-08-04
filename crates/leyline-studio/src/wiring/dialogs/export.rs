@@ -114,6 +114,9 @@ pub(crate) fn wire_export(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                     versions,
                     recipe,
                     destination_dir: destination,
+                    // The engine's default (ADR 0068 §1): Studio has no
+                    // reason to know better than it does about this machine.
+                    concurrency: None,
                 });
                 app.export_job = Some(job);
                 DialogState::get(&window)
