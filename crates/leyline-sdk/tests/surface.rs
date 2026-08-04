@@ -297,3 +297,45 @@ fn settings_round_trip_through_the_sdk_surface() {
     let back: Settings = serde_json::from_str(&json).unwrap();
     assert_eq!(back, settings);
 }
+
+/// A detector, end to end through the façade alone (ADR 0073): discovered,
+/// named, run, and its refusal read back. Studio declares one Leyline
+/// dependency, so anything it needs here has to be nameable from `leyline_sdk`
+/// — a hole in this re-export would be found in the interface, not in a test.
+#[test]
+fn mask_detectors_are_reachable_through_the_sdk_surface() {
+    use leyline_sdk::{DetectError, Detection, DetectorSource, detect, discover_in};
+
+    let dir = tempfile::tempdir().unwrap();
+    // Nothing installed is the normal state, and it must be an empty list
+    // rather than an error: no detector, no menu.
+    assert!(discover_in(dir.path()).is_empty());
+
+    let source = DetectorSource {
+        id: "sample".to_owned(),
+        label: "Sample".to_owned(),
+        command: std::path::PathBuf::from("/no/such/detector"),
+        args: Vec::new(),
+        detections: vec![Detection {
+            id: "sky".to_owned(),
+            label: "Sky".to_owned(),
+        }],
+    };
+    std::fs::write(
+        dir.path().join("sample.json"),
+        serde_json::to_string(&source).unwrap(),
+    )
+    .unwrap();
+    // Declared but not installed: discovery drops it, so the menu never
+    // offers a detection that cannot run.
+    assert!(discover_in(dir.path()).is_empty());
+
+    let error = detect(
+        &source,
+        "subject",
+        std::path::Path::new("in.png"),
+        std::path::Path::new("out.png"),
+    )
+    .unwrap_err();
+    assert!(matches!(error, DetectError::UnknownDetection(_)));
+}

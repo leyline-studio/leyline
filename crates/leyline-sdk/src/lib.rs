@@ -38,3 +38,12 @@ pub use leyline_export::{
     PrintSettings, Watermark, WatermarkAnchor, WatermarkFont,
 };
 pub use leyline_map::TilePackInfo;
+
+/// External mask detectors (ADR 0073). Not part of the engine: a detector is
+/// a separate process turning a preview into a coverage image, and the
+/// caller turns that image into a mask with `Library::store_mask_coverage`.
+/// Re-exported here because Studio declares one Leyline dependency and one
+/// only (`docs/architecture.md` §À l'intérieur de Studio).
+pub use leyline_detect::{
+    DetectError, Detection, DetectorSource, detect, discover, discover_in, manifests_dir,
+};

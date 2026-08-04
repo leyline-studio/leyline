@@ -19,6 +19,7 @@ leyline-lens = { path = "crates/leyline-lens" }
 leyline-tether = { path = "crates/leyline-tether" }
 leyline-map = { path = "crates/leyline-map" }
 leyline-export = { path = "crates/leyline-export" }
+leyline-detect = { path = "crates/leyline-detect" }
 # `default-features = false` here rather than on each member edge: Cargo
 # forbids a member from overriding an inherited dependency's
 # `default-features`. Each consumer re-enables the `tether` backend through
