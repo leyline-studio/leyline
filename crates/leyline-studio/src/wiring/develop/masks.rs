@@ -15,6 +15,34 @@ use crate::ui::{MaskState, StudioWindow};
 use leyline_sdk::{Param, Value};
 use slint::{ComponentHandle, Global};
 
+/// Asks for an image file, converts it to a coverage and stores it in the
+/// library, returning the mask that references it (ADR 0070 §7).
+///
+/// `Ok(None)` is a dismissed picker — the one outcome that is neither a mask
+/// nor a failure.
+fn pick_coverage(app: &App) -> Result<Option<leyline_sdk::Mask>, String> {
+    let Some(file) = rfd::FileDialog::new()
+        .add_filter("Image", &["png", "tif", "tiff", "jpg", "jpeg", "webp"])
+        .pick_file()
+    else {
+        return Ok(None);
+    };
+    import_coverage(&app.library, &file).map(Some)
+}
+
+/// [`pick_coverage`] with the file already chosen — everything the picker
+/// does *after* the picker, so it can be tested without a desktop portal.
+fn import_coverage(
+    library: &leyline_sdk::Library,
+    file: &std::path::Path,
+) -> Result<leyline_sdk::Mask, String> {
+    let image = image::open(file).map_err(|e| format!("{}: {e}", file.display()))?;
+    let (width, height, samples) = masks::coverage_from_image(&image);
+    library
+        .store_mask_coverage(width, height, &samples)
+        .map_err(|e| e.to_string())
+}
+
 pub(super) fn wire_masks(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
@@ -24,8 +52,28 @@ pub(super) fn wire_masks(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 return;
             };
             let mut app = app.borrow_mut();
-            commit(&mut app, &window, |current| {
-                masks::add_mask(kind.as_str(), current)
+            // A stored coverage comes from a file, not from a gesture
+            // (ADR 0070 §7): pick it, convert it, store it, and only then is
+            // there a mask to add.
+            let stored = if kind == "coverage" {
+                match pick_coverage(&app) {
+                    Ok(Some(mask)) => Some(mask),
+                    // The picker was dismissed: not an error, just nothing.
+                    Ok(None) => return,
+                    Err(message) => {
+                        report_error(&window, &message);
+                        return;
+                    }
+                }
+            } else {
+                None
+            };
+            commit(&mut app, &window, |current| match &stored {
+                Some(mask) => Some((
+                    Param::LocalAdjustment(current.len()),
+                    Value::LocalAdjustment(Some(masks::fresh_entry(mask.clone()))),
+                )),
+                None => masks::add_mask(kind.as_str(), current),
             });
         });
     }
@@ -201,5 +249,59 @@ mod tests {
         assert!(brush_defaults("wide", "50", "40").is_err());
         assert!(brush_defaults("8", "half", "40").is_err());
         assert!(brush_defaults("8", "50", "hard").is_err());
+    }
+
+    /// The glue between the file picker and the engine (ADR 0070 §7): a real
+    /// image file becomes a stored mask that a revision can carry. The picker
+    /// itself needs a desktop portal, so everything after it is tested here.
+    #[test]
+    fn an_image_file_becomes_a_stored_mask() {
+        let dir = tempfile::tempdir().unwrap();
+        let library = leyline_sdk::Library::create(&dir.path().join("Lib"), "Import").unwrap();
+
+        // Half covered, half not — and opaque, so the luminance path.
+        let mut source = image::RgbImage::new(4, 2);
+        for y in 0..2 {
+            for x in 0..4 {
+                let shade = if x < 2 { 255 } else { 0 };
+                source.put_pixel(x, y, image::Rgb([shade; 3]));
+            }
+        }
+        let file = dir.path().join("mask.png");
+        source.save(&file).unwrap();
+
+        let mask = import_coverage(&library, &file).expect("a readable image imports");
+        let leyline_sdk::Mask::Coverage { path, checksum } = &mask else {
+            panic!("an imported mask is a stored coverage, got {mask:?}");
+        };
+        assert!(path.starts_with("Masks/"), "{path}");
+        assert!(checksum.starts_with("blake3:"), "{checksum}");
+        assert!(
+            dir.path()
+                .join("Lib")
+                .join(path.replace('/', std::path::MAIN_SEPARATOR_STR))
+                .is_file(),
+            "the file is written where the mask says"
+        );
+
+        // And it is a usable setting, not just a value: validation accepts it
+        // on the stage version that can express it.
+        let settings = leyline_sdk::Settings {
+            stages: leyline_sdk::StageVersions::from([("local_adjustments".to_owned(), 3)]),
+            local_adjustments: vec![masks::fresh_entry(mask)],
+            ..leyline_sdk::Settings::default()
+        };
+        settings.validate().expect("an imported mask validates");
+    }
+
+    /// A file that is not an image fails by name rather than importing an
+    /// empty mask.
+    #[test]
+    fn a_file_that_is_not_an_image_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let library = leyline_sdk::Library::create(&dir.path().join("Lib"), "Import").unwrap();
+        let file = dir.path().join("notes.txt");
+        std::fs::write(&file, b"not an image").unwrap();
+        assert!(import_coverage(&library, &file).is_err());
     }
 }

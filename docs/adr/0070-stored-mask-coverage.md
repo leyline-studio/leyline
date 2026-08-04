@@ -135,14 +135,50 @@ l'uniformité vaut mieux qu'un champ économisé, et elle laisse la porte ouvert
   une couverture ; ce qui en *propose* une — modèle, runtime, poids — est hors
   périmètre, et ADR 0069 explique pourquoi cette séparation est le cœur du
   dispositif plutôt que sa réserve.
-* **Aucune interface Studio.** Poser un `Mask::Coverage` depuis Studio
-  supposerait un outil qui en fabrique un ; il n'y en a pas encore.
+* **Aucun outil de création dans Studio.** Rien dans le projet ne *fabrique*
+  une couverture.
+
+  Studio gagne en revanche un **import** (§7) : cette ADR excluait d'abord
+  toute interface, au motif qu'il n'existait pas de producteur — mais son
+  propre §Contexte en nommait déjà trois (« un masque peint dans un autre
+  logiciel, une sélection exportée en PNG, un masque de luminance calculé une
+  fois et figé »). Le producteur, c'est le logiciel d'à côté. Livrer la
+  variante sans le moyen de s'en servir aurait fait attendre l'IA pour une
+  capacité qui n'en dépend pas.
 * **Aucun ramassage des fichiers orphelins.** Un masque référencé par une
   révision d'historique doit survivre à un `undo`, sinon un `redo` casse. Les
   masques ne sont donc **jamais** supprimés implicitement. Un ramassage des
   fichiers que plus aucune révision ne cite est un travail à part, avec sa
   propre ADR — il touche à l'historique, donc à ce qu'on promet de ne pas
   perdre.
+
+### 7. Importer une couverture depuis un fichier image
+
+Studio ouvre un sélecteur de fichier, lit **n'importe quelle image** que le
+projet sait décoder, la convertit en couverture et la range par
+[`Library::store_mask_coverage`]. C'est un *import*, pas un outil de dessin :
+le masque vient d'ailleurs, entier, et Studio ne le retouche pas.
+
+**Quel canal devient la couverture** est la seule vraie question, et se
+tromper inverserait ou aplatirait silencieusement le travail de quelqu'un :
+
+1. **Le canal alpha**, s'il existe et n'est pas uniformément opaque — c'est
+   une sélection exportée avec sa transparence, et son alpha *est* le masque ;
+2. **sinon la luminance** — c'est un masque en noir et blanc, blanc =
+   couvert, la convention de tous les éditeurs d'image.
+
+L'ordre compte : une sélection exportée en PNG porte souvent des pixels noirs
+*et* un alpha, et lire la luminance donnerait un masque vide. Une image
+entièrement opaque, elle, n'a rien à dire par son alpha, d'où le repli.
+
+**Aucun ré-échantillonnage** : le fichier est stocké à sa taille, §2. Un
+masque de 800 px importé pour une photo de 30 Mpx reste un masque de 800 px,
+avec la douceur de bord que cela implique — et c'est ce que son auteur a
+produit.
+
+Les formats acceptés à l'import sont larges (tout ce que le décodeur lit) ;
+la forme *stockée* reste celle du §2, sans exception. L'import convertit, il
+n'élargit pas le contrat.
 
 ## Conséquences
 
@@ -152,6 +188,8 @@ l'uniformité vaut mieux qu'un champ économisé, et elle laisse la porte ouvert
   sans rien de neuf.
 * **La version libre rend les masques de tout le monde**, ce qui est la
   propriété qu'ADR 0069 §1 avait promise et que cette ADR livre.
+* **Et elle sait déjà en recevoir un**, sans attendre le moindre modèle : qui
+  a un masque quelque part peut le faire entrer (§7).
 * Une bibliothèque gagne un répertoire `Masks/` et pèse un peu plus lourd.
   `catalog.md` §3 le documente.
 * Les couvertures résolues **voyagent comme le profil DCP et la LUT** : de

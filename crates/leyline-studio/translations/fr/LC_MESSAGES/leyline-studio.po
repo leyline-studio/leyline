@@ -1447,6 +1447,10 @@ msgstr "Image entière"
 msgid "Add whole-image mask"
 msgstr "Ajouter un masque sur toute l'image"
 
+#: crates/leyline-studio/ui/panels/develop.slint
+msgid "Add mask from file…"
+msgstr "Ajouter un masque depuis un fichier…"
+
 msgid "Size %"
 msgstr "Taille %"
 
