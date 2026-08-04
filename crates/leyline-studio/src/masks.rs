@@ -234,7 +234,12 @@ pub fn coverage_from_image(image: &image::DynamicImage) -> (u32, u32, Vec<u16>) 
 /// A size mismatch paints nothing rather than smearing a stale overlay across
 /// the frame: the two images come from separate renders, and one can arrive
 /// before the other has caught up.
-pub fn paint_overlay(base: &mut [u8], base_size: (u32, u32), coverage: &[u8], coverage_size: (u32, u32)) -> bool {
+pub fn paint_overlay(
+    base: &mut [u8],
+    base_size: (u32, u32),
+    coverage: &[u8],
+    coverage_size: (u32, u32),
+) -> bool {
     if base_size != coverage_size || base.len() != coverage.len() {
         return false;
     }

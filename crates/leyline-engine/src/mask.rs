@@ -209,9 +209,9 @@ pub(crate) fn rasterize_coverage(
                     Mask::Everything => 1.0,
                     // Tabulated rather than computed, but the same function
                     // of canvas position as the four above (ADR 0070 §3).
-                    Mask::Coverage { path, .. } => coverages
-                        .get(path)
-                        .map_or(0.0, |c| f64::from(c.sample(cx / frame.out_w, cy / frame.out_h))),
+                    Mask::Coverage { path, .. } => coverages.get(path).map_or(0.0, |c| {
+                        f64::from(c.sample(cx / frame.out_w, cy / frame.out_h))
+                    }),
                 } as f32;
             }
         });
@@ -384,7 +384,13 @@ mod tests {
             feather: 0.2,
             inverted: false,
         };
-        let coverage = rasterize_coverage(&mask, &crate::mask_coverage::MaskCoverages::default(), 20, 10, 0.0);
+        let coverage = rasterize_coverage(
+            &mask,
+            &crate::mask_coverage::MaskCoverages::default(),
+            20,
+            10,
+            0.0,
+        );
         assert_eq!(coverage.len(), 200);
         for value in coverage {
             assert!((0.0..=1.0).contains(&value));

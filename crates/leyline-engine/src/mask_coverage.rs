@@ -283,8 +283,10 @@ mod tests {
             unreachable!()
         };
         std::fs::copy(
-            dir.path().join(other.replace('/', std::path::MAIN_SEPARATOR_STR)),
-            dir.path().join(path.replace('/', std::path::MAIN_SEPARATOR_STR)),
+            dir.path()
+                .join(other.replace('/', std::path::MAIN_SEPARATOR_STR)),
+            dir.path()
+                .join(path.replace('/', std::path::MAIN_SEPARATOR_STR)),
         )
         .unwrap();
         assert!(matches!(

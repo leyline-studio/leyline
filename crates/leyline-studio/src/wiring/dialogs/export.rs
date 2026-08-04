@@ -325,7 +325,10 @@ mod tests {
     /// and carries the recipe defaults (ADR 0051 §3).
     #[test]
     fn a_typed_watermark_line_becomes_a_decoration_and_a_blank_one_none() {
-        assert_eq!(export_settings(0, "90", "9", "", "   ").unwrap().watermark, None);
+        assert_eq!(
+            export_settings(0, "90", "9", "", "   ").unwrap().watermark,
+            None
+        );
         let watermark = export_settings(0, "90", "9", "", "  © 2026  ")
             .unwrap()
             .watermark

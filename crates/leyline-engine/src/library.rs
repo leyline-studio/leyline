@@ -836,7 +836,8 @@ impl Library {
     ) -> Result<leyline_preview::Rgb8> {
         let (plan, settings) = {
             let catalog = lock(&self.inner.catalog);
-            let plan = crate::preview::plan_settings_render(&catalog, &self.inner.root, asset, kind)?;
+            let plan =
+                crate::preview::plan_settings_render(&catalog, &self.inner.root, asset, kind)?;
             let version = catalog.current_version(asset)?;
             let head = catalog.version_head(version)?;
             let settings = Settings::parse(&catalog.revision(head)?.settings_json)?;
@@ -1049,8 +1050,10 @@ impl Library {
         let total = planned.len() as u64;
         // One slot per version, filled in place, so the report keeps request
         // order however the renders finish.
-        let outcomes: Vec<std::sync::Mutex<Option<std::result::Result<PathBuf, String>>>> =
-            (0..planned.len()).map(|_| std::sync::Mutex::new(None)).collect();
+        let outcomes: Vec<std::sync::Mutex<Option<std::result::Result<PathBuf, String>>>> = (0
+            ..planned.len())
+            .map(|_| std::sync::Mutex::new(None))
+            .collect();
         let next = std::sync::atomic::AtomicUsize::new(0);
         let (done_tx, done_rx) = std::sync::mpsc::channel::<()>();
 

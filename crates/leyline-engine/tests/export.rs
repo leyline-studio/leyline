@@ -334,7 +334,11 @@ fn a_name_taken_by_an_earlier_version_of_the_batch_fails_the_later_one() {
             )
             .unwrap();
         assert_eq!(
-            report.exported.iter().map(|e| e.version).collect::<Vec<_>>(),
+            report
+                .exported
+                .iter()
+                .map(|e| e.version)
+                .collect::<Vec<_>>(),
             vec![first],
             "the first version in request order wins, at concurrency {concurrency}"
         );

@@ -151,9 +151,7 @@ fn a_revision_pinned_before_v3_refuses_a_stored_coverage() {
 fn a_missing_coverage_file_fails_the_render_by_name() {
     let dir = tempfile::tempdir().unwrap();
     let (library, asset, version) = library_with_a_flat_photo(dir.path());
-    let mask = library
-        .store_mask_coverage(4, 4, &[u16::MAX; 16])
-        .unwrap();
+    let mask = library.store_mask_coverage(4, 4, &[u16::MAX; 16]).unwrap();
     let Mask::Coverage { path, .. } = &mask else {
         unreachable!()
     };
@@ -237,7 +235,10 @@ fn the_overlay_renders_the_coverage_in_the_previews_geometry() {
         .unwrap();
     let (width, height) = (overlay.width() as usize, overlay.height() as usize);
     let at = |x: usize, y: usize| overlay.data()[(y * width + x) * 3];
-    assert!(at(width / 8, height / 2) > 200, "the covered half reads high");
+    assert!(
+        at(width / 8, height / 2) > 200,
+        "the covered half reads high"
+    );
     assert!(at(width * 7 / 8, height / 2) < 55, "the rest reads low");
     // Grey, never coloured: the tint is the interface's job.
     let pixel = (height / 2) * width + width / 8;
@@ -264,7 +265,10 @@ fn the_overlay_follows_the_entrys_opacity() {
     {
         let mut session = library.edit(version).unwrap();
         session
-            .set(Param::LocalAdjustment(0), Value::LocalAdjustment(Some(entry)))
+            .set(
+                Param::LocalAdjustment(0),
+                Value::LocalAdjustment(Some(entry)),
+            )
             .unwrap();
         session.commit().unwrap();
     }

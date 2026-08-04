@@ -265,7 +265,11 @@ fn mask_geometry(mask: &leyline_sdk::Mask) -> String {
         // in a list, and the only identity a coverage has.
         leyline_sdk::Mask::Coverage { checksum, .. } => format!(
             "⛁ {}",
-            checksum.trim_start_matches("blake3:").chars().take(8).collect::<String>()
+            checksum
+                .trim_start_matches("blake3:")
+                .chars()
+                .take(8)
+                .collect::<String>()
         ),
         leyline_sdk::Mask::Brush { strokes } => format!(
             "×{} · ⌀ {} %",
