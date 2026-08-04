@@ -154,8 +154,13 @@ l'uniformité vaut mieux qu'un champ économisé, et elle laisse la porte ouvert
   propriété qu'ADR 0069 §1 avait promise et que cette ADR livre.
 * Une bibliothèque gagne un répertoire `Masks/` et pèse un peu plus lourd.
   `catalog.md` §3 le documente.
-* `rasterize_coverage` prend désormais des couvertures déjà résolues en plus
-  du `Mask` — le seul endroit du moteur où la signature change.
+* Les couvertures résolues **voyagent comme le profil DCP et la LUT** : de
+  `resolve_from_settings` au bord du moteur, à travers `render`,
+  `render_scaled`, `develop_scaled` et le `Context` des étages, jusqu'à
+  `rasterize_coverage`. Ce n'est pas un seul changement de signature mais la
+  même chaîne que les deux références qui existaient déjà — et les versions
+  d'étage gelées, elles, reçoivent une carte **vide**, ce qui rend leur
+  immunité structurelle au lieu de dépendre du refus de `validate()`.
 * Un fichier de masque manquant ou modifié est une **erreur de rendu**
   explicite, exactement comme un `.dcp` ou un `.cube` disparu.
 

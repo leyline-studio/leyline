@@ -3229,6 +3229,7 @@ dependencies = [
  "leyline-raw",
  "leyline-tether",
  "notify",
+ "png 0.18.1",
  "rayon",
  "roxmltree 0.21.1",
  "rusqlite",

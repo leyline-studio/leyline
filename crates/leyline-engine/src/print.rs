@@ -134,12 +134,15 @@ pub(crate) fn render_print(
         }
     })?;
     let lut = crate::lut::resolve_from_settings(&plan.library_root, &plan.develop)?;
+    let coverages =
+        crate::mask_coverage::resolve_from_settings(&plan.library_root, &plan.develop)?;
     let rendered = render(
         &decoded,
         &plan.develop,
         plan.shot.as_ref(),
         camera_profile.as_ref(),
         lut.as_ref(),
+        &coverages,
         crate::source::color(&plan.source),
     )?;
 

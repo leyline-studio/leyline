@@ -419,6 +419,24 @@ pub enum Mask {
     /// §1), so a range mask can stand on its own instead of having to be
     /// hung off a deliberately oversized radial.
     Everything,
+    /// A coverage stored as a file rather than derived from a formula
+    /// (ADR 0070): the one mask kind whose shape is not expressible in a
+    /// handful of numbers — a subject, a sky, a selection painted
+    /// elsewhere.
+    ///
+    /// Sampled bilinearly over the same normalized `[0, 1]²` canvas the
+    /// four variants above are evaluated on, so it follows rotation and
+    /// combines with a range and an opacity exactly like they do.
+    Coverage {
+        /// Library-relative path to the 16-bit grayscale PNG
+        /// (`docs/catalog.md` §2.3), conventionally `Masks/<blake3>.png`.
+        path: String,
+        /// BLAKE3 checksum of the file's bytes when this revision was
+        /// written, `"blake3:<hex>"` — the same fail-closed reference
+        /// [`CameraProfile`] and [`Lut`] carry. A mismatch at render time
+        /// is an error, never a silent render through a different mask.
+        checksum: String,
+    },
 }
 
 /// A range refinement of a [`LocalAdjustment`]'s geometric mask (ADR 0048):
@@ -994,6 +1012,30 @@ impl Settings {
                         }
                         unit(&format!("mask.strokes[{j}].flow"), stroke.flow)?;
                         unit(&format!("mask.strokes[{j}].hardness"), stroke.hardness)?;
+                    }
+                }
+                Mask::Coverage { path, checksum } => {
+                    // Same capability rule as `range` below, one variant
+                    // wider: v1 and v2 have no code that reads a stored
+                    // coverage, and an ignored mask is a local adjustment
+                    // applied to the whole image (ADR 0070 §4).
+                    if matches!(self.stages.get("local_adjustments"), Some(&v) if v < 3) {
+                        return Err(LeylineError::InvalidSettings(format!(
+                            "local_adjustments[{i}].mask is a stored coverage, which needs \
+                             stage local_adjustments version 3, but this revision pins an \
+                             earlier one; reprocess the photo to the current stage versions \
+                             first"
+                        )));
+                    }
+                    crate::validate_library_relative_path(
+                        &format!("local_adjustments[{i}].mask.path"),
+                        path,
+                    )?;
+                    if !checksum.starts_with("blake3:") || checksum.len() != "blake3:".len() + 64 {
+                        return Err(LeylineError::InvalidSettings(format!(
+                            "local_adjustments[{i}].mask.checksum must be \"blake3:<64 hex>\", \
+                             got {checksum:?}"
+                        )));
                     }
                 }
             }

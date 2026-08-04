@@ -200,6 +200,17 @@ impl Library {
     pub fn import_files_async(&self, source: &Path, files: &[PathBuf],
                               options: &ImportOptions) -> JobId;
 
+    /// Range une couverture de masque dans la bibliothèque et rend le
+    /// `Mask::Coverage` qui la référence (ADR 0070 §5) — l'unique point
+    /// d'entrée, et celui qu'une extension fermée appelle par le SDK
+    /// (ADR 0069 §2). `coverage` fait `width * height` échantillons,
+    /// 0 = le réglage ne s'applique pas ici, `u16::MAX` = pleinement ;
+    /// la résolution est celle du producteur, elle n'a pas à suivre celle
+    /// de la photo. Adressé par contenu : deux fois la même couverture ne
+    /// fait qu'un fichier.
+    pub fn store_mask_coverage(&self, width: u32, height: u32,
+                               coverage: &[u16]) -> Result<Mask>;
+
     /// Ce qu'un import prendrait, **sans rien écrire** (ADR 0065 §1).
     pub fn scan_import(&self, source: &Path, options: &ScanOptions,
                        progress: impl FnMut(u64, u64)) -> Result<Vec<ImportCandidate>>;

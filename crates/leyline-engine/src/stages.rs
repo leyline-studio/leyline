@@ -123,6 +123,7 @@ pub(crate) mod lut {
 pub(crate) mod local_adjustments {
     pub(crate) mod v1;
     pub(crate) mod v2;
+    pub(crate) mod v3;
 }
 pub(crate) mod noise_luminance {
     pub(crate) mod v1;
@@ -194,6 +195,10 @@ pub(crate) struct Context<'a> {
     pub camera_profile: Option<&'a DcpProfile>,
     /// The already-parsed creative LUT, for the LUT stage (ADR 0053).
     pub lut: Option<&'a leyline_color::CubeLut>,
+    /// The already-read, already-verified stored mask coverages, for the
+    /// local adjustments stage (ADR 0070). Empty for the overwhelming
+    /// majority of revisions, which reference none.
+    pub coverages: &'a crate::mask_coverage::MaskCoverages,
     /// Factor by which the image was already reduced for a preview
     /// (ADR 0041). Stages expressing a radius in *pixels* multiply by it;
     /// everything normalized to `[0, 1]` ignores it.
@@ -674,6 +679,22 @@ pub(crate) static STAGES: &[Stage] = &[
                         px,
                         &ctx.settings.local_adjustments,
                         ctx.settings.rotation,
+                    );
+                },
+            },
+            // Stored coverages (ADR 0070): a mask may be a file of samples
+            // instead of a formula. Everything v2 can express renders here
+            // exactly as v2 renders it.
+            Version {
+                version: 3,
+                rank: 160,
+                space: Space::LinearRec2020,
+                apply: |px, ctx| {
+                    local_adjustments::v3::local_adjustments(
+                        px,
+                        &ctx.settings.local_adjustments,
+                        ctx.settings.rotation,
+                        ctx.coverages,
                     );
                 },
             },
@@ -1244,6 +1265,7 @@ pub(crate) fn develop_scaled_cached(
     shot: Option<&LensShot>,
     camera_profile: Option<&DcpProfile>,
     lut: Option<&leyline_color::CubeLut>,
+    coverages: &crate::mask_coverage::MaskCoverages,
     source: SourceColor,
     scale: f32,
     asset: leyline_core::AssetId,
@@ -1255,6 +1277,7 @@ pub(crate) fn develop_scaled_cached(
         shot,
         camera_profile,
         lut,
+        coverages,
         source,
         scale,
     };
@@ -1302,6 +1325,7 @@ pub(crate) fn develop_scaled(
     shot: Option<&LensShot>,
     camera_profile: Option<&DcpProfile>,
     lut: Option<&leyline_color::CubeLut>,
+    coverages: &crate::mask_coverage::MaskCoverages,
     source: SourceColor,
     scale: f32,
 ) -> Result<Rendered> {
@@ -1311,6 +1335,7 @@ pub(crate) fn develop_scaled(
         shot,
         camera_profile,
         lut,
+        coverages,
         source,
         scale,
     };

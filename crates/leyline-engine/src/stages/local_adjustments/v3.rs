@@ -1,25 +1,27 @@
-//! Local adjustments v2 (ADR 0048) — rank 160. `v1` plus range masks: the
-//! geometric coverage may be narrowed by a band of luminance and a band of
-//! hue.
+//! Local adjustments v3 (ADR 0070) — rank 160. `v2` plus stored coverages:
+//! a mask may now be a file of samples instead of a formula, which is the one
+//! mask kind a subject or a sky needs.
 //!
 //! **Frozen.** Its pixels are part of the reproducibility contract
 //! (`docs/pipeline.md` §5.1): a revision citing this stage version renders
 //! through exactly this code, forever. A change of rendering is a new
 //! version module next to this one, never an edit here (ADR 0042 §1).
 //!
-//! Two things live here rather than in `crate::mask`, deliberately. The
-//! range terms are a **formula on pixels**, and `mask.rs` is shared by every
-//! stage version precisely because it holds none: putting them there would
-//! make `v1`'s frozen render depend on mutable code (ADR 0048 §4). The
-//! operator calls are pinned the same way `v1` pins them — `gains::v1`,
-//! `contrast::v1`, … — so a future `contrast::v2` leaves this module alone.
+//! Everything a `v2` revision expresses renders here **exactly as `v2`
+//! renders it**: the coverage map is consulted only for `Mask::Coverage`,
+//! which `v2` revisions cannot carry (`Settings::validate` refuses it,
+//! ADR 0070 §4). The reference renders record that — every `v2` entry has a
+//! `v3` twin with the same hash.
 //!
-//! An adjustment without a `range` renders exactly as `v1` renders it: the
-//! multiplication by the range terms is skipped, not multiplied by one.
+//! The range terms and the operator sequence are copied from `v2` rather than
+//! called into it. That is what freezing costs, and it costs nothing real: a
+//! frozen module never receives a fix, only a successor, so two copies can
+//! never drift apart the way shared mutable code would (ADR 0048 §4).
 
 use leyline_core::{ColorRange, LocalAdjustment, LuminanceRange, RangeMask, WhiteBalance};
 
 use crate::mask;
+use crate::mask_coverage::MaskCoverages;
 use crate::pixels::{Pixels, luma};
 use crate::stages::contrast::v1::contrast;
 use crate::stages::gains::v1::linear_gains;
@@ -33,31 +35,30 @@ pub(crate) fn local_adjustments(
     px: &mut Pixels,
     adjustments: &[LocalAdjustment],
     rotation_degrees: f64,
+    coverages: &MaskCoverages,
 ) {
     for adjustment in adjustments {
-        apply_local_adjustment(px, adjustment, rotation_degrees);
+        apply_local_adjustment(px, adjustment, rotation_degrees, coverages);
     }
 }
 
-/// Same composition as `v1` — develop a full copy through the re-parameterized
-/// global operators, blend it back by coverage × opacity — with the coverage
-/// narrowed by the entry's range mask when it has one.
+/// Same composition as `v2` — develop a full copy through the re-parameterized
+/// global operators, blend it back by coverage × opacity, narrowed by the
+/// entry's range mask when it has one — with the mask now allowed to be a
+/// stored coverage.
 pub(crate) fn apply_local_adjustment(
     px: &mut Pixels,
     adjustment: &LocalAdjustment,
     rotation_degrees: f64,
+    coverages: &MaskCoverages,
 ) {
-    let mut coverage =
-        // An empty coverage map: this frozen version predates stored
-        // coverages (ADR 0070), and passing nothing makes that structural
-        // rather than a promise `Settings::validate` keeps on its behalf.
-        mask::rasterize_coverage(
-            &adjustment.mask,
-            &crate::mask_coverage::MaskCoverages::default(),
-            px.width,
-            px.height,
-            rotation_degrees,
-        );
+    let mut coverage = mask::rasterize_coverage(
+        &adjustment.mask,
+        coverages,
+        px.width,
+        px.height,
+        rotation_degrees,
+    );
     if let Some(range) = &adjustment.range {
         narrow_by_range(&mut coverage, px, range);
     }

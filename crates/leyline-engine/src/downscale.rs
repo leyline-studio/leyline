@@ -262,6 +262,7 @@ mod tests {
             None,
             None,
             None,
+            &Default::default(),
             crate::stages::SourceColor::Camera {
                 to_xyz: None,
                 multipliers: None,
@@ -275,6 +276,7 @@ mod tests {
             None,
             None,
             None,
+            &Default::default(),
             crate::stages::SourceColor::Camera {
                 to_xyz: None,
                 multipliers: None,

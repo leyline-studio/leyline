@@ -51,6 +51,7 @@ fn develop(
         shot,
         camera_profile,
         None,
+        &Default::default(),
         SourceColor::Camera {
             to_xyz: None,
             multipliers: None,
@@ -619,6 +620,7 @@ fn a_lut_grades_the_image_and_its_strength_doses_the_effect() {
             None,
             None,
             Some(&look),
+            &Default::default(),
             SourceColor::Camera {
                 to_xyz: None,
                 multipliers: None,
@@ -1958,6 +1960,7 @@ fn the_stage_cache_never_changes_a_pixel() {
             None,
             None,
             None,
+            &Default::default(),
             super::SourceColor::Srgb,
             1.0,
         )
@@ -1968,6 +1971,7 @@ fn the_stage_cache_never_changes_a_pixel() {
             None,
             None,
             None,
+            &Default::default(),
             super::SourceColor::Srgb,
             1.0,
             asset,
@@ -2008,6 +2012,7 @@ fn the_stage_cache_is_dropped_across_assets_and_scales() {
         None,
         None,
         None,
+        &Default::default(),
         super::SourceColor::Srgb,
         1.0,
         AssetId::new(1),
@@ -2022,6 +2027,7 @@ fn the_stage_cache_is_dropped_across_assets_and_scales() {
         None,
         None,
         None,
+        &Default::default(),
         super::SourceColor::Srgb,
         1.0,
         AssetId::new(2),
@@ -2034,6 +2040,7 @@ fn the_stage_cache_is_dropped_across_assets_and_scales() {
         None,
         None,
         None,
+        &Default::default(),
         super::SourceColor::Srgb,
         1.0,
     )
@@ -2047,6 +2054,7 @@ fn the_stage_cache_is_dropped_across_assets_and_scales() {
         None,
         None,
         None,
+        &Default::default(),
         super::SourceColor::Srgb,
         0.5,
         AssetId::new(2),
@@ -2059,6 +2067,7 @@ fn the_stage_cache_is_dropped_across_assets_and_scales() {
         None,
         None,
         None,
+        &Default::default(),
         super::SourceColor::Srgb,
         0.5,
     )

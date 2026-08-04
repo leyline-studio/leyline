@@ -618,6 +618,7 @@ fn capture(settings: &Settings, stages: &StageVersions) -> Golden {
         Some(&shot),
         Some(&profile),
         Some(&look),
+        &Default::default(),
         source,
     )
     .unwrap_or_else(|e| panic!("render failed: {e}"));

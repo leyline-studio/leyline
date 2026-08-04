@@ -156,6 +156,21 @@ pub enum LeylineError {
         reason: String,
     },
 
+    /// A revision references a stored mask coverage (ADR 0070) that is
+    /// missing, unreadable, not a 16-bit grayscale PNG, or whose BLAKE3
+    /// checksum no longer matches what the revision recorded. Same
+    /// fail-closed contract as [`LeylineError::LutFailed`]: a local
+    /// adjustment silently covering the whole image — or nothing — is worse
+    /// than an error.
+    #[error("mask coverage at {path} failed: {reason}")]
+    MaskCoverageFailed {
+        /// Library-relative path of the referenced `.png` file.
+        path: String,
+        /// Human-readable diagnostic (missing file, checksum mismatch,
+        /// wrong format).
+        reason: String,
+    },
+
     /// An underlying I/O operation failed.
     #[error("i/o error: {0}")]
     Io(#[from] std::io::Error),

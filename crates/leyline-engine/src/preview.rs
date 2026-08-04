@@ -151,6 +151,8 @@ pub(crate) fn render_preview(
             reason: e.to_string(),
         })?;
     let lut = crate::lut::resolve_from_settings(&plan.library_root, &plan.settings)?;
+    let coverages =
+        crate::mask_coverage::resolve_from_settings(&plan.library_root, &plan.settings)?;
     let (decoded, scale) = proxy(&decoded, plan.max_edge);
     let rendered = render_scaled_cached(
         &decoded,
@@ -158,6 +160,7 @@ pub(crate) fn render_preview(
         plan.shot.as_ref(),
         camera_profile.as_ref(),
         lut.as_ref(),
+        &coverages,
         crate::source::color(&plan.source_path),
         scale,
         asset,
@@ -252,12 +255,14 @@ pub(crate) fn render_with_settings(
         })?;
     let (decoded, scale) = proxy(&decoded, plan.max_edge);
     let lut = crate::lut::resolve_from_settings(&plan.library_root, settings)?;
+    let coverages = crate::mask_coverage::resolve_from_settings(&plan.library_root, settings)?;
     let rendered = render_scaled(
         &decoded,
         settings,
         plan.shot.as_ref(),
         camera_profile.as_ref(),
         lut.as_ref(),
+        &coverages,
         crate::source::color(&plan.source_path),
         scale,
     )?;

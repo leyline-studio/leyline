@@ -133,6 +133,7 @@ fn benches(c: &mut Criterion) {
                 None,
                 None,
                 None,
+                &Default::default(),
                 SOURCE,
             )
             .unwrap()
@@ -148,6 +149,7 @@ fn benches(c: &mut Criterion) {
                 None,
                 None,
                 None,
+                &Default::default(),
                 SOURCE,
             )
             .unwrap()
@@ -167,6 +169,7 @@ fn benches(c: &mut Criterion) {
                 None,
                 None,
                 None,
+                &Default::default(),
                 SOURCE,
             )
             .unwrap()
@@ -192,6 +195,7 @@ fn benches(c: &mut Criterion) {
                 None,
                 None,
                 None,
+                &Default::default(),
                 SOURCE,
             )
             .unwrap()
@@ -216,6 +220,7 @@ fn benches(c: &mut Criterion) {
                 None,
                 None,
                 None,
+                &Default::default(),
                 SOURCE,
             )
             .unwrap()
@@ -231,6 +236,7 @@ fn benches(c: &mut Criterion) {
                 None,
                 None,
                 None,
+                &Default::default(),
                 SOURCE,
             )
             .unwrap()
@@ -255,6 +261,7 @@ fn benches(c: &mut Criterion) {
                 Some(black_box(&shot)),
                 None,
                 None,
+                &Default::default(),
                 SOURCE,
             )
             .unwrap()
@@ -276,6 +283,7 @@ fn benches(c: &mut Criterion) {
                 Some(black_box(&shot)),
                 None,
                 None,
+                &Default::default(),
                 SOURCE,
             )
             .unwrap()
@@ -309,6 +317,7 @@ fn benches(c: &mut Criterion) {
                 Some(black_box(&no_tca_shot)),
                 None,
                 None,
+                &Default::default(),
                 SOURCE,
             )
             .unwrap()
@@ -335,6 +344,7 @@ fn benches(c: &mut Criterion) {
                     Some(black_box(&shot)),
                     Some(black_box(&profile)),
                     None,
+                    &Default::default(),
                     SOURCE,
                 )
                 .unwrap()
@@ -375,6 +385,7 @@ fn benches(c: &mut Criterion) {
                     None,
                     None,
                     None,
+                    &Default::default(),
                     SOURCE,
                 )
                 .unwrap()

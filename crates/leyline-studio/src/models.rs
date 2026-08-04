@@ -218,7 +218,11 @@ pub(crate) fn mask_rows(settings: &Settings) -> Vec<crate::ui::MaskRow> {
                             .collect::<Vec<_>>(),
                     )));
                 }
-                leyline_sdk::Mask::Everything => {}
+                // Nothing to place on the canvas: a stored coverage
+                // (ADR 0070) has no handles, and no tool in Studio makes
+                // one yet — the row exists so an extension's mask is
+                // listed, selectable and adjustable like any other.
+                leyline_sdk::Mask::Everything | leyline_sdk::Mask::Coverage { .. } => {}
             }
             row
         })
@@ -232,6 +236,7 @@ fn mask_kind(mask: &leyline_sdk::Mask) -> &'static str {
         leyline_sdk::Mask::Gradient { .. } => "gradient",
         leyline_sdk::Mask::Brush { .. } => "brush",
         leyline_sdk::Mask::Everything => "everything",
+        leyline_sdk::Mask::Coverage { .. } => "coverage",
     }
 }
 
@@ -255,6 +260,12 @@ fn mask_geometry(mask: &leyline_sdk::Mask) -> String {
             percent(*y0),
             percent(*x1),
             percent(*y1)
+        ),
+        // The checksum's first bytes: enough to tell two stored masks apart
+        // in a list, and the only identity a coverage has.
+        leyline_sdk::Mask::Coverage { checksum, .. } => format!(
+            "⛁ {}",
+            checksum.trim_start_matches("blake3:").chars().take(8).collect::<String>()
         ),
         leyline_sdk::Mask::Brush { strokes } => format!(
             "×{} · ⌀ {} %",

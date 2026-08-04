@@ -1127,26 +1127,6 @@ impl Library {
         }
     }
 
-    /// Exports one version at its head revision and returns the written
-    /// file — the per-version core [`Library::export`] loops over, with the
-    /// catalog lock narrowed to the plan and the journal (ADR 0024).
-    fn export_one(
-        &self,
-        version: VersionId,
-        settings: &ExportSettings,
-        preset: Option<ExportPresetId>,
-        destination_dir: &Path,
-    ) -> Result<PathBuf> {
-        let plan = {
-            let catalog = lock(&self.inner.catalog);
-            crate::export::plan_export(&catalog, &self.inner.root, version)?
-        };
-        let destination = crate::export::render_export(&plan, settings, destination_dir)?;
-        let mut catalog = lock(&self.inner.catalog);
-        crate::export::journal_export(&mut catalog, &plan, preset, settings, &destination)?;
-        Ok(destination)
-    }
-
     /// Stores a named export preset (§12), validating the recipe first.
     pub fn create_export_preset(
         &self,
@@ -1798,6 +1778,33 @@ impl Library {
             return Err(error.into());
         }
         Ok(())
+    }
+
+    /// Stores a mask coverage in the library and returns the
+    /// [`leyline_core::Mask`] that references it (ADR 0070 §5).
+    ///
+    /// `coverage` is `width * height` samples in row-major order, `0` = the
+    /// adjustment does not apply here, `u16::MAX` = it applies fully. The
+    /// resolution is the producer's own: it is sampled over the normalized
+    /// canvas, so it need not match the photo, and storing a segmentation
+    /// model's native output beats upsampling it to the sensor's size.
+    ///
+    /// The only way to create a stored mask, and the surface a closed
+    /// extension uses through the SDK ([ADR 0069](../../../docs/adr/0069-closed-extension-boundary.md)).
+    /// Content-addressed, so storing the same coverage twice writes one
+    /// file; the caller never learns the layout.
+    pub fn store_mask_coverage(
+        &self,
+        width: u32,
+        height: u32,
+        coverage: &[u16],
+    ) -> Result<leyline_core::Mask> {
+        if self.catalog().is_read_only() {
+            return Err(LeylineError::Db(
+                "library opened read-only; writes are refused".to_owned(),
+            ));
+        }
+        crate::mask_coverage::store_coverage(&self.inner.root, width, height, coverage)
     }
 
     /// Imports `source` as a camera profile (ADR 0035): copies it, under

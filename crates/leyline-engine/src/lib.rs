@@ -19,6 +19,7 @@ mod import;
 mod library;
 mod lut;
 mod mask;
+pub mod mask_coverage;
 mod pixels;
 mod presets;
 mod preview;

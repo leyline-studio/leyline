@@ -79,21 +79,33 @@ pub fn lens_shot(meta: &Metadata) -> Option<LensShot> {
 /// (ADR 0044 §3). It is a property of the file, not of the revision.
 ///
 /// `shot` feeds only the lens stage. `camera_profile` feeds only the camera
-/// profile stage (ADR 0035) and `lut` only the LUT stage (ADR 0053) — both
+/// profile stage (ADR 0035), `lut` only the LUT stage (ADR 0053) and
+/// `coverages` only the local adjustments stage (ADR 0070) — all three
 /// already resolved, checksummed and parsed by the caller
 /// (`crate::camera_profile::resolve_from_settings`,
-/// `crate::lut::resolve_from_settings`), since reading a file from disk has no
-/// place in this otherwise pure function. Any of them being `None` leaves its
-/// stage with nothing to do.
+/// `crate::lut::resolve_from_settings`,
+/// `crate::mask_coverage::resolve_from_settings`), since reading a file from
+/// disk has no place in this otherwise pure function. Any of them being `None`
+/// — or empty — leaves its stage with nothing to do.
 pub fn render(
     image: &RawImage,
     settings: &Settings,
     shot: Option<&LensShot>,
     camera_profile: Option<&leyline_color::DcpProfile>,
     lut: Option<&leyline_color::CubeLut>,
+    coverages: &crate::mask_coverage::MaskCoverages,
     source: SourceColor,
 ) -> Result<Rendered> {
-    render_scaled(image, settings, shot, camera_profile, lut, source, 1.0)
+    render_scaled(
+        image,
+        settings,
+        shot,
+        camera_profile,
+        lut,
+        coverages,
+        source,
+        1.0,
+    )
 }
 
 /// [`render`] of an image already reduced by `scale` (ADR 0041).
@@ -109,12 +121,14 @@ pub fn render(
 /// take, and it is bit-identical to what this engine produced before the
 /// parameter existed. The reproducibility contract (`docs/pipeline.md` §5)
 /// therefore does not move, and no new stage version is needed.
+#[allow(clippy::too_many_arguments)]
 pub fn render_scaled(
     image: &RawImage,
     settings: &Settings,
     shot: Option<&LensShot>,
     camera_profile: Option<&leyline_color::DcpProfile>,
     lut: Option<&leyline_color::CubeLut>,
+    coverages: &crate::mask_coverage::MaskCoverages,
     source: SourceColor,
     scale: f32,
 ) -> Result<Rendered> {
@@ -124,7 +138,16 @@ pub fn render_scaled(
         });
     }
     settings.validate()?;
-    stages::develop_scaled(image, settings, shot, camera_profile, lut, source, scale)
+    stages::develop_scaled(
+        image,
+        settings,
+        shot,
+        camera_profile,
+        lut,
+        coverages,
+        source,
+        scale,
+    )
 }
 
 /// [`render_scaled`] with the preview pipeline's stage cache (ADR 0041 §3).
@@ -139,6 +162,7 @@ pub(crate) fn render_scaled_cached(
     shot: Option<&LensShot>,
     camera_profile: Option<&leyline_color::DcpProfile>,
     lut: Option<&leyline_color::CubeLut>,
+    coverages: &crate::mask_coverage::MaskCoverages,
     source: SourceColor,
     scale: f32,
     asset: leyline_core::AssetId,
@@ -156,6 +180,7 @@ pub(crate) fn render_scaled_cached(
         shot,
         camera_profile,
         lut,
+        coverages,
         source,
         scale,
         asset,
@@ -263,7 +288,7 @@ mod tests {
     /// image, which is what this asserts — geometry untouched, grey still
     /// grey, and monotonic in the input.
     fn neutral(image: &RawImage) -> Rendered {
-        render(image, &Settings::default(), None, None, None, SOURCE).unwrap()
+        render(image, &Settings::default(), None, None, None, &Default::default(), SOURCE).unwrap()
     }
 
     /// The colorimetry every test here renders through: no camera matrix,
@@ -343,8 +368,8 @@ mod tests {
             }),
             ..Settings::default()
         };
-        let first = render(&image, &settings, None, None, None, SOURCE).unwrap();
-        let second = render(&image, &settings, None, None, None, SOURCE).unwrap();
+        let first = render(&image, &settings, None, None, None, &Default::default(), SOURCE).unwrap();
+        let second = render(&image, &settings, None, None, None, &Default::default(), SOURCE).unwrap();
         assert_eq!(first, second);
     }
 
@@ -360,6 +385,7 @@ mod tests {
             None,
             None,
             None,
+            &Default::default(),
             SOURCE,
         )
         .unwrap();
@@ -372,6 +398,7 @@ mod tests {
             None,
             None,
             None,
+            &Default::default(),
             SOURCE,
         )
         .unwrap();
@@ -396,6 +423,7 @@ mod tests {
             None,
             None,
             None,
+            &Default::default(),
             SOURCE,
         )
         .unwrap();
@@ -424,6 +452,7 @@ mod tests {
             None,
             None,
             None,
+            &Default::default(),
             SOURCE,
         )
         .unwrap();
@@ -445,6 +474,7 @@ mod tests {
             None,
             None,
             None,
+            &Default::default(),
             SOURCE,
         )
         .unwrap();
@@ -474,6 +504,7 @@ mod tests {
             None,
             None,
             None,
+            &Default::default(),
             SOURCE,
         )
         .unwrap();
@@ -523,6 +554,7 @@ mod tests {
             None,
             None,
             None,
+            &Default::default(),
             SOURCE,
         )
         .unwrap()
@@ -598,6 +630,7 @@ mod tests {
             None,
             None,
             None,
+            &Default::default(),
             SOURCE,
         )
         .unwrap();
@@ -627,6 +660,7 @@ mod tests {
             None,
             None,
             None,
+            &Default::default(),
             SOURCE,
         )
         .unwrap();
@@ -650,6 +684,7 @@ mod tests {
             None,
             None,
             None,
+            &Default::default(),
             SOURCE,
         )
         .unwrap();
@@ -669,7 +704,7 @@ mod tests {
             ..Settings::default()
         };
         assert!(matches!(
-            render(&test_image(), &settings, None, None, None, SOURCE),
+            render(&test_image(), &settings, None, None, None, &Default::default(), SOURCE),
             Err(LeylineError::NewerSettings { .. })
         ));
     }
@@ -688,7 +723,7 @@ mod tests {
             ..Settings::default()
         };
         assert!(matches!(
-            render(&test_image(), &settings, None, None, None, SOURCE),
+            render(&test_image(), &settings, None, None, None, &Default::default(), SOURCE),
             Err(LeylineError::UnknownStage { version: 99, .. })
         ));
     }
@@ -704,6 +739,7 @@ mod tests {
             None,
             None,
             None,
+            &Default::default(),
             SOURCE,
         )
         .unwrap_err();

@@ -168,8 +168,13 @@ fn brush_coverage_at(
 /// Rasterizes one mask's coverage over the whole (still-unrotated) working
 /// buffer: for every buffer pixel, maps it into the post-rotation canvas
 /// frame (ADR 0026) and evaluates the mask there.
+/// `coverages` supplies the samples of a [`Mask::Coverage`], already read and
+/// verified by [`crate::mask_coverage`]. Frozen stage versions that predate
+/// ADR 0070 pass an empty map, which makes their immunity *structural* rather
+/// than merely guaranteed by `Settings::validate` refusing them the variant.
 pub(crate) fn rasterize_coverage(
     mask: &Mask,
+    coverages: &crate::mask_coverage::MaskCoverages,
     width: u32,
     height: u32,
     rotation_degrees: f64,
@@ -202,6 +207,11 @@ pub(crate) fn rasterize_coverage(
                     // range terms that usually accompany it do not
                     // (ADR 0048 §4).
                     Mask::Everything => 1.0,
+                    // Tabulated rather than computed, but the same function
+                    // of canvas position as the four above (ADR 0070 §3).
+                    Mask::Coverage { path, .. } => coverages
+                        .get(path)
+                        .map_or(0.0, |c| f64::from(c.sample(cx / frame.out_w, cy / frame.out_h))),
                 } as f32;
             }
         });
@@ -374,7 +384,7 @@ mod tests {
             feather: 0.2,
             inverted: false,
         };
-        let coverage = rasterize_coverage(&mask, 20, 10, 0.0);
+        let coverage = rasterize_coverage(&mask, &crate::mask_coverage::MaskCoverages::default(), 20, 10, 0.0);
         assert_eq!(coverage.len(), 200);
         for value in coverage {
             assert!((0.0..=1.0).contains(&value));

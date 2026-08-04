@@ -56,7 +56,16 @@ pub(crate) fn apply_local_adjustment(
     rotation_degrees: f64,
 ) {
     let coverage =
-        mask::rasterize_coverage(&adjustment.mask, px.width, px.height, rotation_degrees);
+        // An empty coverage map: this frozen version predates stored
+        // coverages (ADR 0070), and passing nothing makes that structural
+        // rather than a promise `Settings::validate` keeps on its behalf.
+        mask::rasterize_coverage(
+            &adjustment.mask,
+            &crate::mask_coverage::MaskCoverages::default(),
+            px.width,
+            px.height,
+            rotation_degrees,
+        );
     let values = &adjustment.adjustments;
     let mut adjusted = px.clone();
     if values.temperature.is_some() || values.tint.is_some() || values.exposure.is_some() {
