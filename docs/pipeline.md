@@ -351,10 +351,15 @@ Le code de chaque version d'étage est conservé dans le moteur pour toujours : 
 
 | Rang | Étage | Version | Rôle |
 |---|---|---|---|
-| 0 | `input` | 1, 2 | Configuration demandée au décodeur (capteur natif, linéaire, 16 bits) et matrice vers l'espace de travail — profil DCP, matrice du boîtier, ou décodage sRGB pour un JPEG/PNG/TIFF ; toujours actif (ADR 0044). La v2 ajoute le mode de reconstruction des hautes lumières demandé au décodeur (ADR 0050) |
+| 0 | `input` | 1 | Configuration demandée au décodeur (capteur natif, linéaire, 16 bits) et matrice vers l'espace de travail — profil DCP, matrice du boîtier, ou décodage sRGB pour un JPEG/PNG/TIFF ; toujours actif (ADR 0044) |
+| 0 | `input` | 2 | Idem, plus le mode de reconstruction des hautes lumières demandé au décodeur ([ADR 0050](adr/0050-highlight-reconstruction.md)) |
+| 0 | `input` | 3 | Idem, plus l'algorithme de dématriçage demandé au décodeur ([ADR 0061](adr/0061-demosaic-algorithm.md)) ; identique à `v2` à réglage neutre |
+| 0 | `input` | 4 | Idem, en normalisant par le niveau de blanc que le **boîtier** a écrit et non par le plafond du format ([ADR 0066](adr/0066-sensor-white-level.md)) — la seule version d'`input` qui ne rend **pas** comme sa précédente à réglages neutres, ce qui est la correction même |
 | 5 | `noise_luminance` | 3 | Bruit de luminance, seuil issu du **profil mesuré** du boîtier à cette sensibilité : il varie donc avec le pixel. D'où le rang — un modèle mesuré sur les comptes du capteur ne veut plus rien dire après l'exposition et la courbe ([ADR 0072](adr/0072-measured-noise-profile.md)) |
 | 6 | `noise_color` | 3 | Idem sur les plans de chrominance, seuil mesuré lui aussi (ADR 0072) |
 | 10 | `camera_profile` | 1 | Matrice DCP boîtier → Rec. 2020 linéaire, avant tout le reste : elle remplace alors la matrice d'`input` (ADR 0035, conteneur lu selon ADR 0037) |
+| 10 | `camera_profile` | 2 | Idem, en **interpolant** les deux illuminants de calibration en mireds selon la température de scène, au lieu d'en faire la moyenne ([ADR 0062](adr/0062-dcp-illuminant-interpolation.md)) |
+| 10 | `camera_profile` | 3 | Idem, plus les tables du profil — `HueSatMap`, `LookTable`, `ProfileToneCurve` — dans l'ordre et l'espace ProPhoto de la spécification DNG ([ADR 0063](adr/0063-dcp-tables.md)) |
 | 20 | `lens` | 1 | Distorsion, aberration chromatique transversale et vignettage via un profil Lensfun (ADR 0016–0018) |
 | 30 | `spot_removal` | 1 | Clonage déterministe par copie bilinéaire adoucie, sans mode *heal* (ADR 0031) |
 | 40 | `gains` | 1 | Balance des blancs et exposition : une multiplication par canal, le tampon étant déjà en lumière linéaire (ADR 0044) |
@@ -371,6 +376,7 @@ Le code de chaque version d'étage est conservé dans le moteur pour toujours : 
 | 150 | `color_grading` | 1 | Trois zones ombres/tons moyens/hautes lumières pondérées par la luminance (ADR 0032) |
 | 160 | `local_adjustments` | 1 | Réglages locaux masqués (brosse/radial/gradient), réutilisant les opérateurs globaux restreints à une couverture (ADR 0029) |
 | 160 | `local_adjustments` | 2 | Idem, plus les masques par plage : la couverture géométrique peut être resserrée par une bande de luminance et une bande de teinte (ADR 0048) |
+| 160 | `local_adjustments` | 3 | Idem, plus les masques **stockés** : la couverture peut être une image référencée plutôt qu'une géométrie ([ADR 0070](adr/0070-stored-mask-coverage.md)) ; `v1` et `v2` la **refusent** au lieu de l'ignorer |
 | 165 | `lut` | 1 | LUT créative `.cube` appliquée sur l'axe d'affichage, dosée par `strength` ; dernière décision de couleur (ADR 0053) |
 | 170 | `noise_luminance` | 1 | Réduction du bruit de luminance : mélange vers un flou gaussien du plan de luma |
 | 170 | `noise_luminance` | 2 | Idem, préservant les contours : ondelettes à trous et seuillage doux par échelle (ADR 0046) |

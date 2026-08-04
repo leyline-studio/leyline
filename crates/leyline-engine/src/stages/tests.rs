@@ -2086,3 +2086,77 @@ fn the_stage_cache_is_dropped_across_assets_and_scales() {
         "a cached buffer crossed scales"
     );
 }
+
+/// `docs/pipeline.md` §3.3 lists every stage version this engine renders,
+/// with its rank — and it is the *owning* document for that list, so a reader
+/// is entitled to trust it over the code.
+///
+/// Nothing kept the two in step, and they had drifted: five published
+/// versions were missing from the table — `input::v3` and `v4`,
+/// `camera_profile::v2` and `v3`, `local_adjustments::v3` — each one a
+/// rendering a revision can cite while the specification denied it existed.
+/// The lie is silent by nature, which is why this is a test rather than a
+/// habit.
+///
+/// Only the *registry side* is asserted: every published `(stage, version,
+/// rank)` has a row. A row the registry does not have is left alone, since
+/// the table is also the place where a collapsed version (ADR 0043) or a
+/// hypothetical one may legitimately be discussed in prose.
+#[test]
+fn the_pipeline_specification_lists_every_stage_version_this_engine_renders() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/pipeline.md");
+    let spec = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
+
+    // The table's rows: `| <rank> | `<stage>` | <version> | <role> |`. A row
+    // may list several versions at once (`1, 2`), which the split handles.
+    let mut listed: Vec<(String, u16, u16)> = Vec::new();
+    for line in spec.lines() {
+        let cells: Vec<&str> = line.trim().trim_matches('|').split('|').collect();
+        let [rank, stage, versions, ..] = cells.as_slice() else {
+            continue;
+        };
+        let (Ok(rank), Some(stage)) = (
+            rank.trim().parse::<u16>(),
+            stage
+                .trim()
+                .strip_prefix('`')
+                .and_then(|s| s.strip_suffix('`')),
+        ) else {
+            continue;
+        };
+        for version in versions.split(',') {
+            if let Ok(version) = version.trim().parse::<u16>() {
+                listed.push((stage.to_owned(), version, rank));
+            }
+        }
+    }
+    assert!(
+        listed.len() > 20,
+        "the table was not found in {} — it moved, or its shape changed",
+        path.display()
+    );
+
+    let missing: Vec<String> = crate::stages::registry()
+        .flat_map(|stage| {
+            stage
+                .versions
+                .iter()
+                .map(move |version| (stage.name.to_owned(), version.version, version.rank))
+        })
+        // The test fixture stage exists only under `cfg(test)` and renders
+        // nothing anyone can cite: it has no business in a specification.
+        .filter(|(name, _, _)| name != fixture::NAME)
+        .filter(|entry| !listed.contains(entry))
+        .map(|(name, version, rank)| format!("{name}::v{version} (rang {rank})"))
+        .collect();
+
+    assert!(
+        missing.is_empty(),
+        "{} stage version(s) render today and are absent from docs/pipeline.md §3.3 — \
+         the table is the owning list, so add a row rather than leaving a reader \
+         to discover them in the registry:\n  {}",
+        missing.len(),
+        missing.join("\n  ")
+    );
+}

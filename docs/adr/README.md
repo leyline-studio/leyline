@@ -16,6 +16,14 @@ Il n'est pas fait pour être lu d'un bout à l'autre. Trois usages :
 
 Ce qui ne se relâche d'aucun côté de cette ligne : **décider et documenter avant de coder**.
 
+### Les chemins que citent les ADR d'avant 0042
+
+Les ADR antérieurs à [0042](0042-versioned-stage-pipeline.md) nomment des modules `processN.rs` — `process1.rs` à `process11.rs` — qui **n'existent plus**. Le pipeline a été réorganisé en étages versionnés ([0042](0042-versioned-stage-pipeline.md)) puis son historique d'avant publication effondré ([0043](0043-collapse-prerelease-render-history.md)) : un opérateur qui vivait dans une copie complète du pipeline vit désormais dans `crates/leyline-engine/src/stages/<opérateur>/vN.rs`.
+
+Ces citations ne sont **pas** corrigées, et c'est délibéré : elles décrivent un acte à sa date — « `process6.rs`, copie intégrale de `process5.rs` » raconte comment le module a été créé, et le réécrire en un chemin d'aujourd'hui rendrait la phrase fausse tout en la rendant cliquable. La règle d'édition ci-dessus vise ce qu'un ADR *affirme du présent*, pas ce qu'il raconte du passé.
+
+Pour retrouver le code d'un tel ADR : l'opérateur qu'il décrit, sous `stages/`, à la version qu'il a créée.
+
 Un ADR remplacé n'est jamais supprimé : il reste lisible, avec sa raison d'époque. [ADR 0028](0028-process-version-per-feature.md) en est l'exemple — son raisonnement était correct pour les données dont il disposait, et il avait lui-même prévu sa réouverture.
 
 | ADR | Décision |
