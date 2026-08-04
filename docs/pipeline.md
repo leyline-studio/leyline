@@ -238,6 +238,15 @@ Jamais un delta.
             },
             "opacity": 0.85,
             "adjustments": { "exposure": -0.4 }
+        },
+        {
+            "mask": {
+                "type": "coverage",
+                "path": "Masks/9f2c….png",
+                "checksum": "blake3:9f2c…"
+            },
+            "opacity": 1.0,
+            "adjustments": { "exposure": 0.3, "clarity": 12 }
         }
     ],
 
@@ -336,7 +345,7 @@ Un étage actif mais sans version inscrite rend à la version courante. Ce cas n
 
 Le code de chaque version d'étage est conservé dans le moteur pour toujours : c'est le prix de la promesse « mêmes pixels dans dix ans », dont §5.1 énonce la portée exacte. Il se paie désormais par opérateur réellement corrigé — quelques dizaines de lignes — et non plus par copie intégrale du pipeline.
 
-**Étages connus, et l'ordre dans lequel ils s'exécutent.** L'historique de rendu antérieur à la publication a été effondré ([ADR 0043](adr/0043-collapse-prerelease-render-history.md)), puisqu'aucune révision au monde ne le citait : tous les étages sont donc partis en version 1. Quatre ont depuis une seconde version : les deux étages de bruit ([ADR 0046](adr/0046-edge-preserving-denoise.md)), les réglages locaux ([ADR 0048](adr/0048-range-masks.md)) et `input` ([ADR 0050](adr/0050-highlight-reconstruction.md)) — `input` étant depuis monté à la version 4 ([ADR 0061](adr/0061-demosaic-algorithm.md) puis [ADR 0066](adr/0066-sensor-white-level.md)), et `camera_profile` à la version 3 ([ADR 0062](adr/0062-dcp-illuminant-interpolation.md), [ADR 0063](adr/0063-dcp-tables.md)). La version courante, celle qu'une nouvelle révision épingle, est la **dernière** listée pour chaque étage.
+**Étages connus, et l'ordre dans lequel ils s'exécutent.** L'historique de rendu antérieur à la publication a été effondré ([ADR 0043](adr/0043-collapse-prerelease-render-history.md)), puisqu'aucune révision au monde ne le citait : tous les étages sont donc partis en version 1. Quatre ont depuis une seconde version : les deux étages de bruit ([ADR 0046](adr/0046-edge-preserving-denoise.md)), les réglages locaux ([ADR 0048](adr/0048-range-masks.md), portés à la version 3 par [ADR 0070](adr/0070-stored-mask-coverage.md)) et `input` ([ADR 0050](adr/0050-highlight-reconstruction.md)) — `input` étant depuis monté à la version 4 ([ADR 0061](adr/0061-demosaic-algorithm.md) puis [ADR 0066](adr/0066-sensor-white-level.md)), et `camera_profile` à la version 3 ([ADR 0062](adr/0062-dcp-illuminant-interpolation.md), [ADR 0063](adr/0063-dcp-tables.md)). La version courante, celle qu'une nouvelle révision épingle, est la **dernière** listée pour chaque étage.
 
 **Un réglage qu'une version épinglée ne sait pas exprimer est refusé.** ADR 0046 corrigeait un rendu ; ADR 0048 **étend** un opérateur, et fait donc apparaître un cas que rien n'avait éprouvé : un réglage dont l'existence même dépend de la version d'étage. Puisqu'un étage déjà inscrit garde sa version, une révision épinglée en `local_adjustments: 1` ne peut pas porter de masque par plage — et `Settings::validate()` la **refuse** en nommant le remède (retraiter, §4.5) au lieu de laisser le réglage disparaître en silence. C'est la règle générale pour toute fonctionnalité future ajoutée à un étage existant. ADR 0050 l'applique une seconde fois, un cran plus bas : le mode de reconstruction des hautes lumières est une **configuration du décodeur**, qu'`input::v1` ne lit pas — une révision épinglée en `input: 1` le refuse donc de la même manière.
 

@@ -110,6 +110,9 @@ Library/
 
 │      └── histograms/
 
+├── Masks/                (couvertures de masque stockées, ADR 0070 —
+│                          PNG gris 16 bits, nommées par leur BLAKE3)
+
 ├── Profiles/
 
 │      └── Camera/          (profils DCP importés, ADR 0035)
