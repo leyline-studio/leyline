@@ -1,0 +1,31 @@
+name: Feature or change request
+description: Something Leyline should do, or should do differently.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Two things worth knowing before you write, because they save everyone time:
+
+        * some absences are **deliberate** — cloud, accounts, subscription, AI,
+          HDR, panorama, face recognition — and are listed with their reasons in
+          [`docs/specification.md`](../docs/specification.md) §4;
+        * anything that changes a decision needs an **ADR** before code
+          ([`docs/adr/`](../docs/adr/)). An issue is a fine place to start one.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem, in terms of photographs
+      description: >
+        What you are trying to do and where Leyline gets in the way. A problem
+        stated this way survives longer than a proposed solution.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like it to do
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: How you work around it today

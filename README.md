@@ -100,12 +100,14 @@ older than its code:
 
 ## Contributing
 
-Read [`docs/contributing.md`](docs/contributing.md) first — in particular the
-section on render stages, which is the most constrained contribution in the
-project because it touches the promise above. Contributions require signing the
-[CLA](CLA.md).
+Start with [`CONTRIBUTING.md`](CONTRIBUTING.md), then
+[`docs/contributing.md`](docs/contributing.md) for the full guide — in
+particular the section on render stages, which is the most constrained
+contribution in the project because it touches the promise above.
+Contributions require signing the [CLA](CLA.md).
 
 ## License
 
 [GPL-3.0-only](LICENSE). "Leyline" and the Leyline logo are subject to
-[trademark terms](TRADEMARK.md).
+[trademark terms](TRADEMARK.md). Third-party works bundled or linked into the
+binaries are listed in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).

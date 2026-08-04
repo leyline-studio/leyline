@@ -1,0 +1,44 @@
+name: Bug report
+description: Something renders, imports or exports differently than it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Security vulnerabilities go to [SECURITY.md](../SECURITY.md) instead —
+        privately, never as a public issue.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected instead
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to reproduce it
+      description: >
+        The smallest sequence that shows it. If a specific photo is involved,
+        say which camera and which file format — most rendering questions turn
+        out to be about one body's RAW.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Leyline version
+      description: Help ▸ About Leyline, or the tag you built from.
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Operating system
+      placeholder: e.g. Windows 11, Fedora 42, macOS 15
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Screenshots, the output of `make check`, a `settings_json` — whatever you have.

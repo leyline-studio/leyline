@@ -1,5 +1,7 @@
 # Contributing
 
+Ce document est le guide complet, en français comme le reste de `docs/`. La racine porte un [`CONTRIBUTING.md`](../CONTRIBUTING.md) en anglais — GitHub le cherche là — qui en est le résumé et renvoie ici.
+
 ## Philosophie
 
 * Lisibilité avant optimisation.
@@ -151,6 +153,8 @@ Les vulnérabilités de sécurité se signalent en privé, pas par une issue
 publique — voir [`SECURITY.md`](../SECURITY.md).
 
 ## Dépendances
+
+Les œuvres tierces **embarquées ou liées** — celles qu'on ne découvre pas en lisant les manifestes — sont listées avec leur licence dans [`THIRD-PARTY-NOTICES.md`](../THIRD-PARTY-NOTICES.md), à la racine. Y ajouter une entrée fait partie du changement qui embarque quelque chose, pas d'un ménage ultérieur.
 
 * LibRaw est utilisé sous sa branche **LGPL-2.1** (la branche CDDL est incompatible avec la GPL).
 * Lensfun (LGPL-3.0) et sa base de données (CC-BY-SA) exigent l'attribution.
