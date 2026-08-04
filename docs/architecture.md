@@ -93,6 +93,7 @@ Chaque dépendance lourde a fait l'objet d'une décision écrite.
 | **ab_glyph** | Rasterisation des glyphes du filigrane texte | [ADR 0051](adr/0051-watermark-rasterization-and-soft-proof-surface.md) |
 | **DejaVu Sans** (actif, non un crate) | Police embarquée du filigrane, pour un rendu identique sur tout poste | [ADR 0051](adr/0051-watermark-rasterization-and-soft-proof-surface.md) |
 | **rfd** | Sélecteurs de dossier natifs dans Studio | — |
+| **Profils de bruit darktable** (données, non un crate) | Variance mesurée du capteur par boîtier et par sensibilité, gelée avec la version d'étage qui la lit (GPL-3.0-or-later, © les contributeurs de darktable) | [ADR 0072](adr/0072-measured-noise-profile.md) |
 
 Les raisons de fond, résumées : **Rust** pour des performances proches du C++ avec la sécurité mémoire et une portabilité qui ne coûte rien ; **Slint** parce qu'il est multiplateforme, léger et conçu pour Rust ; **SQLite** parce qu'un catalogue doit être un simple fichier, sans serveur, robuste et rapide — et lisible par n'importe quel outil dans vingt ans.
 

@@ -30,7 +30,6 @@ Ce qui reste ouvert :
 |---|---|
 | Justesse colorimétrique des profils DCP | Non validée contre de vrais `.dcp` Adobe — fonctionnalité signalée comme expérimentale ([ADR 0035](adr/0035-camera-profile-dcp.md)) |
 | Retouches locales : surimpression du masque, pipette de plage, poignées de déplacement | Laissé hors périmètre par [ADR 0049](adr/0049-local-adjustments-clients.md) |
-| Profil de bruit mesuré par boîtier et par sensibilité | À trancher par son propre ADR ([ADR 0046](adr/0046-edge-preserving-denoise.md) §7) |
 | Première publication | Aucun binaire publié, aucune version coupée ; la documentation est en français |
 
 Le reste du travail est de la robustesse, de la performance et du polissage, non des fonctionnalités manquantes.

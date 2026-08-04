@@ -254,20 +254,48 @@ portées par `input::v3`. AMaZE et LMMSE sont absents faute d'être présents da
 la bibliothèque liée — les proposer aurait été proposer un choix qui retombe
 silencieusement sur AHD.
 
-## A3 — Profil de bruit mesuré par boîtier et par sensibilité
+## A3 — Profil de bruit mesuré par boîtier et par sensibilité — **livré le 2026-08-04**
 
-**État.** Déjà listé comme « décidé, non implémenté »
+**État initial.** Déjà listé comme « décidé, non implémenté »
 ([ADR 0046](adr/0046-edge-preserving-denoise.md) §7), à trancher par son propre
 ADR.
 
-**Pourquoi ça compte.** Le débruitage travaille aujourd'hui sans rien savoir du
-capteur. Un profil par boîtier/ISO est ce qui sépare un débruitage correct d'un
-débruitage qui préserve le grain fin là où il faut.
+**Pourquoi ça comptait.** Le débruitage travaillait sans rien savoir du
+capteur : trois constantes, les mêmes pour tous les fichiers du monde. Entre
+ISO 100 et ISO 12800, l'écart-type réel du bruit d'un Canon 60D varie d'un
+facteur **neuf** — un seuil unique ne peut donc être juste qu'à une
+sensibilité. Et le bruit de photons croît avec la lumière reçue, ce qu'un seuil
+constant ignore aussi : trop faible dans les ombres, trop fort dans les hautes
+lumières.
 
-**Risque.** Moyen, et surtout **coûteux en données** : il faut mesurer, ou
-importer une base existante, avec la question de licence qui va avec.
+**Livré** par [ADR 0072](adr/0072-measured-noise-profile.md). Quatre décisions,
+dont trois n'étaient pas prévues par le présent document :
 
-**Dépendance.** Aucune sur A1/A2. Peut sortir dans n'importe quel ordre.
+1. **La question des données était la bonne, et sa réponse est une licence.**
+   La table mesurée de darktable — 434 boîtiers, 7 842 couples `(ISO, a, b)` —
+   est publiée sous GPL-3.0-or-later, donc utilisable telle quelle dans un
+   projet GPL-3.0-only. Mesurer nous-mêmes aurait donné deux boîtiers.
+2. **La table est gelée avec la version d'étage**, faute de quoi une mise à
+   jour des mesures changerait le rendu d'une révision existante (§5.1). Écrire
+   cette règle a mis en lumière que **la base Lensfun, elle, n'est épinglée par
+   rien** — un trou réel dans §5.1, consigné dans l'ADR, non refermé.
+3. **Les deux étages changent de rang** (170/180 → 5/6) : un modèle mesuré sur
+   les comptes du capteur ne veut plus rien dire après l'exposition, la courbe
+   tonale et la clarté. C'est la première fois qu'une version d'étage change de
+   rang, ce qu'ADR 0042 §3 autorisait sans que rien ne l'ait encore exercé.
+4. **Le seuil devient un seuil par pixel** — `k · 6σ_l · √(a·x + b)` — au lieu
+   d'une constante par échelle.
+
+**Ce que ça coûte : rien.** Même machine, même image de 3 Mpx, mêmes curseurs
+(luminance 40, chroma 30) : **98 ms pour `v1`, 231 ms pour `v2`, 219 ms pour
+`v3`** — le profil mesuré est *gratuit*, et même légèrement bénéficiaire.
+L'explication est en §4 de l'ADR : `v3` travaille en lumière linéaire et
+abandonne donc les deux passes d'aller-retour vers l'axe d'affichage que `v2`
+payait par rendu, ce qui finance largement la racine carrée par pixel.
+
+**Ce que ça ne fait pas.** La parité avec les débruiteurs appris reste hors
+d'atteinte (ADR 0046 §7 vaut toujours) : un seuil mesuré ne reconstruit pas du
+détail, il sait seulement lequel ne pas détruire.
 
 ---
 
@@ -562,7 +590,7 @@ L'ordre suit le rapport **gain ressenti / risque**, pas la difficulté.
 | ~~3~~ | ~~**A2** — choix du dématriçage~~ | **Livré le 2026-08-02** ([ADR 0061](adr/0061-demosaic-algorithm.md)) | Oui (`input::v3`) |
 | ~~4~~ | ~~**A1.2** — appliquer les tables DCP~~ | **Livré le 2026-08-02** ([ADR 0062](adr/0062-dcp-illuminant-interpolation.md), [ADR 0063](adr/0063-dcp-tables.md)) | Oui (`camera_profile::v2`, `v3`) |
 | ~~5~~ | ~~**B2** — mesurer l'export~~ | **Mesuré le 2026-08-03**, voir §3 : bench `export.rs`, deux suites possibles identifiées | Non |
-| 6 | **A3** — profil de bruit | Coûteux en données ; donne une partie du gain visé par C1 | Oui |
+| ~~6~~ | ~~**A3** — profil de bruit~~ | **Livré le 2026-08-04** ([ADR 0072](adr/0072-measured-noise-profile.md)) : table darktable gelée avec l'étage, seuil par pixel, rangs 5 et 6 ; coût mesuré nul | Oui (`noise_*::v3`) |
 | ~~7~~ | ~~**B3** — GPU preview~~ | **Écarté le 2026-08-03** : B1 a rendu l'interaction fluide, le GPU est interdit à l'export par §5.1, et la comparaison montre qu'il n'y a rien à rattraper (voir §3) | — |
 | 8 | **C2** — masques IA | Horizon ; seul item IA compatible avec §5.1 sans compromis | Non (masque matérialisé) |
 | 9 | **C1** — débruitage IA | Horizon lointain ; question de déterminisme non résolue | À trancher |
@@ -570,9 +598,12 @@ L'ordre suit le rapport **gain ressenti / risque**, pas la difficulté.
 **Dépendances dures :** A1.2 après A1.1 ; B3 après B1 (exigé par ADR 0041).
 Tout le reste peut sortir dans n'importe quel ordre.
 
-**Reste ouvert au 2026-08-03 :** A3 (profil de bruit), B3 (GPU preview, à ne
-rouvrir que si B1 ne suffit pas), C2 puis C1, et les deux suites de B2 —
-vitesse d'encodage AVIF, et pipelinage du lot d'export.
+**Reste ouvert au 2026-08-04 :** C2 puis C1 — c'est-à-dire l'axe IA, et lui
+seul. Les axes A et B sont refermés : A1, A2 et A3 sont livrés, B1 et B2 aussi,
+B3 est écarté avec ses raisons. Ce qui reste ouvert *dans* A n'est plus un
+chantier mais deux constats — la comparaison au rendu d'Adobe lui-même, faute
+de Lightroom, et le trou d'épinglage de la base Lensfun qu'ADR 0072 a mis au
+jour.
 
 ---
 
@@ -585,7 +616,7 @@ n'en tient lieu pour aucun.
 |---|---|
 | A1.2 | Interpolation des tables, ordre d'application, nouvelle version d'étage |
 | A2 | Algorithme par défaut, valeurs exposées, écriture dans la révision |
-| A3 | Origine des mesures et leur licence, format de stockage |
+| A3 | **Tranché** par [ADR 0072](adr/0072-measured-noise-profile.md) : table darktable sous GPL-3.0-or-later, gelée avec la version d'étage, seuil par pixel, rangs 5 et 6 |
 | B1 | Rien — [ADR 0041](adr/0041-interactive-preview-rendering.md) §3 est déjà l'ADR. **Implémenté le 2026-08-02** |
 | B2 (suites) | Vitesse d'encodage AVIF exposée et son défaut ; recouvrement encodage/rendu dans un lot, et ce que devient l'ordre du rapport |
 | B3 | Périmètre preview-seul, backend, et ce que devient §5.1 dans le texte |

@@ -57,7 +57,7 @@ Les onze modules `processN.rs` dupliqués (14 968 lignes, 70 à 93 % de duplicat
 
 ## En cours
 
-Le cadrage post-V1 est refermé : l'épreuvage écran et le filigrane texte, derniers éléments restés ouverts, sont livrés ([ADR 0051](adr/0051-watermark-rasterization-and-soft-proof-surface.md)). Le travail porte désormais sur la prise en main et le confort d'usage de Studio — ADR 0054 à 0058 — et sur ce que [`readme.md`](readme.md) liste comme encore ouvert : la colorimétrie DCP à valider, les finitions d'outillage des retouches locales, le profil de bruit par boîtier.
+Le cadrage post-V1 est refermé : l'épreuvage écran et le filigrane texte, derniers éléments restés ouverts, sont livrés ([ADR 0051](adr/0051-watermark-rasterization-and-soft-proof-surface.md)). Le travail porte désormais sur la prise en main et le confort d'usage de Studio — ADR 0054 à 0058 — et sur ce que [`readme.md`](readme.md) liste comme encore ouvert : la colorimétrie DCP à valider et les finitions d'outillage des retouches locales — le profil de bruit par boîtier, lui, est livré ([ADR 0072](adr/0072-measured-noise-profile.md)).
 
 Le pas suivant est cadré par [`competitive-plan.md`](competitive-plan.md), issu d'une comparaison à froid avec les logiciels établis : justesse du rendu (colorimétrie DCP, dématriçage, profil de bruit), performance (cache d'étages, export, GPU sur le seul chemin preview) et, à l'horizon, une IA locale optionnelle sous conditions strictes.
 
