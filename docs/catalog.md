@@ -1153,6 +1153,8 @@ CREATE TABLE export_presets (
 
 Les presets sont indépendants des exports réalisés.
 
+`settings_json` est opaque pour le catalogue ; c'est `leyline_export::ExportSettings` qui en interprète la structure : `format`, `quality` (1–100, ignorée par les formats sans perte), `avif_speed` (1–10, effort de l'encodeur AVIF, 9 par défaut, ignoré par tous les autres formats — [ADR 0067](adr/0067-avif-encode-speed.md)), `max_edge` (bord le plus long, absent = taille réelle) et `watermark` ([ADR 0034](adr/0034-softproofing-watermark-print.md), [0051](adr/0051-watermark-rasterization-and-soft-proof-surface.md)). Les champs inconnus sont refusés : un preset écrit par un moteur plus récent n'est jamais appliqué à moitié.
+
 ---
 
 # 28. Export History

@@ -43,9 +43,9 @@ Usage:
   leyline preview <library> <asset-id> [--kind <thumbnail|small|medium|large|full>]
   leyline export <library> <dest-dir> <version-id>...
                  [--preset <name>] [--format <f>] [--quality <1-100>] [--max-edge <px>]
-                 [--watermark <text>] [--watermark-anchor <a>]
+                 [--avif-speed <1-10>] [--watermark <text>] [--watermark-anchor <a>]
   leyline preset <library> <name> [--format <f>] [--quality <1-100>] [--max-edge <px>]
-                 [--watermark <text>] [--watermark-anchor <a>]
+                 [--avif-speed <1-10>] [--watermark <text>] [--watermark-anchor <a>]
   leyline presets <library>
   leyline exports <library> <asset-id>
   leyline print <library> <dest-dir> <version-id>...
@@ -84,6 +84,11 @@ Options:
   --reference   Reference files in place instead of copying into Photos/
   --flat        Do not descend into subdirectories
   --format <f>  Export format: jpeg (default), png, tiff, webp, avif
+  --avif-speed <1-10>
+                AVIF encoder effort, 9 by default (ADR 0067): low is slow and
+                thorough, 10 encodes ~6x faster for 0 to 14% more bytes. Trades
+                time against size only — the image is the same. Other formats
+                ignore it
   --intent <i>  Print rendering intent: perceptual, relative (default), saturation, absolute
   --watermark <text>
                 Text watermark drawn on the export, last thing before encoding (ADR 0034)
@@ -1476,6 +1481,11 @@ fn recipe(options: &Options) -> Result<ExportSettings, String> {
             .parse()
             .map_err(|_| format!("bad quality {quality:?}"))?;
     }
+    if let Some(speed) = options.value("avif-speed") {
+        settings.avif_speed = speed
+            .parse()
+            .map_err(|_| format!("bad avif speed {speed:?}"))?;
+    }
     if let Some(edge) = options.value("max-edge") {
         settings.max_edge = Some(edge.parse().map_err(|_| format!("bad max edge {edge:?}"))?);
     }
@@ -1518,6 +1528,7 @@ fn export(args: &[String]) -> Result<(), String> {
             "preset",
             "format",
             "quality",
+            "avif-speed",
             "max-edge",
             "watermark",
             "watermark-anchor",
@@ -1539,11 +1550,12 @@ fn export(args: &[String]) -> Result<(), String> {
         Some(name) => {
             if options.value("format").is_some()
                 || options.value("quality").is_some()
+                || options.value("avif-speed").is_some()
                 || options.value("max-edge").is_some()
                 || options.value("watermark").is_some()
             {
                 return Err("--preset already defines the recipe; \
-                     drop --format/--quality/--max-edge/--watermark"
+                     drop --format/--quality/--avif-speed/--max-edge/--watermark"
                     .to_owned());
             }
             let stored = library
@@ -1764,6 +1776,7 @@ fn preset(args: &[String]) -> Result<(), String> {
         &[
             "format",
             "quality",
+            "avif-speed",
             "max-edge",
             "watermark",
             "watermark-anchor",

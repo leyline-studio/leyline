@@ -79,6 +79,14 @@ pub struct ExportSettings {
     pub format: ExportFormat,
     /// JPEG/AVIF quality in [1, 100]; ignored by lossless formats.
     pub quality: u8,
+    /// AVIF encoder effort in [1, 10], low being slow and thorough; ignored
+    /// by every other format (ADR 0067).
+    ///
+    /// It trades encoding time against compression efficiency, never against
+    /// the image: the quality target stays `quality`. Always serialized, so a
+    /// preset written today keeps producing the same file when the default
+    /// below moves again.
+    pub avif_speed: u8,
     /// Scale so the longest edge fits this, never upscaling; `None` = full
     /// resolution. The engine applies it before encoding.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -89,12 +97,22 @@ pub struct ExportSettings {
     pub watermark: Option<Watermark>,
 }
 
+/// The AVIF effort the encoder uses unless a recipe says otherwise.
+///
+/// 9 rather than the 6 this crate hard-coded until ADR 0067: over a whole
+/// export, 9 gave back 28 % of the time and 53 % of the CPU for 1.3 % of file
+/// size. 10 is faster still but costs 0 to 14 % of size depending on the
+/// image — a bet the caller takes explicitly, not one the default takes for
+/// them.
+pub const DEFAULT_AVIF_SPEED: u8 = 9;
+
 impl Default for ExportSettings {
     /// Full-resolution JPEG at quality 90.
     fn default() -> Self {
         ExportSettings {
             format: ExportFormat::Jpeg,
             quality: 90,
+            avif_speed: DEFAULT_AVIF_SPEED,
             max_edge: None,
             watermark: None,
         }
@@ -127,6 +145,12 @@ impl ExportSettings {
             return Err(ExportError::InvalidSettings(format!(
                 "quality must be in [1, 100], got {}",
                 self.quality
+            )));
+        }
+        if !(1..=10).contains(&self.avif_speed) {
+            return Err(ExportError::InvalidSettings(format!(
+                "avif_speed must be in [1, 10], got {}",
+                self.avif_speed
             )));
         }
         if self.max_edge == Some(0) {
@@ -235,7 +259,7 @@ pub fn encode(
             let image = ravif::Img::new(rgb8.as_rgb(), width as usize, height as usize);
             let encoded = ravif::Encoder::new()
                 .with_quality(f32::from(settings.quality))
-                .with_speed(6)
+                .with_speed(settings.avif_speed)
                 .encode_rgb(image)
                 .map_err(|e| ExportError::Encode(e.to_string()))?;
             std::fs::write(path, encoded.avif_file)?;
@@ -377,6 +401,7 @@ mod tests {
         let settings = ExportSettings {
             format: ExportFormat::Png,
             quality: 80,
+            avif_speed: 4,
             max_edge: Some(2048),
             watermark: Some(Watermark {
                 text: "© 2026".to_owned(),
@@ -423,5 +448,63 @@ mod tests {
             ExportSettings::parse(r#"{"format":"jxl"}"#),
             Err(ExportError::InvalidSettings(_))
         ));
+    }
+
+    /// ADR 0067: the effort dial is a recipe field, written unconditionally so
+    /// a preset keeps producing the same file when the default moves again,
+    /// and read back as the default by a preset written before it existed.
+    #[test]
+    fn the_avif_speed_is_pinned_by_the_preset_and_defaulted_by_an_older_one() {
+        let json = ExportSettings::default().to_json();
+        assert!(
+            json.contains(r#""avif_speed":9"#),
+            "the speed is always written: {json}"
+        );
+
+        let older = ExportSettings::parse(r#"{"format":"avif","quality":90}"#).unwrap();
+        assert_eq!(older.avif_speed, DEFAULT_AVIF_SPEED);
+
+        let pinned = ExportSettings::parse(r#"{"format":"avif","avif_speed":6}"#).unwrap();
+        assert_eq!(pinned.avif_speed, 6);
+
+        for refused in [0, 11, 255] {
+            assert!(
+                matches!(
+                    ExportSettings {
+                        avif_speed: refused,
+                        ..ExportSettings::default()
+                    }
+                    .validate(),
+                    Err(ExportError::InvalidSettings(_))
+                ),
+                "speed {refused} is outside [1, 10]"
+            );
+        }
+    }
+
+    /// Every speed encodes the same picture at the same quality target: what
+    /// changes is the encoder's search effort, so the file size moves and the
+    /// image does not (ADR 0067 §Contexte).
+    #[test]
+    fn every_avif_speed_produces_a_readable_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let pixels = gradient(64, 48);
+        for speed in [1, 9, 10] {
+            let path = dir.path().join(format!("speed{speed}.avif"));
+            encode(
+                &path,
+                64,
+                48,
+                &pixels,
+                &ExportSettings {
+                    format: ExportFormat::Avif,
+                    avif_speed: speed,
+                    ..ExportSettings::default()
+                },
+            )
+            .unwrap();
+            let bytes = std::fs::read(&path).unwrap();
+            assert_eq!(&bytes[8..12], b"avif", "AVIF brand at speed {speed}");
+        }
     }
 }

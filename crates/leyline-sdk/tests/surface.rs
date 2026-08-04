@@ -207,6 +207,7 @@ fn every_request_is_constructible(version: VersionId) -> (ExportRequest, PrintRe
             recipe: ExportRecipe::Adhoc(ExportSettings {
                 format: ExportFormat::Jpeg,
                 quality: 90,
+                avif_speed: leyline_sdk::DEFAULT_AVIF_SPEED,
                 max_edge: Some(2048),
                 watermark: Some(Watermark {
                     text: "© 2026".to_owned(),

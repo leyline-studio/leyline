@@ -34,7 +34,7 @@ pub use leyline_catalog::{
 
 pub use leyline_color::RenderingIntent;
 pub use leyline_export::{
-    ExportFormat, ExportSettings, Margins, Orientation, PaperSize, PrintSettings, Watermark,
-    WatermarkAnchor, WatermarkFont,
+    DEFAULT_AVIF_SPEED, ExportFormat, ExportSettings, Margins, Orientation, PaperSize,
+    PrintSettings, Watermark, WatermarkAnchor, WatermarkFont,
 };
 pub use leyline_map::TilePackInfo;

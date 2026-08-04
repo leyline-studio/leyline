@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2026-08-03 13:26+0000\n"
+"POT-Creation-Date: 2026-08-04 10:44+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -158,42 +158,47 @@ msgctxt "ExportDialog"
 msgid "Quality (1-100)"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/export.slint:93
+#: crates/leyline-studio/ui/dialogs/export.slint:95
+msgctxt "ExportDialog"
+msgid "AVIF speed (1-10)"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/export.slint:121
 msgctxt "ExportDialog"
 msgid "Max edge px (blank = full size)"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/export.slint:119
+#: crates/leyline-studio/ui/dialogs/export.slint:147
 msgctxt "ExportDialog"
 msgid "Watermark text (blank = none)"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/export.slint:147
+#: crates/leyline-studio/ui/dialogs/export.slint:175
 msgctxt "ExportDialog"
 msgid "Save as preset (optional name)"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/export.slint:170
+#: crates/leyline-studio/ui/dialogs/export.slint:198
 msgctxt "ExportDialog"
 msgid "Save as preset"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/export.slint:185
+#: crates/leyline-studio/ui/dialogs/export.slint:214
 msgctxt "ExportDialog"
 msgid "Destination folder (absolute path)"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/export.slint:210
+#: crates/leyline-studio/ui/dialogs/export.slint:239
 msgctxt "ExportDialog"
 msgid "Browse…"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/export.slint:221
+#: crates/leyline-studio/ui/dialogs/export.slint:250
 msgctxt "ExportDialog"
 msgid "Cancel"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/export.slint:228
+#: crates/leyline-studio/ui/dialogs/export.slint:257
 msgctxt "ExportDialog"
 msgid "Export"
 msgstr ""

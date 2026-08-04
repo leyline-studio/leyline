@@ -86,6 +86,10 @@ msgctxt "ExportDialog"
 msgid "Quality (1-100)"
 msgstr "Qualité (1-100)"
 
+#: crates/leyline-studio/ui/dialogs/export.slint:97
+msgid "AVIF speed (1-10)"
+msgstr "Vitesse AVIF (1-10)"
+
 #: crates/leyline-studio/ui/dialogs/export.slint:93
 msgctxt "ExportDialog"
 msgid "Max edge px (blank = full size)"

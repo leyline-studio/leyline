@@ -409,10 +409,13 @@ rapport gain/effort qui reste dans tout ce document.
 d'un pipeline 45 Mpx, qui décidera de la profondeur du pipelinage envisagé au
 point 2.
 
-**Suites possibles, chacune avec son ADR :** exposer la vitesse d'encodage AVIF
-(et son défaut, que la mesure ci-dessus place plutôt vers 9 ou 10), et pipeliner
-le lot d'export. Aucune des deux ne touche à la reproductibilité : la première
-ne concerne que le codec, la seconde que l'ordre d'exécution.
+**Suites, chacune avec son ADR :** exposer la vitesse d'encodage AVIF —
+**livrée, [ADR 0067](adr/0067-avif-encode-speed.md)** : `avif_speed` dans
+`ExportSettings`, défaut porté de 6 à 9 (28 % du temps et 53 % du CPU rendus
+pour 1,3 % de poids sur le chemin complet), `--avif-speed` dans la CLI et un
+champ dans Studio — puis pipeliner le lot d'export. Aucune des deux ne touche à
+la reproductibilité : la première ne concerne que le codec, la seconde que
+l'ordre d'exécution.
 
 ## B3 — GPU : rouvrir la question, sur le chemin preview seul
 
