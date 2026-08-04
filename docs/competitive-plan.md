@@ -536,8 +536,18 @@ existe déjà ([ADR 0029](adr/0029-process-6-local-adjustments.md),
 [ADR 0049](adr/0049-local-adjustments-clients.md)) : l'IA ne serait qu'une
 **source de masque de plus**, à côté de la brosse et du dégradé.
 
-**Reste ouvert.** Le choix du modèle et du runtime, la licence des poids, et le
-mode de distribution.
+**Comment il s'attache** — tranché le 2026-08-04 par
+[ADR 0069](adr/0069-closed-extension-boundary.md), qui part du même constat que
+le paragraphe ci-dessus et en tire la conséquence de licence : puisque le
+modèle **produit un réglage** et ne rend rien, l'outil qui le fait tourner peut
+vivre dans un crate fermé, séparé, client du SDK — sans cloner le dépôt, sans
+retirer quoi que ce soit de l'édition libre, et sans qu'aucun code fermé
+n'entre dans le chemin de rendu. La version libre rend les masques de tout le
+monde ; ce qui se vend, c'est l'outil qui les *propose*.
+
+**Reste ouvert.** Le choix du modèle et du runtime, la licence des poids, le
+mode de distribution — et, le jour venu, le système de clé lui-même
+(hors périmètre d'ADR 0069 §5).
 
 ---
 
