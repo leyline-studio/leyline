@@ -43,7 +43,50 @@ fn import_coverage(
         .map_err(|e| e.to_string())
 }
 
+/// Runs one detection and stores what comes back (ADR 0073).
+///
+/// The detector is handed the *cached preview file* rather than a fresh
+/// temporary render: it is already a PNG RGB 8-bit on disk, which is exactly
+/// the contract's input, and the medium class (≤ 2048 px) gives a model more
+/// to work with than the 1024 px the panel displays.
+///
+/// Blocking, like the file picker next to it: a detection takes seconds, and
+/// `leyline-detect` caps it so a wedged executable cannot hold the interface
+/// forever.
+fn run_detection(app: &App, key: &str) -> Result<leyline_sdk::Mask, String> {
+    let (source_id, detection) =
+        crate::models::split_detection_key(key).ok_or_else(|| format!("malformed key {key}"))?;
+    let source = leyline_sdk::discover()
+        .into_iter()
+        .find(|source| source.id == source_id)
+        .ok_or_else(|| format!("no detector named {source_id} is installed"))?;
+    let (asset, _) = app
+        .develop
+        .ok_or_else(|| "no photo in develop".to_owned())?;
+    let preview = app
+        .library
+        .preview(asset, leyline_sdk::PreviewKind::Medium)
+        .map_err(|e| e.to_string())?;
+    // Its own file, dropped when the guard is: the coverage is read back
+    // immediately and only its samples are kept.
+    let out = tempfile::Builder::new()
+        .prefix("leyline-detected-")
+        .suffix(".png")
+        .tempfile()
+        .map_err(|e| e.to_string())?;
+    leyline_sdk::detect(&source, detection, &preview.path, out.path())
+        .map_err(|e| e.to_string())?;
+    import_coverage(&app.library, out.path())
+}
+
 pub(super) fn wire_masks(app: &Rc<RefCell<App>>, window: &StudioWindow) {
+    // Discovered once, at wiring time: installing a detector is not
+    // something that happens while the window is open, and a scan of a
+    // config directory has no business running on every refresh. Empty is
+    // the normal state, and then the panel shows no chip at all.
+    MaskState::get(window).set_detections(slint::ModelRc::new(slint::VecModel::from(
+        crate::models::detection_rows(&leyline_sdk::discover()),
+    )));
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
@@ -89,6 +132,33 @@ pub(super) fn wire_masks(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             if let Err(message) = refresh_develop(&mut app, &window) {
                 report_error(&window, &message);
             }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        MaskState::get(window).on_detect_mask(move |key| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let mask = match run_detection(&app, key.as_str()) {
+                Ok(mask) => mask,
+                Err(message) => {
+                    report_error(&window, &message);
+                    return;
+                }
+            };
+            // Neutral values: the detection chose where, the user chooses
+            // what (ADR 0073 §4). Appended rather than retracing the
+            // selected row — a detected coverage is not a re-drag of a
+            // geometry.
+            commit(&mut app, &window, |current| {
+                Some((
+                    Param::LocalAdjustment(current.len()),
+                    Value::LocalAdjustment(Some(masks::fresh_entry(mask.clone()))),
+                ))
+            });
         });
     }
     {
@@ -323,6 +393,82 @@ mod tests {
             ..leyline_sdk::Settings::default()
         };
         settings.validate().expect("an imported mask validates");
+    }
+
+    /// The whole detector chain, on real files (ADR 0073): an executable is
+    /// handed an image, writes a 16-bit grey coverage, and what it wrote
+    /// becomes a stored mask a revision can carry. Everything
+    /// [`run_detection`] does except reading which photo is open — the part
+    /// that needs a window.
+    #[cfg(unix)]
+    #[test]
+    fn a_detector_run_ends_in_a_stored_mask() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let library = leyline_sdk::Library::create(&dir.path().join("Lib"), "Detect").unwrap();
+
+        // A detector standing in for a model: the top half of whatever it is
+        // given, in the format the contract asks for.
+        let script = dir.path().join("sky.py");
+        std::fs::write(
+            &script,
+            r#"#!/usr/bin/env python3
+import sys
+args = dict(zip(sys.argv[1::2], sys.argv[2::2]))
+w, h = 8, 4
+rows = b"".join(b"\x00" + (b"\xff\xff" if y < h // 2 else b"\x00\x00") * w
+                for y in range(h))
+import zlib, struct
+def chunk(tag, data):
+    return (struct.pack(">I", len(data)) + tag + data
+            + struct.pack(">I", zlib.crc32(tag + data)))
+png = (b"\x89PNG\r\n\x1a\n"
+       + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 16, 0, 0, 0, 0))
+       + chunk(b"IDAT", zlib.compress(rows))
+       + chunk(b"IEND", b""))
+open(args["--out"], "wb").write(png)
+"#,
+        )
+        .unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        let source = leyline_sdk::DetectorSource {
+            id: "stub".to_owned(),
+            label: "Stub".to_owned(),
+            command: script,
+            args: Vec::new(),
+            detections: vec![leyline_sdk::Detection {
+                id: "sky".to_owned(),
+                label: "Ciel".to_owned(),
+            }],
+        };
+
+        let image = dir.path().join("preview.png");
+        image::RgbImage::new(8, 4).save(&image).unwrap();
+        let out = dir.path().join("coverage.png");
+        if leyline_sdk::detect(&source, "sky", &image, &out).is_err() {
+            // No Python on this machine: the contract is exercised by
+            // `leyline-detect`'s own tests, which need no interpreter.
+            return;
+        }
+
+        let mask = import_coverage(&library, &out).expect("the coverage imports");
+        let leyline_sdk::Mask::Coverage { path, .. } = &mask else {
+            panic!("a detected mask is a stored coverage, got {mask:?}");
+        };
+        assert!(path.starts_with("Masks/"), "{path}");
+        // The half the detector covered is the half that comes back covered:
+        // a chain that inverted or flattened it would still store *a* mask.
+        let stored = image::open(
+            dir.path()
+                .join("Lib")
+                .join(path.replace('/', std::path::MAIN_SEPARATOR_STR)),
+        )
+        .unwrap()
+        .to_luma16();
+        assert_eq!(stored.get_pixel(0, 0).0[0], u16::MAX);
+        assert_eq!(stored.get_pixel(0, stored.height() - 1).0[0], 0);
     }
 
     /// A file that is not an image fails by name rather than importing an

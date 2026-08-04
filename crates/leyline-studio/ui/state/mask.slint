@@ -13,7 +13,7 @@
 // the former when a dab is painted and writes the latter when a gesture
 // creates a row.
 
-import { MaskRow } from "../types.slint";
+import { DetectionRow, MaskRow } from "../types.slint";
 export global MaskState {
     // Every stored adjustment of the photo being developed, in list order.
     in property <[MaskRow]> masks;
@@ -27,6 +27,16 @@ export global MaskState {
     // (ADR 0048 §1). Traced geometries come from the two callbacks below.
     callback add-mask(string);
     callback remove-mask(int);
+    // Every detection an installed detector offers, discovered once at launch
+    // (ADR 0073). Empty is the normal state, and then the panel offers
+    // nothing — a detection that cannot run must not appear at all.
+    in property <[DetectionRow]> detections;
+    // Runs one, by the key of its row: renders the preview, hands it to the
+    // executable, imports what comes back as a stored coverage. Appends an
+    // adjustment with neutral values — the detection chooses *where*, the
+    // user chooses *what* (ADR 0073 §4).
+    callback detect-mask(string);
+
     // Row index, field name, released value — the same shape as
     // `develop-edit-hsl-band`, and the same rule: Rust decides what the field
     // means, including whether a zero clears it (ADR 0049 §3).

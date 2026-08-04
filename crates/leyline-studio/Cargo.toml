@@ -22,6 +22,9 @@ directories.workspace = true
 rfd.workspace = true
 serde_json.workspace = true
 image.workspace = true
+# The coverage a detector writes lands in a temporary file, read back at once
+# and dropped (ADR 0073 §2): nothing of it belongs in the library.
+tempfile.workspace = true
 
 [build-dependencies]
 slint-build.workspace = true

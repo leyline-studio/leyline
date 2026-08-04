@@ -120,6 +120,18 @@ export struct MaskDab {
 // The `-on` flags stand for a value being *set* rather than zero: an
 // adjustment's fields are `Option`s, and "not set" is not the same as 0
 // (ADR 0049 §3).
+// One detection an installed detector offers (ADR 0073 §3). Discovered at
+// launch, so the panel shows nothing at all when nothing is installed — which
+// is every installation until someone adds a detector.
+export struct DetectionRow {
+    // "<detector id>/<detection id>", the pair Rust needs to run it. Opaque
+    // to the panel, which only hands it back.
+    key: string,
+    // The detector's own words, never translated here: it alone knows what
+    // its model was trained on (`leyline_detect::Detection`).
+    label: string,
+}
+
 export struct MaskRow {
     // "radial", "gradient", "brush" or "everything".
     kind: string,

@@ -1495,6 +1495,18 @@ export component DevelopPanel inherits HorizontalLayout {
                                     root.expand-local = true;
                                 }
                             }
+                            // One chip per detection an installed detector
+                            // offers (ADR 0073). Nothing installed, nothing
+                            // shown: the list is empty on every installation
+                            // that has not added one.
+                            for detection in MaskState.detections: FilterChip {
+                                text: detection.label;
+                                active: false;
+                                clicked => {
+                                    MaskState.detect-mask(detection.key);
+                                    root.expand-local = true;
+                                }
+                            }
                             FilterChip {
                                 // Seeing the coverage is how a mask is
                                 // worked on (ADR 0071) — and the only way

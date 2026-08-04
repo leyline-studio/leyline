@@ -129,6 +129,44 @@ pub(crate) fn dev_model(settings: &Settings) -> crate::ui::DevSettings {
     }
 }
 
+/// Turns the detectors found on this machine into the panel's chips
+/// (ADR 0073 §3), and encodes in each key the pair Rust needs to run it back.
+///
+/// The label is the detector's own, never translated: it alone knows what its
+/// model was trained on. It is prefixed with the detector's name only when
+/// more than one is installed — with a single one, "Leyline Assist · Ciel"
+/// would repeat the same words on every chip for nothing.
+pub(crate) fn detection_rows(
+    sources: &[leyline_sdk::DetectorSource],
+) -> Vec<crate::ui::DetectionRow> {
+    let several = sources.len() > 1;
+    sources
+        .iter()
+        .flat_map(|source| {
+            source.detections.iter().map(move |detection| {
+                let label = if several {
+                    format!("{} · {}", source.label, detection.label)
+                } else {
+                    detection.label.clone()
+                };
+                crate::ui::DetectionRow {
+                    key: SharedString::from(format!("{}/{}", source.id, detection.id)),
+                    label: SharedString::from(label),
+                }
+            })
+        })
+        .collect()
+}
+
+/// Splits a chip's key back into the detector and the detection it names.
+///
+/// The detection identifier may itself hold a slash — it is the detector's
+/// string, not ours — so the split is on the *first* separator only.
+pub(crate) fn split_detection_key(key: &str) -> Option<(&str, &str)> {
+    let (source, detection) = key.split_once('/')?;
+    (!source.is_empty() && !detection.is_empty()).then_some((source, detection))
+}
+
 /// Mirrors every stored local adjustment into the mask panel's model
 /// (ADR 0049): one row per entry of `Settings::local_adjustments`, in list
 /// order, since that order *is* the identity of an entry
@@ -336,6 +374,59 @@ mod tests {
             import_summary(1, &skipped),
             "1 imported, 2 skipped (unsupported file type)."
         );
+    }
+
+    fn source(id: &str, label: &str, detections: &[(&str, &str)]) -> leyline_sdk::DetectorSource {
+        leyline_sdk::DetectorSource {
+            id: id.to_owned(),
+            label: label.to_owned(),
+            command: std::path::PathBuf::from("/bin/true"),
+            args: Vec::new(),
+            detections: detections
+                .iter()
+                .map(|(id, label)| leyline_sdk::Detection {
+                    id: (*id).to_owned(),
+                    label: (*label).to_owned(),
+                })
+                .collect(),
+        }
+    }
+
+    /// A single detector names its detections and nothing else: prefixing
+    /// every chip with the same word would spend the panel's width on no
+    /// information at all.
+    #[test]
+    fn one_detector_labels_its_detections_plainly() {
+        let rows = detection_rows(&[source("assist", "Leyline Assist", &[("sky", "Ciel")])]);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].label, "Ciel");
+        assert_eq!(rows[0].key, "assist/sky");
+    }
+
+    /// With two installed, the name is what tells two "Ciel" apart.
+    #[test]
+    fn several_detectors_are_told_apart_by_name() {
+        let rows = detection_rows(&[
+            source("a", "Assist", &[("sky", "Ciel")]),
+            source("b", "Autre", &[("sky", "Ciel"), ("subject", "Sujet")]),
+        ]);
+        let labels: Vec<&str> = rows.iter().map(|r| r.label.as_str()).collect();
+        assert_eq!(labels, ["Assist · Ciel", "Autre · Ciel", "Autre · Sujet"]);
+        assert_eq!(rows[2].key, "b/subject");
+    }
+
+    /// The key survives a detection identifier holding a slash, which is the
+    /// detector's string to choose, not ours.
+    #[test]
+    fn a_key_splits_on_its_first_separator_only() {
+        assert_eq!(split_detection_key("assist/sky"), Some(("assist", "sky")));
+        assert_eq!(
+            split_detection_key("assist/people/faces"),
+            Some(("assist", "people/faces"))
+        );
+        assert_eq!(split_detection_key("nothing"), None);
+        assert_eq!(split_detection_key("/sky"), None);
+        assert_eq!(split_detection_key("assist/"), None);
     }
 
     #[test]
