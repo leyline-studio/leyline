@@ -255,6 +255,7 @@ Jamais un delta.
     "sharpening": { "amount": 40, "radius": 1.0 },
     "output_rendering": { "highlight_rolloff": 50 },
     "highlight_reconstruction": "rebuild",
+    "demosaic": "dcb",
 
     "rotation": 0.0,
     "perspective": { "vertical": 35, "horizontal": 0 },
@@ -297,6 +298,7 @@ Valeurs neutres du schéma 1 :
 | `sharpening` | `{ "amount": 0, "radius": 1.0 }` |
 | `output_rendering` | `{ "highlight_rolloff": 50 }` — seul champ dont la valeur par défaut n'est pas « ne rien faire » : il n'existe pas de rendu sans sortie, donc c'est un choix de rendu, gelé avec la version d'étage qui le lit (ADR 0044 §3). L'import d'un JPEG/PNG/TIFF l'ouvre à 0, faute de marge à récupérer |
 | `highlight_reconstruction` | absent — `"clip"`, écrêtage au blanc ; les deux autres valeurs (`"blend"`, `"rebuild"`) exigent `input` en version 2 ([ADR 0050](adr/0050-highlight-reconstruction.md)) |
+| `demosaic` | absent — `"ahd"`, le défaut de LibRaw et le nôtre ; `"vng"`, `"dcb"` et `"dht"` exigent `input` en version 3 ([ADR 0061](adr/0061-demosaic-algorithm.md)) |
 | `rotation` | 0.0 |
 | `perspective` | absent — aucune correction ([ADR 0052](adr/0052-perspective-correction.md)) |
 | `lut` | absent — aucun look appliqué ([ADR 0053](adr/0053-creative-lut.md)) |
