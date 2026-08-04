@@ -62,6 +62,44 @@ et à aucun autre.
   miroir exact de `Library::write_xmp(asset)`, pour la bibliothèque déjà
   constituée avant que les sidecars n'aient été exportés de l'autre logiciel.
 
+### 2.1 « À côté du fichier » ne suffit pas à le nommer
+
+Le point ci-dessus dit « si un `photo.xmp` se trouve à côté du fichier », et
+c'est ce que le code faisait : remplacer l'extension par `.xmp`. Cette phrase
+tranchait une question sans la poser — **les autres logiciels ne nomment pas
+tous le sidecar pareil**, et deux conventions coexistent :
+
+| Convention | Écrite par | Exemple pour `5D4_7998.CR2` |
+|---|---|---|
+| Nom complet + `.xmp` | darktable, exiftool | `5D4_7998.CR2.xmp` |
+| Extension remplacée | Lightroom, Bridge, Leyline | `5D4_7998.xmp` |
+
+Une seule des deux était lue. Le corpus de test réel a montré ce que cela
+coûte : sur neuf sidecars, **le seul qui portait des mots-clés était celui de
+darktable**, donc le seul invisible. Rien ne le signalait — c'est exactement le
+mode de défaillance que le §6 refuse pour le parsing, arrivé un cran plus haut,
+sur le nom de fichier.
+
+**Décision : on écrit une convention, on en lit deux.**
+
+* **Lecture** : le nom complet d'abord, l'extension remplacée ensuite. Le
+  premier qui répond gagne. Cet ordre n'est pas arbitraire : `photo.CR2.xmp`
+  désigne **une** photo, tandis que `photo.xmp` est partagé par tous les
+  fichiers de même racine du dossier — un `IMG_2048.xmp` posé à côté d'un
+  `IMG_2048.CR2`, d'un `IMG_2048.JPG` et d'un `IMG_2048.dng` (cas réel du
+  corpus) ne dit pas duquel il parle. La forme non ambiguë passe donc devant,
+  et c'est elle qui tranche quand l'autre logiciel en a écrit une.
+* **Écriture** : inchangée, l'extension remplacée. C'est la convention
+  d'Adobe, donc celle que cherche le logiciel visé par la migration inverse, et
+  la lecture ci-dessus la reprend — l'aller-retour du §4 tient toujours.
+
+L'ambiguïté de la forme partagée reste, elle est inhérente à la convention
+d'Adobe et n'est pas à nous de la résoudre : quand plusieurs fichiers de même
+racine cohabitent, ils reçoivent la même amorce. Sous la politique du §3, à
+l'import, cela revient à donner à chaque copie d'une même prise le classement
+que l'autre logiciel lui donnait — la conséquence acceptable de ce que le
+sidecar ne dit pas.
+
 ### 3. La politique de conflit : remplir, jamais écraser
 
 Le point qui demandait une décision plutôt que du code.
@@ -163,9 +201,12 @@ chaîne de build ni aux installeurs.
 * **L'aller-retour devient un invariant testé.** Écrire un sidecar depuis un
   asset classé, relire dans un asset vierge, comparer : c'est le test qui
   garde le §4 honnête quand l'un des deux côtés bougera.
-* **Le risque d'un import qui ralentit** est borné : un `stat` par fichier
+* **Le risque d'un import qui ralentit** est borné : deux `stat` par fichier
   importé quand aucun sidecar n'existe (le cas courant), un parse de quelques
   kilo-octets quand il en existe un.
+* **La suppression vers la corbeille emporte les deux formes.** Laisser
+  derrière soi le sidecar d'une photo qui n'existe plus, c'est le voir
+  ressusciter au prochain import du même dossier.
 
 ## Alternatives écartées
 

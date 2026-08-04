@@ -107,6 +107,67 @@ fn sidecar_reflects_the_catalog_truth() {
     assert!(xml.contains("xmp:Label=\"Blue\""));
 }
 
+/// darktable's naming: the sidecar keeps the photo's whole name and appends
+/// `.xmp` (`kyoto.png.xmp`), where Lightroom replaces the extension
+/// (`kyoto.xmp`). Reading only the second form is a silent loss of the first
+/// program's work — ADR 0047 §2.1, found on a real darktable sidecar.
+#[test]
+fn an_import_seeds_the_catalog_from_a_sidecar_named_the_darktable_way() {
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::create(&dir.path().join("Lib"), "XMP").unwrap();
+    std::fs::write(dir.path().join("kyoto.png"), b"pixels").unwrap();
+    std::fs::write(dir.path().join("kyoto.png.xmp"), FOREIGN_SIDECAR).unwrap();
+
+    let report = library
+        .import(
+            &dir.path().join("kyoto.png"),
+            &ImportOptions {
+                copy_files: true,
+                recursive: false,
+            },
+            |_, _| {},
+        )
+        .unwrap();
+    let registered = report.imported[0].registered;
+
+    let catalog = library.catalog();
+    let details = catalog.asset_details(registered.asset).unwrap();
+    let current = details
+        .versions
+        .iter()
+        .find(|v| v.version == details.current_version)
+        .unwrap();
+    assert_eq!(current.rating, Some(3));
+    assert_eq!(details.keywords.len(), 1);
+}
+
+/// When both conventions sit beside the same photo, the whole-name form wins:
+/// it names one photo, where the stem form is shared by every file of that
+/// stem in the directory (ADR 0047 §2.1).
+#[test]
+fn the_unambiguous_sidecar_name_wins_over_the_shared_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("kyoto.png");
+    std::fs::write(&file, b"pixels").unwrap();
+    std::fs::write(dir.path().join("kyoto.png.xmp"), FOREIGN_SIDECAR).unwrap();
+    std::fs::write(
+        dir.path().join("kyoto.xmp"),
+        FOREIGN_SIDECAR.replace("<ns9:Rating> 3 </ns9:Rating>", "<ns9:Rating>1</ns9:Rating>"),
+    )
+    .unwrap();
+
+    let sidecar = leyline_engine::read_xmp_sidecar(&file).unwrap();
+    assert_eq!(sidecar.rating, Some(3));
+
+    // And the stem form still answers on its own, which is what Lightroom
+    // and Leyline itself write.
+    std::fs::remove_file(dir.path().join("kyoto.png.xmp")).unwrap();
+    assert_eq!(
+        leyline_engine::read_xmp_sidecar(&file).unwrap().rating,
+        Some(1)
+    );
+}
+
 /// The migration path itself: the sidecar is next to the file *before* the
 /// import, and the import seeds the catalog from it without the user asking
 /// for anything (ADR 0047 §2). Also the ADR §6 case: foreign prefixes,

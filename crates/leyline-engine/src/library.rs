@@ -450,8 +450,11 @@ impl Library {
         if trash_files {
             for relative in &deleted.file_paths {
                 let file = self.inner.root.join(relative);
-                let sidecar = crate::xmp::sidecar_path(&file);
-                for target in [file, sidecar] {
+                // Both naming conventions: leaving behind the sidecar of a
+                // photo that no longer exists is how a later import of the
+                // same folder resurrects metadata nothing points to.
+                let sidecars = crate::xmp::sidecar_candidates(&file);
+                for target in std::iter::once(file).chain(sidecars) {
                     if !target.exists() {
                         continue;
                     }

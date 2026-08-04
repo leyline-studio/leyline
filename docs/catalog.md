@@ -1232,6 +1232,8 @@ La politique est de **remplir sans écraser** : note, libellé, artiste et copyr
 
 Les champs lus sont exactement ceux qu'écrit §29 ci-dessus. Les réglages de développement (`crs:` d'Adobe) ne sont **pas** lus : ils ne sont pas traduisibles vers notre pipeline, et prétendre les reprendre serait mentir sur le rendu.
 
+Le **nom** du sidecar, en revanche, n'est pas symétrique : Leyline écrit `photo.xmp` (extension remplacée, la convention d'Adobe) mais lit aussi `photo.CR2.xmp` (nom complet, la convention de darktable et d'exiftool), la seconde forme étant essayée en premier parce qu'elle désigne une photo et une seule ([ADR 0047](adr/0047-xmp-sidecar-read.md) §2.1).
+
 Le reste sert uniquement à l'interopérabilité avec d'autres logiciels.
 
 ---

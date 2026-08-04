@@ -14,7 +14,9 @@
 //! RAW files.
 //!
 //! The field set is exactly the same in both directions, which makes the
-//! round trip an invariant a test can hold (ADR 0047 §4).
+//! round trip an invariant a test can hold (ADR 0047 §4). The *file name* is
+//! not symmetric either: we write one convention and read two, because the
+//! other programs do not agree on one (ADR 0047 §2.1).
 
 use std::path::{Path, PathBuf};
 
@@ -155,21 +157,47 @@ impl XmpSidecar {
     }
 }
 
-/// The sidecar path of a photo: same name, `.xmp` extension.
+/// Where Leyline *writes* the sidecar of a photo: the file's name with its
+/// extension replaced by `.xmp` — Adobe's convention, the one Lightroom and
+/// Bridge look for (ADR 0047 §2.1).
 pub fn sidecar_path(file: &Path) -> PathBuf {
     file.with_extension("xmp")
 }
 
-/// Parses the sidecar next to `file`, if there is one.
+/// Where Leyline *looks* for the sidecar of a photo, in the order it tries
+/// them (ADR 0047 §2.1). Two conventions are in use in the wild and reading
+/// only one of them loses the other program's work in silence:
 ///
-/// `Ok(None)` covers everything that is not a usable sidecar — no file, an
+/// 1. `photo.CR2.xmp` — the whole file name plus `.xmp`, written by darktable
+///    and by exiftool. Tried first because it names *one* photo and cannot be
+///    confused with a sibling's;
+/// 2. `photo.xmp` — the extension replaced, written by Lightroom and by
+///    Leyline itself. Shared by every file of that stem in the directory, so
+///    it only answers once the unambiguous form has said nothing.
+///
+/// The two coincide for a file with no extension; the duplicate is harmless,
+/// the first hit wins.
+pub fn sidecar_candidates(file: &Path) -> [PathBuf; 2] {
+    let mut appended = file.as_os_str().to_owned();
+    appended.push(".xmp");
+    [PathBuf::from(appended), sidecar_path(file)]
+}
+
+/// Parses the sidecar next to `file`, if there is one, under either naming
+/// convention of [`sidecar_candidates`].
+///
+/// `None` covers everything that is not a usable sidecar — no file, an
 /// unreadable one, malformed XML, or a well-formed document carrying none of
 /// the fields above. None of those is an error the caller has to handle:
 /// ADR 0047 §5 makes a bad sidecar the sidecar's problem, never the photo's.
+/// A candidate that exists but says nothing does not stop the search either:
+/// the next one still gets its turn.
 pub fn read_xmp_sidecar(file: &Path) -> Option<XmpSidecar> {
-    let text = std::fs::read_to_string(sidecar_path(file)).ok()?;
-    let sidecar = parse_xmp(&text)?;
-    (!sidecar.is_empty()).then_some(sidecar)
+    sidecar_candidates(file).into_iter().find_map(|candidate| {
+        let text = std::fs::read_to_string(candidate).ok()?;
+        let sidecar = parse_xmp(&text)?;
+        (!sidecar.is_empty()).then_some(sidecar)
+    })
 }
 
 /// Parses an XMP packet. `None` when the XML itself does not parse; an empty
