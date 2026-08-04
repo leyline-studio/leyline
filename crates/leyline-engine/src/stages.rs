@@ -1350,6 +1350,95 @@ pub(crate) fn develop_scaled(
     })
 }
 
+/// Rank of the local adjustments stage — where a mask's coverage is decided.
+const LOCAL_ADJUSTMENTS_RANK: u16 = 160;
+
+/// Renders the effective coverage of one local adjustment, in the geometry of
+/// the finished image (ADR 0071 §2).
+///
+/// Two passes over the same plan. The first develops the photo up to — and
+/// not including — the local adjustments stage, because that is the buffer the
+/// range terms read. The coverage is computed there, and the second pass
+/// pushes *it* through the three geometry stages that run after rank 160:
+/// `rotate`, `perspective`, `crop`, at the versions the revision pins. The
+/// pixel operators in between (LUT, noise, sharpening) are skipped: they would
+/// distort a mask image without telling anyone anything.
+///
+/// Returns `width * height` coverage samples in `[0, 1]`, at the size of the
+/// developed image.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn develop_mask_coverage(
+    image: &RawImage,
+    settings: &Settings,
+    shot: Option<&LensShot>,
+    camera_profile: Option<&DcpProfile>,
+    lut: Option<&leyline_color::CubeLut>,
+    coverages: &crate::mask_coverage::MaskCoverages,
+    source: SourceColor,
+    scale: f32,
+    index: usize,
+) -> Result<(u32, u32, Vec<f32>)> {
+    let adjustment = settings.local_adjustments.get(index).ok_or_else(|| {
+        LeylineError::InvalidSettings(format!(
+            "no local adjustment at index {index}; this revision has {}",
+            settings.local_adjustments.len()
+        ))
+    })?;
+    let plan = plan(settings)?;
+    let ctx = Context {
+        settings,
+        shot,
+        camera_profile,
+        lut,
+        coverages,
+        source,
+        scale,
+    };
+
+    let mut px = Pixels::from_raw(image)?;
+    for (_, version) in &plan {
+        if version.rank >= LOCAL_ADJUSTMENTS_RANK {
+            break;
+        }
+        (version.apply)(&mut px, &ctx);
+    }
+
+    // The plan already resolved which version this revision renders through,
+    // pinned or defaulted; reading it back beats re-deriving it.
+    let pinned = plan
+        .iter()
+        .find(|(stage, _)| stage.name == "local_adjustments")
+        .map_or(1, |(_, version)| version.version);
+    let coverage = crate::mask_overlay::effective_coverage(
+        pinned,
+        &px,
+        adjustment,
+        settings.rotation,
+        coverages,
+    );
+
+    // The coverage travels as an ordinary buffer so the geometry stages can
+    // resample it exactly as they resample the photo.
+    let mut carrier = Pixels {
+        width: px.width,
+        height: px.height,
+        data: coverage.iter().flat_map(|c| [*c, *c, *c]).collect(),
+    };
+    drop(px);
+    for (stage, version) in &plan {
+        if matches!(stage.name, "rotate" | "perspective" | "crop") {
+            (version.apply)(&mut carrier, &ctx);
+        }
+    }
+
+    let samples = carrier
+        .data
+        .chunks_exact(3)
+        .map(|rgb| rgb[0].clamp(0.0, 1.0))
+        .collect();
+    Ok((carrier.width, carrier.height, samples))
+}
+
 #[cfg(test)]
 mod fixture;
 

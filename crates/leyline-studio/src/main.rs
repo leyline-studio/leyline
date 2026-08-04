@@ -177,6 +177,8 @@ fn run() -> Result<(), String> {
         develop: None,
         dev_before: None,
         soft_proof: None,
+        // On by default: a mask one cannot see is the state ADR 0071 fixes.
+        show_mask_overlay: true,
         dev_clipboard: None,
         dev_history: Vec::new(),
         dev_history_version: None,

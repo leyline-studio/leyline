@@ -205,3 +205,75 @@ fn a_stored_coverage_survives_the_settings_round_trip() {
     assert!(json.contains("\"type\":\"coverage\""), "{json}");
     assert_eq!(leyline_core::Settings::parse(&json).unwrap(), settings);
 }
+
+/// ADR 0071: the overlay shows where the mask applies, in the geometry of the
+/// finished image — so a coverage covering the left half comes back white on
+/// the left and black on the right, at the preview's own size.
+#[test]
+fn the_overlay_renders_the_coverage_in_the_previews_geometry() {
+    let dir = tempfile::tempdir().unwrap();
+    let (library, asset, version) = library_with_a_flat_photo(dir.path());
+
+    let mut samples = vec![0u16; 64];
+    for row in 0..8 {
+        for column in 0..4 {
+            samples[row * 8 + column] = u16::MAX;
+        }
+    }
+    let mask = library.store_mask_coverage(8, 8, &samples).unwrap();
+    {
+        let mut session = library.edit(version).unwrap();
+        session
+            .set(
+                Param::LocalAdjustment(0),
+                Value::LocalAdjustment(Some(brighten(mask))),
+            )
+            .unwrap();
+        session.commit().unwrap();
+    }
+
+    let overlay = library
+        .mask_coverage_preview(asset, leyline_core::PreviewKind::Medium, 0)
+        .unwrap();
+    let (width, height) = (overlay.width() as usize, overlay.height() as usize);
+    let at = |x: usize, y: usize| overlay.data()[(y * width + x) * 3];
+    assert!(at(width / 8, height / 2) > 200, "the covered half reads high");
+    assert!(at(width * 7 / 8, height / 2) < 55, "the rest reads low");
+    // Grey, never coloured: the tint is the interface's job.
+    let pixel = (height / 2) * width + width / 8;
+    assert_eq!(overlay.data()[pixel * 3], overlay.data()[pixel * 3 + 1]);
+    assert_eq!(overlay.data()[pixel * 3], overlay.data()[pixel * 3 + 2]);
+
+    // An index that does not exist is refused rather than silently blank.
+    assert!(
+        library
+            .mask_coverage_preview(asset, leyline_core::PreviewKind::Medium, 7)
+            .is_err()
+    );
+}
+
+/// The entry's opacity scales the overlay, because it scales what the engine
+/// actually applies (ADR 0071 §3).
+#[test]
+fn the_overlay_follows_the_entrys_opacity() {
+    let dir = tempfile::tempdir().unwrap();
+    let (library, asset, version) = library_with_a_flat_photo(dir.path());
+    let mask = library.store_mask_coverage(2, 2, &[u16::MAX; 4]).unwrap();
+    let mut entry = brighten(mask);
+    entry.opacity = 0.5;
+    {
+        let mut session = library.edit(version).unwrap();
+        session
+            .set(Param::LocalAdjustment(0), Value::LocalAdjustment(Some(entry)))
+            .unwrap();
+        session.commit().unwrap();
+    }
+    let overlay = library
+        .mask_coverage_preview(asset, leyline_core::PreviewKind::Medium, 0)
+        .unwrap();
+    let middle = overlay.data()[(overlay.data().len() / 2 / 3) * 3];
+    assert!(
+        (100..=155).contains(&middle),
+        "half opacity reads mid grey, got {middle}"
+    );
+}

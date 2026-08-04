@@ -42,6 +42,13 @@ export global MaskState {
     callback paint-mask-dab(int, float, float, float, float, float, float);
     // Defaults applied to the *next* dab painted, in percent — dialog-local
     // text fields, exactly like the spot tool's three (`DevelopState`).
+    // Whether the selected mask's coverage is painted over the preview
+    // (ADR 0071). An interface switch, never a setting of the photo: it is
+    // not stored in the revision.
+    in-out property <bool> show-overlay: true;
+    callback toggle-overlay();
+    // Selecting a row repaints the preview, because the overlay lives in it.
+    callback select-mask(int);
     in-out property <string> brush-size-text: "8";
     in-out property <string> brush-flow-text: "50";
     in-out property <string> brush-hardness-text: "50";

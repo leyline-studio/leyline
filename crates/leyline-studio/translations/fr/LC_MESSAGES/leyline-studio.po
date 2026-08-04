@@ -1451,6 +1451,10 @@ msgstr "Ajouter un masque sur toute l'image"
 msgid "Add mask from file…"
 msgstr "Ajouter un masque depuis un fichier…"
 
+#: crates/leyline-studio/ui/panels/develop.slint
+msgid "Show mask"
+msgstr "Afficher le masque"
+
 msgid "Size %"
 msgstr "Taille %"
 

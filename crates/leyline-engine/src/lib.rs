@@ -20,6 +20,7 @@ mod library;
 mod lut;
 mod mask;
 pub mod mask_coverage;
+mod mask_overlay;
 mod pixels;
 mod presets;
 mod preview;

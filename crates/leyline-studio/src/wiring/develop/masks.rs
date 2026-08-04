@@ -80,6 +80,37 @@ pub(super) fn wire_masks(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
+        MaskState::get(window).on_select_mask(move |index| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            MaskState::get(&window).set_selected_mask(index);
+            let mut app = app.borrow_mut();
+            if let Err(message) = refresh_develop(&mut app, &window) {
+                report_error(&window, &message);
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        MaskState::get(window).on_toggle_overlay(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            app.show_mask_overlay = !app.show_mask_overlay;
+            MaskState::get(&window).set_show_overlay(app.show_mask_overlay);
+            // Repaint through the ordinary refresh: the overlay is composited
+            // into the develop image, so there is nothing else to update.
+            if let Err(message) = refresh_develop(&mut app, &window) {
+                report_error(&window, &message);
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
         MaskState::get(window).on_remove_mask(move |index| {
             let Some(window) = handle.upgrade() else {
                 return;

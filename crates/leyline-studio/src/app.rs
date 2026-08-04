@@ -65,6 +65,9 @@ pub(crate) struct App {
     /// Nothing about it is stored — it is a way of looking, and it lives
     /// exactly as long as the window does.
     pub(crate) soft_proof: Option<leyline_sdk::SoftProof>,
+    /// Whether the selected mask's coverage is painted over the develop
+    /// preview (ADR 0071). Interface state, never written to a revision.
+    pub(crate) show_mask_overlay: bool,
     /// Develop settings copied from one photo (White Balance/Tone/Presence/
     /// Lens Correction/Detail — the same default groups a saved preset
     /// captures, Geometry excluded), waiting to be pasted onto the current

@@ -230,6 +230,58 @@ pub(crate) fn plan_settings_render(
     })
 }
 
+/// Renders the effective coverage of one local adjustment at preview size
+/// (ADR 0071), as 8-bit grey: 0 = the adjustment does not apply, 255 = fully.
+///
+/// Never cached and never recorded — it is a view, not a render, so nothing
+/// about it belongs in the preview cache a revision keys.
+pub(crate) fn render_mask_coverage(
+    decodes: &mut DecodeCache,
+    asset: AssetId,
+    plan: &SettingsRenderPlan,
+    settings: &Settings,
+    index: usize,
+) -> Result<Rgb8> {
+    let camera_profile = crate::camera_profile::resolve_from_settings(
+        &plan.library_root,
+        settings,
+        &plan.source_path,
+    )?;
+    let params = crate::stages::decode_params(settings, plan.half_size);
+    let decoded = decodes
+        .get_or_insert_with(asset, &params, || {
+            crate::source::decode(&plan.source_path, &params)
+        })
+        .map_err(|e| LeylineError::DecodeFailed {
+            asset,
+            reason: e.to_string(),
+        })?;
+    let (decoded, scale) = proxy(&decoded, plan.max_edge);
+    let lut = crate::lut::resolve_from_settings(&plan.library_root, settings)?;
+    let coverages = crate::mask_coverage::resolve_from_settings(&plan.library_root, settings)?;
+    let (width, height, samples) = crate::stages::develop_mask_coverage(
+        &decoded,
+        settings,
+        plan.shot.as_ref(),
+        camera_profile.as_ref(),
+        lut.as_ref(),
+        &coverages,
+        crate::source::color(&plan.source_path),
+        scale,
+        index,
+    )?;
+    // Grey, never coloured: the tint is the interface's decision (ADR 0071
+    // §Conséquences).
+    let data = samples
+        .iter()
+        .flat_map(|c| {
+            let level = (c * 255.0).round().clamp(0.0, 255.0) as u8;
+            [level, level, level]
+        })
+        .collect();
+    Rgb8::new(width, height, data).map_err(preview_err)
+}
+
 /// Decodes and develops `plan` under `settings` — never cached, never
 /// recorded, unlike [`render_preview`]'s revision-scoped counterpart. Used
 /// once per develop session for the before/after comparison's "before" half.

@@ -817,6 +817,41 @@ impl Library {
         })
     }
 
+    /// Renders the coverage of one of the head revision's local adjustments,
+    /// scaled like `kind` — the mask overlay of ADR 0071.
+    ///
+    /// Grey, never coloured: 0 where the adjustment does not apply, 255 where
+    /// it applies fully, already through the revision's rotation, perspective
+    /// and crop so it lands on the preview it will be drawn over. The tint is
+    /// the interface's decision, not the engine's.
+    ///
+    /// A *view*, like [`Library::preview_before`] and the soft proof: nothing
+    /// is cached, nothing is recorded, and no stage version exists for it —
+    /// `docs/pipeline.md` §5.1 is not in play.
+    pub fn mask_coverage_preview(
+        &self,
+        asset: AssetId,
+        kind: PreviewKind,
+        index: usize,
+    ) -> Result<leyline_preview::Rgb8> {
+        let (plan, settings) = {
+            let catalog = lock(&self.inner.catalog);
+            let plan = crate::preview::plan_settings_render(&catalog, &self.inner.root, asset, kind)?;
+            let version = catalog.current_version(asset)?;
+            let head = catalog.version_head(version)?;
+            let settings = Settings::parse(&catalog.revision(head)?.settings_json)?;
+            (plan, settings)
+        };
+        let image = {
+            let mut decodes = lock(&self.inner.decodes);
+            crate::preview::render_mask_coverage(&mut decodes, asset, &plan, &settings, index)?
+        };
+        Ok(match leyline_preview::max_edge(kind) {
+            Some(edge) => image.scaled_to_fit(edge),
+            None => image,
+        })
+    }
+
     /// Renders the asset's current preview as it would appear once it had been
     /// through `proof`'s destination profile — screen soft-proofing (ADR 0034,
     /// ADR 0051 §4).

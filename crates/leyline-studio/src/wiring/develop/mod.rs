@@ -147,6 +147,14 @@ pub(crate) fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<()
                 .map_err(|_| format!("cannot load preview {}", file.path.display()))?
         }
     };
+    // The mask overlay (ADR 0071): the selected entry's coverage, painted
+    // red over the preview. Off when nothing is selected — there is no "the
+    // mask" then — and silently skipped if the engine cannot render it, since
+    // a diagnostic view must never take the develop panel down with it.
+    let image = match overlay_for(app, asset, selected) {
+        Some(painted) => painted,
+        None => image,
+    };
     DevelopState::get(window).set_develop_image(image);
     if let Ok(bins) = app.library.histogram(asset, PreviewKind::Small) {
         const CANVAS: (f64, f64) = (256.0, 90.0);
@@ -237,4 +245,35 @@ pub(crate) fn enter_develop_for(
             report_error(window, &error);
         }
     }
+}
+
+/// The develop preview with the selected mask's coverage painted over it, or
+/// `None` when there is nothing to paint (ADR 0071 §4).
+///
+/// Best-effort by design: an unreadable coverage returns `None` and the panel
+/// shows the plain preview. The overlay is a way of *looking* at a mask, and
+/// nothing about looking should be able to break editing.
+fn overlay_for(app: &App, asset: leyline_sdk::AssetId, selected: i32) -> Option<slint::Image> {
+    if !app.show_mask_overlay {
+        return None;
+    }
+    let index = usize::try_from(selected).ok()?;
+    let coverage = app
+        .library
+        .mask_coverage_preview(asset, PreviewKind::Small, index)
+        .ok()?;
+    let preview = app.library.preview(asset, PreviewKind::Small).ok()?;
+    let mut base = image::open(&preview.path).ok()?.to_rgb8();
+    let size = (base.width(), base.height());
+    crate::masks::paint_overlay(
+        base.as_mut(),
+        size,
+        coverage.data(),
+        (coverage.width(), coverage.height()),
+    )
+    .then(|| {
+        let mut buffer = slint::SharedPixelBuffer::<slint::Rgb8Pixel>::new(size.0, size.1);
+        buffer.make_mut_bytes().copy_from_slice(base.as_raw());
+        slint::Image::from_rgb8(buffer)
+    })
 }

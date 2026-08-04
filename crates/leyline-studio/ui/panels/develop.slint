@@ -1418,7 +1418,11 @@ export component DevelopPanel inherits HorizontalLayout {
                         for row[i] in MaskState.masks: mask-touch := TouchArea {
                             height: 30px;
                             clicked => {
-                                MaskState.selected-mask = MaskState.selected-mask == i ? -1 : i;
+                                // Through Rust, not a bare assignment: the
+                                // overlay is composited into the preview
+                                // (ADR 0071), so a selection change has to
+                                // reach the engine to repaint.
+                                MaskState.select-mask(MaskState.selected-mask == i ? -1 : i);
                             }
                             Rectangle {
                                 width: 100%;
@@ -1489,6 +1493,17 @@ export component DevelopPanel inherits HorizontalLayout {
                                 clicked => {
                                     MaskState.add-mask("coverage");
                                     root.expand-local = true;
+                                }
+                            }
+                            FilterChip {
+                                // Seeing the coverage is how a mask is
+                                // worked on (ADR 0071) — and the only way
+                                // to see a stored one, which draws no
+                                // handles of its own.
+                                text: @tr("Show mask");
+                                active: MaskState.show-overlay;
+                                clicked => {
+                                    MaskState.toggle-overlay();
                                 }
                             }
                         }

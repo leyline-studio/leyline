@@ -224,6 +224,29 @@ pub fn coverage_from_image(image: &image::DynamicImage) -> (u32, u32, Vec<u16>) 
     (width, height, samples)
 }
 
+/// Paints the mask overlay over a preview, in place (ADR 0071 §5).
+///
+/// `coverage` is the engine's grey coverage at the same size as `base`: red at
+/// half strength where the mask applies, untouched where it does not. Half is
+/// the convention everywhere in the trade, and it is the point — one still has
+/// to judge the photo underneath.
+///
+/// A size mismatch paints nothing rather than smearing a stale overlay across
+/// the frame: the two images come from separate renders, and one can arrive
+/// before the other has caught up.
+pub fn paint_overlay(base: &mut [u8], base_size: (u32, u32), coverage: &[u8], coverage_size: (u32, u32)) -> bool {
+    if base_size != coverage_size || base.len() != coverage.len() {
+        return false;
+    }
+    for (pixel, mask) in base.chunks_exact_mut(3).zip(coverage.chunks_exact(3)) {
+        let alpha = f32::from(mask[0]) / 255.0 * 0.5;
+        pixel[0] = (f32::from(pixel[0]) * (1.0 - alpha) + 255.0 * alpha).round() as u8;
+        pixel[1] = (f32::from(pixel[1]) * (1.0 - alpha)).round() as u8;
+        pixel[2] = (f32::from(pixel[2]) * (1.0 - alpha)).round() as u8;
+    }
+    true
+}
+
 /// The row a local-adjustment update wrote to — the row the panel selects
 /// after a gesture, since a gesture can create as well as modify.
 pub fn written_row(param: &Param) -> Option<usize> {
@@ -730,5 +753,26 @@ mod tests {
         rgb.put_pixel(1, 0, image::Rgb([0, 0, 0]));
         let (_, _, samples) = coverage_from_image(&image::DynamicImage::ImageRgb8(rgb));
         assert_eq!(samples, vec![u16::MAX, 0]);
+    }
+
+    /// ADR 0071 §5: red at half strength where covered, untouched where not,
+    /// and nothing at all when the two images disagree on size.
+    #[test]
+    fn the_overlay_paints_red_where_the_mask_covers_and_nothing_elsewhere() {
+        let mut base = vec![100u8, 100, 100, 100, 100, 100];
+        let coverage = vec![255u8, 255, 255, 0, 0, 0];
+        assert!(paint_overlay(&mut base, (2, 1), &coverage, (2, 1)));
+        // Covered: halfway to red.
+        assert_eq!(&base[0..3], &[178, 50, 50]);
+        // Uncovered: exactly as it was.
+        assert_eq!(&base[3..6], &[100, 100, 100]);
+    }
+
+    #[test]
+    fn a_size_mismatch_paints_nothing() {
+        let mut base = vec![100u8; 6];
+        let coverage = vec![255u8; 3];
+        assert!(!paint_overlay(&mut base, (2, 1), &coverage, (1, 1)));
+        assert_eq!(base, vec![100u8; 6]);
     }
 }
