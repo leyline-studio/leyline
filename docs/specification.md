@@ -86,7 +86,7 @@ Ces absences sont des **décisions**, pas des retards. Elles ne sont pas à prop
 | Cloud | Contredit le principe Local First |
 | Comptes utilisateur | Aucun service à authentifier |
 | Abonnement | Contredit la propriété des données par le photographe |
-| Intelligence artificielle | Hors périmètre ; une IA locale optionnelle reste envisageable à très long terme |
+| Intelligence artificielle | Hors périmètre : **aucun modèle n'est livré, aucune inférence n'a lieu**. Ce qui existe depuis [ADR 0073](adr/0073-external-mask-detectors.md) est une *prise* — un détecteur de masque tiers, installé séparément, peut proposer une couverture que le pipeline libre rend ensuite comme n'importe quel masque. Une IA locale optionnelle reste envisageable à très long terme |
 | HDR | Fonctionnalité entière, à trancher par un ADR propre le jour venu |
 | Panorama | Idem |
 | Reconnaissance faciale | Idem, avec une dimension vie privée qui exige sa propre décision |

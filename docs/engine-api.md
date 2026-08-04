@@ -550,6 +550,47 @@ impl Library {
 
 ---
 
+# 10bis. Détecteurs de masque externes (`docs/adr/0073-external-mask-detectors.md`)
+
+Le SDK ré-exporte `leyline-detect`, qui **n'est pas le moteur** : un détecteur est un exécutable séparé, et le SDK ne fait que le trouver et l'appeler.
+
+```rust
+pub struct Detection { pub id: String, pub label: String }
+
+pub struct DetectorSource {
+    pub id: String,
+    pub label: String,
+    pub command: PathBuf,     // absolu, ou un nom à chercher dans PATH
+    pub args: Vec<String>,
+    pub detections: Vec<Detection>,
+}
+
+/// `<config utilisateur>/Leyline/detectors` — jamais dans une bibliothèque.
+pub fn manifests_dir() -> Option<PathBuf>;
+
+/// Tout ce qui est installé et utilisable, trié. N'échoue jamais : rien
+/// d'installé, un manifeste illisible ou une commande absente donnent la
+/// même chose à l'appelant — aucune détection à proposer.
+pub fn discover() -> Vec<DetectorSource>;
+pub fn discover_in(dir: &Path) -> Vec<DetectorSource>;
+
+/// Lance une détection : une image en entrée, une couverture en sortie.
+pub fn detect(source: &DetectorSource, detection: &str,
+              image: &Path, out: &Path) -> Result<(), DetectError>;
+```
+
+Le contrat d'appel tient en une ligne :
+
+```
+<command> <args…> --image <in.png> --detector <id> --out <out.png>
+```
+
+`in.png` est un aperçu développé (PNG RGB 8 bits, le format du cache d'aperçus) ; `out.png` doit être un **PNG gris 16 bits**, `0` = le réglage ne s'applique pas, `65535` = il s'applique pleinement. C'est ensuite à l'appelant d'en faire un masque par `Library::store_mask_coverage` (§10) : **un détecteur n'ouvre jamais la bibliothèque**, ne prend aucun verrou et n'apprend aucun identifiant.
+
+Quatre échecs sont nommés séparément (`DetectError`), parce qu'ils appellent quatre réactions différentes : la détection inconnue du manifeste, la commande qui ne démarre pas, le refus — avec le `stderr` du détecteur, seul à savoir pourquoi — et le succès qui n'écrit rien. Un garde-fou de 120 s termine un exécutable coincé.
+
+---
+
 # 11. Previews
 
 ```rust

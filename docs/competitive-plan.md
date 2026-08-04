@@ -548,7 +548,14 @@ plus difficile de tout ce document, et le seul dont je ne vois pas de solution
 propre à ce stade.
 
 **Recommandation.** Ne pas l'attaquer en premier. A3 (profil de bruit mesuré)
-donne une partie du gain, sans aucune de ces questions.
+donne une partie du gain, sans aucune de ces questions — et **il est livré**
+([ADR 0072](adr/0072-measured-noise-profile.md)).
+
+**Le verdict se formule mieux depuis [ADR 0073](adr/0073-external-mask-detectors.md) :**
+un débruiteur produit des **pixels**. Il ne peut donc ni être matérialisé une
+fois comme un masque, ni traverser la frontière d'ADR 0069, ni entrer dans le
+chemin de rendu sans emporter §5.1 avec lui. Ce n'est pas « pas maintenant »,
+c'est « pas par cette porte ».
 
 ## C2 — Masques automatiques (sujet, ciel, arrière-plan)
 
@@ -573,9 +580,28 @@ retirer quoi que ce soit de l'édition libre, et sans qu'aucun code fermé
 n'entre dans le chemin de rendu. La version libre rend les masques de tout le
 monde ; ce qui se vend, c'est l'outil qui les *propose*.
 
-**Reste ouvert.** Le choix du modèle et du runtime, la licence des poids, le
-mode de distribution — et, le jour venu, le système de clé lui-même
-(hors périmètre d'ADR 0069 §5).
+**La prise est livrée le 2026-08-04** ([ADR 0073](adr/0073-external-mask-detectors.md)),
+dans la forme choisie ce jour-là : la **détection automatique** (un bouton,
+« le ciel », « le sujet ») plutôt que la sélection au clic. Trois choses
+méritent d'être retenues :
+
+* **La moitié ouverte était déjà là.** ADR 0070 avait livré `Mask::Coverage`
+  et `store_mask_coverage`, ADR 0071 la surimpression. Il ne manquait que le
+  geste — et le moteur n'a pas bougé d'une ligne.
+* **Un détecteur est un exécutable, pas un greffon.** Il prend un PNG, rend un
+  PNG gris 16 bits, n'ouvre pas la bibliothèque, ne prend aucun verrou et ne
+  lie pas le SDK : la frontière de licence est franchie par un `execve`, ce
+  qui est le point le plus dur qu'on puisse atteindre. Conséquence heureuse et
+  non recherchée : n'importe qui peut en écrire un en vingt lignes, donc la
+  prise a une valeur propre pour le projet libre.
+* **La licence des poids élimine, et il fallait regarder avant.** SegFormer
+  ADE20K (NVIDIA) et RMBG-1.4 — les deux modèles les plus faciles à trouver —
+  sont non commerciaux. U²-Net (Apache-2.0), BiRefNet (MIT) et le zoo
+  MMSegmentation (Apache-2.0) passent.
+
+**Reste ouvert.** Le détecteur lui-même : le choix du modèle par détection, sa
+conversion en ONNX, sa mesure — tout cela vit dans son propre dépôt. Et, le
+jour venu, le système de clé (hors périmètre d'ADR 0069 §5).
 
 ---
 
@@ -592,18 +618,20 @@ L'ordre suit le rapport **gain ressenti / risque**, pas la difficulté.
 | ~~5~~ | ~~**B2** — mesurer l'export~~ | **Mesuré le 2026-08-03**, voir §3 : bench `export.rs`, deux suites possibles identifiées | Non |
 | ~~6~~ | ~~**A3** — profil de bruit~~ | **Livré le 2026-08-04** ([ADR 0072](adr/0072-measured-noise-profile.md)) : table darktable gelée avec l'étage, seuil par pixel, rangs 5 et 6 ; coût mesuré nul | Oui (`noise_*::v3`) |
 | ~~7~~ | ~~**B3** — GPU preview~~ | **Écarté le 2026-08-03** : B1 a rendu l'interaction fluide, le GPU est interdit à l'export par §5.1, et la comparaison montre qu'il n'y a rien à rattraper (voir §3) | — |
-| 8 | **C2** — masques IA | Horizon ; seul item IA compatible avec §5.1 sans compromis | Non (masque matérialisé) |
+| ~~8~~ | **C2** — masques IA | **Prise livrée le 2026-08-04** ([ADR 0073](adr/0073-external-mask-detectors.md)) ; reste le détecteur, hors de ce dépôt | Non (masque matérialisé) |
 | 9 | **C1** — débruitage IA | Horizon lointain ; question de déterminisme non résolue | À trancher |
 
 **Dépendances dures :** A1.2 après A1.1 ; B3 après B1 (exigé par ADR 0041).
 Tout le reste peut sortir dans n'importe quel ordre.
 
-**Reste ouvert au 2026-08-04 :** C2 puis C1 — c'est-à-dire l'axe IA, et lui
-seul. Les axes A et B sont refermés : A1, A2 et A3 sont livrés, B1 et B2 aussi,
-B3 est écarté avec ses raisons. Ce qui reste ouvert *dans* A n'est plus un
-chantier mais deux constats — la comparaison au rendu d'Adobe lui-même, faute
-de Lightroom, et le trou d'épinglage de la base Lensfun qu'ADR 0072 a mis au
-jour.
+**Reste ouvert au 2026-08-04 :** rien, dans ce dépôt. Les axes A et B sont
+refermés — A1, A2 et A3 livrés, B1 et B2 aussi, B3 écarté avec ses raisons — et
+de l'axe C, tout ce qui pouvait y entrer y est entré : la prise de C2 est
+livrée, le détecteur qui s'y branche vit ailleurs, et C1 n'a pas d'issue (voir
+plus bas). Ce qui subsiste n'est plus un chantier mais trois constats : la
+comparaison au rendu d'Adobe lui-même, faute de Lightroom ; le trou
+d'épinglage de la base Lensfun qu'ADR 0072 a mis au jour ; et l'écart de
+qualité, assumé, avec les débruiteurs appris.
 
 ---
 
@@ -620,7 +648,8 @@ n'en tient lieu pour aucun.
 | B1 | Rien — [ADR 0041](adr/0041-interactive-preview-rendering.md) §3 est déjà l'ADR. **Implémenté le 2026-08-02** |
 | B2 (suites) | Vitesse d'encodage AVIF exposée et son défaut ; recouvrement encodage/rendu dans un lot, et ce que devient l'ordre du rapport |
 | B3 | Périmètre preview-seul, backend, et ce que devient §5.1 dans le texte |
-| C1, C2 | Les six conditions du §4 ci-dessus, modèle, runtime, distribution des poids |
+| C2 | **Tranché** par [ADR 0073](adr/0073-external-mask-detectors.md) : détection automatique, détecteur = exécutable séparé, licence des poids éliminatoire |
+| C1 | Les six conditions du §4 ci-dessus — et d'abord le §4.4, qu'un débruiteur ne peut pas satisfaire |
 
 ---
 

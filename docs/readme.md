@@ -29,7 +29,8 @@ Ce qui reste ouvert :
 | Sujet | État |
 |---|---|
 | Justesse colorimétrique des profils DCP | Non validée contre de vrais `.dcp` Adobe — fonctionnalité signalée comme expérimentale ([ADR 0035](adr/0035-camera-profile-dcp.md)) |
-| Retouches locales : surimpression du masque, pipette de plage, poignées de déplacement | Laissé hors périmètre par [ADR 0049](adr/0049-local-adjustments-clients.md) |
+| Retouches locales : pipette de plage, poignées de déplacement | Laissé hors périmètre par [ADR 0049](adr/0049-local-adjustments-clients.md) ; la surimpression du masque, elle, est livrée ([ADR 0071](adr/0071-mask-overlay.md)) |
+| Masques détectés | La **prise** est livrée ([ADR 0073](adr/0073-external-mask-detectors.md)) : Studio sait appeler un détecteur externe. Aucun détecteur n'est distribué avec Leyline, et aucun modèle n'est embarqué |
 | Première publication | Aucun binaire publié, aucune version coupée ; la documentation est en français |
 
 Le reste du travail est de la robustesse, de la performance et du polissage, non des fonctionnalités manquantes.
