@@ -25,7 +25,7 @@ use leyline_core::{
     LocalAdjustment, LocalAdjustmentValues, Mask, NoiseReduction, Point, Settings, Sharpening,
     SpotRemoval, StageVersions, ToneCurve, WhiteBalance,
 };
-use leyline_engine::{LensShot, SourceColor, render};
+use leyline_engine::{LensShot, SensorShot, SourceColor, render};
 
 /// The colorimetry every bench renders through: no camera matrix, so the
 /// measurement is of the operators rather than of a body's profile.
@@ -94,6 +94,17 @@ fn canon_shot() -> LensShot {
     }
 }
 
+/// A body the frozen noise profile table knows, at a sensitivity it
+/// measured (ADR 0072): what `noise_*::v3` costs on the path that finds a
+/// profile, which is the one that will be taken.
+fn canon_sensor() -> SensorShot {
+    SensorShot {
+        camera_make: "Canon".to_owned(),
+        camera_model: "EOS 5D Mark III".to_owned(),
+        iso: 3200.0,
+    }
+}
+
 /// The realistic everything-on edit shared by both `full` benches.
 fn full_settings() -> Settings {
     Settings {
@@ -133,6 +144,7 @@ fn benches(c: &mut Criterion) {
                 None,
                 None,
                 None,
+                None,
                 &Default::default(),
                 SOURCE,
             )
@@ -146,6 +158,7 @@ fn benches(c: &mut Criterion) {
             render(
                 black_box(&image),
                 black_box(&settings),
+                None,
                 None,
                 None,
                 None,
@@ -166,6 +179,7 @@ fn benches(c: &mut Criterion) {
             render(
                 black_box(&image),
                 black_box(&settings),
+                None,
                 None,
                 None,
                 None,
@@ -195,6 +209,7 @@ fn benches(c: &mut Criterion) {
                 None,
                 None,
                 None,
+                None,
                 &Default::default(),
                 SOURCE,
             )
@@ -220,6 +235,7 @@ fn benches(c: &mut Criterion) {
                 None,
                 None,
                 None,
+                None,
                 &Default::default(),
                 SOURCE,
             )
@@ -233,6 +249,7 @@ fn benches(c: &mut Criterion) {
             render(
                 black_box(&image),
                 black_box(&settings),
+                None,
                 None,
                 None,
                 None,
@@ -261,6 +278,7 @@ fn benches(c: &mut Criterion) {
                 Some(black_box(&shot)),
                 None,
                 None,
+                None,
                 &Default::default(),
                 SOURCE,
             )
@@ -281,6 +299,7 @@ fn benches(c: &mut Criterion) {
                 black_box(&image),
                 black_box(&settings),
                 Some(black_box(&shot)),
+                None,
                 None,
                 None,
                 &Default::default(),
@@ -317,6 +336,7 @@ fn benches(c: &mut Criterion) {
                 Some(black_box(&no_tca_shot)),
                 None,
                 None,
+                None,
                 &Default::default(),
                 SOURCE,
             )
@@ -342,6 +362,7 @@ fn benches(c: &mut Criterion) {
                     black_box(&image),
                     black_box(&settings),
                     Some(black_box(&shot)),
+                    None,
                     Some(black_box(&profile)),
                     None,
                     &Default::default(),
@@ -354,13 +375,15 @@ fn benches(c: &mut Criterion) {
 
     group.finish();
 
-    // The two denoise stage versions at identical slider values, each pinned
-    // explicitly: what ADR 0046 costs against the Gaussian blur it replaces.
-    // Both remain in the engine forever, so both stay priced forever.
+    // The three denoise stage versions at identical slider values, each
+    // pinned explicitly: what ADR 0046 cost against the Gaussian blur it
+    // replaced, and what ADR 0072's measured threshold adds to that. All
+    // three remain in the engine forever, so all three stay priced forever.
     let mut group = c.benchmark_group("denoise");
     group.sample_size(10);
+    let sensor = canon_sensor();
 
-    for version in [1u16, 2u16] {
+    for version in [1u16, 2u16, 3u16] {
         let settings = Settings {
             noise_reduction: NoiseReduction {
                 luminance: 40,
@@ -372,10 +395,10 @@ fn benches(c: &mut Criterion) {
             ]),
             ..Settings::default()
         };
-        let name = if version == 1 {
-            "v1_gaussian"
-        } else {
-            "v2_wavelet"
+        let name = match version {
+            1 => "v1_gaussian",
+            2 => "v2_wavelet",
+            _ => "v3_profiled",
         };
         group.bench_function(name, |b| {
             b.iter(|| {
@@ -383,6 +406,9 @@ fn benches(c: &mut Criterion) {
                     black_box(&image),
                     black_box(&settings),
                     None,
+                    // Ignored by `v1` and `v2`, which is the point: the
+                    // three are priced on the same inputs.
+                    Some(black_box(&sensor)),
                     None,
                     None,
                     &Default::default(),

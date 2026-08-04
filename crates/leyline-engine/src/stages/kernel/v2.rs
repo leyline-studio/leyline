@@ -22,7 +22,11 @@ pub(crate) const LEVELS: usize = 4;
 /// profile of ADR 0046 §3: noise energy collapses by roughly a factor four
 /// per level, so a flat threshold would either spare the finest grain or
 /// flatten the coarse structure.
-const LEVEL_SIGMA: [f32; LEVELS] = [0.890, 0.201, 0.086, 0.041];
+///
+/// Visible to `kernel::v3`, which thresholds the same transform against a
+/// measured σ (ADR 0072 §3): reading a frozen constant from a newer module
+/// is safe by construction, since the frozen one can never move.
+pub(crate) const LEVEL_SIGMA: [f32; LEVELS] = [0.890, 0.201, 0.086, 0.041];
 
 /// The B3-spline analysis kernel, `[1, 4, 6, 4, 1] / 16`, as five weights
 /// applied at spacings `-2h, -h, 0, +h, +h*2`.
@@ -90,7 +94,7 @@ pub(crate) fn wavelet_denoise(
 /// value close to zero instead of jumping to its full magnitude, which is
 /// what stops the operator from stippling a smooth gradient with the few
 /// coefficients that happened to survive.
-fn soft_threshold(d: f32, t: f32) -> f32 {
+pub(crate) fn soft_threshold(d: f32, t: f32) -> f32 {
     let magnitude = d.abs() - t;
     if magnitude <= 0.0 {
         0.0
@@ -105,7 +109,7 @@ fn soft_threshold(d: f32, t: f32) -> f32 {
 /// apart, which is what makes the transform non-decimated (no resampling, so
 /// every level stays at full resolution and nothing has to be interpolated
 /// back up). Edges replicate, like every other kernel in the pipeline.
-fn convolve_b3(plane: &[f32], width: usize, height: usize, spacing: usize) -> Vec<f32> {
+pub(crate) fn convolve_b3(plane: &[f32], width: usize, height: usize, spacing: usize) -> Vec<f32> {
     let tap = |i: usize, k: usize, length: usize| -> usize {
         // k runs 0..5 for taps at -2h, -h, 0, +h, +2h.
         let offset = (k as isize - 2) * spacing as isize;

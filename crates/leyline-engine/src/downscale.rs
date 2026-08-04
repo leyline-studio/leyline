@@ -262,6 +262,7 @@ mod tests {
             None,
             None,
             None,
+            None,
             &Default::default(),
             crate::stages::SourceColor::Camera {
                 to_xyz: None,
@@ -273,6 +274,7 @@ mod tests {
         let full = crate::render::render(
             &image,
             &settings,
+            None,
             None,
             None,
             None,

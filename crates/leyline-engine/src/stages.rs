@@ -69,6 +69,7 @@
 pub(crate) mod kernel {
     pub(crate) mod v1;
     pub(crate) mod v2;
+    pub(crate) mod v3;
 }
 pub(crate) mod input {
     pub(crate) mod v1;
@@ -128,10 +129,12 @@ pub(crate) mod local_adjustments {
 pub(crate) mod noise_luminance {
     pub(crate) mod v1;
     pub(crate) mod v2;
+    pub(crate) mod v3;
 }
 pub(crate) mod noise_color {
     pub(crate) mod v1;
     pub(crate) mod v2;
+    pub(crate) mod v3;
 }
 pub(crate) mod sharpen {
     pub(crate) mod v1;
@@ -154,7 +157,7 @@ use leyline_core::{ColorGrading, HslBand, LeylineError, Result, Settings};
 use leyline_raw::{DecodeParams, RawImage};
 
 use crate::pixels::Pixels;
-use crate::render::{LensShot, Rendered};
+use crate::render::{LensShot, Rendered, SensorShot};
 
 /// What the decoder handed over, colorimetrically — the `input` stage's
 /// other half (ADR 0044 §3).
@@ -191,6 +194,9 @@ pub(crate) struct Context<'a> {
     pub settings: &'a Settings,
     /// EXIF identification of the shot, for the lens stage.
     pub shot: Option<&'a LensShot>,
+    /// EXIF identification of the sensor and its sensitivity, for the
+    /// profiled denoising stages (ADR 0072).
+    pub sensor: Option<&'a SensorShot>,
     /// The already-resolved DCP matrix, for the camera profile stage.
     pub camera_profile: Option<&'a DcpProfile>,
     /// The already-parsed creative LUT, for the LUT stage (ADR 0053).
@@ -724,7 +730,14 @@ pub(crate) static STAGES: &[Stage] = &[
     Stage {
         name: "noise_luminance",
         active: |settings| settings.noise_reduction.luminance != 0,
-        reads: &["noise_reduction"],
+        // `camera_profile` is read by `v3` and by it alone: whether a profile
+        // is resolved decides whether the buffer it denoises is still
+        // camera-native, and therefore how the measured model is carried into
+        // it (ADR 0072 §5). Declaring it for `v1` and `v2` too costs nothing —
+        // `input` already reads the same key at rank 0, so a profile change
+        // invalidates everything downstream anyway — and a missing key here
+        // would be a correctness bug rather than a slow render.
+        reads: &["noise_reduction", "camera_profile"],
         versions: &[
             Version {
                 version: 1,
@@ -751,12 +764,31 @@ pub(crate) static STAGES: &[Stage] = &[
                     );
                 },
             },
+            // Measured threshold, and therefore a new rank: the model only
+            // means something where the buffer is still a linear transform
+            // of the sensor's counts (ADR 0072 §4).
+            Version {
+                version: 3,
+                rank: 5,
+                space: Space::LinearRec2020,
+                apply: |px, ctx| {
+                    let model =
+                        kernel::v3::model_for(ctx.sensor, ctx.source, ctx.camera_profile.is_some());
+                    noise_luminance::v3::luminance_noise_reduction(
+                        px,
+                        ctx.settings.noise_reduction.luminance,
+                        ctx.scale,
+                        &model,
+                    );
+                },
+            },
         ],
     },
     Stage {
         name: "noise_color",
         active: |settings| settings.noise_reduction.color != 0,
-        reads: &["noise_reduction"],
+        // Same reason as `noise_luminance` above.
+        reads: &["noise_reduction", "camera_profile"],
         versions: &[
             Version {
                 version: 1,
@@ -780,6 +812,23 @@ pub(crate) static STAGES: &[Stage] = &[
                         px,
                         ctx.settings.noise_reduction.color,
                         ctx.scale,
+                    );
+                },
+            },
+            // Measured threshold, one rank behind `noise_luminance::v3`
+            // (ADR 0072 §4).
+            Version {
+                version: 3,
+                rank: 6,
+                space: Space::LinearRec2020,
+                apply: |px, ctx| {
+                    let model =
+                        kernel::v3::model_for(ctx.sensor, ctx.source, ctx.camera_profile.is_some());
+                    noise_color::v3::color_noise_reduction(
+                        px,
+                        ctx.settings.noise_reduction.color,
+                        ctx.scale,
+                        &model,
                     );
                 },
             },
@@ -1263,6 +1312,7 @@ pub(crate) fn develop_scaled_cached(
     image: &RawImage,
     settings: &Settings,
     shot: Option<&LensShot>,
+    sensor: Option<&SensorShot>,
     camera_profile: Option<&DcpProfile>,
     lut: Option<&leyline_color::CubeLut>,
     coverages: &crate::mask_coverage::MaskCoverages,
@@ -1275,6 +1325,7 @@ pub(crate) fn develop_scaled_cached(
     let ctx = Context {
         settings,
         shot,
+        sensor,
         camera_profile,
         lut,
         coverages,
@@ -1319,10 +1370,12 @@ pub(crate) fn develop_scaled_cached(
 /// Renders a decoded image through the stages its settings record.
 /// `settings` has already been validated and checked against
 /// `CURRENT_SCHEMA` by [`crate::render::render_scaled`].
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn develop_scaled(
     image: &RawImage,
     settings: &Settings,
     shot: Option<&LensShot>,
+    sensor: Option<&SensorShot>,
     camera_profile: Option<&DcpProfile>,
     lut: Option<&leyline_color::CubeLut>,
     coverages: &crate::mask_coverage::MaskCoverages,
@@ -1333,6 +1386,7 @@ pub(crate) fn develop_scaled(
     let ctx = Context {
         settings,
         shot,
+        sensor,
         camera_profile,
         lut,
         coverages,
@@ -1371,6 +1425,7 @@ pub(crate) fn develop_mask_coverage(
     image: &RawImage,
     settings: &Settings,
     shot: Option<&LensShot>,
+    sensor: Option<&SensorShot>,
     camera_profile: Option<&DcpProfile>,
     lut: Option<&leyline_color::CubeLut>,
     coverages: &crate::mask_coverage::MaskCoverages,
@@ -1388,6 +1443,7 @@ pub(crate) fn develop_mask_coverage(
     let ctx = Context {
         settings,
         shot,
+        sensor,
         camera_profile,
         lut,
         coverages,

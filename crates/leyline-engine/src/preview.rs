@@ -77,6 +77,10 @@ pub(crate) struct RenderPlan {
     /// resolution — the proxy target (ADR 0041).
     max_edge: Option<u32>,
     shot: Option<crate::render::LensShot>,
+    /// What the sensor was, and what it was set to — the profiled denoising
+    /// stages' input (ADR 0072). Resolved here, from the same metadata as
+    /// `shot`, because the render is a pure function of what it is handed.
+    sensor: Option<crate::render::SensorShot>,
     /// Library root `settings.camera_profile`'s path (if any) is relative
     /// to — resolved in [`render_preview`], mirroring
     /// [`crate::export::ExportPlan`].
@@ -112,6 +116,7 @@ pub(crate) fn plan_preview(
 
     let meta = catalog.metadata(asset)?;
     let shot = meta.as_ref().and_then(render::lens_shot);
+    let sensor = meta.as_ref().and_then(render::sensor_shot);
 
     Ok(PreviewPlan::Render(Box::new(RenderPlan {
         head,
@@ -123,6 +128,7 @@ pub(crate) fn plan_preview(
         half_size: matches!(kind, PreviewKind::Thumbnail | PreviewKind::Small),
         max_edge: leyline_preview::max_edge(kind),
         shot,
+        sensor,
         library_root: library_root.to_path_buf(),
     })))
 }
@@ -158,6 +164,7 @@ pub(crate) fn render_preview(
         &decoded,
         &plan.settings,
         plan.shot.as_ref(),
+        plan.sensor.as_ref(),
         camera_profile.as_ref(),
         lut.as_ref(),
         &coverages,
@@ -200,6 +207,10 @@ pub(crate) struct SettingsRenderPlan {
     /// resolution — the proxy target (ADR 0041).
     max_edge: Option<u32>,
     shot: Option<crate::render::LensShot>,
+    /// What the sensor was, and what it was set to — the profiled denoising
+    /// stages' input (ADR 0072). Resolved here, from the same metadata as
+    /// `shot`, because the render is a pure function of what it is handed.
+    sensor: Option<crate::render::SensorShot>,
     /// Library root the render's own `settings.camera_profile` path (if
     /// any) is relative to — resolved in [`render_with_settings`].
     library_root: PathBuf,
@@ -221,11 +232,13 @@ pub(crate) fn plan_settings_render(
     let source_path = library_root.join(relative.replace('/', std::path::MAIN_SEPARATOR_STR));
     let meta = catalog.metadata(asset)?;
     let shot = meta.as_ref().and_then(render::lens_shot);
+    let sensor = meta.as_ref().and_then(render::sensor_shot);
     Ok(SettingsRenderPlan {
         source_path,
         half_size: matches!(kind, PreviewKind::Thumbnail | PreviewKind::Small),
         max_edge: leyline_preview::max_edge(kind),
         shot,
+        sensor,
         library_root: library_root.to_path_buf(),
     })
 }
@@ -263,6 +276,7 @@ pub(crate) fn render_mask_coverage(
         &decoded,
         settings,
         plan.shot.as_ref(),
+        plan.sensor.as_ref(),
         camera_profile.as_ref(),
         lut.as_ref(),
         &coverages,
@@ -312,6 +326,7 @@ pub(crate) fn render_with_settings(
         &decoded,
         settings,
         plan.shot.as_ref(),
+        plan.sensor.as_ref(),
         camera_profile.as_ref(),
         lut.as_ref(),
         &coverages,

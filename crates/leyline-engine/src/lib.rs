@@ -49,7 +49,7 @@ pub use library::{
 pub use presets::{FailedApply, PresetApplyReport, apply_batch, capture};
 pub use preview::{Preview, PreviewFile, preview};
 pub use print::{FailedPrint, PrintRecipe, PrintReport, PrintRequest, PrintedVersion};
-pub use render::{LensShot, Rendered, lens_shot, render, render_scaled};
+pub use render::{LensShot, Rendered, SensorShot, lens_shot, render, render_scaled, sensor_shot};
 pub use reprocess::{FailedReprocess, ReprocessReport, reprocess_batch};
 pub use scan::{ImportCandidate, ScanOptions, scan};
 pub use session::{DEFAULT_AMEND_WINDOW, EditSession, Param, Value};

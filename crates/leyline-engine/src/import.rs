@@ -463,6 +463,42 @@ fn tenths(value: f64) -> Rational {
 mod tests {
     use super::*;
 
+    /// The frozen noise table is keyed by the names *this* pipeline hands it,
+    /// not by the ones a test author types — and a table that matched nothing
+    /// would still denoise, silently, with the fallback of ADR 0072 §7. So
+    /// the match is asserted against a real file:
+    ///
+    /// ```text
+    /// LEYLINE_TEST_RAW=/path/to/file.CR2 cargo test -p leyline-engine -- --ignored
+    /// ```
+    #[test]
+    #[ignore = "needs a real RAW file via LEYLINE_TEST_RAW"]
+    fn a_real_raw_finds_its_measured_noise_profile() {
+        use crate::stages::kernel::v3::{NoiseModel, model_for};
+
+        let path = std::env::var("LEYLINE_TEST_RAW").expect("set LEYLINE_TEST_RAW");
+        let raw = leyline_raw::identify(std::path::Path::new(&path)).expect("LibRaw reads it");
+        let meta = exif_metadata(&raw);
+        let sensor =
+            crate::render::sensor_shot(&meta).expect("the file names a body and a sensitivity");
+        let model = model_for(
+            Some(&sensor),
+            crate::stages::SourceColor::Camera {
+                to_xyz: None,
+                multipliers: None,
+            },
+            true,
+        );
+        assert_ne!(
+            model,
+            NoiseModel::fallback(),
+            "no measured profile for {} {} at ISO {}",
+            sensor.camera_make,
+            sensor.camera_model,
+            sensor.iso
+        );
+    }
+
     fn raw() -> RawMetadata {
         RawMetadata {
             make: String::new(),

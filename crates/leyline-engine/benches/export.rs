@@ -113,6 +113,7 @@ fn benches(c: &mut Criterion) {
                         None,
                         None,
                         None,
+                        None,
                         &Default::default(),
                         SOURCE,
                     )

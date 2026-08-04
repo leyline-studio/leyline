@@ -71,6 +71,10 @@ pub(crate) struct PrintPlan {
     develop: Settings,
     source: PathBuf,
     shot: Option<crate::render::LensShot>,
+    /// What the sensor was, and what it was set to — the profiled denoising
+    /// stages' input (ADR 0072). Resolved here, from the same metadata as
+    /// `shot`, because the render is a pure function of what it is handed.
+    sensor: Option<crate::render::SensorShot>,
     stem: String,
     /// Library root `develop.camera_profile`'s path (if any) is relative
     /// to — resolved in [`render_print`], mirroring
@@ -93,6 +97,7 @@ pub(crate) fn plan_print(
     let source = library_root.join(relative.replace('/', std::path::MAIN_SEPARATOR_STR));
     let meta = catalog.metadata(asset)?;
     let shot = meta.as_ref().and_then(render::lens_shot);
+    let sensor = meta.as_ref().and_then(render::sensor_shot);
     let stem = Path::new(&relative)
         .file_stem()
         .and_then(|s| s.to_str())
@@ -104,6 +109,7 @@ pub(crate) fn plan_print(
         develop,
         source,
         shot,
+        sensor,
         stem,
         library_root: library_root.to_path_buf(),
     })
@@ -134,12 +140,12 @@ pub(crate) fn render_print(
         }
     })?;
     let lut = crate::lut::resolve_from_settings(&plan.library_root, &plan.develop)?;
-    let coverages =
-        crate::mask_coverage::resolve_from_settings(&plan.library_root, &plan.develop)?;
+    let coverages = crate::mask_coverage::resolve_from_settings(&plan.library_root, &plan.develop)?;
     let rendered = render(
         &decoded,
         &plan.develop,
         plan.shot.as_ref(),
+        plan.sensor.as_ref(),
         camera_profile.as_ref(),
         lut.as_ref(),
         &coverages,

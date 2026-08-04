@@ -24,6 +24,10 @@ notify.workspace = true
 png.workspace = true
 rayon.workspace = true
 roxmltree.workspace = true
+# The frozen noise profile table is JSON (ADR 0072 §1): kept in the upstream
+# shape so it can be diffed against darktable's own file rather than trusted.
+serde.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
 trash.workspace = true
 
@@ -51,8 +55,6 @@ bundled-basemap = []
 [dev-dependencies]
 image.workspace = true
 leyline-raw.workspace = true
-serde.workspace = true
-serde_json.workspace = true
 tempfile.workspace = true
 criterion.workspace = true
 rusqlite.workspace = true

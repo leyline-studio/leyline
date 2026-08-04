@@ -67,7 +67,7 @@ use leyline_raw::RawImage;
 use serde::{Deserialize, Serialize};
 
 use super::{SourceColor, fixture, pin, registry};
-use crate::render::{LensShot, render};
+use crate::render::{LensShot, SensorShot, render};
 
 /// Path of the committed manifest, relative to the crate root.
 const MANIFEST: &str = "tests/golden/renders.json";
@@ -130,6 +130,28 @@ fn canon_shot() -> LensShot {
         focal_mm: 20.0,
         aperture_f: Some(2.8),
     }
+}
+
+/// A body the frozen noise profile table really knows, at a sensitivity it
+/// really measured (ADR 0072 §6) — so the golden exercises the lookup, the
+/// interpolation and the transport rather than the fallback that stands in
+/// for all three when nothing matches.
+fn canon_sensor() -> SensorShot {
+    SensorShot {
+        camera_make: "Canon".to_owned(),
+        camera_model: "EOS 5D Mark III".to_owned(),
+        iso: 3200.0,
+    }
+}
+
+/// One frozen case: the settings, and the facts about the file that are not
+/// settings. The sensor belongs here rather than in [`capture`] because two
+/// cases differ by it alone — a profiled render and its fallback — and a
+/// case is only replayable if it still means what it meant (ADR 0072 §7).
+#[derive(Debug, Clone)]
+struct Case {
+    settings: Settings,
+    sensor: Option<SensorShot>,
 }
 
 /// A minimal in-memory DCP carrying an identity `ColorMatrix1`. The matrix
@@ -537,7 +559,7 @@ fn fixture_stage(settings: Settings, version: u16) -> Settings {
 /// One `neutral` floor, one case per operator family, and an `everything`
 /// case running them all together — the combination most likely to expose a
 /// stage ordering mistake.
-fn cases() -> Vec<(String, Settings)> {
+fn cases() -> Vec<(String, Case)> {
     let base = Settings::default();
     let mut named: Vec<(&str, Settings)> = vec![
         ("neutral", base.clone()),
@@ -572,10 +594,31 @@ fn cases() -> Vec<(String, Settings)> {
     ))))))));
     named.push(("everything", geometry(all)));
 
-    named
+    let mut cases: Vec<(String, Case)> = named
         .into_iter()
-        .map(|(name, settings)| (name.to_owned(), settings))
-        .collect()
+        .map(|(name, settings)| {
+            (
+                name.to_owned(),
+                Case {
+                    settings,
+                    sensor: Some(canon_sensor()),
+                },
+            )
+        })
+        .collect();
+
+    // The same detail settings on a body the table does not know: the
+    // fallback model of ADR 0072 §7 is a rendering like any other, and a
+    // rendering nothing freezes is a rendering that can move.
+    cases.push((
+        "detail_unprofiled".to_owned(),
+        Case {
+            settings: detail(base),
+            sensor: None,
+        },
+    ));
+
+    cases
 }
 
 /// The stage map this engine pins for `settings` today: what a revision
@@ -587,7 +630,7 @@ fn current_stages(settings: &Settings) -> StageVersions {
 }
 
 /// Renders one case through `stages` and reduces it to its pinned form.
-fn capture(settings: &Settings, stages: &StageVersions) -> Golden {
+fn capture(case: &Case, stages: &StageVersions) -> Golden {
     // Small enough to keep the suite fast, large enough that the blur and
     // resampling stages have real neighbourhoods to work with.
     let image = synthetic_image(96, 64);
@@ -595,7 +638,7 @@ fn capture(settings: &Settings, stages: &StageVersions) -> Golden {
     let profile = sample_profile();
     let settings = Settings {
         stages: stages.clone(),
-        ..settings.clone()
+        ..case.settings.clone()
     };
     // A fixed, made-up camera matrix: what matters to the freeze is that the
     // colorimetry entering the pipeline is the same every time, not that it
@@ -616,6 +659,7 @@ fn capture(settings: &Settings, stages: &StageVersions) -> Golden {
         &image,
         &settings,
         Some(&shot),
+        case.sensor.as_ref(),
         Some(&profile),
         Some(&look),
         &Default::default(),
@@ -668,13 +712,13 @@ fn bless() {
         .unwrap_or_default();
 
     let mut added = 0;
-    for (key, settings) in cases() {
-        let stages = current_stages(&settings);
+    for (key, case) in cases() {
+        let stages = current_stages(&case.settings);
         let entries = manifest.entry(key).or_default();
         if entries.iter().any(|entry| entry.stages == stages) {
             continue;
         }
-        entries.push(capture(&settings, &stages));
+        entries.push(capture(&case, &stages));
         entries.sort_by(|a, b| a.stages.iter().cmp(b.stages.iter()));
         added += 1;
     }
@@ -713,18 +757,18 @@ fn every_pinned_render_is_still_bit_identical() {
     }
 
     let expected = read_manifest();
-    let cases: BTreeMap<String, Settings> = cases().into_iter().collect();
+    let cases: BTreeMap<String, Case> = cases().into_iter().collect();
 
     let mut drifted = Vec::new();
     let mut pinned = 0;
     for (key, entries) in &expected {
-        let Some(settings) = cases.get(key) else {
+        let Some(case) = cases.get(key) else {
             drifted.push(format!("{key}: case disappeared"));
             continue;
         };
         for want in entries {
             pinned += 1;
-            let got = capture(settings, &want.stages);
+            let got = capture(case, &want.stages);
             if got != *want {
                 drifted.push(format!(
                     "{key} {:?}: {}x{} {} -> {}x{} {}\n    expected samples {:?}\n    \
@@ -767,8 +811,8 @@ fn every_case_pins_the_versions_this_engine_renders_today() {
     let expected = read_manifest();
     let missing: Vec<String> = cases()
         .into_iter()
-        .filter_map(|(key, settings)| {
-            let stages = current_stages(&settings);
+        .filter_map(|(key, case)| {
+            let stages = current_stages(&case.settings);
             let pinned = expected
                 .get(&key)
                 .is_some_and(|entries| entries.iter().any(|entry| entry.stages == stages));

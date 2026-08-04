@@ -64,6 +64,36 @@ pub fn lens_shot(meta: &Metadata) -> Option<LensShot> {
     })
 }
 
+/// EXIF identification of the sensor and of what it was set to — the input
+/// of the profiled denoising stages (ADR 0072). Built from the asset's
+/// catalog [`Metadata`] by [`sensor_shot`].
+///
+/// Deliberately not a part of [`LensShot`], which requires a focal length to
+/// exist at all: a body without a recorded focal length still has a noise
+/// profile, and a lens correction is not what would be missing.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SensorShot {
+    /// Camera manufacturer, as written by EXIF.
+    pub camera_make: String,
+    /// Camera model, brandless — the form the noise profile table uses.
+    pub camera_model: String,
+    /// Sensitivity at capture, the second key of the profile lookup.
+    pub iso: f32,
+}
+
+/// Builds a [`SensorShot`] from an asset's catalog metadata, when it carries
+/// the two things a noise profile is keyed by: a camera body and a
+/// sensitivity. Either one missing leaves the stage on its default model
+/// (ADR 0072 §7) rather than on nothing.
+pub fn sensor_shot(meta: &Metadata) -> Option<SensorShot> {
+    let camera = meta.camera.as_ref()?;
+    Some(SensorShot {
+        camera_make: camera.manufacturer.clone(),
+        camera_model: camera.model.clone(),
+        iso: meta.iso? as f32,
+    })
+}
+
 /// Renders a decoded image according to a revision's settings.
 ///
 /// Identical image, settings, shot and camera profile produce identical
@@ -78,19 +108,23 @@ pub fn lens_shot(meta: &Metadata) -> Option<LensShot> {
 /// are in before the `input` stage converts them into the working space
 /// (ADR 0044 §3). It is a property of the file, not of the revision.
 ///
-/// `shot` feeds only the lens stage. `camera_profile` feeds only the camera
-/// profile stage (ADR 0035), `lut` only the LUT stage (ADR 0053) and
-/// `coverages` only the local adjustments stage (ADR 0070) — all three
-/// already resolved, checksummed and parsed by the caller
+/// `shot` feeds only the lens stage and `sensor` only the profiled
+/// denoising stages (ADR 0072) — both EXIF facts about the file, like
+/// `source`, and neither one recorded in the revision. `camera_profile`
+/// feeds only the camera profile stage (ADR 0035), `lut` only the LUT stage
+/// (ADR 0053) and `coverages` only the local adjustments stage (ADR 0070) —
+/// all three already resolved, checksummed and parsed by the caller
 /// (`crate::camera_profile::resolve_from_settings`,
 /// `crate::lut::resolve_from_settings`,
 /// `crate::mask_coverage::resolve_from_settings`), since reading a file from
 /// disk has no place in this otherwise pure function. Any of them being `None`
 /// — or empty — leaves its stage with nothing to do.
+#[allow(clippy::too_many_arguments)]
 pub fn render(
     image: &RawImage,
     settings: &Settings,
     shot: Option<&LensShot>,
+    sensor: Option<&SensorShot>,
     camera_profile: Option<&leyline_color::DcpProfile>,
     lut: Option<&leyline_color::CubeLut>,
     coverages: &crate::mask_coverage::MaskCoverages,
@@ -100,6 +134,7 @@ pub fn render(
         image,
         settings,
         shot,
+        sensor,
         camera_profile,
         lut,
         coverages,
@@ -126,6 +161,7 @@ pub fn render_scaled(
     image: &RawImage,
     settings: &Settings,
     shot: Option<&LensShot>,
+    sensor: Option<&SensorShot>,
     camera_profile: Option<&leyline_color::DcpProfile>,
     lut: Option<&leyline_color::CubeLut>,
     coverages: &crate::mask_coverage::MaskCoverages,
@@ -142,6 +178,7 @@ pub fn render_scaled(
         image,
         settings,
         shot,
+        sensor,
         camera_profile,
         lut,
         coverages,
@@ -160,6 +197,7 @@ pub(crate) fn render_scaled_cached(
     image: &RawImage,
     settings: &Settings,
     shot: Option<&LensShot>,
+    sensor: Option<&SensorShot>,
     camera_profile: Option<&leyline_color::DcpProfile>,
     lut: Option<&leyline_color::CubeLut>,
     coverages: &crate::mask_coverage::MaskCoverages,
@@ -178,6 +216,7 @@ pub(crate) fn render_scaled_cached(
         image,
         settings,
         shot,
+        sensor,
         camera_profile,
         lut,
         coverages,
@@ -288,7 +327,17 @@ mod tests {
     /// image, which is what this asserts — geometry untouched, grey still
     /// grey, and monotonic in the input.
     fn neutral(image: &RawImage) -> Rendered {
-        render(image, &Settings::default(), None, None, None, &Default::default(), SOURCE).unwrap()
+        render(
+            image,
+            &Settings::default(),
+            None,
+            None,
+            None,
+            None,
+            &Default::default(),
+            SOURCE,
+        )
+        .unwrap()
     }
 
     /// The colorimetry every test here renders through: no camera matrix,
@@ -368,8 +417,28 @@ mod tests {
             }),
             ..Settings::default()
         };
-        let first = render(&image, &settings, None, None, None, &Default::default(), SOURCE).unwrap();
-        let second = render(&image, &settings, None, None, None, &Default::default(), SOURCE).unwrap();
+        let first = render(
+            &image,
+            &settings,
+            None,
+            None,
+            None,
+            None,
+            &Default::default(),
+            SOURCE,
+        )
+        .unwrap();
+        let second = render(
+            &image,
+            &settings,
+            None,
+            None,
+            None,
+            None,
+            &Default::default(),
+            SOURCE,
+        )
+        .unwrap();
         assert_eq!(first, second);
     }
 
@@ -385,6 +454,7 @@ mod tests {
             None,
             None,
             None,
+            None,
             &Default::default(),
             SOURCE,
         )
@@ -395,6 +465,7 @@ mod tests {
                 exposure: -1.0,
                 ..Settings::default()
             },
+            None,
             None,
             None,
             None,
@@ -420,6 +491,7 @@ mod tests {
                 }),
                 ..Settings::default()
             },
+            None,
             None,
             None,
             None,
@@ -452,6 +524,7 @@ mod tests {
             None,
             None,
             None,
+            None,
             &Default::default(),
             SOURCE,
         )
@@ -471,6 +544,7 @@ mod tests {
                 saturation: -100,
                 ..Settings::default()
             },
+            None,
             None,
             None,
             None,
@@ -501,6 +575,7 @@ mod tests {
                 vibrance: 80,
                 ..Settings::default()
             },
+            None,
             None,
             None,
             None,
@@ -541,7 +616,18 @@ mod tests {
         }
     }
 
-    fn denoised(image: &RawImage, luminance: i32) -> Rendered {
+    /// A body the frozen table knows (ADR 0072 §6), at the sensitivity the
+    /// caller names. What the denoising stages do now depends on this, which
+    /// is the whole decision.
+    fn sensor_at(iso: f32) -> SensorShot {
+        SensorShot {
+            camera_make: "Canon".to_owned(),
+            camera_model: "EOS 60D".to_owned(),
+            iso,
+        }
+    }
+
+    fn denoised(image: &RawImage, luminance: i32, iso: f32) -> Rendered {
         render(
             image,
             &Settings {
@@ -552,6 +638,7 @@ mod tests {
                 ..Settings::default()
             },
             None,
+            Some(&sensor_at(iso)),
             None,
             None,
             &Default::default(),
@@ -583,9 +670,31 @@ mod tests {
     #[test]
     fn luminance_noise_reduction_smooths_low_amplitude_grain() {
         let image = checkerboard(8);
-        let before = interior_spread(&denoised(&image, 0).data, 16);
-        let after = interior_spread(&denoised(&image, 100).data, 16);
+        let before = interior_spread(&denoised(&image, 0, 12800.0).data, 16);
+        let after = interior_spread(&denoised(&image, 100, 12800.0).data, 16);
         assert!(after < before / 2, "grain survived: {after} of {before}");
+    }
+
+    /// What ADR 0072 buys, in one assertion: the *same* image and the *same*
+    /// slider, on the same body at two sensitivities. At ISO 12800 this
+    /// amplitude is what the sensor's measured profile calls noise and it
+    /// goes; at ISO 100 the same profile says a signal that large is detail,
+    /// and it stays. No constant in the code can tell those two apart —
+    /// `v1` and `v2` treated them identically.
+    #[test]
+    fn the_measured_profile_decides_what_counts_as_noise() {
+        let image = checkerboard(8);
+        let before = interior_spread(&denoised(&image, 0, 100.0).data, 16);
+        let at_base_iso = interior_spread(&denoised(&image, 100, 100.0).data, 16);
+        let at_high_iso = interior_spread(&denoised(&image, 100, 12800.0).data, 16);
+        assert!(
+            at_base_iso > before / 2,
+            "ISO 100 threw away detail: {at_base_iso} of {before}"
+        );
+        assert!(
+            at_high_iso < at_base_iso / 2,
+            "ISO 12800 kept noise: {at_high_iso} against {at_base_iso}"
+        );
     }
 
     /// The other half of ADR 0046, and what `v1` could not do: the same
@@ -595,8 +704,8 @@ mod tests {
     #[test]
     fn luminance_noise_reduction_leaves_high_amplitude_detail_alone() {
         let image = checkerboard(170);
-        let before = interior_spread(&denoised(&image, 0).data, 16);
-        let after = interior_spread(&denoised(&image, 100).data, 16);
+        let before = interior_spread(&denoised(&image, 0, 12800.0).data, 16);
+        let after = interior_spread(&denoised(&image, 100, 12800.0).data, 16);
         assert!(after > before * 3 / 4, "detail lost: {after} of {before}");
     }
 
@@ -630,6 +739,7 @@ mod tests {
             None,
             None,
             None,
+            None,
             &Default::default(),
             SOURCE,
         )
@@ -660,6 +770,7 @@ mod tests {
             None,
             None,
             None,
+            None,
             &Default::default(),
             SOURCE,
         )
@@ -684,6 +795,7 @@ mod tests {
             None,
             None,
             None,
+            None,
             &Default::default(),
             SOURCE,
         )
@@ -704,7 +816,16 @@ mod tests {
             ..Settings::default()
         };
         assert!(matches!(
-            render(&test_image(), &settings, None, None, None, &Default::default(), SOURCE),
+            render(
+                &test_image(),
+                &settings,
+                None,
+                None,
+                None,
+                None,
+                &Default::default(),
+                SOURCE
+            ),
             Err(LeylineError::NewerSettings { .. })
         ));
     }
@@ -723,7 +844,16 @@ mod tests {
             ..Settings::default()
         };
         assert!(matches!(
-            render(&test_image(), &settings, None, None, None, &Default::default(), SOURCE),
+            render(
+                &test_image(),
+                &settings,
+                None,
+                None,
+                None,
+                None,
+                &Default::default(),
+                SOURCE
+            ),
             Err(LeylineError::UnknownStage { version: 99, .. })
         ));
     }
@@ -736,6 +866,7 @@ mod tests {
                 contrast: 999,
                 ..Settings::default()
             },
+            None,
             None,
             None,
             None,
