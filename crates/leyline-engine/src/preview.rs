@@ -296,11 +296,20 @@ pub(crate) fn render_mask_coverage(
     Rgb8::new(width, height, data).map_err(preview_err)
 }
 
-/// Decodes and develops `plan` under `settings` — never cached, never
-/// recorded, unlike [`render_preview`]'s revision-scoped counterpart. Used
-/// once per develop session for the before/after comparison's "before" half.
+/// Decodes and develops `plan` under `settings` — never recorded, unlike
+/// [`render_preview`]'s revision-scoped counterpart.
+///
+/// Two callers, and the difference between them is `stages`:
+///
+/// * the before/after comparison renders neutral settings **once** per
+///   develop session and passes `None`: a single render has nothing to reuse,
+///   and letting it retarget the shared stage cache would evict what the
+///   *edited* side just filled it with;
+/// * the live render of a slider drag (ADR 0074) passes the cache and lives
+///   on it — that is the whole reason ADR 0041 §3 built it.
 pub(crate) fn render_with_settings(
     decodes: &mut DecodeCache,
+    stages: Option<(&mut crate::stages::StageCache, AssetId)>,
     asset: AssetId,
     plan: &SettingsRenderPlan,
     settings: &Settings,
@@ -322,17 +331,32 @@ pub(crate) fn render_with_settings(
     let (decoded, scale) = proxy(&decoded, plan.max_edge);
     let lut = crate::lut::resolve_from_settings(&plan.library_root, settings)?;
     let coverages = crate::mask_coverage::resolve_from_settings(&plan.library_root, settings)?;
-    let rendered = render_scaled(
-        &decoded,
-        settings,
-        plan.shot.as_ref(),
-        plan.sensor.as_ref(),
-        camera_profile.as_ref(),
-        lut.as_ref(),
-        &coverages,
-        crate::source::color(&plan.source_path),
-        scale,
-    )?;
+    let rendered = match stages {
+        Some((cache, cached_asset)) => render_scaled_cached(
+            &decoded,
+            settings,
+            plan.shot.as_ref(),
+            plan.sensor.as_ref(),
+            camera_profile.as_ref(),
+            lut.as_ref(),
+            &coverages,
+            crate::source::color(&plan.source_path),
+            scale,
+            cached_asset,
+            cache,
+        )?,
+        None => render_scaled(
+            &decoded,
+            settings,
+            plan.shot.as_ref(),
+            plan.sensor.as_ref(),
+            camera_profile.as_ref(),
+            lut.as_ref(),
+            &coverages,
+            crate::source::color(&plan.source_path),
+            scale,
+        )?,
+    };
     Rgb8::new(rendered.width, rendered.height, rendered.data).map_err(preview_err)
 }
 

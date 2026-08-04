@@ -437,3 +437,176 @@ fn deleting_an_asset_also_takes_its_file_and_sidecar() {
     }
     assert_eq!(report.trashed.len() + report.failed.len(), 2);
 }
+
+/// The live view of ADR 0074: it shows uncommitted settings, and it writes
+/// nothing while doing so.
+///
+/// Both halves matter. The first is the feature — a slider drag has to show
+/// its own value, not the head's. The second is what makes it safe to call at
+/// every mouse move: no revision, no preview row, no file. A regression on
+/// either half is invisible in the interface until it has filled a disk or
+/// lost an edit.
+#[test]
+fn a_live_preview_shows_uncommitted_settings_and_records_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::create(&dir.path().join("Lib"), "Live").unwrap();
+    let source = dir.path().join("Shoot");
+    std::fs::create_dir(&source).unwrap();
+    image::save_buffer(
+        source.join("flat.png"),
+        &[128u8; 16 * 16 * 3],
+        16,
+        16,
+        image::ExtendedColorType::Rgb8,
+    )
+    .unwrap();
+    let report = library
+        .import(
+            &source,
+            &ImportOptions {
+                copy_files: true,
+                recursive: false,
+            },
+            |_, _| {},
+        )
+        .unwrap();
+    let registered = report.imported[0].registered;
+
+    let head = library
+        .catalog()
+        .current_head_revision(registered.asset)
+        .unwrap();
+    let previews_before = std::fs::read_dir(dir.path().join("Lib/Cache"))
+        .map(|entries| entries.count())
+        .unwrap_or(0);
+
+    let neutral = library
+        .preview_live(
+            registered.asset,
+            leyline_core::PreviewKind::Small,
+            &leyline_core::Settings::default(),
+        )
+        .unwrap();
+    let brightened = library
+        .preview_live(
+            registered.asset,
+            leyline_core::PreviewKind::Small,
+            &leyline_core::Settings {
+                exposure: 2.0,
+                ..leyline_core::Settings::default()
+            },
+        )
+        .unwrap();
+
+    // The value being tried is what is shown: +2 EV on a mid grey has to come
+    // back visibly brighter than neutral.
+    assert_eq!(neutral.data().len(), brightened.data().len());
+    let (dark, light) = (neutral.data()[0], brightened.data()[0]);
+    assert!(
+        light > dark + 30,
+        "live render ignored the settings: {dark} -> {light}"
+    );
+
+    // And nothing moved behind it.
+    assert_eq!(
+        library
+            .catalog()
+            .current_head_revision(registered.asset)
+            .unwrap(),
+        head,
+        "a live render committed something"
+    );
+    assert!(
+        library
+            .catalog()
+            .valid_preview(registered.asset, leyline_core::PreviewKind::Small)
+            .unwrap()
+            .is_none(),
+        "a live render was recorded as the revision's valid preview"
+    );
+    assert_eq!(
+        std::fs::read_dir(dir.path().join("Lib/Cache"))
+            .map(|entries| entries.count())
+            .unwrap_or(0),
+        previews_before,
+        "a live render wrote into the preview cache"
+    );
+}
+
+/// What a slider drag actually costs, on a real RAW (ADR 0074 §3):
+///
+/// ```text
+/// LEYLINE_TEST_RAW=/path/to/file.CR2 cargo test --release -p leyline-engine \
+///     --test library live_preview -- --ignored --nocapture
+/// ```
+///
+/// The first render pays the decode; the ones after it are what the finger
+/// feels, and they are the number the 40 ms budget has to fit inside.
+#[test]
+#[ignore = "needs a real RAW file via LEYLINE_TEST_RAW"]
+fn live_preview_keeps_up_with_a_finger() {
+    let raw = std::env::var("LEYLINE_TEST_RAW").expect("set LEYLINE_TEST_RAW");
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::create(&dir.path().join("Lib"), "Live").unwrap();
+    let report = library
+        .import(
+            std::path::Path::new(&raw),
+            &ImportOptions {
+                // Copied, not referenced: a referenced file has to already
+                // live under the library root, and the corpus does not.
+                copy_files: true,
+                recursive: false,
+            },
+            |_, _| {},
+        )
+        .unwrap();
+    let asset = report
+        .imported
+        .first()
+        .unwrap_or_else(|| panic!("import refused it: {:?}", report.skipped))
+        .registered
+        .asset;
+
+    let render = |settings: &leyline_core::Settings| {
+        let started = std::time::Instant::now();
+        library
+            .preview_live(asset, leyline_core::PreviewKind::Small, settings)
+            .unwrap();
+        started.elapsed()
+    };
+
+    // Both ends of the pipeline, because the stage cache makes them differ by
+    // an order of magnitude: exposure sits at rank 40, so a move replays
+    // nearly everything; sharpening is the last operator, so a move replays
+    // only itself (ADR 0041 §3).
+    for (name, drag) in [
+        (
+            "exposition (tête de pipeline)",
+            &(|i| leyline_core::Settings {
+                exposure: f64::from(i) * 0.05,
+                ..leyline_core::Settings::default()
+            }) as &dyn Fn(i32) -> leyline_core::Settings,
+        ),
+        ("accentuation (fin de pipeline)", &|i| {
+            leyline_core::Settings {
+                exposure: 0.4,
+                sharpening: leyline_core::Sharpening {
+                    amount: i,
+                    radius: 1.0,
+                },
+                ..leyline_core::Settings::default()
+            }
+        }),
+    ] {
+        let cold = render(&drag(0));
+        let frames: Vec<std::time::Duration> = (1..=20).map(|i| render(&drag(i))).collect();
+        let total: std::time::Duration = frames.iter().sum();
+        println!(
+            "{name} — froid {:?}, puis {} images : moyenne {:?}, pire {:?}",
+            cold,
+            frames.len(),
+            total / frames.len() as u32,
+            frames.iter().max().unwrap()
+        );
+    }
+}

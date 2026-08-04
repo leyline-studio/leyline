@@ -363,7 +363,11 @@ export component EditSlider inherits HorizontalLayout {
     // a solid fill to a control whose meaning is the gradient.
     in property <color> track-from: #333333;
     in property <color> track-to: #333333;
+    // Fired on release: this is the one that commits (ADR 0074 §1).
     callback edited(float);
+    // Fired *during* the drag: this one only shows. Rust throttles it and
+    // writes nothing — see `develop::live_preview`.
+    callback previewing(float);
 
     property <bool> dragging;
     property <float> drag-value;
@@ -406,6 +410,9 @@ export component EditSlider inherits HorizontalLayout {
                 if (self.pressed) {
                     root.dragging = true;
                     root.drag-value = Math.clamp(root.minimum + (self.mouse-x / self.width) * (root.maximum - root.minimum), root.minimum, root.maximum);
+                    // Show what the value does, under the finger. Nothing is
+                    // written until the release below (ADR 0074 §2).
+                    root.previewing(root.drag-value);
                 }
             }
             pointer-event(event) => {

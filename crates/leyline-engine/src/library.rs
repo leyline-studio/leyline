@@ -809,7 +809,55 @@ impl Library {
         };
         let image = {
             let mut decodes = lock(&self.inner.decodes);
-            crate::preview::render_with_settings(&mut decodes, asset, &plan, &Settings::default())?
+            crate::preview::render_with_settings(
+                &mut decodes,
+                None,
+                asset,
+                &plan,
+                &Settings::default(),
+            )?
+        };
+        Ok(match leyline_preview::max_edge(kind) {
+            Some(edge) => image.scaled_to_fit(edge),
+            None => image,
+        })
+    }
+
+    /// Renders `settings` at `kind`, live: what the photo would look like if
+    /// these values were committed (ADR 0074).
+    ///
+    /// The third *view* of the engine, next to [`Library::preview_before`]
+    /// and the mask overlay, and it follows the same rule as both: **nothing
+    /// is written**. No preview file, no cache row, no revision — so a value
+    /// a user was merely trying out can never be mistaken later for what the
+    /// photo is, and a drag across a slider costs no disk at all.
+    ///
+    /// Unlike those two it renders through the *stage cache* (ADR 0041 §3):
+    /// this is the path that cache exists for, and it is what keeps moving a
+    /// late-pipeline slider in the tens of milliseconds rather than replaying
+    /// the whole pipeline per frame.
+    ///
+    /// The caller owns the throttling: this renders every time it is asked.
+    pub fn preview_live(
+        &self,
+        asset: AssetId,
+        kind: PreviewKind,
+        settings: &Settings,
+    ) -> Result<leyline_preview::Rgb8> {
+        let plan = {
+            let catalog = lock(&self.inner.catalog);
+            crate::preview::plan_settings_render(&catalog, &self.inner.root, asset, kind)?
+        };
+        let image = {
+            let mut decodes = lock(&self.inner.decodes);
+            let mut stage_cache = lock(&self.inner.stage_cache);
+            crate::preview::render_with_settings(
+                &mut decodes,
+                Some((&mut stage_cache, asset)),
+                asset,
+                &plan,
+                settings,
+            )?
         };
         Ok(match leyline_preview::max_edge(kind) {
             Some(edge) => image.scaled_to_fit(edge),

@@ -653,6 +653,9 @@ export component DevelopPanel inherits HorizontalLayout {
                             edited(v) => {
                                 DevelopState.develop-edit("wb-temp", v);
                             }
+                            previewing(v) => {
+                                DevelopState.develop-preview("wb-temp", v);
+                            }
                         }
                         EditSlider {
                             label: @tr("Tint");
@@ -663,6 +666,9 @@ export component DevelopPanel inherits HorizontalLayout {
                             value: DevelopState.dev.wb-tint;
                             edited(v) => {
                                 DevelopState.develop-edit("wb-tint", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("wb-tint", v);
                             }
                         }
 
@@ -678,6 +684,9 @@ export component DevelopPanel inherits HorizontalLayout {
                             edited(v) => {
                                 DevelopState.develop-edit("exposure", v);
                             }
+                            previewing(v) => {
+                                DevelopState.develop-preview("exposure", v);
+                            }
                         }
                         EditSlider {
                             label: @tr("Contrast");
@@ -686,6 +695,9 @@ export component DevelopPanel inherits HorizontalLayout {
                             value: DevelopState.dev.contrast;
                             edited(v) => {
                                 DevelopState.develop-edit("contrast", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("contrast", v);
                             }
                         }
                         EditSlider {
@@ -696,6 +708,9 @@ export component DevelopPanel inherits HorizontalLayout {
                             edited(v) => {
                                 DevelopState.develop-edit("highlights", v);
                             }
+                            previewing(v) => {
+                                DevelopState.develop-preview("highlights", v);
+                            }
                         }
                         EditSlider {
                             label: @tr("Shadows");
@@ -704,6 +719,9 @@ export component DevelopPanel inherits HorizontalLayout {
                             value: DevelopState.dev.shadows;
                             edited(v) => {
                                 DevelopState.develop-edit("shadows", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("shadows", v);
                             }
                         }
                         EditSlider {
@@ -714,6 +732,9 @@ export component DevelopPanel inherits HorizontalLayout {
                             edited(v) => {
                                 DevelopState.develop-edit("whites", v);
                             }
+                            previewing(v) => {
+                                DevelopState.develop-preview("whites", v);
+                            }
                         }
                         EditSlider {
                             label: @tr("Blacks");
@@ -722,6 +743,9 @@ export component DevelopPanel inherits HorizontalLayout {
                             value: DevelopState.dev.blacks;
                             edited(v) => {
                                 DevelopState.develop-edit("blacks", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("blacks", v);
                             }
                         }
 
@@ -736,6 +760,9 @@ export component DevelopPanel inherits HorizontalLayout {
                             edited(v) => {
                                 DevelopState.develop-edit("texture", v);
                             }
+                            previewing(v) => {
+                                DevelopState.develop-preview("texture", v);
+                            }
                         }
                         EditSlider {
                             label: @tr("Clarity");
@@ -745,6 +772,9 @@ export component DevelopPanel inherits HorizontalLayout {
                             edited(v) => {
                                 DevelopState.develop-edit("clarity", v);
                             }
+                            previewing(v) => {
+                                DevelopState.develop-preview("clarity", v);
+                            }
                         }
                         EditSlider {
                             label: @tr("Dehaze");
@@ -753,6 +783,9 @@ export component DevelopPanel inherits HorizontalLayout {
                             value: DevelopState.dev.dehaze;
                             edited(v) => {
                                 DevelopState.develop-edit("dehaze", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("dehaze", v);
                             }
                         }
                         // What the *decoder* does with a channel that
@@ -851,6 +884,9 @@ export component DevelopPanel inherits HorizontalLayout {
                             edited(v) => {
                                 DevelopState.develop-edit("vibrance", v);
                             }
+                            previewing(v) => {
+                                DevelopState.develop-preview("vibrance", v);
+                            }
                         }
                         EditSlider {
                             label: @tr("Saturation");
@@ -861,6 +897,9 @@ export component DevelopPanel inherits HorizontalLayout {
                             value: DevelopState.dev.saturation;
                             edited(v) => {
                                 DevelopState.develop-edit("saturation", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("saturation", v);
                             }
                         }
                         // An output decision rather than a presence one, and
@@ -874,6 +913,9 @@ export component DevelopPanel inherits HorizontalLayout {
                             value: DevelopState.dev.highlight-rolloff;
                             edited(v) => {
                                 DevelopState.develop-edit("highlight-rolloff", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("highlight-rolloff", v);
                             }
                         }
                     }
@@ -972,6 +1014,9 @@ export component DevelopPanel inherits HorizontalLayout {
                             edited(v) => {
                                 DevelopState.develop-edit("lut-strength", v);
                             }
+                            previewing(v) => {
+                                DevelopState.develop-preview("lut-strength", v);
+                            }
                         }
                     }
 
@@ -1004,6 +1049,9 @@ export component DevelopPanel inherits HorizontalLayout {
                             edited(v) => {
                                 DevelopState.develop-edit("nr-luminance", v);
                             }
+                            previewing(v) => {
+                                DevelopState.develop-preview("nr-luminance", v);
+                            }
                         }
                         EditSlider {
                             label: @tr("Color NR");
@@ -1012,6 +1060,9 @@ export component DevelopPanel inherits HorizontalLayout {
                             value: DevelopState.dev.nr-color;
                             edited(v) => {
                                 DevelopState.develop-edit("nr-color", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("nr-color", v);
                             }
                         }
                         EditSlider {
@@ -1022,6 +1073,9 @@ export component DevelopPanel inherits HorizontalLayout {
                             edited(v) => {
                                 DevelopState.develop-edit("sharpen-amount", v);
                             }
+                            previewing(v) => {
+                                DevelopState.develop-preview("sharpen-amount", v);
+                            }
                         }
                         EditSlider {
                             label: @tr("Sharpen radius");
@@ -1031,6 +1085,9 @@ export component DevelopPanel inherits HorizontalLayout {
                             value: DevelopState.dev.sharpen-radius;
                             edited(v) => {
                                 DevelopState.develop-edit("sharpen-radius", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("sharpen-radius", v);
                             }
                         }
                     }
@@ -1124,6 +1181,9 @@ export component DevelopPanel inherits HorizontalLayout {
                                 edited(v) => {
                                     DevelopState.develop-edit-hsl-band(i, "hue", v);
                                 }
+                                previewing(v) => {
+                                    DevelopState.develop-preview-hsl-band(i, "hue", v);
+                                }
                             }
                             EditSlider {
                                 label: @tr("Saturation");
@@ -1133,6 +1193,9 @@ export component DevelopPanel inherits HorizontalLayout {
                                 edited(v) => {
                                     DevelopState.develop-edit-hsl-band(i, "saturation", v);
                                 }
+                                previewing(v) => {
+                                    DevelopState.develop-preview-hsl-band(i, "saturation", v);
+                                }
                             }
                             EditSlider {
                                 label: @tr("Luminance");
@@ -1141,6 +1204,9 @@ export component DevelopPanel inherits HorizontalLayout {
                                 value: band.luminance;
                                 edited(v) => {
                                     DevelopState.develop-edit-hsl-band(i, "luminance", v);
+                                }
+                                previewing(v) => {
+                                    DevelopState.develop-preview-hsl-band(i, "luminance", v);
                                 }
                             }
                         }
@@ -1168,6 +1234,9 @@ export component DevelopPanel inherits HorizontalLayout {
                                 edited(v) => {
                                     DevelopState.develop-edit-color-grading-zone("shadows", "hue", v);
                                 }
+                                previewing(v) => {
+                                    DevelopState.develop-preview-color-grading-zone("shadows", "hue", v);
+                                }
                             }
                             EditSlider {
                                 label: @tr("Saturation");
@@ -1177,6 +1246,9 @@ export component DevelopPanel inherits HorizontalLayout {
                                 edited(v) => {
                                     DevelopState.develop-edit-color-grading-zone("shadows", "saturation", v);
                                 }
+                                previewing(v) => {
+                                    DevelopState.develop-preview-color-grading-zone("shadows", "saturation", v);
+                                }
                             }
                             EditSlider {
                                 label: @tr("Luminance");
@@ -1185,6 +1257,9 @@ export component DevelopPanel inherits HorizontalLayout {
                                 value: DevelopState.dev.color-grading-shadows.luminance;
                                 edited(v) => {
                                     DevelopState.develop-edit-color-grading-zone("shadows", "luminance", v);
+                                }
+                                previewing(v) => {
+                                    DevelopState.develop-preview-color-grading-zone("shadows", "luminance", v);
                                 }
                             }
                         }
@@ -1204,6 +1279,9 @@ export component DevelopPanel inherits HorizontalLayout {
                                 edited(v) => {
                                     DevelopState.develop-edit-color-grading-zone("midtones", "hue", v);
                                 }
+                                previewing(v) => {
+                                    DevelopState.develop-preview-color-grading-zone("midtones", "hue", v);
+                                }
                             }
                             EditSlider {
                                 label: @tr("Saturation");
@@ -1213,6 +1291,9 @@ export component DevelopPanel inherits HorizontalLayout {
                                 edited(v) => {
                                     DevelopState.develop-edit-color-grading-zone("midtones", "saturation", v);
                                 }
+                                previewing(v) => {
+                                    DevelopState.develop-preview-color-grading-zone("midtones", "saturation", v);
+                                }
                             }
                             EditSlider {
                                 label: @tr("Luminance");
@@ -1221,6 +1302,9 @@ export component DevelopPanel inherits HorizontalLayout {
                                 value: DevelopState.dev.color-grading-midtones.luminance;
                                 edited(v) => {
                                     DevelopState.develop-edit-color-grading-zone("midtones", "luminance", v);
+                                }
+                                previewing(v) => {
+                                    DevelopState.develop-preview-color-grading-zone("midtones", "luminance", v);
                                 }
                             }
                         }
@@ -1240,6 +1324,9 @@ export component DevelopPanel inherits HorizontalLayout {
                                 edited(v) => {
                                     DevelopState.develop-edit-color-grading-zone("highlights", "hue", v);
                                 }
+                                previewing(v) => {
+                                    DevelopState.develop-preview-color-grading-zone("highlights", "hue", v);
+                                }
                             }
                             EditSlider {
                                 label: @tr("Saturation");
@@ -1249,6 +1336,9 @@ export component DevelopPanel inherits HorizontalLayout {
                                 edited(v) => {
                                     DevelopState.develop-edit-color-grading-zone("highlights", "saturation", v);
                                 }
+                                previewing(v) => {
+                                    DevelopState.develop-preview-color-grading-zone("highlights", "saturation", v);
+                                }
                             }
                             EditSlider {
                                 label: @tr("Luminance");
@@ -1257,6 +1347,9 @@ export component DevelopPanel inherits HorizontalLayout {
                                 value: DevelopState.dev.color-grading-highlights.luminance;
                                 edited(v) => {
                                     DevelopState.develop-edit-color-grading-zone("highlights", "luminance", v);
+                                }
+                                previewing(v) => {
+                                    DevelopState.develop-preview-color-grading-zone("highlights", "luminance", v);
                                 }
                             }
                         }
@@ -1268,6 +1361,9 @@ export component DevelopPanel inherits HorizontalLayout {
                             edited(v) => {
                                 DevelopState.develop-edit("color-grading-balance", v);
                             }
+                            previewing(v) => {
+                                DevelopState.develop-preview("color-grading-balance", v);
+                            }
                         }
                         EditSlider {
                             label: @tr("Blending");
@@ -1276,6 +1372,9 @@ export component DevelopPanel inherits HorizontalLayout {
                             value: DevelopState.dev.color-grading-blending;
                             edited(v) => {
                                 DevelopState.develop-edit("color-grading-blending", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("color-grading-blending", v);
                             }
                         }
                     }
@@ -1620,6 +1719,9 @@ export component DevelopPanel inherits HorizontalLayout {
                                 edited(v) => {
                                     MaskState.edit-mask(MaskState.selected-mask, "opacity", v);
                                 }
+                                previewing(v) => {
+                                    MaskState.preview-mask(MaskState.selected-mask, "opacity", v);
+                                }
                             }
                             if editor.sel.kind == "radial": EditSlider {
                                 label: @tr("Feather");
@@ -1628,6 +1730,9 @@ export component DevelopPanel inherits HorizontalLayout {
                                 value: editor.sel.feather;
                                 edited(v) => {
                                     MaskState.edit-mask(MaskState.selected-mask, "feather", v);
+                                }
+                                previewing(v) => {
+                                    MaskState.preview-mask(MaskState.selected-mask, "feather", v);
                                 }
                             }
                             if editor.sel.kind == "radial": FilterChip {
@@ -1646,6 +1751,9 @@ export component DevelopPanel inherits HorizontalLayout {
                                 edited(v) => {
                                     MaskState.edit-mask(MaskState.selected-mask, "exposure", v);
                                 }
+                                previewing(v) => {
+                                    MaskState.preview-mask(MaskState.selected-mask, "exposure", v);
+                                }
                             }
                             EditSlider {
                                 label: @tr("Contrast");
@@ -1654,6 +1762,9 @@ export component DevelopPanel inherits HorizontalLayout {
                                 value: editor.sel.contrast;
                                 edited(v) => {
                                     MaskState.edit-mask(MaskState.selected-mask, "contrast", v);
+                                }
+                                previewing(v) => {
+                                    MaskState.preview-mask(MaskState.selected-mask, "contrast", v);
                                 }
                             }
                             EditSlider {
@@ -1664,6 +1775,9 @@ export component DevelopPanel inherits HorizontalLayout {
                                 edited(v) => {
                                     MaskState.edit-mask(MaskState.selected-mask, "highlights", v);
                                 }
+                                previewing(v) => {
+                                    MaskState.preview-mask(MaskState.selected-mask, "highlights", v);
+                                }
                             }
                             EditSlider {
                                 label: @tr("Shadows");
@@ -1672,6 +1786,9 @@ export component DevelopPanel inherits HorizontalLayout {
                                 value: editor.sel.shadows;
                                 edited(v) => {
                                     MaskState.edit-mask(MaskState.selected-mask, "shadows", v);
+                                }
+                                previewing(v) => {
+                                    MaskState.preview-mask(MaskState.selected-mask, "shadows", v);
                                 }
                             }
                             EditSlider {
@@ -1682,6 +1799,9 @@ export component DevelopPanel inherits HorizontalLayout {
                                 edited(v) => {
                                     MaskState.edit-mask(MaskState.selected-mask, "whites", v);
                                 }
+                                previewing(v) => {
+                                    MaskState.preview-mask(MaskState.selected-mask, "whites", v);
+                                }
                             }
                             EditSlider {
                                 label: @tr("Blacks");
@@ -1690,6 +1810,9 @@ export component DevelopPanel inherits HorizontalLayout {
                                 value: editor.sel.blacks;
                                 edited(v) => {
                                     MaskState.edit-mask(MaskState.selected-mask, "blacks", v);
+                                }
+                                previewing(v) => {
+                                    MaskState.preview-mask(MaskState.selected-mask, "blacks", v);
                                 }
                             }
                             EditSlider {
@@ -1700,6 +1823,9 @@ export component DevelopPanel inherits HorizontalLayout {
                                 edited(v) => {
                                     MaskState.edit-mask(MaskState.selected-mask, "vibrance", v);
                                 }
+                                previewing(v) => {
+                                    MaskState.preview-mask(MaskState.selected-mask, "vibrance", v);
+                                }
                             }
                             EditSlider {
                                 label: @tr("Saturation");
@@ -1708,6 +1834,9 @@ export component DevelopPanel inherits HorizontalLayout {
                                 value: editor.sel.saturation;
                                 edited(v) => {
                                     MaskState.edit-mask(MaskState.selected-mask, "saturation", v);
+                                }
+                                previewing(v) => {
+                                    MaskState.preview-mask(MaskState.selected-mask, "saturation", v);
                                 }
                             }
                             FilterChip {
@@ -1725,6 +1854,9 @@ export component DevelopPanel inherits HorizontalLayout {
                                 edited(v) => {
                                     MaskState.edit-mask(MaskState.selected-mask, "temperature", v);
                                 }
+                                previewing(v) => {
+                                    MaskState.preview-mask(MaskState.selected-mask, "temperature", v);
+                                }
                             }
                             if editor.sel.wb-on: EditSlider {
                                 label: @tr("Tint");
@@ -1733,6 +1865,9 @@ export component DevelopPanel inherits HorizontalLayout {
                                 value: editor.sel.tint;
                                 edited(v) => {
                                     MaskState.edit-mask(MaskState.selected-mask, "tint", v);
+                                }
+                                previewing(v) => {
+                                    MaskState.preview-mask(MaskState.selected-mask, "tint", v);
                                 }
                             }
                             // Range mask (ADR 0048): narrows the traced
@@ -1753,6 +1888,9 @@ export component DevelopPanel inherits HorizontalLayout {
                                 edited(v) => {
                                     MaskState.edit-mask(MaskState.selected-mask, "lum-min", v);
                                 }
+                                previewing(v) => {
+                                    MaskState.preview-mask(MaskState.selected-mask, "lum-min", v);
+                                }
                             }
                             if editor.sel.range-luminance-on: EditSlider {
                                 label: @tr("Range to");
@@ -1762,6 +1900,9 @@ export component DevelopPanel inherits HorizontalLayout {
                                 edited(v) => {
                                     MaskState.edit-mask(MaskState.selected-mask, "lum-max", v);
                                 }
+                                previewing(v) => {
+                                    MaskState.preview-mask(MaskState.selected-mask, "lum-max", v);
+                                }
                             }
                             if editor.sel.range-luminance-on: EditSlider {
                                 label: @tr("Range softness");
@@ -1770,6 +1911,9 @@ export component DevelopPanel inherits HorizontalLayout {
                                 value: editor.sel.lum-softness;
                                 edited(v) => {
                                     MaskState.edit-mask(MaskState.selected-mask, "lum-softness", v);
+                                }
+                                previewing(v) => {
+                                    MaskState.preview-mask(MaskState.selected-mask, "lum-softness", v);
                                 }
                             }
                             FilterChip {
@@ -1787,6 +1931,9 @@ export component DevelopPanel inherits HorizontalLayout {
                                 edited(v) => {
                                     MaskState.edit-mask(MaskState.selected-mask, "color-center", v);
                                 }
+                                previewing(v) => {
+                                    MaskState.preview-mask(MaskState.selected-mask, "color-center", v);
+                                }
                             }
                             if editor.sel.range-color-on: EditSlider {
                                 label: @tr("Hue width");
@@ -1796,6 +1943,9 @@ export component DevelopPanel inherits HorizontalLayout {
                                 edited(v) => {
                                     MaskState.edit-mask(MaskState.selected-mask, "color-width", v);
                                 }
+                                previewing(v) => {
+                                    MaskState.preview-mask(MaskState.selected-mask, "color-width", v);
+                                }
                             }
                             if editor.sel.range-color-on: EditSlider {
                                 label: @tr("Hue softness");
@@ -1804,6 +1954,9 @@ export component DevelopPanel inherits HorizontalLayout {
                                 value: editor.sel.color-softness;
                                 edited(v) => {
                                     MaskState.edit-mask(MaskState.selected-mask, "color-softness", v);
+                                }
+                                previewing(v) => {
+                                    MaskState.preview-mask(MaskState.selected-mask, "color-softness", v);
                                 }
                             }
                         }
@@ -1906,6 +2059,9 @@ export component DevelopPanel inherits HorizontalLayout {
                             edited(v) => {
                                 DevelopState.develop-edit("rotation", v);
                             }
+                            previewing(v) => {
+                                DevelopState.develop-preview("rotation", v);
+                            }
                         }
                         // Perspective (ADR 0052): between rotation and crop
                         // in the panel exactly as in the pipeline.
@@ -1917,6 +2073,9 @@ export component DevelopPanel inherits HorizontalLayout {
                             edited(v) => {
                                 DevelopState.develop-edit("perspective-vertical", v);
                             }
+                            previewing(v) => {
+                                DevelopState.develop-preview("perspective-vertical", v);
+                            }
                         }
                         EditSlider {
                             label: @tr("Horizontal perspective");
@@ -1925,6 +2084,9 @@ export component DevelopPanel inherits HorizontalLayout {
                             value: DevelopState.dev.perspective-horizontal;
                             edited(v) => {
                                 DevelopState.develop-edit("perspective-horizontal", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("perspective-horizontal", v);
                             }
                         }
                         EditSlider {
@@ -1935,6 +2097,9 @@ export component DevelopPanel inherits HorizontalLayout {
                             edited(v) => {
                                 DevelopState.develop-edit("crop-left", v);
                             }
+                            previewing(v) => {
+                                DevelopState.develop-preview("crop-left", v);
+                            }
                         }
                         EditSlider {
                             label: @tr("Crop top");
@@ -1943,6 +2108,9 @@ export component DevelopPanel inherits HorizontalLayout {
                             value: DevelopState.dev.crop-top;
                             edited(v) => {
                                 DevelopState.develop-edit("crop-top", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("crop-top", v);
                             }
                         }
                         EditSlider {
@@ -1953,6 +2121,9 @@ export component DevelopPanel inherits HorizontalLayout {
                             edited(v) => {
                                 DevelopState.develop-edit("crop-width", v);
                             }
+                            previewing(v) => {
+                                DevelopState.develop-preview("crop-width", v);
+                            }
                         }
                         EditSlider {
                             label: @tr("Crop height");
@@ -1961,6 +2132,9 @@ export component DevelopPanel inherits HorizontalLayout {
                             value: DevelopState.dev.crop-height;
                             edited(v) => {
                                 DevelopState.develop-edit("crop-height", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("crop-height", v);
                             }
                         }
                         HorizontalLayout {

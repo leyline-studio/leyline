@@ -250,6 +250,19 @@ pub(super) fn wire_masks(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
+        MaskState::get(window).on_preview_mask(move |index, field, value| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            super::live_preview(&mut app, &window, |settings| {
+                masks::edit_field(index, field.as_str(), f64::from(value), settings)
+            });
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
         MaskState::get(window).on_edit_mask(move |index, field, value| {
             let Some(window) = handle.upgrade() else {
                 return;

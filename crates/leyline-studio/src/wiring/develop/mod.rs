@@ -42,6 +42,69 @@ pub(crate) fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     history::wire_history(app, window);
 }
 
+/// How often a drag may repaint the preview (ADR 0074 §3): 25 images per
+/// second at most, the limit being the eye rather than the machine.
+const LIVE_INTERVAL: std::time::Duration = std::time::Duration::from_millis(40);
+
+/// Shows what a value *would* do, without writing anything (ADR 0074).
+///
+/// `action` maps the control's raw value onto a `(Param, Value)` against the
+/// session's current settings — the very same closure its committing twin
+/// uses, so the two can never drift apart on what a slider means.
+///
+/// Everything here is deliberately silent:
+///
+/// * **nothing is committed.** The session is set in memory (`engine-api.md`
+///   §10.1) and dropped without `commit`, so a drag across a slider creates
+///   no revision and touches no preview cache;
+/// * **nothing is reported.** A failure during a drag would raise a dialog on
+///   every mouse move; the committing edit that follows on release reports
+///   for real. A live frame that cannot be rendered is simply not shown, and
+///   the previous one stays on screen;
+/// * **nothing is shown while the mask overlay is on.** The overlay is
+///   composited by [`refresh_develop`] from a second render, so a live frame
+///   would drop it for the duration of the drag — a change the user did not
+///   ask for. Better one honest repaint on release than a flicker.
+pub(super) fn live_preview(
+    app: &mut App,
+    window: &StudioWindow,
+    action: impl FnOnce(&leyline_sdk::Settings) -> Option<(leyline_sdk::Param, leyline_sdk::Value)>,
+) {
+    let Some((asset, version)) = app.develop else {
+        return;
+    };
+    if app.soft_proof.is_some()
+        || (app.show_mask_overlay && MaskState::get(window).get_selected_mask() >= 0)
+    {
+        return;
+    }
+    let now = std::time::Instant::now();
+    if app
+        .last_live_render
+        .is_some_and(|last| now.duration_since(last) < LIVE_INTERVAL)
+    {
+        return;
+    }
+    app.last_live_render = Some(now);
+
+    let shown = (|| {
+        let mut session = app.library.edit(version)?;
+        let Some((param, value)) = action(session.settings()) else {
+            return Ok(None);
+        };
+        session.set(param, value)?;
+        let settings = session.settings().clone();
+        // Dropped without committing: that is the whole point.
+        drop(session);
+        app.library
+            .preview_live(asset, PreviewKind::Small, &settings)
+            .map(Some)
+    })();
+    if let Ok(Some(image)) = shown {
+        DevelopState::get(window).set_develop_image(crate::models::rgb8_to_slint_image(&image));
+    }
+}
+
 pub(crate) fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<(), String> {
     let Some((asset, version)) = app.develop else {
         return Ok(());

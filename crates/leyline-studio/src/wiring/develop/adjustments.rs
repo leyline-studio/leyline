@@ -45,6 +45,22 @@ pub(super) fn wire_adjustments(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
+        // The same edit, shown rather than applied (ADR 0074). It reuses
+        // `develop::action`, so a slider cannot mean one thing while being
+        // dragged and another when released.
+        DevelopState::get(window).on_develop_preview(move |slider, value| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            super::live_preview(&mut app, &window, |settings| {
+                develop::action(slider.as_str(), f64::from(value), settings)
+            });
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
         // ADR 0050: a mode name rather than a slider value, and the one edit
         // the engine can refuse outright — a revision pinned at `input: 1`
         // cannot express it, so the error reaches the status line instead of
@@ -104,6 +120,19 @@ pub(super) fn wire_adjustments(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
+        DevelopState::get(window).on_develop_preview_hsl_band(move |index, field, value| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            super::live_preview(&mut app, &window, |settings| {
+                develop::hsl_band_action(index as usize, field.as_str(), f64::from(value), settings)
+            });
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
         DevelopState::get(window).on_develop_edit_hsl_band(move |index, field, value| {
             let Some(window) = handle.upgrade() else {
                 return;
@@ -132,6 +161,26 @@ pub(super) fn wire_adjustments(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 report_error(&window, &error);
             }
         });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        DevelopState::get(window).on_develop_preview_color_grading_zone(
+            move |zone, field, value| {
+                let Some(window) = handle.upgrade() else {
+                    return;
+                };
+                let mut app = app.borrow_mut();
+                super::live_preview(&mut app, &window, |settings| {
+                    develop::color_grading_zone_action(
+                        zone.as_str(),
+                        field.as_str(),
+                        f64::from(value),
+                        settings,
+                    )
+                });
+            },
+        );
     }
     {
         let app = Rc::clone(app);

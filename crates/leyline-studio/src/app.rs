@@ -68,6 +68,11 @@ pub(crate) struct App {
     /// Whether the selected mask's coverage is painted over the develop
     /// preview (ADR 0071). Interface state, never written to a revision.
     pub(crate) show_mask_overlay: bool,
+    /// When the last live render of a slider drag started (ADR 0074 §3).
+    /// The renders are synchronous, so this is all the throttling needed:
+    /// a move arriving too soon is dropped, never queued — what matters is
+    /// where the slider *is*, not the path it took to get there.
+    pub(crate) last_live_render: Option<std::time::Instant>,
     /// Develop settings copied from one photo (White Balance/Tone/Presence/
     /// Lens Correction/Detail — the same default groups a saved preset
     /// captures, Geometry excluded), waiting to be pasted onto the current

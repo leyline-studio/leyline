@@ -28,7 +28,9 @@ implémentation se cache dans un silence plutôt que dans une contradiction.
 
 Le chiffre qui rend la correction possible est déjà mesuré : le cache d'étages
 d'ADR 0041 §3 ramène un curseur de fin de pipeline à **~14 ms** sur une carte
-1024×683. C'est trois images par battement de paupière.
+1024×683. Le §3 ci-dessous montre que le rendu live coûte en réalité quatre
+fois cela — pour une raison qui n'est pas le pipeline — mais l'ordre de
+grandeur reste celui d'une interaction, pas celui d'une attente.
 
 ## Décision
 
@@ -66,8 +68,7 @@ Trois choses en découlent, toutes voulues :
 
 Il emprunte `render_scaled_cached` — le chemin d'ADR 0041 §3, celui pour lequel
 le cache a été construit : bouger un curseur de fin de pipeline ne rejoue que
-l'aval, et le décodage vient du `DecodeCache`. C'est ce qui fait tenir les
-~14 ms.
+l'aval, et le décodage vient du `DecodeCache`.
 
 Le rendu étant **synchrone** sur le fil de l'interface, un événement de
 déplacement attend le rendu précédent. Une borne suffit donc, et une seule :
@@ -76,6 +77,40 @@ la limite étant l'œil et non la machine). Un déplacement arrivé pendant ce
 délai est ignoré — jamais mis en file : ce qui compte est la position
 **actuelle** du curseur, pas le chemin parcouru pour y arriver. Le rendu final,
 lui, est garanti par le commit du relâchement.
+
+**Mesuré, sur de vrais fichiers** (`live_preview_keeps_up_with_a_finger`,
+`--release`, aperçu `Small`) :
+
+| Fichier | Curseur | Par image |
+|---|---|---|
+| Canon 60D, 10 Mpx | exposition (rang 40) | **59 ms** |
+| Canon 60D, 10 Mpx | accentuation (rang 190) | 64 ms |
+| Canon 5D IV, 30 Mpx | exposition | **54 ms** |
+
+Soit ~17 images par seconde : franchement utilisable, et sans commune mesure
+avec l'absence de retour. Mais **deux choses détonnent, et il vaut mieux les
+écrire que les découvrir**.
+
+D'abord, le curseur de fin de pipeline n'est **pas** plus rapide que celui de
+tête, alors qu'ADR 0041 §3 mesurait 14 ms contre 60 sur ce même écart. Le cache
+d'étages fonctionne — il n'est simplement plus le terme dominant : le coût par
+image est repris **en amont de lui**, par la réduction du buffer décodé à la
+taille d'affichage (`proxy`), refaite à chaque image. C'est le §1 d'ADR 0041,
+qui décide de réduire *avant* de développer sans dire que le résultat pourrait
+être gardé.
+
+Ensuite, le 30 Mpx n'est pas plus lent que le 10 Mpx : le décodage `half_size`
+et cette même réduction ramènent les deux au même nombre de pixels développés.
+
+**Ce qui suit, et qui n'est pas fait ici** : garder le proxy réduit en cache, à
+côté du `DecodeCache` qui garde déjà le buffer décodé. Le gain attendu est le
+plus gros de tout ce document, et il ne touche à aucun pixel — mais c'est une
+décision de mise en cache d'ADR 0041, pas de cette ADR-ci, et elle mérite d'être
+prise avec sa propre mesure.
+
+La borne des 40 ms garde son sens dans les deux cas : elle ne mord pas
+aujourd'hui, où chaque image coûte plus que ça, et elle mordra le jour où le
+proxy sera mis en cache.
 
 ### 4. Portée : les curseurs, et eux seuls
 
@@ -91,11 +126,11 @@ contrôle dont la valeur intermédiaire a un sens visuel.
   photo. C'est l'écart d'usage le plus visible qui restait face aux logiciels
   établis, et il ne demandait aucun travail de rendu — seulement de brancher
   ce qu'ADR 0041 avait rendu possible.
-* **Le pire cas reste borné par le cache d'étages.** Un curseur amont
-  (exposition, balance des blancs) rejoue davantage d'étages qu'un curseur
-  aval ; c'est la latence qu'ADR 0041 a mesurée et acceptée, et la borne des
-  40 ms empêche une accumulation d'événements de la transformer en retard
-  cumulé.
+* **~17 images par seconde, mesurées** (§3), et le même chiffre d'un boîtier
+  10 Mpx à un 30 Mpx. Ce n'est pas la fluidité d'un Lightroom, c'est la
+  différence entre voir et ne pas voir. Le poste dominant est identifié et
+  n'est pas le pipeline : la prochaine mesure porte sur la mise en cache du
+  proxy.
 * **Rien ne change pour la CLI ni le SDK.** `preview_live` s'ajoute à côté de
   `preview_before` et de la surimpression : la troisième *vue* du moteur, avec
   la même règle — rien de caché, rien d'enregistré.
@@ -109,11 +144,13 @@ contrôle dont la valeur intermédiaire a un sens visuel.
 * **Garder le rendu au relâchement** (l'état actuel). C'est l'aveuglement
   décrit en contexte, et il ne se justifiait que par un coût de rendu qu'ADR
   0041 a divisé par cinq.
-* **Rendre dans un fil d'arrière-plan** et afficher quand c'est prêt. Correct,
-  et prématuré : à 14 ms le rendu synchrone ne se voit pas, et un rendu
-  asynchrone demande de gérer l'ordre d'arrivée des images pour ne pas
-  afficher une valeur périmée après une plus récente. À reprendre si un
-  curseur amont, sur un boîtier 60 Mpx, sort de la bande acceptable.
+* **Rendre dans un fil d'arrière-plan** et afficher quand c'est prêt. Ce sera
+  peut-être la suite — à 59 ms l'image accuse un retard perceptible sur le
+  doigt — mais pas avant d'avoir tenté la mise en cache du proxy (§3), qui
+  s'attaque à la cause plutôt qu'à sa perception et n'introduit aucun ordre
+  d'arrivée à gérer. Un rendu asynchrone doit garantir qu'une image périmée
+  n'écrase pas une plus récente ; c'est de la complexité qu'on ne prend que
+  si le coût par image résiste.
 * **Mettre les déplacements en file** plutôt que d'ignorer ceux qui arrivent
   trop tôt. Rejouerait le chemin du curseur après coup, en retard sur le
   doigt : le contraire de ce que la décision cherche.
