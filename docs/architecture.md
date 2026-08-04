@@ -30,6 +30,7 @@ Treize crates, chacun avec une responsabilité unique.
 | `leyline-tether` | Capture tethering USB via libgphoto2. |
 | `leyline-map` | Lecture de tuiles MBTiles hors-ligne pour la vue carte. |
 | `leyline-export` | Encodage de sortie : JPEG, TIFF, PNG, WebP, AVIF, et impression PDF. |
+| `leyline-detect` | Contrat, découverte et invocation des **détecteurs de masque externes** — des exécutables qui transforment une image en couverture ([ADR 0073](adr/0073-external-mask-detectors.md)). Ne détecte rien lui-même. |
 | `leyline-sdk` | Surface publique stable du moteur. Contrat semver. |
 | `leyline-cli` | Client en ligne de commande. |
 | `leyline-studio` | Application de bureau (Slint). |
@@ -43,6 +44,8 @@ Studio  →  SDK  →  Engine  →  Core
 ```
 
 `Catalog`, `RAW`, `Color`, `Lens`, `Tether`, `Map`, `Preview` et `Export` sont consommés par `Engine`.
+
+`leyline-detect` est à part : il ne dépend que de `leyline-core`, le moteur ne le connaît pas, et c'est le SDK qui le ré-exporte pour les clients. Un détecteur de masque n'a rien à faire dans un chemin de rendu (ADR 0073 §2).
 
 **Aucune dépendance circulaire n'est admise.** La règle est vérifiable mécaniquement : `cargo tree` doit rester un arbre.
 
