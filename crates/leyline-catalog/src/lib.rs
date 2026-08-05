@@ -114,6 +114,12 @@ impl Catalog {
                 supported: Self::SCHEMA_VERSION,
             });
         }
+        // Once, before the first migration — not once per migration: what a
+        // restore wants back is the state before the update, not a halfway
+        // one (ADR 0077 §4).
+        if found < Self::SCHEMA_VERSION {
+            snapshot_before_migration(&conn, path, found)?;
+        }
         migrations::migrate(&mut conn)?;
 
         Ok(Catalog {
@@ -190,6 +196,45 @@ impl Catalog {
     pub fn connection(&self) -> &Connection {
         &self.conn
     }
+}
+
+/// Snapshots the catalog into the library's `Backups/` before an
+/// irreversible migration ([ADR 0077](../../../docs/adr/0077-application-updates.md) §4).
+///
+/// Migrations have no down script, and [`Catalog::open`] refuses a catalog
+/// newer than this build — so once a newer Leyline has migrated a library,
+/// the older one can no longer open it. With updates a click away that
+/// sequence becomes reachable by accident, and this file is what it takes to
+/// come back from it.
+///
+/// **A snapshot, not a file copy.** Connections run in WAL mode
+/// (`connection::configure`), so committed pages may still live in
+/// `catalog.db-wal` rather than in `catalog.db`: copying the one file could
+/// silently produce a backup missing the most recent work. `VACUUM INTO`
+/// asks SQLite itself for a consistent single-file image of the whole
+/// database, which is the thing worth keeping.
+///
+/// The destination is `<library>/Backups/`, the directory every library has
+/// carried since ADR 0010 (`docs/catalog.md` §3) without anything ever
+/// writing to it. The file is named for the schema version being *left*, so a
+/// restore is unambiguous about what it restores to.
+fn snapshot_before_migration(conn: &Connection, path: &Path, from: u32) -> Result<()> {
+    let backups = path
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .join("Backups");
+    std::fs::create_dir_all(&backups).map_err(LeylineError::Io)?;
+
+    // `VACUUM INTO` refuses to overwrite. Replacing a same-version snapshot is
+    // right: it is the state before *this* migration that a restore wants, and
+    // an older snapshot of the same schema is strictly staler work.
+    let destination = backups.join(format!("catalog-schema-{from}.db"));
+    if destination.exists() {
+        std::fs::remove_file(&destination).map_err(LeylineError::Io)?;
+    }
+    conn.execute("VACUUM INTO ?1", [destination.to_string_lossy().as_ref()])
+        .map_err(db_err)?;
+    Ok(())
 }
 
 /// Maps a SQLite error to the platform error type.

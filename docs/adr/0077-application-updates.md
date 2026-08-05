@@ -133,6 +133,16 @@ Donc : **avant d'appliquer une migration, `catalog.db` est copié dans
 [ADR 0010](0010-relative-paths.md) et `catalog.md` §3 — il est créé à chaque
 `Library::create` et **rien n'y a jamais écrit**. C'est son usage.
 
+**Ce n'est pas une copie de fichier, et ça ne pouvait pas l'être.** Les
+connexions sont en mode **WAL** (`docs/catalog.md` §6) : des pages validées
+peuvent encore vivre dans `catalog.db-wal` et non dans `catalog.db`. Copier le
+seul fichier produit donc une sauvegarde à laquelle il manque, silencieusement,
+le travail le plus récent — précisément celui qu'on voudrait retrouver. C'est
+`VACUUM INTO` qui est utilisé : SQLite construit lui-même une image cohérente
+de toute la base en un fichier. Le test le vérifie en gardant une connexion
+d'écriture **ouverte** pendant la migration, parce que la fermer suffirait à
+rabattre le WAL dans le fichier principal et à faire passer une copie naïve.
+
 Trois précisions qui font la différence entre une sauvegarde et une illusion :
 
 * la copie est faite **avant** la première migration et **une seule fois** par

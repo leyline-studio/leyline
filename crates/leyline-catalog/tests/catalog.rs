@@ -218,3 +218,97 @@ fn rating_check_constraint_rejects_zero() {
     )
     .unwrap();
 }
+
+/// ADR 0077 §4: a migration is irreversible and `open` refuses a catalog
+/// newer than the build, so an update that migrates a library locks the
+/// previous Leyline out of it. The snapshot in `Backups/` is the way back.
+#[test]
+fn a_pending_migration_snapshots_the_catalog_into_backups_first() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = temp_catalog_path(&dir);
+
+    // A database at `user_version` 0: every migration is still pending, which
+    // is exactly the shape an older library has when a newer build opens it.
+    //
+    // The writer is deliberately **kept open** across `Catalog::open`. Closing
+    // it would checkpoint the WAL into `catalog.db` and make a naive file copy
+    // look correct; held open, the canary lives only in `catalog.db-wal`, so
+    // this test fails for any backup that copies the one file.
+    let writer = rusqlite::Connection::open(&path).unwrap();
+    writer
+        .execute_batch(
+            "PRAGMA journal_mode = WAL;
+             CREATE TABLE canary (note TEXT);
+             INSERT INTO canary VALUES ('here');",
+        )
+        .unwrap();
+    let marker = "here";
+
+    let catalog = Catalog::open(&path).unwrap();
+    drop(writer);
+    assert_eq!(catalog.user_version().unwrap(), Catalog::SCHEMA_VERSION);
+
+    let snapshot = dir.path().join("Backups/catalog-schema-0.db");
+    assert!(snapshot.is_file(), "no snapshot was written before migrating");
+
+    // It has to be a usable database still at the old version — not an empty
+    // file, and not the migrated one.
+    let restored = rusqlite::Connection::open(&snapshot).unwrap();
+    assert_eq!(
+        restored
+            .query_row("PRAGMA user_version", [], |r| r.get::<_, u32>(0))
+            .unwrap(),
+        0,
+        "the snapshot was taken after migrating, not before"
+    );
+    assert_eq!(
+        restored
+            .query_row("SELECT note FROM canary", [], |r| r.get::<_, String>(0))
+            .unwrap(),
+        marker,
+        "the snapshot lost the content it exists to preserve"
+    );
+}
+
+/// Opening an up-to-date library is the common case, and it must not drop a
+/// copy of the catalog on every launch.
+#[test]
+fn opening_an_up_to_date_catalog_writes_no_snapshot() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = temp_catalog_path(&dir);
+    drop(Catalog::create(&path, "Current").unwrap());
+
+    drop(Catalog::open(&path).unwrap());
+
+    let backups = dir.path().join("Backups");
+    let count = std::fs::read_dir(&backups)
+        .map(|entries| entries.count())
+        .unwrap_or(0);
+    assert_eq!(count, 0, "an up-to-date open left something in Backups/");
+}
+
+/// The one rule that makes the snapshot worth anything: if it cannot be
+/// written, the migration does not happen either.
+#[test]
+fn a_failed_snapshot_refuses_the_migration() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = temp_catalog_path(&dir);
+    {
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        conn.execute_batch("CREATE TABLE canary (note TEXT);").unwrap();
+    }
+    // `Backups` occupied by a regular file: the directory cannot be created.
+    std::fs::write(dir.path().join("Backups"), b"not a directory").unwrap();
+
+    assert!(
+        Catalog::open(&path).is_err(),
+        "migrated irreversibly without a snapshot"
+    );
+    // And nothing was migrated behind the refusal.
+    let conn = rusqlite::Connection::open(&path).unwrap();
+    assert_eq!(
+        conn.query_row("PRAGMA user_version", [], |r| r.get::<_, u32>(0))
+            .unwrap(),
+        0
+    );
+}
