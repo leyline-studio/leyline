@@ -367,6 +367,16 @@ pub(crate) fn render_with_settings(
 /// (`docs/catalog.md` §17, ADR 0023). A tripped guard still returns the
 /// rendered file for this call's immediate display; it's just not recorded
 /// as valid, so the next `preview` call regenerates.
+/// How many recent revisions of a photo keep their previews
+/// ([ADR 0075](../../../docs/adr/0075-preview-cache-retention.md) §1).
+///
+/// Enough for the back-and-forth of a single setting — undo, look, redo —
+/// without remembering a whole session. Beyond it the render is rebuilt on
+/// demand, which costs about a second and happens from the fourth consecutive
+/// undo. Every version's head survives whatever its age, so a parked virtual
+/// copy never loses its thumbnail.
+const RETENTION: usize = 3;
+
 pub(crate) fn record_render(
     catalog: &mut Catalog,
     cache: &PreviewCache,
@@ -389,6 +399,16 @@ pub(crate) fn record_render(
         },
         &plan.settings_json,
     )?;
+    // A cache can only exceed its window just after something was added to
+    // it, so this is the one place that has to bring it back — no sweeper, no
+    // background task, no "empty the cache" left to the user (ADR 0075 §3).
+    //
+    // A file that cannot be unlinked is left where it is: the row is gone, so
+    // nothing will serve it again, and failing a render over a stale byte in
+    // a cache would trade a real result for a derived one.
+    for stale in catalog.retain_previews(asset, RETENTION)? {
+        let _ = cache.remove(&stale);
+    }
     Ok(PreviewFile {
         path: cache.absolute_path(&stored.relative_path),
         width: stored.width,

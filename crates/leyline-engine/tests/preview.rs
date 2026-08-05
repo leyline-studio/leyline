@@ -201,3 +201,85 @@ fn generates_scaled_previews_from_a_real_raw() {
     assert!(!again.freshly_generated);
     assert_eq!(again.path, thumb.path);
 }
+
+/// The window of ADR 0075, end to end: editing a photo over and over leaves a
+/// bounded number of preview files behind, and the current one still serves.
+///
+/// The failure this guards against is silent by nature — nothing in an
+/// interface reports a cache that grew to forty gigabytes, and the cause is
+/// unfindable once it has.
+#[test]
+fn editing_a_photo_many_times_leaves_a_bounded_cache() {
+    use leyline_engine::{Library, Param, Value};
+
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::create(&dir.path().join("Lib"), "Retention").unwrap();
+    let source = dir.path().join("Shoot");
+    std::fs::create_dir(&source).unwrap();
+    image::save_buffer(
+        source.join("flat.png"),
+        &[128u8; 16 * 16 * 3],
+        16,
+        16,
+        image::ExtendedColorType::Rgb8,
+    )
+    .unwrap();
+    let report = library
+        .import(
+            &source,
+            &ImportOptions {
+                copy_files: true,
+                recursive: false,
+            },
+            |_, _| {},
+        )
+        .unwrap();
+    let registered = report.imported[0].registered;
+
+    // Ten edits, each one previewed the way the develop view would.
+    for step in 1..=10 {
+        {
+            let mut session = library.edit(registered.version).unwrap();
+            session
+                .set(Param::Exposure, Value::Float(f64::from(step) * 0.1))
+                .unwrap();
+            session.commit().unwrap();
+        }
+        library
+            .preview(registered.asset, PreviewKind::Small)
+            .unwrap();
+    }
+
+    let files: Vec<_> = walk(&dir.path().join("Lib/Cache")).collect();
+    assert!(
+        files.len() <= 4,
+        "the cache kept {} preview files for one photo: {files:?}",
+        files.len()
+    );
+    // And what it kept is the one that matters.
+    let current = library
+        .preview(registered.asset, PreviewKind::Small)
+        .unwrap();
+    assert!(!current.freshly_generated, "the head's preview was evicted");
+}
+
+/// Every file under `root`, recursively — the cache lays its files out in
+/// subdirectories, so counting the top level would prove nothing.
+fn walk(root: &std::path::Path) -> impl Iterator<Item = std::path::PathBuf> {
+    let mut found = Vec::new();
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else {
+                found.push(path);
+            }
+        }
+    }
+    found.into_iter()
+}

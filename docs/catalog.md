@@ -892,6 +892,19 @@ Aucun timestamp ni hash supplémentaire n'est nécessaire.
 
 La comparaison d'identifiants suffit.
 
+## Rétention
+
+Un aperçu devenu invalide n'est pas supprimé pour autant : c'est ce qui rend l'undo ci-dessus gratuit. Mais il ne survit pas indéfiniment ([ADR 0075](adr/0075-preview-cache-retention.md)).
+
+Sont conservés, pour un asset :
+
+* l'aperçu de la **tête de chaque version** — une copie virtuelle parquée sur une révision ancienne garde le sien, quel que soit son âge ;
+* ceux des **trois révisions les plus récentes** de cet asset.
+
+Le reste est évincé — ligne et fichier — juste après l'enregistrement d'un nouvel aperçu, seul moment où le cache peut dépasser sa fenêtre. Aucune révision n'est supprimée : ce qui part est une image dérivée, que le moteur reconstruit en une seconde environ.
+
+Sans cette règle, cent retouches d'une même photo laissaient cent aperçus, soit davantage que le RAW lui-même.
+
 ---
 
 # 21. Cache Layout

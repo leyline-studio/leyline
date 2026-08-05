@@ -221,6 +221,56 @@ impl Catalog {
         }
     }
 
+    /// Keeps the asset's previews inside the window of
+    /// [ADR 0075](../../../docs/adr/0075-preview-cache-retention.md) and
+    /// returns the cache paths of everything it dropped, so the caller can
+    /// unlink the files.
+    ///
+    /// Survive: the **head of every version** of the asset — a virtual copy
+    /// parked on an old revision must keep its preview — and the `keep` most
+    /// recent revisions of that asset. Revision ids increase with time, so
+    /// "most recent" needs no timestamp; and keeping the newest is what
+    /// leaves both undo *and* redo instant around the point of work, without
+    /// reasoning about which way the head last moved.
+    ///
+    /// Deletes rows, never revisions: the history stays whole and replayable.
+    /// What goes is a derived image, and the engine can rebuild it in about a
+    /// second.
+    pub fn retain_previews(&mut self, asset: AssetId, keep: usize) -> Result<Vec<String>> {
+        self.ensure_writable()?;
+        const CONDEMNED: &str = "asset_id = ?1
+             AND revision_id NOT IN (
+                 SELECT head_revision_id FROM develop_versions WHERE asset_id = ?1
+             )
+             AND revision_id NOT IN (
+                 SELECT id FROM develop_revisions WHERE asset_id = ?1
+                 ORDER BY id DESC LIMIT ?2
+             )";
+        let keep = i64::try_from(keep).unwrap_or(i64::MAX);
+        let tx = self.conn.transaction().map_err(db_err)?;
+        let dropped = {
+            let mut stmt = tx
+                .prepare(&format!(
+                    "SELECT relative_path FROM previews WHERE {CONDEMNED}"
+                ))
+                .map_err(db_err)?;
+            let rows = stmt
+                .query_map(rusqlite::params![asset.get(), keep], |row| {
+                    row.get::<_, String>(0)
+                })
+                .map_err(db_err)?;
+            rows.collect::<std::result::Result<Vec<_>, _>>()
+                .map_err(db_err)?
+        };
+        tx.execute(
+            &format!("DELETE FROM previews WHERE {CONDEMNED}"),
+            rusqlite::params![asset.get(), keep],
+        )
+        .map_err(db_err)?;
+        tx.commit().map_err(db_err)?;
+        Ok(dropped)
+    }
+
     /// Deletes every preview row of a revision and returns the cache paths of
     /// the deleted files, so the caller can remove them from disk.
     ///

@@ -321,3 +321,91 @@ fn preview_queries_report_missing_assets() {
         Err(LeylineError::AssetMissing(id)) if id.get() == 999
     ));
 }
+
+/// The window of ADR 0075: the three most recent revisions survive, the rest
+/// are dropped and their files named so the caller can unlink them.
+#[test]
+fn retain_previews_keeps_the_window_and_names_what_it_drops() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+    let registered = registered_asset(&mut catalog);
+
+    // Six revisions, each one previewed as it became the head.
+    let mut revisions = vec![registered.revision];
+    catalog
+        .record_preview(&thumbnail(&registered, registered.revision))
+        .unwrap();
+    for _ in 0..5 {
+        let revision = edit(&catalog, &registered);
+        catalog
+            .record_preview(&thumbnail(&registered, revision))
+            .unwrap();
+        revisions.push(revision);
+    }
+
+    let dropped = catalog.retain_previews(registered.asset, 3).unwrap();
+
+    // The three oldest go, and the caller is told which files to unlink.
+    assert_eq!(dropped.len(), 3, "{dropped:?}");
+    for revision in &revisions[..3] {
+        assert!(
+            dropped
+                .iter()
+                .any(|path| path.ends_with(&format!("{revision}.png"))),
+            "revision {revision} should have been dropped: {dropped:?}"
+        );
+    }
+    // The head is still served, which is the point of keeping a window at all.
+    assert!(
+        catalog
+            .valid_preview(registered.asset, PreviewKind::Thumbnail)
+            .unwrap()
+            .is_some()
+    );
+    // Idempotent: a second pass has nothing left to do.
+    assert!(
+        catalog
+            .retain_previews(registered.asset, 3)
+            .unwrap()
+            .is_empty()
+    );
+}
+
+/// A virtual copy parked on an old revision keeps its preview however far the
+/// other copies have moved on — otherwise the grid would re-render it on
+/// every scroll (ADR 0075 §1).
+#[test]
+fn retain_previews_never_drops_a_version_head() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+    let registered = registered_asset(&mut catalog);
+    let parked = registered.revision;
+    catalog
+        .record_preview(&thumbnail(&registered, parked))
+        .unwrap();
+
+    // A second copy, left on the original revision, while the first one is
+    // edited well past the window.
+    let copy = catalog
+        .create_version(registered.version, "Copy", Some(parked))
+        .unwrap();
+    for _ in 0..5 {
+        let revision = edit(&catalog, &registered);
+        catalog
+            .record_preview(&thumbnail(&registered, revision))
+            .unwrap();
+    }
+
+    let dropped = catalog.retain_previews(registered.asset, 3).unwrap();
+    assert!(
+        !dropped
+            .iter()
+            .any(|path| path.ends_with(&format!("{parked}.png"))),
+        "the parked copy lost its preview: {dropped:?}"
+    );
+    assert_eq!(
+        catalog.version_head(copy).unwrap(),
+        parked,
+        "the copy under test is not the one parked"
+    );
+}
