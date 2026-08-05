@@ -1,6 +1,13 @@
 # ADR 0029 — Process 6 : réglages locaux masqués (brosse, radial, gradient)
 
 **Statut :** Accepté — 2026-07
+**Suite :** `local_adjustments::v1`, que cet ADR crée, n'est plus la version
+courante. [ADR 0048](0048-range-masks.md) lui ajoute les masques par plage
+(`v2`), puis [ADR 0070](0070-stored-mask-coverage.md) les couvertures
+**stockées** (`v3`) — un masque n'est donc plus nécessairement une géométrie.
+Les trois familles décidées ici — brosse, radial, gradient — et leur
+référentiel de coordonnées ([ADR 0026](0026-mask-spot-coordinate-referential.md))
+sont inchangés.
 
 ## Contexte
 
@@ -74,6 +81,11 @@ insertion correcte, pas une refonte du pipeline.
 > cet ADR de pré-décision. Le présent document fixe seulement **où** l'étage
 > atterrira ; le diagramme §3.1 et le tableau des process versions §3.3
 > seront amendés par la PR qui livre `process6.rs`.
+>
+> *(Fait. Cette note décrit l'état du dépôt le jour de la décision : l'étage
+> a été livré, et `pipeline.md` amendé avec lui. Le tableau des process
+> versions qu'elle annonce n'existe plus sous cette forme — la révision porte
+> désormais sa carte d'étages, [ADR 0042](0042-versioned-stage-pipeline.md).)*
 
 ### Référentiel de coordonnées
 

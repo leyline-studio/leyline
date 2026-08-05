@@ -12,6 +12,20 @@ ADR 0019 ajoute par ailleurs des Préférences (choix de langue) et n'a pas d'en
 
 Leyline Studio adopte une **barre de menu** (`File` / `Library` / `Photo` / `Develop` / `View` / `Help`) via le composant `MenuBar` natif de Slint — rendue comme la vraie barre système sur macOS, comme une barre dans la fenêtre sur Windows/Linux. Chaque entrée affiche son raccourci existant à côté du libellé ; la barre de menu **n'ajoute aucune fonctionnalité nouvelle**, elle rend visible et cliquable ce qui n'existe aujourd'hui que par raccourci — mêmes callbacks Rust déjà câblés (`on_run_import`, `on_develop_undo`, `on_reprocess_library`, etc.), pas de nouveau chemin de code.
 
+> **Correction, 2026-08-05.** Le moyen a changé, la décision non. Le `MenuBar`
+> natif de Slint entraîne l'intégration de menus au niveau OS (`muda`), qui
+> **casse l'ordonnancement des repaints** de la grille et de la liste des
+> collections : la fenêtre cessait de se redessiner tant qu'on ne la
+> survolait pas. La barre est donc **écrite à la main** en Slint
+> (`ui/panels/menubar.slint` + `ui/widgets/menu.slint`), avec la même
+> structure, les mêmes libellés et les mêmes raccourcis.
+>
+> Ce que cela coûte, et qui est assumé : sur macOS la barre est **dans la
+> fenêtre** comme sur Windows et Linux, et non dans la barre système. Le reste
+> de ce document — la structure des six menus, la règle « aucune capacité
+> nouvelle », le contrat de chaque entrée — décrit l'implémentation telle
+> quelle.
+
 Structure retenue (reflète l'existant, `docs/engine-api.md` fait foi pour le comportement réel de chaque action) :
 
 * **File** — Import…, Export…, ———, Preferences… *(nouveau, ADR 0019 : langue)*, ———, Quit

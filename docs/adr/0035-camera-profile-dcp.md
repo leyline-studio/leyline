@@ -1,6 +1,13 @@
 # ADR 0035 — Profil caméra (DCP) : nouvel étage colorimétrique en tête de pipeline, fichiers fournis par l'utilisateur, référencés et checksummés
 
 **Statut :** Accepté — 2026-07
+**Suite :** `camera_profile::v1`, que cet ADR crée, n'est plus la version
+courante. [ADR 0062](0062-dcp-illuminant-interpolation.md) remplace la
+simplification de §Décision par une vraie interpolation des deux illuminants de
+calibration (`v2`), et [ADR 0063](0063-dcp-tables.md) applique enfin les tables
+du profil — `HueSatMap` et `LookTable` (`v3`). Le modèle décidé ici — un étage
+colorimétrique en tête de pipeline, des fichiers fournis par l'utilisateur,
+référencés et checksummés — est inchangé.
 
 ## Contexte
 

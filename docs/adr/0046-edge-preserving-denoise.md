@@ -1,6 +1,13 @@
 # ADR 0046 — Débruitage préservant les contours : ondelettes à trous et seuillage doux (`noise_luminance::v2`, `noise_color::v2`)
 
 **Statut :** Accepté — 2026-07
+**Suite :** les deux versions d'étage que cet ADR crée ne sont plus les
+courantes. [ADR 0072](0072-measured-noise-profile.md) livre
+`noise_luminance::v3` et `noise_color::v3`, qui remplacent le seuil universel
+du §3 par un seuil **par pixel** dérivé de la variance mesurée du capteur, et
+qui changent aussi de **rang** — 5 et 6, en lumière linéaire, au lieu des 170
+et 180 que fixe le §1. L'opérateur lui-même — ondelettes à trous, seuillage
+doux par échelle — est inchangé et reste décrit ici.
 
 ## Contexte
 

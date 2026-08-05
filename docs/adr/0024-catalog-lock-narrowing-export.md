@@ -58,6 +58,21 @@ verrou n'est jamais tenu plus longtemps que le plan + le journal d'**une
 seule** version à la fois — la même contrainte que si le client appelait
 `export` en boucle lui-même.
 
+> **Correction, 2026-08-05.** Ce paragraphe ne décrit plus le moteur, sur ses
+> deux moitiés. Les trois méthodes qu'il nomme ont fusionné en `export` /
+> `export_async` autour d'un `ExportRequest`
+> ([ADR 0025](0025-unified-export-request.md)). Et le découpage du lot s'est
+> **inversé** : [ADR 0068](0068-concurrent-export-batch.md) §2 planifie
+> désormais toutes les versions d'un lot **en un seul verrou**, en ordre de
+> requête, pour que deux versions d'un même asset se collisionnent de façon
+> déterministe plutôt que de courir au même chemin de sortie.
+>
+> Ce qui reste vrai, et qui est la décision de cet ADR : le découpage en trois
+> phases, et **aucun verrou tenu pendant un rendu**. ADR 0068 §3 note que
+> cette discipline n'est pas seulement conservée mais devenue nécessaire — les
+> photos d'un lot se rendent maintenant en parallèle, et un worker qui
+> tiendrait le catalogue les sérialiserait toutes.
+
 Les fonctions libres `export::export_version` et `export::export_batch`
 (utilisées directement par les tests d'intégration de ce crate) gardent leur
 signature `&mut Catalog` tenu de bout en bout — elles pilotent les trois

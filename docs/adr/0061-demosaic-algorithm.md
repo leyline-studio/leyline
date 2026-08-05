@@ -1,6 +1,10 @@
 # ADR 0061 — Choix de l'algorithme de dématriçage
 
 **Statut :** Accepté — 2026-08
+**Suite :** `input::v3`, que cet ADR crée, n'est plus la version courante :
+[ADR 0066](0066-sensor-white-level.md) fait venir le niveau de blanc du capteur
+plutôt que du contenu de la photo (`v4`). Le choix de dématriçage décidé ici
+traverse ce changement sans bouger.
 
 ## Contexte
 

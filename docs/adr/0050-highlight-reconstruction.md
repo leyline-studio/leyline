@@ -1,6 +1,13 @@
 # ADR 0050 — Reconstruction des hautes lumières : un mode de décodage, épinglé par `input::v2`
 
 **Statut :** Accepté — 2026-07
+**Suite :** `input::v2`, que cet ADR crée, n'est plus la version courante.
+[ADR 0061](0061-demosaic-algorithm.md) rend l'algorithme de dématriçage
+choisissable (`v3`, identique bit pour bit à `v2` à réglage neutre), puis
+[ADR 0066](0066-sensor-white-level.md) fait venir le niveau de blanc du capteur
+plutôt que du contenu de la photo (`v4`, délibérément **pas** identique à son
+prédécesseur). La reconstruction des hautes lumières décidée ici traverse les
+deux sans changer.
 
 ## Contexte
 

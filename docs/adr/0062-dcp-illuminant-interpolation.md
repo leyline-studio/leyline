@@ -1,6 +1,10 @@
 # ADR 0062 — Interpoler les illuminants de calibration d'un profil DCP
 
 **Statut :** Accepté — 2026-08
+**Suite :** `camera_profile::v2`, que cet ADR crée, n'est plus la version
+courante : [ADR 0063](0063-dcp-tables.md) applique les tables du profil
+(`HueSatMap`, `LookTable`) en `v3`. L'interpolation en mireds décidée ici est
+inchangée, et sert d'entrée à ces tables.
 
 **Amende :** [ADR 0035](0035-camera-profile-dcp.md) (la simplification de §Décision), [ADR 0037](0037-dcp-parsing-dependency.md)
 

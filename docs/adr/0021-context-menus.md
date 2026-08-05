@@ -35,6 +35,19 @@ Si plusieurs vignettes sont sélectionnées et que le clic droit tombe sur l'une
 
 * Aucune nouvelle capacité moteur : chaque entrée appelle un chemin déjà décidé par ADR 0020 ou déjà câblé dans `main.rs`/`leyline-engine`.
 * La grille des collections/mots-clés (panneau gauche) n'a **pas** de menu contextuel dans cette V1 : `leyline-engine` n'expose pas aujourd'hui de renommage/suppression de collection ou de mot-clé côté façade — ajouter un clic droit là inventerait une capacité qui n'existe pas encore. À revisiter si/quand cette capacité est décidée séparément.
+
+  > **Correction, 2026-08-05.** La condition posée ici s'est réalisée, et la
+  > revisite a eu lieu : la façade expose `rename_collection`,
+  > `move_collection` et `delete_collection`, et l'arbre des collections porte
+  > désormais le menu contextuel correspondant — trois entrées qui ouvrent
+  > chacune un dialogue, parce que chacune a besoin d'une donnée que Rust doit
+  > chercher d'abord (le nom courant, les parents légaux, la taille du
+  > sous-arbre). C'est exactement le « si/quand » que cette phrase prévoyait,
+  > et le motif de clic droit décidé ici qui s'y applique.
+  >
+  > **Les mots-clés, eux, n'ont toujours pas de menu contextuel**, et pour la
+  > raison d'origine restée intacte : la façade sait créer un mot-clé et
+  > l'attacher, pas le renommer ni le supprimer.
 * Reprocess depuis la grille utilisant l'API batch (plutôt que l'API session unique) évite d'exiger que la photo soit ouverte en développement juste pour la retraiter — cohérent avec l'esprit de `Shift+R` (retraiter sans ouvrir).
 
 ## Alternatives écartées

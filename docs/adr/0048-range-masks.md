@@ -1,6 +1,11 @@
 # ADR 0048 — Masques par plage : un raffinement de luminance et de couleur, déterministe, au-dessus des masques géométriques
 
 **Statut :** Accepté — 2026-07
+**Suite :** `local_adjustments::v2`, que cet ADR crée, n'est plus la version
+courante : [ADR 0070](0070-stored-mask-coverage.md) ajoute la couverture
+**stockée** (`v3`). Les plages de luminance et de couleur décidées ici
+s'appliquent inchangées à ce nouveau type de masque, qui est échantillonné sur
+le même canevas normalisé que les quatre variantes existantes.
 
 ## Contexte
 

@@ -1,6 +1,12 @@
 # ADR 0034 — Épreuvage écran et filigrane : deux surfaces de sortie, aucun process ; le module d'impression reste hors décision
 
 **Statut :** Accepté — 2026-07
+**Suite :** le tiers qu'il laisse explicitement non scopé — le module
+d'impression — a eu son propre ADR comme prévu
+([ADR 0036](0036-print-module.md)) ; la rasterisation effective du filigrane,
+que cet ADR décrit en surface sans choisir de moteur de rendu de texte, est
+tranchée par [ADR 0051](0051-watermark-rasterization-and-soft-proof-surface.md).
+Le titre est donc à lire à sa date : l'impression n'est plus hors décision.
 
 ## Contexte
 
