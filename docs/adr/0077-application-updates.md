@@ -1,4 +1,4 @@
-# ADR 0077 — Se mettre à jour : un manifeste signé, et personne à qui demander la permission
+# ADR 0077 — Se mettre à jour : un manifeste signé, et une question posée une fois
 
 **Statut :** Accepté — 2026-08
 
@@ -72,34 +72,55 @@ jour.
 La clé privée de signature ne vit **ni dans le dépôt ni dans le CI** : elle
 signe à la main au moment de publier. Le dépôt ne porte que la clé publique.
 
-### 2. On vérifie quand on le demande, et pas avant
+### 2. On demande une fois, puis on vérifie tout seul — mais on n'installe jamais tout seul
 
-**Aide ▸ Rechercher des mises à jour…** — une entrée de menu, à côté de
-*Raccourcis clavier…* et *À propos de Leyline* ([ADR 0020](0020-menu-bar.md)).
-Rien au démarrage, rien en tâche de fond, aucun horaire.
+C'est la cadence de Firefox sans son silence, et les deux moitiés se séparent
+proprement.
 
-C'est la lecture littérale de « optionnel et explicite », et c'est la seule
-forme qui n'a besoin d'aucun consentement préalable : un clic *est* le
-consentement. Toute autre forme — même une vérification quotidienne discrète —
-demande d'abord de poser la question à l'utilisateur, donc de concevoir l'écran
-qui la pose.
+**Le consentement est demandé une fois, et vaut « non » tant qu'il n'a pas été
+donné.** « Vérifier automatiquement si une mise à jour existe ? » — une
+question, une réponse stockée, jamais reposée. C'est ce qui rend la suite
+conforme à `vision.md` : la vérification reste **optionnelle et explicite** au
+sens fort — quelqu'un l'a autorisée en connaissance de cause — plutôt qu'au
+sens littéral d'un clic à chaque fois. Un défaut à « non » est ce qui distingue
+cette lecture d'une permission arrachée.
 
-**Ce que ça coûte, et qu'il faut écrire plutôt que découvrir :** presque
-personne ne clique. Une vérification manuelle informe les gens attentifs et
-laisse les autres sur leur version indéfiniment. Le risque réel que cela laisse
-ouvert est nommable : Leyline n'a ni compte, ni synchronisation, ni serveur —
-sa surface d'attaque est **l'analyse d'un fichier ouvert**, essentiellement
-LibRaw. Un correctif de sécurité, ici, protège de fichiers qu'on ouvre soi-même,
-pas d'un réseau hostile. C'est ce qui rend le manuel défendable pour l'ouverture,
-et non défendable pour toujours.
+**Si c'est oui : une vérification par lancement, et pas davantage.** Quelques
+secondes après l'ouverture de la bibliothèque, jamais pendant — et sautée si la
+dernière a réussi il y a moins de 24 h, pour que cinq lancements dans un
+après-midi ne fassent pas cinq requêtes. **Aucun minuteur en cours de session :**
+une séance de développement dure des heures, et un appel réseau qui part au
+milieu est exactement la surprise que le principe local-first refuse.
 
-**La suite est nommée, et n'est pas prise ici** : une question posée **une
-fois** — « vérifier les mises à jour automatiquement ? » — dont la réponse est
-stockée, satisfait « explicite » tout en étant efficace. Elle a besoin d'un
-panneau de Préférences, qui n'existe pas : [ADR 0019](0019-distribution-i18n.md)
-a laissé le choix de langue « hors scope immédiat » et l'entrée **Préférences…**
-du menu Fichier est désactivée pour cette raison. Cette question appartient à
-l'ADR qui construira ce panneau, avec le réglage de langue qui l'attend déjà.
+**Rien trouvé, rien dit.** Pas de notification « vous êtes à jour », pas
+d'entrée de journal. Le cas normal est le silence total.
+
+**Quelque chose trouvé : une pastille, pas une fenêtre.** Le libellé **Aide**
+de la barre de menus porte une marque discrète, et l'entrée
+*Rechercher des mises à jour…* devient *Mettre à jour vers 0.2.0…*. Aucune
+modale ne s'interpose, rien n'interrompt le travail en cours, et l'information
+attend qu'on la regarde.
+
+> Cette pastille est possible **parce que la barre de menus est écrite à la
+> main** ([ADR 0020](0020-menu-bar.md), correction du 2026-08-05) : un
+> `MenuBar` natif ne se décore pas. Le contournement d'un bug de repaint se
+> révèle après coup être ce qui rend cette surface disponible.
+
+**L'installation demande toujours un clic**, et c'est ce qui referme
+gratuitement le danger du §4 : une migration de catalogue est irréversible, et
+personne ne peut en subir une qu'il n'a pas déclenchée. C'est la moitié de
+Firefox qu'on ne prend pas, et ce n'est pas seulement par prudence — la brique
+ne sait pas la donner (voir §Alternatives écartées).
+
+**Où vit le réglage.** Dans le panneau **Préférences**, qui n'existe pas encore
+— l'entrée du menu Fichier est désactivée depuis [ADR 0020](0020-menu-bar.md)
+parce qu'[ADR 0019](0019-distribution-i18n.md) a mis le choix de langue « hors
+scope immédiat ». Ce panneau a désormais **deux locataires** et une raison
+d'être construit ; c'est son propre ADR, et la présente décision en dépend pour
+être livrable. Ce qui est fixé ici et qu'il ne peut pas changer : la question
+est posée une fois, le défaut avant réponse est « non », et elle ne s'interpose
+jamais devant un premier lancement ([ADR 0054](0054-first-run-and-basic-mode.md)
+possède cet écran).
 
 ### 3. Rien n'est envoyé, et rien n'est installé sans un second geste
 
@@ -165,7 +186,14 @@ ait des binaires à télécharger.
 * **Aucun pixel, aucune version d'étage.** `pipeline.md` §5 est hors de cause :
   une mise à jour peut changer le rendu — c'est même à ça que servent les
   versions d'étage ([ADR 0042](0042-versioned-stage-pipeline.md)) — mais rien
-  ici ne touche au contrat.
+  ici ne touche au contrat. Et il vaut la peine d'écrire le corollaire
+  rassurant, parce que la crainte spontanée est l'inverse : **une mise à jour
+  ne retouche aucune photo déjà développée.** Une révision porte sa carte
+  d'étages et le moteur honore la version qu'elle enregistre
+  ([ADR 0043](0043-collapse-prerelease-render-history.md)) ; une version
+  d'étage plus récente ne s'applique qu'au **retraitement**, qui est un acte
+  explicite. Le seul état qu'une mise à jour modifie sans qu'on le lui demande
+  est le **schéma du catalogue** — d'où le §4.
 * **La CLI et le SDK ne se mettent pas à jour.** Une bibliothèque Rust est mise
   à jour par le gestionnaire de paquets de qui l'utilise ; un binaire en ligne
   de commande, par la distribution qui l'a installé. C'est Studio, application
@@ -173,9 +201,18 @@ ait des binaires à télécharger.
 
 ## Conséquences
 
-* **Une personne qui installe Leyline peut apprendre qu'une version existe**,
-  sans que Leyline observe qui elle est ni quand elle ouvre son logiciel. C'était
-  le dernier manque de la mise en distribution d'ADR 0019.
+* **Une personne qui installe Leyline apprend qu'une version existe sans avoir
+  à y penser**, et sans que Leyline observe qui elle est. C'était le dernier
+  manque de la mise en distribution d'ADR 0019.
+* **Ce que la vérification révèle malgré tout, et qu'il faut dire.** Aucune
+  donnée n'est *transmise* (§3), mais une requête HTTP en révèle par sa seule
+  existence : l'adresse IP, et le fait qu'une copie de Leyline s'est lancée à
+  cet instant. Une vérification par lancement, plafonnée à une par 24 h,
+  fait de ce signal une trace grossière d'usage chez l'hébergeur — pas une
+  identité, pas un historique d'édition, mais pas rien non plus. C'est
+  exactement ce que le « non » par défaut et la question posée une fois
+  laissent décider à chacun, et c'est aussi pourquoi il n'y a **aucun minuteur
+  en session** : une seule requête par jour de travail, pas une horloge qui bat.
 * **Le projet n'opère aucun service.** Pas de domaine, pas de certificat, pas
   d'hébergement : la disponibilité des mises à jour est celle de GitHub, ce qui
   est déjà la disponibilité du code source. Le corollaire est assumé : changer
@@ -215,10 +252,32 @@ ait des binaires à télécharger.
   le comportement de la plupart des applications, et il inverse la phrase de
   `vision.md` : le réseau partirait sans qu'on l'ait demandé, la case à cocher
   ne servant qu'à réparer après coup. Le défaut est ce qui compte dans « aucune
-  vérification silencieuse ».
-* **Se mettre à jour tout seul, sans demander.** Change les pixels sous une
-  personne en plein travail — une nouvelle version d'étage peut modifier un
-  rendu — et retire le seul moment où elle pouvait décider de ne pas y aller.
+  vérification silencieuse » — d'où la question posée une fois du §2, qui
+  obtient le même résultat en le demandant.
+* **Ne vérifier que manuellement** (position tenue par la première rédaction de
+  cet ADR). Défendable — un clic *est* le consentement, et rien à concevoir —
+  mais presque personne ne clique : les gens attentifs sont informés, les
+  autres restent sur leur version indéfiniment. Le risque que cela laisse
+  ouvert est nommable : Leyline n'a ni compte, ni synchronisation, ni serveur,
+  donc sa surface d'attaque est **l'analyse d'un fichier qu'on ouvre soi-même**,
+  essentiellement LibRaw. Un correctif qui n'arrive jamais protège de fichiers
+  qu'on ouvrira quand même. La question posée une fois coûte un panneau de
+  Préférences qu'il faut de toute façon construire.
+* **Le modèle Firefox complet : télécharger et appliquer en silence**, la
+  nouvelle version prenant effet au lancement suivant. C'est ce qui rend
+  Firefox agréable — on ne le voit jamais arriver — et
+  `cargo-packager-updater` **ne sait pas le faire** : `download_and_install()`
+  installe *maintenant*, il n'y a pas de mise en attente. « À la Firefox » avec
+  cette brique serait donc **plus** intrusif que Firefox, l'installeur se
+  déclenchant pendant qu'on travaille. Le reproduire demanderait d'écrire le
+  remplacement différé par plateforme (AppImage, NSIS), soit exactement le
+  travail qu'[ADR 0019](0019-distribution-i18n.md) a choisi `cargo packager`
+  pour ne pas avoir à faire. S'ajoute une raison propre à Leyline, que Firefox
+  n'a pas : une mise à jour **migre le catalogue** sans retour arrière, après
+  quoi la version précédente ne peut plus ouvrir la bibliothèque. Subir ça sans
+  l'avoir déclenché n'est pas acceptable. À rouvrir si la brique gagne un jour
+  une installation différée — la question serait alors uniquement celle du
+  catalogue.
 * **Ne rien faire et laisser les gestionnaires de paquets s'en charger**
   (Flatpak, winget, Homebrew). Ce serait la bonne réponse si Leyline y était
   publié ; ADR 0019 a choisi trois installateurs autonomes précisément parce
