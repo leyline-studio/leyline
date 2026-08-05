@@ -108,6 +108,11 @@ plus gros de tout ce document, et il ne touche à aucun pixel — mais c'est une
 décision de mise en cache d'ADR 0041, pas de cette ADR-ci, et elle mérite d'être
 prise avec sa propre mesure.
 
+> **Suite, 2026-08-05.** Elle l'a été : [ADR 0076](0076-proxy-cache.md) met le
+> proxy en cache et ramène ces 59 ms à **15 ms** (10 Mpx) et 54 à **11 ms**
+> (30 Mpx). Les chiffres du tableau ci-dessus restent ceux qui ont motivé la
+> décision, ils ne décrivent plus le moteur.
+
 La borne des 40 ms garde son sens dans les deux cas : elle ne mord pas
 aujourd'hui, où chaque image coûte plus que ça, et elle mordra le jour où le
 proxy sera mis en cache.

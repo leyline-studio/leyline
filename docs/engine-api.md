@@ -626,7 +626,12 @@ impl Library {
 
 `cached_preview` permet au client le même motif que `Ready`/`Generating` : afficher immédiatement ce qui existe, planifier la génération du reste — désormais via `preview_async` et l'événement `PreviewReady` (Studio peut remplacer son timer par ce flux), ou directement via `preview_state`.
 
-La `Library` garde en mémoire les derniers décodages source (cache MRU borné, phase 7) : la boucle de développement re-rend le même asset après chaque commit de curseur, et sans ce cache chaque ajustement payait un décodage LibRaw complet. Les fichiers source ne changeant jamais (édition non-destructive), une entrée reste valide toute la vie du processus ; les pixels servis sont bit-à-bit ceux d'un décodage frais (`pipeline.md` §5), la reproductibilité n'est pas affectée.
+La `Library` garde en mémoire les derniers **buffers source** (caches MRU bornés, phase 7) : la boucle de développement re-rend le même asset après chaque commit de curseur, et sans eux chaque ajustement payait un décodage LibRaw complet. Deux niveaux, pour la même raison et avec la même garantie :
+
+* les **décodages** eux-mêmes, bornés en nombre d'entrées ;
+* les **proxies** qui en dérivent — le décodage réduit à la classe d'aperçu demandée avant d'entrer dans le pipeline (ADR 0041 §1) —, bornés en mémoire, parce qu'un proxy `Thumbnail` et un proxy `Large` diffèrent d'un facteur 250 ([ADR 0076](adr/0076-proxy-cache.md)). Un succès sur un proxy évite aussi le décodage : c'est ce qui divise par quatre le coût d'une image de rendu live (§10.1).
+
+Les fichiers source ne changeant jamais (édition non-destructive), une entrée reste valide toute la vie du processus ; les pixels servis sont bit-à-bit ceux d'un décodage — ou d'une réduction — frais (`pipeline.md` §5), la reproductibilité n'est pas affectée.
 
 ---
 

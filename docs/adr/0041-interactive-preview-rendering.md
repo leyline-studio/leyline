@@ -61,6 +61,11 @@ L'ordre exact devient : décoder (`half_size` inchangé) → réduire à `max_ed
 développer → encoder. `PreviewKind::Full` n'a pas de `max_edge` : ce chemin est
 inchangé, il développe à pleine résolution comme aujourd'hui.
 
+> **Suite, 2026-08-05.** Ce paragraphe ne dit rien de ce qu'il advient du
+> buffer réduit : il était rebâti à chaque rendu, ce qui est devenu le poste
+> dominant une fois le §3 en place. [ADR 0076](0076-proxy-cache.md) le met en
+> cache à côté du décodage.
+
 ### 2. Les rayons exprimés en pixels sont mis à l'échelle du proxy
 
 Développer une image réduite avec des rayons inchangés donnerait un rendu
