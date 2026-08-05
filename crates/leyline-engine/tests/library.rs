@@ -533,6 +533,127 @@ fn a_live_preview_shows_uncommitted_settings_and_records_nothing() {
     );
 }
 
+/// The proxy cache of ADR 0076 changes no pixels — the only way it could go
+/// wrong.
+///
+/// A cache keyed on too little serves the buffer of the wrong picture, or of
+/// the wrong size class, and nothing about that is visible in a hit rate or a
+/// timing: the render succeeds and shows something else. So the test
+/// interleaves two assets across two size classes on one warm `Library` and
+/// demands byte equality against the same render on a `Library` whose cache
+/// this render is the first thing to touch.
+///
+/// The reference libraries only ever `open` — they never import. Import
+/// renders a thumbnail, which fills the proxy cache at `Thumbnail`'s size
+/// before the test asks for anything: a reference that imported first would
+/// be warm too, in the same way, and would agree with a broken cache instead
+/// of catching it.
+#[test]
+fn a_warm_proxy_cache_renders_exactly_what_a_cold_one_does() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("Shoot");
+    std::fs::create_dir(&source).unwrap();
+    // Bigger than `Small`'s 1024 px, so a proxy is really built, and two
+    // pictures a swapped buffer could not be mistaken for one another.
+    //
+    // Deliberately high-frequency: `preview_live` scales its *output* to the
+    // size class too, so a proxy built at the wrong size still comes back at
+    // the right dimensions. Only detail that a reduction destroys — and
+    // destroys differently depending on when it happens — makes the swap
+    // visible in the samples. A smooth gradient here would pass whatever the
+    // cache served.
+    for (name, seed) in [("dark.png", 1u32), ("light.png", 7u32)] {
+        let pixels: Vec<u8> = (0..1600u32 * 1200)
+            .flat_map(|i| {
+                let n = (i.wrapping_mul(2_654_435_761).wrapping_add(seed)) >> 13;
+                [n as u8, (n >> 5) as u8, (n >> 11) as u8]
+            })
+            .collect();
+        image::save_buffer(
+            source.join(name),
+            &pixels,
+            1600,
+            1200,
+            image::ExtendedColorType::Rgb8,
+        )
+        .unwrap();
+    }
+
+    // Imported once, into one library on disk; every handle below reopens it,
+    // so each starts with empty caches over identical content.
+    let root = dir.path().join("Library");
+    let assets = {
+        let library = Library::create(&root, "Proxy").unwrap();
+        let report = library
+            .import(
+                &source,
+                &ImportOptions {
+                    copy_files: true,
+                    recursive: false,
+                },
+                |_, _| {},
+            )
+            .unwrap();
+        let mut assets: Vec<_> = report
+            .imported
+            .iter()
+            .map(|f| (f.registered.asset, f.relative_path.clone()))
+            .collect();
+        // Import order is not guaranteed; key the pair by path instead.
+        assets.sort_by(|a, b| a.1.cmp(&b.1));
+        assets
+    };
+
+    let settings = leyline_core::Settings {
+        exposure: 0.7,
+        sharpening: leyline_core::Sharpening {
+            amount: 60,
+            radius: 1.5,
+        },
+        ..leyline_core::Settings::default()
+    };
+    let kinds = [
+        leyline_core::PreviewKind::Small,
+        leyline_core::PreviewKind::Thumbnail,
+    ];
+
+    // One library, every combination twice and interleaved: by the second
+    // pass every proxy is a hit, and each hit had a chance to be the other
+    // one's.
+    let mut rendered = Vec::new();
+    {
+        let warm = Library::open(&root).unwrap();
+        for _ in 0..2 {
+            for kind in kinds {
+                for (asset, relative) in &assets {
+                    rendered.push((
+                        *asset,
+                        relative.clone(),
+                        kind,
+                        warm.preview_live(*asset, kind, &settings).unwrap(),
+                    ));
+                }
+            }
+        }
+    }
+
+    for (asset, relative, kind, warm_image) in rendered {
+        // A handle per render: this render is the only thing its caches ever
+        // saw.
+        let cold = Library::open(&root).unwrap();
+        let cold_image = cold.preview_live(asset, kind, &settings).unwrap();
+        assert_eq!(
+            (warm_image.width(), warm_image.height()),
+            (cold_image.width(), cold_image.height()),
+            "{relative} at {kind:?} came back a different size when cached"
+        );
+        assert!(
+            warm_image.data() == cold_image.data(),
+            "{relative} at {kind:?} was served another render's proxy"
+        );
+    }
+}
+
 /// What a slider drag actually costs, on a real RAW (ADR 0074 §3):
 ///
 /// ```text

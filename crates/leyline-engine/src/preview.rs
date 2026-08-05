@@ -12,7 +12,6 @@ use std::path::{Path, PathBuf};
 use leyline_catalog::{Catalog, NewPreview};
 use leyline_core::{AssetId, LeylineError, PreviewKind, Result, Settings};
 use leyline_preview::{PreviewCache, PreviewError, Rgb8};
-use leyline_raw::RawImage;
 
 use crate::decode_cache::DecodeCache;
 use crate::render::{self, render_scaled, render_scaled_cached};
@@ -148,8 +147,8 @@ pub(crate) fn render_preview(
         &plan.source_path,
     )?;
     let params = crate::stages::decode_params(&plan.settings, plan.half_size);
-    let decoded = decodes
-        .get_or_insert_with(asset, &params, || {
+    let (decoded, scale) = decodes
+        .get_or_insert_proxy(asset, &params, plan.max_edge, || {
             crate::source::decode(&plan.source_path, &params)
         })
         .map_err(|e| LeylineError::DecodeFailed {
@@ -159,7 +158,6 @@ pub(crate) fn render_preview(
     let lut = crate::lut::resolve_from_settings(&plan.library_root, &plan.settings)?;
     let coverages =
         crate::mask_coverage::resolve_from_settings(&plan.library_root, &plan.settings)?;
-    let (decoded, scale) = proxy(&decoded, plan.max_edge);
     let rendered = render_scaled_cached(
         &decoded,
         &plan.settings,
@@ -174,26 +172,6 @@ pub(crate) fn render_preview(
         stage_cache,
     )?;
     Rgb8::new(rendered.width, rendered.height, rendered.data).map_err(preview_err)
-}
-
-/// Reduces a decoded image to the size class actually being displayed
-/// before it enters the pipeline, returning it with the scale factor the
-/// render must apply to its pixel-denominated radii (ADR 0041).
-///
-/// `None` — `PreviewKind::Full` — develops at full resolution, as does an
-/// image already small enough.
-fn proxy(decoded: &RawImage, max_edge: Option<u32>) -> (std::borrow::Cow<'_, RawImage>, f32) {
-    match max_edge {
-        Some(edge) => {
-            let (scaled, scale) = crate::downscale::downscale_to_fit(decoded, edge);
-            if scale == 1.0 {
-                (std::borrow::Cow::Borrowed(decoded), 1.0)
-            } else {
-                (std::borrow::Cow::Owned(scaled), scale)
-            }
-        }
-        None => (std::borrow::Cow::Borrowed(decoded), 1.0),
-    }
 }
 
 /// Everything a settings-scoped render needs from the catalog: the asset's
@@ -261,15 +239,14 @@ pub(crate) fn render_mask_coverage(
         &plan.source_path,
     )?;
     let params = crate::stages::decode_params(settings, plan.half_size);
-    let decoded = decodes
-        .get_or_insert_with(asset, &params, || {
+    let (decoded, scale) = decodes
+        .get_or_insert_proxy(asset, &params, plan.max_edge, || {
             crate::source::decode(&plan.source_path, &params)
         })
         .map_err(|e| LeylineError::DecodeFailed {
             asset,
             reason: e.to_string(),
         })?;
-    let (decoded, scale) = proxy(&decoded, plan.max_edge);
     let lut = crate::lut::resolve_from_settings(&plan.library_root, settings)?;
     let coverages = crate::mask_coverage::resolve_from_settings(&plan.library_root, settings)?;
     let (width, height, samples) = crate::stages::develop_mask_coverage(
@@ -320,15 +297,14 @@ pub(crate) fn render_with_settings(
         &plan.source_path,
     )?;
     let params = crate::stages::decode_params(settings, plan.half_size);
-    let decoded = decodes
-        .get_or_insert_with(asset, &params, || {
+    let (decoded, scale) = decodes
+        .get_or_insert_proxy(asset, &params, plan.max_edge, || {
             crate::source::decode(&plan.source_path, &params)
         })
         .map_err(|e| LeylineError::DecodeFailed {
             asset,
             reason: e.to_string(),
         })?;
-    let (decoded, scale) = proxy(&decoded, plan.max_edge);
     let lut = crate::lut::resolve_from_settings(&plan.library_root, settings)?;
     let coverages = crate::mask_coverage::resolve_from_settings(&plan.library_root, settings)?;
     let rendered = match stages {
