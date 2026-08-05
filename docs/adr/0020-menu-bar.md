@@ -24,7 +24,12 @@ Leyline Studio adopte une **barre de menu** (`File` / `Library` / `Photo` / `Dev
 > fenêtre** comme sur Windows et Linux, et non dans la barre système. Le reste
 > de ce document — la structure des six menus, la règle « aucune capacité
 > nouvelle », le contrat de chaque entrée — décrit l'implémentation telle
-> quelle.
+> quelle, à une entrée près : **Préférences…** est présente mais **désactivée**.
+> C'est cohérent avec [ADR 0019](0019-distribution-i18n.md), qui met le réglage
+> explicite de langue « hors scope immédiat » — l'entrée tient la place que
+> cette carte de menus lui donne, et s'activera avec le panneau qui la remplit
+> (voir [ADR 0077](0077-application-updates.md) §2, qui y adosse une seconde
+> attente).
 
 Structure retenue (reflète l'existant, `docs/engine-api.md` fait foi pour le comportement réel de chaque action) :
 
