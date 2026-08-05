@@ -29,7 +29,8 @@ Leyline Studio adopte une **barre de menu** (`File` / `Library` / `Photo` / `Dev
 > explicite de langue « hors scope immédiat » — l'entrée tient la place que
 > cette carte de menus lui donne, et s'activera avec le panneau qui la remplit
 > (voir [ADR 0077](0077-application-updates.md) §2, qui y adosse une seconde
-> attente).
+> attente). **[ADR 0078](0078-preferences-panel.md) construit ce panneau et
+> active l'entrée** : la carte ci-dessous n'a plus d'exception.
 
 Structure retenue (reflète l'existant, `docs/engine-api.md` fait foi pour le comportement réel de chaque action) :
 

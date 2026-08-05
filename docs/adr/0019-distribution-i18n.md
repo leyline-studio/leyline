@@ -22,8 +22,8 @@ Slint a un support natif de traduction : les chaînes de l'UI passent par `@tr(.
 
 * Toutes les chaînes visibles de Leyline Studio passent par `@tr(...)` au lieu d'être codées en dur (elles le sont actuellement, cf. `docs/roadmap.md` phase 5 déjà livrée — reste un travail d'extraction à faire, voir Conséquences).
 * Deux langues au lancement : l'anglais existant devient la locale de référence (source des extractions), le français est la première traduction ajoutée.
-* Détection de la langue système au démarrage, repli sur l'anglais si aucune traduction disponible pour cette langue ; un réglage explicite pourra la surcharger plus tard (hors scope immédiat).
-* Ajouter une langue = ajouter un fichier `.po` traduit, sans toucher au code Rust ni aux fichiers `.slint`.
+* Détection de la langue système au démarrage, repli sur l'anglais si aucune traduction disponible pour cette langue ; un réglage explicite pourra la surcharger plus tard (hors scope immédiat — livré par [ADR 0078](0078-preferences-panel.md) §3, qui le fait basculer à chaud).
+* Ajouter une langue = ajouter un fichier `.po` traduit, sans toucher au code Rust ni aux fichiers `.slint`. **Corrigé par [ADR 0078](0078-preferences-panel.md) §3** : depuis qu'un menu nomme les langues, il faut aussi une ligne dans la table des noms natifs — la liste que Slint expose (`["", "fr"]`) ne porte aucun nom affichable. Un test compare `translations/` et cette table, pour qu'un `.po` ajouté seul échoue au lieu de produire une entrée de menu vide.
 * La CLI (`leyline-cli`) reste en anglais uniquement pour la V1 : un outil scriptable n'a pas le même besoin de traduction qu'une UI graphique, et traduire ses messages casserait le parsing pour tout script qui les inspecterait (`docs/engine-api.md` §1 — la CLI est un client fin, ses messages ne font pas partie du contrat API).
 
 ## Conséquences

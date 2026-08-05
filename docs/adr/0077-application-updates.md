@@ -122,6 +122,12 @@ est posée une fois, le défaut avant réponse est « non », et elle ne s'inter
 jamais devant un premier lancement ([ADR 0054](0054-first-run-and-basic-mode.md)
 possède cet écran).
 
+> C'est [ADR 0078](0078-preferences-panel.md) qui l'écrit, en respectant ces
+> trois contraintes : la question est posée au **second** lancement, **toute
+> façon de fermer le dialogue vaut « non »** et est stockée comme telle, et le
+> réglage vit dans `preferences.json` avec `last_update_check` — le plafond de
+> 24 h du présent paragraphe lit ce champ.
+
 ### 3. Rien n'est envoyé, et rien n'est installé sans un second geste
 
 * La requête ne porte que ce que l'URL contient — **aucun identifiant, aucun
