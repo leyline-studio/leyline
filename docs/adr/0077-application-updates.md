@@ -30,13 +30,25 @@ partir sans que quelqu'un l'ait demandé.
 ### Ce que la brique de packaging donne déjà
 
 `cargo packager` est déjà la chaîne d'empaquetage (ADR 0019). Sa brique
-compagnon `cargo-packager-updater` lit un **manifeste JSON signé**, compare les
+compagnon `cargo-packager-updater` lit un manifeste JSON, compare les
 versions, télécharge le paquet de la plateforme courante et le remplace. Elle
 apporte trois choses qu'on n'a pas à écrire :
 
-* la **signature** du manifeste (paire de clés minisign : la privée signe à la
+* la **signature du paquet** (paire de clés minisign : la privée signe à la
   publication, la publique est compilée dans le binaire) — sans elle, une mise
-  à jour est un téléchargement d'exécutable arbitraire ;
+  à jour est un téléchargement d'exécutable arbitraire.
+
+  > **Ce qui est signé, précisément** — vérifié dans
+  > `cargo-packager-updater` 0.2.3 : le manifeste JSON lui-même **n'est pas
+  > signé**, il *porte* la signature minisign de chaque paquet, et cette
+  > signature est vérifiée sur les octets téléchargés avant toute
+  > installation (`verify_signature`, appelé par `Update::download`). La
+  > propriété obtenue est celle qui compte : personne ne peut faire installer
+  > un binaire qu'il n'a pas signé. Ce qu'elle ne couvre pas, et qui reste
+  > tenu par HTTPS seul : rediriger vers une **version publiée plus
+  > ancienne**, ou empêcher la découverte d'une mise à jour. Un dépôt qui
+  > perdrait la maîtrise de ses releases aurait de toute façon un problème
+  > plus grand que celui-là ;
 * le remplacement **en place** par plateforme : une AppImage se réécrit
   elle-même, et l'installeur NSIS est déjà en `installer-mode = "currentUser"`
   (`crates/leyline-studio/Cargo.toml`), donc **aucune élévation UAC** n'est
