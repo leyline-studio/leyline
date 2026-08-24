@@ -9,6 +9,16 @@ name: CI
 # `workflow_dispatch` is the escape hatch: anything touching a system
 # dependency, a build script or the toolchain deserves a manual run before
 # it waits for a tag.
+#
+# Windows is not a matrix leg. A *native* Windows build cannot work today
+# and never could: `leyline-raw` finds LibRaw through pkg-config only
+# (ADR 0004 forbids static-linking around that) and `leyline-tether` finds
+# libgphoto2 the same way, neither of which exists on a Windows runner — so
+# that leg failed every run since it was added, `continue-on-error` hiding
+# it behind a red cross nobody could act on. What ships on Windows is
+# cross-compiled from Linux (ADR 0019, `packaging/windows/build-nsis.sh`),
+# so that is what the `windows-cross` job below builds: the real deliverable,
+# and a result that can actually be green.
 on:
   push:
     tags: ["v*"]
@@ -23,24 +33,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
-    # Windows has no supported native build yet: leyline-raw's build.rs finds
-    # LibRaw via pkg-config only (ADR 0004 forbids static-linking around
-    # that), and the project's actual Windows deliverable is cross-compiled
-    # from Linux with a hand-built mingw LibRaw instead (see
-    # packaging/windows/build-nsis.sh) — there is no vcpkg/pkg-config wiring
-    # for a native MSVC build yet. Keep the leg in the matrix so it's not
-    # forgotten, but don't fail the whole workflow on it.
-    continue-on-error: ${{ matrix.os == 'windows-latest' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
 
-      - uses: Swatinem/rust-cache@v2
+      # Pinned to a version, not the moving `v2`: what matters here is that
+      # it runs on node24 (GitHub deprecated node20 runners on 2025-09-19),
+      # and a moving major tag is not a promise about that.
+      - uses: Swatinem/rust-cache@v2.9.2
 
       - name: Install system dependencies (Linux)
         if: runner.os == 'Linux'
@@ -74,3 +79,63 @@ jobs:
 
       - name: Tests
         run: cargo test --workspace
+
+  # The Windows deliverable, built the way it is actually shipped
+  # (ADR 0019): x86_64-pc-windows-gnu, no tethering — libgphoto2 has no
+  # cross-compilable Windows build, the gap ADR 0038 records — and a LibRaw
+  # cross-built here because Debian/Ubuntu ship no mingw package for it.
+  # The recipe is the one written in the header of
+  # `packaging/windows/build-nsis.sh`; keep the two in step.
+  windows-cross:
+    name: windows (cross-compiled)
+    runs-on: ubuntu-latest
+    env:
+      LIBRAW_VERSION: 0.21.4
+      LIBRAW_MINGW_PREFIX: /opt/leyline/libraw-mingw
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-gnu
+
+      - uses: Swatinem/rust-cache@v2.9.2
+
+      - name: Install cross toolchain
+        # nsis: `makensis` emits a Windows installer from Linux, no Windows
+        # host needed. libz-mingw-w64-dev: the mingw zlib pkg-config file
+        # LibRaw's ./configure needs. nasm: rav1e's build.rs hard-fails
+        # without it.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mingw-w64 nsis nasm libz-mingw-w64-dev autoconf automake libtool
+
+      - name: Cache the cross-built LibRaw
+        id: libraw-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.LIBRAW_MINGW_PREFIX }}
+          key: libraw-mingw-${{ env.LIBRAW_VERSION }}-${{ runner.os }}
+
+      - name: Cross-build LibRaw
+        if: steps.libraw-cache.outputs.cache-hit != 'true'
+        # `--disable-lcms` keeps the host's pkg-config out of it (leyline-color
+        # does its own ICC handling); `--disable-static --enable-shared`
+        # because ADR 0004 requires LibRaw to stay dynamically linked.
+        run: |
+          curl -sLO https://github.com/LibRaw/LibRaw/archive/refs/tags/${LIBRAW_VERSION}.tar.gz
+          tar xzf ${LIBRAW_VERSION}.tar.gz
+          cd LibRaw-${LIBRAW_VERSION}
+          autoreconf -fiv
+          PKG_CONFIG_LIBDIR=/usr/x86_64-w64-mingw32/lib/pkgconfig \
+            ./configure --host=x86_64-w64-mingw32 --prefix=${LIBRAW_MINGW_PREFIX} \
+              CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ \
+              --disable-examples --disable-static --enable-shared --disable-lcms
+          make -j"$(nproc)"
+          sudo make install
+
+      - name: Build the installer
+        run: bash packaging/windows/build-nsis.sh
+
+      - name: Name what was produced
+        run: ls -la target/x86_64-pc-windows-gnu/release/*-setup.exe

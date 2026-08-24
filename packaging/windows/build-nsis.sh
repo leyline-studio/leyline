@@ -125,8 +125,19 @@ export PKG_CONFIG_ALLOW_CROSS=1
 export PKG_CONFIG_LIBDIR="/usr/x86_64-w64-mingw32/lib/pkgconfig:$LIBRAW_MINGW_PREFIX/lib/pkgconfig"
 cp "$LIBRAW_MINGW_PREFIX/bin/libraw_r-23.dll" "$vendor_dir/"
 cp /usr/x86_64-w64-mingw32/lib/zlib1.dll "$vendor_dir/"
-cp /usr/lib/gcc/x86_64-w64-mingw32/10-posix/libgcc_s_seh-1.dll "$vendor_dir/"
-cp /usr/lib/gcc/x86_64-w64-mingw32/10-posix/libstdc++-6.dll "$vendor_dir/"
+# The runtime DLLs live under a versioned directory whose name is the mingw
+# gcc major (`10-posix` on jammy, `13-posix` on noble): resolved rather than
+# written down, so this script is not pinned to the distribution that
+# happened to run it first. Still the *posix* thread-model variant — Debian's
+# win32 one is ABI-incompatible and fails identically to a missing DLL.
+gcc_runtime_dir="$(ls -d /usr/lib/gcc/x86_64-w64-mingw32/*-posix 2>/dev/null | sort -V | tail -1)"
+if [[ -z "$gcc_runtime_dir" ]]; then
+    echo "error: no posix-threads mingw gcc runtime under /usr/lib/gcc/x86_64-w64-mingw32" >&2
+    echo "       install mingw-w64, and see point 3 of the header comment." >&2
+    exit 1
+fi
+cp "$gcc_runtime_dir/libgcc_s_seh-1.dll" "$vendor_dir/"
+cp "$gcc_runtime_dir/libstdc++-6.dll" "$vendor_dir/"
 cp /usr/x86_64-w64-mingw32/lib/libwinpthread-1.dll "$vendor_dir/"
 
 # `--no-default-features` turns off `leyline-engine`'s `tether` feature: there
