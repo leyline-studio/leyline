@@ -95,11 +95,18 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # No `targets:` here, and it is not an oversight: `rust-toolchain.toml`
+      # pins the toolchain to an exact version (docs/pipeline.md §5.2 makes
+      # the compiler an input of the render), so a target added to `stable`
+      # is added to a toolchain nothing in this repository ever uses — the
+      # build then fails with `can't find crate for core`. The target is
+      # installed below, under whichever toolchain the pin selects.
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-pc-windows-gnu
 
       - uses: Swatinem/rust-cache@v2.9.2
+
+      - name: Add the Windows target to the pinned toolchain
+        run: rustup target add x86_64-pc-windows-gnu
 
       - name: Install cross toolchain
         # nsis: `makensis` emits a Windows installer from Linux, no Windows
@@ -112,7 +119,9 @@ jobs:
 
       - name: Cache the cross-built LibRaw
         id: libraw-cache
-        uses: actions/cache@v4
+        # v6: v4 still targets node20, which GitHub deprecated on
+        # 2025-09-19 and now force-runs on node24 with a warning.
+        uses: actions/cache@v6
         with:
           path: ${{ env.LIBRAW_MINGW_PREFIX }}
           key: libraw-mingw-${{ env.LIBRAW_VERSION }}-${{ runner.os }}
