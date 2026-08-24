@@ -92,6 +92,7 @@ jobs:
     env:
       LIBRAW_VERSION: 0.21.4
       LIBRAW_MINGW_PREFIX: /opt/leyline/libraw-mingw
+      PACKAGER_VERSION: 0.11.8
     steps:
       - uses: actions/checkout@v7
 
@@ -142,6 +143,22 @@ jobs:
               --disable-examples --disable-static --enable-shared --disable-lcms
           make -j"$(nproc)"
           sudo make install
+
+      # `cargo packager` is the packaging chain (ADR 0019), and it is a
+      # binary a developer installs once — nothing on a fresh runner has
+      # it. Pinned to the version this project packages with, and cached as
+      # a binary: compiling it from source is several minutes that have
+      # nothing to do with this repository.
+      - name: Cache cargo-packager
+        id: packager-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cargo/bin/cargo-packager
+          key: cargo-packager-${{ env.PACKAGER_VERSION }}-${{ runner.os }}
+
+      - name: Install cargo-packager
+        if: steps.packager-cache.outputs.cache-hit != 'true'
+        run: cargo install cargo-packager --locked --version ${{ env.PACKAGER_VERSION }}
 
       - name: Build the installer
         run: bash packaging/windows/build-nsis.sh
