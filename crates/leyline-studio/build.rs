@@ -13,6 +13,12 @@ fn main() {
         slint_build::CompilerConfiguration::new().with_bundled_translations("translations");
     slint_build::compile_with_config("ui/studio.slint", config)
         .expect("ui/studio.slint must compile");
+    // `slint_build` watches the `.slint` sources it reads, but not the
+    // `.po` files it bundles: editing a translation alone left the old
+    // strings compiled into the binary, and the only symptom was a French
+    // UI that stayed half English. Watching the directory makes a
+    // translation edit rebuild like any other source change.
+    println!("cargo:rerun-if-changed=translations");
 
     embed_windows_manifest();
     emit_build_facts();

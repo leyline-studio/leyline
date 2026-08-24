@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2026-08-24 20:06+0000\n"
+"POT-Creation-Date: 2026-08-24 22:11+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -291,6 +291,49 @@ msgctxt "ImportDialog"
 msgid "Import"
 msgstr ""
 
+#: crates/leyline-studio/ui/dialogs/preferences.slint:18
+msgctxt "PreferencesDialog"
+msgid "Preferences"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/preferences.slint:25
+msgctxt "PreferencesDialog"
+msgid "Language"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/preferences.slint:42
+msgctxt "PreferencesDialog"
+msgid "Takes effect immediately."
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/preferences.slint:49
+msgctxt "PreferencesDialog"
+msgid "Updates"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/preferences.slint:55
+msgctxt "PreferencesDialog"
+msgid "Checking for updates"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/preferences.slint:55
+msgctxt "PreferencesDialog"
+msgid "Not checking for updates"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/preferences.slint:63
+msgctxt "PreferencesDialog"
+msgid ""
+"Once a day at most, at startup. Only the installed version and the platform "
+"are used, locally, to pick a line from the release manifest — nothing about "
+"you or your photos is sent. Installing an update always takes a click."
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/preferences.slint:73
+msgctxt "PreferencesDialog"
+msgid "Close"
+msgstr ""
+
 #: crates/leyline-studio/ui/dialogs/preset.slint:20
 msgctxt "PresetDialog"
 msgid "Save as preset"
@@ -559,6 +602,86 @@ msgstr ""
 #: crates/leyline-studio/ui/dialogs/tether.slint:53
 msgctxt "TetherDialog"
 msgid "Disconnect"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/update.slint:20
+msgctxt "UpdateConsentDialog"
+msgid "Check for updates?"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/update.slint:26
+msgctxt "UpdateConsentDialog"
+msgid ""
+"Leyline can look for a new version when it starts, at most once a day. "
+"Nothing about you, your library or your photos is ever sent, and an update "
+"is never installed without a click."
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/update.slint:35
+msgctxt "UpdateConsentDialog"
+msgid "Don't check"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/update.slint:43
+msgctxt "UpdateConsentDialog"
+msgid "Check for updates"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/update.slint:54
+msgctxt "UpdateConsentDialog"
+msgid "You can change this later in File ▸ Preferences."
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/update.slint:66
+msgctxt "UpdateDialog"
+msgid "Updates"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/update.slint:72
+msgctxt "UpdateDialog"
+msgid "Version {} is available."
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/update.slint:87
+msgctxt "UpdateDialog"
+msgid "Looking for a new version…"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/update.slint:88
+msgctxt "UpdateDialog"
+msgid "Leyline is up to date."
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/update.slint:89
+msgctxt "UpdateDialog"
+msgid ""
+"Could not reach the update server. Leyline works offline; nothing else is "
+"affected."
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/update.slint:90
+msgctxt "UpdateDialog"
+msgid "Downloading and installing…"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/update.slint:91
+msgctxt "UpdateDialog"
+msgid "Update installed. Restart Leyline to use it."
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/update.slint:92
+msgctxt "UpdateDialog"
+msgid "The update could not be installed."
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/update.slint:102
+msgctxt "UpdateDialog"
+msgid "Close"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/update.slint:112
+msgctxt "UpdateDialog"
+msgid "Install"
 msgstr ""
 
 #: crates/leyline-studio/ui/dialogs/watch.slint:12
@@ -1627,279 +1750,290 @@ msgid ""
 "network for one."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:69
+#: crates/leyline-studio/ui/panels/menubar.slint:70
 msgctxt "MenuBar"
 msgid "Import…    I"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:77
+#: crates/leyline-studio/ui/panels/menubar.slint:78
 msgctxt "MenuBar"
 msgid "Export…    Ctrl+E"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:85
+#: crates/leyline-studio/ui/panels/menubar.slint:86
 msgctxt "MenuBar"
 msgid "Open Library…"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:92
+#: crates/leyline-studio/ui/panels/menubar.slint:93
 msgctxt "MenuBar"
 msgid "Open Recent"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:108
+#: crates/leyline-studio/ui/panels/menubar.slint:109
 msgctxt "MenuBar"
 msgid "Print…    Ctrl+P"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:115
+#: crates/leyline-studio/ui/panels/menubar.slint:116
 msgctxt "MenuBar"
 msgid "Tethered Capture…    T"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:122
+#: crates/leyline-studio/ui/panels/menubar.slint:123
 msgctxt "MenuBar"
 msgid "Auto Import…"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:129
+#: crates/leyline-studio/ui/panels/menubar.slint:130
 msgctxt "MenuBar"
 msgid "Map…    M"
 msgstr ""
 
-#. open.
-#: crates/leyline-studio/ui/panels/menubar.slint:141
+#. installation.
+#: crates/leyline-studio/ui/panels/menubar.slint:144
 msgctxt "MenuBar"
 msgid "Preferences…"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:146
+#: crates/leyline-studio/ui/panels/menubar.slint:152
 msgctxt "MenuBar"
 msgid "Quit"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:157
+#: crates/leyline-studio/ui/panels/menubar.slint:163
 msgctxt "MenuBar"
 msgid "New Collection…    Ctrl+N"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:165
+#: crates/leyline-studio/ui/panels/menubar.slint:171
 msgctxt "MenuBar"
 msgid "Add to Collection    B"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:173
+#: crates/leyline-studio/ui/panels/menubar.slint:179
 msgctxt "MenuBar"
 msgid "Remove from Collection    Shift+B"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:182
+#: crates/leyline-studio/ui/panels/menubar.slint:188
 msgctxt "MenuBar"
 msgid "Reprocess Library…    Shift+R"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:189
+#: crates/leyline-studio/ui/panels/menubar.slint:195
 msgctxt "MenuBar"
 msgid "Pair RAW+JPEG…"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:201
+#: crates/leyline-studio/ui/panels/menubar.slint:207
 msgctxt "MenuBar"
 msgid "Rate"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:206
+#: crates/leyline-studio/ui/panels/menubar.slint:212
 msgctxt "MenuBar"
 msgid "1 star    1"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:215
+#: crates/leyline-studio/ui/panels/menubar.slint:221
 msgctxt "MenuBar"
 msgid "2 stars    2"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:224
+#: crates/leyline-studio/ui/panels/menubar.slint:230
 msgctxt "MenuBar"
 msgid "3 stars    3"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:233
+#: crates/leyline-studio/ui/panels/menubar.slint:239
 msgctxt "MenuBar"
 msgid "4 stars    4"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:242
+#: crates/leyline-studio/ui/panels/menubar.slint:248
 msgctxt "MenuBar"
 msgid "5 stars    5"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:252
+#: crates/leyline-studio/ui/panels/menubar.slint:258
 msgctxt "MenuBar"
 msgid "Clear Rating    0"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:262
+#: crates/leyline-studio/ui/panels/menubar.slint:268
 msgctxt "MenuBar"
 msgid "Label"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:267
+#: crates/leyline-studio/ui/panels/menubar.slint:273
 msgctxt "MenuBar"
 msgid "Red    6"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:276
+#: crates/leyline-studio/ui/panels/menubar.slint:282
 msgctxt "MenuBar"
 msgid "Yellow    7"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:285
+#: crates/leyline-studio/ui/panels/menubar.slint:291
 msgctxt "MenuBar"
 msgid "Green    8"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:294
+#: crates/leyline-studio/ui/panels/menubar.slint:300
 msgctxt "MenuBar"
 msgid "Blue    9"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:304
+#: crates/leyline-studio/ui/panels/menubar.slint:310
 msgctxt "MenuBar"
 msgid "Flag"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:309
+#: crates/leyline-studio/ui/panels/menubar.slint:315
 msgctxt "MenuBar"
 msgid "Pick    P"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:318
+#: crates/leyline-studio/ui/panels/menubar.slint:324
 msgctxt "MenuBar"
 msgid "Reject    X"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:327
+#: crates/leyline-studio/ui/panels/menubar.slint:333
 msgctxt "MenuBar"
 msgid "Clear    U"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:338 crates/leyline-studio/ui/panels/menubar.slint:509
+#: crates/leyline-studio/ui/panels/menubar.slint:344 crates/leyline-studio/ui/panels/menubar.slint:515
 msgctxt "MenuBar"
 msgid "Develop    D"
 msgstr ""
 
 #. something else.
-#: crates/leyline-studio/ui/panels/menubar.slint:350
+#: crates/leyline-studio/ui/panels/menubar.slint:356
 msgctxt "MenuBar"
 msgid "Reprocess    R"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:363
+#: crates/leyline-studio/ui/panels/menubar.slint:369
 msgctxt "MenuBar"
 msgid "Remove from Catalog…"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:371
+#: crates/leyline-studio/ui/panels/menubar.slint:377
 msgctxt "MenuBar"
 msgid "Delete from Disk…"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:384
+#: crates/leyline-studio/ui/panels/menubar.slint:390
 msgctxt "MenuBar"
 msgid "Undo    Ctrl+Z"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:391
+#: crates/leyline-studio/ui/panels/menubar.slint:397
 msgctxt "MenuBar"
 msgid "Redo    Ctrl+Y"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:399
+#: crates/leyline-studio/ui/panels/menubar.slint:405
 msgctxt "MenuBar"
 msgid "Save Preset…    S"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:406
+#: crates/leyline-studio/ui/panels/menubar.slint:412
 msgctxt "MenuBar"
 msgid "Apply Preset"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:425
+#: crates/leyline-studio/ui/panels/menubar.slint:431
 msgctxt "MenuBar"
 msgid "Delete Preset"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:441
+#: crates/leyline-studio/ui/panels/menubar.slint:447
 msgctxt "MenuBar"
 msgid "Back to Library    G"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:453
+#: crates/leyline-studio/ui/panels/menubar.slint:459
 msgctxt "MenuBar"
 msgid "Library    G"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:472
+#: crates/leyline-studio/ui/panels/menubar.slint:478
 msgctxt "MenuBar"
 msgid "Loupe    E"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:485
+#: crates/leyline-studio/ui/panels/menubar.slint:491
 msgctxt "MenuBar"
 msgid "Compare    C"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:497
+#: crates/leyline-studio/ui/panels/menubar.slint:503
 msgctxt "MenuBar"
 msgid "Survey    N"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:518
+#: crates/leyline-studio/ui/panels/menubar.slint:524
 msgctxt "MenuBar"
 msgid "Map    M"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:535
+#: crates/leyline-studio/ui/panels/menubar.slint:546
+msgctxt "MenuBar"
+msgid "Update to {}…"
+msgstr ""
+
+#: crates/leyline-studio/ui/panels/menubar.slint:547
+msgctxt "MenuBar"
+msgid "Check for Updates…"
+msgstr ""
+
+#: crates/leyline-studio/ui/panels/menubar.slint:555
 msgctxt "MenuBar"
 msgid "Keyboard Shortcuts…"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:543
+#: crates/leyline-studio/ui/panels/menubar.slint:563
 msgctxt "MenuBar"
 msgid "About Leyline"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:600
+#: crates/leyline-studio/ui/panels/menubar.slint:620
 msgctxt "MenuBar"
 msgid "File"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:608 crates/leyline-studio/ui/panels/menubar.slint:660
+#: crates/leyline-studio/ui/panels/menubar.slint:628 crates/leyline-studio/ui/panels/menubar.slint:685
 msgctxt "MenuBar"
 msgid "Library"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:616
+#: crates/leyline-studio/ui/panels/menubar.slint:636
 msgctxt "MenuBar"
 msgid "Photo"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:624 crates/leyline-studio/ui/panels/menubar.slint:679
+#: crates/leyline-studio/ui/panels/menubar.slint:644 crates/leyline-studio/ui/panels/menubar.slint:704
 msgctxt "MenuBar"
 msgid "Develop"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:633
+#: crates/leyline-studio/ui/panels/menubar.slint:653
 msgctxt "MenuBar"
 msgid "View"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:641
+#. `@tr(...)` so no translation has to carry the mark.
+#: crates/leyline-studio/ui/panels/menubar.slint:666
 msgctxt "MenuBar"
 msgid "Help"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:700
+#: crates/leyline-studio/ui/panels/menubar.slint:725
 msgctxt "MenuBar"
 msgid "Map"
 msgstr ""
