@@ -249,7 +249,10 @@ fn a_pending_migration_snapshots_the_catalog_into_backups_first() {
     assert_eq!(catalog.user_version().unwrap(), Catalog::SCHEMA_VERSION);
 
     let snapshot = dir.path().join("Backups/catalog-schema-0.db");
-    assert!(snapshot.is_file(), "no snapshot was written before migrating");
+    assert!(
+        snapshot.is_file(),
+        "no snapshot was written before migrating"
+    );
 
     // It has to be a usable database still at the old version — not an empty
     // file, and not the migrated one.
@@ -295,7 +298,8 @@ fn a_failed_snapshot_refuses_the_migration() {
     let path = temp_catalog_path(&dir);
     {
         let conn = rusqlite::Connection::open(&path).unwrap();
-        conn.execute_batch("CREATE TABLE canary (note TEXT);").unwrap();
+        conn.execute_batch("CREATE TABLE canary (note TEXT);")
+            .unwrap();
     }
     // `Backups` occupied by a regular file: the directory cannot be created.
     std::fs::write(dir.path().join("Backups"), b"not a directory").unwrap();
