@@ -16,7 +16,7 @@ export PATH := $(HOME)/.cargo/bin:$(PATH)
 
 .DEFAULT_GOAL := help
 .PHONY: help check fmt fmt-check lint test test-raw bench golden golden-bless \
-        run cli i18n windows appimage dmg clean
+        run cli i18n windows appimage dmg release-manifest clean
 
 help: ## List the available targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -95,6 +95,12 @@ appimage: ## Build the Linux AppImage
 
 dmg: ## Build the macOS .app + .dmg (macOS host only)
 	bash packaging/macos/build-dmg.sh
+
+# The private key is not in this repository and not in CI (ADR 0077 §1):
+# it signs here, by hand, at publication time. `LEYLINE_SIGN_KEY` points
+# at it; `VERSION` is the one the artifacts were built from.
+release-manifest: ## Sign the packaged artifacts and write latest.json (ADR 0077)
+	bash packaging/release-manifest.sh $(VERSION) $(NOTES)
 
 clean: ## Remove build artefacts
 	cargo clean

@@ -112,12 +112,13 @@ personne ne peut en subir une qu'il n'a pas déclenchée. C'est la moitié de
 Firefox qu'on ne prend pas, et ce n'est pas seulement par prudence — la brique
 ne sait pas la donner (voir §Alternatives écartées).
 
-**Où vit le réglage.** Dans le panneau **Préférences**, qui n'existe pas encore
-— l'entrée du menu Fichier est désactivée depuis [ADR 0020](0020-menu-bar.md)
-parce qu'[ADR 0019](0019-distribution-i18n.md) a mis le choix de langue « hors
-scope immédiat ». Ce panneau a désormais **deux locataires** et une raison
-d'être construit ; c'est son propre ADR, et la présente décision en dépend pour
-être livrable. Ce qui est fixé ici et qu'il ne peut pas changer : la question
+**Où vit le réglage.** Dans le panneau **Préférences** — l'entrée du menu
+Fichier était désactivée depuis [ADR 0020](0020-menu-bar.md) parce
+qu'[ADR 0019](0019-distribution-i18n.md) avait mis le choix de langue « hors
+scope immédiat ». Ce panneau avait **deux locataires** et une raison d'être
+construit ; c'est son propre ADR, et la présente décision en dépendait pour
+être livrable. [ADR 0078](0078-preferences-panel.md) l'a écrit, et les deux
+sont livrées. Ce qui est fixé ici et qu'il ne peut pas changer : la question
 est posée une fois, le défaut avant réponse est « non », et elle ne s'interpose
 jamais devant un premier lancement ([ADR 0054](0054-first-run-and-basic-mode.md)
 possède cet écran).

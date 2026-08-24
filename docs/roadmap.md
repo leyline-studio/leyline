@@ -57,9 +57,16 @@ Les onze modules `processN.rs` dupliqués (14 968 lignes, 70 à 93 % de duplicat
 
 ## En cours
 
-Le cadrage post-V1 est refermé : l'épreuvage écran et le filigrane texte, derniers éléments restés ouverts, sont livrés ([ADR 0051](adr/0051-watermark-rasterization-and-soft-proof-surface.md)). Le travail porte désormais sur la prise en main et le confort d'usage de Studio — ADR 0054 à 0058 — et sur ce que [`readme.md`](readme.md) liste comme encore ouvert : la colorimétrie DCP à valider et les finitions d'outillage des retouches locales — le profil de bruit par boîtier, lui, est livré ([ADR 0072](adr/0072-measured-noise-profile.md)).
+Le cadrage post-V1 est refermé, et le plan de rattrapage concurrentiel aussi : [`competitive-plan.md`](competitive-plan.md), issu d'une comparaison à froid avec les logiciels établis, ne laisse **rien d'ouvert dans ce dépôt** — ses axes A (justesse du rendu) et B (performance) sont livrés ou écartés avec leurs raisons, et son axe C dépend d'un détecteur qui vit hors du dépôt ([ADR 0073](adr/0073-external-mask-detectors.md)).
 
-Le pas suivant est cadré par [`competitive-plan.md`](competitive-plan.md), issu d'une comparaison à froid avec les logiciels établis : justesse du rendu (colorimétrie DCP, dématriçage, profil de bruit), performance (cache d'étages, export, GPU sur le seul chemin preview) et, à l'horizon, une IA locale optionnelle sous conditions strictes.
+Depuis, le travail porte sur ce qui manque à une **première publication** :
+
+* le rendu suit le curseur pendant qu'on tire un réglage, et le proxy d'affichage se met en cache ([ADR 0074](adr/0074-live-preview-while-dragging.md), [ADR 0076](adr/0076-proxy-cache.md)) ; le cache d'aperçus tient dans une fenêtre bornée ([ADR 0075](adr/0075-preview-cache-retention.md)) ;
+* une version installée sait qu'une plus récente existe, sans rien transmettre et sans jamais s'installer seule ([ADR 0077](adr/0077-application-updates.md)), et le catalogue est sauvegardé avant toute migration ;
+* le panneau Préférences existe, avec la règle d'admission qui décide ce qui a le droit d'y entrer ([ADR 0078](adr/0078-preferences-panel.md)) ;
+* un boîtier réglé en RAW+JPEG ne double plus la bibliothèque ([ADR 0079](adr/0079-raw-jpeg-pairing.md)).
+
+Ce que [`readme.md`](readme.md) liste comme encore ouvert reste la référence : la colorimétrie DCP non validée contre un rendu Adobe, et deux finitions d'outillage des retouches locales laissées hors périmètre par [ADR 0049](adr/0049-local-adjustments-clients.md).
 
 ---
 
