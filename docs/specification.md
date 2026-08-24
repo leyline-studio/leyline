@@ -62,6 +62,7 @@ Ces fonctionnalités étaient cadrées comme candidates post-V1 dans [`v2-scope.
 | LUT créative `.cube` importée dans la bibliothèque, dosable | [ADR 0053](adr/0053-creative-lut.md) |
 | Reconstruction des hautes lumières écrêtées (`clip`/`blend`/`rebuild`, avant dématriçage) | [ADR 0050](adr/0050-highlight-reconstruction.md) |
 | Filigrane texte à l'export et épreuvage écran (vue seule) | [ADR 0034](adr/0034-softproofing-watermark-print.md), [ADR 0051](adr/0051-watermark-rasterization-and-soft-proof-surface.md) |
+| Appairage RAW+JPEG : le JPEG écrit par le boîtier devient le compagnon du RAW de la même prise, une photo dans la grille au lieu de deux | [ADR 0079](adr/0079-raw-jpeg-pairing.md) |
 
 Les réglages locaux masqués et leurs masques par plage sont exposés dans les trois clients depuis [ADR 0049](adr/0049-local-adjustments-clients.md) : outils de tracé et éditeur dans Studio, payload JSON du `LocalAdjustment` stocké dans la CLI. Ce qu'ADR 0049 laissait hors périmètre : la surimpression de la couverture calculée par le moteur (le « masque rouge ») est **livrée** ([ADR 0071](adr/0071-mask-overlay.md)) ; restent la pipette de plage et les poignées de déplacement d'une géométrie déjà tracée.
 

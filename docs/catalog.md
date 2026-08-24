@@ -306,6 +306,10 @@ CREATE TABLE assets (
 
     is_missing INTEGER NOT NULL DEFAULT 0,
 
+    companion_of INTEGER NULL
+        REFERENCES assets(id)
+        ON DELETE CASCADE,
+
     UNIQUE(folder_id, filename),
 
     FOREIGN KEY(folder_id)
@@ -355,6 +359,22 @@ Dans les deux cas :
 La table `assets` ne contient que des faits sur le fichier : chemin, taille, checksum, dimensions, dates.
 
 Le classement (note, label, pick) appartient aux **versions de développement** (§18).
+
+## RAW + JPEG : un fichier compagnon
+
+Un boîtier réglé en RAW+JPEG écrit **deux fichiers pour une prise de vue**. `companion_of` dit lequel est le rendu de l'autre : `NULL` — le cas de très loin le plus fréquent — signifie que l'asset est lui-même une photo ; une valeur désigne le **maître**, toujours le RAW.
+
+Deux fichiers forment une paire si les trois termes tiennent ([ADR 0079](adr/0079-raw-jpeg-pairing.md) §2) : même radical de nom de fichier (casse ignorée), même `capture_date`, même boîtier — **à toute profondeur de la bibliothèque**, les deux fichiers n'étant pas forcément dans le même dossier. Un fichier sans `capture_date` ne s'appaire jamais.
+
+Trois invariants :
+
+* le maître est un RAW et le compagnon ne l'est pas — deux RAW du même cliché ne s'appairent pas, aucun n'étant le rendu de l'autre ;
+* un compagnon n'est jamais maître à son tour : `companion_of` pointe toujours vers une ligne dont le `companion_of` est `NULL`, donc aucune chaîne ne se forme ;
+* un maître peut porter **plusieurs** compagnons (un JPEG et un HEIF de la même prise).
+
+La grille n'affiche que les maîtres — une clause `AND a.companion_of IS NULL`, à un seul endroit, dont dérivent le comptage, les filtres, la recherche et les collections. Un compagnon garde sa ligne, ses versions, ses révisions et son classement : il quitte la grille, il ne quitte pas le catalogue, et `unpair` l'y ramène intact.
+
+La migration v3 **ajoute la colonne sans appairer quoi que ce soit** : une bibliothèque existante continue de tout afficher jusqu'à ce que la passe rétroactive soit demandée explicitement (§7 de l'ADR).
 
 ## Versions virtuelles
 

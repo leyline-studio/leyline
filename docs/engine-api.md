@@ -162,6 +162,7 @@ Une seule instance en écriture par bibliothèque (verrou fichier) ; plusieurs l
 pub struct ImportOptions {
     pub copy_files: bool,      // copier dans Photos/ ou référencer sur place
     pub recursive: bool,
+    pub pair_companions: bool, // attacher le JPEG boîtier au RAW (ADR 0079)
 }
 
 /// Ce qu'un scan regarde (ADR 0065 §1).
@@ -199,6 +200,17 @@ impl Library {
                         progress: impl FnMut(u64, u64)) -> Result<ImportReport>;
     pub fn import_files_async(&self, source: &Path, files: &[PathBuf],
                               options: &ImportOptions) -> JobId;
+
+    /// Appairage RAW+JPEG (ADR 0079). Un import appaire au fil de l'eau ;
+    /// ces deux-là sont pour ce qui a été importé avant, et pour défaire.
+    /// La migration v3 du catalogue ajoute la colonne **sans appairer**,
+    /// donc une bibliothèque existante n'est jamais réorganisée toute
+    /// seule (§7). `pair_assets` est idempotent et rend chaque paire faite,
+    /// `(maître, compagnon)` ; `unpair_assets` accepte un maître comme un
+    /// compagnon et rend le nombre de photos revenues dans la grille.
+    /// Les deux notifient par `AssetsChanged`.
+    pub fn pair_assets(&self) -> Result<Vec<(AssetId, AssetId)>>;
+    pub fn unpair_assets(&self, assets: &[AssetId]) -> Result<u32>;
 
     /// Range une couverture de masque dans la bibliothèque et rend le
     /// `Mask::Coverage` qui la référence (ADR 0070 §5) — l'unique point
