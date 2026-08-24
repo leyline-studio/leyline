@@ -1,0 +1,55 @@
+// Application preferences and the update check they gate (ADR 0078,
+// ADR 0077) — the two settings that belong to the installation rather than
+// to a photo, a library or a view (ADR 0045 §1).
+//
+// Rust owns `preferences.json`: every callback here is a report of what was
+// clicked, and every property is what Rust decided to display. Nothing on
+// this side keeps a setting of its own — a value shown but not written
+// would survive exactly until the next launch.
+export global PreferencesState {
+    // The language menu in display order, native names as Rust assembles
+    // them: "System language", "English", then every bundled translation.
+    in property <[string]> languages;
+    // Which entry is current. `in-out` because the panel highlights it and
+    // Rust sets it at startup from the stored preference.
+    in-out property <int> language;
+    // Applies the choice at once (ADR 0078 §3): Slint re-evaluates every
+    // `@tr(...)` on the spot, so no relaunch is involved.
+    callback choose-language(int);
+
+    // Consent to the update check (ADR 0077 §2). False until someone says
+    // otherwise, including when the preferences file is missing or damaged.
+    in-out property <bool> update-check;
+    callback set-update-check(bool);
+    // The second-launch question (ADR 0078 §4). Any way out of that dialog
+    // — the button, Escape, a click on the backdrop — reports `false`, and
+    // Rust stores the first answer it gets and ignores later ones.
+    callback answer-update-consent(bool);
+
+    // A newer version was found. This is what puts the mark on the Help
+    // label and turns "Check for Updates…" into "Update to X…"; nothing
+    // else about a found update interrupts anything (ADR 0077 §2).
+    in-out property <bool> update-available;
+    in-out property <string> update-version;
+    in-out property <string> update-notes;
+    // Where the update dialog is, as one of a closed set of words:
+    // "" (nothing to say), "checking", "current", "unreachable",
+    // "installing", "installed", "failed".
+    //
+    // A word rather than a sentence, because the sentence has to be
+    // translatable: every string a user reads lives in a `.slint` behind
+    // `@tr(...)`, and none is ever assembled in Rust (ADR 0078 §3 relies on
+    // that being true for the language switch to reach everything).
+    in-out property <string> update-state;
+    // A request is in flight — the dialog's buttons stand down rather than
+    // queueing a second one.
+    in-out property <bool> update-busy;
+    // Help ▸ Check for Updates…: the manual check, which unlike the
+    // automatic one reports every outcome, including "up to date".
+    callback check-updates();
+    // The second click ADR 0077 §3 requires: finding a version never
+    // installs it.
+    callback install-update();
+    // File ▸ Preferences…
+    callback open-preferences();
+}

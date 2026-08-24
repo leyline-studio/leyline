@@ -1,0 +1,120 @@
+// The two update dialogs (ADR 0077, ADR 0078 §4): the question asked once,
+// and what a check found.
+//
+// They share a file because they are two halves of one decision, and
+// neither is more than a paragraph and two buttons.
+//
+// Hosted by `panels/dialogs.slint` (ADR 0045 §3).
+
+import { DialogState } from "../state/dialog.slint";
+import { PreferencesState } from "../state/preferences.slint";
+import { FilterChip } from "../widgets/controls.slint";
+
+// Asked at the second launch, and never again — whatever the answer, and
+// whatever way the dialog is closed (ADR 0078 §4). The backdrop and the
+// Escape key report a refusal just as the button does; the overlay in
+// `panels/dialogs.slint` is what turns those two into the same call.
+export component UpdateConsentDialog inherits VerticalLayout {
+    spacing: 12px;
+    Text {
+        text: @tr("Check for updates?");
+        color: #f0f0f0;
+        font-size: 15px;
+        font-weight: 600;
+    }
+    Text {
+        text: @tr("Leyline can look for a new version when it starts, at most once a day. Nothing about you, your library or your photos is ever sent, and an update is never installed without a click.");
+        color: #c8c8c8;
+        font-size: 12px;
+        wrap: word-wrap;
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: end;
+        FilterChip {
+            text: @tr("Don't check");
+            active: false;
+            clicked => {
+                PreferencesState.answer-update-consent(false);
+                DialogState.dialog = "";
+            }
+        }
+        FilterChip {
+            text: @tr("Check for updates");
+            active: true;
+            clicked => {
+                PreferencesState.answer-update-consent(true);
+                DialogState.dialog = "";
+            }
+        }
+    }
+    // Without this line a silence read as a refusal would be a trap; with
+    // it, it is a reversible default.
+    Text {
+        text: @tr("You can change this later in File ▸ Preferences.");
+        color: #808080;
+        font-size: 11px;
+        wrap: word-wrap;
+    }
+}
+
+// What a check found. Opened by Help ▸ Check for Updates… — or by
+// Help ▸ Update to X…, when an automatic check has already found one.
+export component UpdateDialog inherits VerticalLayout {
+    spacing: 12px;
+    Text {
+        text: @tr("Updates");
+        color: #f0f0f0;
+        font-size: 15px;
+        font-weight: 600;
+    }
+    if PreferencesState.update-available: Text {
+        text: @tr("Version {} is available.", PreferencesState.update-version);
+        color: #f0f0f0;
+        font-size: 13px;
+        wrap: word-wrap;
+    }
+    if PreferencesState.update-available && PreferencesState.update-notes != "": Text {
+        text: PreferencesState.update-notes;
+        color: #c8c8c8;
+        font-size: 11px;
+        wrap: word-wrap;
+    }
+    // One line per state, rather than a sentence handed over from Rust:
+    // the language switch of ADR 0078 §3 only reaches what `@tr(...)`
+    // wraps.
+    if PreferencesState.update-state != "": Text {
+        text: PreferencesState.update-state == "checking" ? @tr("Looking for a new version…")
+            : PreferencesState.update-state == "current" ? @tr("Leyline is up to date.")
+            : PreferencesState.update-state == "unreachable" ? @tr("Could not reach the update server. Leyline works offline; nothing else is affected.")
+            : PreferencesState.update-state == "installing" ? @tr("Downloading and installing…")
+            : PreferencesState.update-state == "installed" ? @tr("Update installed. Restart Leyline to use it.")
+            : PreferencesState.update-state == "failed" ? @tr("The update could not be installed.")
+            : "";
+        color: #9a9a9a;
+        font-size: 12px;
+        wrap: word-wrap;
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: end;
+        FilterChip {
+            text: @tr("Close");
+            active: !PreferencesState.update-available;
+            clicked => {
+                DialogState.dialog = "";
+            }
+        }
+        // The second click ADR 0077 §3 requires. It is the only control in
+        // Studio that replaces the running application, so it is never the
+        // one a keystroke or a stray click can reach.
+        if PreferencesState.update-available && PreferencesState.update-state != "installed": FilterChip {
+            text: @tr("Install");
+            active: true;
+            enabled: !PreferencesState.update-busy;
+            clicked => {
+                PreferencesState.install-update();
+            }
+        }
+    }
+}

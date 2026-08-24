@@ -1,0 +1,80 @@
+// File ▸ Preferences… (ADR 0078): the settings that belong to the
+// installation — the language of the interface, and whether Leyline may
+// look for a new version.
+//
+// No OK and no Cancel: every change applies and is written the moment it is
+// made, so the only button is Close. A Cancel button would announce a
+// transaction, and there is nothing here that can be half-applied.
+//
+// One of the dialogs hosted by `panels/dialogs.slint` (ADR 0045 §3).
+
+import { DialogState } from "../state/dialog.slint";
+import { PreferencesState } from "../state/preferences.slint";
+import { FilterChip, SubHeading } from "../widgets/controls.slint";
+
+export component PreferencesDialog inherits VerticalLayout {
+    spacing: 12px;
+    Text {
+        text: @tr("Preferences");
+        color: #f0f0f0;
+        font-size: 15px;
+        font-weight: 600;
+    }
+
+    SubHeading {
+        label: @tr("Language");
+    }
+    // The whole list fits on one row today (three entries) and wraps to
+    // the next as soon as it does not — no dropdown, which would hide two
+    // choices behind a click.
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: start;
+        for name[index] in PreferencesState.languages: FilterChip {
+            text: name;
+            active: index == PreferencesState.language;
+            clicked => {
+                PreferencesState.choose-language(index);
+            }
+        }
+    }
+    Text {
+        text: @tr("Takes effect immediately.");
+        color: #808080;
+        font-size: 11px;
+        wrap: word-wrap;
+    }
+
+    SubHeading {
+        label: @tr("Updates");
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: start;
+        FilterChip {
+            text: PreferencesState.update-check ? @tr("Checking for updates") : @tr("Not checking for updates");
+            active: PreferencesState.update-check;
+            clicked => {
+                PreferencesState.set-update-check(!PreferencesState.update-check);
+            }
+        }
+    }
+    Text {
+        text: @tr("Once a day at most, at startup. Only the installed version and the platform are used, locally, to pick a line from the release manifest — nothing about you or your photos is sent. Installing an update always takes a click.");
+        color: #808080;
+        font-size: 11px;
+        wrap: word-wrap;
+    }
+
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: end;
+        FilterChip {
+            text: @tr("Close");
+            active: true;
+            clicked => {
+                DialogState.dialog = "";
+            }
+        }
+    }
+}

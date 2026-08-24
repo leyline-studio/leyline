@@ -21,6 +21,7 @@ import { FilterState } from "../state/filter.slint";
 import { GridState } from "../state/grid.slint";
 import { LibraryState } from "../state/library.slint";
 import { MapState } from "../state/map.slint";
+import { PreferencesState } from "../state/preferences.slint";
 import { MenuDropdown, MenuRow, MenuSep, ModuleLabel, SubmenuHeader, TopMenuLabel } from "../widgets/menu.slint";
 
 export component MenuBar inherits Rectangle {
@@ -134,12 +135,17 @@ export component MenuBar inherits Rectangle {
             }
             MenuSep { }
             MenuRow {
-                // ADR 0019 (language preferences) is decided but not
-                // yet implemented: kept visible per the ADR 0020 menu
-                // map, disabled until there is a preferences panel to
-                // open.
+                // The last inert entry of the menu bar (ADR 0078): the
+                // language of ADR 0019 and the update consent of
+                // ADR 0077 §2 both landed here, which is what finally
+                // gave this panel something to hold. No keyboard
+                // shortcut — one opens it twice in the life of an
+                // installation.
                 title: @tr("Preferences…");
-                enabled: false;
+                activated => {
+                    PreferencesState.open-preferences();
+                    root.open-menu = "";
+                }
             }
             MenuSep { }
             MenuRow {
@@ -531,6 +537,20 @@ export component MenuBar inherits Rectangle {
         if root.open-menu == "help": MenuDropdown {
             x: menus.x + help-label.x;
             y: 28px;
+            // A found update is announced here and nowhere else
+            // (ADR 0077 §2): no modal, no notification, no "you are up to
+            // date". The entry renames itself, and the mark on the Help
+            // label below is what makes it worth opening.
+            MenuRow {
+                title: PreferencesState.update-available
+                    ? @tr("Update to {}…", PreferencesState.update-version)
+                    : @tr("Check for Updates…");
+                activated => {
+                    PreferencesState.check-updates();
+                    root.open-menu = "";
+                }
+            }
+            MenuSep { }
             MenuRow {
                 title: @tr("Keyboard Shortcuts…");
                 activated => {
@@ -638,7 +658,12 @@ export component MenuBar inherits Rectangle {
                 }
             }
             help-label := TopMenuLabel {
-                title: @tr("Help");
+                // The badge of ADR 0077 §2 — a mark on the label, not a
+                // window. It is possible only because this bar is
+                // hand-rolled (ADR 0020, corrected): a native `MenuBar`
+                // does not take decoration. Concatenated outside the
+                // `@tr(...)` so no translation has to carry the mark.
+                title: @tr("Help") + (PreferencesState.update-available ? " •" : "");
                 active: root.open-menu == "help";
                 clicked => {
                     root.open-menu = root.open-menu == "help" ? "" : "help";

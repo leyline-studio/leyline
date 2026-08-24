@@ -65,6 +65,11 @@ gphoto2 = "3"
 notify = { version = "8", default-features = false, features = ["macos_fsevent"] }
 sys-locale = "0.3"
 directories = "6"
+# The signed-manifest updater that ADR 0077 builds on — companion brick of
+# `cargo packager`, already the packaging chain (ADR 0019). It verifies the
+# minisign signature and replaces the installed package in place, which is
+# the part nobody should write by hand.
+cargo-packager-updater = "0.2"
 rfd = "0.15"
 
 [workspace.lints.rust]

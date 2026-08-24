@@ -19,6 +19,12 @@ leyline-sdk.workspace = true
 slint = { workspace = true, features = ["unstable-winit-030"] }
 sys-locale.workspace = true
 directories.workspace = true
+# `preferences.json` (ADR 0078 §5) is the only struct Studio serialises
+# itself; everything else it stores goes through the SDK.
+serde.workspace = true
+# Checking for a new version (ADR 0077), behind the consent stored in
+# `preferences.json`.
+cargo-packager-updater.workspace = true
 rfd.workspace = true
 serde_json.workspace = true
 image.workspace = true

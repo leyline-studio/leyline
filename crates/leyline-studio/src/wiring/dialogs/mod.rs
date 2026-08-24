@@ -6,6 +6,7 @@
 
 pub(crate) mod export;
 pub(crate) mod import;
+pub(crate) mod preferences;
 pub(crate) mod print;
 pub(crate) mod tether;
 pub(crate) mod watch;

@@ -5,16 +5,19 @@
 // decides which one is mounted and gives them a common frame.
 
 import { DialogState } from "../state/dialog.slint";
+import { PreferencesState } from "../state/preferences.slint";
 import { ProgressBar } from "../widgets/controls.slint";
 import { AboutDialog } from "../dialogs/about.slint";
 import { ConfirmDialog } from "../dialogs/confirm.slint";
 import { CollectionDialog, DeleteCollectionDialog, MoveCollectionDialog, RenameCollectionDialog } from "../dialogs/collection.slint";
 import { ExportDialog } from "../dialogs/export.slint";
 import { ImportDialog } from "../dialogs/import.slint";
+import { PreferencesDialog } from "../dialogs/preferences.slint";
 import { PresetDialog } from "../dialogs/preset.slint";
 import { PrintDialog } from "../dialogs/print.slint";
 import { ShortcutsDialog } from "../dialogs/shortcuts.slint";
 import { TetherDialog } from "../dialogs/tether.slint";
+import { UpdateConsentDialog, UpdateDialog } from "../dialogs/update.slint";
 import { WatchDialog } from "../dialogs/watch.slint";
 
 export component DialogOverlay inherits Rectangle {
@@ -24,7 +27,19 @@ export component DialogOverlay inherits Rectangle {
         // first one's bar and summary before it has done anything, which
         // reads as a job that finished instantly.
         property <string> open-dialog: DialogState.dialog;
+        // Which one was open just before. Only the consent question needs
+        // it, and it needs it for the reason that question exists at all:
+        // closing it by any other means than the buttons — Escape, a click
+        // on the backdrop — is a refusal, and a refusal is stored
+        // (ADR 0078 §4). Rust keeps the first answer it is given, so the
+        // accept button reporting `true` a moment earlier wins over the
+        // `false` this line then reports.
+        property <string> previous-dialog: "";
         changed open-dialog => {
+            if (root.previous-dialog == "update-consent" && root.open-dialog != "update-consent") {
+                PreferencesState.answer-update-consent(false);
+            }
+            root.previous-dialog = root.open-dialog;
             DialogState.job-progress = -1;
             DialogState.job-done = false;
             DialogState.dialog-result = "";
@@ -79,6 +94,14 @@ export component DialogOverlay inherits Rectangle {
                 if DialogState.dialog == "confirm": ConfirmDialog { }
 
                 if DialogState.dialog == "preset": PresetDialog { }
+
+                // File ▸ Preferences… (ADR 0078), and the two dialogs of
+                // the update decision it gates (ADR 0077).
+                if DialogState.dialog == "preferences": PreferencesDialog { }
+
+                if DialogState.dialog == "update-consent": UpdateConsentDialog { }
+
+                if DialogState.dialog == "update": UpdateDialog { }
 
                 // Help ▸ Keyboard Shortcuts…: the shortcut list already
                 // in this file, made discoverable outside develop mode
