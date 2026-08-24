@@ -98,7 +98,7 @@ pub(crate) fn wire_import(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        DialogState::get(window).on_run_import(move |source, copy, recursive| {
+        DialogState::get(window).on_run_import(move |source, copy, recursive, pair| {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -111,6 +111,7 @@ pub(crate) fn wire_import(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             let options = ImportOptions {
                 copy_files: copy,
                 recursive,
+                pair_companions: pair,
             };
             let chosen: Vec<PathBuf> = app
                 .candidates

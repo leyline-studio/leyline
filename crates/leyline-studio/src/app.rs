@@ -33,6 +33,25 @@ pub(crate) const SORTS: [(Sort, &str); 8] = [
 /// is fetched once the viewport gets within half this margin of an edge.
 pub(crate) const OVERSCAN: usize = 48;
 
+/// What the generic confirmation dialog is currently asking about.
+///
+/// The dialog has one accept callback, so the action it will run has to be
+/// parked somewhere: this is that somewhere. A new confirmed action adds a
+/// variant here and a branch in `wiring::confirm`, and touches nothing else.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum PendingConfirm {
+    /// Take these assets out of the catalog, and their files to the trash
+    /// when `trash_files` (ADR 0060).
+    Removal {
+        /// The assets the user confirmed, resolved when the dialog opened.
+        assets: Vec<AssetId>,
+        /// Whether the files go to the system trash as well.
+        trash_files: bool,
+    },
+    /// Pair every RAW+JPEG couple in the library (ADR 0079 §7).
+    PairLibrary,
+}
+
 /// Application state shared by every UI callback.
 pub(crate) struct App {
     pub(crate) library: Library,
@@ -123,11 +142,11 @@ pub(crate) struct App {
     /// The keyword the grid is filtered to, when one is active.
     pub(crate) keyword_filter: Option<KeywordId>,
     /// The removal the confirmation dialog is currently asking about
-    /// (ADR 0060): the assets, and whether their files go to the trash.
+    /// (ADR 0060) or library-wide pairing (ADR 0079 §7).
     /// Held here rather than re-derived on accept because the selection can
     /// change under an open dialog — what the user confirmed is what must
     /// happen, not whatever is selected a moment later.
-    pub(crate) pending_removal: Option<(Vec<AssetId>, bool)>,
+    pub(crate) pending_confirm: Option<PendingConfirm>,
     /// The asset the loupe is waiting on a render for, if any. The loupe
     /// no longer blocks the event loop to render (ADR 0055 §3): it shows
     /// what exists now and swaps in the fresh file when `PreviewReady`

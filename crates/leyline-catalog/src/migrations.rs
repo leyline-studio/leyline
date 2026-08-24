@@ -10,7 +10,7 @@ use crate::db_err;
 use leyline_core::Result;
 
 /// Migration scripts: index `n` migrates the database to `user_version` `n + 1`.
-const MIGRATIONS: &[&str] = &[SCHEMA_V1, SCHEMA_V2];
+const MIGRATIONS: &[&str] = &[SCHEMA_V1, SCHEMA_V2, SCHEMA_V3];
 
 /// The schema version produced by the newest migration.
 pub(crate) const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
@@ -368,4 +368,20 @@ ALTER TABLE develop_revisions ADD COLUMN from_preset_revision INTEGER;
 
 CREATE INDEX idx_presets_folder ON develop_presets(folder_id);
 CREATE INDEX idx_develop_from_preset ON develop_revisions(from_preset_id);
+";
+
+/// Version 3: RAW+JPEG pairing (ADR 0079).
+///
+/// One nullable column, and it pairs nothing: a migration that paired would
+/// make half of an existing library's thumbnails vanish at the first launch
+/// after an update (ADR 0079 §7). Existing catalogs carry on showing every
+/// file until the explicit pass is run.
+const SCHEMA_V3: &str = "
+-- §9 A non-RAW file can be the companion of the RAW it was shot with
+-- (ADR 0079 §1). NULL — the overwhelming majority — means the asset is
+-- itself. A companion never survives its master.
+ALTER TABLE assets ADD COLUMN companion_of INTEGER
+    REFERENCES assets(id) ON DELETE CASCADE;
+
+CREATE INDEX idx_assets_companion ON assets(companion_of);
 ";

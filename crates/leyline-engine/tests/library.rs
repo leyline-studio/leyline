@@ -31,6 +31,7 @@ fn create_open_and_work_end_to_end() {
             &ImportOptions {
                 copy_files: true,
                 recursive: false,
+                pair_companions: true,
             },
             |_, _| {},
         )
@@ -112,6 +113,7 @@ fn reprocess_migrates_a_batch_and_notifies_subscribers() {
             &ImportOptions {
                 copy_files: true,
                 recursive: false,
+                pair_companions: true,
             },
             |_, _| {},
         )
@@ -171,6 +173,7 @@ fn a_soft_proof_transforms_the_view_and_leaves_everything_else_alone() {
             &ImportOptions {
                 copy_files: true,
                 recursive: false,
+                pair_companions: true,
             },
             |_, _| {},
         )
@@ -263,6 +266,7 @@ fn a_lut_is_imported_referenced_and_fails_closed_when_it_changes() {
             &ImportOptions {
                 copy_files: true,
                 recursive: false,
+                pair_companions: true,
             },
             |_, _| {},
         )
@@ -342,6 +346,7 @@ fn removing_an_asset_frees_the_file_to_be_imported_again() {
     let copy = ImportOptions {
         copy_files: true,
         recursive: false,
+        pair_companions: true,
     };
 
     let asset = library.import(&source, &copy, |_, _| {}).unwrap().imported[0]
@@ -378,6 +383,7 @@ fn removing_an_asset_frees_the_file_to_be_imported_again() {
     let reference = ImportOptions {
         copy_files: false,
         recursive: false,
+        pair_companions: true,
     };
     let again = library
         .import(&root.join("Photos/shot.png"), &reference, |_, _| {})
@@ -410,6 +416,7 @@ fn deleting_an_asset_also_takes_its_file_and_sidecar() {
             &ImportOptions {
                 copy_files: true,
                 recursive: false,
+                pair_companions: true,
             },
             |_, _| {},
         )
@@ -466,6 +473,7 @@ fn a_live_preview_shows_uncommitted_settings_and_records_nothing() {
             &ImportOptions {
                 copy_files: true,
                 recursive: false,
+                pair_companions: true,
             },
             |_, _| {},
         )
@@ -590,6 +598,7 @@ fn a_warm_proxy_cache_renders_exactly_what_a_cold_one_does() {
                 &ImportOptions {
                     copy_files: true,
                     recursive: false,
+                    pair_companions: true,
                 },
                 |_, _| {},
             )
@@ -677,6 +686,7 @@ fn live_preview_keeps_up_with_a_finger() {
                 // live under the library root, and the corpus does not.
                 copy_files: true,
                 recursive: false,
+                pair_companions: true,
             },
             |_, _| {},
         )

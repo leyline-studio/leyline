@@ -28,6 +28,9 @@ export struct Cell {
     flagged: bool,
     rejected: bool,
     edited: bool,
+    // A camera rendering of the same shot is attached to this photo
+    // (ADR 0079 §6).
+    paired: bool,
 }
 
 // One row of the collections sidebar, already flattened by Rust.
@@ -285,6 +288,24 @@ export global Tr {
     }
     public pure function delete-from-disk-accept() -> string {
         return @tr("Delete");
+    }
+    // Pairing (ADR 0079 §7). The dialog announces the count because the
+    // pass makes half the thumbnails of a RAW+JPEG library leave the grid,
+    // and that is startling if nobody said so first.
+    public pure function pair-library-title(n: int) -> string {
+        return @tr("Pair {} shot?" | "Pair {} shots?" % n, n);
+    }
+    public pure function pair-library-message() -> string {
+        return @tr("Each JPEG the camera wrote alongside a RAW of the same shot becomes a companion of it: one photo in the grid instead of two. No file is moved or deleted, and any photo can be detached again.");
+    }
+    public pure function pair-library-accept() -> string {
+        return @tr("Pair");
+    }
+    public pure function pair-library-none() -> string {
+        return @tr("No RAW+JPEG couple left to pair.");
+    }
+    public pure function paired(n: int) -> string {
+        return @tr("Paired {} shot." | "Paired {} shots." % n, n);
     }
     public pure function enter-source-folder() -> string {
         return @tr("Enter a source folder.");

@@ -59,6 +59,11 @@ Usage:
   leyline camera-profiles <library>
   leyline lut <library> <file.cube>
   leyline luts <library>
+  leyline pair <library>            attache chaque JPEG boîtier au RAW de la même
+                                    prise (ADR 0079) ; l'import le fait déjà, ceci
+                                    rattrape ce qui a été importé avant
+  leyline unpair <library> <asset-id>...
+                                    détache, et la photo revient dans la grille
   leyline remove <library> <asset-id>...
                                     takes the photos out of the catalog; the
                                     files are left exactly where they are
@@ -193,6 +198,8 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("camera-profiles") => camera_profiles(&args[1..]),
         Some("lut") => lut_import(&args[1..]),
         Some("luts") => luts(&args[1..]),
+        Some("pair") => pair(&args[1..]),
+        Some("unpair") => unpair(&args[1..]),
         Some("remove") => remove(&args[1..]),
         Some("delete") => delete(&args[1..]),
         Some("rate") => rate(&args[1..]),
@@ -314,7 +321,8 @@ fn import(args: &[String]) -> Result<(), String> {
     let (positional, options) = parse(args, &["only"])?;
     let [root, source] = positional.as_slice() else {
         return Err(
-            "usage: leyline import <library> <source> [--reference] [--flat] [--only <name>]..."
+            "usage: leyline import <library> <source> [--reference] [--flat] [--no-pair] \
+             [--only <name>]..."
                 .to_owned(),
         );
     };
@@ -323,6 +331,7 @@ fn import(args: &[String]) -> Result<(), String> {
     let import_options = ImportOptions {
         copy_files: !options.switch("reference"),
         recursive: !options.switch("flat"),
+        pair_companions: !options.switch("no-pair"),
     };
     let chosen = options.all("only");
     let report = if chosen.is_empty() {
@@ -643,6 +652,46 @@ fn luts(args: &[String]) -> Result<(), String> {
 }
 
 /// `remove` — out of the catalog, files untouched (ADR 0060 §1).
+/// `pair` — the retroactive pass of ADR 0079 §7.
+///
+/// An import pairs as it goes; this is for what was imported before, and for
+/// a library whose RAW arrived long after its JPEG. Idempotent.
+fn pair(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root] = positional.as_slice() else {
+        return Err("usage: leyline pair <library>".to_owned());
+    };
+    let library = open(root)?;
+    let paired = library.pair_assets().map_err(|e| e.to_string())?;
+    for (master, companion) in &paired {
+        let master = library
+            .catalog()
+            .asset_relative_path(*master)
+            .map_err(|e| e.to_string())?;
+        let companion = library
+            .catalog()
+            .asset_relative_path(*companion)
+            .map_err(|e| e.to_string())?;
+        println!("  {companion} -> {master}");
+    }
+    println!("{} pair(s)", paired.len());
+    Ok(())
+}
+
+/// `unpair` — detaches, master or companion (ADR 0079 §6).
+fn unpair(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root, ids @ ..] = positional.as_slice() else {
+        return Err("usage: leyline unpair <library> <asset-id>...".to_owned());
+    };
+    let assets = asset_ids(ids)?;
+    let detached = open(root)?
+        .unpair_assets(&assets)
+        .map_err(|e| e.to_string())?;
+    println!("{detached} photo(s) back in the grid");
+    Ok(())
+}
+
 fn remove(args: &[String]) -> Result<(), String> {
     let (positional, _) = parse(args, &[])?;
     let [root, ids @ ..] = positional.as_slice() else {

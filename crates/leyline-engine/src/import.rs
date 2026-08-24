@@ -27,6 +27,12 @@ pub struct ImportOptions {
     pub copy_files: bool,
     /// Descend into subdirectories of the source.
     pub recursive: bool,
+    /// Attach a camera's own rendering to the RAW it was shot with, so a
+    /// body set to RAW+JPEG yields one photo and not two (ADR 0079 §4).
+    ///
+    /// An import option and not a preference: it governs a library, not the
+    /// installation, and fails the first admission condition of ADR 0078 §1.
+    pub pair_companions: bool,
 }
 
 /// One successfully imported file.
@@ -238,6 +244,18 @@ fn import_one(
     // the catalog and correct; only the seeding is lost.
     if let Some(sidecar) = crate::xmp::read_xmp_sidecar(file) {
         let _ = crate::xmp::apply_xmp_sidecar(catalog, registered.asset, &sidecar);
+    }
+
+    // A camera set to RAW+JPEG wrote two files for one shot: attach them
+    // (ADR 0079 §4). This runs last because it reads the metadata row that
+    // the block above has just written — the body is one of the three terms
+    // of the criterion, and pairing before it would compare against nothing.
+    //
+    // Best-effort, like the sidecar: an asset that could not be paired is a
+    // photo listed twice, which the explicit pass can still fix later. An
+    // import that failed over it would be worse.
+    if options.pair_companions {
+        let _ = catalog.pair_asset(registered.asset);
     }
 
     Ok(ImportedFile {

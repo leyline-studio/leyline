@@ -249,6 +249,7 @@ fn a_library_round_trip_needs_nothing_but_the_sdk() {
     let options = ImportOptions {
         copy_files: true,
         recursive: true,
+        pair_companions: true,
     };
     let report = library.import(&root.join("nothing"), &options, |_, _| {});
     assert!(report.is_err() || report.unwrap().imported.is_empty());

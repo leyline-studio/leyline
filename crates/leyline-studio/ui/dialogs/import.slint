@@ -64,6 +64,15 @@ export component ImportDialog inherits VerticalLayout {
                 DialogState.import-recursive = !DialogState.import-recursive;
             }
         }
+        // ADR 0079 §8: an import option and not a preference — it governs
+        // this library, not the installation.
+        FilterChip {
+            text: @tr("Pair RAW+JPEG");
+            active: DialogState.import-pair;
+            clicked => {
+                DialogState.import-pair = !DialogState.import-pair;
+            }
+        }
         Rectangle {
             horizontal-stretch: 1;
         }
@@ -201,7 +210,7 @@ export component ImportDialog inherits VerticalLayout {
             active: true;
             enabled: !DialogState.import-scanned || DialogState.import-chosen > 0;
             clicked => {
-                DialogState.run-import(import-source.text, DialogState.import-copy, DialogState.import-recursive);
+                DialogState.run-import(import-source.text, DialogState.import-copy, DialogState.import-recursive, DialogState.import-pair);
             }
         }
     }

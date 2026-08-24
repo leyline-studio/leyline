@@ -38,9 +38,11 @@ export global DialogState {
     in-out property <string> confirm-accept-text;
     in-out property <bool> confirm-danger: false;
     callback confirm-accept();
-    callback run-import(string, bool, bool);
+    // source, copy into the library, recurse, pair RAW+JPEG (ADR 0079 §4).
+    callback run-import(string, bool, bool, bool);
     in-out property <bool> import-copy: true;
     in-out property <bool> import-recursive: true;
+    in-out property <bool> import-pair: true;
     in-out property <string> import-source-text: "";
     // Opens a native OS folder picker; on a non-cancelled pick, Rust sets
     // `import-source-text` / `export-destination-text` below. Manual typing

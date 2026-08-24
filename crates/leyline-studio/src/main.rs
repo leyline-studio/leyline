@@ -54,6 +54,7 @@ use library::{
 use models::{label_color, sort_label};
 use ui::{FilterState, GridState, LibraryState, StudioWindow};
 use wiring::collections::{refresh_collections, wire_collection_management, wire_collections};
+use wiring::confirm::wire_confirm;
 use wiring::develop::clipboard::wire_settings_clipboard;
 use wiring::develop::wire_develop;
 use wiring::dialogs::wire_dialogs;
@@ -63,6 +64,7 @@ use wiring::grid::{load_window, reload, wire_select};
 use wiring::keywords::wire_keywords;
 use wiring::library::wire_library;
 use wiring::map::wire_map;
+use wiring::pairs::wire_pairs;
 use wiring::presets::{refresh_presets, wire_presets};
 use wiring::removal::wire_removal;
 use wiring::views::wire_views;
@@ -172,7 +174,7 @@ fn run() -> Result<(), String> {
         total: 0,
         viewport: (0, 0),
         multi_selected: std::collections::BTreeSet::new(),
-        pending_removal: None,
+        pending_confirm: None,
         loupe_pending: None,
         develop: None,
         dev_before: None,
@@ -266,6 +268,8 @@ fn run() -> Result<(), String> {
     wire_select(&app, &window);
     wire_classify(&app, &window);
     wire_removal(&app, &window);
+    wire_pairs(&app, &window);
+    wire_confirm(&app, &window);
     wire_settings_clipboard(&app, &window);
     wire_filters(&app, &window);
     wire_develop(&app, &window);

@@ -32,4 +32,7 @@ export global LibraryState {
     // Stops the event loop — the menu bar's File ▸ Quit, equivalent to
     // closing the window from the OS chrome.
     callback quit();
+    // Library ▸ Pair RAW+JPEG… (ADR 0079 §7). Announces before it acts:
+    // Rust counts, fills the confirmation dialog, and only the accept pairs.
+    callback pair-library();
 }

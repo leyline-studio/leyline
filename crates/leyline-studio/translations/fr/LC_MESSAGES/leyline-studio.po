@@ -1866,3 +1866,47 @@ msgid "{} photo found."
 msgid_plural "{} photos found."
 msgstr[0] "{} photo trouvée."
 msgstr[1] "{} photos trouvées."
+
+#: crates/leyline-studio/ui/dialogs/import.slint:70
+msgctxt "ImportDialog"
+msgid "Pair RAW+JPEG"
+msgstr "Appairer RAW+JPEG"
+
+#: crates/leyline-studio/ui/panels/browser.slint:958
+msgctxt "BrowserPanel"
+msgid "Companion file"
+msgstr "Fichier compagnon"
+
+#: crates/leyline-studio/ui/panels/menubar.slint:189
+msgctxt "MenuBar"
+msgid "Pair RAW+JPEG…"
+msgstr "Appairer RAW+JPEG…"
+
+#: crates/leyline-studio/ui/types.slint:295
+msgctxt "Tr"
+msgid "Pair {} shot?"
+msgid_plural "Pair {} shots?"
+msgstr[0] "Appairer {} prise de vue ?"
+msgstr[1] "Appairer {} prises de vue ?"
+
+#: crates/leyline-studio/ui/types.slint:298
+msgctxt "Tr"
+msgid "Each JPEG the camera wrote alongside a RAW of the same shot becomes a companion of it: one photo in the grid instead of two. No file is moved or deleted, and any photo can be detached again."
+msgstr "Chaque JPEG que le boîtier a écrit à côté d'un RAW de la même prise en devient le compagnon : une photo dans la grille au lieu de deux. Aucun fichier n'est déplacé ni supprimé, et toute photo peut être détachée à nouveau."
+
+#: crates/leyline-studio/ui/types.slint:301
+msgctxt "Tr"
+msgid "Pair"
+msgstr "Appairer"
+
+#: crates/leyline-studio/ui/types.slint:304
+msgctxt "Tr"
+msgid "No RAW+JPEG couple left to pair."
+msgstr "Plus aucun couple RAW+JPEG à appairer."
+
+#: crates/leyline-studio/ui/types.slint:307
+msgctxt "Tr"
+msgid "Paired {} shot."
+msgid_plural "Paired {} shots."
+msgstr[0] "{} prise de vue appairée."
+msgstr[1] "{} prises de vue appairées."

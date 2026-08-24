@@ -185,6 +185,13 @@ export component MenuBar inherits Rectangle {
                     root.open-menu = "";
                 }
             }
+            MenuRow {
+                title: @tr("Pair RAW+JPEG…");
+                activated => {
+                    LibraryState.pair-library();
+                    root.open-menu = "";
+                }
+            }
         }
 
         if root.open-menu == "photo": MenuDropdown {

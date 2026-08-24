@@ -23,6 +23,7 @@ fn png(path: &Path, width: u32, height: u32) {
 const COPY: ImportOptions = ImportOptions {
     copy_files: true,
     recursive: true,
+    pair_companions: true,
 };
 
 const LOOK: ScanOptions = ScanOptions {

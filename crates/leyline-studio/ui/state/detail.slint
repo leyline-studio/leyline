@@ -12,6 +12,10 @@ export global DetailState {
     in property <string> detail-camera;
     in property <string> detail-lens;
     in property <string> detail-exposure;
+    // The camera's own rendering of the same shot, when one is attached
+    // (ADR 0079 §6). Empty when this photo is alone, and the row is then
+    // not shown at all.
+    in property <string> detail-companion;
     // Keyword paths of the selected photo, already flattened by Rust.
     in property <[string]> detail-keywords;
     // Tag the selected photo with a slash-separated keyword path, or untag

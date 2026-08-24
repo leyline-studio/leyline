@@ -216,6 +216,9 @@ pub struct GridItem {
     /// — what a grid cell's "already developed" badge shows (ADR 0055 §5).
     /// True as soon as one adjustment has been committed, whatever it was.
     pub edited: bool,
+    /// Whether a camera rendering of the same shot is attached to this
+    /// asset — what a cell's `RAW+J` badge shows (ADR 0079 §6).
+    pub paired: bool,
 }
 
 impl Catalog {
@@ -243,7 +246,8 @@ impl Catalog {
             "v.id, a.id, a.filename, a.capture_date, v.rating, v.color_label,
              v.pick_state, a.width, a.height,
              (SELECT r.parent_revision_id IS NOT NULL FROM develop_revisions r
-               WHERE r.id = v.head_revision_id)",
+               WHERE r.id = v.head_revision_id),
+             EXISTS (SELECT 1 FROM assets p WHERE p.companion_of = a.id)",
             true,
         )?;
         sql.push_str(" LIMIT ?");
@@ -269,6 +273,7 @@ impl Catalog {
                     // A head revision with no parent is the one `add_asset`
                     // wrote: the photo is still exactly as it came in.
                     edited: row.get::<_, Option<bool>>(9)?.unwrap_or(false),
+                    paired: row.get(10)?,
                 })
             })
             .map_err(db_err)?;
@@ -344,6 +349,12 @@ fn build(
             params.push(SqlValue::Integer(collection.get()));
         }
     }
+
+    // A companion is not a photo of its own (ADR 0079 §5). One clause, on
+    // both shapes of query, and everything downstream follows without
+    // knowing pairs exist: the count, the shot filters, the full-text
+    // search and the smart collections all read this same statement.
+    sql.push_str(" AND a.companion_of IS NULL");
 
     if let CollectionFilter::Smart(rules) = filter {
         if let Some(rating) = rules.rating {

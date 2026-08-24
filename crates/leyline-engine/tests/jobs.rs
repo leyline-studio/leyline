@@ -67,6 +67,7 @@ fn an_import_job_progresses_announces_assets_and_finishes() {
         &ImportOptions {
             copy_files: true,
             recursive: false,
+            pair_companions: true,
         },
     );
     let received = drain_until_finished(&events, job);
@@ -130,6 +131,7 @@ fn import_leaves_a_cached_thumbnail_with_no_separate_call() {
             &ImportOptions {
                 copy_files: true,
                 recursive: false,
+                pair_companions: true,
             },
             |_, _| {},
         )
@@ -159,6 +161,7 @@ fn import_async_also_leaves_a_cached_thumbnail_once_finished() {
         &ImportOptions {
             copy_files: true,
             recursive: false,
+            pair_companions: true,
         },
     );
     let received = drain_until_finished(&events, job);
@@ -195,6 +198,7 @@ fn a_thumbnail_that_fails_to_render_does_not_fail_the_import() {
             &ImportOptions {
                 copy_files: true,
                 recursive: false,
+                pair_companions: true,
             },
             |_, _| {},
         )
@@ -229,6 +233,7 @@ fn a_preview_job_emits_preview_ready_then_finishes() {
             &ImportOptions {
                 copy_files: true,
                 recursive: false,
+                pair_companions: true,
             },
             |_, _| {},
         )
@@ -265,6 +270,7 @@ fn preview_state_reports_generating_with_nothing_cached() {
             &ImportOptions {
                 copy_files: true,
                 recursive: false,
+                pair_companions: true,
             },
             |_, _| {},
         )
@@ -300,6 +306,7 @@ fn preview_state_reports_ready_once_the_head_revision_is_cached() {
             &ImportOptions {
                 copy_files: true,
                 recursive: false,
+                pair_companions: true,
             },
             |_, _| {},
         )
@@ -331,6 +338,7 @@ fn preview_state_reports_stale_and_starts_a_regeneration_job_after_an_edit() {
             &ImportOptions {
                 copy_files: true,
                 recursive: false,
+                pair_companions: true,
             },
             |_, _| {},
         )
@@ -413,6 +421,7 @@ fn a_preset_job_reports_per_version_failures_and_notifies() {
             &ImportOptions {
                 copy_files: true,
                 recursive: false,
+                pair_companions: true,
             },
             |_, _| {},
         )
@@ -462,6 +471,7 @@ fn a_reprocess_job_migrates_versions_and_reports_failures() {
             &ImportOptions {
                 copy_files: true,
                 recursive: false,
+                pair_companions: true,
             },
             |_, _| {},
         )
@@ -515,6 +525,7 @@ fn facade_writes_and_edit_sessions_notify_subscribers() {
             &ImportOptions {
                 copy_files: true,
                 recursive: false,
+                pair_companions: true,
             },
             |_, _| {},
         )
@@ -584,6 +595,7 @@ fn a_dropped_subscriber_never_blocks_the_engine() {
         &ImportOptions {
             copy_files: true,
             recursive: false,
+            pair_companions: true,
         },
     );
     let received = drain_until_finished(&alive, job);
@@ -632,6 +644,7 @@ fn many_concurrent_preview_jobs_all_complete_behind_the_bounded_pool() {
                 &ImportOptions {
                     copy_files: true,
                     recursive: false,
+                    pair_companions: true,
                 },
                 |_, _| {},
             )
@@ -756,6 +769,7 @@ fn a_selective_import_job_takes_only_the_chosen_files() {
         &ImportOptions {
             copy_files: true,
             recursive: false,
+            pair_companions: true,
         },
     );
     let received = drain_until_finished(&events, job);

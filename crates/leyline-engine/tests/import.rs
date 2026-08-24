@@ -21,6 +21,7 @@ fn write(path: &Path, content: &[u8]) {
 const COPY: ImportOptions = ImportOptions {
     copy_files: true,
     recursive: true,
+    pair_companions: true,
 };
 
 #[test]
@@ -153,6 +154,7 @@ fn non_recursive_import_stays_at_the_surface() {
     let flat = ImportOptions {
         copy_files: true,
         recursive: false,
+        pair_companions: true,
     };
     let report = import(&mut catalog, &root, &shoot, &flat, |_, _| {}).unwrap();
     assert_eq!(report.imported.len(), 1);
@@ -190,6 +192,7 @@ fn referencing_requires_files_inside_the_library_root() {
     let reference = ImportOptions {
         copy_files: false,
         recursive: true,
+        pair_companions: true,
     };
 
     // Inside the root: referenced with its own path, no copy made.
@@ -317,4 +320,42 @@ fn jpeg_with_exif() -> Vec<u8> {
     jpeg.extend(tiff);
     jpeg.extend([0xFF, 0xD9]);
     jpeg
+}
+
+/// The pairing of ADR 0079 §4, on real files, in the layout a camera and a
+/// card reader actually produce — which is the half of the decision that
+/// synthetic rows cannot check: whether the *import* pairs, in the order it
+/// enumerates, with the metadata it has written by then.
+///
+/// ```text
+/// LEYLINE_TEST_SHOOT=/path/to/a/raw+jpeg/shoot \
+///     cargo test -p leyline-engine --test import -- --ignored
+/// ```
+#[test]
+#[ignore = "needs a real RAW+JPEG shoot via LEYLINE_TEST_SHOOT"]
+fn a_real_shoot_imports_as_one_photo_per_frame() {
+    let shoot = std::env::var("LEYLINE_TEST_SHOOT").expect("set LEYLINE_TEST_SHOOT");
+    let shoot = Path::new(&shoot);
+    let dir = tempfile::tempdir().unwrap();
+    let (mut catalog, root) = library(&dir);
+
+    let report = import(&mut catalog, &root, shoot, &COPY, |_, _| {}).unwrap();
+    let raws = report
+        .imported
+        .iter()
+        .filter(|file| {
+            let path = file.relative_path.to_ascii_lowercase();
+            path.ends_with(".cr2") || path.ends_with(".cr3") || path.ends_with(".nef")
+        })
+        .count();
+    assert!(raws > 0, "the shoot holds no RAW file");
+    assert!(
+        report.imported.len() > raws,
+        "the shoot holds no companion to pair"
+    );
+
+    // One photo per frame: every non-RAW of the shoot found its master
+    // during the import itself, with nothing left for the retroactive pass.
+    assert_eq!(catalog.count(&GridQuery::default()).unwrap(), raws as u64);
+    assert_eq!(catalog.pairable_count().unwrap(), 0);
 }

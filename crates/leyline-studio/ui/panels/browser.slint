@@ -641,6 +641,17 @@ export component BrowserPanel inherits HorizontalLayout {
                             color: #6fa8dc;
                             font-size: 11px;
                         }
+                        // The fourth corner, and the fourth badge (ADR 0079
+                        // §6): this photo carries the camera's own rendering
+                        // of the same shot. Text and not an emoji — a colour
+                        // emoji vanishes outright in these fonts.
+                        if cell.paired: Text {
+                            x: parent.width - 42px;
+                            y: parent.height - 20px;
+                            text: "RAW+J";
+                            color: #7a7a7a;
+                            font-size: 9px;
+                        }
                     }
 
                     TouchArea {
@@ -940,6 +951,10 @@ export component BrowserPanel inherits HorizontalLayout {
                     DetailRow {
                         label: @tr("Exposure");
                         value: DetailState.detail-exposure;
+                    }
+                    if DetailState.detail-companion != "": DetailRow {
+                        label: @tr("Companion file");
+                        value: DetailState.detail-companion;
                     }
 
                     Text {

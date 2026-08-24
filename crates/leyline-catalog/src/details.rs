@@ -39,6 +39,11 @@ pub struct AssetDetails {
     pub versions: Vec<VersionInfo>,
     /// The active version.
     pub current_version: VersionId,
+    /// Companions attached to this asset — the camera's own renderings of
+    /// the same shot (ADR 0079 §6). Empty for the ordinary photo.
+    pub companions: Vec<AssetId>,
+    /// The master this asset is a companion of, when it is one.
+    pub companion_of: Option<AssetId>,
 }
 
 impl Catalog {
@@ -82,6 +87,8 @@ impl Catalog {
             keywords: self.asset_keywords(asset)?,
             versions: self.versions(asset)?,
             current_version: self.current_version(asset)?,
+            companions: self.companions_of(asset)?,
+            companion_of: self.master_of(asset)?,
         })
     }
 }

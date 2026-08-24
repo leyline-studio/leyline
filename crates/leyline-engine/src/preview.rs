@@ -473,6 +473,7 @@ mod tests {
             &ImportOptions {
                 copy_files: true,
                 recursive: false,
+                pair_companions: true,
             },
             |_, _| {},
         )

@@ -28,6 +28,7 @@ fn a_valid_cached_preview_is_served_without_decoding() {
         &ImportOptions {
             copy_files: true,
             recursive: false,
+            pair_companions: true,
         },
         |_, _| {},
     )
@@ -76,6 +77,7 @@ fn an_undecodable_asset_reports_decode_failure() {
         &ImportOptions {
             copy_files: true,
             recursive: false,
+            pair_companions: true,
         },
         |_, _| {},
     )
@@ -117,6 +119,7 @@ fn generates_a_scaled_preview_from_a_png() {
         &ImportOptions {
             copy_files: true,
             recursive: false,
+            pair_companions: true,
         },
         |_, _| {},
     )
@@ -167,6 +170,7 @@ fn generates_scaled_previews_from_a_real_raw() {
         &ImportOptions {
             copy_files: true,
             recursive: false,
+            pair_companions: true,
         },
         |_, _| {},
     )
@@ -230,6 +234,7 @@ fn editing_a_photo_many_times_leaves_a_bounded_cache() {
             &ImportOptions {
                 copy_files: true,
                 recursive: false,
+                pair_companions: true,
             },
             |_, _| {},
         )

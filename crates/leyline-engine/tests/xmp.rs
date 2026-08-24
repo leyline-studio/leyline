@@ -14,6 +14,7 @@ fn library_with_one_photo(dir: &std::path::Path) -> (Library, AssetId, leyline_c
             &ImportOptions {
                 copy_files: true,
                 recursive: false,
+                pair_companions: true,
             },
             |_, _| {},
         )
@@ -67,6 +68,7 @@ fn sidecar_reflects_the_catalog_truth() {
             &ImportOptions {
                 copy_files: true,
                 recursive: false,
+                pair_companions: true,
             },
             |_, _| {},
         )
@@ -124,6 +126,7 @@ fn an_import_seeds_the_catalog_from_a_sidecar_named_the_darktable_way() {
             &ImportOptions {
                 copy_files: true,
                 recursive: false,
+                pair_companions: true,
             },
             |_, _| {},
         )
@@ -185,6 +188,7 @@ fn an_import_seeds_the_catalog_from_a_sidecar_left_by_another_program() {
             &ImportOptions {
                 copy_files: true,
                 recursive: false,
+                pair_companions: true,
             },
             |_, _| {},
         )
@@ -332,6 +336,7 @@ fn a_malformed_sidecar_never_breaks_the_import() {
             &ImportOptions {
                 copy_files: true,
                 recursive: false,
+                pair_companions: true,
             },
             |_, _| {},
         )

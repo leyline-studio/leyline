@@ -5,6 +5,7 @@
 //! leaves the others alone.
 
 pub(crate) mod collections;
+pub(crate) mod confirm;
 pub(crate) mod develop;
 pub(crate) mod dialogs;
 pub(crate) mod filters;
@@ -13,6 +14,7 @@ pub(crate) mod grid;
 pub(crate) mod keywords;
 pub(crate) mod library;
 pub(crate) mod map;
+pub(crate) mod pairs;
 pub(crate) mod presets;
 pub(crate) mod removal;
 pub(crate) mod views;

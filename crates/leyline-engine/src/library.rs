@@ -444,7 +444,12 @@ impl Library {
     /// [`Library::delete_assets`] — the catalog side is identical, only the
     /// fate of the source files differs.
     fn remove_inner(&self, assets: &[AssetId], trash_files: bool) -> Result<RemovalReport> {
-        let deleted = self.catalog_mut().delete_assets(assets)?;
+        // A companion goes with its master (ADR 0079 §6). The `ON DELETE
+        // CASCADE` would drop its row either way — expanding the list first
+        // is what makes its *file* reach the trash and its id appear in the
+        // report, instead of a JPEG left on disk that nothing points to.
+        let assets = self.catalog().with_companions(assets)?;
+        let deleted = self.catalog_mut().delete_assets(&assets)?;
         if deleted.assets.is_empty() {
             return Ok(RemovalReport::default());
         }
@@ -486,6 +491,42 @@ impl Library {
             asset_ids: report.removed.clone(),
         });
         Ok(report)
+    }
+
+    /// Pairs every RAW+JPEG couple the library already holds, and reports
+    /// each as `(master, companion)` (ADR 0079 §7).
+    ///
+    /// The v3 migration adds the column without pairing anything, so this is
+    /// how a library imported before ADR 0079 stops listing every shot
+    /// twice. Idempotent: a second run finds nothing left to pair.
+    pub fn pair_assets(&self) -> Result<Vec<(AssetId, AssetId)>> {
+        let paired = self.catalog_mut().pair_all()?;
+        if !paired.is_empty() {
+            // Both sides changed for a view: the companion left the grid,
+            // and the master now carries one.
+            let mut touched = Vec::with_capacity(paired.len() * 2);
+            for (master, companion) in &paired {
+                touched.push(*master);
+                touched.push(*companion);
+            }
+            self.emit(Event::AssetsChanged { asset_ids: touched });
+        }
+        Ok(paired)
+    }
+
+    /// Detaches `assets`, master or companion, and returns how many rows
+    /// stopped being companions (ADR 0079 §6).
+    ///
+    /// Nothing is lost or moved: a detached companion returns to the grid
+    /// with the rating, keywords and revisions it always had.
+    pub fn unpair_assets(&self, assets: &[AssetId]) -> Result<u32> {
+        let detached = self.catalog_mut().unpair_assets(assets)?;
+        if detached > 0 {
+            self.emit(Event::AssetsChanged {
+                asset_ids: assets.to_vec(),
+            });
+        }
+        Ok(detached)
     }
 
     /// Creates a keyword under `parent`, or at the root (§8).
@@ -1694,6 +1735,7 @@ impl Library {
                 let options = ImportOptions {
                     copy_files: true,
                     recursive: false,
+                    pair_companions: true,
                 };
                 // A failed import of one captured shot (e.g. an undecodable
                 // file) is dropped rather than surfaced as a disconnect —
@@ -1785,6 +1827,7 @@ impl Library {
                 let options = ImportOptions {
                     copy_files: true,
                     recursive: false,
+                    pair_companions: true,
                 };
                 // A failed import of one settled file (e.g. an undecodable
                 // one) is dropped rather than surfaced as a session error —

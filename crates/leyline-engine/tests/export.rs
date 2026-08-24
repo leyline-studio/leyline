@@ -27,6 +27,7 @@ fn undecodable_assets_and_missing_versions_are_reported() {
         &ImportOptions {
             copy_files: true,
             recursive: false,
+            pair_companions: true,
         },
         |_, _| {},
     )
@@ -78,6 +79,7 @@ fn a_failing_version_does_not_stop_the_batch() {
         &ImportOptions {
             copy_files: true,
             recursive: false,
+            pair_companions: true,
         },
         |_, _| {},
     )
@@ -152,6 +154,7 @@ fn library_export_narrows_the_lock_and_still_exports_every_version() {
             &ImportOptions {
                 copy_files: true,
                 recursive: false,
+                pair_companions: true,
             },
             |_, _| {},
         )
@@ -223,6 +226,7 @@ fn concurrency_changes_the_schedule_and_not_one_byte_of_the_output() {
             &ImportOptions {
                 copy_files: true,
                 recursive: false,
+                pair_companions: true,
             },
             |_, _| {},
         )
@@ -309,6 +313,7 @@ fn a_name_taken_by_an_earlier_version_of_the_batch_fails_the_later_one() {
             &ImportOptions {
                 copy_files: true,
                 recursive: false,
+                pair_companions: true,
             },
             |_, _| {},
         )
@@ -433,6 +438,7 @@ fn exports_a_png_source_to_jpeg_and_journals_it() {
         &ImportOptions {
             copy_files: true,
             recursive: false,
+            pair_companions: true,
         },
         |_, _| {},
     )
@@ -472,6 +478,7 @@ fn exports_a_real_raw_to_jpeg_and_journals_it() {
         &ImportOptions {
             copy_files: true,
             recursive: false,
+            pair_companions: true,
         },
         |_, _| {},
     )

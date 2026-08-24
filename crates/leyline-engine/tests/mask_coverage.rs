@@ -25,6 +25,7 @@ fn library_with_a_flat_photo(
             &ImportOptions {
                 copy_files: true,
                 recursive: false,
+                pair_companions: true,
             },
             |_, _| {},
         )

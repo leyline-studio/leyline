@@ -150,6 +150,7 @@ pub(crate) fn load_window(app: &mut App, window: &StudioWindow) -> Result<(), St
             flagged: item.pick == PickState::Pick,
             rejected: item.pick == PickState::Reject,
             edited: item.edited,
+            paired: item.paired,
         });
     }
     let (visible, above): (VecDeque<usize>, VecDeque<usize>) = missing
@@ -355,4 +356,15 @@ pub(crate) fn show_details(app: &mut App, window: &StudioWindow, index: i32) {
     DetailState::get(window).set_detail_exposure(SharedString::from(
         meta.map_or_else(String::new, format::exposure_line),
     ));
+    // A paired photo says so, and names the file (ADR 0079 §6): the JPEG
+    // left the grid, it did not leave the library, and the one place that
+    // can tell the user where it went is here.
+    let companion = details
+        .companions
+        .iter()
+        .filter_map(|id| app.library.catalog().asset_details(*id).ok())
+        .map(|details| details.filename)
+        .collect::<Vec<_>>()
+        .join(", ");
+    DetailState::get(window).set_detail_companion(SharedString::from(companion));
 }
