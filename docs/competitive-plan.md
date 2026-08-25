@@ -1,663 +1,662 @@
-# Plan d'action — justesse du rendu, performance, IA locale
+# Action plan — render accuracy, performance, local AI
 
-**Document :** `docs/competitive-plan.md`
-**Version :** 0.1
-**Statut :** Recommandation (entrée de planification, pas une décision)
+**Document:** `docs/competitive-plan.md`
+**Version:** 0.1
+**Status:** Recommendation (a planning input, not a decision)
 
 ---
 
-## État de ce document
+## The state of this document
 
-> Ce document part d'une comparaison à froid, faite le **2026-08-02**, entre
-> Leyline et les logiciels établis (Lightroom, Capture One, DxO PhotoLab,
-> darktable, RawTherapee). Il cadre **trois axes** de travail et n'en tranche
-> aucun : chaque item ci-dessous exige **son propre ADR avant toute ligne de
-> code**, conformément à la règle du projet (« aucun code avant l'architecture »).
+> This document starts from a cold comparison, made on **2026-08-02**, between
+> Leyline and the established software (Lightroom, Capture One, DxO PhotoLab,
+> darktable, RawTherapee). It scopes **three axes** of work and settles
+> none of them: every item below requires **its own ADR before a single line of
+> code**, as the project's rule demands ("no code before architecture").
 >
-> Il ne remplace ni [`specification.md`](specification.md) — qui dit ce qui est
-> livré et ce qui est exclu — ni [`roadmap.md`](roadmap.md), qui dit où en est
-> le projet. Il alimente l'un et l'autre.
+> It replaces neither [`specification.md`](specification.md) — which says what is
+> delivered and what is excluded — nor [`roadmap.md`](roadmap.md), which says where
+> the project stands. It feeds both.
 
 ---
 
-# 1. Objet
+# 1. Subject
 
-Le périmètre V1 et le cadrage V2 sont refermés : ce qui reste n'est plus de la
-fonctionnalité manquante. La question devient donc **où Leyline perd face aux
-logiciels établis**, ce qui n'est pas la même chose. Trois axes ressortent, et
-un seul est un rattrapage de fonctionnalité.
+The V1 scope and the V2 scoping are closed: what remains is no longer
+missing functionality. The question therefore becomes **where Leyline loses against
+the established software**, which is not the same thing. Three axes stand out, and
+only one is a feature catch-up.
 
-| Axe | Nature du problème | Ce que l'utilisateur ressent |
+| Axis | Nature of the problem | What the user feels |
 |---|---|---|
-| **A — Justesse du rendu** | Chaîne colorimétrique incomplète | L'image « sort » moins bien à l'ouverture, avant tout réglage |
-| **B — Performance** | Travail structurellement redondant, aucun GPU | Chaque curseur traîne |
-| **C — IA locale optionnelle** | Absence assumée, devenue un écart de marché | Hauts ISO et masquage restent manuels |
+| **A — Render accuracy** | An incomplete colour chain | The image "comes out" worse on opening, before any adjustment |
+| **B — Performance** | Structurally redundant work, no GPU | Every slider drags |
+| **C — Optional local AI** | A deliberate absence, now a market gap | High ISO and masking stay manual |
 
-L'axe A décide du verdict au premier coup d'œil ; l'axe B se paie à chaque
-seconde d'usage ; l'axe C est un horizon, pas un chantier courant.
+Axis A decides the verdict at first glance; axis B is paid for every
+second of use; axis C is a horizon, not current work.
 
 ---
 
-# 2. Axe A — Justesse du rendu
+# 2. Axis A — Render accuracy
 
-C'est l'axe le plus rentable : trois manques précis, tous déjà identifiés dans
-le dépôt, dont aucun ne demande d'invention.
+This is the most profitable axis: three precise gaps, all already identified in
+the repository, none of which requires invention.
 
-## A1 — Valider la colorimétrie DCP, puis appliquer les tables
+## A1 — Validate the DCP colorimetry, then apply the tables
 
-**État.** Le chemin DCP est livré mais **signalé expérimental**
-([ADR 0035](adr/0035-camera-profile-dcp.md)) : la justesse n'a jamais été
-confrontée à de vrais `.dcp` Adobe et à leurs rendus de référence, et les
-tables `ProfileHueSatMapData`, `ProfileLookTableData` et `ProfileToneCurve` ne
-sont pas appliquées.
+**State.** The DCP path is delivered but **flagged experimental**
+([ADR 0035](adr/0035-camera-profile-dcp.md)): its accuracy has never been
+confronted with real Adobe `.dcp` files and their reference renders, and the
+`ProfileHueSatMapData`, `ProfileLookTableData` and `ProfileToneCurve` tables are
+not applied.
 
-**Pourquoi ça compte.** Ces tables *sont* le rendu Adobe. La matrice seule fait
-une conversion correcte ; c'est la `LookTable` qui fait qu'un fichier « a l'air
-de sortir de Lightroom ». Tant qu'elles manquent, la comparaison A/B est perdue
-d'avance, quelle que soit la qualité du reste du pipeline.
+**Why it matters.** Those tables *are* the Adobe rendering. The matrix alone makes
+a correct conversion; it is the `LookTable` that makes a file "look as though it
+came out of Lightroom". As long as they are missing, the A/B comparison is lost
+in advance, whatever the quality of the rest of the pipeline.
 
-**Découpage.** Deux temps distincts, à ne pas confondre :
+**The split.** Two distinct stages, not to be confused:
 
-1. **Valider l'existant** — protocole de comparaison contre des `.dcp` Adobe et
-   des rendus de référence, mesure de l'écart, puis **lever ou confirmer** la
-   mention « expérimental ». Ne change aucun pixel s'il n'y a pas de bug.
-   **Fait les 2026-08-02/03** — voir le résultat plus bas.
-2. **Appliquer les tables manquantes** — change le rendu, donc **nouvelle
-   version d'étage** obligatoire (`pipeline.md` §5.1), jamais une modification
-   de l'étage publié. **Livré le 2026-08-02** :
-   [ADR 0062](adr/0062-dcp-illuminant-interpolation.md) pour l'interpolation des
-   illuminants (`camera_profile::v2`) et
-   [ADR 0063](adr/0063-dcp-tables.md) pour `HueSatMap`, `LookTable` et
+1. **Validate what exists** — a comparison protocol against Adobe `.dcp` files and
+   reference renders, a measurement of the discrepancy, then **lifting or confirming**
+   the "experimental" label. Changes no pixel if there is no bug.
+   **Done on 2026-08-02/03** — see the result below.
+2. **Apply the missing tables** — this changes the render, and therefore requires a **new
+   stage version** (`pipeline.md` §5.1), never a modification of
+   the published stage. **Delivered on 2026-08-02**:
+   [ADR 0062](adr/0062-dcp-illuminant-interpolation.md) for illuminant
+   interpolation (`camera_profile::v2`) and
+   [ADR 0063](adr/0063-dcp-tables.md) for `HueSatMap`, `LookTable` and
    `ProfileToneCurve` (`camera_profile::v3`).
 
-**Prérequis — et blocage constaté le 2026-08-02.** Il faut des `.dcp` Adobe et
-des rendus de référence pour les boîtiers disponibles (les ~17 000 CR2 Canon 60D
-réels sont l'échantillon naturel). **Aucun `.dcp` n'existe sur la machine de
-développement**, et rien n'y est installé qui en fournisse — ni RawTherapee, qui
-en livre habituellement une collection, ni darktable, ni le DNG Converter
-d'Adobe. A1.1 est donc **bloquée sur un artefact à apporter**, pas sur du code.
+**Prerequisite — and the blockage found on 2026-08-02.** Adobe `.dcp` files and
+reference renders are needed for the available camera bodies (the ~17,000 real Canon 60D
+CR2 files are the natural sample). **No `.dcp` exists on the development
+machine**, and nothing is installed there that supplies one — neither RawTherapee, which
+usually ships a collection of them, nor darktable, nor Adobe's DNG Converter.
+A1.1 is therefore **blocked on an artefact to be brought in**, not on code.
 
-Trois façons de la débloquer, par ordre de préférence :
+Three ways to unblock it, in order of preference:
 
-1. **Installer RawTherapee** et reprendre les `.dcp` qu'il distribue — c'est la
-   source la plus simple, et elle donne aussi un second rendu de référence.
-2. **Le DNG Converter d'Adobe**, gratuit, qui installe la collection complète
-   des profils par boîtier.
-3. **Une charte ColorChecker photographiée** : la validation la plus honnête, et
-   la seule qui ne dépende d'aucun autre logiciel — on compare les plages rendues
-   aux valeurs sRGB de référence de la charte. Ne demande pas de `.dcp` du tout,
-   mais demande une prise de vue.
+1. **Install RawTherapee** and take the `.dcp` files it distributes — it is the
+   simplest source, and it also gives a second reference render.
+2. **Adobe's DNG Converter**, free, which installs the complete collection
+   of per-camera profiles.
+3. **A photographed ColorChecker chart**: the most honest validation, and
+   the only one that depends on no other software — the rendered patches are compared
+   with the chart's reference sRGB values. It needs no `.dcp` at all,
+   but it does need a shot.
 
-**Piste apportée le 2026-08-02 :** des collections de **profils linéaires**
-`.dcp` par marque circulent en téléchargement (par exemple
-`olivier-rocq.com/lightroom/profil-lineaire/`), et **Adobe DNG Profile Editor**,
-gratuit, en fabrique. Un profil *linéaire* est un cas de validation
-particulièrement bien choisi : n'ayant ni `ProfileToneCurve` ni look table, il
-n'exerce que le chemin matriciel — exactement ce que Leyline implémente, et rien
-de ce qu'il n'implémente pas encore.
+**A lead brought in on 2026-08-02:** collections of **linear profiles**
+(`.dcp`) per brand circulate as downloads (for instance
+`olivier-rocq.com/lightroom/profil-lineaire/`), and **Adobe DNG Profile Editor**,
+free, makes them. A *linear* profile is a particularly well-chosen validation
+case: having neither a `ProfileToneCurve` nor a look table, it
+exercises the matrix path alone — exactly what Leyline implements, and nothing
+of what it does not implement yet.
 
-Ce que cette piste débloque, et ce qu'elle ne débloque pas :
+What that lead unblocks, and what it does not:
 
-* ✅ **Fait le 2026-08-02** — et le premier vrai fichier a trouvé un bug
-  bloquant : Leyline ne lisait **aucun** `.dcp` authentique. Voir plus bas.
-* ✅ **Fait** : un gris neutre du capteur ressort neutre à travers
-  caméra→XYZ(D50)→sRGB, sur les deux profils réels. Test permanent, activé par
+* ✅ **Done on 2026-08-02** — and the first real file found a
+  blocking bug: Leyline could read **no** authentic `.dcp` at all. See below.
+* ✅ **Done**: a neutral grey from the sensor comes out neutral through
+  camera→XYZ(D50)→sRGB, on both real profiles. A permanent test, enabled by
   `LEYLINE_TEST_DCP`.
-* ❌ **La comparaison au rendu d'Adobe.** Elle exige toujours Lightroom ou ACR
-  pour produire la référence. Un profil téléchargé ne la remplace pas.
+* ❌ **The comparison with Adobe's own rendering.** It still requires Lightroom or ACR
+  to produce the reference. A downloaded profile does not replace it.
 
-**Le bug trouvé.** Un `.dcp` authentique est une *IFD nue* — un répertoire de
-tags, sans aucune image — portant le numéro de version `0x4352` là où TIFF met
-42. Le lecteur s'appuyait sur `tiff::Decoder`, qui exige les deux : le 42 et un
-`ImageWidth`. Les seules fixtures existantes étant des images TIFF avec des tags
-DCP greffés, elles passaient toutes pendant qu'aucun profil réel n'était
-lisible. C'est le prix exact d'une suite de tests qui ne dialogue qu'avec
-elle-même.
+**The bug found.** An authentic `.dcp` is a *bare IFD* — a directory of
+tags, with no image at all — carrying the version number `0x4352` where TIFF puts
+42. The reader relied on `tiff::Decoder`, which requires both: the 42 and an
+`ImageWidth`. The only existing fixtures being TIFF images with DCP tags
+grafted on, they all passed while no real profile was
+readable. That is the exact price of a test suite that talks only to
+itself.
 
-Attention aussi : ces profils sont l'œuvre de tiers, pas les profils d'usine
-d'Adobe. Ils valident notre lecture et notre algèbre, pas notre fidélité au
-rendu « Camera Standard ».
+Note too: those profiles are the work of third parties, not Adobe's factory
+profiles. They validate our reading and our algebra, not our fidelity to the
+"Camera Standard" rendering.
 
-**Résultat du 2026-08-03.** La référence est arrivée, sous la forme d'un rendu
-RawTherapee du même RAW avec le même profil et un profil de traitement neutre.
-Une fois le niveau normalisé : **écart médian 0,0027 sur 1,0**, 90ᵉ centile
-0,0060, rapports de canaux à 0,007 près. La colorimétrie concorde avec une
-implémentation indépendante.
+**Result of 2026-08-03.** The reference arrived, in the form of a RawTherapee
+render of the same RAW with the same profile and a neutral processing profile.
+Once the level was normalised: **a median discrepancy of 0.0027 out of 1.0**, 90th percentile
+0.0060, channel ratios within 0.007. The colorimetry agrees with an
+independent implementation.
 
-**Le protocole est désormais reproductible sans intervention manuelle** :
-`rawtherapee-cli -s` sans sidecar rend avec des valeurs neutres, et un `.pp3`
-minimal fixe le profil d'entrée et l'espace de sortie. La référence produite
-ainsi reproduit un export fait à la main à 0,001 près.
+**The protocol is now reproducible without manual intervention**:
+`rawtherapee-cli -s` without a sidecar renders with neutral values, and a minimal
+`.pp3` fixes the input profile and the output space. The reference produced
+that way reproduces a hand-made export to within 0.001.
 
-### L'écart de niveau, le 2026-08-03 : un défaut trouvé, l'écart non refermé
+### The level gap, on 2026-08-03: a defect found, the gap not closed
 
-Restait un **gain de ×1,185 en linéaire** : RawTherapee rend plus clair que
-Leyline, uniformément. La piste retenue était le niveau de blanc du capteur.
+There remained a **gain of ×1.185 in linear**: RawTherapee renders brighter than
+Leyline, uniformly. The lead taken up was the sensor's white level.
 
-**Elle a mené à un vrai défaut — mais pas à l'explication de l'écart.** Les
-deux résultats sont distincts et il faut les lire séparément.
+**It led to a real defect — but not to the explanation of the gap.** The
+two results are distinct and must be read separately.
 
-**Le défaut, corrigé ([ADR 0066](adr/0066-sensor-white-level.md)).** Leyline ne
-divisait pas par 16 383 comme on le croyait : `adjust_maximum_thr`, un réglage
-LibRaw laissé à son défaut de 0,75, abaisse le niveau de blanc jusqu'à
-**l'échantillon le plus lumineux de l'image en cours**. Sur quatre fichiers
-d'une même série, Canon 60D, ISO 100, même exposition, le niveau retenu était
-13 794 pour l'un et 16 383 pour les trois autres — 19 % d'écart de luminosité
-selon qu'un reflet est tombé ou non dans le cadre. C'est exactement ce que
-`auto_brighten: false` était censé interdire. Le boîtier, lui, écrit la
-réponse dans le fichier (`linear_max` : 12 279 à ISO 100, 15 094 à ISO 400,
-11 222 ailleurs) — même découpage en groupes d'ISO que la table mesurée de
-RawTherapee, et personne ne la lisait. `input::v4` la lit désormais — et un relevé sur 250 fichiers du corpus a montré
-au passage que cette métadonnée suit aussi **l'ouverture**, à ~1 % du tableau
-`aperture_scaling` que RawTherapee maintient à la main.
+**The defect, fixed ([ADR 0066](adr/0066-sensor-white-level.md)).** Leyline was not
+dividing by 16,383 as was believed: `adjust_maximum_thr`, a LibRaw setting
+left at its default of 0.75, lowers the white level down to
+**the brightest sample of the image at hand**. On four files
+from one series, Canon 60D, ISO 100, the same exposure, the level chosen was
+13,794 for one and 16,383 for the other three — a 19 % difference in brightness
+depending on whether a reflection happened to fall in the frame. That is exactly what
+`auto_brighten: false` was supposed to forbid. The camera, for its part, writes the
+answer into the file (`linear_max`: 12,279 at ISO 100, 15,094 at ISO 400,
+11,222 elsewhere) — the same split into ISO groups as RawTherapee's measured
+table, and nobody was reading it. `input::v4` now reads it — and a survey of 250 files from the corpus showed
+along the way that this metadata also follows **the aperture**, to within ~1 % of the
+`aperture_scaling` table RawTherapee maintains by hand.
 
-**L'écart avec RawTherapee, lui, n'est pas refermé.** Après correction il passe
-de ×1,16 à ×1,03 sur le fichier ISO 100, mais **augmente** de ×1,08 à ×1,13 sur
-un fichier ISO 400 — là où `v3` étirait le blanc jusqu'au pixel le plus clair
-d'une image qui n'en avait pas de très clair. Les diviseurs effectifs des deux
-moteurs sont maintenant connus des deux côtés, et **ils n'expliquent pas** le
-facteur ~1,14 qui subsiste. Ce n'est donc pas le niveau de blanc, et la
-question reste ouverte.
+**The gap with RawTherapee, however, is not closed.** After the fix it goes
+from ×1.16 to ×1.03 on the ISO 100 file, but **increases** from ×1.08 to ×1.13 on
+an ISO 400 file — there where `v3` stretched white up to the brightest pixel
+of an image that had no very bright one. The effective divisors of the two
+engines are now known on both sides, and **they do not explain** the
+factor of ~1.14 that remains. It is therefore not the white level, and the
+question stays open.
 
-**Le protocole est désormais reproductible sans intervention manuelle** :
-`rawtherapee-cli -s` sans sidecar rend avec des valeurs neutres, et un `.pp3`
-minimal fixe le profil d'entrée et l'espace de sortie. La référence produite
-ainsi reproduit un export fait à la main à 0,001 près.
+**The protocol is now reproducible without manual intervention**:
+`rawtherapee-cli -s` without a sidecar renders with neutral values, and a minimal
+`.pp3` fixes the input profile and the output space. The reference produced
+that way reproduces a hand-made export to within 0.001.
 
-### L'écart de niveau, expliqué le 2026-08-03
+### The level gap, explained on 2026-08-03
 
-Restait un **gain de ×1,185 en linéaire** : RawTherapee rend plus clair que
-Leyline, uniformément. Trois choses avaient été établies — indépendant du
-profil caméra, donc pas de la couleur ; un gain et non une courbe ; et le
-niveau de blanc du capteur comme piste, sans que les chiffres collent.
+There remained a **gain of ×1.185 in linear**: RawTherapee renders brighter than
+Leyline, uniformly. Three things had been established — independent of the
+camera profile, hence not of colour; a gain and not a curve; and the
+sensor's white level as a lead, without the figures adding up.
 
-**Ils collent maintenant : la piste était la bonne, c'est la comparaison qui
-mélangeait deux fichiers.** L'ancien calcul opposait le `linear_max = 11 222`
-d'un fichier à la valeur `camconst` d'un autre groupe d'ISO.
+**They add up now: the lead was right, it is the comparison that was
+mixing two files.** The old computation set the `linear_max = 11,222` of
+one file against the `camconst` value of another ISO group.
 
-Ce que les deux moteurs prennent pour « blanc », sur un Canon 60D :
+What the two engines take for "white", on a Canon 60D:
 
 | Source | ISO 100/125 | ISO 200…3200 | ISO 160/320/640/1250/2500 |
 |---|---|---|---|
-| LibRaw `maximum` — ce que Leyline divise par | 16 383 | 16 383 | 16 383 |
-| LibRaw `linear_max` — métadonnée du boîtier, **ignorée** | 12 279 | 15 094 | 11 222 |
-| `camconst.json` de RawTherapee | 13 480 | 15 200 | 12 550 |
+| LibRaw `maximum` — what Leyline divides by | 16,383 | 16,383 | 16,383 |
+| LibRaw `linear_max` — camera metadata, **ignored** | 12,279 | 15,094 | 11,222 |
+| RawTherapee's `camconst.json` | 13,480 | 15,200 | 12,550 |
 
-Les deux dernières lignes **partagent le même découpage en trois groupes
-d'ISO** : ce n'est pas une coïncidence, c'est le même comportement matériel vu
-de deux côtés. Leyline, lui, normalise par le plafond théorique du 14 bits, le
-même pour tous les fichiers.
+The last two rows **share the same split into three ISO
+groups**: that is not a coincidence, it is the same hardware behaviour seen
+from two sides. Leyline, for its part, normalises by the theoretical 14-bit ceiling, the
+same for every file.
 
-**La prédiction, et sa vérification.** Si l'écart n'est que ce choix, il doit
-suivre le groupe d'ISO du fichier — et non rester à 1,185 :
+**The prediction, and its verification.** If the gap is only that choice, it must
+follow the file's ISO group — and not stay at 1.185:
 
-| Fichier | ISO | Rapport prédit (16 383 / blanc RT) | Rapport mesuré |
+| File | ISO | Predicted ratio (16,383 / RT white) | Measured ratio |
 |---|---|---|---|
-| IMG_9040 | 100 | 1,215 | **~1,19** |
-| IMG_9046 | 400 | 1,078 | **1,085** |
+| IMG_9040 | 100 | 1.215 | **~1.19** |
+| IMG_9046 | 400 | 1.078 | **1.085** |
 
-Deux fichiers, deux prédictions différentes, deux mesures qui tombent à moins
-de 2 %. **L'écart est expliqué.** Le désactivateur du roll-off des hautes
-lumières ne change rien à ce rapport, ce qui écarte au passage notre propre
-courbe de sortie comme explication.
+Two files, two different predictions, two measurements landing within
+2 %. **The gap is explained.** Disabling the highlight roll-off changes nothing
+in that ratio, which incidentally rules out our own output
+curve as an explanation.
 
-**Ce que ça coûte, concrètement.** Un rendu neutre est 8 à 19 % trop sombre
-selon la sensibilité, et surtout **un pixel saturé du capteur ne ressort pas
-blanc** : à ISO 100 il arrive à 0,82. C'est exactement le « l'image sort moins
-bien à l'ouverture » qui ouvre ce document.
+**What it costs, concretely.** A neutral render is 8 to 19 % too dark
+depending on the sensitivity, and above all **a pixel saturated at the sensor does not come out
+white**: at ISO 100 it arrives at 0.82. That is exactly the "the image comes out worse
+on opening" that opens this document.
 
-**Rien n'est corrigé pour autant** : changer la normalisation déplace tous les
-pixels de toutes les photos, et exige donc une **nouvelle version de l'étage
-`input`** (`pipeline.md` §5.1) — les révisions existantes continuant de rendre
-comme avant jusqu'à un reprocess. Le choix de la source de vérité est une
-décision à part entière, avec au moins trois candidats — `linear_max` de la
-métadonnée, une table par boîtier et par ISO à la `camconst` (RawTherapee est
-GPL-3.0, donc réutilisable ici), ou l'ajustement par le contenu de l'image que
-LibRaw propose (`adjust_maximum_thr`, à écarter : deux photos de la même scène
-rendraient différemment). **Cela demande son ADR.**
+**Nothing is fixed for all that**: changing the normalisation moves every
+pixel of every photo, and therefore requires a **new version of the `input`
+stage** (`pipeline.md` §5.1) — existing revisions going on rendering
+as before until a reprocess. The choice of the source of truth is a decision in
+its own right, with at least three candidates — the metadata's `linear_max`,
+a per-camera, per-ISO table in the manner of `camconst` (RawTherapee is
+GPL-3.0, hence reusable here), or the image-content adjustment
+LibRaw offers (`adjust_maximum_thr`, to be rejected: two photos of the same scene
+would render differently). **That calls for its own ADR.**
 
-**Darktable ne peut pas servir de troisième avis en l'état** : son rendu par
-défaut applique un mappage tonal *scene-referred* (filmic), dont la signature
-en S est nette — rapport à 1,43 dans les tons moyens, 0,96 au blanc. Le
-comparer demanderait de désactiver ce module.
+**darktable cannot serve as a third opinion as things stand**: its default
+rendering applies a *scene-referred* tone mapping (filmic), whose S signature
+is clear — a ratio of 1.43 in the midtones, 0.96 at white. Comparing it
+would require disabling that module.
 
-La mention « expérimental » reste : pour l'absence de comparaison à Adobe
-lui-même, et pour ce facteur ~1,14 qui n'est toujours pas attribué. Ce qui est
-acquis, c'est que **ce n'est pas la couleur** — la colorimétrie, elle,
-concorde.
+The "experimental" label stays: for the absence of a comparison with Adobe
+itself, and for that ~1.14 factor that is still unattributed. What is
+settled is that **it is not colour** — the colorimetry does
+agree.
 
-**Risque.** Faible sur le point 1, moyen sur le point 2 : l'interpolation des
-tables `HueSatMap` est un travail de précision, où une erreur passe inaperçue
-sur une image de test et saute aux yeux sur une peau.
+**Risk.** Low on point 1, medium on point 2: interpolating the
+`HueSatMap` tables is precision work, where a mistake goes unnoticed
+on a test image and leaps off the screen on skin.
 
-## A2 — Exposer le choix de l'algorithme de dématriçage — **livré le 2026-08-02**
+## A2 — Expose the choice of demosaic algorithm — **delivered on 2026-08-02**
 
-**État initial.** `params.user_qual` n'était ni exposé ni choisi : on prenait le
-défaut de LibRaw. [ADR 0050](adr/0050-highlight-reconstruction.md) §143 laisse
-explicitement la question ouverte.
+**Initial state.** `params.user_qual` was neither exposed nor chosen: we took
+LibRaw's default. [ADR 0050](adr/0050-highlight-reconstruction.md) §143 explicitly
+leaves the question open.
 
-**Pourquoi ça compte.** RawTherapee propose AMaZE, LMMSE, DCB ; le choix se voit
-sur le détail fin et les motifs répétitifs (moiré, feuillage, tissu). C'est un
-levier de qualité **déjà présent dans la dépendance**, qu'il suffit de piloter.
+**Why it matters.** RawTherapee offers AMaZE, LMMSE, DCB; the choice shows
+on fine detail and repetitive patterns (moiré, foliage, fabric). It is a
+quality lever **already present in the dependency**, needing only to be driven.
 
-**Contrainte.** Le dématriçage est en amont de tout le pipeline : l'exposer
-change le rendu, donc c'est une nouvelle version de l'étage `input`, et la
-valeur retenue doit être écrite dans la révision. Un défaut qui changerait sans
-version d'étage casserait `pipeline.md` §5.1.
+**Constraint.** Demosaicing is upstream of the whole pipeline: exposing it
+changes the render, so it is a new version of the `input` stage, and the
+value chosen must be written into the revision. A default that changed without a
+stage version would break `pipeline.md` §5.1.
 
-**Risque.** Faible. Le travail est du câblage et de la validation, pas de
-l'algorithmique.
+**Risk.** Low. The work is wiring and validation, not
+algorithmics.
 
-**Livré** par [ADR 0061](adr/0061-demosaic-algorithm.md) : quatre valeurs
-nommées (`ahd` par défaut, `vng`, `dcb`, `dht`), écrites dans la révision,
-portées par `input::v3`. AMaZE et LMMSE sont absents faute d'être présents dans
-la bibliothèque liée — les proposer aurait été proposer un choix qui retombe
-silencieusement sur AHD.
+**Delivered** by [ADR 0061](adr/0061-demosaic-algorithm.md): four named
+values (`ahd` by default, `vng`, `dcb`, `dht`), written into the revision,
+carried by `input::v3`. AMaZE and LMMSE are absent for want of being present in
+the linked library — offering them would have been offering a choice that falls back
+silently on AHD.
 
-## A3 — Profil de bruit mesuré par boîtier et par sensibilité — **livré le 2026-08-04**
+## A3 — A noise profile measured per camera and per sensitivity — **delivered on 2026-08-04**
 
-**État initial.** Déjà listé comme « décidé, non implémenté »
-([ADR 0046](adr/0046-edge-preserving-denoise.md) §7), à trancher par son propre
+**Initial state.** Already listed as "decided, not implemented"
+([ADR 0046](adr/0046-edge-preserving-denoise.md) §7), to be settled by its own
 ADR.
 
-**Pourquoi ça comptait.** Le débruitage travaillait sans rien savoir du
-capteur : trois constantes, les mêmes pour tous les fichiers du monde. Entre
-ISO 100 et ISO 12800, l'écart-type réel du bruit d'un Canon 60D varie d'un
-facteur **neuf** — un seuil unique ne peut donc être juste qu'à une
-sensibilité. Et le bruit de photons croît avec la lumière reçue, ce qu'un seuil
-constant ignore aussi : trop faible dans les ombres, trop fort dans les hautes
-lumières.
+**Why it mattered.** Denoising worked knowing nothing about the
+sensor: three constants, the same for every file in the world. Between
+ISO 100 and ISO 12800, the actual standard deviation of a Canon 60D's noise varies by a
+factor of **nine** — a single threshold can therefore only be right at one
+sensitivity. And photon noise grows with the light received, which a constant
+threshold also ignores: too low in the shadows, too high in the highlights.
 
-**Livré** par [ADR 0072](adr/0072-measured-noise-profile.md). Quatre décisions,
-dont trois n'étaient pas prévues par le présent document :
+**Delivered** by [ADR 0072](adr/0072-measured-noise-profile.md). Four decisions,
+three of which this document had not anticipated:
 
-1. **La question des données était la bonne, et sa réponse est une licence.**
-   La table mesurée de darktable — 434 boîtiers, 7 842 couples `(ISO, a, b)` —
-   est publiée sous GPL-3.0-or-later, donc utilisable telle quelle dans un
-   projet GPL-3.0-only. Mesurer nous-mêmes aurait donné deux boîtiers.
-2. **La table est gelée avec la version d'étage**, faute de quoi une mise à
-   jour des mesures changerait le rendu d'une révision existante (§5.1). Écrire
-   cette règle a mis en lumière que **la base Lensfun, elle, n'est épinglée par
-   rien** — un trou réel dans §5.1, consigné dans l'ADR, non refermé.
-3. **Les deux étages changent de rang** (170/180 → 5/6) : un modèle mesuré sur
-   les comptes du capteur ne veut plus rien dire après l'exposition, la courbe
-   tonale et la clarté. C'est la première fois qu'une version d'étage change de
-   rang, ce qu'ADR 0042 §3 autorisait sans que rien ne l'ait encore exercé.
-4. **Le seuil devient un seuil par pixel** — `k · 6σ_l · √(a·x + b)` — au lieu
-   d'une constante par échelle.
+1. **The question of the data was the right one, and its answer is a licence.**
+   darktable's measured table — 434 camera bodies, 7,842 `(ISO, a, b)` triples —
+   is published under GPL-3.0-or-later, hence usable as is in a
+   GPL-3.0-only project. Measuring ourselves would have given two camera bodies.
+2. **The table is frozen with the stage version**, failing which an update
+   of the measurements would change the render of an existing revision (§5.1). Writing
+   that rule brought to light that **the Lensfun database, for its part, is pinned by
+   nothing** — a real hole in §5.1, recorded in the ADR, not closed.
+3. **The two stages change rank** (170/180 → 5/6): a model measured on
+   sensor counts means nothing after exposure, the tone
+   curve and clarity. It is the first time a stage version has changed
+   rank, something ADR 0042 §3 permitted without anything having exercised it yet.
+4. **The threshold becomes a per-pixel threshold** — `k · 6σ_l · √(a·x + b)` — instead
+   of a per-scale constant.
 
-**Ce que ça coûte : rien.** Même machine, même image de 3 Mpx, mêmes curseurs
-(luminance 40, chroma 30) : **98 ms pour `v1`, 231 ms pour `v2`, 219 ms pour
-`v3`** — le profil mesuré est *gratuit*, et même légèrement bénéficiaire.
-L'explication est en §4 de l'ADR : `v3` travaille en lumière linéaire et
-abandonne donc les deux passes d'aller-retour vers l'axe d'affichage que `v2`
-payait par rendu, ce qui finance largement la racine carrée par pixel.
+**What it costs: nothing.** The same machine, the same 3 Mpx image, the same sliders
+(luminance 40, chroma 30): **98 ms for `v1`, 231 ms for `v2`, 219 ms for
+`v3`** — the measured profile is *free*, and even slightly profitable.
+The explanation is in §4 of the ADR: `v3` works in linear light and therefore
+abandons the two round trips to the display axis that `v2`
+paid for on every render, which amply finances the per-pixel square root.
 
-**Ce que ça ne fait pas.** La parité avec les débruiteurs appris reste hors
-d'atteinte (ADR 0046 §7 vaut toujours) : un seuil mesuré ne reconstruit pas du
-détail, il sait seulement lequel ne pas détruire.
+**What it does not do.** Parity with learned denoisers stays out
+of reach (ADR 0046 §7 still holds): a measured threshold does not reconstruct
+detail, it only knows which detail not to destroy.
 
 ---
 
-# 3. Axe B — Performance
+# 3. Axis B — Performance
 
-## Le point de départ, mesuré
+## The starting point, measured
 
-[ADR 0041](adr/0041-interactive-preview-rendering.md) chiffre le problème sur un
-CR2 réel de **3888×2592** (10 Mpx), machine de référence i9-9900K, 16 threads :
+[ADR 0041](adr/0041-interactive-preview-rendering.md) quantifies the problem on a
+real CR2 of **3888×2592** (10 Mpx), reference machine i9-9900K, 16 threads:
 
-* preview `Small`, neutre : **0,97 s**
-* preview `Small`, tous curseurs actifs : **2,39 s**
+* `Small` preview, neutral: **0.97 s**
+* `Small` preview, every slider active: **2.39 s**
 
-Les boîtiers courants sont à 45–60 Mpx, soit **4 à 6×** ces temps.
+Current cameras are at 45–60 Mpx, that is, **4 to 6×** those times.
 
-## B1 — Cache d'étages d'ADR 0041 §3 — **livré le 2026-08-02**
+## B1 — The stage cache of ADR 0041 §3 — **delivered on 2026-08-02**
 
-**État initial.** ADR 0041 décide **trois** choses : le proxy à résolution
-d'affichage (§1), la mise à l'échelle des rayons (§2), et un **cache d'états
-intermédiaires** (§3). Les deux premières étaient livrées ; la troisième ne
-l'était pas — seul `DecodeCache` existait, qui évite le re-décodage et non le
-re-calcul, ce qu'ADR 0041 range lui-même parmi les alternatives insuffisantes.
-La roadmap cochait pourtant la phase 7.
+**Initial state.** ADR 0041 decides **three** things: the proxy at display
+resolution (§1), radius scaling (§2), and a **cache of intermediate
+states** (§3). The first two were delivered; the third was
+not — only `DecodeCache` existed, which avoids re-decoding and not
+re-computing, something ADR 0041 itself ranks among the insufficient alternatives.
+The roadmap nonetheless ticked phase 7.
 
-**Ce que ça valait.** Chaque rendu repartait du buffer décodé : bouger
-`sharpening` (dernier étage, ~13 ms) rejoue dehaze, clarté, texture, TSL et les
-réglages locaux à l'identique. C'est **la** différence structurelle avec
-Lightroom, Capture One et darktable, qui ne rejouent que l'aval du nœud édité.
+**What it was worth.** Every render started again from the decoded buffer: moving
+`sharpening` (the last stage, ~13 ms) replays dehaze, clarity, texture, HSL and the
+local adjustments identically. That is **the** structural difference from
+Lightroom, Capture One and darktable, which replay only downstream of the edited node.
 
-**Pourquoi en premier.** La conception était faite et acceptée — points
-de contrôle avant les étages chers, `(index d'étage, empreinte des réglages
-amont, buffer)`, ~30 Mo par session, chemin preview uniquement. Le cache est
-**purement dérivé** : le jeter à tout instant ne change aucun pixel. Donc
-**aucun risque de reproductibilité, aucune nouvelle version d'étage, aucune
-dépendance nouvelle**. C'est le meilleur rapport gain/risque de tout ce
+**Why first.** The design was done and accepted — checkpoints
+before the expensive stages, `(stage index, upstream settings fingerprint, buffer)`,
+~30 MB per session, the preview path only. The cache is
+**purely derived**: throwing it away at any moment changes no pixel. Hence
+**no reproducibility risk, no new stage version, no new
+dependency**. It is the best gain/risk ratio in this whole
 document.
 
-**Livré.** Mesuré à **−78 %** sur un curseur de fin de pipeline (~60 ms → ~14 ms,
-carte 1024×683, `--release`). Deux choses que l'implémentation a apprises et qui
-sont consignées dans ADR 0041 : le cache vit sur la `Library`, pas sur la session
-d'édition — la vue develop rend par `Library::preview` — et un seuil de point de
-contrôle désigne une position, pas un rang exact, sans quoi trois des quatre
-points ne sont jamais pris. Le prérequis réel était d'apprendre à chaque étage
-quels réglages il lit (`Stage::reads`), ce qu'aucun ADR n'avait posé.
+**Delivered.** Measured at **−78 %** on an end-of-pipeline slider (~60 ms → ~14 ms,
+a 1024×683 map, `--release`). Two things the implementation learned and which
+are recorded in ADR 0041: the cache lives on the `Library`, not on the edit
+session — the develop view renders through `Library::preview` — and a checkpoint
+threshold designates a position, not an exact rank, failing which three of the four
+points are never taken. The real prerequisite was teaching each stage
+which settings it reads (`Stage::reads`), something no ADR had laid down.
 
-## B2 — Le chemin export et impression — **mesuré le 2026-08-03**
+## B2 — The export and print path — **measured on 2026-08-03**
 
-**État.** ADR 0041 exclut explicitement l'export et l'impression de ses
-optimisations : pleine résolution, sans cache d'étages, **bit pour bit
-identiques**. C'était le bon arbitrage pour un ADR centré sur l'interactif —
-mais il laissait le chemin export sans un seul chiffre.
+**State.** ADR 0041 explicitly excludes export and printing from its
+optimisations: full resolution, no stage cache, **bit for bit
+identical**. That was the right trade-off for an ADR centred on the interactive path —
+but it left the export path without a single figure.
 
-**Mesuré.** `crates/leyline-engine/benches/export.rs`, i9-9900K 16 threads
-(la machine de référence d'ADR 0041), `--release`. Les trois coûts d'un export
-sont pesés séparément, parce qu'ils ne se comportent pas pareil :
+**Measured.** `crates/leyline-engine/benches/export.rs`, i9-9900K 16 threads
+(ADR 0041's reference machine), `--release`. An export's three costs are
+weighed separately, because they do not behave alike:
 
-| Étape | 10 Mpx | 45 Mpx | Parallèle ? |
+| Step | 10 Mpx | 45 Mpx | Parallel? |
 |---|---|---|---|
-| Décodage LibRaw, pleine taille | **0,85 s** | 2,76 s à 30 Mpx (mesuré sur un 5D IV) | oui |
-| Rendu, révision neutre | 0,045 s | **0,19 s** | oui (~8,7×) |
-| Rendu, édition complète | 1,12 s | **4,33 s** | oui (~8,7×) |
-| Encodage WebP | — | **0,61 s** | **non** |
-| Encodage JPEG | — | **0,87 s** | **non** |
-| Encodage TIFF | — | **1,62 s** | **non** |
-| Encodage PNG | — | **2,55 s** | **non** |
-| Encodage AVIF | 5,05 s | **21,8 s** | oui (~7,5×) |
+| LibRaw decoding, full size | **0.85 s** | 2.76 s at 30 Mpx (measured on a 5D IV) | yes |
+| Rendering, a neutral revision | 0.045 s | **0.19 s** | yes (~8.7×) |
+| Rendering, a full edit | 1.12 s | **4.33 s** | yes (~8.7×) |
+| WebP encoding | — | **0.61 s** | **no** |
+| JPEG encoding | — | **0.87 s** | **no** |
+| TIFF encoding | — | **1.62 s** | **no** |
+| PNG encoding | — | **2.55 s** | **no** |
+| AVIF encoding | 5.05 s | **21.8 s** | yes (~7.5×) |
 
-Tout est **linéaire en pixels** : ×4,3 de surface donne ×3,9 sur le rendu, ×4,3
-sur l'AVIF, ×3,3 sur le décodage. Rien ne s'effondre à la montée en taille, et
-rien ne profite non plus d'un effet d'échelle.
+Everything is **linear in pixels**: ×4.3 of area gives ×3.9 on rendering, ×4.3
+on AVIF, ×3.3 on decoding. Nothing collapses as size grows, and
+nothing benefits from an economy of scale either.
 
-**Ce que ça donne bout à bout.** Un fichier 30 Mpx, édition complète, JPEG :
-2,8 s de décodage + 2,9 s de rendu + 0,6 s d'encodage ≈ **6,3 s**. Le lot de
-500 fichiers évoqué plus haut prend donc **~52 minutes**. En AVIF, le même lot
-passe à **~3 heures**, l'encodage devenant à lui seul les trois quarts du temps.
+**What that gives end to end.** A 30 Mpx file, a full edit, JPEG:
+2.8 s of decoding + 2.9 s of rendering + 0.6 s of encoding ≈ **6.3 s**. The batch of
+500 files mentioned above therefore takes **~52 minutes**. In AVIF, the same batch
+goes to **~3 hours**, encoding alone becoming three quarters of the time.
 
-**Trois constats, dans l'ordre où ils comptent :**
+**Three findings, in the order in which they matter:**
 
-1. **L'AVIF est hors norme** — 25× le coût du JPEG à taille égale. La vitesse
-   d'encodage `ravif` est figée à `speed(6)` dans le code, sans que rien ne
-   l'expose ni ne le documente. C'est le seul réglage du document qui pourrait
-   diviser un temps par trois sans toucher à un pixel du rendu.
-2. **Les encodeurs rapides sont mono-thread** (JPEG, PNG, TIFF, WebP : temps
-   utilisateur ≈ temps réel), pendant que le lot traite **un fichier à la
-   fois**. Sur 16 cœurs, chaque encodage laisse donc 15 cœurs inoccupés — de
-   l'ordre de 10 à 15 % du temps d'un lot JPEG. Recouvrir l'encodage du fichier
-   *n* avec le rendu du *n+1* est le gain structurel évident, et il ne change
-   aucun pixel : c'est de l'ordonnancement, pas du calcul.
-   **Corrigé le 2026-08-04 ([ADR 0068](adr/0068-concurrent-export-batch.md)) :**
-   ce chiffrage visait le bon symptôme mais trop petit. Mesuré sur le lot
-   lui-même et non fichier par fichier, l'export n'utilise **289 % de 1 600 %** —
-   il manque treize cœurs, pas ceux d'un encodage. Traiter plusieurs photos à
-   la fois rend 2,81×, là où recouvrir deux étages d'un même fichier n'aurait
-   rendu qu'une fraction des 10 à 15 % annoncés ici.
-3. **Le rendu domine et il est déjà parallèle** (~8,7× sur 16 threads). Il n'y
-   a pas de gaspillage à récupérer là sans changer les opérateurs eux-mêmes —
-   et le cache d'étages de B1 est interdit ici par la promesse §5.1.
+1. **AVIF is out of the ordinary** — 25× the cost of JPEG at equal size. `ravif`'s
+   encoding speed is fixed at `speed(6)` in the code, with nothing
+   exposing or documenting it. It is the only setting in this document that could
+   divide a time by three without touching a pixel of the render.
+2. **The fast encoders are single-threaded** (JPEG, PNG, TIFF, WebP: user
+   time ≈ real time), while the batch processes **one file at a
+   time**. On 16 cores, each encoding therefore leaves 15 cores idle — on
+   the order of 10 to 15 % of the time of a JPEG batch. Overlapping the encoding of file
+   *n* with the rendering of *n+1* is the obvious structural gain, and it changes
+   no pixel: it is scheduling, not computation.
+   **Corrected on 2026-08-04 ([ADR 0068](adr/0068-concurrent-export-batch.md)):**
+   that estimate aimed at the right symptom but far too small. Measured on the batch
+   itself rather than file by file, the export uses only **289 % of 1,600 %** —
+   thirteen cores are missing, not the ones of an encoding. Processing several photos at
+   a time returns 2.81×, where overlapping two stages of one file would have
+   returned only a fraction of the 10 to 15 % announced here.
+3. **Rendering dominates and is already parallel** (~8.7× on 16 threads). There is
+   no waste to recover there without changing the operators themselves —
+   and B1's stage cache is forbidden here by the §5.1 promise.
 
-### Face à RawTherapee et darktable
+### Against RawTherapee and darktable
 
-Des chiffres absolus ne disent pas si l'export est lent — seulement combien il
-prend. Même machine, mêmes fichiers, même sortie JPEG q90, RAW → fichier de
-bout en bout (décodage compris), le 2026-08-03 :
+Absolute figures do not say whether the export is slow — only how long it
+takes. The same machine, the same files, the same JPEG q90 output, RAW → file
+end to end (decoding included), on 2026-08-03:
 
-| Fichier | Traitement | Leyline | RawTherapee 5.12 | darktable 5.6 |
+| File | Processing | Leyline | RawTherapee 5.12 | darktable 5.6 |
 |---|---|---|---|---|
-| 30 Mpx (5D IV) | neutre / défaut | **2,88 s** | 3,53 s | 5,44 s |
-| 10 Mpx (60D) | neutre / défaut | **0,90 s** | 1,10 s | 1,70 s |
-| 30 Mpx | édition comparable | 5,79 s | **5,69 s** | — |
-| 10 Mpx | édition comparable | **1,92 s** | 2,02 s | — |
+| 30 Mpx (5D IV) | neutral / default | **2.88 s** | 3.53 s | 5.44 s |
+| 10 Mpx (60D) | neutral / default | **0.90 s** | 1.10 s | 1.70 s |
+| 30 Mpx | comparable edit | 5.79 s | **5.69 s** | — |
+| 10 Mpx | comparable edit | **1.92 s** | 2.02 s | — |
 
-L'« édition comparable » applique des deux côtés balance des blancs, exposition,
-contraste, hautes lumières, ombres, noirs, vibrance, débruitage, accentuation,
-rotation et recadrage ; darktable en est absent faute d'un XMP équivalent, son
-rendu par défaut faisant déjà tourner sa chaîne *scene-referred* complète.
+The "comparable edit" applies on both sides white balance, exposure,
+contrast, highlights, shadows, blacks, vibrance, denoising, sharpening,
+rotation and cropping; darktable is absent from it for want of an equivalent XMP, its
+default rendering already running its complete *scene-referred* chain.
 
-**Le verdict est bon, et il n'était pas acquis** : sur le chemin neutre Leyline
-est le plus rapide des trois, et de loin le plus économe — 6,8 s de CPU là où
-RawTherapee en consomme 17,7 pour le même fichier. Chargé de réglages, l'écart
-avec RawTherapee tombe à 2 % (5,79 s contre 5,69), toujours avec ~18 % de CPU
-en moins. **Il n'y a donc pas de retard de performance à rattraper sur
-l'export.** Ce document supposait le contraire.
+**The verdict is good, and it was not a given**: on the neutral path Leyline
+is the fastest of the three, and by far the most frugal — 6.8 s of CPU where
+RawTherapee consumes 17.7 for the same file. Loaded with settings, the gap
+with RawTherapee falls to 2 % (5.79 s against 5.69), still with ~18 % less CPU.
+**There is therefore no performance deficit to catch up on
+export.** This document assumed the opposite.
 
-### L'exception AVIF, et ce qu'elle coûte vraiment
+### The AVIF exception, and what it really costs
 
-darktable exporte le même 30 Mpx en AVIF en **3,5 s**, là où Leyline met
-**14,7 s** — mais son fichier pèse 8,4 Mo contre 0,98 Mo pour le nôtre. Ce
-n'est donc pas le même travail, et l'écart brut ne prouve rien.
+darktable exports the same 30 Mpx to AVIF in **3.5 s**, where Leyline takes
+**14.7 s** — but its file weighs 8.4 MB against 0.98 MB for ours. It is
+therefore not the same work, and the raw gap proves nothing.
 
-Ce qui prouve quelque chose, c'est de bouger notre propre curseur. Le même
-export, `ravif` réglé sur trois vitesses :
+What does prove something is moving our own slider. The same
+export, `ravif` set to three speeds:
 
-| `with_speed` | Temps | Fichier |
+| `with_speed` | Time | File |
 |---|---|---|
-| 6 (valeur figée aujourd'hui) | 14,7 s | 0,98 Mo |
-| 9 | 11,1 s | 0,99 Mo |
-| 10 | **6,6 s** | 1,12 Mo |
+| 6 (the value fixed today) | 14.7 s | 0.98 MB |
+| 9 | 11.1 s | 0.99 MB |
+| 10 | **6.6 s** | 1.12 MB |
 
-Passer de 6 à 9 rend **25 % du temps pour 1 % de poids** ; passer à 10 rend
-**55 % du temps pour 14 %**. Une valeur figée dans le code décide donc seule de
-cet arbitrage, sans que personne puisse le voir ni le changer. C'est le meilleur
-rapport gain/effort qui reste dans tout ce document.
+Going from 6 to 9 returns **25 % of the time for 1 % of weight**; going to 10 returns
+**55 % of the time for 14 %**. A value fixed in the code therefore decides that
+trade-off alone, with nobody able to see it or change it. It is the best
+gain/effort ratio left in this whole document.
 
-**Ce qui n'est pas mesuré :** l'impression (chemin PDF), et le coût mémoire
-d'un pipeline 45 Mpx, qui décidera de la profondeur du pipelinage envisagé au
+**What is not measured:** printing (the PDF path), and the memory cost
+of a 45 Mpx pipeline, which will decide the depth of the pipelining considered at
 point 2.
 
-**Suites, chacune avec son ADR :** exposer la vitesse d'encodage AVIF —
-**livrée, [ADR 0067](adr/0067-avif-encode-speed.md)** : `avif_speed` dans
-`ExportSettings`, défaut porté de 6 à 9 (28 % du temps et 53 % du CPU rendus
-pour 1,3 % de poids sur le chemin complet), `--avif-speed` dans la CLI et un
-champ dans Studio — puis pipeliner le lot d'export — **livrée aussi, et le
-constat 2 ci-dessus était faux d'un ordre de grandeur**,
-[ADR 0068](adr/0068-concurrent-export-batch.md) : ce n'est pas l'encodage
-mono-thread qui laisse des cœurs libres, c'est le pipeline d'une seule photo
-qui n'utilise que **289 % de 1 600 %** sur seize threads. Traiter 4 photos à la
-fois donne **2,81×** (et non 10 à 15 %), 6 donnent 3,41×, 8 régressent. Aucune
-des deux ne touche à la reproductibilité : la première ne concerne que le
-codec, la seconde que l'ordre d'exécution — vérifié, les douze fichiers d'un
-lot sont identiques octet pour octet à tous les degrés.
+**Follow-ups, each with its own ADR:** exposing the AVIF encoding speed —
+**delivered, [ADR 0067](adr/0067-avif-encode-speed.md)**: `avif_speed` in
+`ExportSettings`, the default moved from 6 to 9 (28 % of the time and 53 % of the CPU returned
+for 1.3 % of weight on the complete path), `--avif-speed` in the CLI and a
+field in Studio — then pipelining the export batch — **delivered too, and
+finding 2 above was wrong by an order of magnitude**,
+[ADR 0068](adr/0068-concurrent-export-batch.md): it is not single-threaded
+encoding that leaves cores idle, it is one photo's pipeline,
+which uses only **289 % of 1,600 %** on sixteen threads. Processing 4 photos at a
+time gives **2.81×** (and not 10 to 15 %), 6 give 3.41×, 8 regress. Neither
+of the two touches reproducibility: the first concerns only the
+codec, the second only the order of execution — verified, the twelve files of a
+batch are byte-for-byte identical at every degree.
 
-## B3 — GPU : rouvrir la question, sur le chemin preview seul
+## B3 — GPU: reopening the question, on the preview path alone
 
-**État.** [ADR 0012](adr/0012-rayon-data-parallelism.md) a écarté wgpu — « gains
-supérieurs mais déterminisme inter-GPU non garanti » — en reportant à une
-exploration ultérieure. ADR 0041 a refusé de rouvrir, en renvoyant à un ADR
-propre **après mesure des optimisations CPU**.
+**State.** [ADR 0012](adr/0012-rayon-data-parallelism.md) rejected wgpu — "higher
+gains but inter-GPU determinism not guaranteed" — deferring to a later
+exploration. ADR 0041 refused to reopen it, referring to an ADR
+of its own **after the CPU optimisations had been measured**.
 
-**L'argument qui reste valable.** Le déterminisme inter-GPU est réel : c'est ce
-que `pipeline.md` §5.1 refuse de laisser entrer dans le résultat.
+**The argument that stays valid.** Inter-GPU determinism is real: it is what
+`pipeline.md` §5.1 refuses to let into the result.
 
-**L'argument qui rend la question rouvrable.** La promesse §5.1 porte sur le
-**rendu**, c'est-à-dire ce que produisent l'export et l'impression. La preview
-est déjà un chemin séparé, déjà non bit-à-bit avec l'export (proxy réduit,
-rayons mis à l'échelle), et déjà purement dérivé. **Un chemin GPU preview seul,
-CPU faisant foi à l'export, ne toucherait donc pas à la promesse** — c'est
-exactement la séparation qu'ADR 0041 a déjà instaurée pour d'autres raisons.
+**The argument that makes the question reopenable.** The §5.1 promise bears on the
+**render**, that is, on what export and printing produce. The preview
+is already a separate path, already not bit-for-bit with the export (a reduced proxy,
+scaled radii), and already purely derived. **A preview-only GPU path,
+with the CPU authoritative at export, would therefore not touch the promise** — that is
+exactly the separation ADR 0041 already established for other reasons.
 
-**Condition d'entrée.** Ne rouvrir qu'**après B1**, avec les mesures
-d'après-cache en main, comme ADR 0041 le demande. Si B1 suffit à rendre
-l'interaction fluide, le GPU ne se justifie plus au prix d'une dépendance et
-d'un second chemin de rendu à maintenir.
+**Entry condition.** Reopen only **after B1**, with the post-cache
+measurements in hand, as ADR 0041 requires. If B1 is enough to make
+interaction fluid, the GPU no longer justifies itself at the price of a dependency and
+a second render path to maintain.
 
-**Réponse au 2026-08-03 : la condition n'est pas remplie, et le GPU ne se
-justifie pas.** Trois mesures le disent :
+**The answer on 2026-08-03: the condition is not met, and the GPU does not
+justify itself.** Three measurements say so:
 
-* **B1 a rendu l'interaction fluide** — ~14 ms sur un curseur de fin de
-  pipeline, soit sous le seuil où l'œil voit une latence. Il n'y a plus de
-  gêne à supprimer sur le chemin où le GPU serait autorisé.
-* **Sur l'export, le GPU est interdit** par la promesse `pipeline.md` §5.1, et
-  c'est précisément le chemin qui prend des secondes. Un GPU qui ne peut pas
-  toucher au seul endroit qui coûte cher ne règle rien.
-* **Il n'y a pas de retard à rattraper** : à réglages comparables, Leyline
-  exporte aussi vite que RawTherapee et plus vite que darktable, tous deux sur
-  CPU eux aussi (voir B2). Le concurrent qu'on voudrait rattraper au GPU ne
-  l'utilise pas non plus.
+* **B1 made interaction fluid** — ~14 ms on an end-of-pipeline
+  slider, that is, below the threshold at which the eye sees latency. There is no longer any
+  annoyance to remove on the path where the GPU would be permitted.
+* **On export, the GPU is forbidden** by the `pipeline.md` §5.1 promise, and
+  that is precisely the path that takes seconds. A GPU that cannot
+  touch the only place that is expensive settles nothing.
+* **There is no deficit to catch up**: at comparable settings, Leyline
+  exports as fast as RawTherapee and faster than darktable, both of them on
+  the CPU too (see B2). The competitor we would want to catch with a GPU does not
+  use one either.
 
-Et là où du temps est réellement gaspillé — 15 cœurs inoccupés pendant chaque
-encodage — la réponse est l'ordonnancement, pas un second processeur. **À
-reprendre si un jour l'interaction redevient le point douloureux**, pas avant.
+And where time really is wasted — 15 cores idle during each
+encoding — the answer is scheduling, not a second processor. **To be
+taken up again if interaction ever becomes the painful point**, not before.
 
 ---
 
-# 4. Axe C — IA locale optionnelle
+# 4. Axis C — Optional local AI
 
-## Ce qui ne change pas
+## What does not change
 
-L'absence d'IA dans la V1 était **le contrat**, et ce document ne le renie pas.
-[`specification.md`](specification.md) §4 classe l'IA en exclusion volontaire, en
-laissant une porte : « une IA locale optionnelle reste envisageable à très long
-terme » — porte que [`roadmap.md`](roadmap.md) §Long terme reprend. Le présent
-axe **cadre cette porte**, il ne l'ouvre pas.
+The absence of AI in V1 was **the contract**, and this document does not disown it.
+[`specification.md`](specification.md) §4 classes AI as a deliberate exclusion, while
+leaving a door open: "an optional local AI remains conceivable in the very long
+term" — a door [`roadmap.md`](roadmap.md) §Long term repeats. The present
+axis **scopes that door**, it does not open it.
 
-## Les conditions non négociables
+## The non-negotiable conditions
 
-Aucune de ces conditions n'est une préférence : chacune découle d'un principe
-déjà écrit. Un projet d'IA qui en viole une seule est à refuser.
+None of these conditions is a preference: each follows from a principle
+already written. An AI project that violates a single one is to be refused.
 
-1. **Entièrement local.** Aucune inférence distante, aucun appel réseau, jamais
+1. **Entirely local.** No remote inference, no network call, ever
    — Local First ([`vision.md`](vision.md)).
-2. **Optionnel et désinstallable.** Leyline doit rester complet et cohérent sans
-   les modèles. Pas de fonctionnalité de base qui en dépende.
-3. **Zéro télémétrie.** Rien ne sort de la machine, pas même un compteur d'usage.
-4. **Déterminisme, ou aveu explicite.** C'est le point dur. Un modèle produit un
-   résultat qui dépend du backend d'inférence, de la précision et du matériel —
-   soit exactement ce que `pipeline.md` §5.1 refuse. Deux issues, à trancher
-   dans l'ADR : soit **le poids du modèle et le backend sont épinglés dans la
-   version d'étage** au même titre qu'une constante, soit le résultat IA est
-   **matérialisé une fois** (un masque rasterisé, stocké dans la révision) et
-   c'est ce résultat figé, non le modèle, que le pipeline rejoue.
-   **La seconde issue est la seule qui tienne** la promesse telle qu'elle est
-   écrite aujourd'hui.
-5. **Licence compatible GPL-3.0**, poids du modèle compris. Beaucoup de modèles
-   publiés ne le sont pas, et c'est un critère éliminatoire en amont du reste.
-6. **Poids distribués séparément.** Un installateur ne peut pas gonfler de
-   plusieurs centaines de mégaoctets pour une fonctionnalité optionnelle.
+2. **Optional and uninstallable.** Leyline must stay complete and coherent without
+   the models. No core feature may depend on them.
+3. **Zero telemetry.** Nothing leaves the machine, not even a usage counter.
+4. **Determinism, or an explicit admission.** This is the hard point. A model produces a
+   result that depends on the inference backend, the precision and the hardware —
+   which is exactly what `pipeline.md` §5.1 refuses. Two ways out, to be settled
+   in the ADR: either **the model's weights and the backend are pinned in the
+   stage version** on the same footing as a constant, or the AI result is
+   **materialised once** (a rasterised mask, stored in the revision) and
+   it is that frozen result, not the model, that the pipeline replays.
+   **The second way out is the only one that holds** the promise as it is
+   written today.
+5. **A GPL-3.0-compatible licence**, the model weights included. Many published models
+   are not, and that is an eliminating criterion ahead of everything else.
+6. **Weights distributed separately.** An installer cannot swell by
+   several hundred megabytes for an optional feature.
 
-## C1 — Débruitage IA
+## C1 — AI denoising
 
-**L'écart.** Lightroom Denoise et DxO DeepPRIME sont devenus *le* différenciateur
-qualité sur les hauts ISO. Le débruitage par ondelettes
-([ADR 0046](adr/0046-edge-preserving-denoise.md)) ne joue pas dans cette
-catégorie, et aucun réglage ne l'y amènera.
+**The gap.** Lightroom Denoise and DxO DeepPRIME have become *the* quality
+differentiator at high ISO. Wavelet denoising
+([ADR 0046](adr/0046-edge-preserving-denoise.md)) does not play in that
+category, and no setting will bring it there.
 
-**La difficulté propre.** Le débruitage agit **sur les pixels**, donc la
-condition 4 mord de plein fouet : impossible de « matérialiser une fois » un
-débruitage comme on matérialise un masque, sans stocker une image intermédiaire
-— ce que le contrat de non-destructivité évite précisément. C'est le sujet le
-plus difficile de tout ce document, et le seul dont je ne vois pas de solution
-propre à ce stade.
+**The particular difficulty.** Denoising acts **on the pixels**, so
+condition 4 bites hard: it is impossible to "materialise once" a
+denoising the way a mask is materialised, without storing an intermediate image
+— which the non-destructiveness contract precisely avoids. It is the most
+difficult subject in this whole document, and the only one for which I see no clean
+solution at this stage.
 
-**Recommandation.** Ne pas l'attaquer en premier. A3 (profil de bruit mesuré)
-donne une partie du gain, sans aucune de ces questions — et **il est livré**
+**Recommendation.** Do not attack it first. A3 (a measured noise profile)
+gives part of the gain, with none of these questions — and **it is delivered**
 ([ADR 0072](adr/0072-measured-noise-profile.md)).
 
-**Le verdict se formule mieux depuis [ADR 0073](adr/0073-external-mask-detectors.md) :**
-un débruiteur produit des **pixels**. Il ne peut donc ni être matérialisé une
-fois comme un masque, ni traverser la frontière d'ADR 0069, ni entrer dans le
-chemin de rendu sans emporter §5.1 avec lui. Ce n'est pas « pas maintenant »,
-c'est « pas par cette porte ».
+**The verdict is better stated since [ADR 0073](adr/0073-external-mask-detectors.md):**
+a denoiser produces **pixels**. It can therefore be neither materialised
+once like a mask, nor cross the boundary of ADR 0069, nor enter the
+render path without taking §5.1 with it. It is not "not now",
+it is "not through this door".
 
-## C2 — Masques automatiques (sujet, ciel, arrière-plan)
+## C2 — Automatic masks (subject, sky, background)
 
-**L'écart.** C'est ce que les gens utilisent réellement pour les retouches
-locales depuis 2021. Leyline a masques géométriques + masques par plage
-([ADR 0048](adr/0048-range-masks.md)) : l'état de l'art d'avant cette bascule.
+**The gap.** This is what people actually use for local retouching
+since 2021. Leyline has geometric masks + range masks
+([ADR 0048](adr/0048-range-masks.md)): the state of the art from before that shift.
 
-**Pourquoi c'est le bon premier candidat.** Un masque **est** matérialisable :
-le modèle tourne une fois, produit un masque, ce masque est stocké dans la
-révision, et le pipeline ne rejoue plus jamais le modèle. La condition 4 est
-satisfaite par construction, sans compromis. L'infrastructure de masquage
-existe déjà ([ADR 0029](adr/0029-process-6-local-adjustments.md),
-[ADR 0049](adr/0049-local-adjustments-clients.md)) : l'IA ne serait qu'une
-**source de masque de plus**, à côté de la brosse et du dégradé.
+**Why it is the right first candidate.** A mask **is** materialisable:
+the model runs once, produces a mask, that mask is stored in the
+revision, and the pipeline never replays the model again. Condition 4 is
+satisfied by construction, with no compromise. The masking infrastructure
+already exists ([ADR 0029](adr/0029-process-6-local-adjustments.md),
+[ADR 0049](adr/0049-local-adjustments-clients.md)): the AI would be only **one
+more mask source**, next to the brush and the gradient.
 
-**Comment il s'attache** — tranché le 2026-08-04 par
-[ADR 0069](adr/0069-closed-extension-boundary.md), qui part du même constat que
-le paragraphe ci-dessus et en tire la conséquence de licence : puisque le
-modèle **produit un réglage** et ne rend rien, l'outil qui le fait tourner peut
-vivre dans un crate fermé, séparé, client du SDK — sans cloner le dépôt, sans
-retirer quoi que ce soit de l'édition libre, et sans qu'aucun code fermé
-n'entre dans le chemin de rendu. La version libre rend les masques de tout le
-monde ; ce qui se vend, c'est l'outil qui les *propose*.
+**How it attaches** — settled on 2026-08-04 by
+[ADR 0069](adr/0069-closed-extension-boundary.md), which starts from the same finding as
+the paragraph above and draws the licence consequence from it: since the
+model **produces a setting** and renders nothing, the tool that runs it can
+live in a closed, separate crate, a client of the SDK — without cloning the repository, without
+removing anything from free editing, and without any closed code
+entering the render path. The free version renders everyone's masks;
+what is sold is the tool that *proposes* them.
 
-**La prise est livrée le 2026-08-04** ([ADR 0073](adr/0073-external-mask-detectors.md)),
-dans la forme choisie ce jour-là : la **détection automatique** (un bouton,
-« le ciel », « le sujet ») plutôt que la sélection au clic. Trois choses
-méritent d'être retenues :
+**The socket was delivered on 2026-08-04** ([ADR 0073](adr/0073-external-mask-detectors.md)),
+in the form chosen that day: **automatic detection** (a button,
+"the sky", "the subject") rather than click-to-select. Three things
+are worth remembering:
 
-* **La moitié ouverte était déjà là.** ADR 0070 avait livré `Mask::Coverage`
-  et `store_mask_coverage`, ADR 0071 la surimpression. Il ne manquait que le
-  geste — et le moteur n'a pas bougé d'une ligne.
-* **Un détecteur est un exécutable, pas un greffon.** Il prend un PNG, rend un
-  PNG gris 16 bits, n'ouvre pas la bibliothèque, ne prend aucun verrou et ne
-  lie pas le SDK : la frontière de licence est franchie par un `execve`, ce
-  qui est le point le plus dur qu'on puisse atteindre. Conséquence heureuse et
-  non recherchée : n'importe qui peut en écrire un en vingt lignes, donc la
-  prise a une valeur propre pour le projet libre.
-* **La licence des poids élimine, et il fallait regarder avant.** SegFormer
-  ADE20K (NVIDIA) et RMBG-1.4 — les deux modèles les plus faciles à trouver —
-  sont non commerciaux. U²-Net (Apache-2.0), BiRefNet (MIT) et le zoo
-  MMSegmentation (Apache-2.0) passent.
+* **The open half was already there.** ADR 0070 had delivered `Mask::Coverage`
+  and `store_mask_coverage`, ADR 0071 the overlay. Only the
+  gesture was missing — and the engine did not move a line.
+* **A detector is an executable, not a plugin.** It takes a PNG, returns a
+  16-bit grey PNG, does not open the library, takes no lock and does not
+  link the SDK: the licence boundary is crossed by an `execve`, which
+  is the hardest point one can reach. A happy and
+  unsought consequence: anyone can write one in twenty lines, so
+  the socket has a value of its own for the free project.
+* **The licence of the weights eliminates, and it had to be looked at first.** SegFormer
+  ADE20K (NVIDIA) and RMBG-1.4 — the two easiest models to find —
+  are non-commercial. U²-Net (Apache-2.0), BiRefNet (MIT) and the
+  MMSegmentation zoo (Apache-2.0) pass.
 
-**Reste ouvert.** Le détecteur lui-même : le choix du modèle par détection, sa
-conversion en ONNX, sa mesure — tout cela vit dans son propre dépôt. Et, le
-jour venu, le système de clé (hors périmètre d'ADR 0069 §5).
+**Still open.** The detector itself: the choice of model per detection, its
+conversion to ONNX, its measurement — all of that lives in its own repository. And, on
+the day it comes, the key system (out of scope of ADR 0069 §5).
 
 ---
 
-# 5. Séquencement recommandé
+# 5. Recommended sequencing
 
-L'ordre suit le rapport **gain ressenti / risque**, pas la difficulté.
+The order follows the **felt gain / risk** ratio, not difficulty.
 
-| # | Item | Pourquoi ici | Nouvelle version d'étage ? |
+| # | Item | Why here | New stage version? |
 |---|---|---|---|
-| ~~1~~ | ~~**B1** — cache d'étages~~ | **Livré le 2026-08-02, −78 %** | Non |
-| ~~2~~ | ~~**A1.1** — valider le DCP~~ | **Fait le 2026-08-02/03** : bug du conteneur corrigé, algèbre validée contre RawTherapee (écart médian 0,0027) ; « expérimental » maintenu pour le gain ×1,185 inexpliqué | Non |
-| ~~3~~ | ~~**A2** — choix du dématriçage~~ | **Livré le 2026-08-02** ([ADR 0061](adr/0061-demosaic-algorithm.md)) | Oui (`input::v3`) |
-| ~~4~~ | ~~**A1.2** — appliquer les tables DCP~~ | **Livré le 2026-08-02** ([ADR 0062](adr/0062-dcp-illuminant-interpolation.md), [ADR 0063](adr/0063-dcp-tables.md)) | Oui (`camera_profile::v2`, `v3`) |
-| ~~5~~ | ~~**B2** — mesurer l'export~~ | **Mesuré le 2026-08-03**, voir §3 : bench `export.rs`, deux suites possibles identifiées | Non |
-| ~~6~~ | ~~**A3** — profil de bruit~~ | **Livré le 2026-08-04** ([ADR 0072](adr/0072-measured-noise-profile.md)) : table darktable gelée avec l'étage, seuil par pixel, rangs 5 et 6 ; coût mesuré nul | Oui (`noise_*::v3`) |
-| ~~7~~ | ~~**B3** — GPU preview~~ | **Écarté le 2026-08-03** : B1 a rendu l'interaction fluide, le GPU est interdit à l'export par §5.1, et la comparaison montre qu'il n'y a rien à rattraper (voir §3) | — |
-| ~~8~~ | **C2** — masques IA | **Prise livrée le 2026-08-04** ([ADR 0073](adr/0073-external-mask-detectors.md)) ; reste le détecteur, hors de ce dépôt | Non (masque matérialisé) |
-| 9 | **C1** — débruitage IA | Horizon lointain ; question de déterminisme non résolue | À trancher |
+| ~~1~~ | ~~**B1** — stage cache~~ | **Delivered on 2026-08-02, −78 %** | No |
+| ~~2~~ | ~~**A1.1** — validate DCP~~ | **Done on 2026-08-02/03**: container bug fixed, algebra validated against RawTherapee (median discrepancy 0.0027); "experimental" kept for the unexplained ×1.185 gain | No |
+| ~~3~~ | ~~**A2** — demosaic choice~~ | **Delivered on 2026-08-02** ([ADR 0061](adr/0061-demosaic-algorithm.md)) | Yes (`input::v3`) |
+| ~~4~~ | ~~**A1.2** — apply the DCP tables~~ | **Delivered on 2026-08-02** ([ADR 0062](adr/0062-dcp-illuminant-interpolation.md), [ADR 0063](adr/0063-dcp-tables.md)) | Yes (`camera_profile::v2`, `v3`) |
+| ~~5~~ | ~~**B2** — measure the export~~ | **Measured on 2026-08-03**, see §3: the `export.rs` bench, two possible follow-ups identified | No |
+| ~~6~~ | ~~**A3** — noise profile~~ | **Delivered on 2026-08-04** ([ADR 0072](adr/0072-measured-noise-profile.md)): darktable's table frozen with the stage, a per-pixel threshold, ranks 5 and 6; measured cost nil | Yes (`noise_*::v3`) |
+| ~~7~~ | ~~**B3** — preview GPU~~ | **Rejected on 2026-08-03**: B1 made interaction fluid, the GPU is forbidden at export by §5.1, and the comparison shows there is nothing to catch up (see §3) | — |
+| ~~8~~ | **C2** — AI masks | **Socket delivered on 2026-08-04** ([ADR 0073](adr/0073-external-mask-detectors.md)); the detector remains, outside this repository | No (a materialised mask) |
+| 9 | **C1** — AI denoising | A distant horizon; the determinism question unresolved | To be settled |
 
-**Dépendances dures :** A1.2 après A1.1 ; B3 après B1 (exigé par ADR 0041).
-Tout le reste peut sortir dans n'importe quel ordre.
+**Hard dependencies:** A1.2 after A1.1; B3 after B1 (required by ADR 0041).
+Everything else can ship in any order.
 
-**Reste ouvert au 2026-08-04 :** rien, dans ce dépôt. Les axes A et B sont
-refermés — A1, A2 et A3 livrés, B1 et B2 aussi, B3 écarté avec ses raisons — et
-de l'axe C, tout ce qui pouvait y entrer y est entré : la prise de C2 est
-livrée, le détecteur qui s'y branche vit ailleurs, et C1 n'a pas d'issue (voir
-plus bas). Ce qui subsiste n'est plus un chantier mais trois constats : la
-comparaison au rendu d'Adobe lui-même, faute de Lightroom ; le trou
-d'épinglage de la base Lensfun qu'ADR 0072 a mis au jour ; et l'écart de
-qualité, assumé, avec les débruiteurs appris.
+**Still open as of 2026-08-04:** nothing, in this repository. Axes A and B are
+closed — A1, A2 and A3 delivered, B1 and B2 too, B3 rejected with its reasons — and
+of axis C, everything that could enter it has entered: C2's socket is
+delivered, the detector that plugs into it lives elsewhere, and C1 has no way out (see
+below). What remains is no longer a project but three findings: the
+comparison with Adobe's own rendering, for want of Lightroom; the
+pinning hole in the Lensfun database that ADR 0072 brought to light; and the
+quality gap, accepted, with learned denoisers.
 
 ---
 
-# 6. Avant toute ligne de code
+# 6. Before any line of code
 
-Chaque item de ce tableau exige un ADR qui lui est propre. Le document présent
-n'en tient lieu pour aucun.
+Every item in this table requires an ADR of its own. The present document
+stands in for none of them.
 
-| Item | Ce que l'ADR doit trancher |
+| Item | What the ADR must settle |
 |---|---|
-| A1.2 | Interpolation des tables, ordre d'application, nouvelle version d'étage |
-| A2 | Algorithme par défaut, valeurs exposées, écriture dans la révision |
-| A3 | **Tranché** par [ADR 0072](adr/0072-measured-noise-profile.md) : table darktable sous GPL-3.0-or-later, gelée avec la version d'étage, seuil par pixel, rangs 5 et 6 |
-| B1 | Rien — [ADR 0041](adr/0041-interactive-preview-rendering.md) §3 est déjà l'ADR. **Implémenté le 2026-08-02** |
-| B2 (suites) | Vitesse d'encodage AVIF exposée et son défaut ; recouvrement encodage/rendu dans un lot, et ce que devient l'ordre du rapport |
-| B3 | Périmètre preview-seul, backend, et ce que devient §5.1 dans le texte |
-| C2 | **Tranché** par [ADR 0073](adr/0073-external-mask-detectors.md) : détection automatique, détecteur = exécutable séparé, licence des poids éliminatoire |
-| C1 | Les six conditions du §4 ci-dessus — et d'abord le §4.4, qu'un débruiteur ne peut pas satisfaire |
+| A1.2 | Table interpolation, order of application, a new stage version |
+| A2 | The default algorithm, the values exposed, writing into the revision |
+| A3 | **Settled** by [ADR 0072](adr/0072-measured-noise-profile.md): darktable's table under GPL-3.0-or-later, frozen with the stage version, a per-pixel threshold, ranks 5 and 6 |
+| B1 | Nothing — [ADR 0041](adr/0041-interactive-preview-rendering.md) §3 is already the ADR. **Implemented on 2026-08-02** |
+| B2 (follow-ups) | The AVIF encoding speed exposed and its default; overlapping encoding and rendering in a batch, and what becomes of the report's order |
+| B3 | The preview-only scope, the backend, and what becomes of §5.1 in the text |
+| C2 | **Settled** by [ADR 0073](adr/0073-external-mask-detectors.md): automatic detection, a detector = a separate executable, the licence of the weights eliminating |
+| C1 | The six conditions of §4 above — and first of all §4.4, which a denoiser cannot satisfy |
 
 ---
 
-## Documents liés
+## Related documents
 
-* [`specification.md`](specification.md) — ce qui est livré, ce qui est exclu.
-* [`roadmap.md`](roadmap.md) — l'état réel, phase par phase.
-* [`pipeline.md`](pipeline.md) §5 — la promesse de reproductibilité, que tout
-  item de ce document doit respecter ou amender explicitement.
-* [`v2-implementation-plan.md`](v2-implementation-plan.md) — le précédent
-  document de séquencement, désormais archive.
+* [`specification.md`](specification.md) — what is delivered, what is excluded.
+* [`roadmap.md`](roadmap.md) — the actual state, phase by phase.
+* [`pipeline.md`](pipeline.md) §5 — the reproducibility promise, which every
+  item in this document must respect or explicitly amend.
+* [`v2-implementation-plan.md`](v2-implementation-plan.md) — the previous
+  sequencing document, now an archive.

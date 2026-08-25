@@ -1,203 +1,201 @@
-# Séquencement d'implémentation V2 — recommandation
+# V2 implementation sequencing — a recommendation
 
-**Document :** `docs/v2-implementation-plan.md`
-**Version :** 0.1
-**Statut :** Recommandation (entrée de planification, pas une décision) — **séquencement exécuté**
+**Document:** `docs/v2-implementation-plan.md`
+**Version:** 0.1
+**Status:** Recommendation (a planning input, not a decision) — **sequencing carried out**
 
 ---
 
-## État de ce document
+## The state of this document
 
-> Ce document recommandait un ordre de construction pour les sept items de [`v2-scope.md`](v2-scope.md). **Cet ordre a été suivi et le travail est fait**, item 7 compris depuis [ADR 0051](adr/0051-watermark-rasterization-and-soft-proof-surface.md). Il se lit désormais comme une archive de planification, utile pour comprendre les arbitrages retenus, et non comme une liste de tâches. L'état réel est dans [`specification.md`](specification.md) et [`roadmap.md`](roadmap.md).
+> This document recommended a build order for the seven items of [`v2-scope.md`](v2-scope.md). **That order was followed and the work is done**, item 7 included since [ADR 0051](adr/0051-watermark-rasterization-and-soft-proof-surface.md). It now reads as a planning archive, useful for understanding the trade-offs taken, and not as a task list. The actual state is in [`specification.md`](specification.md) and [`roadmap.md`](roadmap.md).
 >
-> Une réserve de lecture : ce document raisonne sur la garantie posée par [ADR 0028](adr/0028-process-version-per-feature.md) (une process version par fonctionnalité, duplication par module). [ADR 0042](adr/0042-versioned-stage-pipeline.md) a depuis **remplacé** ADR 0028. La garantie de fond est inchangée — un rendu figé le reste — mais son implémentation ne l'est plus.
+> One reading caveat: this document reasons on the guarantee laid down by [ADR 0028](adr/0028-process-version-per-feature.md) (one process version per feature, duplication by module). [ADR 0042](adr/0042-versioned-stage-pipeline.md) has since **replaced** ADR 0028. The underlying guarantee is unchanged — a frozen render stays frozen — but its implementation is not.
 
 ---
 
-# 1. Objet
+# 1. Subject
 
-Toute l'architecture V2 est tranchée : `docs/v2-scope.md` a cadré sept manques
-(§2 à §8) et les ADR **0026 à 0037** (douze au total) ont arrêté la conception
-de chaque item. **Il n'y a plus rien à concevoir.**
+The whole V2 architecture is settled: `docs/v2-scope.md` scoped seven gaps
+(§2 to §8) and ADRs **0026 to 0037** (twelve in all) fixed the design of
+each item. **There is nothing left to design.**
 
-Ce document n'est **pas** un ADR (aucune décision à consigner ici) ni un
-calendrier. C'est une **analyse de dépendances, d'effort et de risque** destinée
-à alimenter le plan d'implémentation que **l'utilisateur** établira. Chaque
-énoncé d'ordre ci-dessous est une **recommandation**, jamais un « décidé » : le
-plan réel — quoi construire d'abord, dans quel ordre — appartient à
-l'utilisateur, et ce document en est un **intrant**, pas un substitut.
+This document is **not** an ADR (no decision to record here) and not a
+schedule. It is an **analysis of dependencies, effort and risk** meant to feed
+the implementation plan **the user** will establish. Every statement of order
+below is a **recommendation**, never a "decided": the actual plan — what to
+build first, in what order — belongs to the user, and this document is an
+**input** to it, not a substitute.
 
-Vocabulaire : les items gardent leur numéro de `docs/v2-scope.md` (2 =
-réglages locaux, 3 = courbe, 4 = color grading/TSL, 5 = suppression de tache,
-6 = dehaze/texture/clarté, 7 = épreuvage/filigrane/impression, 8 = profils DCP).
+Vocabulary: the items keep their numbers from `docs/v2-scope.md` (2 =
+local adjustments, 3 = curve, 4 = colour grading/HSL, 5 = spot removal,
+6 = dehaze/texture/clarity, 7 = proofing/watermark/printing, 8 = DCP profiles).
 
 ---
 
-# 2. Résumé des dépendances
+# 2. Summary of dependencies
 
-La garantie centrale vient d'[ADR 0028](adr/0028-process-version-per-feature.md) :
-**un process par fonctionnalité pixel**, chacune dans son propre module
-`processN.rs` gelé, aucun partage de code entre modules gelés. Conséquence
-directe : aucune fonctionnalité pixel V2 n'a de dépendance **technique dure**
-d'ordre de livraison sur une autre. Chacune insère son étage à une position
-fixe distincte de l'ordre du pipeline, sans réconciliation.
+The central guarantee comes from [ADR 0028](adr/0028-process-version-per-feature.md):
+**one process per pixel feature**, each in its own frozen
+`processN.rs` module, with no code shared between frozen modules. A direct
+consequence: no V2 pixel feature has a **hard technical** delivery-order
+dependency on another. Each inserts its stage at a fixed, distinct position in
+the pipeline order, with no reconciliation.
 
-En clair :
+Plainly:
 
-* **Items 3 (courbe, [ADR 0030](adr/0030-tone-curve.md)), 5 (tache,
+* **Items 3 (curve, [ADR 0030](adr/0030-tone-curve.md)), 5 (spots,
   [ADR 0032](adr/0032-spot-removal-clone.md)), 8 (DCP,
   [ADR 0035](adr/0035-camera-profile-dcp.md)/[0037](adr/0037-dcp-parsing-dependency.md))
-  et les formes _globales_ de 4 (TSL/grading,
-  [ADR 0031](adr/0031-hsl-color-grading.md)) et 6 (dehaze/texture/clarté,
-  [ADR 0033](adr/0033-clarity-texture-dehaze.md)) n'ont aucune dépendance dure
-  entre eux** — ils peuvent sortir dans n'importe quel ordre.
-* **La seule dépendance réelle** concerne les **variantes régionales / masquées**
-  de 4 et 6 (et toute extension masquée future de 5) : elles sont **déférées à
-  un futur ADR adossé à l'infrastructure de masquage d'[ADR 0029](adr/0029-process-6-local-adjustments.md)**
-  (item 2). Leur version **globale** ne dépend, elle, **pas du tout** du masquage.
+  and the _global_ forms of 4 (HSL/grading,
+  [ADR 0031](adr/0031-hsl-color-grading.md)) and 6 (dehaze/texture/clarity,
+  [ADR 0033](adr/0033-clarity-texture-dehaze.md)) have no hard dependency
+  on each other** — they can ship in any order.
+* **The only real dependency** concerns the **regional / masked variants**
+  of 4 and 6 (and any future masked extension of 5): they are **deferred to
+  a future ADR resting on the masking infrastructure of [ADR 0029](adr/0029-process-6-local-adjustments.md)**
+  (item 2). Their **global** version, on the other hand, does **not** depend on masking at all.
 
-Vérifié directement dans le texte des ADR :
+Verified directly in the ADRs' text:
 
-> [ADR 0031](adr/0031-hsl-color-grading.md) §« Color grading régional — hors
-> périmètre V2 » : « Appliquer le TSL ou le color grading **sous masque** (les
-> combiner avec l'infrastructure spatiale d'ADR 0029) est **explicitement hors
-> périmètre de la V2** […] déférée à un futur ADR — pas conçue ici. » La version
-> globale (par zone tonale) est « autonome et livrable sans le masquage ».
+> [ADR 0031](adr/0031-hsl-color-grading.md) §"Regional colour grading — out of
+> V2 scope": "Applying HSL or colour grading **under a mask** (combining them
+> with the spatial infrastructure of ADR 0029) is **explicitly out of
+> V2 scope** […] deferred to a future ADR — not designed here." The global
+> version (by tonal zone) is "self-contained and deliverable without masking".
 
-> [ADR 0033](adr/0033-clarity-texture-dehaze.md) §« Global uniquement en V2 — le
-> masqué est déféré » : « Les trois curseurs sont livrés **en global**. Le
-> **dehaze/clarté/texture masqué ou régional** […] est **explicitement hors
-> périmètre de la V2** — même coupe d'une ligne qu'ADR 0031 […] déférée à un
-> futur ADR adossé à ADR 0029. » Les curseurs globaux sont « livrables **sans
-> attendre** l'item 2 ».
+> [ADR 0033](adr/0033-clarity-texture-dehaze.md) §"Global only in V2 — the
+> masked version is deferred": "The three sliders are delivered **globally**. The
+> **masked or regional dehaze/clarity/texture** […] is **explicitly out of
+> V2 scope** — the same one-line cut as ADR 0031 […] deferred to a
+> future ADR resting on ADR 0029." The global sliders are "deliverable **without
+> waiting for** item 2".
 
-**La primitive de couleur d'[ADR 0027](adr/0027-color-management-beyond-srgb.md)
-est un socle partagé, pas une fonctionnalité.** ADR 0027 fait passer
-`leyline-color` d'« exposer un profil statique » à « **charger des profils ICC
-arbitraires et construire des `cmsTransform` entre eux** » — une petite API de
-transformation (chargement / construction / application). Cette primitive n'a
-aucune process version propre ; c'est une pièce de fondation. Trois surfaces la
-consomment :
+**The colour primitive of [ADR 0027](adr/0027-color-management-beyond-srgb.md)
+is a shared foundation, not a feature.** ADR 0027 moves
+`leyline-color` from "exposing a static profile" to "**loading arbitrary ICC
+profiles and building `cmsTransform`s between them**" — a small transform API
+(loading / building / applying). That primitive has no process version of its
+own; it is a foundation piece. Three surfaces consume it:
 
-* l'**épreuvage écran** et l'**export non-sRGB / filigrane**
-  ([ADR 0034](adr/0034-softproofing-watermark-print.md)) — la même transformation
-  ICC de sortie ;
-* le **module d'impression** ([ADR 0036](adr/0036-print-module.md)) — « pourra
-  s'appuyer sur la même primitive de transformation de sortie plutôt que d'en
-  inventer une troisième » (Conséquences d'ADR 0027, repris mot pour mot par
-  ADR 0036).
+* **soft proofing** and **non-sRGB export / watermark**
+  ([ADR 0034](adr/0034-softproofing-watermark-print.md)) — the same output ICC
+  transform;
+* the **print module** ([ADR 0036](adr/0036-print-module.md)) — it "will be able
+  to rest on the same output transform primitive rather than inventing a third"
+  (ADR 0027's Consequences, taken word for word by ADR 0036).
 
-**Nuance vérifiée (item 8) :** le DCP ([ADR 0035](adr/0035-camera-profile-dcp.md))
-**étend le même crate `leyline-color`** qu'ADR 0027 a transformé en bibliothèque
-couleur générale — mais il **applique ses matrices/LUT directement, _pas_ via
-`cmsTransform`** (« DCP n'est pas de l'ICC »). Il partage donc le **foyer**
-(`leyline-color`) et bénéficie de la maturité que la primitive ICC y apporte,
-sans consommer littéralement la transformation ICC elle-même. La primitive ICC
-proprement dite est consommée par l'item 7 (ses trois sous-pièces) ; le DCP
-cohabite dans le même crate comme second chemin couleur (Conséquences d'ADR 0035 :
-« `leyline-color` devient le foyer de deux chemins couleur »).
+**A verified nuance (item 8):** DCP ([ADR 0035](adr/0035-camera-profile-dcp.md))
+**extends the same `leyline-color` crate** that ADR 0027 turned into a general
+colour library — but it **applies its matrices/LUTs directly, _not_ through
+`cmsTransform`** ("DCP is not ICC"). It therefore shares the **home**
+(`leyline-color`) and benefits from the maturity the ICC primitive brings there,
+without literally consuming the ICC transform itself. The ICC primitive proper
+is consumed by item 7 (its three sub-pieces); DCP lives alongside it in the same
+crate as a second colour path (ADR 0035's Consequences:
+"`leyline-color` becomes the home of two colour paths").
 
-Construire ce socle **une fois** est donc plus économique que de laisser chaque
-fonctionnalité en réinventer une version partielle.
+Building that foundation **once** is therefore cheaper than letting each
+feature reinvent a partial version of it.
 
 ---
 
-# 3. Tiers suggérés
+# 3. Suggested tiers
 
-Regroupement par **effort + risque + dépendance** — ce sont des **vagues**, pas
-un calendrier : aucune date, aucune notion de « semaine » ou de « sprint »
-(cette cadence n'existe nulle part dans les docs du projet). L'ordre **entre**
-tiers est une recommandation, pas une contrainte technique (§2).
+Grouped by **effort + risk + dependency** — these are **waves**, not
+a schedule: no dates, no notion of "week" or "sprint"
+(that cadence exists nowhere in the project's documents). The order **between**
+tiers is a recommendation, not a technical constraint (§2).
 
-## Tier A — autonome, faible risque, sans dépendance
+## Tier A — self-contained, low risk, no dependency
 
-Bons candidats pour un démarrage précoce ou parallèle : autonomes, complexité
-S/M, rien à débloquer d'abord.
+Good candidates for an early or parallel start: self-contained, complexity
+S/M, nothing to unblock first.
 
-| Item | ADR | Complexité | Note |
+| Item | ADR | Complexity | Note |
 |---|---|---|---|
-| Courbe tonale | [0030](adr/0030-tone-curve.md) | S/M | Courbe par points seule, spline cubique monotone gelée, luminance seule, précalcul LUT. |
-| Suppression de tache | [0032](adr/0032-spot-removal-clone.md) | M | Clonage seul (heal coupé), copie bilinéaire déterministe, étage tôt dans le pipeline. |
+| Tone curve | [0030](adr/0030-tone-curve.md) | S/M | A point curve only, a frozen monotone cubic spline, luminance only, LUT precomputation. |
+| Spot removal | [0032](adr/0032-spot-removal-clone.md) | M | Cloning only (heal cut), a deterministic bilinear copy, a stage early in the pipeline. |
 
-## Tier B — socle partagé, peu coûteux, débloque trois surfaces
+## Tier B — a shared foundation, cheap, unblocks three surfaces
 
-L'extension ICC de `leyline-color` d'[ADR 0027](adr/0027-color-management-beyond-srgb.md) :
-petite, sans process version, et sur laquelle s'appuient épreuvage/filigrane
-([0034](adr/0034-softproofing-watermark-print.md)), impression
-([0036](adr/0036-print-module.md)) et, dans le même crate, le DCP
-([0035](adr/0035-camera-profile-dcp.md)). À poser **une seule fois** plutôt que
-de laisser chaque fonctionnalité en inventer une version partielle. La poser tôt
-dérisque tout le Tier D côté couleur.
+The ICC extension of `leyline-color` from [ADR 0027](adr/0027-color-management-beyond-srgb.md):
+small, with no process version, and the thing proofing/watermark
+([0034](adr/0034-softproofing-watermark-print.md)), printing
+([0036](adr/0036-print-module.md)) and, in the same crate, DCP
+([0035](adr/0035-camera-profile-dcp.md)) all rest on. To be laid **once** rather
+than letting each feature invent a partial version of it. Laying it early
+de-risks all of Tier D on the colour side.
 
-## Tier C — fonctionnalités autonomes de taille moyenne
+## Tier C — self-contained, medium-sized features
 
-Global uniquement, sans dépendance, mais plus lourdes que le Tier A.
+Global only, with no dependency, but heavier than Tier A.
 
-| Item | ADR | Complexité | Note |
+| Item | ADR | Complexity | Note |
 |---|---|---|---|
-| Color grading / TSL (global) | [0031](adr/0031-hsl-color-grading.md) | M | HSL dérivé du RGB (8 bandes + falloff), zones pondérées par luminance. Régional déféré. |
-| Clarté / texture / dehaze (global) | [0033](adr/0033-clarity-texture-dehaze.md) | M à L | Contraste local unifié à deux rayons ; dehaze dark channel prior en forme close. Masqué déféré. |
+| Colour grading / HSL (global) | [0031](adr/0031-hsl-color-grading.md) | M | HSL derived from RGB (8 bands + falloff), zones weighted by luminance. Regional deferred. |
+| Clarity / texture / dehaze (global) | [0033](adr/0033-clarity-texture-dehaze.md) | M to L | A unified local contrast at two radii; dehaze by dark channel prior in closed form. Masked deferred. |
 
-## Tier D — le gros pari d'infrastructure
+## Tier D — the big infrastructure bet
 
-| Item | ADR | Complexité | Note |
+| Item | ADR | Complexity | Note |
 |---|---|---|---|
-| Réglages locaux masqués | [0029](adr/0029-process-6-local-adjustments.md) | **XL** | Plus grosse mise de fond de tout l'ensemble. |
+| Masked local adjustments | [0029](adr/0029-process-6-local-adjustments.md) | **XL** | The largest outlay of the whole set. |
 
-C'est l'item **où une mauvaise estimation a le plus d'effet de bord** : trois
-autres fonctionnalités — le color grading régional (4), le dehaze/texture/clarté
-masqué (6) et une éventuelle extension masquée de la suppression de tache (5) —
-sont **derrière lui**, **non encore conçues** (chacune exigerait son propre futur
-ADR). Sous-estimer 0029, c'est décaler tout ce qui pourrait s'y adosser ensuite.
-À traiter comme le poste de risque d'effort n°1.
+This is the item **where a bad estimate has the widest knock-on effect**: three
+other features — regional colour grading (4), masked dehaze/texture/clarity (6)
+and a possible masked extension of spot removal (5) —
+are **behind it**, **not yet designed** (each would require its own future
+ADR). Underestimating 0029 means delaying everything that could later rest on it.
+To be treated as effort risk number one.
 
-## Tier E — items à risque non-ingénierie (pas seulement de l'effort)
+## Tier E — items with non-engineering risk (not merely effort)
 
-Ceux-ci demandent un **petit travail de recherche / validation _avant_** de
-s'engager sur une implémentation complète — distinct de « c'est juste du temps
-d'ingénierie ». L'ADR le dit lui-même dans chaque cas :
+These call for a **small research / validation effort _before_**
+committing to a full implementation — distinct from "it is just engineering
+time". The ADR says so itself in each case:
 
-* **Profils caméra DCP** ([0035](adr/0035-camera-profile-dcp.md) /
-  [0037](adr/0037-dcp-parsing-dependency.md)) — la **correctness colorimétrique**
-  « doit être **validée contre de vrais fichiers DCP générés par Adobe et leurs
-  rendus de référence avant toute sortie** » (barre d'[ADR 0016](adr/0016-process-3-lens-correction.md)).
-  Le _parsing_ du conteneur est, lui, résolu et à faible risque (lecteur maison
-  minimal au-dessus du crate `tiff` déjà lié, [ADR 0037](adr/0037-dcp-parsing-dependency.md)) —
-  mais l'item **ne peut pas sortir de façon responsable sans matériel de
-  référence Adobe en main**, pas seulement du temps d'ingénierie.
-* **Module d'impression** ([0036](adr/0036-print-module.md)) — le **mécanisme de
-  hand-off OS** (PDF portable vs. raster + API plateforme vs. surface Slint) est
-  **explicitement laissé à la PR** : une **question de faisabilité non résolue**,
-  à investiguer/prototyper avant que l'estimation d'effort ait un sens. Le rendu
-  (dimensionnement `papier × DPI` + profil de destination, réutilisant l'export
-  et la primitive ICC d'ADR 0027) est, lui, cadré.
+* **DCP camera profiles** ([0035](adr/0035-camera-profile-dcp.md) /
+  [0037](adr/0037-dcp-parsing-dependency.md)) — **colorimetric correctness**
+  "must be **validated against real Adobe-generated DCP files and their
+  reference renders before any release**" (the bar of [ADR 0016](adr/0016-process-3-lens-correction.md)).
+  Parsing the container is, for its part, resolved and low risk (a minimal
+  in-house reader on top of the already linked `tiff` crate, [ADR 0037](adr/0037-dcp-parsing-dependency.md)) —
+  but the item **cannot ship responsibly without Adobe reference material in
+  hand**, not merely engineering time.
+* **The print module** ([0036](adr/0036-print-module.md)) — the **OS hand-off
+  mechanism** (portable PDF vs. raster + platform API vs. a Slint surface) is
+  **explicitly left to the PR**: an **unresolved feasibility question**,
+  to be investigated/prototyped before an effort estimate means anything. The
+  rendering (`paper × DPI` sizing + a destination profile, reusing export
+  and the ICC primitive of ADR 0027) is, for its part, scoped.
 
-Recommandation : pour chacun, une **petite passe de recherche/validation** (obtenir
-les DCP Adobe de référence ; prototyper le chemin de hand-off) avant d'engager
-l'implémentation complète.
+Recommendation: for each, a **small research/validation pass** (obtain
+the reference Adobe DCP files; prototype the hand-off path) before committing to
+the full implementation.
 
-## Tier F — délibérément non conçu (coupes assumées)
+## Tier F — deliberately not designed (accepted cuts)
 
-À **lister explicitement** pour qu'elles ne soient pas silencieusement oubliées
-au moment de planifier — mais elles ne font **pas** partie du périmètre actuel.
-Chacune reviendra dans son propre futur ADR si elle est un jour voulue :
+To be **listed explicitly** so that they are not silently forgotten when
+planning — but they are **not** part of the current scope. Each will come back
+in its own future ADR if it is ever wanted:
 
-| Coupe | Source |
+| Cut | Source |
 |---|---|
-| Variantes régionales / masquées du color grading | [ADR 0031](adr/0031-hsl-color-grading.md) (adossées à 0029) |
-| Variantes régionales / masquées de dehaze/texture/clarté | [ADR 0033](adr/0033-clarity-texture-dehaze.md) (adossées à 0029) |
-| _Heal_ seamless (suppression de tache) | [ADR 0032](adr/0032-spot-removal-clone.md) |
-| Courbes par canal RGB + UI de courbe paramétrique | [ADR 0030](adr/0030-tone-curve.md) |
-| Filigrane image / logo | [ADR 0034](adr/0034-softproofing-watermark-print.md) |
-| Planches contact / dispositions N-up (impression) | [ADR 0036](adr/0036-print-module.md) |
-| Base de profils DCP embarquée | [ADR 0035](adr/0035-camera-profile-dcp.md) |
+| Regional / masked variants of colour grading | [ADR 0031](adr/0031-hsl-color-grading.md) (resting on 0029) |
+| Regional / masked variants of dehaze/texture/clarity | [ADR 0033](adr/0033-clarity-texture-dehaze.md) (resting on 0029) |
+| Seamless _heal_ (spot removal) | [ADR 0032](adr/0032-spot-removal-clone.md) |
+| Per-channel RGB curves + a parametric curve UI | [ADR 0030](adr/0030-tone-curve.md) |
+| Image / logo watermark | [ADR 0034](adr/0034-softproofing-watermark-print.md) |
+| Contact sheets / N-up layouts (printing) | [ADR 0036](adr/0036-print-module.md) |
+| An embedded DCP profile database | [ADR 0035](adr/0035-camera-profile-dcp.md) |
 
 ---
 
-# 4. Réserve
+# 4. Caveat
 
-Ce tiering est informé par l'**effort, le risque et la dépendance** — il ne dit
-**rien de la valeur**. Il n'exprime aucun jugement sur les fonctionnalités qui
-comptent le plus pour les utilisateurs réels ; cet arbitrage n'appartient qu'à
-l'utilisateur. Le présent document est un **intrant** du plan d'implémentation,
-pas un substitut à cette décision de priorité.
+This tiering is informed by **effort, risk and dependency** — it says
+**nothing about value**. It expresses no judgement about which features
+matter most to real users; that trade-off belongs to the user alone. The
+present document is an **input** to the implementation plan,
+not a substitute for that priority decision.
