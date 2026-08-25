@@ -4,7 +4,7 @@
 
 ## Contexte
 
-C2 de [`competitive-plan.md`](../competitive-plan.md) — les masques
+C2 de [`measured-findings.md`](../measured-findings.md) — les masques
 automatiques — est le seul item de l'axe IA compatible avec
 [`pipeline.md`](../pipeline.md) §5.1 sans compromis, et
 [ADR 0069](0069-closed-extension-boundary.md) a tranché *par où* une

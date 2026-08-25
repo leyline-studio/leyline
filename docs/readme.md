@@ -73,7 +73,7 @@ The rest of the work is robustness, performance and polish, not missing features
 | [`system-requirements.md`](system-requirements.md) | What machine Leyline runs on, and from what floor | Reference |
 | [`v2-scope.md`](v2-scope.md) | Scoping of post-V1 features | Reference |
 | [`v2-implementation-plan.md`](v2-implementation-plan.md) | Recommended sequencing of those features | Reference |
-| [`competitive-plan.md`](competitive-plan.md) | Where Leyline loses against established software, and in which order to take it back | Reference |
+| [`measured-findings.md`](measured-findings.md) | What was measured, what it changed, and what turned out to be wrong | Reference |
 | [`adr/`](adr/README.md) | Why one decision rather than another | Reference |
 
 ---

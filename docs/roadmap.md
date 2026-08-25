@@ -38,7 +38,7 @@ JPEG, TIFF, PNG, WebP, AVIF, export presets and batch export.
 
 Rayon parallelism ([ADR 0012](adr/0012-rayon-data-parallelism.md)), Criterion benchmarks, and the whole of [ADR 0041](adr/0041-interactive-preview-rendering.md): preview rendering at display resolution, radius scaling, and a cache of intermediate states on the preview path (−78 % on an end-of-pipeline slider).
 
-The **export** path, which ADR 0041 deliberately leaves out of its optimisations, has been measured since 2026-08-03 (`benches/export.rs`): decoding, full-resolution rendering and per-format encoding, all linear in pixels. The figures, and the two follow-ups they point to — AVIF encoding speed, overlapping encoding with rendering inside a batch — are in [`competitive-plan.md`](competitive-plan.md) §B2.
+The **export** path, which ADR 0041 deliberately leaves out of its optimisations, has been measured since 2026-08-03 (`benches/export.rs`): decoding, full-resolution rendering and per-format encoding, all linear in pixels. The figures, and the two follow-ups they point to — AVIF encoding speed, overlapping encoding with rendering inside a batch — are in [`measured-findings.md`](measured-findings.md) §B2.
 
 ## Phase 8 — Distribution ✅
 
@@ -57,7 +57,7 @@ The eleven duplicated `processN.rs` modules (14,968 lines, 70 to 93 % duplicatio
 
 ## In progress
 
-The post-V1 scoping is closed, and so is the competitive catch-up plan: [`competitive-plan.md`](competitive-plan.md), which came out of a cold comparison with the established software, leaves **nothing open in this repository** — its axes A (render accuracy) and B (performance) are delivered or rejected with their reasons, and its axis C depends on a detector that lives outside the repository ([ADR 0073](adr/0073-external-mask-detectors.md)).
+The post-V1 scoping is closed, and so is the measurement campaign that followed it: [`measured-findings.md`](measured-findings.md) leaves **nothing open in this repository** — its axes A (render accuracy) and B (performance) are delivered or rejected with their reasons, and its axis C depends on a detector that lives outside the repository ([ADR 0073](adr/0073-external-mask-detectors.md)).
 
 Since then, the work has been about what a **first publication** still lacks:
 
@@ -66,7 +66,7 @@ Since then, the work has been about what a **first publication** still lacks:
 * the Preferences panel exists, along with the admission rule that decides what is allowed into it ([ADR 0078](adr/0078-preferences-panel.md));
 * a camera set to RAW+JPEG no longer doubles the library ([ADR 0079](adr/0079-raw-jpeg-pairing.md)).
 
-What [`readme.md`](readme.md) lists as still open remains the reference: DCP colorimetry not validated against an Adobe render, and two finishing touches to local-adjustment tooling left out of scope by [ADR 0049](adr/0049-local-adjustments-clients.md).
+What [`readme.md`](readme.md) lists as still open remains the reference: DCP colorimetry not validated against the profile vendor's own render, and two finishing touches to local-adjustment tooling left out of scope by [ADR 0049](adr/0049-local-adjustments-clients.md).
 
 ---
 

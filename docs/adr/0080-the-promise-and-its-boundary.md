@@ -38,7 +38,7 @@ contradicts it.
 
 ### The promise's vagueness has already blocked an evolution
 
-[`competitive-plan.md`](../competitive-plan.md) §B3 states that "on export, the
+[`measured-findings.md`](../measured-findings.md) §B3 states that "on export, the
 GPU is **forbidden** by the `pipeline.md` §5.1 promise". That reading is wrong,
 and it has already been used as a reason not to investigate.
 
@@ -137,7 +137,7 @@ shipped, whatever it earns.
   rides along with it.
 
 These conditions are deliberately the same shape as the six that
-[`competitive-plan.md`](../competitive-plan.md) §4 fixed for local AI, and as
+[`measured-findings.md`](../measured-findings.md) §4 fixed for local AI, and as
 the boundary [ADR 0069](0069-closed-extension-boundary.md) fixed for a closed
 extension. The project now has one rule for all three: **a paid thing may
 propose, host or accelerate; it may never become the condition of what the user
@@ -158,7 +158,7 @@ One owning place, as the documentation rule requires:
 ## Consequences
 
 * **The GPU becomes an ordinary evolution**, costed like any other: a new stage
-  version per operator ported, kept forever. The claim in `competitive-plan.md`
+  version per operator ported, kept forever. The claim in `measured-findings.md`
   §B3 that it is forbidden is corrected there.
 * **A future service has a specification before it has a customer.** The
   conditions were written with nothing at stake, which is the only moment they

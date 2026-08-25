@@ -16,7 +16,7 @@ un algorithme produit du moiré là où un autre n'en produit pas.
 Leyline ne le choisit pas. `params.user_qual` n'est ni exposé ni même écrit :
 on prend le défaut de LibRaw, silencieusement.
 [ADR 0050](0050-highlight-reconstruction.md) avait laissé la question ouverte
-en toutes lettres. `docs/competitive-plan.md` §A2 la reprend comme le levier de
+en toutes lettres. `docs/measured-findings.md` §A2 la reprend comme le levier de
 qualité le moins cher du projet : il est **déjà dans la dépendance**, il ne
 reste qu'à le piloter.
 

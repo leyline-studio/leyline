@@ -11,7 +11,7 @@ pixel, à la résolution du rendu en cours, et n'a donc besoin de rien d'autre
 que quelques nombres rangés dans `settings_json`.
 
 C'est exactement ce qui manque à un masque de sujet, de ciel ou d'arrière-plan
-(C2 de `competitive-plan.md`). Sa couverture n'est pas dérivable de six
+(C2 de `measured-findings.md`). Sa couverture n'est pas dérivable de six
 paramètres : c'est une image. Tant que `Mask` ne sait porter que des formules,
 un tel masque **n'est pas exprimable**, et [ADR 0069](0069-closed-extension-boundary.md)
 n'a rien à quoi s'attacher — sa règle « une extension produit des réglages,

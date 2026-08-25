@@ -112,7 +112,7 @@ Les pixels changent, donc nouvelle version d'étage ; `v1` (moyenne) et `v2`
 * La conversion vers ProPhoto et retour entre dans `leyline-color`.
 * La mention « expérimental » d'ADR 0035 pourra être levée **si** une
   comparaison à un rendu de référence le confirme — ce qui reste bloqué faute
-  de convertisseur de référence disponible (`competitive-plan.md` §A1).
+  de convertisseur de référence disponible (`measured-findings.md` §A1).
 
 ## Alternatives écartées
 

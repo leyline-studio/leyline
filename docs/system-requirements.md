@@ -66,7 +66,7 @@ Interactive rendering, by contrast, weighs nothing: a slider dragged on an alrea
 
 **No recent instruction set is required.** The project sets neither `target-cpu` nor `target-feature`: the binaries are compiled for baseline x86-64 (SSE2). A processor without AVX2 runs Leyline. On macOS, the target is arm64.
 
-**The GPU computes no pixels.** It only draws the interface. The question of a GPU pipeline has been asked twice and rejected twice: by [ADR 0012](adr/0012-rayon-data-parallelism.md) (inter-GPU determinism not guaranteed), then again on 2026-08-03 ([`competitive-plan.md`](competitive-plan.md) §B3), once interaction had been made fluid on the CPU and the GPU forbidden at export by the promise in [`pipeline.md`](pipeline.md) §5.1. A more powerful graphics card therefore accelerates **nothing** about development.
+**The GPU computes no pixels.** It only draws the interface. The question of a GPU pipeline has been asked twice and rejected twice: by [ADR 0012](adr/0012-rayon-data-parallelism.md) (inter-GPU determinism not guaranteed), then again on 2026-08-03 ([`measured-findings.md`](measured-findings.md) §B3), once interaction had been made fluid on the CPU. Not because the promise forbids it — [ADR 0080](adr/0080-the-promise-and-its-boundary.md) §3 settled that a GPU operator is simply a new stage version — but because nothing was left to gain. A more powerful graphics card therefore accelerates **nothing** about development today.
 
 ## 3.1 The export degree follows the machine
 

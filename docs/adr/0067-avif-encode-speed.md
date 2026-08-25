@@ -14,7 +14,7 @@ ravif::Encoder::new()
 
 Ce `6` est le seul réglage d'encodeur du projet que personne ne peut voir ni
 changer. Il n'a jamais été choisi : c'est une valeur d'exemple, arrivée avec le
-code qui l'entoure. Or [le relevé B2](../competitive-plan.md) a montré que
+code qui l'entoure. Or [le relevé B2](../measured-findings.md) a montré que
 l'AVIF coûte **25× le JPEG** à taille égale — c'est le format où un curseur
 d'encodeur pèse le plus lourd, et le seul où il est caché.
 

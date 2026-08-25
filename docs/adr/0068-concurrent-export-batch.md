@@ -4,7 +4,7 @@
 
 ## Contexte
 
-[Le relevé B2](../competitive-plan.md) a chronométré le chemin d'export photo
+[Le relevé B2](../measured-findings.md) a chronométré le chemin d'export photo
 par photo, et en a tiré une piste : les encodeurs rapides (JPEG, PNG, TIFF,
 WebP) sont mono-thread, donc *« recouvrir l'encodage du fichier n avec le rendu
 du n+1 »* récupérerait « de l'ordre de 10 à 15 % » d'un lot.

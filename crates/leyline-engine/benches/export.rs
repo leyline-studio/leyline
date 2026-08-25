@@ -1,4 +1,4 @@
-//! Benchmarks of the **export** path (`docs/competitive-plan.md` B2).
+//! Benchmarks of the **export** path (`docs/measured-findings.md` B2).
 //!
 //! ADR 0041 deliberately left export and print out of its optimisations:
 //! they render at full resolution, with no stage cache, bit for bit as

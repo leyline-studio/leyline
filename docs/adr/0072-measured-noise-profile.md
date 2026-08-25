@@ -11,7 +11,7 @@ qu'il ne faisait pas :
 > **Pas de profil de bruit par boîtier et par ISO.** Le seuil est un modèle de
 > bruit blanc uniforme, pas la variance mesurée du capteur à cette sensibilité.
 
-C'est l'item **A3** de [`competitive-plan.md`](../competitive-plan.md), le
+C'est l'item **A3** de [`measured-findings.md`](../measured-findings.md), le
 dernier de l'axe « justesse du rendu » resté ouvert. Le présent ADR le tranche.
 
 ### Ce que « bruit blanc uniforme » coûte
@@ -328,7 +328,7 @@ nombre inventé ne le rendrait pas plus vrai.
   figurent maintenant deux fois, à deux rangs différents. C'est la première
   fois qu'une version change de rang, et le mécanisme d'ADR 0042 §3 sert donc
   pour ce qu'il a été écrit.
-* **A3 est fermé** dans [`competitive-plan.md`](../competitive-plan.md), et
+* **A3 est fermé** dans [`measured-findings.md`](../measured-findings.md), et
   l'argument de C1 (« A3 donne une partie du gain visé par le débruitage IA,
   sans aucune de ses questions ») devient vérifiable.
 

@@ -1,37 +1,38 @@
-# Action plan — render accuracy, performance, local AI
+# Measured findings, and what they changed
 
-**Document:** `docs/competitive-plan.md`
-**Version:** 0.1
-**Status:** Recommendation (a planning input, not a decision)
+**Document:** `docs/measured-findings.md`
+**Version:** 0.2
+**Status:** A log of measurements and their follow-ups (a planning input, not a decision)
 
 ---
 
 ## The state of this document
 
-> This document starts from a cold comparison, made on **2026-08-02**, between
-> Leyline and the established software (Lightroom, Capture One, DxO PhotoLab,
-> darktable, RawTherapee). It scopes **three axes** of work and settles
-> none of them: every item below requires **its own ADR before a single line of
-> code**, as the project's rule demands ("no code before architecture").
+> This document is a **log of measurements**, opened on **2026-08-02**, and of the
+> decisions each one triggered. It settles nothing by itself: every item below
+> required **its own ADR before a single line of code**, as the project's rule
+> demands ("no code before architecture").
 >
 > It replaces neither [`specification.md`](specification.md) — which says what is
 > delivered and what is excluded — nor [`roadmap.md`](roadmap.md), which says where
-> the project stands. It feeds both.
+> the project stands. It feeds both. What it keeps that they do not: the raw
+> numbers, the protocol that produced them, and the findings that turned out to
+> be wrong.
 
 ---
 
 # 1. Subject
 
 The V1 scope and the V2 scoping are closed: what remains is no longer
-missing functionality. The question therefore becomes **where Leyline loses against
-the established software**, which is not the same thing. Three axes stand out, and
-only one is a feature catch-up.
+missing functionality. The question therefore becomes **where the product is
+weakest when nothing is missing**, which is not the same thing. Three axes stood
+out, and only one was a feature gap.
 
 | Axis | Nature of the problem | What the user feels |
 |---|---|---|
 | **A — Render accuracy** | An incomplete colour chain | The image "comes out" worse on opening, before any adjustment |
 | **B — Performance** | Structurally redundant work, no GPU | Every slider drags |
-| **C — Optional local AI** | A deliberate absence, now a market gap | High ISO and masking stay manual |
+| **C — Optional local AI** | A deliberate absence | High ISO and masking stay manual |
 
 Axis A decides the verdict at first glance; axis B is paid for every
 second of use; axis C is a horizon, not current work.
@@ -53,7 +54,7 @@ not applied.
 
 **Why it matters.** Those tables *are* the Adobe rendering. The matrix alone makes
 a correct conversion; it is the `LookTable` that makes a file "look as though it
-came out of Lightroom". As long as they are missing, the A/B comparison is lost
+came out of its vendor's own converter". As long as they are missing, the A/B comparison is lost
 in advance, whatever the quality of the rest of the pipeline.
 
 **The split.** Two distinct stages, not to be confused:
@@ -70,19 +71,20 @@ in advance, whatever the quality of the rest of the pipeline.
    [ADR 0063](adr/0063-dcp-tables.md) for `HueSatMap`, `LookTable` and
    `ProfileToneCurve` (`camera_profile::v3`).
 
-**Prerequisite — and the blockage found on 2026-08-02.** Adobe `.dcp` files and
+**Prerequisite — and the blockage found on 2026-08-02.** `.dcp` files and
 reference renders are needed for the available camera bodies (the ~17,000 real Canon 60D
 CR2 files are the natural sample). **No `.dcp` exists on the development
-machine**, and nothing is installed there that supplies one — neither RawTherapee, which
-usually ships a collection of them, nor darktable, nor Adobe's DNG Converter.
+machine**, and nothing installed on it supplies one.
 A1.1 is therefore **blocked on an artefact to be brought in**, not on code.
 
 Three ways to unblock it, in order of preference:
 
-1. **Install RawTherapee** and take the `.dcp` files it distributes — it is the
-   simplest source, and it also gives a second reference render.
+1. **Install a free RAW developer that distributes `.dcp` profiles** and take
+   them — the simplest source, and it also gives a second implementation to
+   compare against.
 2. **Adobe's DNG Converter**, free, which installs the complete collection
-   of per-camera profiles.
+   of per-camera profiles. DCP is an Adobe format; there is no avoiding the
+   name here.
 3. **A photographed ColorChecker chart**: the most honest validation, and
    the only one that depends on no other software — the rendered patches are compared
    with the chart's reference sRGB values. It needs no `.dcp` at all,
@@ -103,8 +105,9 @@ What that lead unblocks, and what it does not:
 * ✅ **Done**: a neutral grey from the sensor comes out neutral through
   camera→XYZ(D50)→sRGB, on both real profiles. A permanent test, enabled by
   `LEYLINE_TEST_DCP`.
-* ❌ **The comparison with Adobe's own rendering.** It still requires Lightroom or ACR
-  to produce the reference. A downloaded profile does not replace it.
+* ❌ **The comparison with the profiles' own vendor rendering.** It still requires
+  that vendor's software to produce the reference. A downloaded profile does not
+  replace it.
 
 **The bug found.** An authentic `.dcp` is a *bare IFD* — a directory of
 tags, with no image at all — carrying the version number `0x4352` where TIFF puts
@@ -114,12 +117,13 @@ grafted on, they all passed while no real profile was
 readable. That is the exact price of a test suite that talks only to
 itself.
 
-Note too: those profiles are the work of third parties, not Adobe's factory
-profiles. They validate our reading and our algebra, not our fidelity to the
-"Camera Standard" rendering.
+Note too: those profiles are the work of third parties, not the vendor's factory
+profiles. They validate our reading and our algebra, not our fidelity to any
+particular reference rendering.
 
-**Result of 2026-08-03.** The reference arrived, in the form of a RawTherapee
-render of the same RAW with the same profile and a neutral processing profile.
+**Result of 2026-08-03.** The reference arrived, in the form of an **independent
+implementation's** render of the same RAW with the same profile and neutral
+processing settings.
 Once the level was normalised: **a median discrepancy of 0.0027 out of 1.0**, 90th percentile
 0.0060, channel ratios within 0.007. The colorimetry agrees with an
 independent implementation.
@@ -129,13 +133,17 @@ independent implementation.
 `.pp3` fixes the input profile and the output space. The reference produced
 that way reproduces a hand-made export to within 0.001.
 
-### The level gap, on 2026-08-03: a defect found, the gap not closed
+### The level gap: a defect found, the gap not closed
 
-There remained a **gain of ×1.185 in linear**: RawTherapee renders brighter than
-Leyline, uniformly. The lead taken up was the sensor's white level.
+There remained a **gain of ×1.185 in linear**: the reference implementation
+renders brighter than Leyline, uniformly. Three things had been established —
+independent of the camera profile, hence not of colour; a gain and not a curve;
+and the sensor's white level as the lead.
 
-**It led to a real defect — but not to the explanation of the gap.** The
-two results are distinct and must be read separately.
+**The lead produced a real defect — and not the explanation of the gap.** The
+two results are distinct and must be read separately. An earlier revision of
+this section concluded that the gap *was* explained; that conclusion did not
+survive the fix, and is recorded here as wrong rather than deleted.
 
 **The defect, fixed ([ADR 0066](adr/0066-sensor-white-level.md)).** Leyline was not
 dividing by 16,383 as was believed: `adjust_maximum_thr`, a LibRaw setting
@@ -144,87 +152,45 @@ left at its default of 0.75, lowers the white level down to
 from one series, Canon 60D, ISO 100, the same exposure, the level chosen was
 13,794 for one and 16,383 for the other three — a 19 % difference in brightness
 depending on whether a reflection happened to fall in the frame. That is exactly what
-`auto_brighten: false` was supposed to forbid. The camera, for its part, writes the
-answer into the file (`linear_max`: 12,279 at ISO 100, 15,094 at ISO 400,
-11,222 elsewhere) — the same split into ISO groups as RawTherapee's measured
-table, and nobody was reading it. `input::v4` now reads it — and a survey of 250 files from the corpus showed
-along the way that this metadata also follows **the aperture**, to within ~1 % of the
-`aperture_scaling` table RawTherapee maintains by hand.
+`auto_brighten: false` was supposed to forbid.
 
-**The gap with RawTherapee, however, is not closed.** After the fix it goes
-from ×1.16 to ×1.03 on the ISO 100 file, but **increases** from ×1.08 to ×1.13 on
-an ISO 400 file — there where `v3` stretched white up to the brightest pixel
-of an image that had no very bright one. The effective divisors of the two
-engines are now known on both sides, and **they do not explain** the
-factor of ~1.14 that remains. It is therefore not the white level, and the
-question stays open.
-
-**The protocol is now reproducible without manual intervention**:
-`rawtherapee-cli -s` without a sidecar renders with neutral values, and a minimal
-`.pp3` fixes the input profile and the output space. The reference produced
-that way reproduces a hand-made export to within 0.001.
-
-### The level gap, explained on 2026-08-03
-
-There remained a **gain of ×1.185 in linear**: RawTherapee renders brighter than
-Leyline, uniformly. Three things had been established — independent of the
-camera profile, hence not of colour; a gain and not a curve; and the
-sensor's white level as a lead, without the figures adding up.
-
-**They add up now: the lead was right, it is the comparison that was
-mixing two files.** The old computation set the `linear_max = 11,222` of
-one file against the `camconst` value of another ISO group.
-
-What the two engines take for "white", on a Canon 60D:
+The camera writes the answer into the file, and nobody was reading it. What the
+two engines take for "white", on a Canon 60D:
 
 | Source | ISO 100/125 | ISO 200…3200 | ISO 160/320/640/1250/2500 |
 |---|---|---|---|
-| LibRaw `maximum` — what Leyline divides by | 16,383 | 16,383 | 16,383 |
+| LibRaw `maximum` — what Leyline divided by | 16,383 | 16,383 | 16,383 |
 | LibRaw `linear_max` — camera metadata, **ignored** | 12,279 | 15,094 | 11,222 |
-| RawTherapee's `camconst.json` | 13,480 | 15,200 | 12,550 |
+| The reference implementation's measured table | 13,480 | 15,200 | 12,550 |
 
-The last two rows **share the same split into three ISO
-groups**: that is not a coincidence, it is the same hardware behaviour seen
-from two sides. Leyline, for its part, normalises by the theoretical 14-bit ceiling, the
-same for every file.
+The last two rows **share the same split into three ISO groups**: that is not a
+coincidence, it is the same hardware behaviour seen from two sides. Leyline, for
+its part, normalised by the theoretical 14-bit ceiling, the same for every file.
+`input::v4` now reads the metadata — and a survey of 250 files from the corpus
+showed along the way that it also follows **the aperture**, to within ~1 % of the
+per-aperture scaling the reference implementation maintains by hand.
 
-**The prediction, and its verification.** If the gap is only that choice, it must
-follow the file's ISO group — and not stay at 1.185:
+**What it cost, concretely.** A neutral render was 8 to 19 % too dark depending
+on the sensitivity, and above all **a pixel saturated at the sensor did not come
+out white**: at ISO 100 it arrived at 0.82. That is exactly the "the image comes
+out worse on opening" that opens this document.
 
-| File | ISO | Predicted ratio (16,383 / RT white) | Measured ratio |
-|---|---|---|---|
-| IMG_9040 | 100 | 1.215 | **~1.19** |
-| IMG_9046 | 400 | 1.078 | **1.085** |
+**The gap itself is not closed.** After the fix it goes from ×1.16 to ×1.03 on
+the ISO 100 file, but **increases** from ×1.08 to ×1.13 on an ISO 400 file —
+there where `v3` stretched white up to the brightest pixel of an image that had
+no very bright one. The effective divisors of both engines are now known on both
+sides, and **they do not explain** the factor of ~1.14 that remains. It is
+therefore not the white level, and the question stays open.
 
-Two files, two different predictions, two measurements landing within
-2 %. **The gap is explained.** Disabling the highlight roll-off changes nothing
-in that ratio, which incidentally rules out our own output
-curve as an explanation.
+**A third opinion is not available as things stand**: the other free engine's
+default rendering applies a *scene-referred* tone mapping, whose S signature is
+clear — a ratio of 1.43 in the midtones, 0.96 at white. Comparing it would
+require disabling that module.
 
-**What it costs, concretely.** A neutral render is 8 to 19 % too dark
-depending on the sensitivity, and above all **a pixel saturated at the sensor does not come out
-white**: at ISO 100 it arrives at 0.82. That is exactly the "the image comes out worse
-on opening" that opens this document.
-
-**Nothing is fixed for all that**: changing the normalisation moves every
-pixel of every photo, and therefore requires a **new version of the `input`
-stage** (`pipeline.md` §5.1) — existing revisions going on rendering
-as before until a reprocess. The choice of the source of truth is a decision in
-its own right, with at least three candidates — the metadata's `linear_max`,
-a per-camera, per-ISO table in the manner of `camconst` (RawTherapee is
-GPL-3.0, hence reusable here), or the image-content adjustment
-LibRaw offers (`adjust_maximum_thr`, to be rejected: two photos of the same scene
-would render differently). **That calls for its own ADR.**
-
-**darktable cannot serve as a third opinion as things stand**: its default
-rendering applies a *scene-referred* tone mapping (filmic), whose S signature
-is clear — a ratio of 1.43 in the midtones, 0.96 at white. Comparing it
-would require disabling that module.
-
-The "experimental" label stays: for the absence of a comparison with Adobe
-itself, and for that ~1.14 factor that is still unattributed. What is
-settled is that **it is not colour** — the colorimetry does
-agree.
+The "experimental" label stays: for the absence of a comparison with the
+profile vendor's own rendering, and for that ~1.14 factor that is still
+unattributed. What is settled is that **it is not colour** — the colorimetry
+does agree.
 
 **Risk.** Low on point 1, medium on point 2: interpolating the
 `HueSatMap` tables is precision work, where a mistake goes unnoticed
@@ -236,7 +202,7 @@ on a test image and leaps off the screen on skin.
 LibRaw's default. [ADR 0050](adr/0050-highlight-reconstruction.md) §143 explicitly
 leaves the question open.
 
-**Why it matters.** RawTherapee offers AMaZE, LMMSE, DCB; the choice shows
+**Why it matters.** Other developers offer AMaZE, LMMSE, DCB; the choice shows
 on fine detail and repetitive patterns (moiré, foliage, fabric). It is a
 quality lever **already present in the dependency**, needing only to be driven.
 
@@ -322,7 +288,7 @@ The roadmap nonetheless ticked phase 7.
 **What it was worth.** Every render started again from the decoded buffer: moving
 `sharpening` (the last stage, ~13 ms) replays dehaze, clarity, texture, HSL and the
 local adjustments identically. That is **the** structural difference from
-Lightroom, Capture One and darktable, which replay only downstream of the edited node.
+the established developers, which replay only downstream of the edited node.
 
 **Why first.** The design was done and accepted — checkpoints
 before the expensive stages, `(stage index, upstream settings fingerprint, buffer)`,
@@ -393,36 +359,30 @@ goes to **~3 hours**, encoding alone becoming three quarters of the time.
    no waste to recover there without changing the operators themselves —
    and B1's stage cache is forbidden here by the §5.1 promise.
 
-### Against RawTherapee and darktable
+### What the export is worth, measured against others
 
 Absolute figures do not say whether the export is slow — only how long it
 takes. The same machine, the same files, the same JPEG q90 output, RAW → file
-end to end (decoding included), on 2026-08-03:
+end to end (decoding included), against **two independent CPU implementations**
+of the same task, on 2026-08-03:
 
-| File | Processing | Leyline | RawTherapee 5.12 | darktable 5.6 |
-|---|---|---|---|---|
-| 30 Mpx (5D IV) | neutral / default | **2.88 s** | 3.53 s | 5.44 s |
-| 10 Mpx (60D) | neutral / default | **0.90 s** | 1.10 s | 1.70 s |
-| 30 Mpx | comparable edit | 5.79 s | **5.69 s** | — |
-| 10 Mpx | comparable edit | **1.92 s** | 2.02 s | — |
+* on the **neutral** path, Leyline is the fastest of the three, and by far the
+  most frugal — 6.8 s of CPU where the closest one consumes 17.7 for the same
+  file;
+* **loaded with comparable settings** (white balance, exposure, contrast,
+  highlights, shadows, blacks, vibrance, denoising, sharpening, rotation,
+  cropping), the gap closes to **2 %** — 5.79 s against 5.69 on a 30 Mpx file —
+  still with ~18 % less CPU.
 
-The "comparable edit" applies on both sides white balance, exposure,
-contrast, highlights, shadows, blacks, vibrance, denoising, sharpening,
-rotation and cropping; darktable is absent from it for want of an equivalent XMP, its
-default rendering already running its complete *scene-referred* chain.
-
-**The verdict is good, and it was not a given**: on the neutral path Leyline
-is the fastest of the three, and by far the most frugal — 6.8 s of CPU where
-RawTherapee consumes 17.7 for the same file. Loaded with settings, the gap
-with RawTherapee falls to 2 % (5.79 s against 5.69), still with ~18 % less CPU.
-**There is therefore no performance deficit to catch up on
-export.** This document assumed the opposite.
+**There is therefore no performance deficit to catch up on export.** This
+document assumed the opposite when it was opened, and the assumption is what
+the measurement removed.
 
 ### The AVIF exception, and what it really costs
 
-darktable exports the same 30 Mpx to AVIF in **3.5 s**, where Leyline takes
-**14.7 s** — but its file weighs 8.4 MB against 0.98 MB for ours. It is
-therefore not the same work, and the raw gap proves nothing.
+Another engine exports the same 30 Mpx to AVIF four times faster — for a file
+eight times heavier. It is therefore not the same work, and a raw comparison
+proves nothing here.
 
 What does prove something is moving our own slider. The same
 export, `ravif` set to three speeds:
@@ -492,9 +452,9 @@ justify itself.** Three measurements say so:
   The obstacle is therefore the cost — one new version per operator ported,
   kept forever — and not the promise.
 * **There is no deficit to catch up**: at comparable settings, Leyline
-  exports as fast as RawTherapee and faster than darktable, both of them on
-  the CPU too (see B2). The competitor we would want to catch with a GPU does not
-  use one either.
+  exports as fast as the two independent implementations measured in B2, both of
+  them on the CPU too. What a GPU would be meant to catch up with does not use
+  one either.
 
 And where time really is wasted — 15 cores idle during each
 encoding — the answer is scheduling, not a second processor. **To be
@@ -538,7 +498,7 @@ already written. An AI project that violates a single one is to be refused.
 
 ## C1 — AI denoising
 
-**The gap.** Lightroom Denoise and DxO DeepPRIME have become *the* quality
+**The gap.** Learned denoisers have become *the* quality
 differentiator at high ISO. Wavelet denoising
 ([ADR 0046](adr/0046-edge-preserving-denoise.md)) does not play in that
 category, and no setting will bring it there.
@@ -615,7 +575,7 @@ The order follows the **felt gain / risk** ratio, not difficulty.
 | # | Item | Why here | New stage version? |
 |---|---|---|---|
 | ~~1~~ | ~~**B1** — stage cache~~ | **Delivered on 2026-08-02, −78 %** | No |
-| ~~2~~ | ~~**A1.1** — validate DCP~~ | **Done on 2026-08-02/03**: container bug fixed, algebra validated against RawTherapee (median discrepancy 0.0027); "experimental" kept for the unexplained ×1.185 gain | No |
+| ~~2~~ | ~~**A1.1** — validate DCP~~ | **Done on 2026-08-02/03**: container bug fixed, algebra validated against an independent implementation (median discrepancy 0.0027); "experimental" kept for the unexplained ×1.185 gain | No |
 | ~~3~~ | ~~**A2** — demosaic choice~~ | **Delivered on 2026-08-02** ([ADR 0061](adr/0061-demosaic-algorithm.md)) | Yes (`input::v3`) |
 | ~~4~~ | ~~**A1.2** — apply the DCP tables~~ | **Delivered on 2026-08-02** ([ADR 0062](adr/0062-dcp-illuminant-interpolation.md), [ADR 0063](adr/0063-dcp-tables.md)) | Yes (`camera_profile::v2`, `v3`) |
 | ~~5~~ | ~~**B2** — measure the export~~ | **Measured on 2026-08-03**, see §3: the `export.rs` bench, two possible follow-ups identified | No |
@@ -632,7 +592,8 @@ closed — A1, A2 and A3 delivered, B1 and B2 too, B3 rejected with its reasons 
 of axis C, everything that could enter it has entered: C2's socket is
 delivered, the detector that plugs into it lives elsewhere, and C1 has no way out (see
 below). What remains is no longer a project but three findings: the
-comparison with Adobe's own rendering, for want of Lightroom; the
+comparison with the profile vendor's own rendering, for want of its
+software; the
 pinning hole in the Lensfun database that ADR 0072 brought to light; and the
 quality gap, accepted, with learned denoisers.
 

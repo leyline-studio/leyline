@@ -5,7 +5,7 @@
 ## Contexte
 
 Leyline veut une fonctionnalité payante (les masques assistés, C2 de
-`competitive-plan.md`) sans cesser d'être un logiciel libre. La question posée
+`measured-findings.md`) sans cesser d'être un logiciel libre. La question posée
 était : faut-il **cloner le dépôt** et maintenir deux projets portant « le même
 code pour l'essentiel », l'un ouvert, l'autre payant ?
 
