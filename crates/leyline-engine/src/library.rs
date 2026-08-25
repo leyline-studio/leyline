@@ -58,7 +58,9 @@ const JOB_POOL_MAX_THREADS: usize = 16;
 /// produced it is gone.
 type PlannedExport = std::result::Result<(crate::export::ExportPlan, PathBuf), String>;
 
-/// Photos an export batch keeps in flight by default (ADR 0068 §1).
+/// Ceiling on the photos an export batch keeps in flight by default
+/// (ADR 0068 §1). The default itself is [`default_export_concurrency`],
+/// which lowers this on a machine with fewer cores.
 ///
 /// One photo's pipeline cannot fill a modern machine — a 12-file batch of
 /// 30 Mpx RAWs measured 280 % of 1600 % on sixteen threads — so the batch
@@ -67,6 +69,19 @@ type PlannedExport = std::result::Result<(crate::export::ExportPlan, PathBuf), S
 /// low because the cost of being wrong is paging, which loses far more than
 /// the concurrency wins. `ExportRequest::concurrency` overrides it.
 const DEFAULT_EXPORT_CONCURRENCY: usize = 4;
+
+/// How many photos a batch keeps in flight when the request names no number:
+/// `min(4, available_parallelism())` (ADR 0068 §1).
+///
+/// The core count matters because peak memory grows linearly with the degree
+/// — ~700 MB per photo in flight at 30 Mpx, past a gigabyte at 45 Mpx
+/// (`docs/system-requirements.md` §2). A two-core machine is also, typically,
+/// the machine with 4 GB of RAM: giving it the full degree of four would buy
+/// no speed its cores can use, and would buy it at the one price that makes a
+/// batch slower rather than faster.
+fn default_export_concurrency() -> usize {
+    DEFAULT_EXPORT_CONCURRENCY.min(job_pool_size())
+}
 
 /// Sizes the shared job pool (§3.3): one worker per core, clamped so an
 /// unusual host (one logical core, or an exotic many-core workstation)
@@ -1068,7 +1083,7 @@ impl Library {
         let planned = self.plan_batch(&request.versions, &settings, &request.destination_dir)?;
         let in_flight = request
             .concurrency
-            .unwrap_or(DEFAULT_EXPORT_CONCURRENCY)
+            .unwrap_or_else(default_export_concurrency)
             .clamp(1, request.versions.len().max(1));
         self.run_export_batch(planned, &settings, preset, in_flight, progress)
     }
@@ -2273,6 +2288,27 @@ mod tests {
             max_running.load(Ordering::SeqCst),
             width,
             "concurrency must reach the pool width but never exceed it"
+        );
+    }
+
+    /// The default export degree is bounded by the machine, not only by the
+    /// constant (ADR 0068 §1). Peak memory grows linearly with the degree,
+    /// so a host with fewer cores than the ceiling must get fewer photos in
+    /// flight — the constant alone would hand a two-core, 4 GB machine four
+    /// of them, which is the one way to make a batch slower.
+    #[test]
+    fn default_export_concurrency_never_exceeds_the_machine() {
+        let degree = default_export_concurrency();
+
+        assert!(degree >= 1, "a batch must always run at least one photo");
+        assert!(
+            degree <= DEFAULT_EXPORT_CONCURRENCY,
+            "the constant is the ceiling: {degree} > {DEFAULT_EXPORT_CONCURRENCY}"
+        );
+        assert!(
+            degree <= job_pool_size(),
+            "the machine is the other ceiling: {degree} > {}",
+            job_pool_size()
         );
     }
 }

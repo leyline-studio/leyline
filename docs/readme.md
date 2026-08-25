@@ -70,6 +70,7 @@ Les documents **de lecture** se lisent d'un bout à l'autre. Les documents **de 
 | [`catalog.md`](catalog.md) | Schéma SQLite complet du catalogue | Référence |
 | [`engine-api.md`](engine-api.md) | Surface Rust du moteur, modèle d'exécution, sessions d'édition | Référence |
 | [`presets.md`](presets.md) | Presets de développement : modèle et comportement | Référence |
+| [`system-requirements.md`](system-requirements.md) | Sur quelle machine Leyline tourne, et à partir de quel plancher | Référence |
 | [`v2-scope.md`](v2-scope.md) | Cadrage des fonctionnalités post-V1 | Référence |
 | [`v2-implementation-plan.md`](v2-implementation-plan.md) | Séquencement recommandé de ces fonctionnalités | Référence |
 | [`competitive-plan.md`](competitive-plan.md) | Où Leyline perd face aux logiciels établis, et dans quel ordre le reprendre | Référence |
