@@ -6,11 +6,11 @@
 
 ---
 
-# 1. Objectif
+# 1. Purpose
 
-Définir le contrat entre le moteur Leyline et ses clients.
+To define the contract between the Leyline engine and its clients.
 
-L'interface graphique n'est qu'un client parmi d'autres :
+The graphical interface is only one client among others:
 
 ```text
 Leyline Studio ─┐
@@ -18,35 +18,35 @@ Leyline CLI    ─┼──→ leyline-sdk ──→ leyline-engine ──→ le
 Scripts / apps ─┘
 ```
 
-Principe fondateur du projet : **API avant interface graphique**.
+The project's founding principle: **API before graphical interface**.
 
-Tout ce que Studio sait faire, la CLI et le SDK savent le faire — parce qu'ils appellent exactement la même API.
-
----
-
-# 2. Principes
-
-* L'API est une **bibliothèque Rust** (`leyline-sdk`), pas un serveur ni un protocole réseau.
-* Aucune opération lourde ne bloque l'appelant : lectures rapides synchrones, travaux lourds asynchrones.
-* Le moteur possède ses threads ; le client possède sa boucle d'événements.
-* Aucun runtime asynchrone imposé (pas de dépendance `tokio`) : threads natifs + canaux.
-* Toute erreur est une valeur (`Result`), jamais un panic à travers la frontière de l'API.
-* Les identifiants sont des types dédiés, jamais des entiers nus.
+Everything Studio can do, the CLI and the SDK can do — because they call exactly the same API.
 
 ---
 
-# 3. Modèle d'exécution
+# 2. Principles
 
-## 3.1 Deux catégories d'appels
+* The API is a **Rust library** (`leyline-sdk`), not a server and not a network protocol.
+* No heavy operation blocks the caller: fast reads are synchronous, heavy work is asynchronous.
+* The engine owns its threads; the client owns its event loop.
+* No async runtime is imposed (no `tokio` dependency): native threads plus channels.
+* Every error is a value (`Result`), never a panic across the API boundary.
+* Identifiers are dedicated types, never bare integers.
 
-| Catégorie | Exemples | Comportement |
+---
+
+# 3. Execution model
+
+## 3.1 Two categories of call
+
+| Category | Examples | Behaviour |
 |---|---|---|
-| **Requêtes** | grille, détails d'un asset, réglages courants, collections | Synchrones — SQLite répond en microsecondes, un aller-retour de thread coûterait plus cher |
-| **Travaux** | import, rendu de preview, export, reprocessing | Asynchrones — retournent un `JobId` immédiatement, progressent via événements |
+| **Queries** | grid, an asset's details, current settings, collections | Synchronous — SQLite answers in microseconds, a thread round trip would cost more |
+| **Jobs** | import, preview rendering, export, reprocessing | Asynchronous — return a `JobId` immediately, progress through events |
 
-## 3.2 Événements
+## 3.2 Events
 
-Le client s'abonne à un flux d'événements :
+The client subscribes to a stream of events:
 
 ```rust
 pub enum Event {
@@ -65,32 +65,32 @@ pub enum Event {
 }
 
 pub enum JobResult {
-    Import(ImportReport),   // échecs par fichier inclus dans le rapport
-    Export(ExportReport),   // échecs par version inclus dans le rapport
-    Preset(PresetApplyReport), // échecs par version inclus dans le rapport
+    Import(ImportReport),   // per-file failures included in the report
+    Export(ExportReport),   // per-version failures included in the report
+    Preset(PresetApplyReport), // per-version failures included in the report
     Preview(PreviewFile),
-    Failed(String),         // le job a échoué avant de produire quoi que ce soit
+    Failed(String),         // the job failed before producing anything at all
 }
 ```
 
-* La souscription rend un `Receiver<Event>` (canal standard) : `library.subscribe()`.
-* Studio branche ce canal sur la boucle Slint ; la CLI le lit en séquence ; un script peut l'ignorer. Un récepteur abandonné se désabonne silencieusement.
-* Les événements sont des **notifications**, jamais des données complètes : le client re-requête ce dont il a besoin. Cela évite tout problème de cohérence entre le flux et la base.
-* `PreviewReady` porte l'asset (pas la version) : la surface preview est asset-based (§11), la preview rendue est toujours celle de la version courante de l'asset.
-* `TetherConnected`/`TetherDisconnected` bornent le cycle de vie d'une session `tether_connect`/`tether_disconnect` (§6bis) — chaque photo capturée pendant la session notifie via `AssetsAdded`, exactement comme un import : ce n'est pas un événement distinct, seulement une source différente pour le même import.
-* `WatchStarted`/`WatchStopped` suivent le même principe pour `watch_start`/`watch_stop` (§6ter, `docs/adr/0039-watched-folder-import.md`) : chaque fichier stabilisé dans le dossier surveillé notifie via `AssetsAdded`.
-* **État livré** : `subscribe` et les jobs `import_async`, `preview_async`, `export_async` émettent `JobProgress`, `AssetsAdded`, `PreviewReady` et `JobFinished`. Les écritures de la façade notifient : classement (§8) → un `VersionChanged` par version du lot ; mots-clés (§8) → `AssetsChanged` avec le lot ; le retrait d'assets (ADR 0060, `remove_assets`/`delete_assets`) → `AssetsRemoved` avec ceux qui existaient réellement ; chaque écriture d'historique d'une session d'édition (§10.1 — commit, amendement, undo, redo) → `VersionChanged`. L'application d'un preset (§10.3) ne notifie rien de plus : c'est un commit de session par version ciblée, donc les mêmes `VersionChanged` que §10.1, portés par le job `apply_preset_async`. Un client qui écrit via `catalog_mut()` directement contourne les notifications : passer par la façade. `close()` (§5) émet `LibraryClosed` à tous les abonnés du flux partagé ; les autres clones de la `Library` restent utilisables — seule la connexion catalogue ferme, et seulement quand le dernier clone est abandonné.
+* Subscribing returns a `Receiver<Event>` (a standard channel): `library.subscribe()`.
+* Studio wires that channel into the Slint loop; the CLI reads it in sequence; a script may ignore it. A dropped receiver unsubscribes silently.
+* Events are **notifications**, never complete data: the client re-queries what it needs. That avoids any coherence problem between the stream and the database.
+* `PreviewReady` carries the asset (not the version): the preview surface is asset-based (§11), and the rendered preview is always that of the asset's current version.
+* `TetherConnected`/`TetherDisconnected` bound the life cycle of a `tether_connect`/`tether_disconnect` session (§6bis) — each photo captured during the session notifies through `AssetsAdded`, exactly like an import: it is not a distinct event, only a different source for the same import.
+* `WatchStarted`/`WatchStopped` follow the same principle for `watch_start`/`watch_stop` (§6ter, `docs/adr/0039-watched-folder-import.md`): each file that stabilises in the watched folder notifies through `AssetsAdded`.
+* **Delivered state**: `subscribe` and the `import_async`, `preview_async`, `export_async` jobs emit `JobProgress`, `AssetsAdded`, `PreviewReady` and `JobFinished`. The façade's writes notify: classification (§8) → one `VersionChanged` per version in the batch; keywords (§8) → `AssetsChanged` with the batch; removing assets (ADR 0060, `remove_assets`/`delete_assets`) → `AssetsRemoved` with the ones that actually existed; every history write of an edit session (§10.1 — commit, amendment, undo, redo) → `VersionChanged`. Applying a preset (§10.3) notifies nothing more: it is one session commit per targeted version, hence the same `VersionChanged` as §10.1, carried by the `apply_preset_async` job. A client that writes through `catalog_mut()` directly bypasses the notifications: go through the façade. `close()` (§5) emits `LibraryClosed` to every subscriber of the shared stream; the other clones of the `Library` stay usable — only the catalog connection closes, and only when the last clone is dropped.
 
 ## 3.3 Threading
 
-* `Library` est `Send + Sync` et se clone à coût nul (`Arc` interne). Chaque clone partage le même catalogue et le même flux d'événements.
-* Les accès catalogue passent par des gardes (`catalog()` / `catalog_mut()`) qui tiennent le verrou interne : une opération, puis relâcher — ne jamais garder une garde en travers d'un autre appel à la `Library` (une session d'édition tient la garde pour sa durée de vie, c'est voulu : rien d'autre ne mute pendant l'édition).
-* Chaque job `*_async` (`import_async`, `preview_async`, `export_async`, `export_with_preset_async`, `apply_preset_async`, `reprocess_async`) s'exécute sur un pool de jobs partagé et borné (un jeu fixe de threads dédiés, dimensionné à `available_parallelism()` plafonné à 16, un pool par `Library`) plutôt que sur un thread dédié par appel : la concurrence des jobs a un plafond imposé par le moteur, quel que soit le comportement du client — au-delà du plafond, les jobs suivants attendent en file. Ce pool est volontairement distinct du pool rayon global utilisé pour le rendu pixel (§10, `pixels.rs`, `process1..5.rs`) : partager un même pool rayon entre la distribution des jobs et le travail `par_iter`/`join` interne au rendu exposerait le vol de tâches à recruter le thread d'un job pour exécuter un *autre* job pendant qu'il tient encore le mutex catalogue — un verrou non réentrant, donc un deadlock. Le pool de jobs appartient au même `Arc` interne que le catalogue : ses threads tournent tant qu'un clone de la `Library` existe et s'arrêtent d'eux-mêmes quand le dernier disparaît ; les jobs en cours ou en attente ne sont ni annulés ni interrompus par `close()`.
-* Les écritures catalogue sont sérialisées en interne ; le client n'a aucune contrainte d'ordre à respecter.
+* `Library` is `Send + Sync` and clones at no cost (an internal `Arc`). Every clone shares the same catalog and the same event stream.
+* Catalog accesses go through guards (`catalog()` / `catalog_mut()`) that hold the internal lock: one operation, then release — never hold a guard across another call into the `Library` (an edit session holds the guard for its lifetime, and that is deliberate: nothing else mutates during editing).
+* Every `*_async` job (`import_async`, `preview_async`, `export_async`, `export_with_preset_async`, `apply_preset_async`, `reprocess_async`) runs on a shared, bounded job pool (a fixed set of dedicated threads, sized to `available_parallelism()` capped at 16, one pool per `Library`) rather than on a dedicated thread per call: job concurrency has a ceiling imposed by the engine, whatever the client's behaviour — beyond the ceiling, further jobs queue. That pool is deliberately distinct from the global rayon pool used for pixel rendering (§10, `pixels.rs`, `process1..5.rs`): sharing one rayon pool between job dispatch and the `par_iter`/`join` work internal to rendering would expose work stealing to recruiting a job's thread to run *another* job while it still holds the catalog mutex — a non-reentrant lock, hence a deadlock. The job pool belongs to the same internal `Arc` as the catalog: its threads run as long as a clone of the `Library` exists and stop by themselves when the last one disappears; jobs in progress or queued are neither cancelled nor interrupted by `close()`.
+* Catalog writes are serialised internally; the client has no ordering constraint to respect.
 
 ---
 
-# 4. Types fondamentaux
+# 4. Fundamental types
 
 ```rust
 pub struct AssetId(i64);
@@ -127,21 +127,21 @@ pub enum LeylineError {
 pub type Result<T> = std::result::Result<T, LeylineError>;
 ```
 
-`NewerCatalog` et `NewerSettings` matérialisent la règle de compatibilité ascendante (`pipeline.md` §3.4) : un moteur ancien ouvre en lecture seule ou refuse — au niveau du catalogue comme d'une révision — mais ne modifie jamais. Face à `NewerSettings`, le client affiche la meilleure preview en cache avec un avertissement.
+`NewerCatalog` and `NewerSettings` embody the forward-compatibility rule (`pipeline.md` §3.4): an old engine opens read-only or refuses — at the catalog level as at the revision level — but never modifies. Faced with `NewerSettings`, the client shows the best cached preview with a warning.
 
 ---
 
-# 5. Bibliothèque
+# 5. Library
 
 ```rust
 impl Library {
-    /// Crée une nouvelle bibliothèque (dossier + catalog.db).
+    /// Creates a new library (folder + catalog.db).
     pub fn create(root: &Path, name: &str) -> Result<Library>;
 
-    /// Ouvre une bibliothèque existante. Applique les migrations si besoin.
+    /// Opens an existing library. Applies migrations if needed.
     pub fn open(root: &Path) -> Result<Library>;
 
-    /// Ouvre sans droit d'écriture (catalogue plus récent que le moteur).
+    /// Opens without write rights (catalog newer than the engine).
     pub fn open_read_only(root: &Path) -> Result<Library>;
 
     pub fn subscribe(&self) -> Receiver<Event>;
@@ -150,9 +150,9 @@ impl Library {
 }
 ```
 
-Une seule instance en écriture par bibliothèque (verrou fichier) ; plusieurs lecteurs sont libres (WAL).
+One writing instance per library (a file lock); several readers are free (WAL).
 
-**Studio, lancement sans argument (ADR 0022).** `leyline-studio` prend en argument facultatif un chemin de bibliothèque (`leyline-studio <library-dir>`), exactement comme un client CLI ferait `Library::open`. Lancé sans argument — ce qui est le cas normal depuis un raccourci graphique (menu Démarrer de l'installeur Windows, AppImage Linux, double-clic sur le `.app` macOS, aucun n'attachant de console) — Studio ne remonte plus une erreur d'usage : il ouvre ou crée, via `Library::create`/`Library::open` selon qu'un `catalog.db` existe déjà, une bibliothèque par défaut sous `<Documents de l'utilisateur>/Leyline Library` (repli sur `<home>/Leyline Library` si le système n'a pas de dossier Documents). Cet emplacement reste visible dans l'app (Aide ▸ À propos de Leyline). Un argument explicite garde le comportement historique à l'identique : `Library::open` seul, donc une erreur franche si le chemin donné n'existe pas.
+**Studio, launched with no argument (ADR 0022).** `leyline-studio` takes an optional library path as its argument (`leyline-studio <library-dir>`), exactly as a CLI client would call `Library::open`. Launched with no argument — which is the normal case from a graphical shortcut (the Windows installer's Start menu, the Linux AppImage, a double-click on the macOS `.app`, none of which attaches a console) — Studio no longer raises a usage error: it opens or creates, through `Library::create`/`Library::open` depending on whether a `catalog.db` already exists, a default library under `<the user's Documents>/Leyline Library` (falling back to `<home>/Leyline Library` if the system has no Documents folder). That location stays visible in the app (Help ▸ About Leyline). An explicit argument keeps the historical behaviour identically: `Library::open` alone, hence a clean error if the given path does not exist.
 
 ---
 
@@ -160,18 +160,18 @@ Une seule instance en écriture par bibliothèque (verrou fichier) ; plusieurs l
 
 ```rust
 pub struct ImportOptions {
-    pub copy_files: bool,      // copier dans Photos/ ou référencer sur place
+    pub copy_files: bool,      // copy into Photos/ or reference in place
     pub recursive: bool,
-    pub pair_companions: bool, // attacher le JPEG boîtier au RAW (ADR 0079)
+    pub pair_companions: bool, // attach the camera JPEG to the RAW (ADR 0079)
 }
 
-/// Ce qu'un scan regarde (ADR 0065 §1).
+/// What a scan looks at (ADR 0065 §1).
 pub struct ScanOptions {
     pub recursive: bool,
-    pub thumbnails: bool,      // extraire l'imagette embarquée de chaque fichier
+    pub thumbnails: bool,      // extract each file's embedded thumbnail
 }
 
-/// Un fichier qu'un import prendrait, décrit sans être pris.
+/// A file an import would take, described without being taken.
 pub struct ImportCandidate {
     pub path: PathBuf,
     pub filename: String,
@@ -179,132 +179,129 @@ pub struct ImportCandidate {
     pub file_size: u64,
     pub capture_date: Option<i64>,
     pub camera: Option<String>,
-    pub already_imported: bool,        // indice par nom+taille, pas un verdict
-    pub thumbnail: Option<Vec<u8>>,    // JPEG, arête ≤ 256 px, orienté
+    pub already_imported: bool,        // a name+size hint, not a verdict
+    pub thumbnail: Option<Vec<u8>>,    // JPEG, edge ≤ 256 px, oriented
 }
 
 impl Library {
-    /// Le cœur synchrone : tient le catalogue pendant tout le lot.
+    /// The synchronous core: holds the catalog for the whole batch.
     pub fn import(&self, source: &Path, options: &ImportOptions,
                   progress: impl FnMut(u64, u64)) -> Result<ImportReport>;
-    /// Le job : retourne immédiatement, progresse par `JobProgress`,
-    /// annonce `AssetsAdded` puis `JobFinished` avec le rapport.
+    /// The job: returns immediately, progresses through `JobProgress`,
+    /// announces `AssetsAdded` then `JobFinished` with the report.
     pub fn import_async(&self, source: &Path, options: &ImportOptions) -> JobId;
 
-    /// Import sélectif (ADR 0065 §4) : exactement ces fichiers-là, qui
-    /// doivent vivre sous `source`. Même pipeline, même rapport, mêmes
-    /// événements ; un fichier hors de `source` est écarté, pas rangé au
-    /// hasard.
+    /// Selective import (ADR 0065 §4): exactly those files, which must
+    /// live under `source`. Same pipeline, same report, same events;
+    /// a file outside `source` is set aside, not filed at random.
     pub fn import_files(&self, source: &Path, files: &[PathBuf],
                         options: &ImportOptions,
                         progress: impl FnMut(u64, u64)) -> Result<ImportReport>;
     pub fn import_files_async(&self, source: &Path, files: &[PathBuf],
                               options: &ImportOptions) -> JobId;
 
-    /// Appairage RAW+JPEG (ADR 0079). Un import appaire au fil de l'eau ;
-    /// ces deux-là sont pour ce qui a été importé avant, et pour défaire.
-    /// La migration v3 du catalogue ajoute la colonne **sans appairer**,
-    /// donc une bibliothèque existante n'est jamais réorganisée toute
-    /// seule (§7). `pair_assets` est idempotent et rend chaque paire faite,
-    /// `(maître, compagnon)` ; `unpair_assets` accepte un maître comme un
-    /// compagnon et rend le nombre de photos revenues dans la grille.
-    /// Les deux notifient par `AssetsChanged`.
+    /// RAW+JPEG pairing (ADR 0079). An import pairs as it goes;
+    /// these two are for what was imported earlier, and for undoing.
+    /// The catalog's v3 migration adds the column **without pairing**,
+    /// so an existing library is never reorganised on its own (§7).
+    /// `pair_assets` is idempotent and returns every pair made,
+    /// `(master, companion)`; `unpair_assets` accepts a master as well as
+    /// a companion and returns the number of photos back in the grid.
+    /// Both notify through `AssetsChanged`.
     pub fn pair_assets(&self) -> Result<Vec<(AssetId, AssetId)>>;
     pub fn unpair_assets(&self, assets: &[AssetId]) -> Result<u32>;
 
-    /// Range une couverture de masque dans la bibliothèque et rend le
-    /// `Mask::Coverage` qui la référence (ADR 0070 §5) — l'unique point
-    /// d'entrée, et celui qu'une extension fermée appelle par le SDK
-    /// (ADR 0069 §2). `coverage` fait `width * height` échantillons,
-    /// 0 = le réglage ne s'applique pas ici, `u16::MAX` = pleinement ;
-    /// la résolution est celle du producteur, elle n'a pas à suivre celle
-    /// de la photo. Adressé par contenu : deux fois la même couverture ne
-    /// fait qu'un fichier.
+    /// Files a mask coverage into the library and returns the
+    /// `Mask::Coverage` that references it (ADR 0070 §5) — the single
+    /// entry point, and the one a closed extension calls through the SDK
+    /// (ADR 0069 §2). `coverage` holds `width * height` samples,
+    /// 0 = the setting does not apply here, `u16::MAX` = it applies fully;
+    /// the resolution is the producer's, it does not have to follow the
+    /// photo's. Content-addressed: the same coverage twice makes one file.
     pub fn store_mask_coverage(&self, width: u32, height: u32,
                                coverage: &[u16]) -> Result<Mask>;
 
-    /// Ce qu'un import prendrait, **sans rien écrire** (ADR 0065 §1).
+    /// What an import would take, **without writing anything** (ADR 0065 §1).
     pub fn scan_import(&self, source: &Path, options: &ScanOptions,
                        progress: impl FnMut(u64, u64)) -> Result<Vec<ImportCandidate>>;
-    /// Le job correspondant : `JobProgress` par fichier, puis
-    /// `JobFinished` avec `JobResult::Scan`. Rien n'étant écrit, rien
-    /// d'autre n'est annoncé — ni `AssetsAdded`, ni `AssetsChanged`.
+    /// The corresponding job: `JobProgress` per file, then
+    /// `JobFinished` with `JobResult::Scan`. Nothing being written, nothing
+    /// else is announced — neither `AssetsAdded` nor `AssetsChanged`.
     pub fn scan_import_async(&self, source: &Path, options: &ScanOptions) -> JobId;
 }
 ```
 
-**Regarder avant de prendre** (ADR 0065). Un scan énumère exactement ce que
-l'import retiendrait — même parcours, même filtre d'extension, même tri, le
-code d'énumération étant partagé — et ne lit que des en-têtes. L'imagette d'un
-candidat est celle que le boîtier a écrite dans le fichier (`leyline_raw::thumbnail`),
-réduite et réorientée : jamais un rendu du pipeline, puisqu'un candidat n'a pas
-de révision à rendre. Le marquage `already_imported` compare nom et taille
-(catalogue §43) ; l'empreinte BLAKE3 de l'import reste la seule réponse exacte,
-et c'est elle qui refuse.
+**Look before taking** (ADR 0065). A scan enumerates exactly what the import
+would keep — same traversal, same extension filter, same ordering, the
+enumeration code being shared — and reads nothing but headers. A candidate's
+thumbnail is the one the camera wrote into the file (`leyline_raw::thumbnail`),
+reduced and reoriented: never a render from the pipeline, since a candidate has
+no revision to render. The `already_imported` marking compares name and size
+(catalog §43); the import's BLAKE3 checksum remains the only exact answer,
+and it is what refuses.
 
-L'import est un travail : extraction EXIF, checksum BLAKE3, création de la révision initiale et de la version `Default` (catalogue §18) — en flux, avec `JobProgress` par fichier candidat. Chaque asset importé avec succès reçoit aussi sa miniature (`PreviewKind::Thumbnail`) avant que `import`/`import_async` ne retourne, via le même cœur que `preview_async` (§11) : le client n'a plus besoin de la déclencher lui-même après coup. Un échec de rendu de miniature n'annule jamais l'import de l'asset — il reste importé, sans miniature en cache, et retombe sur le chemin paresseux existant (`cached_preview` puis `preview_async`) la première fois qu'il doit s'afficher. Ce rendu est fait séquentiellement, asset par asset : la miniature partage le verrou du catalogue avec le reste de l'import (§11), le paralléliser demanderait de revoir ce verrouillage, pas seulement d'itérer avec `rayon`.
+Import is a job: EXIF extraction, BLAKE3 checksum, creation of the initial revision and of the `Default` version (catalog §18) — streamed, with `JobProgress` per candidate file. Every successfully imported asset also receives its thumbnail (`PreviewKind::Thumbnail`) before `import`/`import_async` returns, through the same core as `preview_async` (§11): the client no longer needs to trigger it afterwards. A thumbnail rendering failure never cancels the asset's import — it stays imported, with no cached thumbnail, and falls back on the existing lazy path (`cached_preview` then `preview_async`) the first time it must be displayed. That rendering is done sequentially, asset by asset: the thumbnail shares the catalog lock with the rest of the import (§11), and parallelising it would mean revisiting that locking, not merely iterating with `rayon`.
 
-Un **sidecar XMP** posé à côté du fichier source amorce l'asset qui vient d'être créé — note, libellé, mots-clés hiérarchiques, artiste, copyright ([ADR 0047](adr/0047-xmp-sidecar-read.md), catalogue §29) : c'est le chemin de migration depuis un autre logiciel, et il ne demande aucune option. Comme la miniature, c'est du meilleur effort : un sidecar illisible n'écarte jamais la photo, il s'écarte lui-même. Pour un asset déjà importé, `Library::read_xmp(asset) -> Result<bool>` fait la même chose à la demande, en remplissant sans jamais écraser.
+An **XMP sidecar** placed next to the source file seeds the asset just created — rating, label, hierarchical keywords, artist, copyright ([ADR 0047](adr/0047-xmp-sidecar-read.md), catalog §29): this is the migration path from other software, and it asks for no option. Like the thumbnail, it is best-effort: an unreadable sidecar never sets the photo aside, it sets itself aside. For an already imported asset, `Library::read_xmp(asset) -> Result<bool>` does the same on demand, filling without ever overwriting.
 
 ---
 
-# 6bis. Capture tethering (`docs/adr/0038-tethered-capture.md`)
+# 6bis. Tethered capture (`docs/adr/0038-tethered-capture.md`)
 
 ```rust
 impl Library {
-    /// Se connecte à la première caméra USB détectée (libgphoto2) et
-    /// démarre une session : chaque photo prise à partir de là est
-    /// téléchargée et importée automatiquement, comme un import ordinaire.
-    /// Refuse une deuxième session tant qu'une est déjà ouverte.
+    /// Connects to the first USB camera detected (libgphoto2) and
+    /// starts a session: every photo taken from then on is
+    /// downloaded and imported automatically, like an ordinary import.
+    /// Refuses a second session while one is already open.
     pub fn tether_connect(&self) -> Result<()>;
 
-    /// Termine la session en cours ; ne fait rien si aucune n'est ouverte.
+    /// Ends the current session; does nothing if none is open.
     pub fn tether_disconnect(&self);
 }
 ```
 
-Une capture tethering n'est pas un chemin de données séparé : le fichier
-reçu de l'appareil passe par le même cœur d'import que `Library::import`
-(checksum, EXIF, révision initiale, vignette), donc émet le même
-`Event::AssetsAdded` (§3.2). Seuls `TetherConnected`/`TetherDisconnected`
-sont nouveaux, pour signaler la connexion elle-même — une caméra à la
-fois par `Library` en V1.
+A tethered capture is not a separate data path: the file received from
+the camera goes through the same import core as `Library::import`
+(checksum, EXIF, initial revision, thumbnail), and therefore emits the same
+`Event::AssetsAdded` (§3.2). Only `TetherConnected`/`TetherDisconnected`
+are new, to signal the connection itself — one camera at a
+time per `Library` in V1.
 
 ---
 
-# 6ter. Import automatique par dossier surveillé (`docs/adr/0039-watched-folder-import.md`)
+# 6ter. Automatic import from a watched folder (`docs/adr/0039-watched-folder-import.md`)
 
 ```rust
 impl Library {
-    /// Démarre la surveillance de `folder` : chaque fichier qui s'y
-    /// stabilise à partir de là est importé automatiquement, comme un
-    /// import ordinaire. Refuse une deuxième session tant qu'une est déjà
+    /// Starts watching `folder`: every file that stabilises there
+    /// from then on is imported automatically, like an
+    /// ordinary import. Refuses a second session while one is already
     /// active.
     pub fn watch_start(&self, folder: &Path) -> Result<()>;
 
-    /// Termine la session en cours ; ne fait rien si aucune n'est active.
+    /// Ends the current session; does nothing if none is active.
     pub fn watch_stop(&self);
 }
 ```
 
-Même principe que le tethering (§6bis) : un fichier stabilisé dans le
-dossier surveillé passe par le même cœur d'import que `Library::import`
-(checksum, EXIF, révision initiale, vignette), donc émet le même
-`Event::AssetsAdded` (§3.2). Seuls `WatchStarted`/`WatchStopped` sont
-nouveaux, pour signaler la session elle-même — un dossier surveillé à la
-fois par `Library` en V1. Contrairement au tethering, chaque fichier est
-importé individuellement au fil de l'eau (jamais en lot), pour que le
-verrou du catalogue que `Library::import` tient pendant tout son appel
-(§3.3) ne reste jamais bloqué plus longtemps qu'un seul fichier, même si le
-dossier en reçoit beaucoup d'un coup — sinon toute opération interactive en
-mode développement partageant ce même verrou attendrait derrière le lot
-entier.
+The same principle as tethering (§6bis): a file that stabilises in the
+watched folder goes through the same import core as `Library::import`
+(checksum, EXIF, initial revision, thumbnail), and therefore emits the same
+`Event::AssetsAdded` (§3.2). Only `WatchStarted`/`WatchStopped` are
+new, to signal the session itself — one watched folder at a
+time per `Library` in V1. Unlike tethering, each file is
+imported individually as it comes (never in a batch), so that
+the catalog lock `Library::import` holds for the whole of its call
+(§3.3) never stays taken longer than a single file, even if the
+folder receives many at once — otherwise every interactive operation in
+develop mode sharing that same lock would wait behind the entire batch.
 
 ---
 
-# 7. Navigation et recherche
+# 7. Navigation and search
 
-La grille énumère des **versions** (catalogue §16).
+The grid enumerates **versions** (catalog §16).
 
 ```rust
 pub struct GridQuery {
@@ -313,17 +310,17 @@ pub struct GridQuery {
     pub rating_at_least: Option<u8>,
     pub color_label: Option<ColorLabel>,
     pub pick: Option<PickState>,
-    pub keywords: Vec<KeywordId>,        // hiérarchique : inclut les descendants
+    pub keywords: Vec<KeywordId>,        // hierarchical: includes descendants
     pub text: Option<String>,            // FTS5
     pub capture_range: Option<(i64, i64)>,
-    pub camera: Option<String>,          // prise de vue (ADR 0064) : modèle, ou « fabricant modèle »
+    pub camera: Option<String>,          // shot filters (ADR 0064): model, or "manufacturer model"
     pub lens: Option<String>,
     pub iso: ShotRange,
     pub aperture: ShotRange,
     pub focal_length: ShotRange,
     pub shutter_speed: ShotRange,
     pub sort: Sort,
-    pub range: Range<u32>,               // pagination par fenêtre
+    pub range: Range<u32>,               // windowed pagination
 }
 
 pub struct GridItem {
@@ -336,10 +333,10 @@ pub struct GridItem {
     pub pick: PickState,
     pub width: Option<u32>,
     pub height: Option<u32>,
-    pub edited: bool,                    // plus que sa révision initiale (ADR 0055 §5)
+    pub edited: bool,                    // more than its initial revision (ADR 0055 §5)
 }
 
-/// Intervalle inclusif, bornes toutes deux facultatives (ADR 0064 §1).
+/// An inclusive interval, both bounds optional (ADR 0064 §1).
 pub struct ShotRange {
     pub min: Option<f64>,
     pub max: Option<f64>,
@@ -350,35 +347,35 @@ impl ShotRange {
     pub fn at_most(max: f64) -> ShotRange;
     pub fn between(min: f64, max: f64) -> ShotRange;
     pub fn is_unbounded(&self) -> bool;
-    /// Lit la forme écrite `min-max`, `min-`, `-max`, ou une valeur seule ;
-    /// les bornes acceptent les fractions (`1/200`). Vide = filtre absent.
+    /// Reads the written form `min-max`, `min-`, `-max`, or a single value;
+    /// the bounds accept fractions (`1/200`). Empty = no filter.
     pub fn parse(text: &str) -> Result<ShotRange>;
 }
 
 impl Library {
     pub fn count(&self, query: &GridQuery) -> Result<u64>;
     pub fn grid(&self, query: &GridQuery) -> Result<Vec<GridItem>>;
-    pub fn asset(&self, id: AssetId) -> Result<AssetDetails>;   // EXIF complet, versions, chemins
-    pub fn shot_facets(&self) -> Result<ShotFacets>;            // boîtiers, objectifs et bornes observés
+    pub fn asset(&self, id: AssetId) -> Result<AssetDetails>;   // full EXIF, versions, paths
+    pub fn shot_facets(&self) -> Result<ShotFacets>;            // observed bodies, lenses and bounds
 }
 ```
 
-`grid` + `range` permettent le défilement virtuel : l'UI ne charge jamais que la fenêtre visible, quelle que soit la taille du catalogue.
+`grid` + `range` enable virtual scrolling: the UI never loads more than the visible window, whatever the size of the catalog.
 
-Les six filtres de prise de vue (ADR 0064) se combinent par **et** avec les
-autres et entre eux. Une photo dont la métadonnée manque ne satisfait aucun
-d'eux : elle sort de la grille dès qu'un de ces filtres est posé. Un
-intervalle inversé est **refusé** (`InvalidSettings`) plutôt que répondu par
-une grille vide. Les listes dans lesquelles boîtier et objectif se choisissent
-viennent de `shot_facets`, calculé sur toute la bibliothèque (catalogue §43) —
-un client les rafraîchit sur `AssetsAdded` / `AssetsRemoved`, pas à chaque
-frappe.
+The six shot filters (ADR 0064) combine by **and** with the others and with
+each other. A photo whose metadata is missing satisfies none of them: it
+leaves the grid as soon as one of those filters is set. An inverted
+interval is **refused** (`InvalidSettings`) rather than answered with an
+empty grid. The lists from which body and lens are chosen come from
+`shot_facets`, computed over the whole library (catalog §43) —
+a client refreshes them on `AssetsAdded` / `AssetsRemoved`, not on every
+keystroke.
 
 ---
 
-# 8. Classement
+# 8. Classification
 
-Le classement vit sur la **version** ; les mots-clés sur l'**asset** (catalogue §16).
+Classification lives on the **version**; keywords on the **asset** (catalog §16).
 
 ```rust
 impl Library {
@@ -393,7 +390,7 @@ impl Library {
 }
 ```
 
-Toutes les opérations acceptent des lots : le traitement par lots est un cas nominal, pas une option.
+Every operation accepts batches: batch processing is a nominal case, not an option.
 
 ---
 
@@ -412,34 +409,34 @@ impl Library {
 
     pub fn rename_collection(&self, id: CollectionId, name: &str) -> Result<()>;
     pub fn move_collection(&self, id: CollectionId, parent: Option<CollectionId>) -> Result<()>;
-    // Emporte le sous-arbre ; rend le nombre de collections supprimées.
+    // Takes the subtree with it; returns the number of collections deleted.
     pub fn delete_collection(&self, id: CollectionId) -> Result<u32>;
 }
 ```
 
-Les trois dernières ne touchent aucune version, aucune révision, aucun fichier
-(catalogue §24) : un déplacement circulaire est refusé, et une suppression
-emporte les descendants et les seules appartenances.
+The last three touch no version, no revision and no file
+(catalog §24): a circular move is refused, and a deletion
+takes the descendants and the memberships alone.
 
-Les **dossiers** se lisent par la même forme, en lecture seule (ADR 0055 §2) — rien ici ne renomme, ne déplace ni ne supprime un dossier, c'est de la gestion de fichiers :
+**Folders** are read through the same shape, read-only (ADR 0055 §2) — nothing here renames, moves or deletes a folder, that is file management:
 
 ```rust
 impl Library {
-    pub fn folders(&self) -> Result<Vec<FolderNode>>;   // chemin, parent, nombre de photos
+    pub fn folders(&self) -> Result<Vec<FolderNode>>;   // path, parent, photo count
 }
 ```
 
-Les lignes arrivent triées par chemin, c'est-à-dire en profondeur d'abord : un client peut indenter sur le nombre de segments sans parcourir d'arbre.
+Rows arrive sorted by path, that is, depth-first: a client can indent on the number of segments without walking a tree.
 
-Une collection intelligente s'interroge via `GridQuery { collection: Some(id), .. }` : le moteur traduit `SmartRules` en SQL (catalogue §26), le client ne voit pas la différence avec une collection manuelle.
+A smart collection is queried through `GridQuery { collection: Some(id), .. }`: the engine translates `SmartRules` into SQL (catalog §26), and the client sees no difference from a manual collection.
 
 ---
 
-# 10. Développement
+# 10. Development
 
-## 10.1 Session d'édition
+## 10.1 Edit session
 
-L'édition passe par une **session**, qui matérialise la coalescence (`pipeline.md`, catalogue §17) :
+Editing goes through a **session**, which embodies coalescing (`pipeline.md`, catalog §17):
 
 ```rust
 impl Library {
@@ -447,36 +444,36 @@ impl Library {
 }
 
 impl EditSession {
-    /// Valeur en mémoire, aperçu temps réel — aucune écriture catalogue.
+    /// An in-memory value, real-time preview — no catalog write.
     pub fn set(&mut self, param: Param, value: Value) -> Result<()>;
 
-    /// Point de commit : crée la révision, avance la tête.
-    /// Le moteur applique la fenêtre d'amendement automatiquement.
+    /// Commit point: creates the revision, moves the head forward.
+    /// The engine applies the amendment window automatically.
     pub fn commit(&mut self) -> Result<RevisionId>;
 
     pub fn undo(&mut self) -> Result<Option<RevisionId>>;
     pub fn redo(&mut self) -> Result<Option<RevisionId>>;
 
-    pub fn settings(&self) -> &Settings;       // état courant complet
+    pub fn settings(&self) -> &Settings;       // the complete current state
     pub fn history(&self) -> Result<Vec<RevisionInfo>>;
 }
 ```
 
-* `set` est appelé à chaque mouvement de curseur : le moteur met à jour l'aperçu en mémoire.
-* `commit` est appelé aux points de commit définis par `pipeline.md` (relâchement, changement d'outil...). La session décide seule s'il s'agit d'une nouvelle révision ou d'un amendement.
-* Fermer la session (drop) commite l'état en attente : rien ne se perd jamais.
+* `set` is called on every slider movement: the engine updates the preview in memory.
+* `commit` is called at the commit points defined by `pipeline.md` (release, tool change…). The session alone decides whether it is a new revision or an amendment.
+* Closing the session (drop) commits the pending state: nothing is ever lost.
 
 ## 10.2 Versions
 
 ```rust
 impl Library {
-    /// Version virtuelle : nouvelle branche depuis la tête (ou une révision donnée).
+    /// Virtual version: a new branch from the head (or from a given revision).
     pub fn create_version(&self, from: VersionId, name: &str, at: Option<RevisionId>) -> Result<VersionId>;
 
     pub fn versions(&self, asset: AssetId) -> Result<Vec<VersionInfo>>;
     pub fn set_current_version(&self, asset: AssetId, version: VersionId) -> Result<()>;
     pub fn rename_version(&self, version: VersionId, name: &str) -> Result<()>;
-    pub fn delete_version(&self, version: VersionId) -> Result<()>;   // refuse la dernière version
+    pub fn delete_version(&self, version: VersionId) -> Result<()>;   // refuses the last version
 }
 ```
 
@@ -484,7 +481,7 @@ impl Library {
 
 ## 10.3 Presets
 
-Un preset (`docs/presets.md`) capture un sous-ensemble de `Param` (§10.1) — jamais l'état complet — et s'applique en écrivant une révision normale sur chaque version ciblée. Aucun nouveau mécanisme de rendu ou d'écriture : l'application réutilise `EditSession::set`/`commit` tels quels (`docs/adr/0014-develop-presets.md`).
+A preset (`docs/presets.md`) captures a subset of `Param` (§10.1) — never the complete state — and is applied by writing a normal revision on each targeted version. No new rendering or writing mechanism: application reuses `EditSession::set`/`commit` as they are (`docs/adr/0014-develop-presets.md`).
 
 ```rust
 pub enum SettingsGroup {
@@ -502,45 +499,45 @@ pub struct PresetInfo {
     pub groups: Vec<SettingsGroup>,
 }
 
-/// Outcome of one preset application batch — même forme qu'`ExportReport` (§12).
+/// Outcome of one preset application batch — the same shape as `ExportReport` (§12).
 pub struct PresetApplyReport {
     pub applied: Vec<VersionId>,
     pub failed: Vec<(VersionId, String)>,
 }
 
 impl Library {
-    /// Capture les champs des `groups` demandés depuis la tête de `from` (§10.1).
+    /// Captures the fields of the requested `groups` from the head of `from` (§10.1).
     pub fn create_preset(&self, name: &str, from: VersionId, groups: &[SettingsGroup]) -> Result<PresetId>;
     pub fn presets(&self) -> Result<Vec<PresetInfo>>;
     pub fn rename_preset(&self, id: PresetId, name: &str) -> Result<()>;
     pub fn delete_preset(&self, id: PresetId) -> Result<()>;
 
-    /// Le job : `JobProgress` par version, puis `JobFinished` avec le rapport
-    /// (échecs par version dans le rapport, échec du lot en `Failed`).
+    /// The job: `JobProgress` per version, then `JobFinished` with the report
+    /// (per-version failures in the report, batch failure as `Failed`).
     pub fn apply_preset_async(&self, preset: PresetId, versions: Vec<VersionId>) -> JobId;
 }
 ```
 
-* `SettingsGroup` regroupe les `Param` de §10.1 à la granularité des cases à cocher du preset (`docs/presets.md` §3.1) : `Tone` = Exposure + Contrast + Highlights + Shadows + Whites + Blacks, `Presence` = Vibrance + Saturation, `Detail` = NoiseReduction + Sharpening, `Geometry` = Rotation + Crop ; les autres groupes correspondent chacun à un seul `Param`.
-* `apply_preset_async` est un **travail** (§3.1) même pour une seule version : une sélection peut aller jusqu'à toute la bibliothèque (`docs/presets.md` §5.2), et une seule catégorie d'appel évite de faire dépendre requête/travail de la taille de la sélection au moment de l'appel.
-* Pour chaque version du lot : ouvrir une session fraîche via `Library::edit` (§10.1), `set` chaque paramètre des groupes inclus, puis `commit` une seule fois. Une session neuve n'a pas d'historique de commit à amender (`last_commit` vide, §10.1) : le commit est donc toujours une nouvelle révision, jamais un amendement — sans avoir à modifier la politique de coalescence pour ce cas.
-* Une version en échec (typiquement `NewerSettings`, catalogue §17/§3.4, si le preset ou la tête référence un schéma que le moteur ne connaît plus) rejoint `PresetApplyReport::failed` avec la raison ; les autres versions du lot continuent (`docs/presets.md` §5.2).
-* `create_preset` ne connaît que le vocabulaire de `Settings` (`leyline-core`) : il lit la tête de `from`, garde les champs des groupes demandés, sérialise le `preset_json` avec `schema` = celui de cette tête (`docs/presets.md` §3.2).
+* `SettingsGroup` groups the `Param` of §10.1 at the granularity of the preset's checkboxes (`docs/presets.md` §3.1): `Tone` = Exposure + Contrast + Highlights + Shadows + Whites + Blacks, `Presence` = Vibrance + Saturation, `Detail` = NoiseReduction + Sharpening, `Geometry` = Rotation + Crop; the other groups each correspond to a single `Param`.
+* `apply_preset_async` is a **job** (§3.1) even for a single version: a selection can go as far as the entire library (`docs/presets.md` §5.2), and a single call category avoids making query-vs-job depend on the size of the selection at call time.
+* For every version in the batch: open a fresh session through `Library::edit` (§10.1), `set` each parameter of the included groups, then `commit` once. A brand-new session has no commit history to amend (`last_commit` empty, §10.1): the commit is therefore always a new revision, never an amendment — without having to change the coalescing policy for this case.
+* A failing version (typically `NewerSettings`, catalog §17/§3.4, if the preset or the head references a schema the engine no longer knows) joins `PresetApplyReport::failed` with the reason; the other versions in the batch carry on (`docs/presets.md` §5.2).
+* `create_preset` knows nothing but the vocabulary of `Settings` (`leyline-core`): it reads the head of `from`, keeps the fields of the requested groups, and serialises the `preset_json` with `schema` = that of that head (`docs/presets.md` §3.2).
 
 ---
 
-## 10.4 Retraitement
+## 10.4 Reprocessing
 
-Remonter chaque étage épinglé d'une version à sa version courante (`pipeline.md` §4.5) — typiquement pour qu'une photo éditée avant la correction d'un opérateur en bénéficie sans que l'utilisateur ne touche un seul curseur.
+Raising each pinned stage of a version to its current version (`pipeline.md` §4.5) — typically so that a photo edited before an operator was fixed benefits from the fix without the user touching a single slider.
 
 ```rust
 impl EditSession {
-    /// Remonte la tête aux versions d'étages courantes : nouvelle révision, mêmes
-    /// paramètres. Rien s'il n'y a rien à faire.
+    /// Raises the head to the current stage versions: a new revision, the same
+    /// parameters. Nothing if there is nothing to do.
     pub fn reprocess(&mut self) -> Result<RevisionId>;
 }
 
-/// Outcome of one reprocess batch — même forme que `PresetApplyReport` (§10.3).
+/// Outcome of one reprocess batch — the same shape as `PresetApplyReport` (§10.3).
 pub struct ReprocessReport {
     pub reprocessed: Vec<VersionId>,
     pub already_current: Vec<VersionId>,
@@ -550,21 +547,21 @@ pub struct ReprocessReport {
 impl Library {
     pub fn reprocess(&self, versions: &[VersionId], progress: impl FnMut(u64, u64)) -> Result<ReprocessReport>;
 
-    /// Le job : `JobProgress` par version, puis `JobFinished` avec le rapport.
+    /// The job: `JobProgress` per version, then `JobFinished` with the report.
     pub fn reprocess_async(&self, versions: Vec<VersionId>) -> JobId;
 }
 ```
 
-* Toujours une nouvelle révision, jamais un amendement : §4.5 dit explicitement que le retraitement « conserve les anciennes » exécutions — étendre la dernière modification de l'utilisateur en place perdrait la distinction entre « ce que l'utilisateur a réglé » et « ce que le moteur a migré ».
-* Une version déjà sur `CURRENT_PROCESS` ne produit aucune révision : `EditSession::reprocess` renvoie la tête inchangée, `ReprocessReport::already_current` la compte séparément — ni un succès qui écrit, ni un échec.
-* `EditSession::reprocess` commite d'abord tout état en attente (même règle que `undo`/`redo`, §10.1) avant de migrer : rien ne se perd.
-* `reprocess_async` est un **travail** (§3.1) pour la même raison que `apply_preset_async` : une sélection peut aller jusqu'à toute la bibliothèque.
+* Always a new revision, never an amendment: §4.5 says explicitly that reprocessing "keeps the old" runs — extending the user's last modification in place would lose the distinction between "what the user set" and "what the engine migrated".
+* A version already on `CURRENT_PROCESS` produces no revision: `EditSession::reprocess` returns the head unchanged, and `ReprocessReport::already_current` counts it separately — neither a success that writes, nor a failure.
+* `EditSession::reprocess` first commits any pending state (the same rule as `undo`/`redo`, §10.1) before migrating: nothing is lost.
+* `reprocess_async` is a **job** (§3.1) for the same reason as `apply_preset_async`: a selection can go as far as the entire library.
 
 ---
 
-# 10bis. Détecteurs de masque externes (`docs/adr/0073-external-mask-detectors.md`)
+# 10bis. External mask detectors (`docs/adr/0073-external-mask-detectors.md`)
 
-Le SDK ré-exporte `leyline-detect`, qui **n'est pas le moteur** : un détecteur est un exécutable séparé, et le SDK ne fait que le trouver et l'appeler.
+The SDK re-exports `leyline-detect`, which **is not the engine**: a detector is a separate executable, and the SDK does nothing but find it and call it.
 
 ```rust
 pub struct Detection { pub id: String, pub label: String }
@@ -572,34 +569,34 @@ pub struct Detection { pub id: String, pub label: String }
 pub struct DetectorSource {
     pub id: String,
     pub label: String,
-    pub command: PathBuf,     // absolu, ou un nom à chercher dans PATH
+    pub command: PathBuf,     // absolute, or a name to look for in PATH
     pub args: Vec<String>,
     pub detections: Vec<Detection>,
 }
 
-/// `<config utilisateur>/Leyline/detectors` — jamais dans une bibliothèque.
+/// `<user config>/Leyline/detectors` — never inside a library.
 pub fn manifests_dir() -> Option<PathBuf>;
 
-/// Tout ce qui est installé et utilisable, trié. N'échoue jamais : rien
-/// d'installé, un manifeste illisible ou une commande absente donnent la
-/// même chose à l'appelant — aucune détection à proposer.
+/// Everything installed and usable, sorted. Never fails: nothing
+/// installed, an unreadable manifest or a missing command all give the
+/// caller the same thing — no detection to offer.
 pub fn discover() -> Vec<DetectorSource>;
 pub fn discover_in(dir: &Path) -> Vec<DetectorSource>;
 
-/// Lance une détection : une image en entrée, une couverture en sortie.
+/// Runs a detection: an image in, a coverage out.
 pub fn detect(source: &DetectorSource, detection: &str,
               image: &Path, out: &Path) -> Result<(), DetectError>;
 ```
 
-Le contrat d'appel tient en une ligne :
+The call contract fits on one line:
 
 ```
 <command> <args…> --image <in.png> --detector <id> --out <out.png>
 ```
 
-`in.png` est un aperçu développé (PNG RGB 8 bits, le format du cache d'aperçus) ; `out.png` doit être un **PNG gris 16 bits**, `0` = le réglage ne s'applique pas, `65535` = il s'applique pleinement. C'est ensuite à l'appelant d'en faire un masque par `Library::store_mask_coverage` (§10) : **un détecteur n'ouvre jamais la bibliothèque**, ne prend aucun verrou et n'apprend aucun identifiant.
+`in.png` is a developed preview (8-bit RGB PNG, the format of the preview cache); `out.png` must be a **16-bit grey PNG**, `0` = the setting does not apply, `65535` = it applies fully. It is then up to the caller to make a mask of it through `Library::store_mask_coverage` (§10): **a detector never opens the library**, takes no lock and learns no identifier.
 
-Quatre échecs sont nommés séparément (`DetectError`), parce qu'ils appellent quatre réactions différentes : la détection inconnue du manifeste, la commande qui ne démarre pas, le refus — avec le `stderr` du détecteur, seul à savoir pourquoi — et le succès qui n'écrit rien. Un garde-fou de 120 s termine un exécutable coincé.
+Four failures are named separately (`DetectError`), because they call for four different reactions: a detection unknown to the manifest, a command that does not start, a refusal — with the detector's `stderr`, the only thing that knows why — and a success that writes nothing. A 120 s guard terminates a stuck executable.
 
 ---
 
@@ -607,43 +604,43 @@ Quatre échecs sont nommés séparément (`DetectError`), parce qu'ils appellent
 
 ```rust
 pub enum Preview {
-    /// À jour pour la tête de la version.
+    /// Up to date for the version's head.
     Ready(PathBuf),
-    /// Obsolète : utilisable pour l'affichage immédiat, régénération lancée.
+    /// Stale: usable for immediate display, regeneration started.
     Stale { path: PathBuf, job: JobId },
-    /// Rien en cache : génération lancée.
+    /// Nothing cached: generation started.
     Generating(JobId),
 }
 ```
 
-Le client affiche toujours quelque chose immédiatement (`Ready` ou `Stale`), puis se met à jour sur `PreviewReady`. La validité suit strictement le catalogue §20 (`revision_id` de tête).
+The client always displays something immediately (`Ready` or `Stale`), then updates on `PreviewReady`. Validity follows catalog §20 strictly (the head's `revision_id`).
 
-**Surface livrée** : le get-or-generate synchrone, la lecture seule du cache, le job de rendu, et l'enum `Preview` (`Ready`/`Stale`/`Generating`) qui fusionne les trois en un seul appel.
+**Delivered surface**: the synchronous get-or-generate, the read-only cache lookup, the render job, and the `Preview` enum (`Ready`/`Stale`/`Generating`) that merges all three into a single call.
 
 ```rust
 impl Library {
-    /// Get-or-generate synchrone : rend la preview si rien de valide en cache.
+    /// Synchronous get-or-generate: renders the preview if nothing valid is cached.
     pub fn preview(&self, asset: AssetId, kind: PreviewKind) -> Result<PreviewFile>;
-    /// Lecture seule du cache : `None` si rien de valide, ne rend jamais.
+    /// Read-only cache lookup: `None` if nothing valid, never renders.
     pub fn cached_preview(&self, asset: AssetId, kind: PreviewKind) -> Result<Option<PreviewFile>>;
-    /// Le job : `PreviewReady` en cas de succès, puis `JobFinished`.
+    /// The job: `PreviewReady` on success, then `JobFinished`.
     pub fn preview_async(&self, asset: AssetId, kind: PreviewKind) -> JobId;
-    /// Fusionne les trois appels ci-dessus derrière l'enum `Preview` : un
-    /// cache à jour rend `Ready` sans rien lancer ; un cache d'une révision
-    /// non-tête rend `Stale` avec le fichier obsolète et lance `preview_async` ;
-    /// rien en cache rend `Generating` et lance `preview_async`.
+    /// Merges the three calls above behind the `Preview` enum: an
+    /// up-to-date cache returns `Ready` without starting anything; a cache
+    /// from a non-head revision returns `Stale` with the stale file and starts
+    /// `preview_async`; nothing cached returns `Generating` and starts `preview_async`.
     pub fn preview_state(&self, asset: AssetId, kind: PreviewKind) -> Result<Preview>;
 }
 ```
 
-`cached_preview` permet au client le même motif que `Ready`/`Generating` : afficher immédiatement ce qui existe, planifier la génération du reste — désormais via `preview_async` et l'événement `PreviewReady` (Studio peut remplacer son timer par ce flux), ou directement via `preview_state`.
+`cached_preview` lets the client use the same pattern as `Ready`/`Generating`: display immediately what exists, schedule the generation of the rest — now through `preview_async` and the `PreviewReady` event (Studio can replace its timer with that stream), or directly through `preview_state`.
 
-La `Library` garde en mémoire les derniers **buffers source** (caches MRU bornés, phase 7) : la boucle de développement re-rend le même asset après chaque commit de curseur, et sans eux chaque ajustement payait un décodage LibRaw complet. Deux niveaux, pour la même raison et avec la même garantie :
+The `Library` keeps the latest **source buffers** in memory (bounded MRU caches, phase 7): the develop loop re-renders the same asset after every slider commit, and without them each adjustment paid for a full LibRaw decode. Two levels, for the same reason and with the same guarantee:
 
-* les **décodages** eux-mêmes, bornés en nombre d'entrées ;
-* les **proxies** qui en dérivent — le décodage réduit à la classe d'aperçu demandée avant d'entrer dans le pipeline (ADR 0041 §1) —, bornés en mémoire, parce qu'un proxy `Thumbnail` et un proxy `Large` diffèrent d'un facteur 250 ([ADR 0076](adr/0076-proxy-cache.md)). Un succès sur un proxy évite aussi le décodage : c'est ce qui divise par quatre le coût d'une image de rendu live (§10.1).
+* the **decodes** themselves, bounded by number of entries;
+* the **proxies** derived from them — the decode reduced to the requested preview class before entering the pipeline (ADR 0041 §1) — bounded in memory, because a `Thumbnail` proxy and a `Large` proxy differ by a factor of 250 ([ADR 0076](adr/0076-proxy-cache.md)). A hit on a proxy also avoids the decode: that is what divides by four the cost of one live-render frame (§10.1).
 
-Les fichiers source ne changeant jamais (édition non-destructive), une entrée reste valide toute la vie du processus ; les pixels servis sont bit-à-bit ceux d'un décodage — ou d'une réduction — frais (`pipeline.md` §5), la reproductibilité n'est pas affectée.
+Source files never changing (non-destructive editing), an entry stays valid for the whole life of the process; the pixels served are bit-for-bit those of a fresh decode — or a fresh reduction — (`pipeline.md` §5), and reproducibility is unaffected.
 
 ---
 
@@ -651,9 +648,9 @@ Les fichiers source ne changeant jamais (édition non-destructive), une entrée 
 
 ```rust
 pub enum ExportRecipe {
-    /// Réglages fournis par l'appelant, non stockés.
+    /// Settings supplied by the caller, not stored.
     Adhoc(ExportSettings),
-    /// Un preset stocké (§27), résolu à l'exécution de la requête.
+    /// A stored preset (§27), resolved when the request runs.
     Preset(ExportPresetId),
 }
 
@@ -661,42 +658,42 @@ pub struct ExportRequest {
     pub versions: Vec<VersionId>,
     pub recipe: ExportRecipe,
     pub destination_dir: PathBuf,
-    /// Photos en vol, `None` = le défaut du moteur (4, ADR 0068).
-    /// Propriété de l'exécution, pas de la recette : jamais dans un preset.
+    /// Photos in flight, `None` = the engine's default (4, ADR 0068).
+    /// A property of the execution, not of the recipe: never in a preset.
     pub concurrency: Option<usize>,
 }
 
 impl Library {
-    /// Synchrone : `progress` reçoit `(done, total)` par version ; un échec
-    /// individuel ne stoppe pas les autres, il atterrit dans
+    /// Synchronous: `progress` receives `(done, total)` per version; an
+    /// individual failure does not stop the others, it lands in
     /// `ExportReport::failed`.
     pub fn export(&self, request: &ExportRequest,
                   progress: impl FnMut(u64, u64)) -> Result<ExportReport>;
-    /// Le job : `JobProgress` par version, puis `JobFinished` avec le
-    /// rapport (échecs par version dans le rapport, échec de la requête
-    /// entière en `Failed`).
+    /// The job: `JobProgress` per version, then `JobFinished` with the
+    /// report (per-version failures in the report, failure of the whole
+    /// request as `Failed`).
     pub fn export_async(&self, request: ExportRequest) -> JobId;
     pub fn export_presets(&self) -> Result<Vec<ExportPreset>>;
 }
 ```
 
-**Surface livrée** — la forme à `ExportRequest` unique décrite ci-dessus, avec deux différences assumées par rapport au brouillon initial de ce document : `recipe` est une union (`Adhoc`/`Preset`) plutôt qu'un `preset: ExportPresetId` forcé — une recette ad hoc est un cas réel (dialogue d'export de Studio, `leyline export` de la CLI sans `--preset`), pas seulement les presets stockés ; et `export` a une forme synchrone en plus du job, nécessaire pour un usage scripté (CLI, SDK) qui n'a pas besoin d'attendre un événement pour un export ponctuel. Une seule requête couvre maintenant ce qui existait avant comme trois entrées synchrones (`export`, `export_batch`, `export_with_preset`) et deux jobs (`export_async`, `export_with_preset_async`).
+**Delivered surface** — the single-`ExportRequest` shape described above, with two deliberate differences from this document's initial draft: `recipe` is a union (`Adhoc`/`Preset`) rather than a forced `preset: ExportPresetId` — an ad hoc recipe is a real case (Studio's export dialog, the CLI's `leyline export` without `--preset`), not merely stored presets; and `export` has a synchronous form in addition to the job, necessary for scripted use (CLI, SDK) that does not need to wait for an event for a one-off export. A single request now covers what previously existed as three synchronous entry points (`export`, `export_batch`, `export_with_preset`) and two jobs (`export_async`, `export_with_preset_async`).
 
-Studio pilote désormais ses dialogues d'import et d'export ainsi que ses vignettes de grille par ce flux : `import_async`/`export_async` pour les dialogues (progression affichée depuis `JobProgress`, résultat depuis `JobFinished`), `preview_async` pour les vignettes (jusqu'à 3 rendus en vol, remplis depuis `PreviewReady`).
+Studio now drives its import and export dialogs as well as its grid thumbnails through that stream: `import_async`/`export_async` for the dialogs (progress displayed from `JobProgress`, result from `JobFinished`), `preview_async` for the thumbnails (up to 3 renders in flight, filled from `PreviewReady`).
 
-L'export rend chaque version à sa révision de tête, avec les versions d'étages qu'elle déclare (`pipeline.md` §3.3), et journalise dans `export_history`. Les pixels rendus sont en sRGB (`adr/0015-color-management-srgb.md`) ; `leyline-export` embarque le profil ICC sRGB canonique (généré par LittleCMS, `leyline-color::srgb_icc_profile`) dans les fichiers JPEG, PNG et TIFF — WebP et AVIF s'en passent, faute de support ICC dans leurs bibliothèques d'encodage.
+Export renders each version at its head revision, with the stage versions that revision declares (`pipeline.md` §3.3), and journals into `export_history`. The rendered pixels are in sRGB (`adr/0015-color-management-srgb.md`); `leyline-export` embeds the canonical sRGB ICC profile (generated by LittleCMS, `leyline-color::srgb_icc_profile`) into JPEG, PNG and TIFF files — WebP and AVIF go without, for want of ICC support in their encoding libraries.
 
-`Library::export` traite **plusieurs photos à la fois** ([ADR 0068](adr/0068-concurrent-export-batch.md)) : 4 en vol par défaut, réglable par `ExportRequest::concurrency`, parce que le pipeline d'une seule photo n'utilise pas trois cœurs sur seize. Les photos sont portées par des threads ordinaires et non des tâches rayon — même raison qu'au §3.1 — pendant que le rendu continue d'utiliser le pool rayon global à l'intérieur de chaque photo. Les noms de sortie sont réservés d'avance, en ordre de requête, dans une passe de planification qui prend le verrou catalogue **une seule fois pour tout le lot** : deux versions d'un même asset se disputent le même nom de façon déterministe (la seconde échoue, comme avant) au lieu de courir vers le même chemin. Le rapport et la progression sont inchangés — ordre de requête, `(done, total)` par fichier écrit — et les fichiers produits sont identiques octet pour octet quel que soit le degré.
+`Library::export` processes **several photos at a time** ([ADR 0068](adr/0068-concurrent-export-batch.md)): 4 in flight by default, adjustable through `ExportRequest::concurrency`, because one photo's pipeline does not use three cores out of sixteen. The photos are carried by ordinary threads rather than rayon tasks — the same reason as in §3.1 — while rendering goes on using the global rayon pool inside each photo. Output names are reserved in advance, in request order, in a planning pass that takes the catalog lock **once for the whole batch**: two versions of the same asset contend for the same name deterministically (the second fails, as before) instead of racing towards the same path. The report and the progress are unchanged — request order, `(done, total)` per file written — and the files produced are byte-for-byte identical whatever the degree.
 
-Comme `Library::preview` (§11, `adr/0023-catalog-lock-narrowing-preview.md`), `Library::export` ne tient le verrou catalogue que pour la lecture des réglages (résolution du preset le cas échéant) et l'écriture du journal — jamais pendant le décodage/rendu/encodage d'une version (`adr/0024-catalog-lock-narrowing-export.md`). Une requête à plusieurs versions ne bloque donc plus la navigation, la recherche ou l'édition de métadonnées pour toute sa durée, seulement version par version.
+Like `Library::preview` (§11, `adr/0023-catalog-lock-narrowing-preview.md`), `Library::export` holds the catalog lock only for reading the settings (resolving the preset where applicable) and writing the journal — never during the decoding/rendering/encoding of a version (`adr/0024-catalog-lock-narrowing-export.md`). A multi-version request therefore no longer blocks navigation, search or metadata editing for its whole duration, only version by version.
 
-## 12.1 Impression (ADR 0036)
+## 12.1 Printing (ADR 0036)
 
 ```rust
 pub enum PrintRecipe {
-    /// Réglages fournis par l'appelant, non stockés.
+    /// Settings supplied by the caller, not stored.
     Adhoc(PrintSettings),
-    /// Un preset stocké (catalog.md §42), résolu à l'exécution de la requête.
+    /// A stored preset (catalog.md §42), resolved when the request runs.
     Preset(PrintPresetId),
 }
 
@@ -704,40 +701,40 @@ pub struct PrintRequest {
     pub versions: Vec<VersionId>,
     pub recipe: PrintRecipe,
     pub destination_dir: PathBuf,
-    /// Donnée de job, jamais dans le preset — comme `ExportRequest.versions`
-    /// l'est d'`ExportRecipe`.
+    /// Job data, never in the preset — as `ExportRequest.versions`
+    /// is to `ExportRecipe`.
     pub copies: u32,
 }
 
 impl Library {
-    /// Synchrone, même discipline que `Library::export`.
+    /// Synchronous, the same discipline as `Library::export`.
     pub fn print(&self, request: &PrintRequest,
                  progress: impl FnMut(u64, u64)) -> Result<PrintReport>;
-    /// Le job : `JobProgress` par version, puis `JobFinished`.
+    /// The job: `JobProgress` per version, then `JobFinished`.
     pub fn print_async(&self, request: PrintRequest) -> JobId;
     pub fn create_print_preset(&self, name: &str, settings: &PrintSettings) -> Result<PrintPresetId>;
     pub fn print_presets(&self) -> Result<Vec<PrintPreset>>;
 }
 ```
 
-L'impression n'est ni une process version ni un étage de pipeline (ADR 0036) : c'est « un export avec une dimension physique et un profil de destination ». Le moteur rend exactement comme pour un export (décodage → `render` → les étages de la révision), puis met à l'échelle dans la zone imprimable en pixels (`PrintSettings::target_pixels`, papier × DPI, à la place du `max_edge` d'un export) au lieu de mettre à l'échelle vers un bord le plus long, transforme optionnellement vers un profil ICC de destination (`leyline_color::OutputTransform`, ADR 0027) si `PrintSettings.profile` est renseigné, et encode le résultat en PDF une page (`leyline_export::encode_print`) — le hand-off le plus portable vers un flux d'impression OS (le risque explicitement nommé et différé par ADR 0036) : le PDF porte déjà sa taille physique et ses pixels dans le profil de destination, prêt à être remis tel quel au dialogue d'impression du système. Ce hand-off (Studio invoquant effectivement ce dialogue sur le fichier rendu) reste à câbler dans `leyline-studio`, sans nouvelle surface moteur (même patron que la barre de menu, ADR 0020).
+Printing is neither a process version nor a pipeline stage (ADR 0036): it is "an export with a physical dimension and a destination profile". The engine renders exactly as it does for an export (decode → `render` → the revision's stages), then scales into the printable area in pixels (`PrintSettings::target_pixels`, paper × DPI, in place of an export's `max_edge`) instead of scaling towards a longest edge, optionally transforms into a destination ICC profile (`leyline_color::OutputTransform`, ADR 0027) if `PrintSettings.profile` is filled in, and encodes the result as a one-page PDF (`leyline_export::encode_print`) — the most portable hand-off to an OS printing flow (the risk explicitly named and deferred by ADR 0036): the PDF already carries its physical size and its pixels in the destination profile, ready to be handed as is to the system's print dialog. That hand-off (Studio actually invoking that dialog on the rendered file) remains to be wired in `leyline-studio`, with no new engine surface (the same pattern as the menu bar, ADR 0020).
 
-Contrairement à l'export, il n'y a pas de journalisation : pas de table `print_history` (catalog.md §42) — un print ne modifie aucune révision et n'a pas besoin d'être retrouvé plus tard depuis le catalogue.
-
----
-
-# 13. Stabilité de l'API
-
-* `leyline-engine` est **interne** : son API peut changer à chaque version.
-* `leyline-sdk` est la **surface stable** : semver strict, `0.x` jusqu'à la V1, puis engagement de compatibilité sur `1.x`.
-* Les types de `leyline-core` (ids, erreurs, `Settings`) font partie du contrat SDK.
-* Une passerelle C FFI (et donc bindings Python, etc.) est une évolution prévue, hors V1 — l'API décrite ici est conçue pour la rendre possible (pas de génériques exposés, pas de lifetimes dans les signatures publiques).
+Unlike export, there is no journalling: no `print_history` table (catalog.md §42) — a print modifies no revision and does not need to be found again later from the catalog.
 
 ---
 
-# 14. Ce que l'API ne fait pas
+# 13. API stability
 
-* Pas de rendu à l'écran : le moteur produit des fichiers et des buffers, l'affichage appartient au client.
-* Pas de gestion de fenêtres, de raccourcis, de sélection UI.
-* Pas d'accès réseau.
-* Pas de manipulation directe de SQLite par les clients : le catalogue est une implémentation, pas une interface. Le schéma (`catalog.md`) est documenté pour la pérennité des données, pas comme API publique.
+* `leyline-engine` is **internal**: its API may change with every version.
+* `leyline-sdk` is the **stable surface**: strict semver, `0.x` until V1, then a compatibility commitment on `1.x`.
+* The types of `leyline-core` (ids, errors, `Settings`) are part of the SDK contract.
+* A C FFI bridge (and therefore Python bindings, and so on) is a planned evolution, outside V1 — the API described here is designed to make it possible (no exposed generics, no lifetimes in public signatures).
+
+---
+
+# 14. What the API does not do
+
+* No on-screen rendering: the engine produces files and buffers, display belongs to the client.
+* No window management, no shortcuts, no UI selection.
+* No network access.
+* No direct manipulation of SQLite by clients: the catalog is an implementation, not an interface. The schema (`catalog.md`) is documented for the durability of the data, not as a public API.

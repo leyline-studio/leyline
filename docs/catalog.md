@@ -8,22 +8,22 @@
 
 # 1. Purpose
 
-Le catalogue est le cœur de Leyline.
+The catalog is the heart of Leyline.
 
-Il ne stocke **jamais** les photographies.
+It **never** stores the photographs.
 
-Il stocke uniquement :
+It stores only:
 
-* les références vers les fichiers ;
-* les métadonnées ;
-* les informations de classement ;
-* les paramètres de développement ;
-* les collections ;
-* les mots-clés ;
-* l'historique des développements ;
-* les informations nécessaires à la recherche.
+* the references to the files;
+* the metadata;
+* the classification information;
+* the develop settings;
+* the collections;
+* the keywords;
+* the develop history;
+* the information needed for searching.
 
-Le moteur RAW reste totalement indépendant du catalogue.
+The RAW engine stays entirely independent of the catalog.
 
 ---
 
@@ -31,27 +31,27 @@ Le moteur RAW reste totalement indépendant du catalogue.
 
 ## 2.1 Local First
 
-Le catalogue fonctionne entièrement hors ligne.
+The catalog works entirely offline.
 
-Une bibliothèque est autonome.
+A library is self-contained.
 
 ---
 
 ## 2.2 Non-destructive
 
-Les RAW ne sont jamais modifiés.
+RAW files are never modified.
 
-Toutes les opérations sont enregistrées dans le catalogue.
+Every operation is recorded in the catalog.
 
 ---
 
 ## 2.3 Relative Paths
 
-Aucun chemin absolu n'est enregistré.
+No absolute path is ever recorded.
 
-Toutes les références sont relatives à la racine de la bibliothèque.
+Every reference is relative to the library root.
 
-Exemple :
+Example:
 
 ```
 Library/
@@ -65,13 +65,13 @@ Library/
             IMG_0001.CR3
 ```
 
-Le catalogue stocke :
+The catalog stores:
 
 ```
 Photos/Wildlife/IMG_0001.CR3
 ```
 
-Jamais :
+Never:
 
 ```
 C:\Users\...
@@ -79,15 +79,15 @@ C:\Users\...
 /home/quentin/...
 ```
 
-Cette règle garantit la portabilité entre Windows, Linux et macOS.
+That rule guarantees portability between Windows, Linux and macOS.
 
 ---
 
 ## 2.4 Source of Truth
 
-Le catalogue SQLite est la seule source de vérité.
+The SQLite catalog is the only source of truth.
 
-Les fichiers XMP sont des exports optionnels ; ils peuvent **amorcer** un catalogue vide à l'import mais n'ont d'autorité sur rien (§29, [ADR 0047](adr/0047-xmp-sidecar-read.md)).
+XMP files are optional exports; they may **seed** an empty catalog at import but have authority over nothing (§29, [ADR 0047](adr/0047-xmp-sidecar-read.md)).
 
 ---
 
@@ -110,21 +110,21 @@ Library/
 
 │      └── histograms/
 
-├── Masks/                (couvertures de masque stockées, ADR 0070 —
-│                          PNG gris 16 bits, nommées par leur BLAKE3)
+├── Masks/                (stored mask coverages, ADR 0070 —
+│                          16-bit grey PNG, named by their BLAKE3)
 
 ├── Profiles/
 
-│      └── Camera/          (profils DCP importés, ADR 0035)
+│      └── Camera/          (imported DCP profiles, ADR 0035)
 
 ├── Exports/
 
 └── Backups/
 ```
 
-Les aperçus, histogrammes et miniatures ne sont jamais stockés dans SQLite.
+Previews, histograms and thumbnails are never stored in SQLite.
 
-SQLite ne contient que leurs métadonnées.
+SQLite holds only their metadata.
 
 ---
 
@@ -158,13 +158,13 @@ LENS ||--o{ METADATA : used
 
 # 5. Entity Overview
 
-Le modèle repose sur une notion centrale :
+The model rests on one central notion:
 
 **Asset**
 
-Un Asset représente un fichier géré par Leyline.
+An Asset represents a file managed by Leyline.
 
-Aujourd'hui :
+Today:
 
 * RAW
 * JPEG
@@ -173,19 +173,19 @@ Aujourd'hui :
 * DNG
 * HEIF
 
-Demain :
+Tomorrow:
 
 * PSD
 * OpenEXR
-* formats futurs
+* future formats
 
-Le catalogue n'est donc pas limité aux RAW.
+The catalog is therefore not limited to RAW files.
 
 ---
 
 # 6. Database Configuration
 
-Chaque connexion SQLite doit appliquer :
+Every SQLite connection must apply:
 
 ```sql
 PRAGMA foreign_keys = ON;
@@ -199,21 +199,21 @@ PRAGMA temp_store = MEMORY;
 PRAGMA cache_size = -65536;
 ```
 
-Le schéma est versionné via :
+The schema is versioned through:
 
 ```sql
 PRAGMA user_version;
 ```
 
-Le numéro de version du catalogue n'est jamais stocké dans une table.
+The catalog's version number is never stored in a table.
 
-SQLite fournit déjà ce mécanisme.
+SQLite already provides that mechanism.
 
 ---
 
 # 7. Library
 
-Une seule ligne.
+A single row.
 
 ```sql
 CREATE TABLE library (
@@ -231,13 +231,13 @@ CREATE TABLE library (
 );
 ```
 
-Les dates sont exprimées en :
+Dates are expressed in:
 
 * UTC
 * Unix Epoch
-* millisecondes
+* milliseconds
 
-Seule exception : `capture_date`, dont la sémantique est précisée en §9 — l'EXIF n'indique pas toujours le fuseau horaire de la prise de vue.
+The one exception: `capture_date`, whose semantics are given in §9 — EXIF does not always state the time zone of the shot.
 
 ---
 
@@ -263,15 +263,15 @@ CREATE TABLE folders (
 );
 ```
 
-Les dossiers représentent uniquement l'arborescence physique.
+Folders represent the physical tree and nothing else.
 
-Ils ne contiennent aucune information métier.
+They hold no business information.
 
 ---
 
 # 9. Assets
 
-La table principale.
+The main table.
 
 ```sql
 CREATE TABLE assets (
@@ -321,68 +321,68 @@ CREATE TABLE assets (
 );
 ```
 
-## Chemin d'un asset
+## An asset's path
 
-Le chemin complet est toujours dérivé :
+The full path is always derived:
 
 ```text
 folders.relative_path + "/" + filename
 ```
 
-Aucune colonne `relative_path` n'existe dans `assets`.
+No `relative_path` column exists in `assets`.
 
-Cela rend toute désynchronisation impossible lors du renommage ou du déplacement d'un dossier.
+That makes any desynchronisation impossible when a folder is renamed or moved.
 
-La contrainte `UNIQUE(folder_id, filename)` garantit qu'un même fichier ne peut être référencé deux fois.
+The `UNIQUE(folder_id, filename)` constraint guarantees that the same file cannot be referenced twice.
 
 ## Capture Date
 
-L'EXIF (`DateTimeOriginal`) exprime une heure **locale**, souvent sans fuseau horaire.
+EXIF (`DateTimeOriginal`) expresses a **local** time, often with no time zone.
 
-Or le photographe s'attend à retrouver l'heure murale de la prise de vue, pas une heure convertie.
+Yet the photographer expects to find the wall-clock time of the shot, not a converted one.
 
-Convention :
+The convention:
 
-* `capture_offset_minutes` **connu** (EXIF `OffsetTimeOriginal`, ou GPS) : `capture_date` contient le véritable instant UTC ; l'affichage applique l'offset pour retrouver l'heure locale.
-* `capture_offset_minutes` **NULL** : l'heure murale EXIF est stockée telle quelle, interprétée comme UTC. L'affichage la restitue sans conversion.
+* `capture_offset_minutes` **known** (EXIF `OffsetTimeOriginal`, or GPS): `capture_date` holds the true UTC instant; display applies the offset to recover local time.
+* `capture_offset_minutes` **NULL**: the EXIF wall-clock time is stored as is, interpreted as UTC. Display returns it without conversion.
 
-Cette colonne a un producteur depuis [ADR 0056](adr/0056-non-raw-exif-import.md) : l'import d'un fichier **non-RAW** lit `OffsetTimeOriginal` quand il est présent et renseigne alors les deux colonnes ensemble. Le chemin RAW, lui, ne fournit pas d'offset et laisse la colonne NULL — deuxième cas ci-dessus.
+That column has had a producer since [ADR 0056](adr/0056-non-raw-exif-import.md): importing a **non-RAW** file reads `OffsetTimeOriginal` where present and then fills both columns together. The RAW path supplies no offset and leaves the column NULL — the second case above.
 
-Dans les deux cas :
+In both cases:
 
-* le tri chronologique utilise `capture_date` directement ;
-* l'heure affichée correspond toujours à celle que le photographe a vue sur son boîtier ;
-* si un offset devient connu après coup (correction manuelle, GPS), la mise à jour est sans perte.
+* chronological sorting uses `capture_date` directly;
+* the displayed time always matches what the photographer saw on their camera;
+* if an offset becomes known after the fact (manual correction, GPS), the update is lossless.
 
-## Un asset est purement factuel
+## An asset is purely factual
 
-La table `assets` ne contient que des faits sur le fichier : chemin, taille, checksum, dimensions, dates.
+The `assets` table holds nothing but facts about the file: path, size, checksum, dimensions, dates.
 
-Le classement (note, label, pick) appartient aux **versions de développement** (§18).
+Classification (rating, label, pick) belongs to the **develop versions** (§18).
 
-## RAW + JPEG : un fichier compagnon
+## RAW + JPEG: a companion file
 
-Un boîtier réglé en RAW+JPEG écrit **deux fichiers pour une prise de vue**. `companion_of` dit lequel est le rendu de l'autre : `NULL` — le cas de très loin le plus fréquent — signifie que l'asset est lui-même une photo ; une valeur désigne le **maître**, toujours le RAW.
+A camera set to RAW+JPEG writes **two files for one shot**. `companion_of` says which one is the rendering of the other: `NULL` — by far the most frequent case — means the asset is itself a photo; a value designates the **master**, always the RAW.
 
-Deux fichiers forment une paire si les trois termes tiennent ([ADR 0079](adr/0079-raw-jpeg-pairing.md) §2) : même radical de nom de fichier (casse ignorée), même `capture_date`, même boîtier — **à toute profondeur de la bibliothèque**, les deux fichiers n'étant pas forcément dans le même dossier. Un fichier sans `capture_date` ne s'appaire jamais.
+Two files form a pair if all three terms hold ([ADR 0079](adr/0079-raw-jpeg-pairing.md) §2): the same filename stem (case-insensitive), the same `capture_date`, the same camera — **at any depth in the library**, the two files not necessarily being in the same folder. A file with no `capture_date` never pairs.
 
-Trois invariants :
+Three invariants:
 
-* le maître est un RAW et le compagnon ne l'est pas — deux RAW du même cliché ne s'appairent pas, aucun n'étant le rendu de l'autre ;
-* un compagnon n'est jamais maître à son tour : `companion_of` pointe toujours vers une ligne dont le `companion_of` est `NULL`, donc aucune chaîne ne se forme ;
-* un maître peut porter **plusieurs** compagnons (un JPEG et un HEIF de la même prise).
+* the master is a RAW and the companion is not — two RAW files of the same shot do not pair, neither being the rendering of the other;
+* a companion is never a master in turn: `companion_of` always points at a row whose `companion_of` is `NULL`, so no chain forms;
+* a master may carry **several** companions (a JPEG and a HEIF of the same shot).
 
-La grille n'affiche que les maîtres — une clause `AND a.companion_of IS NULL`, à un seul endroit, dont dérivent le comptage, les filtres, la recherche et les collections. Un compagnon garde sa ligne, ses versions, ses révisions et son classement : il quitte la grille, il ne quitte pas le catalogue, et `unpair` l'y ramène intact.
+The grid displays only masters — one `AND a.companion_of IS NULL` clause, in a single place, from which counting, filters, search and collections all derive. A companion keeps its row, its versions, its revisions and its classification: it leaves the grid, it does not leave the catalog, and `unpair` brings it back intact.
 
-La migration v3 **ajoute la colonne sans appairer quoi que ce soit** : une bibliothèque existante continue de tout afficher jusqu'à ce que la passe rétroactive soit demandée explicitement (§7 de l'ADR).
+Migration v3 **adds the column without pairing anything**: an existing library goes on displaying everything until the retroactive pass is explicitly asked for (§7 of the ADR).
 
-## Versions virtuelles
+## Virtual versions
 
-Il n'existe pas de ligne `assets` pour les versions virtuelles.
+There is no `assets` row for virtual versions.
 
-Une version virtuelle est une **branche de développement** (voir §16).
+A virtual version is a **develop branch** (see §16).
 
-Un asset représente toujours un fichier physique unique.
+An asset always represents one single physical file.
 
 ---
 
@@ -418,34 +418,34 @@ Un asset représente toujours un fichier physique unique.
 2 Reject
 ```
 
-Pick et Reject sont portés par les **versions de développement** (§18), comme la note et le label : chaque version est classée indépendamment, à la manière des copies virtuelles de Lightroom.
+Pick and Reject are carried by the **develop versions** (§18), like the rating and the label: every version is classified independently, in the manner of Lightroom's virtual copies.
 
 ---
 
 # 12. Checksums
 
-Tous les checksums utilisent :
+Every checksum uses:
 
 ```
 BLAKE3
 ```
 
-Pourquoi ?
+Why?
 
-* extrêmement rapide
-* cryptographiquement fiable
-* implémentation Rust de référence
-* meilleur compromis performances / sécurité
+* extremely fast
+* cryptographically sound
+* reference Rust implementation
+* the best performance / security trade-off
 
-Le checksum porte sur le fichier complet.
+The checksum covers the complete file.
 
 ---
 
 # 13. Metadata
 
-Les métadonnées sont séparées des assets afin de conserver la table principale compacte et optimisée pour les recherches fréquentes.
+Metadata is kept apart from assets so that the main table stays compact and optimised for frequent searches.
 
-`gps_latitude`/`gps_longitude`/`gps_altitude` sont peuplées à l'import pour les fichiers RAW dont l'appareil a enregistré une position (LibRaw `parsed_gps`, degrés décimaux) — voir `docs/adr/0040-gps-map-view.md` pour la vue carte qui les consomme (`Catalog::map_pins`). Les JPEG/TIFF n'ont pour l'instant aucune extraction EXIF (caméra, objectif compris) : même limite préexistante que le reste de cette table, pas une régression du GPS spécifiquement.
+`gps_latitude`/`gps_longitude`/`gps_altitude` are populated at import for RAW files whose camera recorded a position (LibRaw `parsed_gps`, decimal degrees) — see `docs/adr/0040-gps-map-view.md` for the map view that consumes them (`Catalog::map_pins`). JPEG/TIFF files currently have no EXIF extraction at all (camera and lens included): the same pre-existing limit as the rest of this table, not a regression specific to GPS.
 
 ```sql
 CREATE TABLE metadata (
@@ -516,17 +516,17 @@ CREATE TABLE metadata (
 
 ---
 
-## Pourquoi des fractions ?
+## Why fractions?
 
-Les EXIF stockent généralement :
+EXIF generally stores:
 
-* vitesse
-* ouverture
-* focale
+* shutter speed
+* aperture
+* focal length
 
-sous forme de rationnels.
+as rationals.
 
-Exemple :
+Example:
 
 ```text
 1/3200
@@ -536,19 +536,19 @@ f/5.6
 70/1
 ```
 
-Stocker directement ces valeurs évite les pertes de précision liées aux nombres flottants.
+Storing those values directly avoids the precision losses that come with floating point.
 
-Le moteur convertira ensuite ces valeurs en `f64` lorsque nécessaire.
+The engine will convert them to `f64` later, when needed.
 
 ---
 
-## Colonnes générées
+## Generated columns
 
-Les rationnels sont la référence, mais ils sont inutilisables pour les recherches par plage (« focale entre 24 et 70 mm »).
+The rationals are the reference, but they are unusable for range searches ("focal length between 24 and 70 mm").
 
-Les colonnes générées (`shutter_speed_s`, `aperture_f`, `focal_length_mm`) fournissent la valeur décimale, calculée par SQLite lui-même (≥ 3.31), stockée et indexable.
+The generated columns (`shutter_speed_s`, `aperture_f`, `focal_length_mm`) provide the decimal value, computed by SQLite itself (≥ 3.31), stored and indexable.
 
-Les dénominateurs doivent être strictement positifs ; un rationnel absent laisse la colonne générée à `NULL`.
+Denominators must be strictly positive; a missing rational leaves the generated column at `NULL`.
 
 ---
 
@@ -592,14 +592,14 @@ CREATE TABLE lenses (
 
 # 16. Development Model
 
-Contrairement à Lightroom, les réglages ne sont jamais écrasés.
+Unlike Lightroom, settings are never overwritten.
 
-Le modèle est directement inspiré de Git.
+The model is directly inspired by Git.
 
-* Une **révision** est un état complet et immuable des réglages (un commit).
-* Les révisions forment un graphe orienté via `parent_revision_id`.
-* Une **version** est une branche : un nom + un pointeur vers une révision de tête.
-* La **version courante** d'un asset désigne la branche active.
+* A **revision** is a complete, immutable state of the settings (a commit).
+* Revisions form a directed graph through `parent_revision_id`.
+* A **version** is a branch: a name plus a pointer to a head revision.
+* An asset's **current version** designates the active branch.
 
 ```text
 RAW
@@ -608,43 +608,43 @@ RAW
 
 Revision 1 ── Revision 2 ── Revision 3      ← version "Default"
                     │
-                    └────── Revision 4      ← version "Noir & Blanc"
+                    └────── Revision 4      ← version "Black & White"
 ```
 
-Cette architecture donne :
+That architecture gives:
 
-* Undo gratuit : reculer le pointeur de tête ;
-* Redo gratuit : l'avancer ;
-* Historique complet : les révisions d'un asset vivant ne sont jamais supprimées — c'est ce qui rend l'undo et les snapshots fiables. Retirer l'asset lui-même du catalogue (ADR 0060) n'est pas une réécriture d'historique et emporte ses révisions avec lui, par la cascade du schéma ;
-* Snapshots : n'importe quelle révision peut être nommée ;
-* **Versions virtuelles : une simple branche partant d'une révision existante.**
+* Undo for free: move the head pointer back;
+* Redo for free: move it forward;
+* A complete history: the revisions of a living asset are never deleted — that is what makes undo and snapshots trustworthy. Removing the asset itself from the catalog (ADR 0060) is not a rewriting of history and takes its revisions with it, through the schema's cascade;
+* Snapshots: any revision can be named;
+* **Virtual versions: simply a branch starting from an existing revision.**
 
-Aucune duplication de fichier, aucune ligne supplémentaire dans `assets`.
+No file duplication, no extra row in `assets`.
 
-## La version est l'unité de bibliothèque
+## The version is the library unit
 
-La grille affiche des **versions**, pas des fichiers.
+The grid displays **versions**, not files.
 
-Chaque version porte son propre classement :
+Every version carries its own classification:
 
-* note ;
-* label couleur ;
-* pick / reject ;
-* appartenance aux collections.
+* rating;
+* colour label;
+* pick / reject;
+* membership in collections.
 
-Noter une photo « simple » revient à noter sa version `Default`.
+Rating a "plain" photo amounts to rating its `Default` version.
 
-Les **mots-clés restent au niveau de l'asset** : ils décrivent le contenu de l'image, identique pour toutes les versions (un héron en noir et blanc reste un héron).
+**Keywords stay at the asset level**: they describe the content of the image, which is identical for every version (a heron in black and white is still a heron).
 
-La ligne de partage est simple :
+The dividing line is simple:
 
 ```text
-Fait sur l'image      → asset      (mots-clés, EXIF, checksum)
+A fact about the image     → asset      (keywords, EXIF, checksum)
 
-Jugement sur un rendu → version    (note, label, pick, collections)
+A judgement about a render → version    (rating, label, pick, collections)
 ```
 
-Cas limite connu : un recadrage peut changer le contenu visible (le personnage exclu du cadre). Si ce besoin se confirme, une table additive `version_keywords` permettra d'ajouter ou de masquer des mots-clés **par version**, sans toucher à `asset_keywords` (voir §38).
+A known edge case: a crop can change the visible content (the person excluded from the frame). Should that need be confirmed, an additive `version_keywords` table will allow keywords to be added or hidden **per version**, without touching `asset_keywords` (see §38).
 
 ---
 
@@ -676,52 +676,52 @@ CREATE TABLE develop_revisions (
 );
 ```
 
-`author` est optionnel : il prépare le développement collaboratif (§38) sans rien coûter aujourd'hui.
+`author` is optional: it prepares for collaborative development (§38) at no cost today.
 
 ---
 
-## Coalescence des révisions
+## Coalescing revisions
 
-Une révision représente une **intention utilisateur**, jamais un événement d'interface.
+A revision represents a **user intention**, never an interface event.
 
-Un drag de curseur produit des centaines d'événements : il ne doit produire qu'**une seule révision**.
+Dragging a slider produces hundreds of events: it must produce **one single revision**.
 
-### Points de commit
+### Commit points
 
-Le moteur crée une révision uniquement lorsque :
+The engine creates a revision only when:
 
-* l'utilisateur relâche un contrôle (fin de drag) ;
-* l'utilisateur change d'outil ou de réglage ;
-* l'utilisateur change de version ou d'asset ;
-* une action explicite l'exige (snapshot, export, synchronisation XMP).
+* the user releases a control (end of drag);
+* the user changes tool or setting;
+* the user changes version or asset;
+* an explicit action requires it (snapshot, export, XMP synchronisation).
 
-Entre deux points de commit, les valeurs intermédiaires ne vivent qu'en mémoire, pour l'aperçu temps réel.
+Between two commit points, the intermediate values live in memory only, for the real-time preview.
 
-### Fenêtre d'amendement
+### Amendment window
 
-Des ajustements successifs du **même réglage** dans une fenêtre courte (2 secondes, configurable) amendent la révision de tête au lieu d'en créer une nouvelle.
+Successive adjustments of the **same setting** within a short window (2 seconds, configurable) amend the head revision instead of creating a new one.
 
-L'amendement n'est autorisé que si la révision de tête :
+Amending is permitted only if the head revision:
 
-* n'a aucune révision enfant ;
-* n'est la tête d'aucune autre version ;
-* n'est pas la révision initiale.
+* has no child revision;
+* is the head of no other version;
+* is not the initial revision.
 
-C'est la **seule exception** à l'immuabilité des révisions, et elle ne concerne jamais une révision référencée ailleurs.
+That is the **only exception** to the immutability of revisions, and it never concerns a revision referenced elsewhere.
 
-Un amendement invalide les previews associées à cette révision : leurs lignes sont supprimées, le cache est régénéré.
+An amendment invalidates the previews associated with that revision: their rows are deleted, and the cache is regenerated.
 
 ### Volume
 
-Aucun élagage n'est nécessaire : une révision pèse environ 1 à 2 Ko de JSON.
+No pruning is necessary: a revision weighs about 1 to 2 kB of JSON.
 
-Une photo lourdement retouchée (50 révisions) coûte moins de 100 Ko — négligeable même sur des centaines de milliers d'assets.
+A heavily edited photo (50 revisions) costs less than 100 kB — negligible even across hundreds of thousands of assets.
 
-Chaque ligne représente un état complet du développement.
+Every row represents a complete state of the development.
 
-Le JSON est versionné indépendamment afin de permettre son évolution sans migration SQL.
+The JSON is versioned independently so that it can evolve without an SQL migration.
 
-Exemple :
+Example:
 
 ```json
 {
@@ -733,7 +733,7 @@ Exemple :
 }
 ```
 
-Le champ `schema` correspond à la version du format de réglages, **pas** au nombre de modifications.
+The `schema` field corresponds to the version of the settings format, **not** to the number of modifications.
 
 ---
 
@@ -776,20 +776,20 @@ CREATE TABLE develop_versions (
 );
 ```
 
-* Éditer = créer une révision, avancer `head_revision_id`.
-* Undo = reculer `head_revision_id` vers la révision parente.
-* Créer une version virtuelle = créer une ligne pointant sur une révision existante.
+* Editing = creating a revision, moving `head_revision_id` forward.
+* Undo = moving `head_revision_id` back to the parent revision.
+* Creating a virtual version = creating a row pointing at an existing revision.
 
-La version porte le classement (`rating`, `color_label`, `pick_state`) : chaque copie virtuelle se note, se labellise et se flagge indépendamment.
+The version carries the classification (`rating`, `color_label`, `pick_state`): every virtual copy is rated, labelled and flagged independently.
 
 ```text
-rating :       NULL = non noté, 1 à 5 étoiles (la valeur 0 n'existe pas)
+rating :       NULL = unrated, 1 to 5 stars (the value 0 does not exist)
 
-color_label :  NULL = aucun label
-               0 Rouge, 1 Jaune, 2 Vert, 3 Bleu, 4 Violet
+color_label :  NULL = no label
+               0 Red, 1 Yellow, 2 Green, 3 Blue, 4 Purple
 ```
 
-## Version courante
+## Current version
 
 ```sql
 CREATE TABLE develop_current (
@@ -809,27 +809,27 @@ CREATE TABLE develop_current (
 );
 ```
 
-Changer de version revient simplement à mettre à jour cette référence.
+Switching version simply amounts to updating that reference.
 
-## Révision initiale
+## Initial revision
 
-À l'import, le moteur crée **obligatoirement** pour chaque asset :
+At import, the engine **necessarily** creates, for every asset:
 
-1. une révision initiale (réglages neutres, `parent_revision_id = NULL`) — épinglée comme toute révision stockée (`pipeline.md` §3.3), donc portant déjà la carte `stages` d'une révision neutre. Ces versions d'étages viennent du moteur, jamais du catalogue : `add_asset` reçoit les réglages initiaux de son appelant ;
-2. une version par défaut (`Default`) pointant sur cette révision ;
-3. l'entrée `develop_current` correspondante.
+1. an initial revision (neutral settings, `parent_revision_id = NULL`) — pinned like any stored revision (`pipeline.md` §3.3), therefore already carrying the `stages` map of a neutral revision. Those stage versions come from the engine, never from the catalog: `add_asset` receives the initial settings from its caller;
+2. a default version (`Default`) pointing at that revision;
+3. the corresponding `develop_current` entry.
 
-Un asset possède donc **toujours** au moins une révision et une version.
+An asset therefore **always** has at least one revision and one version.
 
-Cette règle est indispensable : les previews référencent une révision (`NOT NULL`) — sans révision initiale, aucune miniature ne pourrait exister.
+That rule is indispensable: previews reference a revision (`NOT NULL`) — without an initial revision, no thumbnail could exist.
 
 ---
 
 # 19. Previews
 
-Les aperçus sont des fichiers stockés sur disque.
+Previews are files stored on disk.
 
-SQLite ne conserve que leurs métadonnées.
+SQLite keeps only their metadata.
 
 ```sql
 CREATE TABLE previews (
@@ -879,51 +879,51 @@ CREATE TABLE previews (
 4 Full
 ```
 
-Chaque niveau correspond à une taille maximale prédéfinie.
+Each level corresponds to a predefined maximum size.
 
-Exemple :
+Example:
 
-| Kind      | Taille max        |
+| Kind      | Max size          |
 | --------- | ----------------- |
 | Thumbnail | 256 px            |
 | Small     | 1024 px           |
 | Medium    | 2048 px           |
 | Large     | 4096 px           |
-| Full      | Résolution native |
+| Full      | Native resolution |
 
 ---
 
 # 20. Cache Invalidation
 
-Un aperçu est considéré comme valide uniquement si :
+A preview is considered valid only if:
 
 ```text
-preview.revision_id == head_revision_id de la version courante
+preview.revision_id == head_revision_id of the current version
 ```
 
-Un undo qui ramène la tête sur une révision déjà prévisualisée revalide automatiquement les anciens aperçus : aucune régénération n'est nécessaire.
+An undo that brings the head back onto an already previewed revision automatically revalidates the old previews: no regeneration is necessary.
 
-Dans tous les autres cas :
+In every other case:
 
-* aperçu obsolète ;
-* régénération automatique.
+* the preview is stale;
+* it is regenerated automatically.
 
-Aucun timestamp ni hash supplémentaire n'est nécessaire.
+No extra timestamp or hash is necessary.
 
-La comparaison d'identifiants suffit.
+Comparing identifiers is enough.
 
-## Rétention
+## Retention
 
-Un aperçu devenu invalide n'est pas supprimé pour autant : c'est ce qui rend l'undo ci-dessus gratuit. Mais il ne survit pas indéfiniment ([ADR 0075](adr/0075-preview-cache-retention.md)).
+A preview that has become invalid is not deleted for all that: that is what makes the undo above free. But it does not survive indefinitely ([ADR 0075](adr/0075-preview-cache-retention.md)).
 
-Sont conservés, pour un asset :
+Kept, for one asset, are:
 
-* l'aperçu de la **tête de chaque version** — une copie virtuelle parquée sur une révision ancienne garde le sien, quel que soit son âge ;
-* ceux des **trois révisions les plus récentes** de cet asset.
+* the preview of **each version's head** — a virtual copy parked on an old revision keeps its own, whatever its age;
+* those of the asset's **three most recent revisions**.
 
-Le reste est évincé — ligne et fichier — juste après l'enregistrement d'un nouvel aperçu, seul moment où le cache peut dépasser sa fenêtre. Aucune révision n'est supprimée : ce qui part est une image dérivée, que le moteur reconstruit en une seconde environ.
+The rest is evicted — row and file — just after a new preview is recorded, the only moment at which the cache can exceed its window. No revision is deleted: what goes is a derived image, which the engine rebuilds in about a second.
 
-Sans cette règle, cent retouches d'une même photo laissaient cent aperçus, soit davantage que le RAW lui-même.
+Without that rule, a hundred edits of the same photo left a hundred previews, that is, more than the RAW itself.
 
 ---
 
@@ -945,19 +945,19 @@ Cache/
     histograms/
 ```
 
-L'organisation physique du cache est indépendante du catalogue.
+The cache's physical organisation is independent of the catalog.
 
-Il peut être supprimé intégralement sans perte de données.
+It can be deleted in full without data loss.
 
-Le moteur le reconstruira automatiquement.
+The engine will rebuild it automatically.
 
 ---
 
 # 22. Keywords
 
-Les mots-clés sont hiérarchiques dès la première version.
+Keywords are hierarchical from the very first version.
 
-Cela évite toute migration complexe ultérieure et permet une organisation similaire à Lightroom, Capture One ou Photo Mechanic.
+That avoids any complex migration later and allows an organisation similar to Lightroom, Capture One or Photo Mechanic.
 
 ```sql
 CREATE TABLE keywords (
@@ -981,7 +981,7 @@ CREATE TABLE keywords (
 
 ---
 
-## Exemple
+## Example
 
 ```text
 Nature
@@ -994,7 +994,7 @@ Nature
     └── Deer
 ```
 
-En base :
+In the database:
 
 ```text
 Nature
@@ -1008,17 +1008,17 @@ Nature/Birds/Eagle
 Nature/Mammals/Fox
 ```
 
-Le champ `path` permet :
+The `path` field allows:
 
-* recherches rapides ;
-* reconstruction de l'arbre ;
-* export XMP simplifié.
+* fast searches;
+* rebuilding the tree;
+* simplified XMP export.
 
 ---
 
 # 23. Asset Keywords
 
-Relation N:N.
+An N:N relation.
 
 ```sql
 CREATE TABLE asset_keywords (
@@ -1044,11 +1044,11 @@ CREATE TABLE asset_keywords (
 
 # 24. Collections
 
-Les collections sont indépendantes de l'arborescence physique.
+Collections are independent of the physical tree.
 
-Une collection contient des **versions de développement** : on place *la version noir & blanc* dans un album, et c'est elle qui s'affiche et s'exporte.
+A collection contains **develop versions**: you put *the black & white version* into an album, and that is the one that displays and exports.
 
-Une même version peut appartenir à plusieurs collections.
+The same version may belong to several collections.
 
 ```sql
 CREATE TABLE collections (
@@ -1086,33 +1086,33 @@ CREATE TABLE collections (
 1 Smart
 ```
 
-Une collection manuelle contient une liste explicite d'assets.
+A manual collection contains an explicit list of assets.
 
-Une collection intelligente est générée automatiquement à partir de règles.
+A smart collection is generated automatically from rules.
 
 ---
 
-## Renommer, déplacer, supprimer
+## Renaming, moving, deleting
 
-Une collection est un rangement, pas une donnée : les trois opérations qui la
-gèrent ne touchent **jamais** une version, une révision ou un fichier.
+A collection is a filing device, not data: the three operations that manage it
+**never** touch a version, a revision or a file.
 
-* **Renommer** change `name`, rien d'autre. Un nom vide est refusé ; les noms
-  ne sont pas uniques (deux albums « Portraits » sous deux parents différents
-  sont légitimes, et sous le même parent c'est le problème de l'utilisateur,
-  pas une erreur du catalogue).
-* **Déplacer** change `parent_collection_id` — la racine étant `NULL`. Un
-  déplacement qui ferait d'une collection sa propre descendante est **refusé** :
-  l'arbre resterait cohérent pour SQLite, mais le sous-arbre déplacé
-  disparaîtrait de toute lecture partant de la racine.
-* **Supprimer** emporte le **sous-arbre entier**, du bas vers le haut — la
-  clé étrangère `parent_collection_id` est `ON DELETE RESTRICT`, un parent ne
-  peut donc pas partir avant ses enfants. Chaque suppression n'entraîne que la
-  disparition des appartenances (`collection_versions`, `ON DELETE CASCADE`),
-  conformément à l'invariant §29 : *les collections supprimées entraînent
-  uniquement la suppression des relations, jamais des versions ni des assets*.
-  Le nombre de collections qu'un ordre de suppression emporte est connu avant
-  de l'exécuter, pour que l'interface puisse le dire.
+* **Renaming** changes `name`, nothing else. An empty name is refused; names
+  are not unique (two "Portraits" albums under two different parents are
+  legitimate, and under the same parent it is the user's problem, not a
+  catalog error).
+* **Moving** changes `parent_collection_id` — the root being `NULL`. A move
+  that would make a collection its own descendant is **refused**: the tree
+  would stay coherent for SQLite, but the moved subtree would disappear from
+  any reading that starts at the root.
+* **Deleting** takes the **entire subtree** with it, from the bottom up — the
+  `parent_collection_id` foreign key is `ON DELETE RESTRICT`, so a parent
+  cannot leave before its children. Each deletion causes nothing but the
+  disappearance of memberships (`collection_versions`, `ON DELETE CASCADE`),
+  in accordance with the §29 invariant: *deleted collections cause only the
+  deletion of relations, never of versions or assets*. The number of
+  collections a delete order takes with it is known before it is executed, so
+  that the interface can say so.
 
 ---
 
@@ -1140,15 +1140,15 @@ CREATE TABLE collection_versions (
 );
 ```
 
-Le champ `position` conserve l'ordre défini par l'utilisateur.
+The `position` field preserves the order defined by the user.
 
 ---
 
 # 26. Smart Collections
 
-Les critères sont stockés sous forme JSON.
+The criteria are stored as JSON.
 
-Exemple :
+Example:
 
 ```json
 {
@@ -1163,9 +1163,9 @@ Exemple :
 }
 ```
 
-Le moteur traduit ensuite ces règles en requêtes SQL optimisées.
+The engine then translates those rules into optimised SQL queries.
 
-Le format JSON est volontairement versionnable.
+The JSON format is deliberately versionable.
 
 ---
 
@@ -1187,9 +1187,9 @@ CREATE TABLE export_presets (
 );
 ```
 
-Les presets sont indépendants des exports réalisés.
+Presets are independent of the exports actually performed.
 
-`settings_json` est opaque pour le catalogue ; c'est `leyline_export::ExportSettings` qui en interprète la structure : `format`, `quality` (1–100, ignorée par les formats sans perte), `avif_speed` (1–10, effort de l'encodeur AVIF, 9 par défaut, ignoré par tous les autres formats — [ADR 0067](adr/0067-avif-encode-speed.md)), `max_edge` (bord le plus long, absent = taille réelle) et `watermark` ([ADR 0034](adr/0034-softproofing-watermark-print.md), [0051](adr/0051-watermark-rasterization-and-soft-proof-surface.md)). Les champs inconnus sont refusés : un preset écrit par un moteur plus récent n'est jamais appliqué à moitié.
+`settings_json` is opaque to the catalog; it is `leyline_export::ExportSettings` that interprets its structure: `format`, `quality` (1–100, ignored by lossless formats), `avif_speed` (1–10, the AVIF encoder's effort, 9 by default, ignored by every other format — [ADR 0067](adr/0067-avif-encode-speed.md)), `max_edge` (the longest edge, absent = actual size) and `watermark` ([ADR 0034](adr/0034-softproofing-watermark-print.md), [0051](adr/0051-watermark-rasterization-and-soft-proof-surface.md)). Unknown fields are refused: a preset written by a newer engine is never applied by halves.
 
 ---
 
@@ -1221,17 +1221,17 @@ CREATE TABLE export_history (
 );
 ```
 
-L'historique permet de reproduire un export ou d'identifier rapidement la dernière destination utilisée.
+The history makes it possible to reproduce an export, or to identify quickly the last destination used.
 
 ---
 
 # 29. XMP Sidecars
 
-Le catalogue reste toujours la source de vérité.
+The catalog always remains the source of truth.
 
-Les fichiers XMP sont optionnels.
+XMP files are optional.
 
-Trois modes seront proposés :
+Three modes will be offered:
 
 ```text
 Never
@@ -1243,72 +1243,72 @@ Always
 
 ## Never
 
-Aucun fichier XMP n'est généré.
+No XMP file is generated.
 
-Toutes les informations résident uniquement dans le catalogue.
+All the information resides in the catalog alone.
 
 ## On Demand
 
-L'utilisateur déclenche explicitement une synchronisation.
+The user explicitly triggers a synchronisation.
 
 ## Always
 
-Chaque modification valide automatiquement le sidecar correspondant.
+Every modification automatically commits the corresponding sidecar.
 
-Ces trois modes concernent l'**écriture** seule.
+Those three modes concern **writing** only.
 
-## Lecture
+## Reading
 
-Le moteur lit un sidecar pour **amorcer** ce que le catalogue n'a pas encore, jamais pour arbitrer ce qu'il a déjà ([ADR 0047](adr/0047-xmp-sidecar-read.md)). Le catalogue reste donc la seule source de vérité (§2.4) : un sidecar n'a d'autorité sur aucun champ déjà renseigné, et rien ne le relit après coup.
+The engine reads a sidecar to **seed** what the catalog does not yet have, never to arbitrate what it already has ([ADR 0047](adr/0047-xmp-sidecar-read.md)). The catalog therefore stays the only source of truth (§2.4): a sidecar has authority over no field already filled in, and nothing re-reads it afterwards.
 
-Deux moments, et deux seulement :
+Two moments, and only two:
 
-* **à l'import**, automatiquement, si un `.xmp` se trouve à côté du fichier source — c'est le chemin de migration depuis un autre logiciel, celui qui fait suivre des années de notes, de libellés et de mots-clés hiérarchiques ;
-* **explicitement**, sur un asset déjà importé (`read_xmp`), pour une bibliothèque constituée avant l'export des sidecars.
+* **at import**, automatically, if an `.xmp` sits next to the source file — this is the migration path from other software, the one that carries over years of ratings, labels and hierarchical keywords;
+* **explicitly**, on an already imported asset (`read_xmp`), for a library built before the sidecars were exported.
 
-La politique est de **remplir sans écraser** : note, libellé, artiste et copyright ne sont appliqués que là où le catalogue est vide, et les mots-clés sont une union. Aucune lecture ne peut retirer ni remplacer une donnée du catalogue. Il n'y a pas d'équivalent du mode *Always* en lecture — ce serait un second canal d'autorité, donc la fin de §2.4.
+The policy is to **fill without overwriting**: rating, label, artist and copyright are applied only where the catalog is empty, and keywords are a union. No read can remove or replace a catalog datum. There is no reading equivalent of the *Always* mode — that would be a second channel of authority, and so the end of §2.4.
 
-Les champs lus sont exactement ceux qu'écrit §29 ci-dessus. Les réglages de développement (`crs:` d'Adobe) ne sont **pas** lus : ils ne sont pas traduisibles vers notre pipeline, et prétendre les reprendre serait mentir sur le rendu.
+The fields read are exactly those §29 above writes. Develop settings (Adobe's `crs:`) are **not** read: they are not translatable into our pipeline, and claiming to take them over would be lying about the render.
 
-Le **nom** du sidecar, en revanche, n'est pas symétrique : Leyline écrit `photo.xmp` (extension remplacée, la convention d'Adobe) mais lit aussi `photo.CR2.xmp` (nom complet, la convention de darktable et d'exiftool), la seconde forme étant essayée en premier parce qu'elle désigne une photo et une seule ([ADR 0047](adr/0047-xmp-sidecar-read.md) §2.1).
+The sidecar's **name**, however, is not symmetric: Leyline writes `photo.xmp` (extension replaced, Adobe's convention) but also reads `photo.CR2.xmp` (the full name, the convention of darktable and exiftool), the second form being tried first because it designates one photo and one only ([ADR 0047](adr/0047-xmp-sidecar-read.md) §2.1).
 
-Le reste sert uniquement à l'interopérabilité avec d'autres logiciels.
+The rest serves only interoperability with other software.
 
 ---
 
 # 30. Search Philosophy
 
-Toutes les recherches doivent être exécutables directement par SQLite.
+Every search must be executable directly by SQLite.
 
-Aucun index externe n'est prévu.
+No external index is planned.
 
-Les recherches doivent permettre notamment :
+Searches must allow, among others:
 
-* nom de fichier ;
-* date de prise de vue ;
-* appareil ;
-* objectif ;
-* ISO ;
-* focale ;
-* ouverture ;
-* vitesse ;
-* note ;
-* couleur ;
-* Pick / Reject ;
-* collections ;
-* mots-clés ;
-* texte libre ;
+* filename;
+* capture date;
+* camera;
+* lens;
+* ISO;
+* focal length;
+* aperture;
+* shutter speed;
+* rating;
+* colour;
+* Pick / Reject;
+* collections;
+* keywords;
+* free text;
 * GPS.
 
-L'objectif est de conserver une base légère et autonome.
+The aim is to keep the database light and self-contained.
 
 ---
 
-## Texte libre : FTS5
+## Free text: FTS5
 
-Un `LIKE '%texte%'` ne peut utiliser aucun index.
+A `LIKE '%text%'` cannot use any index.
 
-La recherche en texte libre repose sur **FTS5**, le moteur de recherche plein texte intégré à SQLite — aucun index externe, la règle est respectée.
+Free-text search rests on **FTS5**, the full-text search engine built into SQLite — no external index, so the rule holds.
 
 ```sql
 CREATE VIRTUAL TABLE search_index USING fts5(
@@ -1328,36 +1328,36 @@ CREATE VIRTUAL TABLE search_index USING fts5(
 );
 ```
 
-* `remove_diacritics 2` : « héron » et « heron » donnent le même résultat.
-* Le contenu est maintenu par le moteur à chaque modification (import, mots-clés, métadonnées).
-* `search_index` est reconstructible à tout moment depuis les tables sources : en cas de doute, il se régénère comme un cache.
-* Les futures annotations et légendes (§38) s'ajouteront comme simples colonnes FTS.
+* `remove_diacritics 2`: "héron" and "heron" give the same result.
+* The content is maintained by the engine on every modification (import, keywords, metadata).
+* `search_index` is rebuildable at any moment from the source tables: in case of doubt, it regenerates like a cache.
+* Future annotations and captions (§38) will be added as plain FTS columns.
 
 ---
 
 # 31. Integrity Rules
 
-Les règles suivantes sont considérées comme fondamentales.
+The following rules are considered fundamental.
 
-* Aucun asset ne peut exister sans dossier.
-* Aucune métadonnée sans asset.
-* Aucune révision sans asset.
-* Aucune preview sans révision.
-* Chaque asset possède au moins une révision et une version, créées à l'import.
-* Une version référence toujours une révision existante.
-* Une version virtuelle est une branche de développement, jamais une ligne `assets`.
-* Les mots-clés ne sont jamais supprimés automatiquement s'ils sont encore utilisés.
-* Les collections supprimées entraînent uniquement la suppression des relations, jamais des versions ni des assets.
-* Le classement (note, label, pick) vit exclusivement au niveau des versions.
-* Le cache peut être supprimé sans impact sur le catalogue.
+* No asset can exist without a folder.
+* No metadata without an asset.
+* No revision without an asset.
+* No preview without a revision.
+* Every asset has at least one revision and one version, created at import.
+* A version always references an existing revision.
+* A virtual version is a develop branch, never an `assets` row.
+* Keywords are never deleted automatically if they are still in use.
+* Deleted collections cause only the deletion of relations, never of versions or assets.
+* Classification (rating, label, pick) lives exclusively at the version level.
+* The cache can be deleted with no impact on the catalog.
 
-Ces règles garantissent la cohérence de la bibliothèque quelles que soient les opérations réalisées.
+These rules guarantee the library's coherence whatever operations are performed.
 
 ---
 
 # 32. Index Strategy
 
-Les index sont définis uniquement sur des colonnes appartenant à une même table.
+Indexes are defined only on columns belonging to a single table.
 
 ## Assets
 
@@ -1369,7 +1369,7 @@ CREATE INDEX idx_assets_folder
 ON assets(folder_id);
 ```
 
-La contrainte `UNIQUE(folder_id, filename)` sert également d'index de chemin.
+The `UNIQUE(folder_id, filename)` constraint also serves as a path index.
 
 ---
 
@@ -1395,7 +1395,7 @@ CREATE INDEX idx_metadata_shutter
 ON metadata(shutter_speed_s);
 ```
 
-Les index portent sur les colonnes générées : ce sont elles que les recherches par plage utilisent, jamais les rationnels bruts.
+The indexes are on the generated columns: those are what range searches use, never the raw rationals.
 
 ---
 
@@ -1445,40 +1445,40 @@ CREATE INDEX idx_develop_versions_pick
 ON develop_versions(pick_state);
 ```
 
-Le classement étant porté par les versions, les index de tri et de filtrage de la grille vivent sur `develop_versions`.
+Classification being carried by versions, the grid's sorting and filtering indexes live on `develop_versions`.
 
 ---
 
 # 33. Deletion Rules
 
-Les règles de suppression sont volontairement strictes.
+The deletion rules are deliberately strict.
 
-| Entité          | Règle                                                    |
+| Entity          | Rule                                                     |
 | --------------- | -------------------------------------------------------- |
 | Folder          | RESTRICT                                                 |
-| Asset           | CASCADE vers metadata, versions, révisions, previews     |
-| Develop Version | CASCADE vers develop_current et collection_versions      |
+| Asset           | CASCADE to metadata, versions, revisions, previews       |
+| Develop Version | CASCADE to develop_current and collection_versions       |
 | Camera          | RESTRICT                                                 |
 | Lens            | RESTRICT                                                 |
-| Keyword         | RESTRICT si utilisée                                     |
-| Collection      | CASCADE vers collection_versions                         |
-| Export Preset   | SET NULL dans export_history                             |
+| Keyword         | RESTRICT if in use                                       |
+| Collection      | CASCADE to collection_versions                           |
+| Export Preset   | SET NULL in export_history                               |
 
-Le catalogue ne doit jamais perdre de données silencieusement.
+The catalog must never lose data silently.
 
 ---
 
 # 34. Migration Strategy
 
-Les migrations sont incrémentales.
+Migrations are incremental.
 
-Chaque changement augmente :
+Every change increases:
 
 ```sql
 PRAGMA user_version;
 ```
 
-Exemple :
+Example:
 
 ```text
 Version 1
@@ -1492,76 +1492,76 @@ Version 2
 Version 3
 ```
 
-Une migration :
+A migration:
 
-* n'efface jamais les données ;
-* est transactionnelle ;
-* peut être rejouée une seule fois.
+* never erases data;
+* is transactional;
+* can be replayed only once.
 
-Toutes les migrations sont stockées dans le dépôt Git.
+Every migration is stored in the Git repository.
 
 ---
 
 # 35. Performance Strategy
 
-Le catalogue est optimisé pour trois opérations principales.
+The catalog is optimised for three main operations.
 
 ## Import
 
-Objectif :
+Target:
 
-* plusieurs milliers de photos par minute.
+* several thousand photos per minute.
 
-Optimisations :
+Optimisations:
 
-* transaction unique ;
-* statements préparés ;
+* a single transaction;
+* prepared statements;
 * WAL.
 
 ---
 
 ## Navigation
 
-Objectif :
+Target:
 
-défilement instantané dans plusieurs centaines de milliers d'assets.
+instant scrolling through several hundred thousand assets.
 
-La grille énumère les **versions** : une seule jointure 1:1 indexée (`develop_versions JOIN assets`) fournit classement, chemin et dimensions.
+The grid enumerates **versions**: a single indexed 1:1 join (`develop_versions JOIN assets`) supplies classification, path and dimensions.
 
-Au-delà de cette jointure, les requêtes courantes évitent toute jointure supplémentaire.
+Beyond that join, the common queries avoid any further join.
 
 ---
 
-## Recherche
+## Search
 
-Toutes les recherches passent exclusivement par SQLite.
+Every search goes exclusively through SQLite.
 
-Aucun moteur externe (Lucene, Elasticsearch...) n'est prévu.
+No external engine (Lucene, Elasticsearch…) is planned.
 
-SQLite est largement suffisant pour la taille cible du catalogue.
+SQLite is amply sufficient for the catalog's target size.
 
 ---
 
 # 36. Cache Philosophy
 
-Le cache n'est jamais considéré comme une donnée métier.
+The cache is never considered business data.
 
-Il peut être supprimé à tout moment.
+It can be deleted at any moment.
 
-Sont considérés comme du cache :
+Considered cache are:
 
-* miniatures ;
-* previews ;
-* histogrammes ;
-* rendus intermédiaires.
+* thumbnails;
+* previews;
+* histograms;
+* intermediate renders.
 
-Le moteur est responsable de leur reconstruction.
+The engine is responsible for rebuilding them.
 
 ---
 
 # 37. Backup Strategy
 
-Une bibliothèque est entièrement contenue dans un dossier.
+A library is entirely contained in one folder.
 
 ```text
 Library/
@@ -1575,88 +1575,88 @@ Library/
     Exports/
 ```
 
-Une sauvegarde consiste simplement à copier ce dossier.
+A backup consists simply of copying that folder.
 
-Les restaurations ne nécessitent aucune opération spécifique.
+Restoring requires no specific operation.
 
 ---
 
 # 38. Future Extensions
 
-Le schéma est conçu pour intégrer sans rupture :
+The schema is designed to accommodate, without a break:
 
 * HDR
 * Focus Stacking
 * Panorama
-* Mots-clés par version (`version_keywords` : ajout ou masquage de mots-clés sur une version précise, en complément d'`asset_keywords`, jamais en remplacement)
-* Géolocalisation avancée
-* Détection locale des visages
-* IA locale
+* Per-version keywords (`version_keywords`: adding or hiding keywords on a specific version, in addition to `asset_keywords`, never as a replacement)
+* Advanced geolocation
+* Local face detection
+* Local AI
 * OCR
 * Plugins
-* Formats RAW futurs
-* Développement collaboratif (optionnel)
-* Synchronisation entre bibliothèques
+* Future RAW formats
+* Collaborative development (optional)
+* Synchronisation between libraries
 
-Aucune de ces évolutions ne doit nécessiter une refonte complète du modèle relationnel.
+None of those evolutions must require a complete overhaul of the relational model.
 
 ---
 
 # 39. Guiding Principles
 
-Le catalogue suit quelques principes simples.
+The catalog follows a few simple principles.
 
-## Simplicité
+## Simplicity
 
-Chaque table possède une responsabilité unique.
-
----
-
-## Cohérence
-
-Toutes les relations sont protégées par des clés étrangères.
+Every table has a single responsibility.
 
 ---
 
-## Portabilité
+## Coherence
 
-Une bibliothèque doit fonctionner sans modification sous Windows, Linux et macOS.
+Every relation is protected by foreign keys.
 
 ---
 
-## Pérennité
+## Portability
 
-Le schéma doit rester compatible pendant de nombreuses années grâce aux migrations incrémentales.
+A library must work without modification under Windows, Linux and macOS.
+
+---
+
+## Durability
+
+The schema must stay compatible for many years, thanks to incremental migrations.
 
 ---
 
 ## Performance
 
-Les opérations les plus fréquentes (navigation, recherche, développement) doivent rester fluides même avec plusieurs centaines de milliers d'assets.
+The most frequent operations (navigation, search, development) must stay fluid even with several hundred thousand assets.
 
 ---
 
 # 40. Summary
 
-Le catalogue Leyline est conçu comme un **Digital Asset Manager (DAM)** moderne :
+The Leyline catalog is designed as a modern **Digital Asset Manager (DAM)**:
 
-* SQLite comme unique base de données ;
-* chemins relatifs pour une portabilité totale ;
-* architecture **Asset** plutôt que **Photo** ;
-* développement non destructif inspiré de Git : révisions immuables, versions = branches ;
-* versions virtuelles = simples branches de développement, sans duplication ;
-* la version comme unité de bibliothèque : note, label, pick et collections par version ;
-* mots-clés au niveau de l'asset : ils décrivent le contenu, commun à toutes les versions ;
-* hiérarchie native des mots-clés ;
-* collections manuelles et intelligentes ;
-* cache entièrement régénérable ;
-* révisions coalescées : une révision = une intention, jamais un événement d'interface ;
-* recherche plein texte via FTS5, intégrée à SQLite ;
-* heure de prise de vue fidèle à l'heure locale du boîtier, offset stocké séparément ;
-* XMP optionnels, le catalogue restant la source de vérité ;
-* contraintes d'intégrité strictes et migrations versionnées.
+* SQLite as the only database;
+* relative paths for total portability;
+* an **Asset** rather than a **Photo** architecture;
+* non-destructive development inspired by Git: immutable revisions, versions = branches;
+* virtual versions = plain develop branches, with no duplication;
+* the version as the library unit: rating, label, pick and collections per version;
+* keywords at the asset level: they describe the content, common to every version;
+* native keyword hierarchy;
+* manual and smart collections;
+* an entirely regenerable cache;
+* coalesced revisions: one revision = one intention, never an interface event;
+* full-text search through FTS5, built into SQLite;
+* a capture time faithful to the camera's local time, with the offset stored separately;
+* optional XMP, the catalog remaining the source of truth;
+* strict integrity constraints and versioned migrations.
 
-L'objectif est de fournir un catalogue robuste, performant et extensible, capable d'accompagner l'évolution de Leyline pendant de nombreuses années sans remise en cause de son architecture fondamentale.
+The aim is to provide a catalog that is robust, fast and extensible, able to accompany Leyline's evolution for many years without calling its fundamental architecture into question.
 
 ---
 
@@ -1678,16 +1678,16 @@ CREATE TABLE develop_presets (
 );
 ```
 
-Presets de développement (`docs/presets.md`) : un jeu **partiel** de réglages, jamais un `settings_json` complet (§17). Le catalogue traite `preset_json` comme une chaîne opaque, au même titre qu'`export_presets.settings_json` (§27) — c'est le moteur (`leyline-core::PresetSettings`) qui en interprète la structure.
+Develop presets (`docs/presets.md`): a **partial** set of settings, never a complete `settings_json` (§17). The catalog treats `preset_json` as an opaque string, exactly as it does `export_presets.settings_json` (§27) — it is the engine (`leyline-core::PresetSettings`) that interprets its structure.
 
-Depuis [ADR 0058](adr/0058-preset-provenance-and-shelf.md), une révision produite par l'application d'un preset **enregistre lequel**, et dans quelle version de ce preset (`develop_revisions.from_preset_id`, `from_preset_revision`) — ce qui permet de répondre à « quelles photos ont été développées avec celui-ci, et lesquelles avec une version antérieure ? ».
+Since [ADR 0058](adr/0058-preset-provenance-and-shelf.md), a revision produced by applying a preset **records which one**, and in which version of that preset (`develop_revisions.from_preset_id`, `from_preset_revision`) — which makes it possible to answer "which photos were developed with this one, and which with an earlier version of it?".
 
-Cela n'écorne pas la règle de §17. Ce qui reste vrai, et qui est l'essentiel :
+That does not dent the rule of §17. What stays true, and is the essential point:
 
-* **les réglages d'une révision restent un état**, jamais un journal : la provenance vit dans deux colonnes que le moteur de rendu ne lit **jamais**, et rien n'en entre dans `settings_json` (ADR 0058 §5) ;
-* **renommer, modifier ou supprimer un preset n'a aucun effet rétroactif** : les révisions déjà écrites gardent leurs réglages et donc leurs pixels. Une suppression met simplement la référence à `NULL` (`ON DELETE SET NULL`), elle n'efface pas la révision.
+* **a revision's settings remain a state**, never a log: the provenance lives in two columns that the render engine **never** reads, and none of it enters `settings_json` (ADR 0058 §5);
+* **renaming, editing or deleting a preset has no retroactive effect**: revisions already written keep their settings and therefore their pixels. A deletion simply sets the reference to `NULL` (`ON DELETE SET NULL`), it does not erase the revision.
 
-Un preset porte aussi son rangement (`folder_id`, `favourite`) et son compteur de version (`preset_revision`, incrémenté à chaque modification).
+A preset also carries its filing (`folder_id`, `favourite`) and its version counter (`preset_revision`, incremented on every modification).
 
 ```sql
 CREATE TABLE preset_folders (
@@ -1701,7 +1701,7 @@ CREATE TABLE preset_folders (
 );
 ```
 
-Un seul niveau de dossiers (ADR 0058 §2) : ils se renomment, se suppriment — leurs presets remontent alors à la racine — et peuvent être vides.
+A single level of folders (ADR 0058 §2): they can be renamed, deleted — their presets then rise back to the root — and may be empty.
 
 ---
 
@@ -1723,59 +1723,56 @@ CREATE TABLE print_presets (
 );
 ```
 
-Parallèle exact d'`export_presets` (§27) : `settings_json` est opaque ici aussi, c'est `leyline_export::PrintSettings` qui en interprète la structure (papier, orientation, marges, DPI, profil ICC de destination, intention de rendu).
+An exact parallel of `export_presets` (§27): `settings_json` is opaque here too, and it is `leyline_export::PrintSettings` that interprets its structure (paper, orientation, margins, DPI, destination ICC profile, rendering intent).
 
-Contrairement à l'export, l'impression n'a pas de table d'historique : imprimer ne modifie aucune révision et ne produit aucun artefact que le catalogue doive pouvoir retrouver plus tard (ADR 0036) — le fichier PDF rendu est un artefact ponctuel, pas un état à journaliser. Les données de job (quelles versions, combien de copies) ne sont jamais stockées, exactement comme `ExportRequest.versions` reste séparé d'`export_presets`.
+Unlike export, printing has no history table: printing modifies no revision and produces no artifact that the catalog should be able to find again later (ADR 0036) — the rendered PDF file is a one-off artifact, not a state to journal. Job data (which versions, how many copies) is never stored, exactly as `ExportRequest.versions` stays separate from `export_presets`.
 
 ---
 
 # 43. Shot Facets (ADR 0064)
 
-`Catalog::shot_facets()` répond à « avec quoi cette bibliothèque a-t-elle été
-photographiée ? » — la liste dans laquelle les filtres boîtier et objectif de
-`GridQuery` se choisissent, et les bornes observées des quatre grandeurs
-continues.
+`Catalog::shot_facets()` answers "what was this library photographed with?" —
+the list from which `GridQuery`'s camera and lens filters are chosen, and the
+observed bounds of the four continuous quantities.
 
 ```rust
 pub struct ShotFacets {
-    pub cameras: Vec<String>,            // « fabricant modèle », triés
+    pub cameras: Vec<String>,            // "manufacturer model", sorted
     pub lenses: Vec<String>,
-    pub iso: Option<(f64, f64)>,         // bornes observées, None si aucune photo n'en porte
+    pub iso: Option<(f64, f64)>,         // observed bounds, None if no photo carries any
     pub aperture: Option<(f64, f64)>,
     pub focal_length: Option<(f64, f64)>,
     pub shutter_speed: Option<(f64, f64)>,
 }
 ```
 
-Aucune table ni aucun index nouveau : un `SELECT DISTINCT` par jointure sur
-`cameras` / `lenses`, et un seul `MIN`/`MAX` sur les colonnes générées de
-`metadata`, toutes indexées (§32).
+No new table and no new index: one `SELECT DISTINCT` per join on `cameras` /
+`lenses`, and a single `MIN`/`MAX` over the generated columns of `metadata`,
+all of them indexed (§32).
 
-Deux points de méthode :
+Two points of method:
 
-* Les noms rendus sont **exactement** ceux que `GridQuery::camera` et
-  `GridQuery::lens` acceptent — un client n'a rien à reconstruire, et la
-  correspondance (modèle seul ou `fabricant modèle`) est celle des collections
-  intelligentes (§26), écrite une seule fois dans le code.
-* Le calcul porte sur **toute** la bibliothèque, jamais sur la sélection
-  filtrée en cours : les listes ne bougent donc que quand la bibliothèque
-  change, ce qui est aussi la règle de rafraîchissement des clients
-  (`AssetsAdded`, `AssetsRemoved`).
+* The names returned are **exactly** those that `GridQuery::camera` and
+  `GridQuery::lens` accept — a client has nothing to rebuild, and the matching
+  (model alone or `manufacturer model`) is the one used by smart collections
+  (§26), written once in the code.
+* The computation covers the **whole** library, never the currently filtered
+  selection: the lists therefore move only when the library changes, which is
+  also the clients' refresh rule (`AssetsAdded`, `AssetsRemoved`).
 
 ---
 
-# 44. Noms et tailles des assets (ADR 0065)
+# 44. Asset names and sizes (ADR 0065)
 
-`Catalog::asset_names_and_sizes()` rend le nom de fichier et la taille de
-chaque asset, en une requête.
+`Catalog::asset_names_and_sizes()` returns the filename and size of every
+asset, in one query.
 
-C'est ce qu'un scan d'import compare à ses candidats (ADR 0065 §3) : un
-fichier de même nom et de même taille est **très probablement** déjà dans la
-bibliothèque. L'indice se calcule sans lire un octet des fichiers, là où
-l'empreinte exigerait de lire toute la carte avant que l'utilisateur ait rien
-choisi. La réponse exacte reste `find_asset_by_checksum` (§12), et c'est elle
-qui refuse un doublon à l'import.
+That is what an import scan compares its candidates against (ADR 0065 §3): a
+file with the same name and the same size is **very probably** already in the
+library. The hint is computed without reading a byte of the files, where the
+checksum would require reading the whole card before the user has chosen
+anything. The exact answer remains `find_asset_by_checksum` (§12), and it is
+what refuses a duplicate at import.
 
-Rendu en bloc plutôt qu'interrogé par candidat : aucun index ne commence par
-`filename` (§32), une recherche par fichier balaierait donc `assets` une fois
-par fichier.
+Returned in bulk rather than queried per candidate: no index starts with
+`filename` (§32), so a per-file search would scan `assets` once per file.
