@@ -1,96 +1,96 @@
-# Spécification
+# Specification
 
-Ce document répond à : **qu'est-ce que Leyline fait, qu'est-ce qu'il ne fera pas**. Il dit aussi ce qui est réellement livré — l'état phase par phase est dans [`roadmap.md`](roadmap.md).
+This document answers: **what does Leyline do, and what will it never do**. It also says what is actually delivered — the phase-by-phase state is in [`roadmap.md`](roadmap.md).
 
-Toutes les fonctionnalités listées comme livrées le sont sur les **trois clients** : Studio, la CLI et le SDK.
+Every feature listed as delivered is delivered on all **three clients**: Studio, the CLI and the SDK.
 
 ---
 
-## 1. Périmètre V1 — livré et clos
+## 1. V1 scope — delivered and closed
 
-**Bibliothèque et catalogue**
+**Library and catalog**
 
-* Import d'un dossier (RAW, DNG, JPEG, PNG, TIFF), en copie ou par référence
-* Catalogue SQLite — bibliothèques, collections (manuelles et dynamiques), mots-clés, notes, libellés de couleur, statut de sélection
-* Retirer des photos du catalogue, ou les supprimer du disque vers la corbeille du système — deux gestes distincts ([ADR 0060](adr/0060-asset-removal.md))
-* Miniatures et aperçus en cache
-* Lecture EXIF, recherche plein texte
-* Sidecars XMP : écriture à la demande, et lecture comme amorce à l'import — le chemin de migration depuis un autre logiciel ([ADR 0047](adr/0047-xmp-sidecar-read.md))
-* Capture tethering USB — chaque photo importée dès la prise de vue ([ADR 0038](adr/0038-tethered-capture.md))
-* Import automatique par dossier surveillé ([ADR 0039](adr/0039-watched-folder-import.md))
-* Vue carte GPS : fond de carte mondial embarqué ([ADR 0059](adr/0059-bundled-world-basemap.md)), affiné par un pack MBTiles hors-ligne que l'utilisateur apporte s'il veut du détail ; aucun appel réseau ([ADR 0040](adr/0040-gps-map-view.md))
+* Importing a folder (RAW, DNG, JPEG, PNG, TIFF), by copy or by reference
+* SQLite catalog — libraries, collections (manual and dynamic), keywords, ratings, colour labels, pick status
+* Removing photos from the catalog, or deleting them from disk to the system trash — two distinct gestures ([ADR 0060](adr/0060-asset-removal.md))
+* Cached thumbnails and previews
+* EXIF reading, full-text search
+* XMP sidecars: written on demand, and read as a starting point at import — the migration path from another piece of software ([ADR 0047](adr/0047-xmp-sidecar-read.md))
+* USB tethered capture — every photo imported as it is shot ([ADR 0038](adr/0038-tethered-capture.md))
+* Automatic import from a watched folder ([ADR 0039](adr/0039-watched-folder-import.md))
+* GPS map view: an embedded world basemap ([ADR 0059](adr/0059-bundled-world-basemap.md)), refined by an offline MBTiles pack the user brings if they want detail; no network call whatsoever ([ADR 0040](adr/0040-gps-map-view.md))
 
-**Développement non destructif**
+**Non-destructive development**
 
-* Exposition, balance des blancs, contraste
-* Ombres / hautes lumières, blancs / noirs
+* Exposure, white balance, contrast
+* Shadows / highlights, whites / blacks
 * Vibrance / saturation
-* Rotation, recadrage
-* Choix de l'algorithme de dématriçage : AHD, VNG, DCB, DHT ([ADR 0061](adr/0061-demosaic-algorithm.md))
-* Réduction du bruit (luminance et chroma, préservant les contours — [ADR 0046](adr/0046-edge-preserving-denoise.md) — au seuil issu du profil de bruit **mesuré** du boîtier à cette sensibilité, [ADR 0072](adr/0072-measured-noise-profile.md)), netteté
-* Correction d'objectif via Lensfun : distorsion, vignettage, aberration chromatique transversale ([ADR 0016](adr/0016-process-3-lens-correction.md), [0017](adr/0017-process-4-vignetting.md), [0018](adr/0018-process-5-tca.md))
-* Gestion des couleurs via LittleCMS ([ADR 0015](adr/0015-color-management-srgb.md), [ADR 0027](adr/0027-color-management-beyond-srgb.md))
-* Presets de développement : créer, appliquer, appliquer en lot ([`presets.md`](presets.md), [ADR 0014](adr/0014-develop-presets.md))
-* Retraitement d'une photo vers les versions d'étages courantes
+* Rotation, cropping
+* Choice of demosaic algorithm: AHD, VNG, DCB, DHT ([ADR 0061](adr/0061-demosaic-algorithm.md))
+* Noise reduction (luminance and chroma, edge-preserving — [ADR 0046](adr/0046-edge-preserving-denoise.md) — at the threshold that comes from the **measured** noise profile of the camera body at that sensitivity, [ADR 0072](adr/0072-measured-noise-profile.md)), sharpening
+* Lens correction through Lensfun: distortion, vignetting, transverse chromatic aberration ([ADR 0016](adr/0016-process-3-lens-correction.md), [0017](adr/0017-process-4-vignetting.md), [0018](adr/0018-process-5-tca.md))
+* Colour management through LittleCMS ([ADR 0015](adr/0015-color-management-srgb.md), [ADR 0027](adr/0027-color-management-beyond-srgb.md))
+* Develop presets: create, apply, apply in batch ([`presets.md`](presets.md), [ADR 0014](adr/0014-develop-presets.md))
+* Reprocessing a photo to the current stage versions
 
-**Sortie**
+**Output**
 
-* Export JPEG, TIFF, PNG, WebP, AVIF — presets d'export, export par lots
-* Module d'impression : dimension physique, marges, profil de destination ([ADR 0036](adr/0036-print-module.md))
+* JPEG, TIFF, PNG, WebP, AVIF export — export presets, batch export
+* Print module: physical dimensions, margins, destination profile ([ADR 0036](adr/0036-print-module.md))
 
 **Distribution**
 
-* Installateur par plateforme (Windows, macOS, Linux), dossier d'installation au choix quand la plateforme le permet ([ADR 0019](adr/0019-distribution-i18n.md))
-* Interface multilingue (français, anglais), extensible sans changement de code
+* Per-platform installer (Windows, macOS, Linux), with a choice of install folder where the platform allows it ([ADR 0019](adr/0019-distribution-i18n.md))
+* Multilingual interface (French, English), extensible without a code change
 
 ---
 
-## 2. Au-delà de la V1 — livré
+## 2. Beyond V1 — delivered
 
-Ces fonctionnalités étaient cadrées comme candidates post-V1 dans [`v2-scope.md`](v2-scope.md). Elles sont implémentées.
+These features were scoped as post-V1 candidates in [`v2-scope.md`](v2-scope.md). They are implemented.
 
-| Fonctionnalité | Décision |
+| Feature | Decision |
 |---|---|
-| Courbe tonale (spline cubique monotone, appliquée en luminance) | [ADR 0030](adr/0030-tone-curve.md) |
-| Suppression de tache (clonage déterministe, sans mode *heal*) | [ADR 0032](adr/0032-spot-removal-clone.md) |
-| Réglages locaux masqués — brosse, radial, gradué | [ADR 0029](adr/0029-process-6-local-adjustments.md) |
-| Masques par plage — bande de luminance et bande de teinte, raffinant un masque géométrique | [ADR 0048](adr/0048-range-masks.md) |
-| Mélangeur TSL et color grading | [ADR 0031](adr/0031-hsl-color-grading.md) |
-| Clarté, texture, dehaze | [ADR 0033](adr/0033-clarity-texture-dehaze.md) |
-| Profils caméra DCP — matrices, illuminants interpolés et tables ([ADR 0062](adr/0062-dcp-illuminant-interpolation.md), [ADR 0063](adr/0063-dcp-tables.md)) — **expérimental** | [ADR 0035](adr/0035-camera-profile-dcp.md), [ADR 0037](adr/0037-dcp-parsing-dependency.md) |
-| Correction de perspective (deux curseurs, homographie) | [ADR 0052](adr/0052-perspective-correction.md) |
-| LUT créative `.cube` importée dans la bibliothèque, dosable | [ADR 0053](adr/0053-creative-lut.md) |
-| Reconstruction des hautes lumières écrêtées (`clip`/`blend`/`rebuild`, avant dématriçage) | [ADR 0050](adr/0050-highlight-reconstruction.md) |
-| Filigrane texte à l'export et épreuvage écran (vue seule) | [ADR 0034](adr/0034-softproofing-watermark-print.md), [ADR 0051](adr/0051-watermark-rasterization-and-soft-proof-surface.md) |
-| Appairage RAW+JPEG : le JPEG écrit par le boîtier devient le compagnon du RAW de la même prise, une photo dans la grille au lieu de deux | [ADR 0079](adr/0079-raw-jpeg-pairing.md) |
+| Tone curve (monotone cubic spline, applied on luminance) | [ADR 0030](adr/0030-tone-curve.md) |
+| Spot removal (deterministic cloning, no *heal* mode) | [ADR 0032](adr/0032-spot-removal-clone.md) |
+| Masked local adjustments — brush, radial, graduated | [ADR 0029](adr/0029-process-6-local-adjustments.md) |
+| Range masks — a luminance band and a hue band, refining a geometric mask | [ADR 0048](adr/0048-range-masks.md) |
+| HSL mixer and colour grading | [ADR 0031](adr/0031-hsl-color-grading.md) |
+| Clarity, texture, dehaze | [ADR 0033](adr/0033-clarity-texture-dehaze.md) |
+| DCP camera profiles — matrices, interpolated illuminants and tables ([ADR 0062](adr/0062-dcp-illuminant-interpolation.md), [ADR 0063](adr/0063-dcp-tables.md)) — **experimental** | [ADR 0035](adr/0035-camera-profile-dcp.md), [ADR 0037](adr/0037-dcp-parsing-dependency.md) |
+| Perspective correction (two sliders, a homography) | [ADR 0052](adr/0052-perspective-correction.md) |
+| Creative `.cube` LUT imported into the library, with an amount | [ADR 0053](adr/0053-creative-lut.md) |
+| Clipped highlight reconstruction (`clip`/`blend`/`rebuild`, before demosaicing) | [ADR 0050](adr/0050-highlight-reconstruction.md) |
+| Text watermark on export and soft proofing (view only) | [ADR 0034](adr/0034-softproofing-watermark-print.md), [ADR 0051](adr/0051-watermark-rasterization-and-soft-proof-surface.md) |
+| RAW+JPEG pairing: the JPEG written by the camera becomes the companion of the RAW from the same shot, one photo in the grid instead of two | [ADR 0079](adr/0079-raw-jpeg-pairing.md) |
 
-Les réglages locaux masqués et leurs masques par plage sont exposés dans les trois clients depuis [ADR 0049](adr/0049-local-adjustments-clients.md) : outils de tracé et éditeur dans Studio, payload JSON du `LocalAdjustment` stocké dans la CLI. Ce qu'ADR 0049 laissait hors périmètre : la surimpression de la couverture calculée par le moteur (le « masque rouge ») est **livrée** ([ADR 0071](adr/0071-mask-overlay.md)) ; restent la pipette de plage et les poignées de déplacement d'une géométrie déjà tracée.
+Masked local adjustments and their range masks have been exposed in all three clients since [ADR 0049](adr/0049-local-adjustments-clients.md): drawing tools and an editor in Studio, the stored `LocalAdjustment` JSON payload in the CLI. What ADR 0049 left out of scope: the overlay of the coverage the engine computes (the "red mask") is **delivered** ([ADR 0071](adr/0071-mask-overlay.md)); what remains is the range eyedropper and drag handles on a geometry already drawn.
 
-La mention *expérimental* est littérale : la justesse colorimétrique du chemin matriciel DCP n'a pas été validée contre de vrais `.dcp` Adobe et leurs rendus de référence, et les tables `ProfileHueSatMapData` / `ProfileLookTableData` / `ProfileToneCurve` ne sont pas appliquées. Studio et la CLI le signalent à l'utilisateur.
+The word *experimental* is literal: the colorimetric accuracy of the DCP matrix path has not been validated against real Adobe `.dcp` files and their reference renders, and the `ProfileHueSatMapData` / `ProfileLookTableData` / `ProfileToneCurve` tables are not applied. Studio and the CLI say so to the user.
 
 ---
 
-## 3. Décidé, non implémenté
+## 3. Decided, not implemented
 
-| Sujet | Décision |
+| Subject | Decision |
 |---|---|
-| Filigrane image (logo) | Coupé par [ADR 0034](adr/0034-softproofing-watermark-print.md) : le problème de référence de ressource n'est pas tranché |
+| Image watermark (a logo) | Cut by [ADR 0034](adr/0034-softproofing-watermark-print.md): the asset-reference problem is not settled |
 
 ---
 
-## 4. Exclusions volontaires
+## 4. Deliberate exclusions
 
-Ces absences sont des **décisions**, pas des retards. Elles ne sont pas à proposer comme fonctionnalités manquantes.
+These absences are **decisions**, not delays. They are not to be proposed as missing features.
 
-| Exclu | Raison |
+| Excluded | Reason |
 |---|---|
-| Cloud | Contredit le principe Local First |
-| Comptes utilisateur | Aucun service à authentifier |
-| Abonnement | Contredit la propriété des données par le photographe |
-| Intelligence artificielle | Hors périmètre : **aucun modèle n'est livré, aucune inférence n'a lieu**. Ce qui existe depuis [ADR 0073](adr/0073-external-mask-detectors.md) est une *prise* — un détecteur de masque tiers, installé séparément, peut proposer une couverture que le pipeline libre rend ensuite comme n'importe quel masque. Une IA locale optionnelle reste envisageable à très long terme |
-| HDR | Fonctionnalité entière, à trancher par un ADR propre le jour venu |
-| Panorama | Idem |
-| Reconnaissance faciale | Idem, avec une dimension vie privée qui exige sa propre décision |
-| Synchronisation automatique | Contredit Local First |
+| Cloud | Contradicts the Local First principle |
+| User accounts | There is no service to authenticate against |
+| Subscription | Contradicts the photographer's ownership of their data |
+| Artificial intelligence | Out of scope: **no model is shipped, no inference takes place**. What exists since [ADR 0073](adr/0073-external-mask-detectors.md) is a *socket* — a third-party mask detector, installed separately, may propose a coverage that the free pipeline then renders like any other mask. An optional local AI remains conceivable in the very long term |
+| HDR | A whole feature, to be settled by an ADR of its own when the day comes |
+| Panorama | Likewise |
+| Face recognition | Likewise, with a privacy dimension that demands its own decision |
+| Automatic synchronisation | Contradicts Local First |
 
-Le raisonnement sur ce qui mérite d'être construit après la V1 — et sur ce qui a été délibérément coupé — est dans [`v2-scope.md`](v2-scope.md) et [`v2-implementation-plan.md`](v2-implementation-plan.md).
+The reasoning about what deserves to be built after V1 — and about what was deliberately cut — is in [`v2-scope.md`](v2-scope.md) and [`v2-implementation-plan.md`](v2-implementation-plan.md).

@@ -1,160 +1,160 @@
-# Configuration requise
+# System requirements
 
-**Document :** `docs/system-requirements.md`
-**Version :** 1.0
-**Statut :** Référence
-
----
-
-# 1. Objectif
-
-Ce document répond à : **sur quelle machine Leyline tourne-t-il, et à partir de quel plancher ?**
-
-Toutes les valeurs qui suivent sont **mesurées**, jamais estimées à partir d'un ordre de grandeur plausible. Les conditions de mesure sont en §2.1 et la procédure pour les refaire en §7 : un chiffre de ce document qui ne se reproduit plus est un chiffre à corriger, pas à conserver.
-
-Hors sujet ici : les prérequis de **compilation** (chaîne Rust épinglée, LibRaw, Lensfun, LittleCMS, nasm), qui sont dans [`contributing.md`](contributing.md), et le contenu des installateurs, qui est dans [ADR 0019](adr/0019-distribution-i18n.md).
+**Document:** `docs/system-requirements.md`
+**Version:** 1.0
+**Status:** Reference
 
 ---
 
-# 2. Le facteur limitant est la mémoire
+# 1. Purpose
 
-Ce n'est pas le processeur. Le pipeline d'**une** photo ne sait pas remplir une machine moderne — un lot de 12 fichiers 30 Mpx mesurait 280 % de 1 600 % sur seize threads ([ADR 0068](adr/0068-concurrent-export-batch.md)) — mais chaque photo en vol immobilise plusieurs centaines de mégaoctets de tampons flottants. Ajouter des cœurs accélère peu ; manquer de mémoire fait paginer, et la pagination coûte bien plus que tout ce que la concurrence rapporte.
+This document answers: **what machine does Leyline run on, and from what floor?**
 
-D'où la règle de dimensionnement :
+Every value below is **measured**, never estimated from a plausible order of magnitude. The measurement conditions are in §2.1 and the procedure to reproduce them in §7: a figure in this document that no longer reproduces is a figure to correct, not to keep.
+
+Out of scope here: the **build** prerequisites (pinned Rust toolchain, LibRaw, Lensfun, LittleCMS, nasm), which are in [`contributing.md`](contributing.md), and the contents of the installers, which are in [ADR 0019](adr/0019-distribution-i18n.md).
+
+---
+
+# 2. The limiting factor is memory
+
+It is not the processor. **One** photo's pipeline cannot fill a modern machine — a batch of 12 files at 30 Mpx measured 280 % of 1,600 % on sixteen threads ([ADR 0068](adr/0068-concurrent-export-batch.md)) — but every photo in flight ties up several hundred megabytes of floating-point buffers. Adding cores speeds things up little; running out of memory makes the machine page, and paging costs far more than concurrency ever returns.
+
+Hence the sizing rule:
 
 ```
-RAM ≈ 300 Mo (Studio et son catalogue)
-    + concurrence × (Mpx / 30) × 700 Mo
+RAM ≈ 300 MB (Studio and its catalog)
+    + degree × (Mpx / 30) × 700 MB
 ```
 
-où `concurrence` est le nombre de photos qu'un lot d'export traite à la fois ([§3.1](#31-la-concurrence-dexport-suit-la-machine)).
+where `degree` is the number of photos an export batch processes at a time ([§3.1](#31-the-export-degree-follows-the-machine)).
 
-## 2.1 Les mesures
+## 2.1 The measurements
 
-Conditions : build `--release` du 2026-08-25, Intel i9-9900K (8 cœurs / 16 threads), 32 Gio disponibles, Linux. Corpus : trois CR2 de Canon 5D IV (30 Mpx, ~65 Mo pièce) et 199 JPEG de provenances variées.
+Conditions: `--release` build of 2026-08-25, Intel i9-9900K (8 cores / 16 threads), 32 GiB available, Linux. Corpus: three Canon 5D IV CR2 files (30 Mpx, ~65 MB each) and 199 JPEGs of varied origin.
 
-| Action | Pic mémoire | Temps |
+| Action | Peak memory | Time |
 |---|---|---|
-| Studio ouvert sur une bibliothèque, au repos | **178 Mo** | — |
-| Import de 3 RAW (EXIF + miniatures) | 313 Mo | 3,2 s |
-| Import de 199 JPEG | 133 Mo | 8,7 s |
-| Aperçu `small` — 1024 px, la vue develop | 220 Mo | 1,3 s |
-| Aperçu `large` | 665 Mo | 5,5 s |
-| Aperçu `full` — pleine résolution | 990 Mo | 11,5 s |
-| Export de 3 JPEG, `--concurrency 1` | 760 Mo | 7,1 s |
-| Export de 3 JPEG, `--concurrency 2` | 1,26 Go | 5,0 s |
-| Export de 3 JPEG, `--concurrency 4` | **1,80 Go** | 3,1 s |
+| Studio open on a library, idle | **178 MB** | — |
+| Importing 3 RAW files (EXIF + thumbnails) | 313 MB | 3.2 s |
+| Importing 199 JPEGs | 133 MB | 8.7 s |
+| `small` preview — 1024 px, the develop view | 220 MB | 1.3 s |
+| `large` preview | 665 MB | 5.5 s |
+| `full` preview — full resolution | 990 MB | 11.5 s |
+| Exporting 3 JPEGs, `--concurrency 1` | 760 MB | 7.1 s |
+| Exporting 3 JPEGs, `--concurrency 2` | 1.26 GB | 5.0 s |
+| Exporting 3 JPEGs, `--concurrency 4` | **1.80 GB** | 3.1 s |
 
-Deux lectures de ce tableau :
+Two readings of that table:
 
-* **Le pic d'un export est proportionnel à la concurrence**, linéairement : ~700 Mo par photo en vol à 30 Mpx, au-delà du gigaoctet à 45 Mpx. C'est la seule ligne qui puisse mettre une machine à genoux.
-* **Un aperçu pleine résolution coûte presque autant qu'un export**, et c'est un geste que l'utilisateur fait sans y penser. Une machine dimensionnée au plus juste doit pouvoir absorber ce gigaoctet-là.
+* **An export's peak is proportional to the degree**, linearly: ~700 MB per photo in flight at 30 Mpx, past a gigabyte at 45 Mpx. It is the only line that can bring a machine to its knees.
+* **A full-resolution preview costs almost as much as an export**, and it is a gesture the user makes without thinking. A machine sized to the bone must be able to absorb that gigabyte.
 
-Le rendu interactif, lui, ne pèse rien : un curseur déplacé sur une photo déjà ouverte redessine en 11 à 15 ms depuis le proxy en cache ([ADR 0074](adr/0074-live-preview-while-dragging.md), [ADR 0076](adr/0076-proxy-cache.md)), et les caches qui le permettent sont bornés — 64 Mo pour les proxies, ~144 Mo pour les décodages.
+Interactive rendering, by contrast, weighs nothing: a slider dragged on an already-open photo redraws in 11 to 15 ms from the cached proxy ([ADR 0074](adr/0074-live-preview-while-dragging.md), [ADR 0076](adr/0076-proxy-cache.md)), and the caches that make it possible are bounded — 64 MB for proxies, ~144 MB for decodes.
 
 ---
 
-# 3. Les configurations
+# 3. The configurations
 
-| | **Minimale** | **Recommandée** |
+| | **Minimum** | **Recommended** |
 |---|---|---|
-| Processeur | x86-64 de base, 2 cœurs | 4 cœurs / 8 threads |
-| Mémoire | **4 Go** | **16 Go** |
-| Affichage | 1024 × 700 | 1920 × 1080 |
-| Graphique | OpenGL ES 2.0, ou Mesa llvmpipe | GPU matériel |
-| Disque | 100 Mo + le cache (§6) | SSD |
+| Processor | baseline x86-64, 2 cores | 4 cores / 8 threads |
+| Memory | **4 GB** | **16 GB** |
+| Display | 1024 × 700 | 1920 × 1080 |
+| Graphics | OpenGL ES 2.0, or Mesa llvmpipe | a hardware GPU |
+| Disk | 100 MB plus the cache (§6) | an SSD |
 
-**Aucun jeu d'instructions récent n'est exigé.** Le projet ne fixe ni `target-cpu` ni `target-feature` : les binaires sont compilés pour le x86-64 de base (SSE2). Un processeur sans AVX2 fait tourner Leyline. Sur macOS, la cible est arm64.
+**No recent instruction set is required.** The project sets neither `target-cpu` nor `target-feature`: the binaries are compiled for baseline x86-64 (SSE2). A processor without AVX2 runs Leyline. On macOS, the target is arm64.
 
-**Le GPU ne calcule aucun pixel.** Il ne sert qu'à dessiner l'interface. La question d'un pipeline GPU a été posée deux fois et écartée deux fois : par [ADR 0012](adr/0012-rayon-data-parallelism.md) (déterminisme inter-GPU non garanti), puis à nouveau le 2026-08-03 ([`competitive-plan.md`](competitive-plan.md) §B3), une fois l'interaction rendue fluide côté CPU et le GPU interdit à l'export par la promesse de [`pipeline.md`](pipeline.md) §5.1. Une carte graphique plus puissante n'accélère donc **rien** du développement.
+**The GPU computes no pixels.** It only draws the interface. The question of a GPU pipeline has been asked twice and rejected twice: by [ADR 0012](adr/0012-rayon-data-parallelism.md) (inter-GPU determinism not guaranteed), then again on 2026-08-03 ([`competitive-plan.md`](competitive-plan.md) §B3), once interaction had been made fluid on the CPU and the GPU forbidden at export by the promise in [`pipeline.md`](pipeline.md) §5.1. A more powerful graphics card therefore accelerates **nothing** about development.
 
-## 3.1 La concurrence d'export suit la machine
+## 3.1 The export degree follows the machine
 
-Le degré par défaut est `min(4, available_parallelism())` ([ADR 0068](adr/0068-concurrent-export-batch.md) §1) : une machine à deux cœurs traite deux photos à la fois, pas quatre. C'est la disposition qui rend les 4 Go de la colonne « minimale » tenables — deux photos 30 Mpx en vol demandent ~1,3 Go, quatre en demandent 1,8 à 2,4.
+The default degree is `min(4, available_parallelism())` ([ADR 0068](adr/0068-concurrent-export-batch.md) §1): a two-core machine processes two photos at a time, not four. That is what makes the 4 GB of the "minimum" column tenable — two 30 Mpx photos in flight ask for ~1.3 GB, four ask for 1.8 to 2.4.
 
-Sur une machine au plancher **et** un corpus au-delà de 30 Mpx, descendre explicitement à `--concurrency 1` reste le bon réflexe : un lot séquentiel est lent, un lot qui pagine l'est bien davantage.
+On a machine at the floor **and** a corpus beyond 30 Mpx, explicitly dropping to `--concurrency 1` remains the right reflex: a sequential batch is slow, a batch that pages is far slower.
 
-À l'inverse, une machine large gagne à monter : 6 photos en vol prennent 3,4× contre 2,8×, pour ~3,3 Go de pointe.
+Conversely, a large machine gains by raising it: 6 photos in flight take 3.4× instead of 2.8×, for ~3.3 GB of peak.
 
 ---
 
-# 4. Systèmes d'exploitation
+# 4. Operating systems
 
-| Plateforme | Plancher | Format livré |
+| Platform | Floor | Delivered as |
 |---|---|---|
-| Linux | glibc **2.35** — Ubuntu 22.04, Debian 12 ou plus récent | AppImage |
-| Windows | Windows 10 | installateur NSIS |
+| Linux | glibc **2.35** — Ubuntu 22.04, Debian 12 or newer | AppImage |
+| Windows | Windows 10 | NSIS installer |
 | macOS | arm64 | `.dmg` |
 
-Le plancher Linux n'est pas une décision d'architecture : c'est la glibc de la machine qui a compilé l'AppImage. Le construire sur une distribution plus ancienne l'abaisse d'autant, sans rien changer au code.
+The Linux floor is not an architectural decision: it is the glibc of the machine that built the AppImage. Building it on an older distribution lowers it accordingly, without changing a line of code.
 
 ---
 
-# 5. Affichage et carte graphique
+# 5. Display and graphics card
 
-Studio déclare `min-width: 1024px` et `min-height: 700px` ; sa fenêtre s'ouvre par défaut aux deux tiers de l'écran détecté, jamais en dessous de ces bornes. Un 1024 × 768 fonctionne, un 1280 × 800 est confortable.
+Studio declares `min-width: 1024px` and `min-height: 700px`; its window opens by default at two thirds of the detected screen, never below those bounds. A 1024 × 768 display works, a 1280 × 800 is comfortable.
 
-Le rendu de l'interface passe par Slint et son moteur femtovg, qui demande **OpenGL ES 2.0**. Sans GPU matériel, le chemin correct est le pilote logiciel OpenGL de Mesa :
+The interface is rendered through Slint and its femtovg renderer, which requires **OpenGL ES 2.0**. Without a hardware GPU, the correct path is Mesa's software OpenGL driver:
 
 ```bash
 LIBGL_ALWAYS_SOFTWARE=1 leyline-studio
 ```
 
-**Ce qui n'est pas le chemin correct : `SLINT_BACKEND=winit-software`.** Le renderer logiciel de Slint démarre sans erreur et ne dessine **aucun élément `Path`** : les surimpressions de masque et les contours d'histogramme disparaissent, en silence, sans que rien ne signale que l'affichage est incomplet. Un défaut invisible est pire qu'un refus de démarrer ; ce backend ne doit pas être présenté comme un repli.
+**What is not the correct path: `SLINT_BACKEND=winit-software`.** Slint's software renderer starts without error and draws **no `Path` element at all**: mask overlays and histogram outlines disappear, silently, with nothing to signal that the display is incomplete. A silent defect is worse than a refusal to start; that backend must not be presented as a fallback.
 
 ---
 
-# 6. Disque
+# 6. Disk
 
-## 6.1 L'installation
+## 6.1 The installation
 
-L'AppImage pèse 26 Mio et l'installateur Windows 30 Mo, fond de carte mondial compris ([ADR 0059](adr/0059-bundled-world-basemap.md) — 9 Mo de tuiles z0–5, embarquées pour que la vue carte n'émette jamais une requête réseau). À titre de comparaison, darktable en pèse 108.
+The AppImage weighs 26 MiB and the Windows installer 30 MB, world basemap included ([ADR 0059](adr/0059-bundled-world-basemap.md) — 9 MB of z0–5 tiles, embedded so that the map view never issues a network request). For comparison, darktable weighs 108.
 
-## 6.2 La bibliothèque
+## 6.2 The library
 
-Les photos dominent tout le reste. Ce que Leyline ajoute par-dessus, mesuré :
+The photos dominate everything else. What Leyline adds on top, measured:
 
-| Poste | Coût | Pour 15 000 photos |
+| Item | Cost | For 15,000 photos |
 |---|---|---|
-| Catalogue SQLite | 1,7 Ko/photo (+ 264 Ko de schéma) | ~26 Mo |
-| Miniatures | 86 Kio/photo | ~1,3 Go |
-| Aperçus d'une photo **retouchée** | ~2 Mo | proportionnel aux seules photos éditées |
+| SQLite catalog | 1.7 kB/photo (plus 264 kB of schema) | ~26 MB |
+| Thumbnails | 86 KiB/photo | ~1.3 GB |
+| Previews of an **edited** photo | ~2 MB | proportional to edited photos only |
 
-Un aperçu 1024 px pèse 0,68 Mo, un 2048 px 2,47 Mo, un 4096 px 9,03 Mo. Le cache d'aperçus est borné par une fenêtre de trois révisions plus les têtes ([ADR 0075](adr/0075-preview-cache-retention.md)), donc il croît avec le nombre de photos **effectivement retouchées**, pas avec la taille de la bibliothèque.
+A 1024 px preview weighs 0.68 MB, a 2048 px one 2.47 MB, a 4096 px one 9.03 MB. The preview cache is bounded by a window of three revisions plus the heads ([ADR 0075](adr/0075-preview-cache-retention.md)), so it grows with the number of photos **actually edited**, not with the size of the library.
 
-Un aperçu `full` fait exception : il est gardé tel quel et pèse plusieurs dizaines de mégaoctets par photo. En générer sur des milliers de photos est le seul geste qui fasse exploser le cache.
+A `full` preview is the exception: it is kept as is and weighs several tens of megabytes per photo. Generating them over thousands of photos is the one gesture that makes the cache explode.
 
-## 6.3 Référencer au lieu de copier
+## 6.3 Referencing instead of copying
 
-`leyline import --reference` inscrit les fichiers sans les recopier dans `Photos/`, ce qui évite de doubler l'occupation disque. La contrainte : **les fichiers doivent déjà se trouver sous la racine de la bibliothèque**, puisque le catalogue ne stocke que des chemins relatifs à cette racine ([ADR 0010](adr/0010-relative-paths.md)). Un fichier situé ailleurs est ignoré, avec la raison `file is outside the library root`.
+`leyline import --reference` registers files without copying them into `Photos/`, which avoids doubling the disk footprint. The constraint: **the files must already sit under the library root**, since the catalog stores nothing but paths relative to that root ([ADR 0010](adr/0010-relative-paths.md)). A file located elsewhere is skipped, with the reason `file is outside the library root`.
 
 ---
 
-# 7. Refaire les mesures
+# 7. Reproducing the measurements
 
-Chaque chiffre de §2.1 se reproduit avec les binaires du dépôt, sans harnais particulier :
+Every figure in §2.1 reproduces with the repository's binaries, with no special harness:
 
 ```bash
-# Pic mémoire et temps de n'importe quelle commande
-/usr/bin/time -f "%M Kio  %e s  %P CPU" leyline-cli export <lib> <dest> 1 2 3 --concurrency 4
+# Peak memory and time of any command
+/usr/bin/time -f "%M KiB  %e s  %P CPU" leyline-cli export <lib> <dest> 1 2 3 --concurrency 4
 
-# Studio au repos, sans écran physique
+# Studio idle, with no physical screen
 Xvfb :77 -screen 0 1920x1080x24 &
 DISPLAY=:77 leyline-studio <lib> &
 grep VmHWM /proc/$!/status
 
-# Croissance du catalogue et des miniatures
+# Growth of the catalog and of the thumbnails
 ls -l <lib>/catalog.db && du -sb <lib>/Cache/thumbnails
 ```
 
-La mesure faite sous `Xvfb` passe par llvmpipe : c'est donc aussi le chiffre d'une machine sans GPU matériel.
+The measurement taken under `Xvfb` goes through llvmpipe: it is therefore also the figure for a machine with no hardware GPU.
 
 ---
 
-# 8. Documents liés
+# 8. Related documents
 
-* [`architecture.md`](architecture.md) — les crates et les briques externes dont dépendent ces prérequis.
-* [`contributing.md`](contributing.md) — les prérequis de compilation, distincts de ceux d'exécution.
-* [ADR 0068](adr/0068-concurrent-export-batch.md) — la mesure d'origine du coût mémoire d'une photo en vol.
-* [ADR 0075](adr/0075-preview-cache-retention.md), [ADR 0076](adr/0076-proxy-cache.md) — ce qui borne les caches.
-* [ADR 0019](adr/0019-distribution-i18n.md) — les installateurs par plateforme.
+* [`architecture.md`](architecture.md) — the crates and external building blocks these requirements come from.
+* [`contributing.md`](contributing.md) — the build prerequisites, distinct from the runtime ones.
+* [ADR 0068](adr/0068-concurrent-export-batch.md) — the original measurement of what a photo in flight costs in memory.
+* [ADR 0075](adr/0075-preview-cache-retention.md), [ADR 0076](adr/0076-proxy-cache.md) — what bounds the caches.
+* [ADR 0019](adr/0019-distribution-i18n.md) — the per-platform installers.

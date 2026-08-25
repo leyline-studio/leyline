@@ -6,93 +6,93 @@
 >
 > *Fast. Local. Open.*
 
-Leyline est une plateforme de développement photographique RAW : un moteur, et les applications construites autour de lui.
+Leyline is a RAW photographic development platform: an engine, and the applications built around it.
 
-* **Leyline** — la plateforme (le dépôt, les crates, la documentation).
-* **Leyline Engine** — le moteur de rendu et de catalogue. Indépendant de toute interface.
-* **Leyline Studio** — l'application de bureau. Un client du moteur parmi d'autres, au même titre que la CLI et le SDK.
+* **Leyline** — the platform (the repository, the crates, the documentation).
+* **Leyline Engine** — the rendering and catalog engine. Independent of any interface.
+* **Leyline Studio** — the desktop application. One client of the engine among others, on the same footing as the CLI and the SDK.
 
-L'objectif n'est pas de reproduire Lightroom fonctionnalité par fonctionnalité, mais de bâtir une plateforme sans abonnement, sans cloud et sans format propriétaire, dont l'architecture reste maintenable dans vingt ans. Le *pourquoi* est développé dans [`vision.md`](vision.md).
+The aim is not to reproduce Lightroom feature by feature, but to build a platform with no subscription, no cloud and no proprietary format, whose architecture stays maintainable twenty years from now. The *why* is developed in [`vision.md`](vision.md).
 
 ---
 
-## État du projet — août 2026
+## Project status — August 2026
 
-**Le périmètre V1 est intégralement livré**, sur les trois clients (Studio, CLI, SDK) : import, catalogue, miniatures, EXIF, pipeline de développement non destructif complet, correction d'objectif, gestion des couleurs, presets, retraitement, export JPEG/TIFF/WebP/AVIF, impression, tethering, dossier surveillé, vue carte, installateurs et interface multilingue.
+**The V1 scope is delivered in full**, on all three clients (Studio, CLI, SDK): import, catalog, thumbnails, EXIF, the complete non-destructive develop pipeline, lens correction, colour management, presets, reprocessing, JPEG/TIFF/WebP/AVIF export, printing, tethering, watched folder, map view, installers and a multilingual interface.
 
-**Les sept fonctionnalités cadrées pour la V2 le sont aussi** ([`v2-scope.md`](v2-scope.md)) : courbe tonale, suppression de tache, réglages locaux masqués et masques par plage, mélangeur TSL et color grading, clarté/texture/dehaze, filigrane texte et épreuvage écran, profils caméra DCP (expérimental). S'y ajoutent le débruitage préservant les contours, la lecture des sidecars XMP, la reconstruction des hautes lumières, la correction de perspective et les LUT créatives `.cube`.
+**The seven features scoped for V2 are delivered too** ([`v2-scope.md`](v2-scope.md)): tone curve, spot removal, masked local adjustments and range masks, HSL mixer and colour grading, clarity/texture/dehaze, text watermark and soft proofing, DCP camera profiles (experimental). To which are added edge-preserving denoising, reading XMP sidecars, highlight reconstruction, perspective correction and creative `.cube` LUTs.
 
-Le rendu repose sur un pipeline d'étages versionnés ([ADR 0042](adr/0042-versioned-stage-pipeline.md), [ADR 0043](adr/0043-collapse-prerelease-render-history.md)) travaillant en lumière linéaire large gamut ([ADR 0044](adr/0044-linear-wide-gamut-working-space.md)) : c'est ce qui porte la promesse de reproductibilité de [`pipeline.md`](pipeline.md) §5.
+Rendering rests on a pipeline of versioned stages ([ADR 0042](adr/0042-versioned-stage-pipeline.md), [ADR 0043](adr/0043-collapse-prerelease-render-history.md)) working in linear wide-gamut light ([ADR 0044](adr/0044-linear-wide-gamut-working-space.md)): that is what carries the reproducibility promise of [`pipeline.md`](pipeline.md) §5.
 
-Ce qui reste ouvert :
+What remains open:
 
-| Sujet | État |
+| Subject | State |
 |---|---|
-| Justesse colorimétrique des profils DCP | Non validée contre de vrais `.dcp` Adobe — fonctionnalité signalée comme expérimentale ([ADR 0035](adr/0035-camera-profile-dcp.md)) |
-| Retouches locales : pipette de plage, poignées de déplacement | Laissé hors périmètre par [ADR 0049](adr/0049-local-adjustments-clients.md) ; la surimpression du masque, elle, est livrée ([ADR 0071](adr/0071-mask-overlay.md)) |
-| Masques détectés | La **prise** est livrée ([ADR 0073](adr/0073-external-mask-detectors.md)) : Studio sait appeler un détecteur externe. Aucun détecteur n'est distribué avec Leyline, et aucun modèle n'est embarqué |
-| Première publication | Aucun binaire publié, aucune version coupée ; la documentation est en français |
+| Colorimetric accuracy of DCP profiles | Not validated against real Adobe `.dcp` files — the feature is flagged as experimental ([ADR 0035](adr/0035-camera-profile-dcp.md)) |
+| Local adjustments: range eyedropper, drag handles | Left out of scope by [ADR 0049](adr/0049-local-adjustments-clients.md); the mask overlay itself is delivered ([ADR 0071](adr/0071-mask-overlay.md)) |
+| Detected masks | The **socket** is delivered ([ADR 0073](adr/0073-external-mask-detectors.md)): Studio knows how to call an external detector. No detector ships with Leyline, and no model is embedded |
+| First publication | No binary published, no version cut |
 
-Le reste du travail est de la robustesse, de la performance et du polissage, non des fonctionnalités manquantes.
-
----
-
-## Par où commencer
-
-**Pour comprendre le projet** — lire dans cet ordre, environ trente minutes :
-
-1. [`vision.md`](vision.md) — *pourquoi* le projet existe, pour qui, et ce qu'il refuse d'être.
-2. [`architecture.md`](architecture.md) — *comment* il est découpé : les crates, leurs dépendances, les choix techniques et leurs raisons.
-3. [`specification.md`](specification.md) — *quoi* : le périmètre livré, et ce qui est volontairement exclu.
-
-**Pour contribuer au code** — enchaîner avec :
-
-4. [`contributing.md`](contributing.md) — style, commits, licence, CLA, et la procédure d'ajout ou de correction d'un étage de rendu.
-5. [`pipeline.md`](pipeline.md) — le contrat de rendu. À lire **avant** de toucher au moteur : il définit ce qu'est une version d'étage et ce que le projet promet sur la reproductibilité d'un rendu (§5).
-6. [`adr/`](adr/README.md) — 59 décisions structurantes, chacune avec son contexte, ses alternatives écartées et ses conséquences. C'est là que se trouve le *pourquoi* de presque tout ce qui surprend dans le code.
-
-**Pour intégrer le moteur** — [`engine-api.md`](engine-api.md), puis le crate `leyline-sdk`, qui est la surface publique stable.
+The rest of the work is robustness, performance and polish, not missing features.
 
 ---
 
-## Carte de la documentation
+## Where to start
 
-Les documents **de lecture** se lisent d'un bout à l'autre. Les documents **de référence** se consultent : on y cherche une réponse précise, on ne les lit pas linéairement.
+**To understand the project** — read in this order, about thirty minutes:
 
-| Document | Répond à | Nature |
+1. [`vision.md`](vision.md) — *why* the project exists, for whom, and what it refuses to be.
+2. [`architecture.md`](architecture.md) — *how* it is divided: the crates, their dependencies, the technical choices and their reasons.
+3. [`specification.md`](specification.md) — *what*: the delivered scope, and what is deliberately excluded.
+
+**To contribute code** — carry on with:
+
+4. [`contributing.md`](contributing.md) — style, commits, licence, CLA, and the procedure for adding or fixing a render stage.
+5. [`pipeline.md`](pipeline.md) — the render contract. To be read **before** touching the engine: it defines what a stage version is and what the project promises about the reproducibility of a render (§5).
+6. [`adr/`](adr/README.md) — 79 structural decisions, each with its context, its rejected alternatives and its consequences. That is where the *why* of almost everything surprising in the code lives.
+
+**To integrate the engine** — [`engine-api.md`](engine-api.md), then the `leyline-sdk` crate, which is the stable public surface.
+
+---
+
+## Map of the documentation
+
+**Reading** documents are read end to end. **Reference** documents are consulted: you look for a precise answer in them, you do not read them linearly.
+
+| Document | Answers | Nature |
 |---|---|---|
-| [`vision.md`](vision.md) | Pourquoi ce projet, pour qui, avec quels principes | Lecture |
-| [`architecture.md`](architecture.md) | Quels crates, quelles dépendances, quelles briques externes | Lecture |
-| [`specification.md`](specification.md) | Qu'est-ce qui est livré, qu'est-ce qui est exclu | Lecture |
-| [`roadmap.md`](roadmap.md) | Où en est le projet, phase par phase | Lecture |
-| [`contributing.md`](contributing.md) | Comment contribuer, sous quelle licence, comment toucher au pipeline | Lecture |
-| [`pipeline.md`](pipeline.md) | Ordre des opérations, `settings_json`, versions d'étages, reproductibilité | Référence |
-| [`catalog.md`](catalog.md) | Schéma SQLite complet du catalogue | Référence |
-| [`engine-api.md`](engine-api.md) | Surface Rust du moteur, modèle d'exécution, sessions d'édition | Référence |
-| [`presets.md`](presets.md) | Presets de développement : modèle et comportement | Référence |
-| [`system-requirements.md`](system-requirements.md) | Sur quelle machine Leyline tourne, et à partir de quel plancher | Référence |
-| [`v2-scope.md`](v2-scope.md) | Cadrage des fonctionnalités post-V1 | Référence |
-| [`v2-implementation-plan.md`](v2-implementation-plan.md) | Séquencement recommandé de ces fonctionnalités | Référence |
-| [`competitive-plan.md`](competitive-plan.md) | Où Leyline perd face aux logiciels établis, et dans quel ordre le reprendre | Référence |
-| [`adr/`](adr/README.md) | Pourquoi telle décision plutôt qu'une autre | Référence |
+| [`vision.md`](vision.md) | Why this project, for whom, on what principles | Reading |
+| [`architecture.md`](architecture.md) | Which crates, which dependencies, which external building blocks | Reading |
+| [`specification.md`](specification.md) | What is delivered, what is excluded | Reading |
+| [`roadmap.md`](roadmap.md) | Where the project stands, phase by phase | Reading |
+| [`contributing.md`](contributing.md) | How to contribute, under which licence, how to touch the pipeline | Reading |
+| [`pipeline.md`](pipeline.md) | Order of operations, `settings_json`, stage versions, reproducibility | Reference |
+| [`catalog.md`](catalog.md) | The catalog's complete SQLite schema | Reference |
+| [`engine-api.md`](engine-api.md) | The engine's Rust surface, execution model, edit sessions | Reference |
+| [`presets.md`](presets.md) | Develop presets: model and behaviour | Reference |
+| [`system-requirements.md`](system-requirements.md) | What machine Leyline runs on, and from what floor | Reference |
+| [`v2-scope.md`](v2-scope.md) | Scoping of post-V1 features | Reference |
+| [`v2-implementation-plan.md`](v2-implementation-plan.md) | Recommended sequencing of those features | Reference |
+| [`competitive-plan.md`](competitive-plan.md) | Where Leyline loses against established software, and in which order to take it back | Reference |
+| [`adr/`](adr/README.md) | Why one decision rather than another | Reference |
 
 ---
 
-## Une seule source par sujet
+## One source per subject
 
-Chaque sujet a **un** document propriétaire, et lui seul fait foi. Les autres y renvoient au lieu de recopier — une information dupliquée finit toujours par diverger, et le lecteur n'a alors aucun moyen de savoir quelle copie est à jour.
+Every subject has **one** owning document, and it alone is authoritative. The others link to it instead of copying — duplicated information always ends up diverging, and the reader then has no way of knowing which copy is current.
 
-En cas de désaccord entre un document et le code, c'est le document qui fait foi : la règle du projet est que le code suit la spécification, et qu'une divergence assumée se règle en modifiant la spécification dans le même changement (plus un ADR si la décision est structurante).
+Where a document and the code disagree, the document is authoritative: the project's rule is that code follows the specification, and that a deliberate divergence is settled by amending the specification in the same change (plus an ADR if the decision is structural).
 
 ---
 
 ## Licence
 
-Leyline est publié sous **GPL-3.0**.
+Leyline is published under **GPL-3.0**.
 
-* Moteur et application intégralement Open Source, fonctionnement hors ligne, aucune expiration de licence.
-* Des licences commerciales sont prévues à terme (modèle double licence, type Qt) ; la version *community* reste intégralement GPL.
-* Les contributions sont soumises à un CLA — voir [`contributing.md`](contributing.md) et [ADR 0009](adr/0009-gpl3-cla-dual-license.md).
+* Engine and application entirely Open Source, offline operation, no licence expiry.
+* Commercial licences are planned in time (a dual-licence model, Qt-style); the *community* version stays entirely GPL.
+* Contributions are subject to a CLA — see [`contributing.md`](contributing.md) and [ADR 0009](adr/0009-gpl3-cla-dual-license.md).
 
 ---
 

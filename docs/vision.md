@@ -1,96 +1,96 @@
 # Vision
 
-Ce document répond à une seule question : **pourquoi Leyline existe**. Le découpage technique est dans [`architecture.md`](architecture.md), le périmètre fonctionnel dans [`specification.md`](specification.md).
+This document answers one question: **why Leyline exists**. The technical breakdown is in [`architecture.md`](architecture.md), the functional scope in [`specification.md`](specification.md).
 
 ---
 
 ## Mission
 
-Créer une plateforme open source de développement RAW moderne, rapide et durable.
+Build an open source RAW development platform that is modern, fast and durable.
 
-Leyline n'est pas un moteur de plus derrière une interface : c'est un moteur autour duquel plusieurs applications peuvent être construites — Studio, la CLI, un SDK, et ce que d'autres en feront.
-
----
-
-## Le constat de départ
-
-Un photographe amateur exigeant a, aujourd'hui, essentiellement deux options :
-
-* **Adobe Lightroom** — performant et cohérent, mais conditionné à un abonnement : cesser de payer, c'est perdre l'accès à son propre travail d'édition.
-* **Les alternatives libres** — souvent très puissantes, parfois difficiles d'accès, et fréquemment héritières d'architectures anciennes qui rendent chaque évolution coûteuse.
-
-Leyline propose une troisième voie : un logiciel rapide, moderne, local, multiplateforme, agréable à utiliser, entièrement non destructif, et dont l'architecture est propre **dès le départ** — parce qu'aucune architecture ne se redresse après coup à coût raisonnable.
+Leyline is not one more engine behind an interface: it is an engine around which several applications can be built — Studio, the CLI, an SDK, and whatever others make of it.
 
 ---
 
-## Principes
+## The starting observation
 
-Six principes, dans cet ordre de priorité :
+A demanding amateur photographer has, today, essentially two options:
 
-**Local First.** Le logiciel fonctionne intégralement hors connexion. Le réseau ne sert qu'à des usages optionnels et explicites : vérifier qu'une mise à jour existe, la télécharger, éventuellement partager un preset. Aucune fonctionnalité d'édition ne dépend d'une connexion.
+* **Adobe Lightroom** — capable and coherent, but conditional on a subscription: stop paying and you lose access to your own editing work.
+* **The free alternatives** — often very powerful, sometimes hard to approach, and frequently heirs to older architectures that make every evolution expensive.
 
-**Non destructif.** Un fichier RAW n'est **jamais** modifié. Toutes les corrections sont enregistrées séparément, sous forme d'un pipeline d'étapes indépendantes. Le corollaire est une promesse forte : les mêmes réglages sur le même RAW donnent les mêmes pixels dans dix ans — sa portée exacte est définie dans [`pipeline.md`](pipeline.md) §5.
-
-**Rapide.** Les performances ne sont pas une optimisation de fin de parcours ; elles conditionnent le choix du langage, la structure du cache et le modèle de rendu.
-
-**Modulaire.** Chaque crate a une responsabilité unique, et le moteur ignore jusqu'à l'existence de l'interface graphique.
-
-**Pérenne.** Chaque décision structurante est consignée dans un ADR, avec son contexte, ses alternatives écartées et ses conséquences. Un mainteneur de 2036 doit pouvoir reconstituer *pourquoi* une chose est ainsi, pas seulement constater qu'elle l'est.
-
-**Open Source.** Le cœur est publié sous licence libre, afin que la plateforme puisse continuer d'évoluer indépendamment de toute entreprise — y compris de son auteur.
+Leyline offers a third way: software that is fast, modern, local, cross-platform, pleasant to use, entirely non-destructive, and whose architecture is clean **from the start** — because no architecture is ever straightened out afterwards at a reasonable cost.
 
 ---
 
-## Ce que le photographe possède
+## Principles
 
-**Ses données.** Aucun cloud obligatoire, aucun abonnement, aucun verrou propriétaire. Tout est stocké localement : le catalogue ne contient que des références, des métadonnées, des réglages, des collections et des index — jamais les photos elles-mêmes.
+Six principles, in this order of priority:
 
-**Ses RAW.** Le fichier d'origine est traité comme une pièce d'archive : lu, jamais réécrit.
+**Local First.** The software works entirely offline. The network serves optional, explicit purposes only: checking that an update exists, downloading it, possibly sharing a preset. No editing feature depends on a connection.
 
-**Son travail d'édition.** Les réglages sont stockés dans un format documenté ([`pipeline.md`](pipeline.md) §3.2), dans une base SQLite ordinaire ([`catalog.md`](catalog.md)). Rien n'est chiffré ni obfusqué : un catalogue Leyline reste lisible même sans Leyline.
+**Non-destructive.** A RAW file is **never** modified. Every correction is stored separately, as a pipeline of independent steps. The corollary is a strong promise: the same settings on the same RAW give the same pixels ten years from now — its exact scope is defined in [`pipeline.md`](pipeline.md) §5.
+
+**Fast.** Performance is not an end-of-the-road optimisation; it governs the choice of language, the structure of the cache and the rendering model.
+
+**Modular.** Every crate has a single responsibility, and the engine is unaware that a graphical interface even exists.
+
+**Built to last.** Every structural decision is recorded in an ADR, with its context, its rejected alternatives and its consequences. A maintainer in 2036 must be able to reconstruct *why* a thing is the way it is, not merely observe that it is.
+
+**Open Source.** The core is published under a free licence, so that the platform can keep evolving independently of any company — including its author's.
 
 ---
 
-## Ce que Leyline n'est pas
+## What the photographer owns
 
-Leyline n'est ni un clone de Lightroom, ni de darktable, ni de Capture One. Certaines de leurs solutions sont reprises quand elles sont bonnes, et écartées avec une raison écrite quand elles ne le sont pas — voir par exemple [ADR 0042](adr/0042-versioned-stage-pipeline.md), qui compare explicitement les trois approches du gel de rendu avant de trancher.
+**Their data.** No mandatory cloud, no subscription, no proprietary lock. Everything is stored locally: the catalog holds only references, metadata, settings, collections and indexes — never the photos themselves.
 
-Ce n'est pas non plus un projet qui accumule les fonctionnalités : les exclusions de [`specification.md`](specification.md) sont des décisions, pas des retards.
+**Their RAW files.** The original file is treated as an archival item: read, never rewritten.
+
+**Their editing work.** Settings are stored in a documented format ([`pipeline.md`](pipeline.md) §3.2), inside an ordinary SQLite database ([`catalog.md`](catalog.md)). Nothing is encrypted or obfuscated: a Leyline catalog stays readable even without Leyline.
 
 ---
 
-## Ordre de travail
+## What Leyline is not
 
-* Vision avant architecture.
-* Architecture avant implémentation.
-* Documentation avant code.
-* API avant interface graphique.
-* Simplicité avant accumulation de fonctionnalités.
+Leyline is not a clone of Lightroom, nor of darktable, nor of Capture One. Some of their solutions are taken up when they are good, and rejected with a written reason when they are not — see for instance [ADR 0042](adr/0042-versioned-stage-pipeline.md), which explicitly compares all three approaches to freezing a render before deciding.
+
+Nor is it a project that accumulates features: the exclusions in [`specification.md`](specification.md) are decisions, not delays.
+
+---
+
+## Order of work
+
+* Vision before architecture.
+* Architecture before implementation.
+* Documentation before code.
+* API before graphical interface.
+* Simplicity before feature accumulation.
 
 > **No code before architecture. No architecture before vision.**
 
 ---
 
-## Public visé
+## Intended audience
 
-**L'amateur passionné** — quelques milliers de photos par an, veut cesser de payer un abonnement, cherche un flux de travail simple et rapide.
+**The passionate amateur** — a few thousand photos a year, wants to stop paying a subscription, looks for a simple, fast workflow.
 
-**L'amateur expert** — bibliothèque importante, utilise la notation, les collections, les mots-clés et le traitement par lots.
+**The expert amateur** — a large library, uses ratings, collections, keywords and batch processing.
 
-**Le développeur** — se sert du moteur comme d'un SDK Rust, ou de la CLI dans ses propres scripts. Ce public n'est pas un bonus : c'est lui qui justifie que le moteur soit indépendant de l'interface.
+**The developer** — uses the engine as a Rust SDK, or the CLI inside their own scripts. This audience is not a bonus: it is what justifies the engine being independent of the interface.
 
 ---
 
-## Pourquoi « Leyline »
+## Why "Leyline"
 
-Le nom vient des *ley lines*, ces lignes théoriques reliant des lieux remarquables. L'image décrit exactement le fonctionnement interne du logiciel : une photographie suit un chemin composé de transformations, chaque opération reliée à la suivante. Développer une photo devient un parcours.
+The name comes from *ley lines*, those theoretical lines connecting notable places. The image describes exactly how the software works inside: a photograph follows a path made of transformations, each operation linked to the next. Developing a photo becomes a journey.
 
-D'où : **Leyline** pour la plateforme, **Leyline Engine** pour le moteur, **Leyline Studio** pour l'application.
+Hence: **Leyline** for the platform, **Leyline Engine** for the engine, **Leyline Studio** for the application.
 
 ---
 
 ## Ambition
 
-Construire une plateforme photographique ouverte, performante et élégante, dont l'architecture soit encore maintenable dans dix ou vingt ans, où chaque décision est documentée, chaque choix technique justifié, chaque module indépendant — et où les photographes restent propriétaires de leurs images.
+To build an open, fast and elegant photographic platform whose architecture is still maintainable in ten or twenty years, where every decision is documented, every technical choice justified, every module independent — and where photographers remain the owners of their images.
 
-Le premier utilisateur de Leyline est son créateur. Si la vision est partagée par d'autres photographes et développeurs, le projet pourra devenir une référence open source du développement RAW.
+Leyline's first user is its creator. If the vision is shared by other photographers and developers, the project may become an open source reference for RAW development.

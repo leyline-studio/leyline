@@ -1,142 +1,142 @@
 # Architecture
 
-Ce document répond à : **comment le projet est découpé, et pourquoi ainsi**. Le *pourquoi* du projet lui-même est dans [`vision.md`](vision.md) ; ce qu'il fait, dans [`specification.md`](specification.md).
+This document answers: **how the project is divided, and why that way**. The *why* of the project itself is in [`vision.md`](vision.md); what it does, in [`specification.md`](specification.md).
 
 ---
 
-## Le principe directeur
+## The guiding principle
 
-**Le moteur ignore l'existence de l'interface graphique.**
+**The engine is unaware that the graphical interface exists.**
 
-Studio, la CLI et le SDK sont trois clients du même moteur, à égalité. Aucun n'a de passe-droit : ce que Studio sait faire, la CLI et un script Rust le savent faire aussi, parce que tous trois passent par la même surface. Une fonctionnalité qui n'existerait que dans Studio serait le signe d'une erreur de découpage.
+Studio, the CLI and the SDK are three clients of the same engine, as equals. None has a special pass: what Studio can do, the CLI and a Rust script can do too, because all three go through the same surface. A feature that existed only in Studio would be the sign of a mistake in the split.
 
-Cette contrainte a un coût réel — il faut concevoir l'API avant l'écran — et une contrepartie : le moteur reste testable sans interface, remplaçable sans réécrire l'interface, et utilisable par des gens qui n'ouvriront jamais Studio.
+That constraint has a real cost — the API has to be designed before the screen — and a counterpart: the engine stays testable without an interface, replaceable without rewriting the interface, and usable by people who will never open Studio.
 
 ---
 
-## Les crates
+## The crates
 
-Treize crates, chacun avec une responsabilité unique.
+Thirteen crates, each with a single responsibility.
 
-| Crate | Responsabilité |
+| Crate | Responsibility |
 |---|---|
-| `leyline-core` | Types partagés, identifiants, erreurs, `Settings`. Ne dépend de rien. |
-| `leyline-engine` | Orchestration : jobs, événements, rendu, sessions d'édition. Le cœur. |
-| `leyline-raw` | Décodage des fichiers RAW (et JPEG/PNG/TIFF à l'import). |
-| `leyline-catalog` | Catalogue SQLite : bibliothèques, assets, versions, révisions. |
-| `leyline-preview` | Cache d'aperçus et de miniatures. |
-| `leyline-color` | Gestion des couleurs (ICC), lecture des profils DCP. |
-| `leyline-lens` | Corrections d'objectif : distorsion, vignettage, aberration chromatique. |
-| `leyline-tether` | Capture tethering USB via libgphoto2. |
-| `leyline-map` | Lecture de tuiles MBTiles hors-ligne pour la vue carte. |
-| `leyline-export` | Encodage de sortie : JPEG, TIFF, PNG, WebP, AVIF, et impression PDF. |
-| `leyline-detect` | Contrat, découverte et invocation des **détecteurs de masque externes** — des exécutables qui transforment une image en couverture ([ADR 0073](adr/0073-external-mask-detectors.md)). Ne détecte rien lui-même. |
-| `leyline-sdk` | Surface publique stable du moteur. Contrat semver. |
-| `leyline-cli` | Client en ligne de commande. |
-| `leyline-studio` | Application de bureau (Slint). |
+| `leyline-core` | Shared types, identifiers, errors, `Settings`. Depends on nothing. |
+| `leyline-engine` | Orchestration: jobs, events, rendering, edit sessions. The heart. |
+| `leyline-raw` | Decoding RAW files (and JPEG/PNG/TIFF at import). |
+| `leyline-catalog` | The SQLite catalog: libraries, assets, versions, revisions. |
+| `leyline-preview` | Preview and thumbnail cache. |
+| `leyline-color` | Colour management (ICC), reading DCP profiles. |
+| `leyline-lens` | Lens corrections: distortion, vignetting, chromatic aberration. |
+| `leyline-tether` | USB tethered capture through libgphoto2. |
+| `leyline-map` | Reading offline MBTiles tiles for the map view. |
+| `leyline-export` | Output encoding: JPEG, TIFF, PNG, WebP, AVIF, and print-to-PDF. |
+| `leyline-detect` | The contract, discovery and invocation of **external mask detectors** — executables that turn an image into a coverage ([ADR 0073](adr/0073-external-mask-detectors.md)). Detects nothing itself. |
+| `leyline-sdk` | The engine's stable public surface. The semver contract. |
+| `leyline-cli` | The command-line client. |
+| `leyline-studio` | The desktop application (Slint). |
 
 ---
 
-## Sens des dépendances
+## Direction of dependencies
 
 ```
 Studio  →  SDK  →  Engine  →  Core
 ```
 
-`Catalog`, `RAW`, `Color`, `Lens`, `Tether`, `Map`, `Preview` et `Export` sont consommés par `Engine`.
+`Catalog`, `RAW`, `Color`, `Lens`, `Tether`, `Map`, `Preview` and `Export` are consumed by `Engine`.
 
-`leyline-detect` est à part : il ne dépend que de `leyline-core`, le moteur ne le connaît pas, et c'est le SDK qui le ré-exporte pour les clients. Un détecteur de masque n'a rien à faire dans un chemin de rendu (ADR 0073 §2).
+`leyline-detect` stands apart: it depends only on `leyline-core`, the engine does not know it exists, and it is the SDK that re-exports it to clients. A mask detector has no business on a render path (ADR 0073 §2).
 
-**Aucune dépendance circulaire n'est admise.** La règle est vérifiable mécaniquement : `cargo tree` doit rester un arbre.
+**No circular dependency is admitted.** The rule is mechanically verifiable: `cargo tree` must stay a tree.
 
-Deux conséquences qui reviennent souvent en revue :
+Two consequences that come up often in review:
 
-* `leyline-core` ne dépend d'aucun autre crate du projet. Si un type a besoin d'y descendre, c'est qu'il est partagé ; s'il ne l'est pas, il n'y a pas sa place.
-* `leyline-sdk` ne contient **que** des ré-exports. C'est délibéré : le SDK est le contrat semver, ce qui laisse `leyline-engine` libre d'évoluer à chaque version. Son seul mode de défaillance est le *trou* — un type que le moteur rend mais qu'un appelant externe ne peut pas nommer — d'où le test de surface qui l'accompagne.
-
----
-
-## À l'intérieur de Studio
-
-Studio consomme `leyline-sdk` et rien d'autre : `crates/leyline-studio/Cargo.toml` ne déclare qu'une seule dépendance Leyline, et tout `src/` ne référence que `leyline_sdk`. C'est la même position qu'un produit tiers qui intégrerait le SDK. Un besoin auquel Studio répondrait par un détour vers un crate interne est le signe qu'il manque quelque chose à l'API publique : le correctif est d'élargir le SDK, jamais de contourner.
-
-Sous cette contrainte, l'interface se découpe en quatre couches ([ADR 0045](adr/0045-studio-ui-modularisation.md)) :
-
-```
-ui/studio.slint     assemblage : attributs de fenêtre, raccourcis clavier, ordre de montage
-ui/types.slint      structs du contrat Rust ↔ UI, et les gabarits de traduction (Tr)
-ui/state/           un `global` Slint par domaine — la seule surface qui traverse vers Rust
-ui/widgets/         contrôles réutilisables, sans aucune connaissance de l'état
-ui/panels/          les vues (develop, carte, browser), l'overlay de dialogues, la barre de menus
-ui/dialogs/         un fichier par dialogue modal
-```
-
-Côté Rust, `src/wiring/` est le miroir exact de `ui/state/` : un module par global, qui atteint le sien par `Global::<T>::get(&window)` et laisse les autres tranquilles. Autour, `app.rs` (l'état applicatif), `library.rs` (quelle bibliothèque est ouverte), `events.rs` (la pompe d'événements moteur) et `models.rs` (les conversions vers l'affichage) — plus les modules de logique pure `develop.rs`, `map_view.rs`, `format.rs` et `classify.rs`, qui ne connaissent aucun type Slint et sont les seuls testables unitairement.
-
-La règle qui borne l'usage des globals est dans [`contributing.md`](contributing.md#létat-dinterface--global-ou-local-).
+* `leyline-core` depends on no other crate of the project. If a type needs to descend into it, it is because it is shared; if it is not, it does not belong there.
+* `leyline-sdk` contains **nothing but** re-exports. That is deliberate: the SDK is the semver contract, which leaves `leyline-engine` free to evolve with every version. Its only failure mode is the *hole* — a type the engine returns but an external caller cannot name — hence the surface test that goes with it.
 
 ---
 
-## Briques externes
+## Inside Studio
 
-Chaque dépendance lourde a fait l'objet d'une décision écrite.
+Studio consumes `leyline-sdk` and nothing else: `crates/leyline-studio/Cargo.toml` declares a single Leyline dependency, and all of `src/` references only `leyline_sdk`. That is the same position as a third-party product integrating the SDK. A need that Studio answered by a detour into an internal crate is the sign that something is missing from the public API: the fix is to widen the SDK, never to go around it.
 
-| Brique | Rôle | Décision |
+Under that constraint, the interface splits into four layers ([ADR 0045](adr/0045-studio-ui-modularisation.md)):
+
+```
+ui/studio.slint     assembly: window attributes, keyboard shortcuts, mount order
+ui/types.slint      the structs of the Rust ↔ UI contract, and the translation templates (Tr)
+ui/state/           one Slint `global` per domain — the only surface that crosses into Rust
+ui/widgets/         reusable controls, with no knowledge of state
+ui/panels/          the views (develop, map, browser), the dialog overlay, the menu bar
+ui/dialogs/         one file per modal dialog
+```
+
+On the Rust side, `src/wiring/` is the exact mirror of `ui/state/`: one module per global, which reaches its own through `Global::<T>::get(&window)` and leaves the others alone. Around it, `app.rs` (application state), `library.rs` (which library is open), `events.rs` (the engine event pump) and `models.rs` (conversions towards display) — plus the pure-logic modules `develop.rs`, `map_view.rs`, `format.rs` and `classify.rs`, which know no Slint type and are the only ones that can be unit-tested.
+
+The rule that bounds the use of globals is in [`contributing.md`](contributing.md#ui-state--global-or-local).
+
+---
+
+## External building blocks
+
+Every heavy dependency has been the subject of a written decision.
+
+| Building block | Role | Decision |
 |---|---|---|
-| **Rust** | Langage unique du projet | [ADR 0001](adr/0001-rust.md) |
-| **Slint** | Interface graphique de Studio | [ADR 0002](adr/0002-slint.md) |
-| **SQLite** | Base du catalogue | [ADR 0003](adr/0003-sqlite.md) |
-| **LibRaw** | Décodage RAW (branche LGPL) | [ADR 0004](adr/0004-libraw.md) |
-| **Lensfun** | Profils de correction d'objectif | [ADR 0005](adr/0005-lensfun-littlecms.md) |
-| **LittleCMS** | Transformations ICC | [ADR 0005](adr/0005-lensfun-littlecms.md) |
-| **libgphoto2** | Capture tethering USB | [ADR 0038](adr/0038-tethered-capture.md) |
-| **Rayon** | Parallélisme de données du moteur | [ADR 0012](adr/0012-rayon-data-parallelism.md) |
-| **BLAKE3** | Empreintes de fichiers | [ADR 0006](adr/0006-blake3.md) |
-| **kamadak-exif** | Lecture des EXIF des fichiers que LibRaw ne lit pas | [ADR 0056](adr/0056-non-raw-exif-import.md) |
-| **ab_glyph** | Rasterisation des glyphes du filigrane texte | [ADR 0051](adr/0051-watermark-rasterization-and-soft-proof-surface.md) |
-| **DejaVu Sans** (actif, non un crate) | Police embarquée du filigrane, pour un rendu identique sur tout poste | [ADR 0051](adr/0051-watermark-rasterization-and-soft-proof-surface.md) |
-| **rfd** | Sélecteurs de dossier natifs dans Studio | — |
-| **Profils de bruit darktable** (données, non un crate) | Variance mesurée du capteur par boîtier et par sensibilité, gelée avec la version d'étage qui la lit (GPL-3.0-or-later, © les contributeurs de darktable) | [ADR 0072](adr/0072-measured-noise-profile.md) |
+| **Rust** | The project's single language | [ADR 0001](adr/0001-rust.md) |
+| **Slint** | Studio's graphical interface | [ADR 0002](adr/0002-slint.md) |
+| **SQLite** | The catalog's database | [ADR 0003](adr/0003-sqlite.md) |
+| **LibRaw** | RAW decoding (LGPL branch) | [ADR 0004](adr/0004-libraw.md) |
+| **Lensfun** | Lens correction profiles | [ADR 0005](adr/0005-lensfun-littlecms.md) |
+| **LittleCMS** | ICC transforms | [ADR 0005](adr/0005-lensfun-littlecms.md) |
+| **libgphoto2** | USB tethered capture | [ADR 0038](adr/0038-tethered-capture.md) |
+| **Rayon** | The engine's data parallelism | [ADR 0012](adr/0012-rayon-data-parallelism.md) |
+| **BLAKE3** | File checksums | [ADR 0006](adr/0006-blake3.md) |
+| **kamadak-exif** | Reading EXIF from the files LibRaw does not read | [ADR 0056](adr/0056-non-raw-exif-import.md) |
+| **ab_glyph** | Rasterising the glyphs of the text watermark | [ADR 0051](adr/0051-watermark-rasterization-and-soft-proof-surface.md) |
+| **DejaVu Sans** (an asset, not a crate) | The watermark's embedded font, for an identical render on every machine | [ADR 0051](adr/0051-watermark-rasterization-and-soft-proof-surface.md) |
+| **rfd** | Native folder pickers in Studio | — |
+| **darktable noise profiles** (data, not a crate) | Measured sensor variance per camera body and per sensitivity, frozen with the stage version that reads it (GPL-3.0-or-later, © the darktable contributors) | [ADR 0072](adr/0072-measured-noise-profile.md) |
 
-Les raisons de fond, résumées : **Rust** pour des performances proches du C++ avec la sécurité mémoire et une portabilité qui ne coûte rien ; **Slint** parce qu'il est multiplateforme, léger et conçu pour Rust ; **SQLite** parce qu'un catalogue doit être un simple fichier, sans serveur, robuste et rapide — et lisible par n'importe quel outil dans vingt ans.
+The underlying reasons, in short: **Rust** for performance close to C++ with memory safety and portability that costs nothing; **Slint** because it is cross-platform, light and designed for Rust; **SQLite** because a catalog ought to be a plain file, serverless, robust and fast — and readable by any tool twenty years from now.
 
 ---
 
-## Stockage
+## Storage
 
-Une bibliothèque Leyline est **autonome et déplaçable** : tous les chemins qu'elle stocke sont relatifs à sa racine ([ADR 0010](adr/0010-relative-paths.md)).
+A Leyline library is **self-contained and movable**: every path it stores is relative to its root ([ADR 0010](adr/0010-relative-paths.md)).
 
 ```
-Bibliothèque/
- ├─ catalog.db        le catalogue SQLite
- ├─ Photos/           les fichiers importés en mode copie
- ├─ Profiles/         profils ICC et DCP fournis par l'utilisateur
+Library/
+ ├─ catalog.db        the SQLite catalog
+ ├─ Photos/           the files imported in copy mode
+ ├─ Profiles/         ICC and DCP profiles supplied by the user
  └─ cache/
-     ├─ thumbs/       miniatures
-     └─ preview/      aperçus développés
+     ├─ thumbs/       thumbnails
+     └─ preview/      developed previews
 ```
 
-Le catalogue ne contient **jamais** les photos : uniquement les références, les métadonnées, les réglages, les collections et les index. Les aperçus vivent dans un cache dédié, reconstructible par définition — le supprimer ne perd rien. Les RAW ne sont relus que lorsque c'est nécessaire.
+The catalog **never** holds the photos: only references, metadata, settings, collections and indexes. Previews live in a dedicated cache, rebuildable by definition — deleting it loses nothing. RAW files are re-read only when they must be.
 
-Le schéma complet est spécifié dans [`catalog.md`](catalog.md).
-
----
-
-## Le pipeline de développement
-
-Toutes les corrections sont appliquées sous forme d'un pipeline d'étapes indépendantes, du RAW décodé jusqu'à l'encodage de sortie. L'ordre des opérations n'est pas un détail d'implémentation : il fait partie du contrat de rendu, au même titre que les formules.
-
-L'ordre exact, le format `settings_json`, les versions d'étages et la promesse de reproductibilité sont spécifiés dans [`pipeline.md`](pipeline.md) — à lire avant toute intervention sur le moteur.
-
-Côté code, chaque opérateur vit dans son propre module versionné et gelé (`leyline-engine/src/stages/`, un dossier par opérateur, un fichier par version), et le registre `stages.rs` dit à quel rang chaque version s'insère ([ADR 0042](adr/0042-versioned-stage-pipeline.md), [ADR 0043](adr/0043-collapse-prerelease-render-history.md)).
+The complete schema is specified in [`catalog.md`](catalog.md).
 
 ---
 
-## Conventions de développement
+## The develop pipeline
 
-* `cargo fmt`, `cargo clippy` sans le moindre avertissement, tests verts : les trois avant chaque commit.
-* Tests unitaires, tests d'intégration et benchmarks pour chaque fonctionnalité.
-* API publiques documentées.
-* Pas de code mort.
+Every correction is applied as a pipeline of independent steps, from the decoded RAW through to the output encoding. The order of operations is not an implementation detail: it is part of the render contract, exactly as the formulas are.
 
-Le détail est dans [`contributing.md`](contributing.md).
+The exact order, the `settings_json` format, the stage versions and the reproducibility promise are specified in [`pipeline.md`](pipeline.md) — to be read before any intervention on the engine.
+
+In the code, each operator lives in its own versioned and frozen module (`leyline-engine/src/stages/`, one folder per operator, one file per version), and the `stages.rs` registry says at which rank each version is inserted ([ADR 0042](adr/0042-versioned-stage-pipeline.md), [ADR 0043](adr/0043-collapse-prerelease-render-history.md)).
+
+---
+
+## Development conventions
+
+* `cargo fmt`, `cargo clippy` without a single warning, green tests: all three before every commit.
+* Unit tests, integration tests and benchmarks for every feature.
+* Public APIs documented.
+* No dead code.
+
+The detail is in [`contributing.md`](contributing.md).

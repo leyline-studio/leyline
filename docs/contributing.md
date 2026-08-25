@@ -1,167 +1,182 @@
 # Contributing
 
-Ce document est le guide complet, en français comme le reste de `docs/`. La racine porte un [`CONTRIBUTING.md`](../CONTRIBUTING.md) en anglais — GitHub le cherche là — qui en est le résumé et renvoie ici.
+This document is the complete guide. The repository root carries a [`CONTRIBUTING.md`](../CONTRIBUTING.md) — GitHub looks for it there — which is its summary and points back here.
 
-## Philosophie
+## Philosophy
 
-* Lisibilité avant optimisation.
-* Pas de code mort.
-* Documentation obligatoire des API publiques.
-* Tests pour chaque fonctionnalité.
-* Architecture en couches.
-* Pas de dépendances circulaires.
+* Readability before optimisation.
+* No dead code.
+* Public APIs must be documented.
+* Tests for every feature.
+* Layered architecture.
+* No circular dependencies.
 
 ## Style
 
 * rustfmt
-* clippy sans warnings
-* CI verte obligatoire.
+* clippy with no warnings
+* green CI required.
 
-## Commandes
+## Commands
 
-Un `Makefile` à la racine rassemble ce qui revient souvent — `make` seul liste les cibles. Rien n'y est obligatoire : chaque cible n'est qu'une enveloppe autour d'un `cargo` ou d'un script de `packaging/`, et tout reste lançable à la main. L'intérêt est de garder les options exactes en un seul endroit, plusieurs étant faciles à se rappeler de travers.
+A `Makefile` at the root gathers what comes up often — `make` on its own lists the targets. Nothing in it is mandatory: each target is only a wrapper around a `cargo` invocation or a script in `packaging/`, and everything stays runnable by hand. The point is to keep the exact options in a single place, several of them being easy to misremember.
 
-La seule à connaître par cœur :
-
-```bash
-make check      # fmt + clippy + tests — à passer avant chaque commit
-```
-
-Une CI GitHub Actions ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) rejoue ces trois étapes — `fmt`, `clippy -D warnings`, `test --workspace` — sur Linux, Windows et macOS, à **chaque tag `v*`** et sur déclenchement manuel (`workflow_dispatch`), plus sur aucun push ordinaire. La raison : `make check` tourne déjà avant chaque commit, donc rejouer les mêmes trois étapes à chaque push n'apportait qu'un second avis Linux. Ce que la CI seule sait dire, c'est si macOS et Windows compilent encore — une question de publication, pas de commit. Tout changement touchant une dépendance système, un script de build ou la chaîne d'outils mérite en revanche un déclenchement manuel sans attendre le tag. La branche Windows est en `continue-on-error` : le livrable Windows est compilé de façon croisée depuis Linux ([ADR 0019](adr/0019-distribution-i18n.md)), il n'existe pas encore de build natif MSVC. Dans tous les cas elle arrive après coup : `make check` reste ce qui sépare une erreur de `main`.
-
-Les autres, au besoin : `make run` / `make cli` (avec `ARGS=…`), `make golden` et `make golden-bless` (rendus de référence, section suivante), `make test-raw LEYLINE_TEST_RAW=…` (les tests ignorés qui exigent un vrai RAW), `LEYLINE_TEST_DCP=…` (un dossier de vrais profils `.dcp`, non versionnés : œuvre de tiers de licence inconnue), `make bench`, `make i18n` (voir plus bas), et `make windows` / `make appimage` / `make dmg` pour les paquets ([ADR 0019](adr/0019-distribution-i18n.md)). Une publication ajoute `make release-manifest VERSION=x.y.z NOTES=<fichier>`, qui signe les paquets construits et écrit le `latest.json` que la release doit porter ([ADR 0077](adr/0077-application-updates.md) §1) — la clé privée vit hors du dépôt, `LEYLINE_SIGN_KEY` dit où.
-
-## Ajouter ou corriger un étage de rendu
-
-C'est la contribution la plus contrainte du projet, parce que c'est celle qui touche à la promesse « mêmes pixels dans dix ans » ([`pipeline.md`](pipeline.md) §5.1). Le *quoi* est spécifié en §3.3 du même document ; voici le *comment*.
-
-Tout vit dans `crates/leyline-engine/src/stages/` : un module par version d'opérateur (`sharpen/v1.rs`), le registre `STAGES` qui les compose, et `golden.rs` qui les gèle.
-
-### Règle unique
-
-> Une fois publiée, une version d'étage ne bouge plus. Ni son corps, ni son rang, ni la liaison `apply` qui la désigne dans `STAGES`.
-
-Corriger un rendu, c'est donc **ajouter** `v2`, jamais éditer `v1`. Une optimisation qui produit exactement les mêmes octets n'est pas un changement de rendu et reste dans `v1`.
-
-### Corriger un opérateur existant
-
-1. Créer `stages/<opérateur>/v2.rs` et le déclarer dans `stages.rs`. Repartir d'une copie de `v1.rs` est la norme, pas un aveu d'échec : la duplication est le prix du gel ([ADR 0042](adr/0042-versioned-stage-pipeline.md)).
-2. Ajouter une entrée `Version` **à la fin** du tableau `versions` de cet étage — la dernière est celle que le moteur épingle pour les nouvelles révisions.
-3. Choisir son rang : le même que `v1` si la position ne change pas, un rang libre entre deux dizaines sinon. Déplacer un opérateur, c'est ce choix-là, pas une édition du rang existant.
-4. Attention au corps partagé : plusieurs étages passent par `kernel::v1`. Le corriger déplacerait le rendu de tous. Un correctif y crée `kernel::v2`, que seules les nouvelles versions d'étages appellent.
-5. Tester les deux versions dans `stages/tests.rs` : ce que `v2` fait de mieux, et que `v1` fait toujours ce qu'elle faisait.
-
-### Ajouter un opérateur
-
-1. Le réglage d'abord, dans `leyline-core` : champ de `Settings`, valeur neutre dans `Default`, bornes dans `validate()`, documentation. Un paramètre optionnel à valeur neutre n'incrémente pas `schema` (`pipeline.md` §3.4) ; un changement de type, d'unité ou de plage, si.
-2. Le prédicat `active` du `Stage` ne lit **que** les réglages — jamais l'image, le boîtier ou le profil résolu. Il décide à la fois ce qui s'exécute et ce qu'une révision inscrit, et une révision s'écrit sans image en main. L'indisponibilité au rendu (pas de profil Lensfun, pas de DCP) se traite dans `apply`, en laissant les pixels tels quels.
-3. Un étage à sa valeur neutre ne s'exécute pas et n'apparaît pas dans la carte `stages`. C'est ce qui rend un rendu neutre bit-pour-bit identique à l'image décodée.
-4. Un rayon exprimé en pixels se multiplie par `ctx.scale` ([ADR 0041](adr/0041-interactive-preview-rendering.md)), sans quoi la préversion et l'export ne montreront pas le même effet. Ce qui est normalisé dans `[0, 1]` l'ignore.
-5. Déterminisme : pas d'horloge, pas d'ordre d'itération de `HashMap`, aucune réduction flottante inter-threads — la parallélisation se fait par lignes disjointes ([ADR 0012](adr/0012-rayon-data-parallelism.md)).
-6. Une décision structurelle s'écrit en ADR **avant** le code, et la ligne de la table de `pipeline.md` §3.3 fait partie du même changement.
-
-### Les rendus de référence
-
-`stages/golden.rs` épingle, dans `tests/golden/renders.json`, l'empreinte BLAKE3 d'un rendu par famille d'opérateurs **et la carte `stages` qui l'a produite**. Chaque entrée est rejouée à travers sa propre carte : une `v2` ne peut donc pas déplacer une empreinte existante, elle en ajoute une.
-
-Trois gardes :
-
-* chaque entrée épinglée rend toujours exactement ses pixels ;
-* ce que le moteur épinglerait aujourd'hui figure au manifeste ;
-* aucune paire `(étage, version)` publiée n'y échappe — un opérateur qu'aucun cas n'active fait échouer les tests.
+The only one to know by heart:
 
 ```bash
-make golden          # vérifier
-make golden-bless    # ajouter les entrées manquantes
+make check      # fmt + clippy + tests — to be run before every commit
 ```
 
-Le premier de ces gardes ne tourne que sur la plateforme de référence, celle où les empreintes ont été bénies : comparer des octets entre plateformes reviendrait à promettre ce que [`pipeline.md`](pipeline.md) §5.2 refuse d'affirmer. Les deux autres tournent partout.
+A GitHub Actions CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) replays those three steps — `fmt`, `clippy -D warnings`, `test --workspace` — on Linux, Windows and macOS, on **every `v*` tag** and on manual dispatch (`workflow_dispatch`), and on no ordinary push. The reason: `make check` already runs before every commit, so replaying the same three steps on every push added nothing but a second Linux opinion. What CI alone can say is whether macOS and Windows still build — a publication question, not a commit question. Any change touching a system dependency, a build script or the toolchain does deserve a manual dispatch without waiting for the tag. The Windows leg is `continue-on-error`: the Windows deliverable is cross-compiled from Linux ([ADR 0019](adr/0019-distribution-i18n.md)), and there is no native MSVC build yet. In every case CI arrives after the fact: `make check` remains what separates a mistake from `main`.
 
-Le bénissage est **additif** : il n'écrase jamais une entrée existante. Si une empreinte déjà au manifeste change, c'est un défaut — du code gelé a été touché — et il se corrige dans le code, pas dans le manifeste. Les cas eux-mêmes sont gelés pour la même raison : exercer un opérateur autrement, c'est un nouveau cas.
+The others, as needed: `make run` / `make cli` (with `ARGS=…`), `make golden` and `make golden-bless` (reference renders, next section), `make test-raw LEYLINE_TEST_RAW=…` (the ignored tests that require a real RAW file), `LEYLINE_TEST_DCP=…` (a folder of real `.dcp` profiles, unversioned: third-party works of unknown licence), `make bench`, `make i18n` (see below), and `make windows` / `make appimage` / `make dmg` for the packages ([ADR 0019](adr/0019-distribution-i18n.md)). A publication adds `make release-manifest VERSION=x.y.z NOTES=<file>`, which signs the built packages and writes the `latest.json` the release must carry ([ADR 0077](adr/0077-application-updates.md) §1) — the private key lives outside the repository, and `LEYLINE_SIGN_KEY` says where.
 
-## Toucher à l'interface de Studio
+## Adding or fixing a render stage
 
-La découpe des fichiers est décrite dans [`architecture.md`](architecture.md#à-lintérieur-de-studio). Trois règles s'y ajoutent, dont deux sont faciles à enfreindre sans s'en apercevoir.
+This is the most constrained contribution in the project, because it is the one that touches the "same pixels ten years from now" promise ([`pipeline.md`](pipeline.md) §5.1). The *what* is specified in §3.3 of that same document; here is the *how*.
 
-### L'état d'interface : global ou local ?
+Everything lives in `crates/leyline-engine/src/stages/`: one module per operator version (`sharpen/v1.rs`), the `STAGES` registry that composes them, and `golden.rs` that freezes them.
 
-> **Un `global` ne porte que l'état qui traverse la frontière Rust ↔ UI. L'état qui ne concerne qu'un panneau reste une propriété privée de ce panneau.**
+### The single rule
 
-C'est la règle qui empêche `ui/state/` de redevenir la surface plate de 111 propriétés qu'ADR 0045 a démontée. Un accordéon replié, l'outil de glisser actif, le menu ouvert : Rust ne les lit jamais, donc ils n'ont rien à faire dans un global. Si un panneau doit malgré tout exposer quelque chose à la fenêtre, il le fait par sa propre surface — une propriété `in-out`, une `public function`, un `callback` — et non en élargissant un global.
+> Once published, a stage version never moves. Not its body, not its rank, not the `apply` binding that names it in `STAGES`.
 
-Le test est mécanique : si aucun `.get_x()`/`.set_x()`/`.on_x()` côté Rust ne correspond à la propriété, elle ne doit pas être dans `ui/state/`.
+Fixing a render therefore means **adding** `v2`, never editing `v1`. An optimisation that produces exactly the same bytes is not a render change and stays in `v1`.
 
-### Ne jamais poser de géométrie autour du contenu
+### Fixing an existing operator
 
-Slint 1.13 a, dans ce projet, un défaut de planification de repaint : donner à `keys` (le `FocusScope` de `studio.slint`) ou à un ancêtre de ses repeaters — la grille, la liste des collections — **un override de position ou de taille, même inerte**, suffit à faire rester des zones blanches jusqu'à ce qu'un changement structurel force un rafraîchissement. C'est pourquoi les panneaux héritent du type d'élément qu'ils remplacent et ne posent aucune géométrie, et pourquoi une colonne qui doit dégager la hauteur de la barre de menus le fait avec un `Rectangle` d'espacement en enfant supplémentaire. Le commentaire au-dessus de `menu-row` dans `studio.slint` détaille le diagnostic.
+1. Create `stages/<operator>/v2.rs` and declare it in `stages.rs`. Starting from a copy of `v1.rs` is the norm, not an admission of failure: duplication is the price of the freeze ([ADR 0042](adr/0042-versioned-stage-pipeline.md)).
+2. Add a `Version` entry **at the end** of that stage's `versions` array — the last one is what the engine pins for new revisions.
+3. Choose its rank: the same as `v1` if the position does not change, a free rank between two tens otherwise. Moving an operator is that choice, not an edit of the existing rank.
+4. Mind the shared body: several stages go through `kernel::v1`. Fixing it would move the render of all of them. A fix there creates `kernel::v2`, which only new stage versions call.
+5. Test both versions in `stages/tests.rs`: what `v2` does better, and that `v1` still does what it did.
 
-### La fenêtre ne doit jamais hériter d'un maximum de son contenu
+### Adding an operator
 
-Slint déduit les contraintes d'une fenêtre de ce qu'elle contient, et le
-backend winit les transmet au gestionnaire de fenêtres. Une colonne faite de
-lignes à hauteur fixe annonce donc un **maximum** borné, qui remonte jusqu'à
-`StudioWindow` et devient un `program specified maximum size` : la fenêtre ne
-peut plus être maximisée, et chaque recomposition qui change cette borne —
-ouvrir un dialogue, en fermer un, créer une collection — la ré-applique, ce
-qui ramène brutalement une fenêtre maximisée à la taille du contenu.
+1. The setting first, in `leyline-core`: a `Settings` field, a neutral value in `Default`, bounds in `validate()`, documentation. An optional parameter with a neutral value does not increment `schema` (`pipeline.md` §3.4); a change of type, unit or range does.
+2. A `Stage`'s `active` predicate reads **nothing but** the settings — never the image, the camera body or the resolved profile. It decides both what runs and what a revision records, and a revision is written without an image in hand. Unavailability at render time (no Lensfun profile, no DCP) is handled in `apply`, by leaving the pixels as they are.
+3. A stage at its neutral value does not run and does not appear in the `stages` map. That is what makes a neutral render bit-for-bit identical to the decoded image.
+4. A radius expressed in pixels is multiplied by `ctx.scale` ([ADR 0041](adr/0041-interactive-preview-rendering.md)), without which the preview and the export will not show the same effect. Anything normalised to `[0, 1]` ignores it.
+5. Determinism: no clock, no `HashMap` iteration order, no cross-thread floating-point reduction — parallelisation is done over disjoint rows ([ADR 0012](adr/0012-rayon-data-parallelism.md)).
+6. A structural decision is written as an ADR **before** the code, and the row in the table of `pipeline.md` §3.3 is part of the same change.
 
-`StudioWindow` déclare pour cette raison un `max-width`/`max-height`
-volontairement énorme : c'est la seule façon d'exprimer « pas de maximum »
-en Slint 1.13, et ça neutralise la classe entière de régressions.
+### The reference renders
 
-Pour vérifier, sous X11 :
+`stages/golden.rs` pins, in `tests/golden/renders.json`, the BLAKE3 checksum of one render per operator family **and the `stages` map that produced it**. Each entry is replayed through its own map: a `v2` therefore cannot move an existing checksum, it adds one.
+
+Three guards:
+
+* every pinned entry still renders exactly its pixels;
+* what the engine would pin today appears in the manifest;
+* no published `(stage, version)` pair escapes it — an operator that no case activates makes the tests fail.
+
+```bash
+make golden          # verify
+make golden-bless    # add the missing entries
+```
+
+The first of those guards runs only on the reference platform, the one where the checksums were blessed: comparing bytes across platforms would promise what [`pipeline.md`](pipeline.md) §5.2 refuses to assert. The other two run everywhere.
+
+Blessing is **additive**: it never overwrites an existing entry. If a checksum already in the manifest changes, that is a defect — frozen code has been touched — and it is fixed in the code, not in the manifest. The cases themselves are frozen for the same reason: exercising an operator differently is a new case.
+
+## Touching Studio's interface
+
+How the files are divided is described in [`architecture.md`](architecture.md#inside-studio). Three rules are added on top, two of which are easy to break without noticing.
+
+### UI state — global or local?
+
+> **A `global` carries only the state that crosses the Rust ↔ UI boundary. State that concerns a single panel stays a private property of that panel.**
+
+This is the rule that keeps `ui/state/` from becoming again the flat surface of 111 properties that ADR 0045 took apart. A collapsed accordion, the active drag tool, the open menu: Rust never reads them, so they have no business in a global. If a panel must nonetheless expose something to the window, it does so through its own surface — an `in-out` property, a `public function`, a `callback` — and not by widening a global.
+
+The test is mechanical: if no `.get_x()`/`.set_x()`/`.on_x()` on the Rust side matches the property, it does not belong in `ui/state/`.
+
+### Never put geometry around content
+
+Slint 1.13 has, in this project, a repaint-scheduling defect: giving `keys` (the `FocusScope` in `studio.slint`) or an ancestor of its repeaters — the grid, the collection list — **a position or size override, even an inert one**, is enough to leave white areas on screen until a structural change forces a refresh. That is why panels inherit the element type they replace and set no geometry at all, and why a column that must clear the height of the menu bar does so with an extra spacer `Rectangle` child. The comment above `menu-row` in `studio.slint` details the diagnosis.
+
+### The window must never inherit a maximum from its content
+
+Slint derives a window's constraints from what it contains, and the winit
+backend passes them on to the window manager. A column made of fixed-height
+rows therefore announces a bounded **maximum**, which travels up to
+`StudioWindow` and becomes a `program specified maximum size`: the window can
+no longer be maximised, and every recomposition that changes that bound —
+opening a dialog, closing one, creating a collection — re-applies it, which
+abruptly snaps a maximised window back to the size of its content.
+
+For that reason `StudioWindow` declares a deliberately enormous
+`max-width`/`max-height`: it is the only way to express "no maximum" in
+Slint 1.13, and it neutralises the whole class of regressions.
+
+To check, under X11:
 
 ```bash
 xprop -id "$(xdotool search --name 'Leyline Studio' | head -1)" WM_NORMAL_HINTS
 ```
 
-Un `program specified maximum size` autre que celui déclaré signale qu'un
-panneau a recommencé à contraindre la fenêtre.
+A `program specified maximum size` other than the declared one means a panel
+has started constraining the window again.
 
-### Le catalogue de traduction se périme en silence
+### The translation catalog goes stale in silence
 
-`slint-tr-extractor` inscrit le fichier et la ligne de chaque `@tr(...)`, et le `msgctxt` est **le nom du composant**. Déplacer une chaîne d'un composant à un autre change donc sa clé et la détache de sa traduction, sans le moindre avertissement. Après toute tranche d'interface :
+`slint-tr-extractor` records the file and line of every `@tr(...)`, and the `msgctxt` is **the component's name**. Moving a string from one component to another therefore changes its key and detaches it from its translation, without the slightest warning. After any interface slice:
 
 ```bash
 make i18n
 ```
 
-puis reporter les traductions existantes dans `translations/fr/LC_MESSAGES/leyline-studio.po`. Vérifier en lançant Studio avec `LANG=fr_FR.UTF-8` : un catalogue qui compile n'est pas un catalogue qui traduit.
+then carry the existing translations over into `translations/fr/LC_MESSAGES/leyline-studio.po`. Verify by launching Studio with `LANG=fr_FR.UTF-8`: a catalog that compiles is not a catalog that translates.
+
+## Terminology
+
+The documentation and the code use one word per concept, always the same one. The ones that matter, because a synonym would make a document ambiguous:
+
+| Term | Means |
+|---|---|
+| **stage** | One versioned operator of the pipeline (`stages/<operator>/vN.rs`) |
+| **stage version** | The frozen body of a stage, pinned by a revision |
+| **revision** | The complete, self-contained state of the settings of a version |
+| **version** | A library unit: a virtual copy of an asset ([ADR 0008](adr/0008-version-as-library-unit.md)) |
+| **asset** | An imported file, with its row in the catalog |
+| **preview** | A developed image kept in cache; a **thumbnail** is the smallest class |
+| **proxy** | A source buffer reduced to display size, before development |
+| **library** | The self-contained folder holding a catalog and its caches |
+| **coverage** | The grey image a mask resolves to, per pixel |
 
 ## Commits
 
-Conventional Commits.
+Conventional Commits. Commit messages are written in French, as the project's history is; the documentation and the code are in English.
 
-## Licence et contributions
+## Licence and contributions
 
-Leyline est publié sous **GPL-3.0**.
+Leyline is published under **GPL-3.0**.
 
-Des licences commerciales seront proposées à terme : Leyline suit un modèle de double licence (type Qt), la version community restant intégralement GPL.
+Commercial licences will be offered in time: Leyline follows a dual-licence model (Qt-style), the community version staying entirely GPL.
 
-Pour rendre ce modèle possible, toute contribution est soumise au **CLA** (Contributor License Agreement) décrit dans [`CLA.md`](../CLA.md) : le contributeur accorde au projet le droit de distribuer sa contribution sous d'autres licences, tout en gardant son copyright.
+To make that model possible, every contribution is subject to the **CLA** (Contributor License Agreement) described in [`CLA.md`](../CLA.md): the contributor grants the project the right to distribute their contribution under other licences, while keeping their copyright.
 
-En soumettant une pull request, vous acceptez les termes du CLA.
+By submitting a pull request, you accept the terms of the CLA.
 
-Le nom « Leyline », le logo et la marque restent la propriété du projet et ne sont pas couverts par la licence du code — voir [`TRADEMARK.md`](../TRADEMARK.md).
+The name "Leyline", the logo and the trademark remain the property of the project and are not covered by the code's licence — see [`TRADEMARK.md`](../TRADEMARK.md).
 
-## Code de conduite et sécurité
+## Code of conduct and security
 
-Les contributeurs et participants aux issues/PR sont tenus au
+Contributors and participants in issues and PRs are bound by the
 [`CODE_OF_CONDUCT.md`](../CODE_OF_CONDUCT.md).
 
-Les vulnérabilités de sécurité se signalent en privé, pas par une issue
-publique — voir [`SECURITY.md`](../SECURITY.md).
+Security vulnerabilities are reported privately, not through a public
+issue — see [`SECURITY.md`](../SECURITY.md).
 
-## Dépendances
+## Dependencies
 
-Les œuvres tierces **embarquées ou liées** — celles qu'on ne découvre pas en lisant les manifestes — sont listées avec leur licence dans [`THIRD-PARTY-NOTICES.md`](../THIRD-PARTY-NOTICES.md), à la racine. Y ajouter une entrée fait partie du changement qui embarque quelque chose, pas d'un ménage ultérieur.
+Third-party works that are **embedded or linked** — the ones you do not discover by reading the manifests — are listed with their licence in [`THIRD-PARTY-NOTICES.md`](../THIRD-PARTY-NOTICES.md), at the root. Adding an entry there is part of the change that embeds something, not of a later tidy-up.
 
-* LibRaw est utilisé sous sa branche **LGPL-2.1** (la branche CDDL est incompatible avec la GPL).
-* Lensfun (LGPL-3.0) et sa base de données (CC-BY-SA) exigent l'attribution.
-* Le décodage RAW est isolé derrière l'API de `leyline-raw` afin de rester substituable.
+* LibRaw is used under its **LGPL-2.1** branch (the CDDL branch is incompatible with the GPL).
+* Lensfun (LGPL-3.0) and its database (CC-BY-SA) require attribution.
+* RAW decoding is isolated behind the `leyline-raw` API so that it stays substitutable.
 
-## Objectif
+## Goal
 
-Construire un moteur photographique pérenne, pas seulement une
+To build a photographic engine that lasts, not merely an
 application.
-
