@@ -6,86 +6,86 @@
 
 ---
 
-# 1. Objectif
+# 1. Purpose
 
-Le pipeline de développement garantit que tous les traitements de Leyline sont **reproductibles**, **versionnés** et **non destructifs**.
+The develop pipeline guarantees that every processing Leyline performs is **reproducible**, **versioned** and **non-destructive**.
 
-Les algorithmes évolueront au fil du temps : corrections, optimisations, nouveaux paramètres, nouveaux modèles.
+Algorithms will evolve over time: fixes, optimisations, new parameters, new models.
 
-Cette évolution ne doit **jamais** invalider les résultats déjà calculés.
+That evolution must **never** invalidate results already computed.
 
-Une révision de développement créée aujourd'hui doit produire exactement les mêmes pixels dans dix ans.
-
----
-
-# 2. Principes
-
-* chaque pipeline possède une identité stable ;
-* chaque évolution incompatible crée une nouvelle version ;
-* chaque exécution conserve une copie complète des paramètres utilisés ;
-* les paramètres d'une exécution sont immuables ;
-* les résultats historiques ne sont jamais modifiés ;
-* un recalcul crée toujours une nouvelle exécution.
-
-Ce document couvre deux niveaux :
-
-1. le **pipeline de développement RAW** — le cœur de Leyline (V1) ;
-2. les **pipelines de traitement génériques** — le cadre qui le généralise (miniatures, histogrammes aujourd'hui ; visages, OCR, IA demain, voir §38 du catalogue).
+A develop revision created today must produce exactly the same pixels ten years from now.
 
 ---
 
-# 3. Le pipeline de développement RAW
+# 2. Principles
 
-## 3.1 Ordre des opérations
+* every pipeline has a stable identity;
+* every incompatible evolution creates a new version;
+* every run keeps a complete copy of the parameters it used;
+* a run's parameters are immutable;
+* historical results are never modified;
+* a recomputation always creates a new run.
 
-Le développement applique une chaîne d'opérations **dans un ordre fixe**, défini par le moteur — jamais par l'utilisateur.
+This document covers two levels:
+
+1. the **RAW develop pipeline** — the heart of Leyline (V1);
+2. the **generic processing pipelines** — the framework that generalises it (thumbnails, histograms today; faces, OCR, AI tomorrow, see §38 of the catalog).
+
+---
+
+# 3. The RAW develop pipeline
+
+## 3.1 Order of operations
+
+Development applies a chain of operations **in a fixed order**, defined by the engine — never by the user.
 
 ```text
-RAW décodé
+Decoded RAW
 
 ↓
 
-Entrée (`input` : configuration du décodeur, espace du tampon)
+Input (`input`: decoder configuration, buffer space)
 
 ↓
 
-Profil d'appareil (DCP)
+Camera profile (DCP)
 
 ↓
 
-Correction d'objectif
+Lens correction
 
 ↓
 
-Suppression de tache
+Spot removal
 
 ↓
 
-Balance des blancs
+White balance
 
 ↓
 
-Exposition
+Exposure
 
 ↓
 
-Contraste
+Contrast
 
 ↓
 
-Hautes lumières / Ombres
+Highlights / Shadows
 
 ↓
 
-Blancs / Noirs
+Whites / Blacks
 
 ↓
 
-Courbe tonale
+Tone curve
 
 ↓
 
-Clarté / Texture / Dehaze
+Clarity / Texture / Dehaze
 
 ↓
 
@@ -93,62 +93,62 @@ Vibrance / Saturation
 
 ↓
 
-Mélangeur TSL (HSL)
+HSL mixer
 
 ↓
 
-Color Grading (ombres/tons moyens/hautes lumières)
+Colour grading (shadows/midtones/highlights)
 
 ↓
 
-Réglages locaux (masqués)
+Local adjustments (masked)
 
 ↓
 
-Réduction du bruit
+Noise reduction
 
 ↓
 
-Netteté
+Sharpening
 
 ↓
 
-Rotation / Perspective / Recadrage
+Rotation / Perspective / Crop
 
 ↓
 
-Rendu de sortie (`output_rendering` : du tampon de travail au signal d'affichage)
+Output rendering (`output_rendering`: from the working buffer to a display signal)
 
 ↓
 
-Sortie (aperçu ou export)
+Output (preview or export)
 ```
 
-L'utilisateur règle des **valeurs**, jamais l'ordre.
+The user sets **values**, never the order.
 
-**L'espace de travail.** Entre les étages, le tampon est en **Rec. 2020, lumière linéaire, D65, borné en bas à 0 et non borné en haut** ([ADR 0044](adr/0044-linear-wide-gamut-working-space.md)). Trois conséquences, une par défaut que cet ADR corrige :
+**The working space.** Between stages, the buffer is in **Rec. 2020, linear light, D65, bounded below at 0 and unbounded above** ([ADR 0044](adr/0044-linear-wide-gamut-working-space.md)). Three consequences, one per default that ADR corrects:
 
-* le gamut du capteur n'est plus écrêté avant le premier réglage — le rétrécissement vers l'espace de sortie a lieu une seule fois, tout à la fin ;
-* les hautes lumières au-dessus du blanc traversent le pipeline : +1 EV puis −1 EV redonne l'image de départ, et le curseur *hautes lumières* a de la matière à récupérer ;
-* les opérateurs qui décrivent la lumière (balance des blancs, exposition, vignettage) et tous les rééchantillonnages géométriques sont des multiplications et des sommes pondérées de lumière réelle.
+* the sensor's gamut is no longer clipped before the first setting — the narrowing towards the output space happens once, right at the end;
+* highlights above white travel through the pipeline: +1 EV then −1 EV gives the starting image back, and the *highlights* slider has material to recover;
+* the operators that describe light (white balance, exposure, vignetting) and every geometric resampling are multiplications and weighted sums of real light.
 
-Les opérateurs de **tonalité**, eux, déclarent explicitement l'axe d'affichage (`in_display`) : un curseur de contraste est un énoncé sur la clarté *perçue*, et la même courbe appliquée à la lumière linéaire écraserait les ombres. Ce n'est pas un retour en arrière — rien n'y est écrêté à 1, l'axe est simplement celui sur lequel ces courbes ont un sens.
+The **tonal** operators, for their part, explicitly declare the display axis (`in_display`): a contrast slider is a statement about *perceived* lightness, and the same curve applied to linear light would crush the shadows. This is not a step backwards — nothing there is clipped at 1, the axis is simply the one on which those curves mean something.
 
-Les deux étages d'extrémité, `input` et `output_rendering`, encadrent ce tampon. Ils n'ont pas de valeur neutre — il n'existe pas de rendu sans entrée ni sortie — et sont donc les seuls que **toute** révision inscrit dans sa carte `stages`. `input` porte la configuration demandée au décodeur (capteur natif linéaire, 16 bits, depuis ADR 0050 le sort des canaux saturés au capteur, depuis ADR 0061 l'interpolation, et depuis [ADR 0066](adr/0066-sensor-white-level.md) le niveau que le capteur appelle blanc) et la matrice qui amène ses pixels dans l'espace de travail ; `output_rendering` ramène le tampon non borné à un signal d'affichage, épaule des hautes lumières puis conversion vers l'espace de sortie.
+The two framing stages, `input` and `output_rendering`, bracket that buffer. They have no neutral value — there is no render without an input and an output — and are therefore the only ones that **every** revision writes into its `stages` map. `input` carries the configuration asked of the decoder (native linear sensor, 16 bits, since ADR 0050 the fate of channels saturated at the sensor, since ADR 0061 the interpolation, and since [ADR 0066](adr/0066-sensor-white-level.md) the level the sensor calls white) and the matrix that brings its pixels into the working space; `output_rendering` brings the unbounded buffer back to a display signal, a highlight shoulder then a conversion to the output space.
 
-L'espace de travail est une propriété déclarée par chaque version d'étage : deux versions d'espaces différents ne composent pas, et un plan qui les mélange **échoue** (`MixedWorkingSpaces`) au lieu d'être rendu au mieux. Migrer une révision d'un espace à l'autre est un retraitement (§4.5), donc une nouvelle révision.
+The working space is a property declared by each stage version: two versions of different spaces do not compose, and a plan that mixes them **fails** (`MixedWorkingSpaces`) instead of being rendered as best it can. Migrating a revision from one space to the other is a reprocessing (§4.5), hence a new revision.
 
-Cet ordre fait partie du contrat de rendu : le modifier change les pixels produits, donc impose une nouvelle *version d'étage* déclarant un autre rang (§3.3).
+That order is part of the render contract: changing it changes the pixels produced, and therefore requires a new *stage version* declaring a different rank (§3.3).
 
-**Sources non-RAW.** Le catalogue accepte à l'import des fichiers JPEG, TIFF et PNG (catalogue §10). Ces fichiers entrent dans la même chaîne : ils sont décodés par des codecs natifs (orientation EXIF appliquée, échantillons normalisés en RGB 8 bits sRGB) et prennent la place de « RAW décodé » en tête de pipeline ; `input` décode alors leur fonction de transfert et tourne leurs primaires vers l'espace de travail. N'ayant aucune marge au-dessus du blanc, ils sont importés avec l'épaule de sortie à 0, si bien qu'un import non retouché ressort **au bit près** ce qu'il était. Le décodage reste déterministe au même titre que LibRaw (§5). HEIF et PSD sont catalogués mais n'ont pas de décodeur en V1 : demander leurs pixels est une erreur explicite, pas un refus LibRaw.
+**Non-RAW sources.** The catalog accepts JPEG, TIFF and PNG files at import (catalog §10). Those files enter the same chain: they are decoded by native codecs (EXIF orientation applied, samples normalised to 8-bit sRGB RGB) and take the place of "decoded RAW" at the head of the pipeline; `input` then decodes their transfer function and rotates their primaries into the working space. Having no headroom above white, they are imported with the output shoulder at 0, so that an unedited import comes back out **bit for bit** what it was. Decoding stays deterministic exactly as LibRaw does (§5). HEIF and PSD are catalogued but have no decoder in V1: asking for their pixels is an explicit error, not a LibRaw refusal.
 
 ---
 
 ## 3.2 settings_json
 
-Chaque révision (`develop_revisions.settings_json`, catalogue §17) contient un **état complet et autonome** du développement.
+Every revision (`develop_revisions.settings_json`, catalog §17) contains a **complete, self-contained state** of the development.
 
-Jamais un delta.
+Never a delta.
 
 ```json
 {
@@ -263,209 +263,209 @@ Jamais un delta.
 }
 ```
 
-### Champs réservés
+### Reserved fields
 
-| Champ | Rôle |
+| Field | Role |
 |---|---|
-| `schema` | Version du **format** des paramètres (structure du JSON) |
-| `stages` | Version du **rendu**, étage par étage (algorithmes produisant les pixels) |
+| `schema` | Version of the parameters' **format** (the JSON's structure) |
+| `stages` | Version of the **render**, stage by stage (the algorithms producing the pixels) |
 
-Les deux évoluent indépendamment : on peut renommer un champ sans changer le rendu, et corriger un algorithme sans changer la structure.
+The two evolve independently: a field can be renamed without changing the render, and an algorithm fixed without changing the structure.
 
-`stages` associe à chaque étage **actif** la version de cet étage qui rend cette révision. Un étage à sa valeur neutre ne s'exécute pas, n'a donc aucun comportement à épingler, et **n'y figure pas** — la carte est proportionnelle à l'édition réelle, pas au nombre d'étages du moteur. Une révision neutre n'inscrit donc que les deux étages d'encadrement (§3.1), qui n'ont pas de valeur neutre.
+`stages` associates with each **active** stage the version of that stage which renders this revision. A stage at its neutral value does not run, therefore has no behaviour to pin, and **does not appear** in it — the map is proportional to the actual editing, not to the number of stages the engine has. A neutral revision therefore records only the two framing stages (§3.1), which have no neutral value.
 
-### Valeurs omises
+### Omitted values
 
-Un paramètre absent vaut sa **valeur neutre**, définie par le schéma.
+A missing parameter takes its **neutral value**, defined by the schema.
 
-Les valeurs neutres sont **gelées par version de schéma** : elles ne changent jamais rétroactivement.
+Neutral values are **frozen per schema version**: they never change retroactively.
 
-`{}` avec `schema: 1` produira toujours le rendu neutre du schéma 1.
+`{}` with `schema: 1` will always produce the neutral render of schema 1.
 
-Valeurs neutres du schéma 1 :
+Neutral values of schema 1:
 
-| Paramètre | Valeur neutre |
+| Parameter | Neutral value |
 |---|---|
-| `camera_profile` | absent — conversion sRGB propre au décodeur, aucun profil appliqué |
-| `white_balance` | absent — balance des blancs « telle que prise » du boîtier |
+| `camera_profile` | absent — the decoder's own sRGB conversion, no profile applied |
+| `white_balance` | absent — the camera's "as shot" white balance |
 | `exposure` | 0.0 EV |
 | `contrast`, `highlights`, `shadows`, `whites`, `blacks`, `vibrance`, `saturation` | 0 |
 | `clarity`, `texture`, `dehaze` | 0 |
-| `hsl` | absent — 8 bandes à `{ "hue": 0, "saturation": 0, "luminance": 0 }` |
-| `color_grading` | absent — chaque zone à `{ "hue": 0, "saturation": 0, "luminance": 0 }`, `balance`/`blending` à 0 |
+| `hsl` | absent — 8 bands at `{ "hue": 0, "saturation": 0, "luminance": 0 }` |
+| `color_grading` | absent — each zone at `{ "hue": 0, "saturation": 0, "luminance": 0 }`, `balance`/`blending` at 0 |
 | `lens_correction` | `{ "enabled": false, "profile": "auto" }` |
 | `noise_reduction` | `{ "luminance": 0, "color": 0 }` |
 | `sharpening` | `{ "amount": 0, "radius": 1.0 }` |
-| `output_rendering` | `{ "highlight_rolloff": 50 }` — seul champ dont la valeur par défaut n'est pas « ne rien faire » : il n'existe pas de rendu sans sortie, donc c'est un choix de rendu, gelé avec la version d'étage qui le lit (ADR 0044 §3). L'import d'un JPEG/PNG/TIFF l'ouvre à 0, faute de marge à récupérer |
-| `highlight_reconstruction` | absent — `"clip"`, écrêtage au blanc ; les deux autres valeurs (`"blend"`, `"rebuild"`) exigent `input` en version 2 ([ADR 0050](adr/0050-highlight-reconstruction.md)) |
-| `demosaic` | absent — `"ahd"`, le défaut de LibRaw et le nôtre ; `"vng"`, `"dcb"` et `"dht"` exigent `input` en version 3 ([ADR 0061](adr/0061-demosaic-algorithm.md)) |
+| `output_rendering` | `{ "highlight_rolloff": 50 }` — the only field whose default value is not "do nothing": there is no render without an output, so it is a rendering choice, frozen with the stage version that reads it (ADR 0044 §3). Importing a JPEG/PNG/TIFF opens it at 0, there being no headroom to recover |
+| `highlight_reconstruction` | absent — `"clip"`, clipping at white; the other two values (`"blend"`, `"rebuild"`) require `input` at version 2 ([ADR 0050](adr/0050-highlight-reconstruction.md)) |
+| `demosaic` | absent — `"ahd"`, LibRaw's default and ours; `"vng"`, `"dcb"` and `"dht"` require `input` at version 3 ([ADR 0061](adr/0061-demosaic-algorithm.md)) |
 | `rotation` | 0.0 |
-| `perspective` | absent — aucune correction ([ADR 0052](adr/0052-perspective-correction.md)) |
-| `lut` | absent — aucun look appliqué ([ADR 0053](adr/0053-creative-lut.md)) |
-| `crop` | absent — image entière |
+| `perspective` | absent — no correction ([ADR 0052](adr/0052-perspective-correction.md)) |
+| `lut` | absent — no look applied ([ADR 0053](adr/0053-creative-lut.md)) |
+| `crop` | absent — the whole image |
 
-### Unités et conventions
+### Units and conventions
 
-* `temperature` : Kelvin ;
-* `exposure` : EV ;
-* `rotation` : degrés, sens horaire ;
-* `crop` : coordonnées normalisées [0, 1] relatives à l'image **après** rotation et correction de perspective ;
-* `lut.strength` : entier dans [0, 100] — 100 = la LUT telle que son auteur l'a écrite ; le mélange se fait sur l'axe d'affichage, là où la LUT est définie (ADR 0053 §2–3) ;
-* `perspective.vertical` / `perspective.horizontal` : entiers dans [-100, +100], 0 = neutre ; ils déplacent les coins du cadre en fractions de celui-ci, donc indépendamment de la taille du rendu (ADR 0052 §5) ;
-* `output_rendering.highlight_rolloff` : 0 = écrêtage franc au blanc, 100 = épaule la plus longue ; récupérer de la marge coûte un peu de blanc, ce que le curseur permet d'arbitrer ;
-* `highlight_reconstruction` : `"clip"` (neutre), `"blend"` ou `"rebuild"` — ce que le **décodeur** fait d'un canal saturé au capteur, avant dématriçage, à ne pas confondre avec l'épaule ci-dessus qui décide de ce que devient la marge à la sortie (ADR 0050) ;
-* les curseurs sans unité physique (`contrast`, `vibrance`...) : entiers dans [-100, +100], 0 = neutre ;
-* `hsl[].hue`, `color_grading.{shadows,midtones,highlights}.luminance`, `color_grading.balance` : entiers dans [-100, +100], 0 = neutre ;
-* `color_grading.{shadows,midtones,highlights}.hue` : degrés, entier dans [0, 360) ;
-* `color_grading.{shadows,midtones,highlights}.saturation`, `color_grading.blending` : entiers dans [0, 100], 0 = neutre ;
-* `camera_profile.path` : chemin relatif à la racine de la bibliothèque, séparateur `/`, par convention sous `Profiles/Camera/` ;
-* `camera_profile.checksum` : `"blake3:"` suivi des 64 chiffres hexadécimaux du hachage BLAKE3 du fichier `.dcp` (ADR 0006, appliqué ici à une entrée référencée et non à une photo). Une empreinte qui ne correspond plus au fichier sur disque **échoue le rendu** (`CameraProfileFailed`) au lieu de rendre d'autres couleurs en silence — même posture que `NewerSettings` (§3.4).
+* `temperature`: kelvin;
+* `exposure`: EV;
+* `rotation`: degrees, clockwise;
+* `crop`: normalised coordinates in [0, 1] relative to the image **after** rotation and perspective correction;
+* `lut.strength`: an integer in [0, 100] — 100 = the LUT as its author wrote it; the blend happens on the display axis, where the LUT is defined (ADR 0053 §2–3);
+* `perspective.vertical` / `perspective.horizontal`: integers in [-100, +100], 0 = neutral; they move the corners of the frame in fractions of it, hence independently of the render's size (ADR 0052 §5);
+* `output_rendering.highlight_rolloff`: 0 = a hard clip at white, 100 = the longest shoulder; recovering headroom costs a little white, which the slider lets the user arbitrate;
+* `highlight_reconstruction`: `"clip"` (neutral), `"blend"` or `"rebuild"` — what the **decoder** does with a channel saturated at the sensor, before demosaicing, not to be confused with the shoulder above, which decides what becomes of the headroom at the output (ADR 0050);
+* sliders with no physical unit (`contrast`, `vibrance`…): integers in [-100, +100], 0 = neutral;
+* `hsl[].hue`, `color_grading.{shadows,midtones,highlights}.luminance`, `color_grading.balance`: integers in [-100, +100], 0 = neutral;
+* `color_grading.{shadows,midtones,highlights}.hue`: degrees, an integer in [0, 360);
+* `color_grading.{shadows,midtones,highlights}.saturation`, `color_grading.blending`: integers in [0, 100], 0 = neutral;
+* `camera_profile.path`: a path relative to the library root, `/` separator, by convention under `Profiles/Camera/`;
+* `camera_profile.checksum`: `"blake3:"` followed by the 64 hexadecimal digits of the `.dcp` file's BLAKE3 hash (ADR 0006, applied here to a referenced input rather than to a photo). A checksum that no longer matches the file on disk **fails the render** (`CameraProfileFailed`) instead of silently rendering other colours — the same posture as `NewerSettings` (§3.4).
 
 ---
 
-## 3.3 Versions d'étages
+## 3.3 Stage versions
 
-Le champ `stages` joue le rôle des *process versions* de Lightroom (2003, 2010, 2012...), à une granularité près : ce n'est pas le pipeline entier qui porte un numéro, c'est **chaque opérateur** ([ADR 0042](adr/0042-versioned-stage-pipeline.md)).
+The `stages` field plays the role of Lightroom's *process versions* (2003, 2010, 2012…), at one granularity's difference: it is not the whole pipeline that carries a number, it is **each operator** ([ADR 0042](adr/0042-versioned-stage-pipeline.md)).
 
-Règle fondamentale :
+The fundamental rule:
 
-> **Aucune version publiée du logiciel — correctif, mineure ou majeure — ne modifie le rendu d'une version d'étage déjà publiée.**
+> **No published version of the software — patch, minor or major — changes the render of an already published stage version.**
 
-* Une révision est toujours rendue avec les versions d'étages qu'elle déclare.
-* Une correction d'algorithme qui change les pixels produits = nouvelle version de cet étage, dans un nouveau module ; l'ancienne n'est jamais touchée.
-* Une optimisation qui produit des pixels identiques = pas de nouvelle version.
-* Le rang d'un étage dans le pipeline appartient à la version : déplacer un étage est une nouvelle version qui déclare un autre rang, jamais une modification de l'existante.
-* L'utilisateur peut migrer une photo vers les versions courantes (§4.5) : cela crée une **nouvelle révision** — l'ancienne reste rendable à l'identique.
+* A revision is always rendered with the stage versions it declares.
+* An algorithm fix that changes the pixels produced = a new version of that stage, in a new module; the old one is never touched.
+* An optimisation that produces identical pixels = no new version.
+* A stage's rank in the pipeline belongs to the version: moving a stage is a new version declaring a different rank, never a modification of the existing one.
+* The user can migrate a photo to the current versions (§4.5): that creates a **new revision** — the old one stays renderable identically.
 
-**Épinglage.** La carte est écrite par le moteur au moment où la révision est écrite, jamais déduite à la lecture :
+**Pinning.** The map is written by the engine at the moment the revision is written, never inferred at read time:
 
-* un étage déjà inscrit **garde** sa version — éditer en 2036 une photo de 2026 ne la re-rend pas à travers du code plus récent ;
-* un étage qui vient de quitter sa valeur neutre reçoit la version courante du moteur **dans l'espace de travail que la révision déclare déjà** — jamais une version qui la ferait changer d'espace par effet de bord ([ADR 0044](adr/0044-linear-wide-gamut-working-space.md) §4) ;
-* un étage redevenu neutre **perd** son entrée, puisqu'il ne rend plus rien ; `input` et `output_rendering` font exception, n'ayant pas de valeur neutre.
+* a stage already recorded **keeps** its version — editing a 2026 photo in 2036 does not re-render it through newer code;
+* a stage that has just left its neutral value receives the engine's current version **within the working space the revision already declares** — never a version that would make it change space as a side effect ([ADR 0044](adr/0044-linear-wide-gamut-working-space.md) §4);
+* a stage back at neutral **loses** its entry, since it renders nothing any more; `input` and `output_rendering` are the exception, having no neutral value.
 
-Un étage actif mais sans version inscrite rend à la version courante. Ce cas ne concerne que des réglages construits en mémoire (SDK, préréglage, test) : toute révision *stockée* reçoit ses entrées à l'écriture.
+A stage that is active but has no version recorded renders at the current version. That case concerns only settings built in memory (SDK, preset, test): every *stored* revision receives its entries when written.
 
-Le code de chaque version d'étage est conservé dans le moteur pour toujours : c'est le prix de la promesse « mêmes pixels dans dix ans », dont §5.1 énonce la portée exacte. Il se paie désormais par opérateur réellement corrigé — quelques dizaines de lignes — et non plus par copie intégrale du pipeline.
+The code of every stage version is kept in the engine forever: that is the price of the "same pixels ten years from now" promise, whose exact scope §5.1 states. It is now paid per operator actually fixed — a few dozen lines — and no longer by a full copy of the pipeline.
 
-**Étages connus, et l'ordre dans lequel ils s'exécutent.** L'historique de rendu antérieur à la publication a été effondré ([ADR 0043](adr/0043-collapse-prerelease-render-history.md)), puisqu'aucune révision au monde ne le citait : tous les étages sont donc partis en version 1. Quatre ont depuis une seconde version : les deux étages de bruit ([ADR 0046](adr/0046-edge-preserving-denoise.md), portés à la version 3 par [ADR 0072](adr/0072-measured-noise-profile.md) — la première à changer de **rang** en changeant de version), les réglages locaux ([ADR 0048](adr/0048-range-masks.md), portés à la version 3 par [ADR 0070](adr/0070-stored-mask-coverage.md)) et `input` ([ADR 0050](adr/0050-highlight-reconstruction.md)) — `input` étant depuis monté à la version 4 ([ADR 0061](adr/0061-demosaic-algorithm.md) puis [ADR 0066](adr/0066-sensor-white-level.md)), et `camera_profile` à la version 3 ([ADR 0062](adr/0062-dcp-illuminant-interpolation.md), [ADR 0063](adr/0063-dcp-tables.md)). La version courante, celle qu'une nouvelle révision épingle, est la **dernière** listée pour chaque étage.
+**Known stages, and the order in which they run.** The pre-publication render history was collapsed ([ADR 0043](adr/0043-collapse-prerelease-render-history.md)), since no revision in the world cited it: every stage therefore started again at version 1. Four have had a second version since: the two noise stages ([ADR 0046](adr/0046-edge-preserving-denoise.md), taken to version 3 by [ADR 0072](adr/0072-measured-noise-profile.md) — the first to change **rank** while changing version), local adjustments ([ADR 0048](adr/0048-range-masks.md), taken to version 3 by [ADR 0070](adr/0070-stored-mask-coverage.md)) and `input` ([ADR 0050](adr/0050-highlight-reconstruction.md)) — `input` having since risen to version 4 ([ADR 0061](adr/0061-demosaic-algorithm.md) then [ADR 0066](adr/0066-sensor-white-level.md)), and `camera_profile` to version 3 ([ADR 0062](adr/0062-dcp-illuminant-interpolation.md), [ADR 0063](adr/0063-dcp-tables.md)). The current version, the one a new revision pins, is the **last** one listed for each stage.
 
-**Un réglage qu'une version épinglée ne sait pas exprimer est refusé.** ADR 0046 corrigeait un rendu ; ADR 0048 **étend** un opérateur, et fait donc apparaître un cas que rien n'avait éprouvé : un réglage dont l'existence même dépend de la version d'étage. Puisqu'un étage déjà inscrit garde sa version, une révision épinglée en `local_adjustments: 1` ne peut pas porter de masque par plage — et `Settings::validate()` la **refuse** en nommant le remède (retraiter, §4.5) au lieu de laisser le réglage disparaître en silence. C'est la règle générale pour toute fonctionnalité future ajoutée à un étage existant. ADR 0050 l'applique une seconde fois, un cran plus bas : le mode de reconstruction des hautes lumières est une **configuration du décodeur**, qu'`input::v1` ne lit pas — une révision épinglée en `input: 1` le refuse donc de la même manière.
+**A setting that a pinned version cannot express is refused.** ADR 0046 fixed a render; ADR 0048 **extends** an operator, and so brings out a case nothing had tested: a setting whose very existence depends on the stage version. Since a stage already recorded keeps its version, a revision pinned at `local_adjustments: 1` cannot carry a range mask — and `Settings::validate()` **refuses** it, naming the remedy (reprocess, §4.5) instead of letting the setting silently disappear. This is the general rule for any future feature added to an existing stage. ADR 0050 applies it a second time, one notch lower: the highlight reconstruction mode is a **decoder configuration**, which `input::v1` does not read — a revision pinned at `input: 1` therefore refuses it the same way.
 
-| Rang | Étage | Version | Rôle |
+| Rank | Stage | Version | Role |
 |---|---|---|---|
-| 0 | `input` | 1 | Configuration demandée au décodeur (capteur natif, linéaire, 16 bits) et matrice vers l'espace de travail — profil DCP, matrice du boîtier, ou décodage sRGB pour un JPEG/PNG/TIFF ; toujours actif (ADR 0044) |
-| 0 | `input` | 2 | Idem, plus le mode de reconstruction des hautes lumières demandé au décodeur ([ADR 0050](adr/0050-highlight-reconstruction.md)) |
-| 0 | `input` | 3 | Idem, plus l'algorithme de dématriçage demandé au décodeur ([ADR 0061](adr/0061-demosaic-algorithm.md)) ; identique à `v2` à réglage neutre |
-| 0 | `input` | 4 | Idem, en normalisant par le niveau de blanc que le **boîtier** a écrit et non par le plafond du format ([ADR 0066](adr/0066-sensor-white-level.md)) — la seule version d'`input` qui ne rend **pas** comme sa précédente à réglages neutres, ce qui est la correction même |
-| 5 | `noise_luminance` | 3 | Bruit de luminance, seuil issu du **profil mesuré** du boîtier à cette sensibilité : il varie donc avec le pixel. D'où le rang — un modèle mesuré sur les comptes du capteur ne veut plus rien dire après l'exposition et la courbe ([ADR 0072](adr/0072-measured-noise-profile.md)) |
-| 6 | `noise_color` | 3 | Idem sur les plans de chrominance, seuil mesuré lui aussi (ADR 0072) |
-| 10 | `camera_profile` | 1 | Matrice DCP boîtier → Rec. 2020 linéaire, avant tout le reste : elle remplace alors la matrice d'`input` (ADR 0035, conteneur lu selon ADR 0037) |
-| 10 | `camera_profile` | 2 | Idem, en **interpolant** les deux illuminants de calibration en mireds selon la température de scène, au lieu d'en faire la moyenne ([ADR 0062](adr/0062-dcp-illuminant-interpolation.md)) |
-| 10 | `camera_profile` | 3 | Idem, plus les tables du profil — `HueSatMap`, `LookTable`, `ProfileToneCurve` — dans l'ordre et l'espace ProPhoto de la spécification DNG ([ADR 0063](adr/0063-dcp-tables.md)) |
-| 20 | `lens` | 1 | Distorsion, aberration chromatique transversale et vignettage via un profil Lensfun (ADR 0016–0018) |
-| 30 | `spot_removal` | 1 | Clonage déterministe par copie bilinéaire adoucie, sans mode *heal* (ADR 0031) |
-| 40 | `gains` | 1 | Balance des blancs et exposition : une multiplication par canal, le tampon étant déjà en lumière linéaire (ADR 0044) |
-| 50 | `contrast` | 1 | Courbe en S autour du gris moyen |
-| 60 | `highlights_shadows` | 1 | Hautes lumières et ombres, masquées par la luminance |
-| 70 | `whites_blacks` | 1 | Remappage des extrémités |
-| 80 | `tone_curve` | 1 | Courbe par points, spline cubique monotone précalculée en table (ADR 0030) |
-| 90 | `clarity` | 1 | Contraste local à grand rayon (ADR 0033) |
-| 100 | `texture` | 1 | Même opérateur à petit rayon (ADR 0033) |
-| 110 | `dehaze` | 1 | Suppression de voile par *dark channel prior* (ADR 0033) |
-| 120 | `vibrance` | 1 | Saturation pondérée par le chroma existant |
-| 130 | `saturation` | 1 | Saturation uniforme |
-| 140 | `hsl` | 1 | Mélangeur TSL à 8 bandes de teinte, fondu entre bandes adjacentes (ADR 0032) |
-| 150 | `color_grading` | 1 | Trois zones ombres/tons moyens/hautes lumières pondérées par la luminance (ADR 0032) |
-| 160 | `local_adjustments` | 1 | Réglages locaux masqués (brosse/radial/gradient), réutilisant les opérateurs globaux restreints à une couverture (ADR 0029) |
-| 160 | `local_adjustments` | 2 | Idem, plus les masques par plage : la couverture géométrique peut être resserrée par une bande de luminance et une bande de teinte (ADR 0048) |
-| 160 | `local_adjustments` | 3 | Idem, plus les masques **stockés** : la couverture peut être une image référencée plutôt qu'une géométrie ([ADR 0070](adr/0070-stored-mask-coverage.md)) ; `v1` et `v2` la **refusent** au lieu de l'ignorer |
-| 165 | `lut` | 1 | LUT créative `.cube` appliquée sur l'axe d'affichage, dosée par `strength` ; dernière décision de couleur (ADR 0053) |
-| 170 | `noise_luminance` | 1 | Réduction du bruit de luminance : mélange vers un flou gaussien du plan de luma |
-| 170 | `noise_luminance` | 2 | Idem, préservant les contours : ondelettes à trous et seuillage doux par échelle (ADR 0046) |
-| 180 | `noise_color` | 1 | Réduction du bruit chromatique : mélange vers un flou gaussien des écarts à la luma |
-| 180 | `noise_color` | 2 | Idem, préservant les contours, seuil plus agressif que la luminance (ADR 0046) |
-| 190 | `sharpen` | 1 | Masque flou sur le plan de luminance |
-| 200 | `rotate` | 1 | Rotation d'angle arbitraire, échantillonnage bilinéaire |
-| 205 | `perspective` | 1 | Homographie à deux curseurs redressant les fuyantes ; la sortie est la boîte englobante du quadrilatère transformé (ADR 0052) |
-| 210 | `crop` | 1 | Recadrage |
-| 900 | `output_rendering` | 1 | Épaule des hautes lumières, puis Rec. 2020 → sRGB et encodage ; toujours actif (ADR 0044 §3) |
+| 0 | `input` | 1 | The configuration asked of the decoder (native sensor, linear, 16 bits) and the matrix into the working space — DCP profile, camera matrix, or sRGB decoding for a JPEG/PNG/TIFF; always active (ADR 0044) |
+| 0 | `input` | 2 | The same, plus the highlight reconstruction mode asked of the decoder ([ADR 0050](adr/0050-highlight-reconstruction.md)) |
+| 0 | `input` | 3 | The same, plus the demosaic algorithm asked of the decoder ([ADR 0061](adr/0061-demosaic-algorithm.md)); identical to `v2` at neutral settings |
+| 0 | `input` | 4 | The same, normalising by the white level the **camera** wrote rather than by the format's ceiling ([ADR 0066](adr/0066-sensor-white-level.md)) — the only version of `input` that does **not** render like its predecessor at neutral settings, which is the correction itself |
+| 5 | `noise_luminance` | 3 | Luminance noise, at a threshold derived from the camera's **measured profile** at that sensitivity: it therefore varies per pixel. Hence the rank — a model measured on sensor counts means nothing after exposure and the tone curve ([ADR 0072](adr/0072-measured-noise-profile.md)) |
+| 6 | `noise_color` | 3 | The same on the chrominance planes, with a measured threshold too (ADR 0072) |
+| 10 | `camera_profile` | 1 | DCP matrix from camera to linear Rec. 2020, before everything else: it then replaces `input`'s matrix (ADR 0035, container read per ADR 0037) |
+| 10 | `camera_profile` | 2 | The same, **interpolating** the two calibration illuminants in mireds according to the scene temperature, instead of averaging them ([ADR 0062](adr/0062-dcp-illuminant-interpolation.md)) |
+| 10 | `camera_profile` | 3 | The same, plus the profile's tables — `HueSatMap`, `LookTable`, `ProfileToneCurve` — in the order and the ProPhoto space of the DNG specification ([ADR 0063](adr/0063-dcp-tables.md)) |
+| 20 | `lens` | 1 | Distortion, transverse chromatic aberration and vignetting through a Lensfun profile (ADR 0016–0018) |
+| 30 | `spot_removal` | 1 | Deterministic cloning by a softened bilinear copy, with no *heal* mode (ADR 0031) |
+| 40 | `gains` | 1 | White balance and exposure: a per-channel multiplication, the buffer being already in linear light (ADR 0044) |
+| 50 | `contrast` | 1 | An S-curve around middle grey |
+| 60 | `highlights_shadows` | 1 | Highlights and shadows, masked by luminance |
+| 70 | `whites_blacks` | 1 | Remapping of the extremes |
+| 80 | `tone_curve` | 1 | A point curve, a monotone cubic spline precomputed into a table (ADR 0030) |
+| 90 | `clarity` | 1 | Local contrast at a large radius (ADR 0033) |
+| 100 | `texture` | 1 | The same operator at a small radius (ADR 0033) |
+| 110 | `dehaze` | 1 | Haze removal by *dark channel prior* (ADR 0033) |
+| 120 | `vibrance` | 1 | Saturation weighted by the existing chroma |
+| 130 | `saturation` | 1 | Uniform saturation |
+| 140 | `hsl` | 1 | An HSL mixer over 8 hue bands, blended between adjacent bands (ADR 0032) |
+| 150 | `color_grading` | 1 | Three zones — shadows/midtones/highlights — weighted by luminance (ADR 0032) |
+| 160 | `local_adjustments` | 1 | Masked local adjustments (brush/radial/gradient), reusing the global operators restricted to a coverage (ADR 0029) |
+| 160 | `local_adjustments` | 2 | The same, plus range masks: the geometric coverage can be tightened by a luminance band and a hue band (ADR 0048) |
+| 160 | `local_adjustments` | 3 | The same, plus **stored** masks: the coverage may be a referenced image rather than a geometry ([ADR 0070](adr/0070-stored-mask-coverage.md)); `v1` and `v2` **refuse** it instead of ignoring it |
+| 165 | `lut` | 1 | A creative `.cube` LUT applied on the display axis, dosed by `strength`; the last colour decision (ADR 0053) |
+| 170 | `noise_luminance` | 1 | Luminance noise reduction: a blend towards a Gaussian blur of the luma plane |
+| 170 | `noise_luminance` | 2 | The same, edge-preserving: à trous wavelets and soft per-scale thresholding (ADR 0046) |
+| 180 | `noise_color` | 1 | Chroma noise reduction: a blend towards a Gaussian blur of the deviations from luma |
+| 180 | `noise_color` | 2 | The same, edge-preserving, with a more aggressive threshold than luminance (ADR 0046) |
+| 190 | `sharpen` | 1 | Unsharp mask on the luminance plane |
+| 200 | `rotate` | 1 | Rotation by an arbitrary angle, bilinear sampling |
+| 205 | `perspective` | 1 | A two-slider homography straightening converging lines; the output is the bounding box of the transformed quadrilateral (ADR 0052) |
+| 210 | `crop` | 1 | Cropping |
+| 900 | `output_rendering` | 1 | The highlight shoulder, then Rec. 2020 → sRGB and encoding; always active (ADR 0044 §3) |
 
-Les rangs vont de dix en dix : un étage futur s'insère entre deux existants sans que personne ne renumérote quoi que ce soit.
+Ranks go up in tens: a future stage inserts itself between two existing ones without anyone renumbering anything.
 
-Une révision éditée hérite des versions d'étages de son parent ; seules les nouvelles révisions par défaut (imports) épinglent les versions courantes.
-
----
-
-## 3.4 Évolution du schéma
-
-Le champ `schema` s'incrémente selon les mêmes règles que les pipelines génériques (§4.4) :
-
-Compatible (pas d'incrément) :
-
-* ajout d'un paramètre optionnel avec valeur neutre ;
-* ajout de documentation ou de contraintes de validation.
-
-Incompatible (incrément obligatoire) :
-
-* suppression ou renommage d'un paramètre ;
-* changement de type, d'unité ou de signification ;
-* changement de plage de valeurs.
-
-Aucune migration des révisions existantes n'est jamais effectuée : le moteur sait **lire** tous les schémas passés.
-
-### Compatibilité ascendante
-
-Un moteur qui rencontre un `schema` plus récent que ce qu'il connaît, ou une version d'étage qu'il n'implémente pas :
-
-* ne modifie jamais la révision ;
-* n'édite pas l'asset (lecture seule) ;
-* affiche la meilleure préversion disponible (dernière preview en cache) avec un avertissement.
-
-Un vieux moteur ne doit jamais détruire le travail d'un moteur récent. Un étage inconnu n'est jamais **sauté** : le rendu échoue (`UnknownStage`), car rendre la photo sans un opérateur que son auteur a vu serait lui montrer d'autres pixels sans le dire.
-
-Même posture pour une révision dont les versions d'étages ne s'accordent pas sur un espace de travail : le rendu échoue (`MixedWorkingSpaces`) en nommant les deux étages en désaccord. Un opérateur écrit pour la lumière linéaire à qui l'on donne un tampon gamma-encodé produirait des pixels plausibles et faux — le seul cas pire qu'une erreur.
-
-Le champ `process`, retiré par [ADR 0043](adr/0043-collapse-prerelease-render-history.md), fait exception à la règle de préservation des champs inconnus : un document qui le porte encore est **refusé**. Cette règle protège le travail d'un moteur *plus récent* ; un champ *supprimé* signale au contraire un document antérieur à la carte d'étages, qu'il serait faux de rendre comme s'il n'en portait pas.
+An edited revision inherits its parent's stage versions; only new revisions by default (imports) pin the current versions.
 
 ---
 
-# 4. Pipelines de traitement génériques
+## 3.4 Schema evolution
 
-Le mécanisme du développement RAW se généralise à tout traitement automatique produisant des résultats à partir d'un asset.
+The `schema` field increments by the same rules as the generic pipelines (§4.4):
 
-Exemples :
+Compatible (no increment):
 
-Aujourd'hui (V1) :
+* adding an optional parameter with a neutral value;
+* adding documentation or validation constraints.
 
-* génération de miniatures et previews ;
-* calcul d'histogrammes ;
-* extraction EXIF.
+Incompatible (increment mandatory):
 
-Demain (§38 du catalogue, hors V1) :
+* removing or renaming a parameter;
+* changing type, unit or meaning;
+* changing the range of values.
 
-* détection de visages ;
-* OCR ;
-* classification par IA locale ;
-* vecteurs de recherche.
+No migration of existing revisions is ever performed: the engine can **read** every past schema.
+
+### Forward compatibility
+
+An engine that meets a `schema` newer than what it knows, or a stage version it does not implement:
+
+* never modifies the revision;
+* does not edit the asset (read only);
+* shows the best available preview (the last cached one) with a warning.
+
+An old engine must never destroy the work of a recent engine. An unknown stage is never **skipped**: the render fails (`UnknownStage`), because rendering the photo without an operator its author saw would be showing them other pixels without saying so.
+
+The same posture for a revision whose stage versions do not agree on a working space: the render fails (`MixedWorkingSpaces`), naming the two stages that disagree. An operator written for linear light, handed a gamma-encoded buffer, would produce plausible and wrong pixels — the only case worse than an error.
+
+The `process` field, removed by [ADR 0043](adr/0043-collapse-prerelease-render-history.md), is an exception to the rule that unknown fields are preserved: a document that still carries it is **refused**. That rule protects the work of a *newer* engine; a *removed* field signals, on the contrary, a document older than the stage map, which it would be wrong to render as though it carried none.
 
 ---
 
-## 4.1 Identité d'un pipeline
+# 4. Generic processing pipelines
 
-Chaque pipeline possède :
+The mechanism of RAW development generalises to any automatic processing that produces results from an asset.
 
-| Champ | Description |
+Examples:
+
+Today (V1):
+
+* generating thumbnails and previews;
+* computing histograms;
+* extracting EXIF.
+
+Tomorrow (§38 of the catalog, outside V1):
+
+* face detection;
+* OCR;
+* classification by local AI;
+* search vectors.
+
+---
+
+## 4.1 A pipeline's identity
+
+Every pipeline has:
+
+| Field | Description |
 |---|---|
-| `id` | Identifiant fonctionnel stable (ex. `face_detection`) |
-| `version` | Version majeure du pipeline |
-| `schema` | Schéma JSON décrivant les paramètres autorisés |
-| `description` | Documentation optionnelle |
+| `id` | A stable functional identifier (e.g. `face_detection`) |
+| `version` | The pipeline's major version |
+| `schema` | A JSON schema describing the allowed parameters |
+| `description` | Optional documentation |
 
 ---
 
-## 4.2 Exécutions
+## 4.2 Runs
 
-Chaque exécution enregistre une **copie complète** des paramètres réellement utilisés.
+Every run records a **complete copy** of the parameters actually used.
 
 ```json
 {
@@ -477,28 +477,28 @@ Chaque exécution enregistre une **copie complète** des paramètres réellement
 }
 ```
 
-Ces paramètres sont :
+Those parameters are:
 
-* immuables ;
-* indépendants du schéma courant ;
-* conservés pendant toute la durée de vie de la bibliothèque.
+* immutable;
+* independent of the current schema;
+* kept for the whole lifetime of the library.
 
-Le traitement lit **exclusivement** les paramètres contenus dans cette copie — jamais la configuration courante de l'application.
+The processing reads **exclusively** the parameters contained in that copy — never the application's current configuration.
 
-### Déroulement
+### Sequence
 
-1. chargement du pipeline ;
-2. sélection de la version ;
-3. validation des paramètres via le schéma ;
-4. copie complète des paramètres dans `settings_json` ;
-5. lancement du traitement ;
-6. enregistrement des résultats.
+1. load the pipeline;
+2. select the version;
+3. validate the parameters against the schema;
+4. copy the parameters in full into `settings_json`;
+5. start the processing;
+6. record the results.
 
 ---
 
-## 4.3 Schéma de validation
+## 4.3 Validation schema
 
-Chaque pipeline expose un schéma JSON :
+Every pipeline exposes a JSON schema:
 
 ```json
 {
@@ -512,31 +512,31 @@ Chaque pipeline expose un schéma JSON :
 }
 ```
 
-Le schéma sert uniquement à :
+The schema serves only to:
 
-* valider les paramètres avant exécution ;
-* documenter le pipeline ;
-* générer des interfaces de configuration.
+* validate parameters before a run;
+* document the pipeline;
+* generate configuration interfaces.
 
-Le schéma n'est **jamais** utilisé pour reconstruire ou réinterpréter une ancienne exécution.
+The schema is **never** used to reconstruct or reinterpret an old run.
 
 ---
 
-## 4.4 Évolution et compatibilité
+## 4.4 Evolution and compatibility
 
-Évolutions compatibles :
+Compatible evolutions:
 
-* ajout d'un paramètre optionnel ;
-* ajout de contraintes de validation ;
-* ajout de documentation.
+* adding an optional parameter;
+* adding validation constraints;
+* adding documentation.
 
-Évolutions incompatibles — nouvelle version obligatoire :
+Incompatible evolutions — a new version is mandatory:
 
-* suppression ou renommage d'un paramètre ;
-* changement de signification ou de type ;
-* changement de comportement produisant des résultats différents.
+* removing or renaming a parameter;
+* changing meaning or type;
+* changing behaviour so that results differ.
 
-Une nouvelle version ne remplace jamais une ancienne. Plusieurs versions coexistent :
+A new version never replaces an old one. Several versions coexist:
 
 ```text
 face_detection v1
@@ -544,9 +544,9 @@ face_detection v2
 face_detection v3
 ```
 
-Chaque exécution référence explicitement la version utilisée.
+Every run explicitly references the version it used.
 
-Exemple de renommage entre versions :
+An example of a rename between versions:
 
 ```json
 v2 : { "confidence": 0.50 }
@@ -554,91 +554,91 @@ v2 : { "confidence": 0.50 }
 v3 : { "score_threshold": 0.50 }
 ```
 
-Les deux formats restent valides pour les exécutions qui les utilisent. Aucune migration des paramètres historiques n'est autorisée.
+Both formats stay valid for the runs that use them. No migration of historical parameters is permitted.
 
 ---
 
 ## 4.5 Reprocessing
 
-Lorsqu'un pipeline évolue, les assets peuvent être retraités : le retraitement remonte chaque étage épinglé d'une révision à sa version courante, en conservant les valeurs des réglages.
+When a pipeline evolves, assets can be reprocessed: reprocessing raises each pinned stage of a revision to its current version, keeping the values of the settings.
 
-Le retraitement :
+Reprocessing:
 
-* crée une nouvelle exécution ;
-* conserve les anciennes ;
-* ne remplace jamais les résultats historiques.
+* creates a new run;
+* keeps the old ones;
+* never replaces historical results.
 
-Les anciens résultats restent consultables tant que l'utilisateur ne les supprime pas explicitement.
-
----
-
-# 5. Reproductibilité
-
-## 5.1 Ce qui est garanti
-
-Deux exécutions produisent le **même résultat, bit pour bit**, si et seulement si :
-
-* les paramètres enregistrés sont strictement identiques ;
-* les versions d'étages mises en jeu sont identiques (ADR 0042) — y compris celles des deux étages d'encadrement, qui épinglent l'espace de travail et la configuration du décodeur (ADR 0044) ; pour un pipeline générique, l'identité du pipeline et sa version (§4.1) ;
-* la ressource d'entrée est identique (même `checksum`) ;
-* la plateforme et la chaîne de compilation sont les mêmes (§5.2).
-
-« Le même résultat » se lit au sens fort : **le fichier exporté**, pas seulement les pixels. Un export ne porte donc aucune horloge — en particulier, le profil ICC embarqué dans chaque fichier a sa date de création remise à zéro, LittleCMS y inscrivant sinon l'heure courante, ce qui faisait différer d'un octet deux exports par ailleurs identiques (`leyline_color::srgb_icc_profile`).
-
-Cette garantie ne dépend **ni de la version de l'application, ni du profil de compilation**. Leyline 1.0.3 et Leyline 7.2.0 rendent `sharpen::v1` à l'identique, parce qu'il s'agit littéralement du même code gelé dans les deux binaires ; un build `debug` et un build `release` également, ce que les rendus de référence (`crates/leyline-engine/src/stages/golden.rs`, manifeste dans `tests/golden/renders.json`) vérifient dans les deux profils.
-
-Ces rendus de référence épinglent, avec chaque empreinte, **la carte `stages` qui l'a produite**, et rejouent chaque entrée à travers cette carte-là. Une nouvelle version d'étage ne peut donc pas déplacer une empreinte existante : elle en ajoute une. Trois gardes tiennent ensemble — les entrées épinglées rendent toujours les mêmes pixels, ce que le moteur épingle *aujourd'hui* figure au manifeste, et aucune paire `(étage, version)` publiée n'échappe au manifeste.
-
-C'est la bonne échelle pour énoncer la promesse : un utilisateur sait quelles versions d'étages sa photo cite — elles sont écrites dans sa révision — alors qu'il ignore quel build a produit ses pixels.
-
-D'où la règle de publication, qui est la forme opérationnelle de la promesse :
-
-> **Aucune version publiée — correctif, mineure ou majeure — ne modifie le rendu d'une version d'étage déjà publiée.** Si le rendu doit changer, c'est une nouvelle version d'étage ; les révisions existantes continuent de citer l'ancienne.
-
-Un rendu qui change n'est donc jamais un incrément de version de l'application : c'est un nouvel étage. Et la règle est **vérifiée mécaniquement** plutôt que promise — la suite de rendus de référence tourne avant publication, et une empreinte qui bouge bloque la publication.
-
-Conserver l'ancien code dans l'arbre est ce qui rend cette garantie réelle, et une étiquette Git n'y suffit pas : le binaire de 2036 est compilé depuis l'arbre de 2036, et une photo de 2026 n'est correctement rendue que si `sharpen::v1` s'y trouve encore. L'étiquette Git sert à *auditer* que l'étage n'a jamais bougé (`git log` vide depuis sa publication) — pas à le livrer.
-
-## 5.2 Ce qui n'est pas garanti
-
-**Changer de plateforme ou de chaîne de compilation.** Le pipeline appelle `powf`, `ln` et `exp` : ces fonctions viennent de la bibliothèque mathématique du système, dont les résultats ne sont pas identiques au dernier bit d'une plateforme, d'une version de libm ou d'une version de LLVM à l'autre. Entre deux plateformes, le rendu est donc **visuellement identique, à une dérive de dernier bit près** — pas bit pour bit.
-
-Prétendre l'inverse serait promettre ce qu'aucun moteur ne tient. Lightroom ne le tient pas (ses chemins GPU et CPU ne donnent pas les mêmes pixels) ; darktable non plus (il migre les paramètres des anciens modules vers le code courant plutôt que de geler ce code). Leyline garantit strictement plus qu'eux dans le cadre de §5.1, et s'arrête exactement là où s'arrête la virgule flottante.
-
-Conséquence pratique : la chaîne d'outils est **épinglée sur une version exacte** dans `rust-toolchain.toml`. En changer est un acte délibéré, qui impose de rejouer les rendus de référence et de consigner toute dérive constatée — jamais l'effet de bord d'un correctif.
-
-Seconde conséquence, sur les rendus de référence eux-mêmes : leurs empreintes ont été bénies sur **une** plateforme, donc le garde qui les compare (`every_pinned_render_is_still_bit_identical`) ne s'exécute que là — sur les autres, il vérifierait une identité binaire que le paragraphe ci-dessus refuse justement de promettre, et il échoue effectivement sur macOS, au dernier bit, dans le seul cas qui appelle `powf`. Les deux autres gardes du manifeste ne comparent aucun pixel et tournent partout. Mesurer la dérive reste possible n'importe où : `cargo test -- --ignored`.
-
-## 5.3 Déterminisme
-
-Les traitements doivent être **déterministes** : tout élément non déterministe (graine aléatoire, ordre des threads affectant le résultat) doit être fixé et enregistré dans les paramètres. Le parallélisme reste autorisé tant qu'il ne change ni la formule ni l'ordre des opérations pour un échantillon donné (ADR 0012).
+Old results stay available until the user explicitly deletes them.
 
 ---
 
-# 6. Contrat de non-destructivité
+# 5. Reproducibility
 
-Les règles suivantes sont invariantes :
+## 5.1 What is guaranteed
 
-* un pipeline peut évoluer ;
-* un schéma peut évoluer ;
-* les paramètres d'une exécution ne changent jamais ;
-* les résultats historiques ne sont jamais modifiés ;
-* un recalcul produit toujours une nouvelle exécution ;
-* toute exécution historique reste reproductible ;
-* un moteur récent lit tous les formats passés ; un moteur ancien ne modifie jamais un format qu'il ne connaît pas.
+Two runs produce the **same result, bit for bit**, if and only if:
+
+* the recorded parameters are strictly identical;
+* the stage versions involved are identical (ADR 0042) — including those of the two framing stages, which pin the working space and the decoder configuration (ADR 0044); for a generic pipeline, the pipeline's identity and its version (§4.1);
+* the input resource is identical (the same `checksum`);
+* the platform and the build toolchain are the same (§5.2).
+
+"The same result" is to be read in the strong sense: **the exported file**, not only the pixels. An export therefore carries no clock — in particular, the ICC profile embedded in every file has its creation date zeroed out, LittleCMS otherwise writing the current time into it, which made two otherwise identical exports differ by one byte (`leyline_color::srgb_icc_profile`).
+
+That guarantee depends on **neither the application version nor the build profile**. Leyline 1.0.3 and Leyline 7.2.0 render `sharpen::v1` identically, because it is literally the same frozen code in both binaries; a `debug` build and a `release` build likewise, which the reference renders (`crates/leyline-engine/src/stages/golden.rs`, manifest in `tests/golden/renders.json`) verify in both profiles.
+
+Those reference renders pin, with every checksum, **the `stages` map that produced it**, and replay each entry through that map. A new stage version therefore cannot move an existing checksum: it adds one. Three guards hold together — pinned entries always render the same pixels, what the engine pins *today* appears in the manifest, and no published `(stage, version)` pair escapes the manifest.
+
+That is the right scale at which to state the promise: a user knows which stage versions their photo cites — they are written in its revision — whereas they have no idea which build produced its pixels.
+
+Hence the publication rule, which is the operational form of the promise:
+
+> **No published version — patch, minor or major — changes the render of an already published stage version.** If the render must change, it is a new stage version; existing revisions go on citing the old one.
+
+A render that changes is therefore never an increment of the application's version: it is a new stage. And the rule is **mechanically verified** rather than promised — the reference render suite runs before publication, and a checksum that moves blocks the publication.
+
+Keeping the old code in the tree is what makes that guarantee real, and a Git tag does not suffice: the 2036 binary is compiled from the 2036 tree, and a 2026 photo is correctly rendered only if `sharpen::v1` is still in it. The Git tag serves to *audit* that the stage never moved (an empty `git log` since its publication) — not to deliver it.
+
+## 5.2 What is not guaranteed
+
+**Changing platform or build toolchain.** The pipeline calls `powf`, `ln` and `exp`: those functions come from the system's maths library, whose results are not identical to the last bit from one platform, one libm version or one LLVM version to the next. Between two platforms, the render is therefore **visually identical, up to a last-bit drift** — not bit for bit.
+
+Claiming otherwise would be promising what no engine keeps. Lightroom does not keep it (its GPU and CPU paths do not give the same pixels); darktable does not either (it migrates the parameters of old modules to current code rather than freezing that code). Leyline guarantees strictly more than they do within the frame of §5.1, and stops exactly where floating point stops.
+
+A practical consequence: the toolchain is **pinned to an exact version** in `rust-toolchain.toml`. Changing it is a deliberate act, which requires replaying the reference renders and recording any drift observed — never the side effect of a bug fix.
+
+A second consequence, about the reference renders themselves: their checksums were blessed on **one** platform, so the guard that compares them (`every_pinned_render_is_still_bit_identical`) runs only there — on the others it would be checking a binary identity that the paragraph above precisely refuses to promise, and it does fail on macOS, at the last bit, in the one case that calls `powf`. The manifest's two other guards compare no pixels and run everywhere. Measuring the drift stays possible anywhere: `cargo test -- --ignored`.
+
+## 5.3 Determinism
+
+Processing must be **deterministic**: any non-deterministic element (a random seed, a thread ordering that affects the result) must be fixed and recorded in the parameters. Parallelism stays permitted as long as it changes neither the formula nor the order of operations for a given sample (ADR 0012).
 
 ---
 
-# 7. Articulation avec le catalogue
+# 6. Non-destructiveness contract
 
-| Concept pipeline | Réalité catalogue (`docs/catalog.md`) |
+The following rules are invariant:
+
+* a pipeline may evolve;
+* a schema may evolve;
+* a run's parameters never change;
+* historical results are never modified;
+* a recomputation always produces a new run;
+* every historical run stays reproducible;
+* a recent engine reads every past format; an old engine never modifies a format it does not know.
+
+---
+
+# 7. Articulation with the catalog
+
+| Pipeline concept | Catalog reality (`docs/catalog.md`) |
 |---|---|
-| Exécution de développement | Ligne de `develop_revisions` |
-| Paramètres immuables | `settings_json` (état complet) |
-| Version de format | Champ `schema` du JSON |
-| Version de rendu | Champ `stages` du JSON, une entrée par étage actif |
-| Recalcul | Nouvelle révision dans le graphe |
-| Résultat matérialisé | `previews`, invalidées par comparaison de `revision_id` (§20) |
-| Coalescence | Une révision = une intention (§17) — la granularité des exécutions suit la même règle |
+| A develop run | A row in `develop_revisions` |
+| Immutable parameters | `settings_json` (the complete state) |
+| Format version | The JSON's `schema` field |
+| Render version | The JSON's `stages` field, one entry per active stage |
+| Recomputation | A new revision in the graph |
+| Materialised result | `previews`, invalidated by comparing `revision_id` (§20) |
+| Coalescing | One revision = one intention (§17) — the granularity of runs follows the same rule |
 
-La seule exception à l'immuabilité des révisions est la fenêtre d'amendement du catalogue (§17), strictement bornée aux révisions non référencées.
+The only exception to the immutability of revisions is the catalog's amendment window (§17), strictly bounded to unreferenced revisions.
