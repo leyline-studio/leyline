@@ -484,9 +484,13 @@ justify itself.** Three measurements say so:
 * **B1 made interaction fluid** — ~14 ms on an end-of-pipeline
   slider, that is, below the threshold at which the eye sees latency. There is no longer any
   annoyance to remove on the path where the GPU would be permitted.
-* **On export, the GPU is forbidden** by the `pipeline.md` §5.1 promise, and
-  that is precisely the path that takes seconds. A GPU that cannot
-  touch the only place that is expensive settles nothing.
+* **On export, the GPU is expensive rather than forbidden.** This document
+  first read §5.1 as a prohibition; [ADR 0080](adr/0080-the-promise-and-its-boundary.md) §3
+  corrected that reading. §5.1 forbids changing the pixels of a *published*
+  stage version, not publishing new ones: a GPU operator is a new stage
+  version like any other, declaring its backend, with no silent CPU fallback.
+  The obstacle is therefore the cost — one new version per operator ported,
+  kept forever — and not the promise.
 * **There is no deficit to catch up**: at comparable settings, Leyline
   exports as fast as RawTherapee and faster than darktable, both of them on
   the CPU too (see B2). The competitor we would want to catch with a GPU does not

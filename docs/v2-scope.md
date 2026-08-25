@@ -26,7 +26,7 @@
 
 The V1 scope (`docs/specification.md` §1) is **delivered and closed**.
 
-This document does not reopen V1. It scopes, at the architectural level, seven features that were **missing** at the time it was written — without being excluded by design. V1's deliberate exclusions (`docs/specification.md` §4 (Deliberate exclusions): cloud, accounts, AI, HDR, panorama, face recognition, synchronisation) stay off topic here. The eight items below are of another nature: they are the classic expectations of a RAW developer (Lightroom/Darktable/Capture One parity) simply not built yet.
+This document does not reopen V1. It scopes, at the architectural level, seven features that were **missing** at the time it was written — without being excluded by design. V1's deliberate exclusions (`docs/specification.md` §4 (Deliberate exclusions): cloud, accounts, AI, HDR, panorama, face recognition, synchronisation) stay off topic here. The eight items below are of another nature: they are the classic expectations of a RAW developer, simply not built yet.
 
 Each section describes what the item requires of the **render contract** (`docs/pipeline.md` §3.2/§3.3: the format `schema` vs. the render `process`), its place in the **pipeline order** (§3.1), the owning **crate** or crates, the **catalog** (`docs/catalog.md`) and **engine API** (`docs/engine-api.md`) implications, a complexity reading (S/M/L/XL) and the open questions.
 
@@ -93,7 +93,7 @@ Open questions:
 
 # 4. Colour grading / HSL mixer
 
-Vibrance and saturation exist (globally). What is missing is the **per-hue HSL** mixer (8 hue/saturation/luminance bands) and the shadows/midtones/highlights **colour grading wheels** (colour + luminance), in the manner of Darktable's *color balance rgb* or Lightroom's *color grading* panel.
+Vibrance and saturation exist (globally). What is missing is the **per-hue HSL** mixer (8 hue/saturation/luminance bands) and the shadows/midtones/highlights **colour grading wheels** (colour + luminance), as found in every established developer.
 
 | Aspect | Analysis |
 |---|---|

@@ -10,7 +10,7 @@
 
 A develop preset is a named, reusable set of settings, applicable in one gesture to a photo, to a selection, or to a whole library.
 
-It is a baseline expectation of a RAW development tool (Lightroom/Darktable parity): this document describes what Leyline offers, ahead of any implementation question.
+It is a baseline expectation of any RAW development tool: this document describes what Leyline offers, ahead of any implementation question.
 
 Out of scope: **export presets** (`catalog.md` §27, `engine-api.md` §12) already exist and concern output encoding (format, quality, dimensions), not development. This document covers **develop presets** exclusively.
 
@@ -32,7 +32,7 @@ Out of scope: **export presets** (`catalog.md` §27, `engine-api.md` §12) alrea
 
 A preset never captures the complete state of a development (`settings_json`, `pipeline.md` §3.2). A preset that captured everything would also overwrite crop and rotation on application — a "high-contrast black & white" preset applied to a whole series must not crop every photo the same way.
 
-The settings of schema 1 (`pipeline.md` §3.2) fall into **categories**, at checkbox granularity (Lightroom-style) — never at the individual field:
+The settings of schema 1 (`pipeline.md` §3.2) fall into **categories**, at checkbox granularity — never at the individual field:
 
 | Category | Fields covered |
 |---|---|

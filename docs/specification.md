@@ -82,11 +82,16 @@ The word *experimental* is literal: the colorimetric accuracy of the DCP matrix 
 
 These absences are **decisions**, not delays. They are not to be proposed as missing features.
 
+They say what the delivered application does not contain. They are not
+statements about what the project may ever build: what the user is guaranteed,
+and what any future optional service would have to satisfy, is fixed by
+[ADR 0080](adr/0080-the-promise-and-its-boundary.md).
+
 | Excluded | Reason |
 |---|---|
-| Cloud | Contradicts the Local First principle |
-| User accounts | There is no service to authenticate against |
-| Subscription | Contradicts the photographer's ownership of their data |
+| Cloud | Nothing is hosted: the library is a folder on your disk, and it is the original. A shared catalog, if one ever existed, would be a copy and an option — never the source of truth ([ADR 0080](adr/0080-the-promise-and-its-boundary.md) §4) |
+| User accounts | The application authenticates against nothing, because no delivered feature needs a server. No account can ever become the condition of what is already installed |
+| Subscription | The application is not sold by subscription, does not expire and holds no licence check. What could be sold one day is hosting or an extension ([ADR 0069](adr/0069-closed-extension-boundary.md)), never the right to run what you have |
 | Artificial intelligence | Out of scope: **no model is shipped, no inference takes place**. What exists since [ADR 0073](adr/0073-external-mask-detectors.md) is a *socket* — a third-party mask detector, installed separately, may propose a coverage that the free pipeline then renders like any other mask. An optional local AI remains conceivable in the very long term |
 | HDR | A whole feature, to be settled by an ADR of its own when the day comes |
 | Panorama | Likewise |

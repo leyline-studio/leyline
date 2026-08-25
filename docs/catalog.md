@@ -418,7 +418,7 @@ An asset always represents one single physical file.
 2 Reject
 ```
 
-Pick and Reject are carried by the **develop versions** (§18), like the rating and the label: every version is classified independently, in the manner of Lightroom's virtual copies.
+Pick and Reject are carried by the **develop versions** (§18), like the rating and the label: every version is classified independently, in the manner of virtual copies elsewhere.
 
 ---
 
@@ -592,7 +592,7 @@ CREATE TABLE lenses (
 
 # 16. Development Model
 
-Unlike Lightroom, settings are never overwritten.
+Settings are never overwritten.
 
 The model is directly inspired by Git.
 
@@ -957,7 +957,7 @@ The engine will rebuild it automatically.
 
 Keywords are hierarchical from the very first version.
 
-That avoids any complex migration later and allows an organisation similar to Lightroom, Capture One or Photo Mechanic.
+That avoids any complex migration later and allows the hierarchical organisation photographers already use elsewhere.
 
 ```sql
 CREATE TABLE keywords (

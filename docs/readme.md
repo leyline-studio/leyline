@@ -12,7 +12,7 @@ Leyline is a RAW photographic development platform: an engine, and the applicati
 * **Leyline Engine** — the rendering and catalog engine. Independent of any interface.
 * **Leyline Studio** — the desktop application. One client of the engine among others, on the same footing as the CLI and the SDK.
 
-The aim is not to reproduce Lightroom feature by feature, but to build a platform with no subscription, no cloud and no proprietary format, whose architecture stays maintainable twenty years from now. The *why* is developed in [`vision.md`](vision.md).
+The aim is not to reproduce an existing product feature by feature, but to build a platform with no subscription, no cloud and no proprietary format, whose architecture stays maintainable twenty years from now. The *why* is developed in [`vision.md`](vision.md).
 
 ---
 

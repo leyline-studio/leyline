@@ -108,7 +108,7 @@ LIBGL_ALWAYS_SOFTWARE=1 leyline-studio
 
 ## 6.1 The installation
 
-The AppImage weighs 26 MiB and the Windows installer 30 MB, world basemap included ([ADR 0059](adr/0059-bundled-world-basemap.md) — 9 MB of z0–5 tiles, embedded so that the map view never issues a network request). For comparison, darktable weighs 108.
+The AppImage weighs 26 MiB and the Windows installer 30 MB, world basemap included ([ADR 0059](adr/0059-bundled-world-basemap.md) — 9 MB of z0–5 tiles, embedded so that the map view never issues a network request).
 
 ## 6.2 The library
 

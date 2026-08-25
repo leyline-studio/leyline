@@ -325,7 +325,7 @@ Neutral values of schema 1:
 
 ## 3.3 Stage versions
 
-The `stages` field plays the role of Lightroom's *process versions* (2003, 2010, 2012…), at one granularity's difference: it is not the whole pipeline that carries a number, it is **each operator** ([ADR 0042](adr/0042-versioned-stage-pipeline.md)).
+The `stages` field plays the role that a global *process version* plays elsewhere, at one granularity's difference: it is not the whole pipeline that carries a number, it is **each operator** ([ADR 0042](adr/0042-versioned-stage-pipeline.md)).
 
 The fundamental rule:
 
@@ -603,7 +603,17 @@ Keeping the old code in the tree is what makes that guarantee real, and a Git ta
 
 **Changing platform or build toolchain.** The pipeline calls `powf`, `ln` and `exp`: those functions come from the system's maths library, whose results are not identical to the last bit from one platform, one libm version or one LLVM version to the next. Between two platforms, the render is therefore **visually identical, up to a last-bit drift** — not bit for bit.
 
-Claiming otherwise would be promising what no engine keeps. Lightroom does not keep it (its GPU and CPU paths do not give the same pixels); darktable does not either (it migrates the parameters of old modules to current code rather than freezing that code). Leyline guarantees strictly more than they do within the frame of §5.1, and stops exactly where floating point stops.
+Claiming otherwise would be promising what no comparable engine keeps — some run GPU and CPU paths that do not agree, others migrate the parameters of old modules onto current code rather than freezing that code. Leyline guarantees strictly more within the frame of §5.1, and stops exactly where floating point stops.
+
+**The execution backend counts as part of the platform.** An operator ported to
+another backend — a GPU among them — is a **new stage version** declaring that
+backend, never a faster way to run a published one ([ADR 0080](adr/0080-the-promise-and-its-boundary.md) §3).
+A machine that cannot provide the backend a revision cites refuses to render,
+with a named error, rather than falling back silently onto another one: two
+backends producing two images from one revision is exactly what §5.1 exists to
+prevent. What remains — driver versions, vendor differences — sits in this
+section for the same reason libm does. The preview path is unaffected, having
+never been inside §5.1.
 
 A practical consequence: the toolchain is **pinned to an exact version** in `rust-toolchain.toml`. Changing it is a deliberate act, which requires replaying the reference renders and recording any drift observed — never the side effect of a bug fix.
 

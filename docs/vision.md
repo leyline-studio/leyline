@@ -16,7 +16,7 @@ Leyline is not one more engine behind an interface: it is an engine around which
 
 A demanding amateur photographer has, today, essentially two options:
 
-* **Adobe Lightroom** — capable and coherent, but conditional on a subscription: stop paying and you lose access to your own editing work.
+* **The dominant commercial option** — capable and coherent, but conditional on a subscription: stop paying and you lose access to your own editing work.
 * **The free alternatives** — often very powerful, sometimes hard to approach, and frequently heirs to older architectures that make every evolution expensive.
 
 Leyline offers a third way: software that is fast, modern, local, cross-platform, pleasant to use, entirely non-destructive, and whose architecture is clean **from the start** — because no architecture is ever straightened out afterwards at a reasonable cost.
@@ -49,11 +49,30 @@ Six principles, in this order of priority:
 
 **Their editing work.** Settings are stored in a documented format ([`pipeline.md`](pipeline.md) §3.2), inside an ordinary SQLite database ([`catalog.md`](catalog.md)). Nothing is encrypted or obfuscated: a Leyline catalog stays readable even without Leyline.
 
+### The five guarantees
+
+Stated as properties of the application you installed, so that each one is
+plainly false if it stops holding ([ADR 0080](adr/0080-the-promise-and-its-boundary.md)):
+
+1. **Your files are never modified.** A source file is read, never rewritten.
+2. **Your edits are readable without us** — documented JSON in a documented
+   SQLite database, on your disk.
+3. **The application runs offline, with no account and no licence check, for as
+   long as you keep it.** Nothing expires, nothing activates, nothing renews.
+4. **The same settings give the same pixels**, in the scope
+   [`pipeline.md`](pipeline.md) §5.1 states and §5.2 bounds.
+5. **Nothing leaves your machine without an explicit action.** No telemetry, no
+   usage counter, no silent check.
+
+What is *not* promised is written next to them, because that is what makes them
+worth something: no free hosting, no undertaking that the project will never
+sell anything, and no identical pixels across machines or execution backends.
+
 ---
 
 ## What Leyline is not
 
-Leyline is not a clone of Lightroom, nor of darktable, nor of Capture One. Some of their solutions are taken up when they are good, and rejected with a written reason when they are not — see for instance [ADR 0042](adr/0042-versioned-stage-pipeline.md), which explicitly compares all three approaches to freezing a render before deciding.
+Leyline is not a clone of the established RAW developers. Their solutions are taken up when they are good, and rejected with a written reason when they are not — see for instance [ADR 0042](adr/0042-versioned-stage-pipeline.md), which weighs three known approaches to freezing a render before deciding.
 
 Nor is it a project that accumulates features: the exclusions in [`specification.md`](specification.md) are decisions, not delays.
 
