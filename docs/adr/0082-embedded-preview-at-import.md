@@ -123,14 +123,28 @@ raison habituelle : une convention se relit de deux façons.
 
 ### 3. Ce qu'un client affiche, et ce qu'il en sait
 
-`Library::cached_preview` rend désormais **la meilleure image affichable**, et
-dit si elle est définitive : un rendu valide d'abord, à défaut l'imagette
-embarquée, à défaut rien.
+`Library::cached_preview` répond désormais à « que peut-on montrer de la
+version courante ? » et non à « quel est le rendu de la tête ? ». La nuance
+est la décision entière, et elle a été tranchée en écrivant le code, contre
+une première rédaction de cette section :
 
-Studio affiche ce qu'on lui donne et — quand ce n'est pas définitif — met la
-cellule dans la file que son minuteur de vignettes vide déjà. Le mécanisme
-existe : `load_window` construit sa liste `missing` et rend en priorité les
-lignes visibles. Il ne change pas de nature, seulement de critère.
+**L'imagette n'est pas un bouche-trou.** Elle *est* la vignette tant que la
+photo n'a pas été développée, et le pipeline la reprend au moment où il y a
+une retouche à montrer — c'est-à-dire exactement quand l'utilisateur s'attend
+à voir sa vignette changer. La version d'abord envisagée, où chaque cellule
+regardée déclenchait un rendu qui remplaçait l'imagette, coûtait 680 ms de
+processeur par photo parcourue, à vie, et faisait changer la couleur de
+chaque vignette sous les yeux de l'utilisateur pendant qu'il défile.
+
+Une conséquence heureuse : **Studio ne change pas d'une ligne**. Un client n'a
+besoin d'aucune notion de provenance — une cellule a une image ou n'en a pas,
+comme avant. La colonne `origin` de §2 reste indispensable, mais elle sert au
+catalogue à ne pas mentir, pas au client à savoir quoi faire.
+
+Techniquement, la distinction se lit sur la tête de version : une imagette ne
+s'écrit que sur la révision initiale, donc dès qu'il y a un développement la
+tête a bougé et aucune imagette ne s'y trouve. Rien à comparer, rien à
+expliquer au client.
 
 Une cellule qui n'a pas encore son image **n'est pas vide** : elle porte déjà
 son nom de fichier, sa note, son étiquette et ses pastilles — dont le `RAW+J`
@@ -242,16 +256,17 @@ rien du tout.
 ### 6. Ce que l'utilisateur voit, et qu'il faut dire
 
 Une vignette de boîtier n'est pas un rendu neutre de Leyline : elle porte le
-contraste, la saturation et la balance que le fabricant applique. La grille
-montrera donc, sur une photo jamais développée et jamais regardée en loupe, le
-rendu Canon — puis le rendu Leyline dès qu'elle aura été visitée. **La couleur
-changera sous les yeux de l'utilisateur**, une fois, sans qu'il ait rien
-demandé.
+contraste, la saturation et la balance que le fabricant applique. Sur une
+photo jamais développée, la grille montrera donc le rendu Canon **et la loupe
+le rendu neutre Leyline** — les deux diffèrent, et c'est le prix.
 
-C'est le prix, il est assumé, et c'est celui que Lightroom fait payer sous le
-nom « Embedded & Sidecar ». Le refuser coûterait 2 h 50 sur quinze mille
-fichiers, et l'immense majorité de ces vignettes ne sera jamais regardée de
-près.
+Il est assumé, et c'est celui que Lightroom fait payer sous le nom « Embedded
+& Sidecar ». Le refuser coûterait 2 h 50 sur quinze mille fichiers, dont
+l'immense majorité ne sera jamais regardée de près.
+
+Ce qu'on ne paie **pas**, en revanche, c'est un scintillement : la vignette ne
+change qu'à la première retouche, jamais au passage du regard. §3 explique
+pourquoi cette version-là a été écartée, et ce qu'elle aurait coûté.
 
 ## Conséquences
 
@@ -319,9 +334,18 @@ temps. C'est un décodage pleine résolution — 17,9 Mpx — pour produire 256 
   meilleure qualité que l'imagette embarquée (5,2 à 10,6 Mo contre 1,3 à 3,2),
   donc plus long à décoder pour exactement la même image. L'idée coûterait en
   plus un chemin de code qui ne servirait qu'aux paires.
-* **Garder l'imagette pour toujours, sans jamais rendre.** La grille mentirait
-  durablement sur ce que les réglages produisent, et le premier retour de la
-  loupe vers la grille montrerait deux images différentes de la même photo.
+* **Remplacer l'imagette par un rendu dès qu'une cellule est regardée.** La
+  grille finirait toujours par dire la vérité sur ce que produisent les
+  réglages, et grille et loupe concorderaient. Le prix est double et il est
+  rédhibitoire : 680 ms de processeur par photo parcourue, à vie, et la
+  couleur de chaque vignette qui change une fois sous les yeux de
+  l'utilisateur pendant qu'il défile. §3 retient l'autre branche — l'imagette
+  tient jusqu'à la première retouche — parce qu'un catalogue de photos non
+  développées n'a rien à dire de plus que ce que le boîtier a rendu.
+* **Garder l'imagette même après une retouche.** Là, la grille mentirait
+  vraiment : elle montrerait autre chose que ce que les réglages produisent,
+  et un retour de la loupe vers la grille donnerait deux images
+  contradictoires de la même photo.
 
 ## Ce que cet ADR ne fait pas
 
