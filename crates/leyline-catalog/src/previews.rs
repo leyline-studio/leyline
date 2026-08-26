@@ -244,6 +244,24 @@ impl Catalog {
         }
     }
 
+    /// Whether the asset's current version still sits on the revision
+    /// `add_asset` wrote — that is, whether it has never been developed.
+    ///
+    /// The initial revision is the only one with no parent (§18), which is
+    /// also what the grid's "already developed" badge reads. ADR 0082 §1
+    /// turns on it: a photo nobody has touched is shown as the camera
+    /// rendered it, and the pipeline only takes over once there is an edit
+    /// to show.
+    pub fn head_is_initial(&self, asset: AssetId) -> Result<bool> {
+        let head = self.current_head_revision(asset)?;
+        let parent: Option<i64> = self
+            .conn
+            .prepare_cached("SELECT parent_revision_id FROM develop_revisions WHERE id = ?1")
+            .and_then(|mut stmt| stmt.query_row([head.get()], |row| row.get(0)))
+            .map_err(db_err)?;
+        Ok(parent.is_none())
+    }
+
     /// Returns the best image the cache can show for the head revision,
     /// whatever produced it — and the row says which (ADR 0082 §3).
     ///

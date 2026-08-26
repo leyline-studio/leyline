@@ -169,17 +169,27 @@ fn camera_name(manufacturer: &str, model: &str) -> String {
 /// give. Never an error: a preview that cannot be produced costs the row its
 /// picture, never the scan.
 fn thumbnail(path: &Path, media_type: MediaType) -> Option<Vec<u8>> {
-    let image = match media_type {
-        MediaType::Raw | MediaType::Dng => embedded_preview(path)?,
+    let image = file_image(path, media_type)?;
+    let (reduced, _) = crate::downscale::downscale_to_fit(&image, THUMBNAIL_EDGE);
+    encode_jpeg(&reduced)
+}
+
+/// The picture a file can give without developing it: a RAW's embedded
+/// preview, or the image itself for the formats that are one.
+///
+/// Shared with the thumbnail path of ADR 0082 §1, which stores it in the
+/// cache instead of encoding it for a scan — one dispatch, so a scan and a
+/// grid cell never disagree about what a file can show of itself.
+pub(crate) fn file_image(path: &Path, media_type: MediaType) -> Option<RawImage> {
+    match media_type {
+        MediaType::Raw | MediaType::Dng => embedded_preview(path),
         // Decoded whole, then reduced. More expensive than the embedded
         // preview of a RAW, and the only thing these formats offer.
         MediaType::Jpeg | MediaType::Png | MediaType::Tiff => {
-            crate::source::decode(path, &leyline_raw::DecodeParams::default()).ok()?
+            crate::source::decode(path, &leyline_raw::DecodeParams::default()).ok()
         }
-        MediaType::Heif | MediaType::Psd | MediaType::Other => return None,
-    };
-    let (reduced, _) = crate::downscale::downscale_to_fit(&image, THUMBNAIL_EDGE);
-    encode_jpeg(&reduced)
+        MediaType::Heif | MediaType::Psd | MediaType::Other => None,
+    }
 }
 
 /// The preview a body wrote inside its RAW file, as 8-bit RGB, oriented.

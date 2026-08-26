@@ -824,6 +824,30 @@ impl Library {
         let plan = match plan {
             crate::preview::PreviewPlan::Cached(file) => return Ok(file),
             crate::preview::PreviewPlan::Render(plan) => plan,
+            // ADR 0082 §1. Taken with no lock held at all: this decodes no
+            // sensor and runs no stage, so it needs neither the decode cache
+            // nor the stage cache — the two the render path holds, and the
+            // two that made the import pass unparallelizable.
+            crate::preview::PreviewPlan::FromFile {
+                source_path,
+                media_type,
+                head,
+                fallback,
+            } => match crate::preview::file_thumbnail(&source_path, media_type) {
+                Some(image) => {
+                    let mut catalog = lock(&self.inner.catalog);
+                    return crate::preview::record_embedded(
+                        &mut catalog,
+                        &self.inner.cache,
+                        asset,
+                        head,
+                        &image,
+                    );
+                }
+                // No embedded preview, unreadable, or smaller than the class
+                // asked for: develop it after all.
+                None => fallback,
+            },
         };
         let image = {
             let mut decodes = lock(&self.inner.decodes);
@@ -1016,13 +1040,19 @@ impl Library {
         job
     }
 
-    /// Returns the cached preview of the asset's current version when a
-    /// valid one exists, without ever rendering (§11). Lets a client fill
-    /// what is already on disk instantly and schedule the rest.
+    /// Returns what the cache can show for the asset's current version,
+    /// without ever rendering (§11). Lets a client fill what is already on
+    /// disk instantly and schedule the rest.
+    ///
+    /// "What it can show" and not "the head's render": the thumbnail of a
+    /// photo nobody has developed is the picture the file carries, and it is
+    /// the finished answer for that state, not a placeholder (ADR 0082 §1).
+    /// A client therefore needs no notion of provenance — a cell either has
+    /// an image or does not, exactly as before.
     pub fn cached_preview(&self, asset: AssetId, kind: PreviewKind) -> Result<Option<PreviewFile>> {
         Ok(self
             .catalog()
-            .valid_preview(asset, kind)?
+            .displayable_preview(asset, kind)?
             .map(|row| PreviewFile {
                 path: self.inner.cache.absolute_path(&row.relative_path),
                 width: row.width,

@@ -59,6 +59,21 @@ pub(crate) enum PreviewPlan {
     Cached(PreviewFile),
     /// Nothing valid cached: nothing left to do that needs the catalog.
     Render(Box<RenderPlan>),
+    /// A thumbnail of a photo nobody has developed: the file's own picture
+    /// serves, and no pipeline runs (ADR 0082 §1). `fallback` is the plan to
+    /// use if the file turns out to have nothing usable to give — a decision
+    /// only the file itself can settle, and one the catalog must not be
+    /// locked to wait for.
+    FromFile {
+        /// The file to take the picture from.
+        source_path: PathBuf,
+        /// What kind of file it is, which decides where the picture is.
+        media_type: leyline_core::MediaType,
+        /// The revision the stored preview belongs to — the initial one.
+        head: leyline_core::RevisionId,
+        /// What to do instead when the file gives nothing.
+        fallback: Box<RenderPlan>,
+    },
 }
 
 /// Everything [`render_preview`] needs to decode, develop and encode a
@@ -97,7 +112,16 @@ pub(crate) fn plan_preview(
     asset: AssetId,
     kind: PreviewKind,
 ) -> Result<PreviewPlan> {
-    if let Some(row) = catalog.valid_preview(asset, kind)? {
+    // A thumbnail of a photo nobody has developed is the one case where the
+    // cache accepts an image that never went through the pipeline (ADR 0082
+    // §1), so it is also the one case where an *embedded* row is an answer.
+    let from_file = kind == PreviewKind::Thumbnail && catalog.head_is_initial(asset)?;
+    let cached = if from_file {
+        catalog.displayable_preview(asset, kind)?
+    } else {
+        catalog.valid_preview(asset, kind)?
+    };
+    if let Some(row) = cached {
         return Ok(PreviewPlan::Cached(PreviewFile {
             path: cache.absolute_path(&row.relative_path),
             width: row.width,
@@ -117,11 +141,11 @@ pub(crate) fn plan_preview(
     let shot = meta.as_ref().and_then(render::lens_shot);
     let sensor = meta.as_ref().and_then(render::sensor_shot);
 
-    Ok(PreviewPlan::Render(Box::new(RenderPlan {
+    let plan = Box::new(RenderPlan {
         head,
         settings,
         settings_json,
-        source_path,
+        source_path: source_path.clone(),
         // Small size classes never need full resolution: half-size
         // decoding is much faster and still ≥ 2× the target edge.
         half_size: matches!(kind, PreviewKind::Thumbnail | PreviewKind::Small),
@@ -129,7 +153,69 @@ pub(crate) fn plan_preview(
         shot,
         sensor,
         library_root: library_root.to_path_buf(),
-    })))
+    });
+    if from_file {
+        return Ok(PreviewPlan::FromFile {
+            source_path,
+            media_type: catalog.asset_details(asset)?.media_type,
+            head,
+            fallback: plan,
+        });
+    }
+    Ok(PreviewPlan::Render(plan))
+}
+
+/// The thumbnail a file can give of itself, or `None` when it has none worth
+/// taking (ADR 0082 §1).
+///
+/// Refused rather than upscaled when the file's own picture is smaller than
+/// the class asked for: a blurry enlargement would be worse than the slow
+/// render the caller falls back to. `scaled_to_fit` never enlarges, so this
+/// is the only place that has to say so.
+///
+/// Takes no catalog and no cache: like [`render_preview`], it is the slow
+/// half, and it holds none of the engine's locks — not the decode cache and
+/// not the stage cache, since it decodes no sensor and runs no stage. That
+/// is what lets the import pass of ADR 0082 §4 run it in parallel.
+pub(crate) fn file_thumbnail(
+    source_path: &Path,
+    media_type: leyline_core::MediaType,
+) -> Option<Rgb8> {
+    let edge = leyline_preview::max_edge(PreviewKind::Thumbnail)?;
+    let image = crate::scan::file_image(source_path, media_type)?;
+    if image.bits != 8 || image.width.max(image.height) < edge {
+        return None;
+    }
+    Rgb8::new(image.width, image.height, image.data).ok()
+}
+
+/// Stores a thumbnail taken from the file itself and records where it came
+/// from, so nothing downstream mistakes it for a render (ADR 0082 §2).
+pub(crate) fn record_embedded(
+    catalog: &mut Catalog,
+    cache: &PreviewCache,
+    asset: AssetId,
+    head: leyline_core::RevisionId,
+    image: &Rgb8,
+) -> Result<PreviewFile> {
+    let stored = cache
+        .store(asset, head, PreviewKind::Thumbnail, image)
+        .map_err(preview_err)?;
+    catalog.record_preview(&NewPreview {
+        asset,
+        revision: head,
+        kind: PreviewKind::Thumbnail,
+        width: stored.width,
+        height: stored.height,
+        relative_path: stored.relative_path.clone(),
+        origin: leyline_core::PreviewOrigin::Embedded,
+    })?;
+    Ok(PreviewFile {
+        path: cache.absolute_path(&stored.relative_path),
+        width: stored.width,
+        height: stored.height,
+        freshly_generated: true,
+    })
 }
 
 /// Decodes and develops a [`RenderPlan`] into an encodable image — the slow
@@ -415,6 +501,15 @@ pub fn preview(
     let plan = match plan_preview(catalog, cache, library_root, asset, kind)? {
         PreviewPlan::Cached(file) => return Ok(file),
         PreviewPlan::Render(plan) => plan,
+        PreviewPlan::FromFile {
+            source_path,
+            media_type,
+            head,
+            fallback,
+        } => match file_thumbnail(&source_path, media_type) {
+            Some(image) => return record_embedded(catalog, cache, asset, head, &image),
+            None => fallback,
+        },
     };
     // This standalone entry point has no long-lived cache to lend, so it
     // renders with a throwaway one: correct by construction, and no slower
@@ -426,6 +521,16 @@ pub fn preview(
         &plan,
     )?;
     record_render(catalog, cache, asset, kind, &plan, &image)
+}
+
+/// Names a plan variant, for the unit tests' panic messages.
+#[cfg(test)]
+fn plan_name(plan: &PreviewPlan) -> &'static str {
+    match plan {
+        PreviewPlan::Cached(_) => "Cached",
+        PreviewPlan::Render(_) => "Render",
+        PreviewPlan::FromFile { .. } => "FromFile",
+    }
 }
 
 /// Maps cache errors onto the platform error type.
@@ -485,17 +590,163 @@ mod tests {
         (catalog, root, cache, registered.asset, registered.version)
     }
 
+    /// Builds a library holding one PNG of the given size — a stand-in for
+    /// "a file that carries its own picture", which is what a RAW's embedded
+    /// preview amounts to here.
+    fn imported_png(
+        dir: &tempfile::TempDir,
+        width: u32,
+        height: u32,
+    ) -> (
+        Catalog,
+        PathBuf,
+        PreviewCache,
+        AssetId,
+        leyline_core::VersionId,
+    ) {
+        let root = dir.path().join("Library");
+        std::fs::create_dir(&root).unwrap();
+        let mut catalog = Catalog::create(&root.join("catalog.db"), "Preview").unwrap();
+        let cache = PreviewCache::new(root.join("Cache"));
+        let source = dir.path().join("photo.png");
+        let pixels = vec![128u8; (width * height * 3) as usize];
+        image::save_buffer(
+            &source,
+            &pixels,
+            width,
+            height,
+            image::ExtendedColorType::Rgb8,
+        )
+        .unwrap();
+        let report = import(
+            &mut catalog,
+            &root,
+            &source,
+            &ImportOptions {
+                copy_files: true,
+                recursive: false,
+                pair_companions: true,
+            },
+            |_, _| {},
+        )
+        .unwrap();
+        let registered = report.imported[0].registered;
+        (catalog, root, cache, registered.asset, registered.version)
+    }
+
+    fn thumbnail_origin(catalog: &Catalog, asset: AssetId) -> leyline_core::PreviewOrigin {
+        catalog
+            .displayable_preview(asset, PreviewKind::Thumbnail)
+            .unwrap()
+            .expect("no thumbnail was recorded")
+            .origin
+    }
+
+    /// ADR 0082 §1: the thumbnail of a photo nobody has developed comes from
+    /// the file, and no pipeline runs.
+    #[test]
+    fn an_undeveloped_photo_takes_its_thumbnail_from_the_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut catalog, root, cache, asset, _version) = imported_png(&dir, 320, 240);
+        let mut decodes = DecodeCache::new(2);
+
+        preview(
+            &mut catalog,
+            &cache,
+            &mut decodes,
+            &root,
+            asset,
+            PreviewKind::Thumbnail,
+        )
+        .unwrap();
+
+        assert_eq!(
+            thumbnail_origin(&catalog, asset),
+            leyline_core::PreviewOrigin::Embedded
+        );
+    }
+
+    /// The other half of §1: once there is an edit to show, the thumbnail is
+    /// a real render again — the file's own picture knows nothing of it.
+    #[test]
+    fn developing_a_photo_puts_its_thumbnail_back_on_the_pipeline() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut catalog, root, cache, asset, version) = imported_png(&dir, 320, 240);
+        let mut decodes = DecodeCache::new(2);
+
+        preview(
+            &mut catalog,
+            &cache,
+            &mut decodes,
+            &root,
+            asset,
+            PreviewKind::Thumbnail,
+        )
+        .unwrap();
+        assert_eq!(
+            thumbnail_origin(&catalog, asset),
+            leyline_core::PreviewOrigin::Embedded
+        );
+
+        let head = catalog.current_head_revision(asset).unwrap();
+        let mut settings = Settings::parse(&catalog.revision(head).unwrap().settings_json).unwrap();
+        settings.exposure = 1.0;
+        catalog.commit_revision(version, &settings).unwrap();
+
+        preview(
+            &mut catalog,
+            &cache,
+            &mut decodes,
+            &root,
+            asset,
+            PreviewKind::Thumbnail,
+        )
+        .unwrap();
+        assert_eq!(
+            thumbnail_origin(&catalog, asset),
+            leyline_core::PreviewOrigin::Rendered
+        );
+    }
+
+    /// §1 refuses rather than enlarges: a file whose own picture is smaller
+    /// than the class asked for falls back to the render, because a blurry
+    /// enlargement would be worse than a slow correct thumbnail.
+    #[test]
+    fn a_picture_smaller_than_the_class_falls_back_to_the_render() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut catalog, root, cache, asset, _version) = imported_png(&dir, 64, 48);
+        let mut decodes = DecodeCache::new(2);
+
+        preview(
+            &mut catalog,
+            &cache,
+            &mut decodes,
+            &root,
+            asset,
+            PreviewKind::Thumbnail,
+        )
+        .unwrap();
+
+        assert_eq!(
+            thumbnail_origin(&catalog, asset),
+            leyline_core::PreviewOrigin::Rendered
+        );
+    }
+
     #[test]
     fn record_render_writes_when_nothing_raced_it() {
         let dir = tempfile::tempdir().unwrap();
         let (mut catalog, root, cache, asset, _version) = imported(&dir);
         let mut decodes = DecodeCache::new(2);
 
-        let plan =
-            match plan_preview(&catalog, &cache, &root, asset, PreviewKind::Thumbnail).unwrap() {
-                PreviewPlan::Render(plan) => plan,
-                PreviewPlan::Cached(_) => panic!("nothing cached yet"),
-            };
+        // A size class the pipeline still renders: ADR 0082 §1 takes the
+        // thumbnail of an undeveloped photo off this path entirely, and what
+        // these tests are about is `record_render`'s race guard.
+        let plan = match plan_preview(&catalog, &cache, &root, asset, PreviewKind::Medium).unwrap()
+        {
+            PreviewPlan::Render(plan) => plan,
+            other => panic!("expected a render plan, got {}", plan_name(&other)),
+        };
         let image = render_preview(
             &mut decodes,
             &mut crate::stages::StageCache::default(),
@@ -507,7 +758,7 @@ mod tests {
             &mut catalog,
             &cache,
             asset,
-            PreviewKind::Thumbnail,
+            PreviewKind::Medium,
             &plan,
             &image,
         )
@@ -516,7 +767,7 @@ mod tests {
         assert!(file.freshly_generated);
         assert!(
             catalog
-                .valid_preview(asset, PreviewKind::Thumbnail)
+                .valid_preview(asset, PreviewKind::Medium)
                 .unwrap()
                 .is_some(),
             "no concurrent write happened, so this render must be recorded as valid"
@@ -542,11 +793,14 @@ mod tests {
         session.commit().unwrap();
         drop(session);
 
-        let plan =
-            match plan_preview(&catalog, &cache, &root, asset, PreviewKind::Thumbnail).unwrap() {
-                PreviewPlan::Render(plan) => plan,
-                PreviewPlan::Cached(_) => panic!("nothing cached yet"),
-            };
+        // A size class the pipeline still renders: ADR 0082 §1 takes the
+        // thumbnail of an undeveloped photo off this path entirely, and what
+        // these tests are about is `record_render`'s race guard.
+        let plan = match plan_preview(&catalog, &cache, &root, asset, PreviewKind::Medium).unwrap()
+        {
+            PreviewPlan::Render(plan) => plan,
+            other => panic!("expected a render plan, got {}", plan_name(&other)),
+        };
         // The render itself doesn't touch the catalog, so it can genuinely
         // run here, in between reading the plan and recording it — exactly
         // where `Library::preview` releases the catalog lock.
@@ -572,7 +826,7 @@ mod tests {
             &mut catalog,
             &cache,
             asset,
-            PreviewKind::Thumbnail,
+            PreviewKind::Medium,
             &plan,
             &image,
         )
@@ -583,9 +837,7 @@ mod tests {
         // ...but never recorded as the valid preview of the revision, which
         // no longer means what it meant when the render started.
         assert_eq!(
-            catalog
-                .valid_preview(asset, PreviewKind::Thumbnail)
-                .unwrap(),
+            catalog.valid_preview(asset, PreviewKind::Medium).unwrap(),
             None
         );
     }
@@ -601,11 +853,14 @@ mod tests {
         let (mut catalog, root, cache, asset, version) = imported(&dir);
         let mut decodes = DecodeCache::new(2);
 
-        let plan =
-            match plan_preview(&catalog, &cache, &root, asset, PreviewKind::Thumbnail).unwrap() {
-                PreviewPlan::Render(plan) => plan,
-                PreviewPlan::Cached(_) => panic!("nothing cached yet"),
-            };
+        // A size class the pipeline still renders: ADR 0082 §1 takes the
+        // thumbnail of an undeveloped photo off this path entirely, and what
+        // these tests are about is `record_render`'s race guard.
+        let plan = match plan_preview(&catalog, &cache, &root, asset, PreviewKind::Medium).unwrap()
+        {
+            PreviewPlan::Render(plan) => plan,
+            other => panic!("expected a render plan, got {}", plan_name(&other)),
+        };
         let rendered_revision = plan.head;
         let image = render_preview(
             &mut decodes,
@@ -630,7 +885,7 @@ mod tests {
             &mut catalog,
             &cache,
             asset,
-            PreviewKind::Thumbnail,
+            PreviewKind::Medium,
             &plan,
             &image,
         )
@@ -639,9 +894,7 @@ mod tests {
         // Not head anymore, so not valid — but the row exists: an undo back
         // onto `rendered_revision` revalidates it for free.
         assert_eq!(
-            catalog
-                .valid_preview(asset, PreviewKind::Thumbnail)
-                .unwrap(),
+            catalog.valid_preview(asset, PreviewKind::Medium).unwrap(),
             None
         );
         let mut session = EditSession::open(&mut catalog, version).unwrap();
@@ -649,7 +902,7 @@ mod tests {
         drop(session);
         assert!(
             catalog
-                .valid_preview(asset, PreviewKind::Thumbnail)
+                .valid_preview(asset, PreviewKind::Medium)
                 .unwrap()
                 .is_some()
         );
