@@ -62,11 +62,11 @@ Sept CR2, deux boîtiers (60D et 5D Mark IV), cinq dossiers du corpus :
 
 ## Décision
 
-### 1. L'import écrit l'imagette du fichier, il ne développe rien
+### 1. La vignette vient du fichier, quel que soit le demandeur
 
-`generate_import_thumbnails` cesse d'appeler `preview()`. Pour chaque fichier
-importé, elle produit la vignette 256 px à partir de ce que le fichier porte
-déjà :
+La décision porte sur **le chemin d'aperçu**, pas sur la passe d'import. C'est
+`preview()` lui-même qui, pour la classe vignette, se sert de ce que le fichier
+porte déjà au lieu de développer une révision :
 
 * un RAW ou un DNG donne son imagette embarquée ;
 * un JPEG, PNG ou TIFF se donne lui-même, décodé puis réduit ;
@@ -75,11 +75,20 @@ déjà :
   agrandie serait pire qu'une vignette lente ; `scaled_to_fit` n'agrandit
   jamais, et ce cas doit rester un rendu plutôt qu'une image dégradée.
 
-Comme aujourd'hui, la passe est **au mieux** : une vignette qu'on ne peut pas
-produire ne fait jamais échouer un import.
+Le placer là plutôt que dans `generate_import_thumbnails` est le point de
+toute la décision, et c'est une correction : la première rédaction de cet ADR
+le mettait dans la passe d'import, ce qui aurait laissé le **chemin paresseux**
+— celui qui remplit la grille pendant qu'on la parcourt — payer 680 ms par
+cellule visible. Un écran de cent vignettes aurait mis plus d'une minute, et
+la passe d'import serait devenue le seul moyen d'avoir une grille utilisable :
+exactement l'inverse du but.
 
-**Une seule classe de taille**, la vignette. Les autres restent à la demande :
-le grief est le temps d'import, pas le nombre de tailles disponibles, et la
+Comme aujourd'hui, produire une vignette est **au mieux** : celle qu'on ne peut
+pas produire ne fait jamais échouer un import.
+
+**Une seule classe de taille**, la vignette. Les autres restent développées à la
+demande — un aperçu de loupe est un vrai rendu, et c'est ce qu'on veut y voir.
+Le grief est le temps d'import, pas le nombre de tailles disponibles, et la
 ladder complète coûterait 250 Go sur le corpus.
 
 ### 2. Le catalogue dit d'où viennent les pixels
@@ -123,21 +132,50 @@ cellule dans la file que son minuteur de vignettes vide déjà. Le mécanisme
 existe : `load_window` construit sa liste `missing` et rend en priorité les
 lignes visibles. Il ne change pas de nature, seulement de critère.
 
+Une cellule qui n'a pas encore son image **n'est pas vide** : elle porte déjà
+son nom de fichier, sa note, son étiquette et ses pastilles — dont le `RAW+J`
+d'[ADR 0079](0079-raw-jpeg-pairing.md) §6, dessiné qu'il y ait une vignette ou
+non. Seul le rectangle de l'image manque, et le combler par un aplat neutre est
+un détail de Studio, pas une décision de moteur.
+
 La conséquence est celle qu'on veut : **on paie le rendu de ce qu'on regarde**,
 pas de ce qu'on importe. Parcourir un dossier de cent photos rend cent
 vignettes ; importer quinze mille n'en rend aucune.
 
-### 4. Un import que personne ne regardera n'a pas de cache à préchauffer
+### 4. L'import rend la main dès que le catalogue est écrit
 
-`ImportOptions` gagne `thumbnails: bool`, à `true` par défaut. C'est
-exactement le drapeau que `ScanOptions` porte déjà, pour exactement la même
-raison, énoncée par [ADR 0065](0065-selective-import.md) §2 : *« `thumbnails: false`
-existe pour l'appelant qui n'affiche rien (la CLI) »*. Un import en lot
-tombe alors à ~20 ms par fichier.
+Remplir le catalogue et remplir le cache sont deux travaux, et seul le premier
+est l'import. `Library::import` ne bloque donc plus sur les vignettes : il rend
+son rapport quand les assets existent — **~20 ms par fichier** — et la passe
+part comme un travail de fond (§3.1 de `engine-api.md`), qui émet ses
+`PreviewReady` comme n'importe quel rendu.
 
-Ce n'est pas une préférence au sens d'[ADR 0078](0078-preferences-panel.md) §1 :
-cela porte sur un import donné, pas sur l'installation, et n'a rien à faire
-survivre à un relancement.
+Et cette passe est **parallèle**. Le commentaire de `generate_import_thumbnails`
+donnait une raison exacte de ne pas la paralléliser : `preview()` sérialise sur
+le cache de décodage et le cache d'étages, deux mutex tenus pendant tout le
+rendu — le verrou du catalogue, lui, est déjà relâché entre-temps
+([ADR 0023](0023-catalog-lock-narrowing-preview.md)). Une vignette tirée de
+l'imagette embarquée ne touche **ni l'un ni l'autre** : pas de décodage
+capteur, pas d'étage. L'objection tombe avec la cause.
+
+Mesuré sur 16 CR2, page cache chaud, 16 cœurs : **128 ms par fichier en série,
+24 ms avec `rayon` — ×5,3**. Le facteur n'est pas le nombre de cœurs, la
+lecture des fichiers et la bande passante mémoire des décodages 17,9 Mpx
+faisant leur part.
+
+`ImportOptions` gagne malgré tout `thumbnails: bool`, à `true` par défaut :
+c'est exactement le drapeau que `ScanOptions` porte déjà, pour la raison
+qu'énonce [ADR 0065](0065-selective-import.md) §2 — *« `thumbnails: false`
+existe pour l'appelant qui n'affiche rien (la CLI) »*. Ce n'est pas une
+préférence au sens d'[ADR 0078](0078-preferences-panel.md) §1 : cela porte sur
+un import donné, pas sur l'installation.
+
+Ce qui reste vrai dans tous les cas, et qui est le vrai filet : **rien de tout
+cela n'est nécessaire pour que la grille soit utilisable**. §1 vaut pour le
+minuteur comme pour la passe. Un préchauffage annulé, une bibliothèque
+importée avec `thumbnails: false`, un cache effacé à la main — dans les trois
+cas la grille se remplit en la parcourant, à 122 ms par cellule et trois
+travaux en vol.
 
 ### 5. Un compagnon n'a pas de vignette à produire
 
@@ -204,8 +242,15 @@ Par fichier, sur les sept CR2 mesurés :
 | import complet, `thumbnails: false` | ~700 ms | **~20 ms** | ×35 |
 | cache écrit par photo | 53–98 ko | 53–98 ko | inchangé |
 
-Sur les 15 000 CR2 du corpus : **2 h 50 → 31 min**, et **5 min** pour un import
-sans vignettes.
+Sur les 15 000 CR2 du corpus, la passe passe de **2 h 50 à 31 min** en série et
+à **6 min** en parallèle (×5,3 mesuré). Mais c'est la ligne du dessous qui
+compte le plus, puisque §4 la sort du chemin de l'import :
+
+| 15 000 CR2 | aujourd'hui | après |
+|---|---|---|
+| avant que le catalogue soit utilisable | 2 h 50 | **~5 min** |
+| avant que la grille soit entièrement chaude | 2 h 50 | ~6 min de plus, en fond |
+| pour parcourir une grille jamais préchauffée | — | 122 ms par cellule visible |
 
 Pour un boîtier réglé en RAW+JPEG, §5 s'ajoute. Coûts par fichier mesurés
 aujourd'hui — 700 ms pour un CR2, **248 ms pour un JPEG** (pas de décodage
@@ -224,17 +269,19 @@ temps. C'est un décodage pleine résolution — 17,9 Mpx — pour produire 256 
 
 ## Alternatives écartées
 
-* **Paralléliser la passe telle quelle.** C'est ce que le commentaire du code
-  proposait, et cela ne s'attaque pas au bon terme : huit cœurs sur un décodage
-  capteur, c'est encore 21 min de décodage pour des images de 256 px. La
-  parallélisation reste possible **après** celle-ci, sur une passe déjà cinq
-  fois moins chère. Elle est d'ailleurs bloquée aujourd'hui par le verrou du
-  catalogue, tenu pendant tout le décodage de chaque `preview()`, et par un
-  cache de décodage qui est un petit LRU non conçu pour des rendus concurrents.
-* **Ne rien produire du tout à l'import.** Le plus rapide, et il laisse une
-  grille vide au premier lancement — l'écran qui suit un import de quinze mille
-  photos est précisément celui où il faut montrer quelque chose. Reste
-  accessible par §4 à qui le veut.
+* **Paralléliser la passe telle quelle**, sans changer la source des pixels.
+  C'est ce que le commentaire du code proposait, et cela ne s'attaque pas au bon
+  terme : seize cœurs sur un décodage capteur, c'est encore une vingtaine de
+  minutes passées à démosaïquer pour produire des images de 256 px. Et c'est
+  précisément dans cet ordre-là que la parallélisation était bloquée — par les
+  mutex du cache de décodage et du cache d'étages. Changer la source d'abord
+  (§1) supprime l'obstacle et rend le gain intéressant : §4 parallélise donc,
+  mais seulement parce que §1 la précède.
+* **Produire toutes les vignettes avant de rendre la main.** C'est le
+  comportement d'aujourd'hui, et §4 le refuse : remplir le catalogue et remplir
+  le cache sont deux travaux, et faire attendre le premier sur le second n'a
+  jamais servi personne. La grille reste utilisable sans préchauffage — c'est
+  §1 qui l'assure, à 122 ms par cellule visible, et non la passe.
 * **Produire les quatre classes du même décodage JPEG.** Séduisant (un seul
   décodage sert tout), mesuré, et rejeté sur le chiffre : 250 Go de cache sur le
   corpus, pour des tailles que personne n'a demandées.
