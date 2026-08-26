@@ -170,6 +170,28 @@ existe pour l'appelant qui n'affiche rien (la CLI) »*. Ce n'est pas une
 préférence au sens d'[ADR 0078](0078-preferences-panel.md) §1 : cela porte sur
 un import donné, pas sur l'installation.
 
+**La passe suit l'ordre de la grille, pas celui de l'import.** Sa première
+seconde doit aller aux photos qu'on verra en premier, et l'ordre de l'import
+n'a aucune raison d'être celui-là — importer une carte de photos anciennes les
+range au fond d'une grille triée par date de prise de vue. Demander au
+catalogue les premières lignes de la requête par défaut coûte **0,46 ms**
+depuis [ADR 0081](0081-grid-page-cost.md) : l'ordre est gratuit, le prendre est
+donc obligatoire.
+
+Cela dit, **la première page n'est déjà pas le problème**, et c'est ce qui
+autorise la passe à être un simple travail de fond. Le client la préchauffe
+tout seul, et mieux que le moteur ne saurait le faire : `AssetsAdded` déclenche
+`reload`, qui appelle `load_window`, qui partitionne les vignettes manquantes
+**lignes visibles d'abord** et remplit la file que `dispatch_thumbnails` vide
+par trois. Studio connaît son filtre, son tri et son dossier ; le moteur ne les
+connaît pas. Un écran de cent cellules se remplit ainsi en ~4 s à 122 ms par
+vignette et trois travaux en vol, contre ~23 s aujourd'hui.
+
+Une conséquence à connaître sans la trancher ici : `MAX_PREVIEW_JOBS = 3` a été
+dimensionné contre un chemin qui tenait les mutex du cache de décodage et du
+cache d'étages. §1 les libère, et cette borne mérite d'être reprise — c'est un
+réglage de Studio, mesurable une fois le reste en place.
+
 Ce qui reste vrai dans tous les cas, et qui est le vrai filet : **rien de tout
 cela n'est nécessaire pour que la grille soit utilisable**. §1 vaut pour le
 minuteur comme pour la passe. Un préchauffage annulé, une bibliothèque
