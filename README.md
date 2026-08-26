@@ -108,6 +108,9 @@ Contributions require signing the [CLA](CLA.md).
 
 ## License
 
-[GPL-3.0-only](LICENSE). "Leyline" and the Leyline logo are subject to
+[GPL-3.0-only](LICENSE), with one [additional permission under section
+7](LICENSE-EXCEPTION.md) allowing Leyline to be combined with software under
+other terms — every part of Leyline itself stays GPL-3.0, and the permission
+does not survive modification. "Leyline" and the Leyline logo are subject to
 [trademark terms](TRADEMARK.md). Third-party works bundled or linked into the
 binaries are listed in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).

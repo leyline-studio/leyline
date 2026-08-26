@@ -109,6 +109,11 @@ La forme retenue est une *permission additionnelle* au sens de la GPLv3 §7,
 consignée dans un fichier propre au projet. Le texte de la GPL lui-même n'est
 **jamais** modifié : il reste verbatim dans `LICENSE`.
 
+**Consignée le 2026-08-27** dans `LICENSE-EXCEPTION.md`, à la racine, et
+référencée depuis la section License du `README.md`. Le fichier reprend la
+rédaction ci-dessous mot pour mot ; ce qui l'entoure y est explicitement
+marqué comme explicatif et non opérant.
+
 Rédaction retenue :
 
 > **Additional permission under GNU GPL version 3 section 7**

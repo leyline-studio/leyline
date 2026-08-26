@@ -43,11 +43,17 @@ Three expectations that are stricter here than in most projects:
 
 ## Licence and the CLA
 
-Leyline is [GPL-3.0-only](LICENSE). Commercial licences are intended alongside
-the GPL community edition over time, so every contribution is subject to the
-[Contributor License Agreement](CLA.md): you keep your copyright, and grant the
-project the right to distribute your contribution under other licences as well.
-Opening a pull request means you accept it.
+Leyline is [GPL-3.0-only](LICENSE), plus one [additional permission under
+section 7](LICENSE-EXCEPTION.md) that lets Leyline be combined with software
+under other terms. Your contribution is covered by it like the rest of the
+code, and the permission does not survive modification: a fork is granted
+nothing by it.
+
+Commercial licences are intended alongside the GPL community edition over
+time, so every contribution is subject to the [Contributor License
+Agreement](CLA.md): you keep your copyright, and grant the project the right
+to distribute your contribution under other licences as well. Opening a pull
+request means you accept it.
 
 The name "Leyline", the logo and the mark are not covered by the code licence —
 see [`TRADEMARK.md`](TRADEMARK.md).
