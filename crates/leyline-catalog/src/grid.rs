@@ -225,7 +225,10 @@ impl Catalog {
     /// Counts the versions matching the query, ignoring `range` and `sort`.
     pub fn count(&self, query: &GridQuery) -> Result<u64> {
         let filter = self.resolve_collection(query)?;
-        let (sql, params) = build(query, &filter, "COUNT(*)", false)?;
+        let (core, params) = core(query, &filter)?;
+        // Counting sorts nothing and renders no column, so the deferred page
+        // of ADR 0081 §1 has nothing to offer it: one flat query, as before.
+        let sql = format!("SELECT COUNT(*) {core}");
         self.conn
             .query_row(&sql, rusqlite::params_from_iter(params), |row| {
                 row.get::<_, i64>(0)
@@ -234,28 +237,72 @@ impl Catalog {
             .map_err(db_err)
     }
 
+    /// How SQLite says it will answer one grid query, step by step.
+    ///
+    /// A diagnostic, and the only honest way to test the shape of a query
+    /// that is built privately: a test that rebuilt the SQL itself would
+    /// check its own copy rather than the one that runs (ADR 0081 §1).
+    pub fn grid_plan(&self, query: &GridQuery) -> Result<Vec<String>> {
+        let (sql, params) = self.grid_sql(query)?;
+        let mut stmt = self
+            .conn
+            .prepare(&format!("EXPLAIN QUERY PLAN {sql}"))
+            .map_err(db_err)?;
+        let rows = stmt
+            .query_map(rusqlite::params_from_iter(params), |row| row.get(3))
+            .map_err(db_err)?;
+        rows.collect::<std::result::Result<Vec<String>, _>>()
+            .map_err(db_err)
+    }
+
+    /// Builds the two-level page query of ADR 0081 §1 and its parameters.
+    fn grid_sql(&self, query: &GridQuery) -> Result<(String, Vec<SqlValue>)> {
+        let filter = self.resolve_collection(query)?;
+        let (core, mut params) = core(query, &filter)?;
+        let order = order_by(query, &filter)?;
+
+        // ADR 0081 §1: the window is chosen on two integers per row, and only
+        // the survivors are decorated. Sorting the eleven columns below —
+        // two of them correlated subqueries — would run them once per row in
+        // the library to render a hundred cells, since SQLite materialises
+        // the output row before it sorts.
+        //
+        // `v.id`/`a.id` name the same two rows under either shape of trunk;
+        // the collection's own order is the one key the outer query cannot
+        // recompute, so it travels as a column.
+        let mut keys = "v.id AS vid, a.id AS aid".to_owned();
+        let outer_order = if matches!(query.sort, Sort::CollectionOrder) {
+            keys.push_str(", cv.position AS ord");
+            " ORDER BY page.ord".to_owned()
+        } else {
+            order.clone()
+        };
+        params.push(SqlValue::Integer(i64::from(
+            query.range.end - query.range.start,
+        )));
+        params.push(SqlValue::Integer(i64::from(query.range.start)));
+
+        let sql = format!(
+            "WITH page AS (SELECT {keys} {core}{order} LIMIT ? OFFSET ?)
+             SELECT v.id, a.id, a.filename, a.capture_date, v.rating, v.color_label,
+                    v.pick_state, a.width, a.height,
+                    (SELECT r.parent_revision_id IS NOT NULL FROM develop_revisions r
+                      WHERE r.id = v.head_revision_id),
+                    EXISTS (SELECT 1 FROM assets p WHERE p.companion_of = a.id)
+             FROM page
+             JOIN develop_versions v ON v.id = page.vid
+             JOIN assets a ON a.id = page.aid{outer_order}"
+        );
+
+        Ok((sql, params))
+    }
+
     /// Returns the visible window of the grid.
     pub fn grid(&self, query: &GridQuery) -> Result<Vec<GridItem>> {
         if query.range.is_empty() {
             return Ok(Vec::new());
         }
-        let filter = self.resolve_collection(query)?;
-        let (mut sql, mut params) = build(
-            query,
-            &filter,
-            "v.id, a.id, a.filename, a.capture_date, v.rating, v.color_label,
-             v.pick_state, a.width, a.height,
-             (SELECT r.parent_revision_id IS NOT NULL FROM develop_revisions r
-               WHERE r.id = v.head_revision_id),
-             EXISTS (SELECT 1 FROM assets p WHERE p.companion_of = a.id)",
-            true,
-        )?;
-        sql.push_str(" LIMIT ?");
-        params.push(SqlValue::Integer(i64::from(
-            query.range.end - query.range.start,
-        )));
-        sql.push_str(" OFFSET ?");
-        params.push(SqlValue::Integer(i64::from(query.range.start)));
+        let (sql, params) = self.grid_sql(query)?;
 
         let mut stmt = self.conn.prepare(&sql).map_err(db_err)?;
         let rows = stmt
@@ -319,16 +366,12 @@ enum CollectionFilter {
     Smart(SmartRules),
 }
 
-/// Assembles the SQL and its parameters for `select`, with or without the
-/// ORDER BY clause.
-fn build(
-    query: &GridQuery,
-    filter: &CollectionFilter,
-    select: &str,
-    ordered: bool,
-) -> Result<(String, Vec<SqlValue>)> {
+/// Assembles the `FROM`/`WHERE` trunk shared by the grid and the count, and
+/// the parameters it binds — everything but the selected columns and the
+/// order (ADR 0081 §4).
+fn core(query: &GridQuery, filter: &CollectionFilter) -> Result<(String, Vec<SqlValue>)> {
     let mut params: Vec<SqlValue> = Vec::new();
-    let mut sql = format!("SELECT {select} ");
+    let mut sql = String::new();
 
     match filter {
         CollectionFilter::None | CollectionFilter::Smart(_) => {
@@ -434,44 +477,44 @@ fn build(
         shot_range_clause(&mut sql, &mut params, name, column, range)?;
     }
 
-    if ordered {
-        let direction = |ascending| if ascending { "ASC" } else { "DESC" };
-        match query.sort {
-            Sort::CaptureDate { ascending } => {
-                sql.push_str(&format!(
-                    " ORDER BY a.capture_date IS NULL, a.capture_date {}, a.id",
-                    direction(ascending)
-                ));
-            }
-            Sort::Filename { ascending } => {
-                sql.push_str(&format!(
-                    " ORDER BY a.filename COLLATE NOCASE {}, a.id",
-                    direction(ascending)
-                ));
-            }
-            Sort::ImportedAt { ascending } => {
-                sql.push_str(&format!(
-                    " ORDER BY a.imported_at {}, a.id",
-                    direction(ascending)
-                ));
-            }
-            Sort::Rating { ascending } => {
-                sql.push_str(&format!(
-                    " ORDER BY v.rating IS NULL, v.rating {}, a.id",
-                    direction(ascending)
-                ));
-            }
-            Sort::CollectionOrder => {
-                if !matches!(filter, CollectionFilter::Manual(_)) {
-                    return Err(LeylineError::Db(
-                        "collection order requires a manual collection filter".to_owned(),
-                    ));
-                }
-                sql.push_str(" ORDER BY cv.position");
-            }
-        }
-    }
     Ok((sql, params))
+}
+
+/// The `ORDER BY` clause of one query, leading space included.
+///
+/// Undated assets come last whichever way the dates run, and that is said
+/// without a leading expression (ADR 0081 §2): descending, SQLite already
+/// sorts NULLs last, so naming it decided nothing while forbidding every
+/// index; ascending, `NULLS LAST` says the same thing and stays indexable.
+/// The rating keeps its expression — it sorts a column of another table,
+/// which no index of `assets` could serve anyway.
+fn order_by(query: &GridQuery, filter: &CollectionFilter) -> Result<String> {
+    let direction = |ascending| if ascending { "ASC" } else { "DESC" };
+    Ok(match query.sort {
+        Sort::CaptureDate { ascending: true } => {
+            " ORDER BY a.capture_date ASC NULLS LAST, a.id".to_owned()
+        }
+        Sort::CaptureDate { ascending: false } => " ORDER BY a.capture_date DESC, a.id".to_owned(),
+        Sort::Filename { ascending } => format!(
+            " ORDER BY a.filename COLLATE NOCASE {}, a.id",
+            direction(ascending)
+        ),
+        Sort::ImportedAt { ascending } => {
+            format!(" ORDER BY a.imported_at {}, a.id", direction(ascending))
+        }
+        Sort::Rating { ascending } => format!(
+            " ORDER BY v.rating IS NULL, v.rating {}, a.id",
+            direction(ascending)
+        ),
+        Sort::CollectionOrder => {
+            if !matches!(filter, CollectionFilter::Manual(_)) {
+                return Err(LeylineError::Db(
+                    "collection order requires a manual collection filter".to_owned(),
+                ));
+            }
+            " ORDER BY cv.position".to_owned()
+        }
+    })
 }
 
 /// Appends one continuous shot filter, on an indexed column of `metadata`

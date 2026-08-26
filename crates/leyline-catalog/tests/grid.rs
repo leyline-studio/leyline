@@ -219,6 +219,23 @@ fn sorts_are_stable_and_handle_null_last() {
         ]
     );
 
+    // Descending, ADR 0081 §2 dropped the explicit `capture_date IS NULL`
+    // term: SQLite already sorts NULLs last that way, and naming it forbade
+    // every index. Undated still comes last — that is the whole claim.
+    let newest_first = GridQuery {
+        sort: Sort::CaptureDate { ascending: false },
+        ..GridQuery::default()
+    };
+    assert_eq!(
+        versions(&catalog.grid(&newest_first).unwrap()),
+        vec![
+            heron.version,
+            street.version,
+            eagle.version,
+            undated.version
+        ]
+    );
+
     // Unrated versions come last in both directions.
     let by_rating = GridQuery {
         sort: Sort::Rating { ascending: false },
@@ -556,4 +573,34 @@ fn a_written_interval_reads_the_same_for_every_client() {
         }
         assert!(ShotRange::parse(refused).is_err(), "{refused:?}");
     }
+}
+
+/// ADR 0081 §1 and §3: a grid page walks `idx_assets_grid` for its window and
+/// decorates only the rows it kept. The plan is the contract — a page that
+/// goes back to sorting the whole library reads `USE TEMP B-TREE FOR ORDER BY`
+/// on the inner query, and costs 10 ms instead of 0,3 ms on 50 000 assets.
+#[test]
+fn the_grid_page_walks_its_index_instead_of_sorting_the_library() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+    seeded(&mut catalog);
+
+    let plan = catalog.grid_plan(&GridQuery::default()).unwrap();
+
+    assert!(
+        plan.iter().any(|step| step.contains("idx_assets_grid")),
+        "the grid page stopped using its index:\n{}",
+        plan.join("\n")
+    );
+    // The outer query orders the page it was handed, which is a hundred rows
+    // at most; what must never come back is a full sort *inside* the CTE.
+    let inner_full_sort = plan
+        .iter()
+        .take_while(|step| !step.starts_with("SCAN page"))
+        .any(|step| step.trim() == "USE TEMP B-TREE FOR ORDER BY");
+    assert!(
+        !inner_full_sort,
+        "the grid page sorts the whole library again:\n{}",
+        plan.join("\n")
+    );
 }

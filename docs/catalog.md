@@ -1376,6 +1376,12 @@ ON assets(folder_id);
 
 CREATE INDEX idx_assets_checksum
 ON assets(checksum);
+
+CREATE INDEX idx_assets_companion
+ON assets(companion_of);
+
+CREATE INDEX idx_assets_grid
+ON assets(companion_of, capture_date, id);
 ```
 
 The `UNIQUE(folder_id, filename)` constraint also serves as a path index.
@@ -1384,6 +1390,16 @@ The `UNIQUE(folder_id, filename)` constraint also serves as a path index.
 runs once per candidate file. It is not `UNIQUE`: holding the same file
 twice is a legitimate library state, and §12 reports the duplicate rather
 than forbidding it.
+
+`idx_assets_grid` is the one composite index of this table, and its column
+order is its whole point: `companion_of` because every grid query carries
+`a.companion_of IS NULL` (§9), `capture_date` because it is the default sort,
+`id` because it is the tiebreak. It lets a page be walked instead of sorted
+(`docs/adr/0081-grid-page-cost.md`).
+
+`idx_assets_companion` is a strict prefix of it and is kept anyway: `count()`
+scans that index whole to size the grid's scrollbar, and narrow entries make
+that scan roughly eight times cheaper than the same scan over the composite.
 
 ---
 
@@ -1542,7 +1558,18 @@ instant scrolling through several hundred thousand assets.
 
 The grid enumerates **versions**: a single indexed 1:1 join (`develop_versions JOIN assets`) supplies classification, path and dimensions.
 
-Beyond that join, the common queries avoid any further join.
+A grid page is chosen before it is decorated. The window's filters, order and
+bounds run over two integers per row and read `idx_assets_grid` (§32); the
+columns a cell displays — badges included, which are correlated subqueries —
+are then computed over the hundred rows that survived, never over the library.
+Sorting the full output row instead would evaluate those subqueries once per
+asset held, to render one screen: 10,3 ms against 0,46 ms on 50 000 assets.
+The reasoning and the measurements are in
+`docs/adr/0081-grid-page-cost.md`.
+
+Two costs remain linear in the library and are accepted as such: paging by
+`OFFSET` still walks what it skips, and a filter that matches nothing must
+look at everything to say so.
 
 ---
 

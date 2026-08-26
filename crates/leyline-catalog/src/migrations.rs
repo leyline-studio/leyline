@@ -10,7 +10,7 @@ use crate::db_err;
 use leyline_core::Result;
 
 /// Migration scripts: index `n` migrates the database to `user_version` `n + 1`.
-const MIGRATIONS: &[&str] = &[SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4];
+const MIGRATIONS: &[&str] = &[SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5];
 
 /// The schema version produced by the newest migration.
 pub(crate) const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
@@ -400,4 +400,24 @@ CREATE INDEX idx_assets_companion ON assets(companion_of);
 const SCHEMA_V4: &str = "
 -- §32 The import's duplicate check, once per candidate file.
 CREATE INDEX idx_assets_checksum ON assets(checksum);
+";
+
+/// Version 5: the index the grid page walks (ADR 0081 §3).
+///
+/// `companion_of` first because every grid query carries
+/// `a.companion_of IS NULL` (ADR 0079 §5), `capture_date` next because it is
+/// the default sort and by far the most used, `id` last because it is the
+/// tiebreak. Together with the deferred page of ADR 0081 §1, a window of a
+/// hundred cells falls from 10,4 ms to 0,29 ms on a 50 000-asset library.
+///
+/// `idx_assets_companion` stays, though this index has it as a strict prefix,
+/// and the measurement is the whole argument: `count()` scans that index
+/// end to end to size the grid's scrollbar, and scanning the wide one costs
+/// 28,7 ms against 3,3 ms — the narrow entries are what make it cheap. The
+/// same covering index answers the companion test of ADR 0079 §6. One more
+/// b-tree per registered asset is the price, on a write path that is not
+/// where imports spend their time.
+const SCHEMA_V5: &str = "
+-- §32 The grid page: the pairing clause, then the default sort.
+CREATE INDEX idx_assets_grid ON assets(companion_of, capture_date, id);
 ";
