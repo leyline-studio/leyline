@@ -121,11 +121,27 @@ impl PreviewCache {
 }
 
 /// Writes an image as an 8-bit RGB PNG.
+///
+/// `Compression::Fast` rather than the crate's default `Balanced`, which is
+/// zlib level 6. This is a **cache**, written once and read many times, and
+/// the default made writing it the dominant cost of generating a preview:
+/// measured on a 3888x2592 render, 2 s against 93 ms — 12 Mo/s against
+/// 325 Mo/s, the encoder taking longer than decoding the RAW and developing
+/// it put together. `Fast` reaches that through `fdeflate`, a DEFLATE
+/// specialised for PNG, and the file grows 14 % (7,9 to 9,0 Mo) — cheap,
+/// for a directory `catalog.md` §36 lets anyone delete.
+///
+/// PNG is lossless at every setting, so this changes no pixel: a decode of
+/// both files compares byte for byte. That is why it stops here. The mask
+/// coverage of ADR 0070 is a stored PNG whose BLAKE3 a revision references,
+/// and an exported PNG owes `pipeline.md` §5.1 the same bytes for the same
+/// settings — neither may have its encoder retuned.
 pub(crate) fn write_png(path: &Path, image: &Rgb8) -> Result<(), PreviewError> {
     let file = fs::File::create(path)?;
     let mut encoder = png::Encoder::new(BufWriter::new(file), image.width(), image.height());
     encoder.set_color(png::ColorType::Rgb);
     encoder.set_depth(png::BitDepth::Eight);
+    encoder.set_compression(png::Compression::Fast);
     let mut writer = encoder.write_header()?;
     writer.write_image_data(image.data())?;
     writer.finish()?;
