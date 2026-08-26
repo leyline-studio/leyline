@@ -227,6 +227,32 @@ fn delete_assets_takes_the_whole_graph_and_frees_the_checksum() {
     catalog.add_asset(&again, &Settings::default()).unwrap();
 }
 
+/// The import asks this question once per candidate file, so the answer has
+/// to come from an index and not from a scan (`docs/catalog.md` §12, §32).
+/// Without `idx_assets_checksum` the plan reads `SCAN assets`, and the price
+/// of an import then rises with everything imported before it.
+#[test]
+fn the_duplicate_check_reads_an_index_rather_than_scanning() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+    let asset = sample_asset(&mut catalog, "IMG_0003.CR3");
+    catalog.add_asset(&asset, &Settings::default()).unwrap();
+
+    let plan: String = catalog
+        .connection()
+        .query_row(
+            "EXPLAIN QUERY PLAN SELECT id FROM assets WHERE checksum = ?1",
+            [&[0xABu8; 32][..]],
+            |row| row.get(3),
+        )
+        .unwrap();
+
+    assert!(
+        plan.contains("idx_assets_checksum"),
+        "the duplicate check no longer uses its index: {plan}"
+    );
+}
+
 #[test]
 fn delete_assets_ignores_unknown_ids_and_an_empty_batch() {
     let dir = tempfile::tempdir().unwrap();

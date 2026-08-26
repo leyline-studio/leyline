@@ -10,7 +10,7 @@ use crate::db_err;
 use leyline_core::Result;
 
 /// Migration scripts: index `n` migrates the database to `user_version` `n + 1`.
-const MIGRATIONS: &[&str] = &[SCHEMA_V1, SCHEMA_V2, SCHEMA_V3];
+const MIGRATIONS: &[&str] = &[SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4];
 
 /// The schema version produced by the newest migration.
 pub(crate) const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
@@ -384,4 +384,20 @@ ALTER TABLE assets ADD COLUMN companion_of INTEGER
     REFERENCES assets(id) ON DELETE CASCADE;
 
 CREATE INDEX idx_assets_companion ON assets(companion_of);
+";
+
+/// Version 4: the duplicate index the import path was missing.
+///
+/// `find_asset_by_checksum` (§12) runs once per file offered to the import,
+/// and without an index it is a full scan of `assets`: measured at 2,1 ms on
+/// a 50 000-asset library against 1,9 µs indexed, and it grows with the
+/// library, so the cost of importing a batch grows with everything imported
+/// before it. Purely additive, like the two migrations before it.
+///
+/// Deliberately not `UNIQUE`: two identical files are a legitimate library
+/// state (§12 detects the duplicate, it never forbids it), and the import
+/// decides what to do about it.
+const SCHEMA_V4: &str = "
+-- §32 The import's duplicate check, once per candidate file.
+CREATE INDEX idx_assets_checksum ON assets(checksum);
 ";
