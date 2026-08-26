@@ -22,7 +22,8 @@ Leyline — open-source RAW photo development
 Usage:
   leyline new <library> [--name <name>]
   leyline info <library>
-  leyline import <library> <source> [--reference] [--flat] [--only <name>]...
+  leyline import <library> <source> [--reference] [--flat] [--no-pair]
+                                    [--thumbnails] [--only <name>]...
                                     --only, répétable, n'importe que ces
                                     fichiers-là parmi ceux que `scan` liste
   leyline scan <library> <source> [--flat]
@@ -90,6 +91,8 @@ Usage:
 Options:
   --reference   Reference files in place instead of copying into Photos/
   --flat        Do not descend into subdirectories
+  --thumbnails  Warm the thumbnail cache after importing, and wait for it.
+                Off by default: the grid fills in as it is browsed
   --format <f>  Export format: jpeg (default), png, tiff, webp, avif
   --avif-speed <1-10>
                 AVIF encoder effort, 9 by default (ADR 0067): low is slow and
@@ -322,7 +325,7 @@ fn import(args: &[String]) -> Result<(), String> {
     let [root, source] = positional.as_slice() else {
         return Err(
             "usage: leyline import <library> <source> [--reference] [--flat] [--no-pair] \
-             [--only <name>]..."
+             [--thumbnails] [--only <name>]..."
                 .to_owned(),
         );
     };
@@ -332,6 +335,10 @@ fn import(args: &[String]) -> Result<(), String> {
         copy_files: !options.switch("reference"),
         recursive: !options.switch("flat"),
         pair_companions: !options.switch("no-pair"),
+        // Nobody is looking at pictures here, and this process exits before a
+        // background pass could draw one (ADR 0082 §4). `--thumbnails` warms
+        // the cache synchronously instead, below.
+        thumbnails: false,
     };
     let chosen = options.all("only");
     let report = if chosen.is_empty() {
@@ -366,6 +373,19 @@ fn import(args: &[String]) -> Result<(), String> {
         report.imported.len(),
         report.skipped.len()
     );
+    // Synchronously, and only when asked: this process exits as soon as it
+    // returns, so a background pass would be killed before drawing anything
+    // (ADR 0082 §4).
+    if options.switch("thumbnails") && !report.imported.is_empty() {
+        eprint!("warming thumbnails...");
+        let assets: Vec<_> = report
+            .imported
+            .iter()
+            .map(|imported| imported.registered.asset)
+            .collect();
+        library.warm_thumbnails(&assets);
+        eprintln!(" done");
+    }
     Ok(())
 }
 

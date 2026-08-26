@@ -582,6 +582,7 @@ mod tests {
                 copy_files: true,
                 recursive: false,
                 pair_companions: true,
+                thumbnails: false,
             },
             |_, _| {},
         )
@@ -626,6 +627,7 @@ mod tests {
                 copy_files: true,
                 recursive: false,
                 pair_companions: true,
+                thumbnails: false,
             },
             |_, _| {},
         )

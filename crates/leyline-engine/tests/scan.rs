@@ -24,6 +24,7 @@ const COPY: ImportOptions = ImportOptions {
     copy_files: true,
     recursive: true,
     pair_companions: true,
+    thumbnails: false,
 };
 
 const LOOK: ScanOptions = ScanOptions {

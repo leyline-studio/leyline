@@ -640,7 +640,9 @@ impl Library {
             let mut catalog = lock(&self.inner.catalog);
             crate::import::import(&mut catalog, &self.inner.root, source, options, progress)
         }?;
-        self.generate_import_thumbnails(&report.imported);
+        if options.thumbnails {
+            self.spawn_import_thumbnails(&report.imported);
+        }
         Ok(report)
     }
 
@@ -668,7 +670,9 @@ impl Library {
                 progress,
             )
         }?;
-        self.generate_import_thumbnails(&report.imported);
+        if options.thumbnails {
+            self.spawn_import_thumbnails(&report.imported);
+        }
         Ok(report)
     }
 
@@ -718,19 +722,60 @@ impl Library {
         job
     }
 
-    /// Best-effort thumbnail pass for freshly imported assets (§6, §11).
+    /// Best-effort thumbnail pass for freshly imported assets (§6, §11),
+    /// started as a background job so the import can return (ADR 0082 §4).
     ///
-    /// Run serially: [`Library::preview`] holds the catalog lock for the
-    /// whole decode+render of each asset (the decode cache is a small LRU
-    /// too, not built for concurrent renders), so parallelizing here would
-    /// need deeper changes to that locking, not just a `rayon` iterator
-    /// over this loop — the calls would simply serialize on the catalog
-    /// mutex today. Left serial; worth revisiting if import-time
-    /// thumbnailing shows up in the perf benches.
-    fn generate_import_thumbnails(&self, imported: &[ImportedFile]) {
-        for file in imported {
-            let _ = self.preview(file.registered.asset, PreviewKind::Thumbnail);
-        }
+    /// Filling the catalog and filling the cache are two jobs, and only the
+    /// first is the import: this one emits its `PreviewReady` events like any
+    /// other render, and a client that never waits for it still gets a usable
+    /// grid — ADR 0082 §1 is what guarantees that, not this pass.
+    ///
+    /// **Ordered as the grid will show them**, because the first second must
+    /// go to the photos seen first, and the order of an import has no reason
+    /// to be that one — a card of old photos sorts to the bottom of a grid
+    /// ordered by capture date. The same query drops companions, which no
+    /// grid draws (ADR 0082 §5).
+    ///
+    /// **Parallel.** This used to be impossible for an exact reason:
+    /// `preview()` serialised on the decode cache and the stage cache, two
+    /// mutexes held across a whole render (the catalog lock is already
+    /// released between, ADR 0023). A thumbnail taken from the file's own
+    /// picture touches neither — no sensor decode, no stage — so the
+    /// objection went with its cause. The photos that do fall back to a
+    /// render still serialise there, correctly.
+    fn spawn_import_thumbnails(&self, imported: &[ImportedFile]) {
+        let assets: Vec<AssetId> = imported.iter().map(|f| f.registered.asset).collect();
+        let library = self.clone();
+        self.spawn_job(move || library.warm_thumbnails(&assets));
+    }
+
+    /// Fills the thumbnail cache for `assets` and returns when it is done.
+    ///
+    /// The body of the pass above, exposed because scheduling it and running
+    /// it are two different questions. A client with a window wants it in the
+    /// background; the command-line tool has no event loop and a process that
+    /// exits — a job spawned there would be killed before it drew anything,
+    /// so it calls this instead and waits.
+    ///
+    /// Best-effort throughout: a thumbnail that cannot be produced is skipped,
+    /// never raised. Ordering, companion-skipping and parallelism are
+    /// described on [`Library::spawn_import_thumbnails`].
+    pub fn warm_thumbnails(&self, assets: &[AssetId]) {
+        let Ok(ordered) = lock(&self.inner.catalog).grid_order(assets) else {
+            return;
+        };
+        use rayon::prelude::*;
+        ordered.par_iter().for_each(|&asset| {
+            // One `PreviewReady` per thumbnail, like any other render (§3.2):
+            // without them a client would sit on a grid of empty cells until
+            // something else happened to make it reload.
+            if self.preview(asset, PreviewKind::Thumbnail).is_ok() {
+                self.emit(Event::PreviewReady {
+                    asset_id: asset,
+                    kind: PreviewKind::Thumbnail,
+                });
+            }
+        });
     }
 
     /// Imports files as a job (§3.1): returns immediately, progresses as
@@ -1781,6 +1826,7 @@ impl Library {
                     copy_files: true,
                     recursive: false,
                     pair_companions: true,
+                    thumbnails: true,
                 };
                 // A failed import of one captured shot (e.g. an undecodable
                 // file) is dropped rather than surfaced as a disconnect —
@@ -1873,6 +1919,7 @@ impl Library {
                     copy_files: true,
                     recursive: false,
                     pair_companions: true,
+                    thumbnails: true,
                 };
                 // A failed import of one settled file (e.g. an undecodable
                 // one) is dropped rather than surfaced as a session error —

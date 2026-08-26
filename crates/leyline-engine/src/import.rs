@@ -33,6 +33,13 @@ pub struct ImportOptions {
     /// An import option and not a preference: it governs a library, not the
     /// installation, and fails the first admission condition of ADR 0078 §1.
     pub pair_companions: bool,
+    /// Warm the thumbnail cache for what was just imported (ADR 0082 §4).
+    ///
+    /// On by default, and off for a caller that displays nothing — the same
+    /// flag `ScanOptions` carries, for the same reason (ADR 0065 §2). Turning
+    /// it off costs nothing but a first browse that fills in as it goes: the
+    /// grid needs no warming to be usable (ADR 0082 §1).
+    pub thumbnails: bool,
 }
 
 /// One successfully imported file.

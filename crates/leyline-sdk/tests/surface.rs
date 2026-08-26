@@ -250,6 +250,7 @@ fn a_library_round_trip_needs_nothing_but_the_sdk() {
         copy_files: true,
         recursive: true,
         pair_companions: true,
+        thumbnails: false,
     };
     let report = library.import(&root.join("nothing"), &options, |_, _| {});
     assert!(report.is_err() || report.unwrap().imported.is_empty());

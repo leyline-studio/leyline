@@ -26,6 +26,7 @@ fn library_with_a_flat_photo(
                 copy_files: true,
                 recursive: false,
                 pair_companions: true,
+                thumbnails: false,
             },
             |_, _| {},
         )

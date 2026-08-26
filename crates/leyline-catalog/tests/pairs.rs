@@ -406,3 +406,64 @@ fn a_removal_takes_the_companion_with_it() {
     assert_eq!(deleted.file_paths.len(), 2);
     assert_eq!(shown(&catalog), 0);
 }
+
+/// ADR 0082 §4 and §5, in one query: a warming pass must start with the
+/// photos the grid shows first, and must not spend a second on a companion —
+/// which no grid ever draws (ADR 0079 §5). Both facts come from the same
+/// clause, so they cannot drift apart.
+#[test]
+fn grid_order_sorts_like_the_grid_and_drops_companions() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+
+    let raw = add(
+        &mut catalog,
+        "Photos",
+        "IMG_1.CR3",
+        MediaType::Raw,
+        Some(2_000),
+        Some("Canon EOS 5D Mark IV"),
+    );
+    let jpeg = add(
+        &mut catalog,
+        "Photos",
+        "IMG_1.JPG",
+        MediaType::Jpeg,
+        Some(2_000),
+        Some("Canon EOS 5D Mark IV"),
+    );
+    let older = add(
+        &mut catalog,
+        "Photos",
+        "IMG_0.CR3",
+        MediaType::Raw,
+        Some(1_000),
+        Some("Canon EOS 5D Mark IV"),
+    );
+    let undated = add(
+        &mut catalog,
+        "Photos",
+        "IMG_9.CR3",
+        MediaType::Raw,
+        None,
+        Some("Canon EOS 5D Mark IV"),
+    );
+    assert_eq!(
+        catalog.pair_asset(raw).unwrap(),
+        Pairing::Master(vec![jpeg])
+    );
+
+    // Newest capture first, undated last, and the companion gone — the
+    // default grid order, applied to the subset a pass was handed.
+    assert_eq!(
+        catalog.grid_order(&[undated, jpeg, older, raw]).unwrap(),
+        vec![raw, older, undated]
+    );
+
+    // An id that names nothing simply does not come back.
+    assert_eq!(
+        catalog.grid_order(&[AssetId::new(9_999)]).unwrap(),
+        Vec::new()
+    );
+    assert_eq!(catalog.grid_order(&[]).unwrap(), Vec::new());
+}

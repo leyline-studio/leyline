@@ -22,6 +22,7 @@ const COPY: ImportOptions = ImportOptions {
     copy_files: true,
     recursive: true,
     pair_companions: true,
+    thumbnails: false,
 };
 
 #[test]
@@ -155,6 +156,7 @@ fn non_recursive_import_stays_at_the_surface() {
         copy_files: true,
         recursive: false,
         pair_companions: true,
+        thumbnails: false,
     };
     let report = import(&mut catalog, &root, &shoot, &flat, |_, _| {}).unwrap();
     assert_eq!(report.imported.len(), 1);
@@ -193,6 +195,7 @@ fn referencing_requires_files_inside_the_library_root() {
         copy_files: false,
         recursive: true,
         pair_companions: true,
+        thumbnails: false,
     };
 
     // Inside the root: referenced with its own path, no copy made.

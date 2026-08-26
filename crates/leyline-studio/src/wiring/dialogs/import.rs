@@ -112,6 +112,9 @@ pub(crate) fn wire_import(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 copy_files: copy,
                 recursive,
                 pair_companions: pair,
+                // Studio has a grid to fill and an event loop to hear the
+                // pass finish on (ADR 0082 §4).
+                thumbnails: true,
             };
             let chosen: Vec<PathBuf> = app
                 .candidates

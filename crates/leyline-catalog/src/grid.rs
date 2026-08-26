@@ -222,6 +222,39 @@ pub struct GridItem {
 }
 
 impl Catalog {
+    /// The subset of `assets` the grid actually shows, in the order it shows
+    /// them — the default sort, newest capture first (ADR 0082 §4).
+    ///
+    /// Two jobs in one query, and deliberately so: a warming pass wants to
+    /// start with what the user will see first, and it must not spend a
+    /// second on a companion, which no grid ever draws (ADR 0079 §5). Both
+    /// facts live in the same clause here, so they cannot drift apart the way
+    /// two separate filters would.
+    ///
+    /// Unknown ids simply do not come back.
+    pub fn grid_order(&self, assets: &[AssetId]) -> Result<Vec<AssetId>> {
+        if assets.is_empty() {
+            return Ok(Vec::new());
+        }
+        let placeholders = std::iter::repeat_n("?", assets.len())
+            .collect::<Vec<_>>()
+            .join(",");
+        let sql = format!(
+            "SELECT id FROM assets
+             WHERE id IN ({placeholders}) AND companion_of IS NULL
+             ORDER BY capture_date DESC, id"
+        );
+        let mut stmt = self.conn.prepare(&sql).map_err(db_err)?;
+        let rows = stmt
+            .query_map(
+                rusqlite::params_from_iter(assets.iter().map(|a| a.get())),
+                |row| row.get::<_, i64>(0).map(AssetId::new),
+            )
+            .map_err(db_err)?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(db_err)
+    }
+
     /// Counts the versions matching the query, ignoring `range` and `sort`.
     pub fn count(&self, query: &GridQuery) -> Result<u64> {
         let filter = self.resolve_collection(query)?;

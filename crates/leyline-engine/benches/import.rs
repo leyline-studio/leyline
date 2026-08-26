@@ -31,6 +31,7 @@ fn benches(c: &mut Criterion) {
         copy_files: true,
         recursive: false,
         pair_companions: true,
+        thumbnails: false,
     };
 
     let mut group = c.benchmark_group("import");

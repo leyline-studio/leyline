@@ -25,6 +25,7 @@ fn import_a_real_png(dir: &tempfile::TempDir, library: &Library) -> leyline_core
                 copy_files: true,
                 recursive: false,
                 pair_companions: true,
+                thumbnails: false,
             },
             |_, _| {},
         )

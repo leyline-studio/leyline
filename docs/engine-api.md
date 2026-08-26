@@ -163,6 +163,7 @@ pub struct ImportOptions {
     pub copy_files: bool,      // copy into Photos/ or reference in place
     pub recursive: bool,
     pub pair_companions: bool, // attach the camera JPEG to the RAW (ADR 0079)
+    pub thumbnails: bool,      // warm the thumbnail cache afterwards (ADR 0082)
 }
 
 /// What a scan looks at (ADR 0065 §1).
@@ -240,7 +241,15 @@ no revision to render. The `already_imported` marking compares name and size
 (catalog §43); the import's BLAKE3 checksum remains the only exact answer,
 and it is what refuses.
 
-Import is a job: EXIF extraction, BLAKE3 checksum, creation of the initial revision and of the `Default` version (catalog §18) — streamed, with `JobProgress` per candidate file. Every successfully imported asset also receives its thumbnail (`PreviewKind::Thumbnail`) before `import`/`import_async` returns, through the same core as `preview_async` (§11): the client no longer needs to trigger it afterwards. A thumbnail rendering failure never cancels the asset's import — it stays imported, with no cached thumbnail, and falls back on the existing lazy path (`cached_preview` then `preview_async`) the first time it must be displayed. That rendering is done sequentially, asset by asset: the thumbnail shares the catalog lock with the rest of the import (§11), and parallelising it would mean revisiting that locking, not merely iterating with `rayon`.
+Import is a job: EXIF extraction, BLAKE3 checksum, creation of the initial revision and of the `Default` version (catalog §18) — streamed, with `JobProgress` per candidate file.
+
+Filling the catalog and filling the thumbnail cache are **two jobs**, and only the first is the import ([ADR 0082](adr/0082-embedded-preview-at-import.md) §4). `import`/`import_async` return as soon as the assets exist; when `options.thumbnails` is set, a warming pass starts behind them and emits one `PreviewReady` per thumbnail, like any other render. A client that never waits for it still has a usable grid — §11 is what guarantees that, not the pass.
+
+The pass runs **in the order the grid will show them** (newest capture first), which is also what drops companions: no grid draws one (ADR 0079 §5), so no pass should warm one. It runs **in parallel**: a thumbnail taken from the file's own picture decodes no sensor and runs no stage, so it holds neither the decode cache nor the stage cache — the two mutexes that used to serialise it. Photos that fall back to a real render still serialise there, correctly.
+
+`Library::warm_thumbnails(&[AssetId])` is that pass, exposed and synchronous, for a caller that has no event loop and a process that exits — the command-line tool runs it directly rather than spawning a job that would be killed first.
+
+A thumbnail that cannot be produced never cancels the asset's import: it stays imported with no cached thumbnail, and falls back on the lazy path (`cached_preview` then `preview_async`) the first time it must be displayed.
 
 An **XMP sidecar** placed next to the source file seeds the asset just created — rating, label, hierarchical keywords, artist, copyright ([ADR 0047](adr/0047-xmp-sidecar-read.md), catalog §29): this is the migration path from other software, and it asks for no option. Like the thumbnail, it is best-effort: an unreadable sidecar never sets the photo aside, it sets itself aside. For an already imported asset, `Library::read_xmp(asset) -> Result<bool>` does the same on demand, filling without ever overwriting.
 
@@ -632,6 +641,8 @@ impl Library {
     pub fn preview_state(&self, asset: AssetId, kind: PreviewKind) -> Result<Preview>;
 }
 ```
+
+`cached_preview` answers "what can be shown for the current version", which is not "what the head's render is": the thumbnail of a photo nobody has developed is the picture the file itself carries, and that is the finished answer for that state rather than a placeholder ([ADR 0082](adr/0082-embedded-preview-at-import.md) §1). A client therefore needs no notion of provenance — a cell either has an image or does not. The pipeline takes the thumbnail back the moment there is an edit to show.
 
 `cached_preview` lets the client use the same pattern as `Ready`/`Generating`: display immediately what exists, schedule the generation of the rest — now through `preview_async` and the `PreviewReady` event (Studio can replace its timer with that stream), or directly through `preview_state`.
 
