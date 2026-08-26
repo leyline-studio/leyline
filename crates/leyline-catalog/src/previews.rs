@@ -138,15 +138,15 @@ impl Catalog {
     /// Returns the head revision of the asset's current version — the only
     /// revision whose previews are valid (§20).
     pub fn current_head_revision(&self, asset: AssetId) -> Result<RevisionId> {
+        // Once per grid cell, like `valid_preview` just below it.
         self.conn
-            .query_row(
+            .prepare_cached(
                 "SELECT v.head_revision_id
                  FROM develop_current c
                  JOIN develop_versions v ON v.id = c.version_id
                  WHERE c.asset_id = ?1",
-                [asset.get()],
-                |row| row.get::<_, i64>(0),
             )
+            .and_then(|mut stmt| stmt.query_row([asset.get()], |row| row.get::<_, i64>(0)))
             .map(RevisionId::new)
             .map_err(|e| match e {
                 rusqlite::Error::QueryReturnedNoRows => LeylineError::AssetMissing(asset),
@@ -162,10 +162,17 @@ impl Catalog {
     /// comparison of §20, nothing else.
     pub fn valid_preview(&self, asset: AssetId, kind: PreviewKind) -> Result<Option<PreviewRow>> {
         let head = self.current_head_revision(asset)?;
-        let found = self.conn.query_row(
-            "SELECT width, height, relative_path, generated_at
-             FROM previews
-             WHERE asset_id = ?1 AND revision_id = ?2 AND kind = ?3",
+        // Studio asks this for every cell of every window it loads, so the
+        // statement is prepared once and re-run, never re-parsed.
+        let mut stmt = self
+            .conn
+            .prepare_cached(
+                "SELECT width, height, relative_path, generated_at
+                 FROM previews
+                 WHERE asset_id = ?1 AND revision_id = ?2 AND kind = ?3",
+            )
+            .map_err(db_err)?;
+        let found = stmt.query_row(
             rusqlite::params![asset.get(), head.get(), kind.as_i64()],
             |row| {
                 Ok(PreviewRow {
@@ -281,7 +288,7 @@ impl Catalog {
         let tx = self.conn.transaction().map_err(db_err)?;
         let paths = {
             let mut stmt = tx
-                .prepare("SELECT relative_path FROM previews WHERE revision_id = ?1")
+                .prepare_cached("SELECT relative_path FROM previews WHERE revision_id = ?1")
                 .map_err(db_err)?;
             let rows = stmt
                 .query_map([revision.get()], |row| row.get::<_, String>(0))

@@ -198,7 +198,7 @@ impl Catalog {
     pub fn companions_of(&self, asset: AssetId) -> Result<Vec<AssetId>> {
         let ids: Vec<i64> = self
             .conn
-            .prepare("SELECT id FROM assets WHERE companion_of = ?1 ORDER BY id")
+            .prepare_cached("SELECT id FROM assets WHERE companion_of = ?1 ORDER BY id")
             .map_err(db_err)?
             .query_map([asset.get()], |row| row.get(0))
             .map_err(db_err)?

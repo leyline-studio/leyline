@@ -90,7 +90,7 @@ impl Catalog {
     pub fn versions(&self, asset: AssetId) -> Result<Vec<VersionInfo>> {
         let mut stmt = self
             .conn
-            .prepare(
+            .prepare_cached(
                 "SELECT id, name, head_revision_id, rating, color_label, pick_state, created_at
                  FROM develop_versions WHERE asset_id = ?1 ORDER BY id",
             )

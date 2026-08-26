@@ -71,7 +71,7 @@ impl Catalog {
     pub fn print_presets(&self) -> Result<Vec<PrintPreset>> {
         let mut stmt = self
             .conn
-            .prepare(
+            .prepare_cached(
                 "SELECT id, name, settings_json, created_at
                  FROM print_presets ORDER BY name, id",
             )

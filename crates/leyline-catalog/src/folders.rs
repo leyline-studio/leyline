@@ -67,7 +67,7 @@ impl Catalog {
     pub fn folders(&self) -> Result<Vec<FolderNode>> {
         let mut stmt = self
             .conn
-            .prepare(
+            .prepare_cached(
                 "SELECT f.id, f.parent_id, f.relative_path, COUNT(a.id)
                  FROM folders f
                  LEFT JOIN assets a ON a.folder_id = f.id AND a.is_missing = 0

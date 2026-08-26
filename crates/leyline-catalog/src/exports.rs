@@ -86,7 +86,7 @@ impl Catalog {
     pub fn export_presets(&self) -> Result<Vec<ExportPreset>> {
         let mut stmt = self
             .conn
-            .prepare(
+            .prepare_cached(
                 "SELECT id, name, settings_json, created_at
                  FROM export_presets ORDER BY name, id",
             )
@@ -138,7 +138,7 @@ impl Catalog {
     pub fn export_history(&self, asset: AssetId) -> Result<Vec<ExportRecord>> {
         let mut stmt = self
             .conn
-            .prepare(
+            .prepare_cached(
                 "SELECT preset_id, format, destination, exported_at
                  FROM export_history WHERE asset_id = ?1
                  ORDER BY exported_at DESC, id DESC",

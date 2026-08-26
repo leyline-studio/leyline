@@ -23,11 +23,11 @@ pub(crate) fn index_new_asset(
     asset: AssetId,
     filename: &str,
 ) -> Result<()> {
-    tx.execute(
+    tx.prepare_cached(
         "INSERT INTO search_index (asset_id, filename, keywords, artist, copyright)
          VALUES (?1, ?2, '', '', '')",
-        rusqlite::params![asset.get(), filename],
     )
+    .and_then(|mut stmt| stmt.execute(rusqlite::params![asset.get(), filename]))
     .map_err(db_err)?;
     Ok(())
 }
@@ -74,7 +74,7 @@ impl Catalog {
         };
         let mut stmt = self
             .conn
-            .prepare("SELECT asset_id FROM search_index WHERE search_index MATCH ?1")
+            .prepare_cached("SELECT asset_id FROM search_index WHERE search_index MATCH ?1")
             .map_err(db_err)?;
         let rows = stmt
             .query_map([query], |row| row.get::<_, i64>(0))

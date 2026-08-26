@@ -233,7 +233,7 @@ impl Catalog {
     pub fn collections(&self) -> Result<Vec<CollectionNode>> {
         let mut stmt = self
             .conn
-            .prepare(
+            .prepare_cached(
                 "SELECT id, parent_collection_id, name, description, collection_type
                  FROM collections",
             )
@@ -307,7 +307,7 @@ impl Catalog {
         ensure_manual(&tx, collection)?;
         {
             let mut stmt = tx
-                .prepare(
+                .prepare_cached(
                     "INSERT OR IGNORE INTO collection_versions (collection_id, version_id, position)
                      SELECT ?1, id, 1 + COALESCE((SELECT MAX(position) FROM collection_versions
                                                   WHERE collection_id = ?1), -1)
@@ -348,7 +348,7 @@ impl Catalog {
         ensure_manual(&tx, collection)?;
         {
             let mut stmt = tx
-                .prepare(
+                .prepare_cached(
                     "DELETE FROM collection_versions
                      WHERE collection_id = ?1 AND version_id = ?2",
                 )
@@ -391,7 +391,7 @@ impl Catalog {
         }
         {
             let mut stmt = tx
-                .prepare(
+                .prepare_cached(
                     "UPDATE collection_versions SET position = ?1
                      WHERE collection_id = ?2 AND version_id = ?3",
                 )
@@ -418,7 +418,7 @@ impl Catalog {
         collection_type(&self.conn, collection)?;
         let mut stmt = self
             .conn
-            .prepare(
+            .prepare_cached(
                 "SELECT version_id FROM collection_versions
                  WHERE collection_id = ?1 ORDER BY position",
             )
@@ -459,7 +459,9 @@ fn descendants(conn: &rusqlite::Connection, root: CollectionId) -> Result<Vec<Co
     let mut frontier = vec![root];
     while let Some(parent) = frontier.pop() {
         let mut stmt = conn
-            .prepare("SELECT id FROM collections WHERE parent_collection_id = ?1 ORDER BY id")
+            .prepare_cached(
+                "SELECT id FROM collections WHERE parent_collection_id = ?1 ORDER BY id",
+            )
             .map_err(db_err)?;
         let children = stmt
             .query_map([parent.get()], |row| {

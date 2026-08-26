@@ -27,7 +27,7 @@ impl Catalog {
     pub fn map_pins(&self) -> Result<Vec<MapPin>> {
         let mut stmt = self
             .conn
-            .prepare(
+            .prepare_cached(
                 "SELECT v.id, a.id, m.gps_latitude, m.gps_longitude
                  FROM develop_current c
                  JOIN develop_versions v ON v.id = c.version_id

@@ -95,7 +95,7 @@ impl Catalog {
     pub fn presets(&self) -> Result<Vec<Preset>> {
         let mut stmt = self
             .conn
-            .prepare(
+            .prepare_cached(
                 "SELECT id, name, preset_json, created_at, folder_id, favourite, preset_revision
                  FROM develop_presets ORDER BY favourite DESC, name, id",
             )
@@ -183,7 +183,7 @@ impl Catalog {
     pub fn versions_from_preset(&self, preset: PresetId) -> Result<Vec<(VersionId, u32)>> {
         let mut stmt = self
             .conn
-            .prepare(
+            .prepare_cached(
                 "SELECT v.id, r.from_preset_revision
                  FROM develop_versions v
                  JOIN develop_revisions r ON r.id = v.head_revision_id
@@ -228,7 +228,7 @@ impl Catalog {
     pub fn preset_folders(&self) -> Result<Vec<PresetFolder>> {
         let mut stmt = self
             .conn
-            .prepare("SELECT id, name FROM preset_folders ORDER BY name, id")
+            .prepare_cached("SELECT id, name FROM preset_folders ORDER BY name, id")
             .map_err(db_err)?;
         let rows = stmt
             .query_map([], |row| {

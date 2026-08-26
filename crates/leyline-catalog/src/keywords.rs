@@ -71,7 +71,7 @@ impl Catalog {
     pub fn keyword_tree(&self) -> Result<Vec<KeywordNode>> {
         let mut stmt = self
             .conn
-            .prepare("SELECT id, parent_id, name, path FROM keywords ORDER BY name")
+            .prepare_cached("SELECT id, parent_id, name, path FROM keywords ORDER BY name")
             .map_err(db_err)?;
         let rows = stmt
             .query_map([], |row| {
@@ -134,7 +134,7 @@ impl Catalog {
         keyword_exists(&tx, keyword)?;
         {
             let mut stmt = tx
-                .prepare(
+                .prepare_cached(
                     "INSERT OR IGNORE INTO asset_keywords (asset_id, keyword_id)
                      SELECT id, ?2 FROM assets WHERE id = ?1",
                 )
@@ -166,7 +166,9 @@ impl Catalog {
         keyword_exists(&tx, keyword)?;
         {
             let mut stmt = tx
-                .prepare("DELETE FROM asset_keywords WHERE asset_id = ?1 AND keyword_id = ?2")
+                .prepare_cached(
+                    "DELETE FROM asset_keywords WHERE asset_id = ?1 AND keyword_id = ?2",
+                )
                 .map_err(db_err)?;
             for &asset in assets {
                 stmt.execute([asset.get(), keyword.get()]).map_err(db_err)?;
@@ -181,7 +183,7 @@ impl Catalog {
     pub fn asset_keywords(&self, asset: AssetId) -> Result<Vec<KeywordId>> {
         let mut stmt = self
             .conn
-            .prepare(
+            .prepare_cached(
                 "SELECT k.id FROM asset_keywords ak
                  JOIN keywords k ON k.id = ak.keyword_id
                  WHERE ak.asset_id = ?1 ORDER BY k.path",

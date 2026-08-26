@@ -89,13 +89,15 @@ impl Catalog {
 
         let tx = self.conn.transaction().map_err(db_err)?;
 
-        tx.execute(
+        tx.prepare_cached(
             "INSERT INTO assets (uuid, folder_id, filename, extension, media_type,
                                  file_size, checksum, width, height,
                                  capture_date, capture_offset_minutes,
                                  imported_at, modified_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12)",
-            rusqlite::params![
+        )
+        .and_then(|mut stmt| {
+            stmt.execute(rusqlite::params![
                 uuid::Uuid::new_v4().to_string(),
                 new.folder.get(),
                 new.filename,
@@ -108,37 +110,37 @@ impl Catalog {
                 new.capture_date,
                 new.capture_offset_minutes,
                 now,
-            ],
-        )
+            ])
+        })
         .map_err(db_err)?;
         let asset = AssetId::new(tx.last_insert_rowid());
 
-        tx.execute(
+        tx.prepare_cached(
             "INSERT INTO develop_revisions (asset_id, parent_revision_id, settings_json, created_at)
              VALUES (?1, NULL, ?2, ?3)",
-            rusqlite::params![asset.get(), neutral, now],
         )
+        .and_then(|mut stmt| stmt.execute(rusqlite::params![asset.get(), neutral, now]))
         .map_err(db_err)?;
         let revision = RevisionId::new(tx.last_insert_rowid());
 
-        tx.execute(
+        tx.prepare_cached(
             "INSERT INTO develop_versions (uuid, asset_id, name, head_revision_id, created_at)
              VALUES (?1, ?2, 'Default', ?3, ?4)",
-            rusqlite::params![
+        )
+        .and_then(|mut stmt| {
+            stmt.execute(rusqlite::params![
                 uuid::Uuid::new_v4().to_string(),
                 asset.get(),
                 revision.get(),
                 now
-            ],
-        )
+            ])
+        })
         .map_err(db_err)?;
         let version = VersionId::new(tx.last_insert_rowid());
 
-        tx.execute(
-            "INSERT INTO develop_current (asset_id, version_id) VALUES (?1, ?2)",
-            rusqlite::params![asset.get(), version.get()],
-        )
-        .map_err(db_err)?;
+        tx.prepare_cached("INSERT INTO develop_current (asset_id, version_id) VALUES (?1, ?2)")
+            .and_then(|mut stmt| stmt.execute(rusqlite::params![asset.get(), version.get()]))
+            .map_err(db_err)?;
 
         crate::search::index_new_asset(&tx, asset, &new.filename)?;
 
@@ -183,13 +185,12 @@ impl Catalog {
             let id = asset.get();
 
             let file: Option<String> = tx
-                .query_row(
+                .prepare_cached(
                     "SELECT f.relative_path || '/' || a.filename
                      FROM assets a JOIN folders f ON f.id = a.folder_id
                      WHERE a.id = ?1",
-                    [id],
-                    |row| row.get(0),
                 )
+                .and_then(|mut stmt| stmt.query_row([id], |row| row.get(0)))
                 .optional()
                 .map_err(db_err)?;
             // An id that matches nothing contributes nothing, and must not
@@ -200,7 +201,7 @@ impl Catalog {
 
             {
                 let mut stmt = tx
-                    .prepare("SELECT relative_path FROM previews WHERE asset_id = ?1")
+                    .prepare_cached("SELECT relative_path FROM previews WHERE asset_id = ?1")
                     .map_err(db_err)?;
                 let rows = stmt
                     .query_map([id], |row| row.get::<_, String>(0))
@@ -210,9 +211,11 @@ impl Catalog {
                 }
             }
 
-            tx.execute("DELETE FROM search_index WHERE asset_id = ?1", [id])
+            tx.prepare_cached("DELETE FROM search_index WHERE asset_id = ?1")
+                .and_then(|mut stmt| stmt.execute([id]))
                 .map_err(db_err)?;
-            tx.execute("DELETE FROM assets WHERE id = ?1", [id])
+            tx.prepare_cached("DELETE FROM assets WHERE id = ?1")
+                .and_then(|mut stmt| stmt.execute([id]))
                 .map_err(db_err)?;
 
             deleted.assets.push(*asset);
@@ -226,11 +229,12 @@ impl Catalog {
     /// Returns the asset already carrying this checksum, if any — the
     /// duplicate detection of `docs/catalog.md` §12.
     pub fn find_asset_by_checksum(&self, checksum: &[u8; CHECKSUM_LEN]) -> Result<Option<AssetId>> {
-        let found = self.conn.query_row(
-            "SELECT id FROM assets WHERE checksum = ?1",
-            [checksum.as_slice()],
-            |row| row.get::<_, i64>(0),
-        );
+        // Once per file offered to the import, so it is worth not re-parsing.
+        let mut stmt = self
+            .conn
+            .prepare_cached("SELECT id FROM assets WHERE checksum = ?1")
+            .map_err(db_err)?;
+        let found = stmt.query_row([checksum.as_slice()], |row| row.get::<_, i64>(0));
         match found {
             Ok(id) => Ok(Some(AssetId::new(id))),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
@@ -252,7 +256,7 @@ impl Catalog {
     pub fn asset_names_and_sizes(&self) -> Result<Vec<(String, u64)>> {
         let mut stmt = self
             .conn
-            .prepare("SELECT filename, file_size FROM assets")
+            .prepare_cached("SELECT filename, file_size FROM assets")
             .map_err(db_err)?;
         let rows = stmt
             .query_map([], |row| {

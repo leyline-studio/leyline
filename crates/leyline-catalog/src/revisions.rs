@@ -159,7 +159,7 @@ impl Catalog {
 
         let removed_previews = {
             let mut stmt = tx
-                .prepare("SELECT relative_path FROM previews WHERE revision_id = ?1")
+                .prepare_cached("SELECT relative_path FROM previews WHERE revision_id = ?1")
                 .map_err(db_err)?;
             let rows = stmt
                 .query_map([head.get()], |row| row.get::<_, String>(0))
@@ -314,7 +314,7 @@ impl Catalog {
         let (_, head) = version_row(&self.conn, version)?;
         let mut stmt = self
             .conn
-            .prepare(
+            .prepare_cached(
                 "WITH RECURSIVE chain(id) AS (
                      SELECT ?1
                      UNION ALL
