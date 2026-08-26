@@ -7,7 +7,7 @@
 
 use rusqlite::OptionalExtension;
 
-use leyline_core::{AssetId, LeylineError, PreviewKind, Result, RevisionId};
+use leyline_core::{AssetId, LeylineError, PreviewKind, PreviewOrigin, Result, RevisionId};
 
 use crate::{Catalog, db_err, now_ms};
 
@@ -26,6 +26,8 @@ pub struct NewPreview {
     pub height: u32,
     /// Path of the file, relative to the cache root, forward-slashed.
     pub relative_path: String,
+    /// Where the pixels came from (ADR 0082 §2).
+    pub origin: PreviewOrigin,
 }
 
 /// One `previews` row.
@@ -45,6 +47,8 @@ pub struct PreviewRow {
     pub relative_path: String,
     /// Generation time, UTC Unix epoch milliseconds.
     pub generated_at: i64,
+    /// Where the pixels came from (ADR 0082 §2).
+    pub origin: PreviewOrigin,
 }
 
 impl Catalog {
@@ -57,13 +61,14 @@ impl Catalog {
         self.conn
             .execute(
                 "INSERT INTO previews (asset_id, revision_id, kind, width, height,
-                                       relative_path, generated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                                       relative_path, generated_at, origin)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
                  ON CONFLICT(asset_id, revision_id, kind) DO UPDATE SET
                      width = excluded.width,
                      height = excluded.height,
                      relative_path = excluded.relative_path,
-                     generated_at = excluded.generated_at",
+                     generated_at = excluded.generated_at,
+                     origin = excluded.origin",
                 rusqlite::params![
                     new.asset.get(),
                     new.revision.get(),
@@ -72,6 +77,7 @@ impl Catalog {
                     new.height,
                     new.relative_path,
                     now_ms(),
+                    new.origin.as_i64(),
                 ],
             )
             .map_err(db_err)?;
@@ -113,13 +119,14 @@ impl Catalog {
         }
         tx.execute(
             "INSERT INTO previews (asset_id, revision_id, kind, width, height,
-                                   relative_path, generated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                                   relative_path, generated_at, origin)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
              ON CONFLICT(asset_id, revision_id, kind) DO UPDATE SET
                  width = excluded.width,
                  height = excluded.height,
                  relative_path = excluded.relative_path,
-                 generated_at = excluded.generated_at",
+                 generated_at = excluded.generated_at,
+                 origin = excluded.origin",
             rusqlite::params![
                 new.asset.get(),
                 new.revision.get(),
@@ -128,6 +135,7 @@ impl Catalog {
                 new.height,
                 new.relative_path,
                 now_ms(),
+                new.origin.as_i64(),
             ],
         )
         .map_err(db_err)?;
@@ -160,6 +168,11 @@ impl Catalog {
     /// An undo that moves the head back onto an already-previewed revision
     /// revalidates the old file automatically: validity is the identifier
     /// comparison of §20, nothing else.
+    ///
+    /// A preview the file itself carried is **not** an answer to this
+    /// question (ADR 0082 §2): it never went through the pipeline, so it is
+    /// not the head's render however fresh it is. [`Catalog::displayable_preview`]
+    /// is the call that accepts it.
     pub fn valid_preview(&self, asset: AssetId, kind: PreviewKind) -> Result<Option<PreviewRow>> {
         let head = self.current_head_revision(asset)?;
         // Studio asks this for every cell of every window it loads, so the
@@ -169,7 +182,8 @@ impl Catalog {
             .prepare_cached(
                 "SELECT width, height, relative_path, generated_at
                  FROM previews
-                 WHERE asset_id = ?1 AND revision_id = ?2 AND kind = ?3",
+                 WHERE asset_id = ?1 AND revision_id = ?2 AND kind = ?3
+                   AND origin = 0",
             )
             .map_err(db_err)?;
         let found = stmt.query_row(
@@ -183,6 +197,7 @@ impl Catalog {
                     height: row.get(1)?,
                     relative_path: row.get(2)?,
                     generated_at: row.get(3)?,
+                    origin: PreviewOrigin::Rendered,
                 })
             },
         );
@@ -203,7 +218,7 @@ impl Catalog {
     /// found here after the head has moved on (`docs/engine-api.md` §11).
     pub fn latest_preview(&self, asset: AssetId, kind: PreviewKind) -> Result<Option<PreviewRow>> {
         let found = self.conn.query_row(
-            "SELECT revision_id, width, height, relative_path, generated_at
+            "SELECT revision_id, width, height, relative_path, generated_at, origin
              FROM previews
              WHERE asset_id = ?1 AND kind = ?2
              ORDER BY generated_at DESC
@@ -218,6 +233,52 @@ impl Catalog {
                     height: row.get(2)?,
                     relative_path: row.get(3)?,
                     generated_at: row.get(4)?,
+                    origin: PreviewOrigin::from_i64(row.get(5)?).unwrap_or(PreviewOrigin::Rendered),
+                })
+            },
+        );
+        match found {
+            Ok(row) => Ok(Some(row)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(db_err(e)),
+        }
+    }
+
+    /// Returns the best image the cache can show for the head revision,
+    /// whatever produced it — and the row says which (ADR 0082 §3).
+    ///
+    /// This is the grid's question, and it is not
+    /// [`Catalog::valid_preview`]'s: a cell wants something to draw now, and
+    /// a preview the camera embedded draws perfectly well. Its `origin` is
+    /// what tells the client the cell is not finished, so that it queues the
+    /// render that will replace it — a caller that ignores the field shows a
+    /// camera rendering forever without knowing it.
+    pub fn displayable_preview(
+        &self,
+        asset: AssetId,
+        kind: PreviewKind,
+    ) -> Result<Option<PreviewRow>> {
+        let head = self.current_head_revision(asset)?;
+        let mut stmt = self
+            .conn
+            .prepare_cached(
+                "SELECT width, height, relative_path, generated_at, origin
+                 FROM previews
+                 WHERE asset_id = ?1 AND revision_id = ?2 AND kind = ?3",
+            )
+            .map_err(db_err)?;
+        let found = stmt.query_row(
+            rusqlite::params![asset.get(), head.get(), kind.as_i64()],
+            |row| {
+                Ok(PreviewRow {
+                    asset,
+                    revision: head,
+                    kind,
+                    width: row.get(0)?,
+                    height: row.get(1)?,
+                    relative_path: row.get(2)?,
+                    generated_at: row.get(3)?,
+                    origin: PreviewOrigin::from_i64(row.get(4)?).unwrap_or(PreviewOrigin::Rendered),
                 })
             },
         );
@@ -245,7 +306,11 @@ impl Catalog {
     /// second.
     pub fn retain_previews(&mut self, asset: AssetId, keep: usize) -> Result<Vec<String>> {
         self.ensure_writable()?;
+        // ADR 0082 §2: an embedded preview belongs to the *file*, not to a
+        // revision, so it does not age with the history and the window of
+        // ADR 0075 does not see it. It goes when the asset does, by cascade.
         const CONDEMNED: &str = "asset_id = ?1
+             AND origin = 0
              AND revision_id NOT IN (
                  SELECT head_revision_id FROM develop_versions WHERE asset_id = ?1
              )
@@ -288,7 +353,10 @@ impl Catalog {
         let tx = self.conn.transaction().map_err(db_err)?;
         let paths = {
             let mut stmt = tx
-                .prepare_cached("SELECT relative_path FROM previews WHERE revision_id = ?1")
+                .prepare_cached(
+                    "SELECT relative_path FROM previews
+                     WHERE revision_id = ?1 AND origin = 0",
+                )
                 .map_err(db_err)?;
             let rows = stmt
                 .query_map([revision.get()], |row| row.get::<_, String>(0))
@@ -297,7 +365,7 @@ impl Catalog {
                 .map_err(db_err)?
         };
         tx.execute(
-            "DELETE FROM previews WHERE revision_id = ?1",
+            "DELETE FROM previews WHERE revision_id = ?1 AND origin = 0",
             [revision.get()],
         )
         .map_err(db_err)?;

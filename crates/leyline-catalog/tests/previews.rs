@@ -2,7 +2,7 @@
 
 use leyline_catalog::{Catalog, NewAsset, NewPreview, RegisteredAsset};
 use leyline_core::Settings;
-use leyline_core::{LeylineError, MediaType, PreviewKind, RevisionId};
+use leyline_core::{LeylineError, MediaType, PreviewKind, PreviewOrigin, RevisionId};
 
 fn new_catalog(dir: &tempfile::TempDir) -> Catalog {
     Catalog::create(&dir.path().join("catalog.db"), "Previews").unwrap()
@@ -32,6 +32,7 @@ fn thumbnail(registered: &RegisteredAsset, revision: RevisionId) -> NewPreview {
         width: 256,
         height: 171,
         relative_path: format!("thumbnails/{}/{}.png", registered.asset, revision),
+        origin: PreviewOrigin::Rendered,
     }
 }
 
@@ -407,5 +408,134 @@ fn retain_previews_never_drops_a_version_head() {
         catalog.version_head(copy).unwrap(),
         parked,
         "the copy under test is not the one parked"
+    );
+}
+
+/// ADR 0082 §2: a preview the file carried draws fine but is not the head's
+/// render. If `valid_preview` accepted it, nothing would ever replace it —
+/// the grid would show the camera's JPEG for good, and believe it was
+/// showing a development.
+#[test]
+fn an_embedded_preview_is_displayable_but_never_valid() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+    let registered = registered_asset(&mut catalog);
+    let head = catalog.current_head_revision(registered.asset).unwrap();
+
+    catalog
+        .record_preview(&NewPreview {
+            origin: PreviewOrigin::Embedded,
+            ..thumbnail(&registered, head)
+        })
+        .unwrap();
+
+    assert_eq!(
+        catalog
+            .valid_preview(registered.asset, PreviewKind::Thumbnail)
+            .unwrap(),
+        None,
+        "an embedded preview answered for the head's render"
+    );
+    let shown = catalog
+        .displayable_preview(registered.asset, PreviewKind::Thumbnail)
+        .unwrap()
+        .expect("the cell has something to draw");
+    assert_eq!(shown.origin, PreviewOrigin::Embedded);
+    assert_eq!(shown.revision, head);
+}
+
+/// The render lands in the same slot and takes it over: same asset, same
+/// revision, same kind, and `origin` flips. That is what lets the constraint
+/// stay on three columns (`docs/catalog.md` §19).
+#[test]
+fn a_render_replaces_the_embedded_preview_in_place() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+    let registered = registered_asset(&mut catalog);
+    let head = catalog.current_head_revision(registered.asset).unwrap();
+
+    catalog
+        .record_preview(&NewPreview {
+            origin: PreviewOrigin::Embedded,
+            ..thumbnail(&registered, head)
+        })
+        .unwrap();
+    catalog
+        .record_preview(&thumbnail(&registered, head))
+        .unwrap();
+
+    let rows: i64 = catalog
+        .connection()
+        .query_row("SELECT COUNT(*) FROM previews", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(rows, 1, "the two previews stacked instead of replacing");
+    assert_eq!(
+        catalog
+            .displayable_preview(registered.asset, PreviewKind::Thumbnail)
+            .unwrap()
+            .unwrap()
+            .origin,
+        PreviewOrigin::Rendered
+    );
+    assert!(
+        catalog
+            .valid_preview(registered.asset, PreviewKind::Thumbnail)
+            .unwrap()
+            .is_some(),
+        "the render did not become the head's valid preview"
+    );
+}
+
+/// ADR 0082 §2: the retention window of ADR 0075 counts revisions, and an
+/// embedded preview belongs to the file rather than to one. Editing past the
+/// window must not evict the image the import produced.
+#[test]
+fn retention_never_evicts_the_file_s_own_preview() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+    let registered = registered_asset(&mut catalog);
+    let initial = catalog.current_head_revision(registered.asset).unwrap();
+
+    catalog
+        .record_preview(&NewPreview {
+            origin: PreviewOrigin::Embedded,
+            ..thumbnail(&registered, initial)
+        })
+        .unwrap();
+
+    // Five edits, each with its own render: the initial revision falls well
+    // outside a window of three.
+    for _ in 0..5 {
+        let revision = edit(&catalog, &registered);
+        catalog
+            .record_preview(&thumbnail(&registered, revision))
+            .unwrap();
+        catalog.retain_previews(registered.asset, 3).unwrap();
+    }
+
+    let embedded: i64 = catalog
+        .connection()
+        .query_row(
+            "SELECT COUNT(*) FROM previews WHERE origin = 1 AND revision_id = ?1",
+            [initial.get()],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        embedded, 1,
+        "the file's own preview was evicted with the history"
+    );
+
+    // And the amendment rule of §17 leaves it alone too.
+    catalog.remove_revision_previews(initial).unwrap();
+    let embedded: i64 = catalog
+        .connection()
+        .query_row("SELECT COUNT(*) FROM previews WHERE origin = 1", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    assert_eq!(
+        embedded, 1,
+        "an amendment took the file's own preview with it"
     );
 }

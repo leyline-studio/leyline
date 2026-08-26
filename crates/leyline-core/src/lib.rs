@@ -24,4 +24,4 @@ pub use settings::{
     PresetSettings, RangeMask, Settings, SettingsGroup, Sharpening, SpotRemoval, StageVersions,
     ToneCurve, WhiteBalance,
 };
-pub use types::{CollectionType, ColorLabel, MediaType, PickState, PreviewKind};
+pub use types::{CollectionType, ColorLabel, MediaType, PickState, PreviewKind, PreviewOrigin};

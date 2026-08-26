@@ -856,6 +856,8 @@ CREATE TABLE previews (
 
     generated_at INTEGER NOT NULL,
 
+    origin INTEGER NOT NULL DEFAULT 0,
+
     UNIQUE(asset_id, revision_id, kind),
 
     FOREIGN KEY(asset_id)
@@ -887,6 +889,26 @@ CREATE TABLE previews (
 
 Each level corresponds to a predefined maximum size.
 
+---
+
+## Preview Origin
+
+```text
+0 Rendered by the develop pipeline
+
+1 The preview the file itself carried
+```
+
+An image the camera embedded in a RAW never went through the pipeline, so it
+is not the render of any revision — recording it as one would make §20's
+validity answer "yes" forever, and nothing would ever replace it. The column
+keeps the two apart; `docs/adr/0082-embedded-preview-at-import.md` decides
+when each is produced.
+
+A render **replaces** an embedded preview in the same slot: same asset, same
+revision, same kind, same file on disk, and `origin` flips to 0. That is why
+the uniqueness constraint stays on three columns.
+
 Example:
 
 | Kind      | Max size          |
@@ -905,9 +927,12 @@ A preview is considered valid only if:
 
 ```text
 preview.revision_id == head_revision_id of the current version
+    AND preview.origin == 0
 ```
 
 An undo that brings the head back onto an already previewed revision automatically revalidates the old previews: no regeneration is necessary.
+
+The second term is §19's: a preview the file carried is displayable but is not the head's render, so it never answers this question. It is what a client draws while the render it also asked for is on its way.
 
 In every other case:
 
@@ -925,7 +950,8 @@ A preview that has become invalid is not deleted for all that: that is what make
 Kept, for one asset, are:
 
 * the preview of **each version's head** — a virtual copy parked on an old revision keeps its own, whatever its age;
-* those of the asset's **three most recent revisions**.
+* those of the asset's **three most recent revisions**;
+* the preview the **file itself carried** (§19), which belongs to the file rather than to a revision: it does not age with the history, and it goes when the asset does.
 
 The rest is evicted — row and file — just after a new preview is recorded, the only moment at which the cache can exceed its window. No revision is deleted: what goes is a derived image, which the engine rebuilds in about a second.
 

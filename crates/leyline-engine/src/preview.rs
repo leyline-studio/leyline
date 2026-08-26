@@ -372,6 +372,9 @@ pub(crate) fn record_render(
             width: stored.width,
             height: stored.height,
             relative_path: stored.relative_path.clone(),
+            // This function is the pipeline's own recording path; the
+            // file's own preview goes through `record_embedded` (ADR 0082).
+            origin: leyline_core::PreviewOrigin::Rendered,
         },
         &plan.settings_json,
     )?;

@@ -10,7 +10,9 @@ use crate::db_err;
 use leyline_core::Result;
 
 /// Migration scripts: index `n` migrates the database to `user_version` `n + 1`.
-const MIGRATIONS: &[&str] = &[SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5];
+const MIGRATIONS: &[&str] = &[
+    SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6,
+];
 
 /// The schema version produced by the newest migration.
 pub(crate) const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
@@ -420,4 +422,20 @@ CREATE INDEX idx_assets_checksum ON assets(checksum);
 const SCHEMA_V5: &str = "
 -- §32 The grid page: the pairing clause, then the default sort.
 CREATE INDEX idx_assets_grid ON assets(companion_of, capture_date, id);
+";
+
+/// Version 6: where a cached preview's pixels came from (ADR 0082 §2).
+///
+/// A preview the camera embedded never went through the develop pipeline.
+/// Recording it as the render of a revision would be a lie the rest of the
+/// engine believes: `valid_preview` answers "here is the head's render", so
+/// nothing would ever replace it, and an undo landing back on that revision
+/// would show the camera's JPEG while claiming to show a development.
+///
+/// One nullable-free column with a default, so every existing row keeps the
+/// only meaning it could have had: everything written before this migration
+/// came out of the pipeline.
+const SCHEMA_V6: &str = "
+-- §19 0 = rendered by the pipeline, 1 = the preview the file carried.
+ALTER TABLE previews ADD COLUMN origin INTEGER NOT NULL DEFAULT 0;
 ";

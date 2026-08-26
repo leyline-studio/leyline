@@ -189,6 +189,7 @@ fn delete_assets_takes_the_whole_graph_and_frees_the_checksum() {
             width: 1024,
             height: 683,
             relative_path: "ab/cd/preview.png".to_owned(),
+            origin: leyline_core::PreviewOrigin::Rendered,
         })
         .unwrap();
 

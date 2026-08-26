@@ -47,6 +47,7 @@ fn a_valid_cached_preview_is_served_without_decoding() {
             width: 320,
             height: 213,
             relative_path: "thumbnails/fake.png".to_owned(),
+            origin: leyline_core::PreviewOrigin::Rendered,
         })
         .unwrap();
 

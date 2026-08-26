@@ -90,6 +90,7 @@ fn amend_rewrites_the_head_in_place_and_invalidates_previews() {
             width: 320,
             height: 213,
             relative_path: "ab/cd.png".to_owned(),
+            origin: leyline_core::PreviewOrigin::Rendered,
         })
         .unwrap();
 
@@ -332,6 +333,7 @@ fn undo_revalidates_previews_of_the_previous_head() {
             width: 320,
             height: 213,
             relative_path: "ab/initial.png".to_owned(),
+            origin: leyline_core::PreviewOrigin::Rendered,
         })
         .unwrap();
     catalog

@@ -105,6 +105,23 @@ catalog_enum!(
     }
 );
 
+catalog_enum!(
+    /// Where a cached preview's pixels came from
+    /// (`docs/adr/0082-embedded-preview-at-import.md` §2).
+    ///
+    /// The distinction is load-bearing, not documentary: an image the camera
+    /// embedded never went through the develop pipeline, so it must not be
+    /// mistaken for the render of a revision — nothing would ever replace it,
+    /// and an undo landing back on that revision would show the camera's JPEG
+    /// while claiming to show a development.
+    PreviewOrigin {
+        /// Rendered by the develop pipeline from its revision's settings.
+        Rendered = 0,
+        /// The preview the file itself carried, reduced to the size class.
+        Embedded = 1,
+    }
+);
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -118,5 +135,7 @@ mod tests {
         assert_eq!(PickState::from_i64(2), Some(PickState::Reject));
         assert_eq!(PreviewKind::Full.as_i64(), 4);
         assert_eq!(PreviewKind::from_i64(5), None);
+        assert_eq!(PreviewOrigin::from_i64(1), Some(PreviewOrigin::Embedded));
+        assert_eq!(PreviewOrigin::from_i64(2), None);
     }
 }
