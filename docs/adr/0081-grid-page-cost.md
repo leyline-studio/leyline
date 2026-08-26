@@ -22,7 +22,7 @@ Trois faits, dont deux qu'aucune lecture du code ne donnait :
 
 * **SQLite matérialise la ligne de sortie complète *avant* de trier.** Les deux
   sous-requêtes corrélées de la liste de sélection — la pastille « déjà
-  développée » ([ADR 0055](0055-lightroom-navigation.md) §5) et la pastille
+  développée » ([ADR 0055](0055-library-navigation.md) §5) et la pastille
   `RAW+J` ([ADR 0079](0079-raw-jpeg-pairing.md) §6) — s'exécutent donc **50 000
   fois pour afficher 100 vignettes**. Une liste de sélection allégée de ces
   deux colonnes tombe de 65 ms à 32 ms : elles pèsent la moitié du temps, et
@@ -165,7 +165,7 @@ Deux effets à connaître :
   le premier défilement le paierait quand même. Un cache est une réponse à un
   coût irréductible ; celui-ci ne l'était pas.
 * **Retirer les pastilles** — elles sont décidées par
-  [ADR 0055](0055-lightroom-navigation.md) §5 et
+  [ADR 0055](0055-library-navigation.md) §5 et
   [ADR 0079](0079-raw-jpeg-pairing.md) §6, et elles ne coûtaient cher que par
   accident de forme.
 
