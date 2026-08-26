@@ -139,7 +139,47 @@ Ce n'est pas une préférence au sens d'[ADR 0078](0078-preferences-panel.md) §
 cela porte sur un import donné, pas sur l'installation, et n'a rien à faire
 survivre à un relancement.
 
-### 5. Ce que l'utilisateur voit, et qu'il faut dire
+### 5. Un compagnon n'a pas de vignette à produire
+
+Un boîtier réglé en RAW+JPEG écrit deux fichiers, et l'import en enregistre
+deux assets. [ADR 0079](0079-raw-jpeg-pairing.md) §5 sort le compagnon de la
+grille par une clause, et le volet de détails ne montre de lui que **son nom**
+(§6) — aucun écran de Studio n'affiche la vignette d'un compagnon.
+`generate_import_thumbnails` en produit une quand même, pour chaque fichier
+importé : sur un dossier réglé ainsi, **la moitié de la passe est jetée**.
+
+La passe saute donc les assets dont `companion_of` n'est pas nul. C'est une
+décision **neutre par construction** : une bibliothèque sans paires ne saute
+rien, et §1 la porte entièrement. Personne n'y perd, un cas fréquent y gagne
+un facteur deux.
+
+Deux suites en découlent, toutes deux couvertes par le chemin paresseux de §3 :
+
+* **Dépairer rend le JPEG à la grille** ([ADR 0079](0079-raw-jpeg-pairing.md)
+  §6). Il n'a alors pas de vignette, et la file du minuteur la produit comme
+  pour toute cellule visible qui n'en a pas.
+* **La passe d'appairage explicite** sur une bibliothèque existante
+  ([ADR 0079](0079-raw-jpeg-pairing.md) §7) laisse en place les vignettes déjà
+  produites. Elles deviennent inutiles sans devenir fausses ; les effacer
+  rendrait un dépairage lent pour récupérer quelques dizaines de kilo-octets.
+
+Et **le compagnon n'est pas non plus une meilleure source** pour la vignette du
+maître, ce qu'on pouvait croire — il est sur le disque, pleine taille, déjà en
+JPEG. Mesuré sur six paires réelles, page cache chaud :
+
+| Source de la vignette du RAW | Coût par prise |
+|---|---|
+| l'imagette embarquée dans le CR2 | **119 ms** |
+| le fichier JPEG compagnon | 161 ms |
+
+Le compagnon est un encodage de **meilleure qualité** que l'imagette embarquée
+— 5,2 à 10,6 Mo contre 1,3 à 3,2 — donc plus long à décoder (111 à 159 ms
+contre 69 à 93), pour la même image de 5184×3456. Le lire coûte moins cher que
+d'ouvrir le RAW, et cela ne rattrape pas l'écart. §1 s'applique donc au maître
+sans exception, et la paire ne change qu'une chose : le compagnon ne coûte
+rien du tout.
+
+### 6. Ce que l'utilisateur voit, et qu'il faut dire
 
 Une vignette de boîtier n'est pas un rendu neutre de Leyline : elle porte le
 contraste, la saturation et la balance que le fabricant applique. La grille
@@ -167,6 +207,18 @@ Par fichier, sur les sept CR2 mesurés :
 Sur les 15 000 CR2 du corpus : **2 h 50 → 31 min**, et **5 min** pour un import
 sans vignettes.
 
+Pour un boîtier réglé en RAW+JPEG, §5 s'ajoute. Coûts par fichier mesurés
+aujourd'hui — 700 ms pour un CR2, **248 ms pour un JPEG** (pas de décodage
+capteur) — reportés sur un dossier réel du corpus, `2022_04_17`, qui tient
+29 paires :
+
+| 29 paires (58 fichiers) | aujourd'hui | après |
+|---|---|---|
+| fichiers traités par la passe | 58 | **29** |
+| durée de l'import | ~27,5 s | **~4,6 s** |
+
+Le facteur global y est de **~6**, dont un facteur deux vient de §5 seul.
+
 Le décodage JPEG (76 ms) devient le poste dominant de la passe, à 62 % de son
 temps. C'est un décodage pleine résolution — 17,9 Mpx — pour produire 256 px.
 
@@ -192,6 +244,12 @@ temps. C'est un décodage pleine résolution — 17,9 Mpx — pour produire 256 
   première ; la seconde encode un fait dans un nom de fichier, où il se déduit
   au lieu de se lire — [ADR 0047](0047-xmp-sidecar-read.md) a montré ce que
   coûte une convention de nommage dont on n'est pas seul maître.
+* **Prendre la vignette du maître dans son JPEG compagnon**, quand il y en a un
+  — il est déjà sur le disque, pleine taille, et déjà en JPEG. Mesuré sur six
+  paires réelles : **161 ms contre 119**. Le compagnon est un encodage de
+  meilleure qualité que l'imagette embarquée (5,2 à 10,6 Mo contre 1,3 à 3,2),
+  donc plus long à décoder pour exactement la même image. L'idée coûterait en
+  plus un chemin de code qui ne servirait qu'aux paires.
 * **Garder l'imagette pour toujours, sans jamais rendre.** La grille mentirait
   durablement sur ce que les réglages produisent, et le premier retour de la
   loupe vers la grille montrerait deux images différentes de la même photo.
