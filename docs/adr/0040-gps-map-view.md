@@ -1,113 +1,106 @@
-# ADR 0040 — Vue carte GPS : tuiles MBTiles hors-ligne
+# ADR 0040 — The GPS map view: offline MBTiles
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-[[studio-workflow-gaps-progress]] laissait la vue carte GPS comme le seul
-écart Lightroom/Darktable volontairement non tranché, faute de solution
-compatible avec le principe Local-First (`docs/vision.md`) : pas de cloud,
-pas de dépendance à un service tiers qui doit rester joignable.
+[[studio-workflow-gaps-progress]] left the GPS map view as the only
+Lightroom/Darktable gap deliberately unsettled, for want of a solution
+compatible with the Local-First principle (`docs/vision.md`): no cloud, and no
+dependence on a third-party service that has to stay reachable.
 
-Une carte a besoin de deux choses : des données géographiques (routes,
-côtes, lieux) et un moyen de les afficher. Les solutions courantes
-reposent presque toutes sur un serveur de tuiles interrogé en HTTP à
-l'exécution (OpenStreetMap public, MapTiler, Mapbox...) — incompatible
-avec Local-First telle quelle : Leyline ne doit jamais dépendre d'un
-service réseau pour fonctionner.
+A map needs two things: geographic data (roads, coastlines, places) and a way
+to display them. The common solutions almost all rest on a tile server queried
+over HTTP at run time (public OpenStreetMap, MapTiler, Mapbox…) —
+incompatible with Local-First as they stand: Leyline must never depend on a
+network service in order to work.
 
-## Décision
+## Decision
 
-**Tuiles OpenStreetMap pré-téléchargées, au format MBTiles, fournies par
-l'utilisateur — jamais d'appel réseau depuis Leyline lui-même.**
+**Pre-downloaded OpenStreetMap tiles, in MBTiles format, supplied by the user
+— and never a network call from Leyline itself.**
 
-* **Données** : OpenStreetMap (licence ODbL, gratuite, attribution
-  `© OpenStreetMap contributors` obligatoire, affichée sur la carte).
-  L'utilisateur télécharge ou génère un pack de tuiles pour la région qui
-  l'intéresse (ex. extraits [Geofabrik](https://download.geofabrik.de) +
-  un rendeur comme `tilemaker`, ou un pack MBTiles déjà rendu) — **hors du
-  périmètre de Leyline**, exactement le même traitement que les profils
-  caméra DCP (ADR 0035) : un fichier que l'utilisateur apporte, jamais une
-  dépendance réseau cachée dans le produit.
-* **Format** : MBTiles — un fichier SQLite unique contenant les tuiles
-  (`docs/catalog.md`-style : `tiles(zoom_level, tile_column, tile_row,
-  tile_data)` + `metadata(name, value)`). `rusqlite` est déjà une
-  dépendance du projet (`leyline-catalog`) ; lire un MBTiles est une
-  poignée de requêtes SQL, aucune bibliothèque supplémentaire.
-* **Nouveau crate `leyline-map`** : lecteur MBTiles seul, même
-  responsabilité unique que `leyline-catalog`/`leyline-preview` — ouvre le
-  fichier, sert une tuile `(z, x, y)` en bytes bruts (PNG/JPG selon le
-  pack), lit les métadonnées (bornes, zoom min/max, attribution). Ne
-  connaît rien du catalogue ni du rendu de carte — juste un accès aux
-  tuiles, consommé par `leyline-engine`.
-* **Emplacement du pack** : convention de fichier, pas une nouvelle colonne
-  catalogue. `Library::import_map_pack(source)` copie le `.mbtiles` choisi
-  vers `<root>/Map/pack.mbtiles`, au même rang que `Photos/`/`Cache/`
-  /`Exports/`/`Backups/` (`docs/catalog.md` §3). Un seul pack actif à la
-  fois en V1 — pas de table `library` à faire migrer, la présence du
-  fichier fait foi.
-* **Points GPS** : `docs/catalog.md` §13 (`metadata.gps_latitude`/
-  `gps_longitude`/`gps_altitude`) existait déjà dans le schéma mais n'était
-  jamais rempli — aucune extraction EXIF GPS n'existait. LibRaw expose les
-  coordonnées déjà parsées (`other.parsed_gps`, degrés/minutes/secondes +
-  référence N/S/E/W) : nouveaux accesseurs dans `leyline-raw/src/shim.c`,
-  conversion DMS → degrés décimaux côté Rust (jamais côté C, même choix
-  que le reste du shim : le C ne fait que lire les champs, toute la
-  logique reste en Rust). Comme le reste des métadonnées EXIF
-  aujourd'hui, l'extraction GPS ne couvre que les RAW identifiés par
-  LibRaw — les JPEG/TIFF n'ont jamais eu de métadonnées caméra non plus,
-  même limite préexistante, pas une régression introduite ici.
-* **Rendu** : Slint n'a pas de canevas de tuiles ; le rendu est fait côté
-  Rust, dans la même forme que le canevas de développement existant
-  (mêmes réglages, même image composée en mémoire) — la fenêtre visible
-  est composée en RGBA à partir des tuiles couvrant le viewport puis
-  publiée comme `slint::Image`, le pan/zoom recompose l'image à chaque
-  geste. Aucun rendu vectoriel : les tuiles MBTiles sont déjà des images
-  matricielles pré-rendues.
+* **Data**: OpenStreetMap (ODbL licence, free, with the `© OpenStreetMap
+  contributors` attribution mandatory and displayed on the map). The user
+  downloads or generates a tile pack for the region that interests them (say,
+  [Geofabrik](https://download.geofabrik.de) extracts plus a renderer like
+  `tilemaker`, or an already-rendered MBTiles pack) — **outside Leyline's
+  scope**, treated exactly like DCP camera profiles (ADR 0035): a file the
+  user brings, never a network dependency hidden in the product.
+* **Format**: MBTiles — a single SQLite file containing the tiles
+  (`docs/catalog.md`-style: `tiles(zoom_level, tile_column, tile_row,
+  tile_data)` plus `metadata(name, value)`). `rusqlite` is already a project
+  dependency (`leyline-catalog`); reading an MBTiles is a handful of SQL
+  queries, with no extra library.
+* **A new `leyline-map` crate**: an MBTiles reader alone, with the same single
+  responsibility as `leyline-catalog`/`leyline-preview` — it opens the file,
+  serves a `(z, x, y)` tile as raw bytes (PNG/JPG depending on the pack), and
+  reads the metadata (bounds, min/max zoom, attribution). It knows nothing of
+  the catalog nor of map rendering — just tile access, consumed by
+  `leyline-engine`.
+* **Where the pack lives**: a file convention, not a new catalog column.
+  `Library::import_map_pack(source)` copies the chosen `.mbtiles` to
+  `<root>/Map/pack.mbtiles`, alongside `Photos/`/`Cache/`/`Exports/`/`Backups/`
+  (`docs/catalog.md` §3). One active pack at a time in V1 — no `library` table
+  to migrate, the file's presence being authoritative.
+* **GPS points**: `docs/catalog.md` §13 (`metadata.gps_latitude`/
+  `gps_longitude`/`gps_altitude`) already existed in the schema but was never
+  filled — no EXIF GPS extraction existed. LibRaw exposes the coordinates
+  already parsed (`other.parsed_gps`, degrees/minutes/seconds plus an N/S/E/W
+  reference): new accessors in `leyline-raw/src/shim.c`, with the DMS →
+  decimal degrees conversion on the Rust side (never in C, the same choice as
+  the rest of the shim: C only reads fields, and all the logic stays in Rust).
+  Like the rest of EXIF metadata today, GPS extraction covers only RAWs
+  identified by LibRaw — JPEG and TIFF have never had camera metadata either,
+  the same pre-existing limit, not a regression introduced here.
+* **Rendering**: Slint has no tile canvas; rendering is done on the Rust side,
+  in the same shape as the existing develop canvas (the same settings, the
+  same image composed in memory) — the visible window is composed in RGBA from
+  the tiles covering the viewport and then published as a `slint::Image`, and
+  pan/zoom recomposes the image on every gesture. No vector rendering: MBTiles
+  tiles are already pre-rendered raster images.
 
-## Conséquences
+## Consequences
 
-* `docs/specification.md` §Inclus gagne « Vue carte GPS (tuiles MBTiles
-  hors-ligne fournies par l'utilisateur) ».
-* Nouveau crate `leyline-map`, consommé par `leyline-engine`, même rang de
-  dépendance que `leyline-catalog`/`leyline-preview` (`docs/architecture.md`).
-* `docs/catalog.md` §13 : les colonnes GPS, présentes dans le schéma
-  depuis l'origine mais jamais utilisées, sont désormais effectivement
-  peuplées à l'import pour les fichiers RAW.
-* Studio gagne une vue Carte ; **la CLI et le SDK n'exposent volontairement
-  pas de rendu de carte** — c'est une surface visuelle, comme le canevas de
-  développement, pas une opération scriptable. `Library::import_map_pack`/
-  `map_pins`/`map_tile` restent accessibles au SDK pour un futur client,
-  mais aucune commande CLI de rendu n'est ajoutée.
-* Sans pack importé, la vue Carte affiche un état vide invitant à en
-  importer un — jamais d'appel réseau de repli, jamais de carte
-  placeholder qui donnerait l'illusion d'une connexion. *Amendé par
-  [ADR 0059](0059-bundled-world-basemap.md)* : le repli est désormais un
-  fond mondial embarqué, donc hors ligne comme le reste. L'état vide ne
-  subsiste que dans une compilation sans la feature `bundled-basemap`.
+* `docs/specification.md` §Included gains "GPS map view (offline MBTiles tiles
+  supplied by the user)".
+* A new `leyline-map` crate, consumed by `leyline-engine`, at the same
+  dependency rank as `leyline-catalog`/`leyline-preview`
+  (`docs/architecture.md`).
+* `docs/catalog.md` §13: the GPS columns, present in the schema from the start
+  but never used, are now actually populated at import for RAW files.
+* Studio gains a Map view; **the CLI and the SDK deliberately expose no map
+  rendering** — it is a visual surface, like the develop canvas, not a
+  scriptable operation. `Library::import_map_pack`/`map_pins`/`map_tile` stay
+  reachable from the SDK for a future client, but no CLI rendering command is
+  added.
+* With no pack imported, the Map view shows an empty state inviting the user
+  to import one — never a network fallback, and never a placeholder map that
+  would give the illusion of a connection. *Amended by
+  [ADR 0059](0059-bundled-world-basemap.md)*: the fallback is now an embedded
+  world basemap, and therefore offline like the rest. The empty state survives
+  only in a build without the `bundled-basemap` feature.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Tuiles OSM via HTTP à l'exécution** (serveurs publics ou payants type
-  MapTiler/Mapbox) : rejeté d'emblée — viole Local-First, et l'usage des
-  serveurs de tuiles OSM publics est de toute façon soumis à une politique
-  d'usage stricte incompatible avec un produit distribué.
-* **MapLibre** (fork libre de Mapbox GL) : pas de binding Rust mûr
-  compatible Slint ; `maplibre-rs` existe mais reste expérimental
-  (WebGPU), gros risque d'intégration pour un gain de rendu (tuiles
-  vectorielles stylées) que la V1 n'a pas besoin de payer — les tuiles
-  matricielles MBTiles suffisent pour afficher des punaises sur une carte.
-* **Bundler un pack de tuiles régional par défaut** : écarté — une région
-  à résolution utile pèse des centaines de Mo à plusieurs Go, incompatible
-  avec un installateur léger ; laisser l'utilisateur choisir sa propre
-  région est aussi plus respectueux (pas de téléchargement imposé au
-  premier lancement). **Cette formulation, d'origine, disait « un pack par
-  défaut » sans qualifier sa résolution, et allait donc trop loin** : un
-  fond *mondial* à zoom faible ne coûte que 9 Mo, et [ADR 0059](0059-bundled-world-basemap.md)
-  l'a depuis embarqué. Ce qui reste écarté ici, et le reste, c'est de
-  livrer du détail régional.
-* **Stocker le chemin du pack dans le catalogue** (nouvelle colonne/table
-  `library`) : écarté pour la V1 — une convention de fichier
-  (`Map/pack.mbtiles`) suffit tant qu'un seul pack actif à la fois est
-  supporté, évite toute migration de schéma pour ce ticket. À revisiter si
-  le multi-pack (plusieurs régions actives) devient un besoin réel.
+* **OSM tiles over HTTP at run time** (public servers, or paid ones like
+  MapTiler/Mapbox): rejected outright — it violates Local-First, and using the
+  public OSM tile servers is in any case subject to a strict usage policy
+  incompatible with a distributed product.
+* **MapLibre** (the free fork of Mapbox GL): no mature Rust binding compatible
+  with Slint; `maplibre-rs` exists but stays experimental (WebGPU), a large
+  integration risk for a rendering gain (styled vector tiles) V1 has no need
+  to pay for — raster MBTiles tiles suffice to display pins on a map.
+* **Bundling a default regional tile pack**: rejected — a region at useful
+  resolution weighs hundreds of megabytes to several gigabytes, incompatible
+  with a light installer; letting the user choose their own region is also
+  more respectful (no download imposed on first launch). **That wording,
+  originally, said "a default pack" without qualifying its resolution, and
+  therefore went too far**: a *world* basemap at low zoom costs only 9 MB, and
+  [ADR 0059](0059-bundled-world-basemap.md) has since embedded it. What stays
+  rejected here, and stays so, is shipping regional detail.
+* **Storing the pack's path in the catalog** (a new `library` column or
+  table): rejected for V1 — a file convention (`Map/pack.mbtiles`) suffices as
+  long as one active pack at a time is supported, and it avoids any schema
+  migration for this ticket. To be revisited if multi-pack (several active
+  regions) becomes a real need.

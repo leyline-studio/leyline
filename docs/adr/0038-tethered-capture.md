@@ -1,61 +1,61 @@
-# ADR 0038 — Capture tethering : import direct depuis l'appareil via USB (libgphoto2)
+# ADR 0038 — Tethered capture: importing straight from the camera over USB (libgphoto2)
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-Un photographe qui shoote en studio (ou tout contexte où l'appareil reste
-relié à un ordinateur) veut voir chaque photo apparaître dans le logiciel
-dès le déclenchement, sans retirer la carte mémoire — c'est le tethering,
-la fonctionnalité « Tethered Capture » de Lightroom. Ce n'était couvert ni
-par `docs/specification.md` §Inclus (qui ne prévoit que l'import d'un
-dossier existant), ni par une exclusion volontaire : le sujet n'avait
-simplement jamais été tranché.
+A photographer shooting in a studio (or any context where the camera stays
+connected to a computer) wants every photo to appear in the software the
+moment the shutter fires, without pulling the memory card — that is
+tethering, Lightroom's "Tethered Capture" feature. It was covered neither by
+`docs/specification.md` §Included (which provides only for importing an
+existing folder) nor by a deliberate exclusion: the subject had simply never
+been settled.
 
-Deux familles de solutions existent :
+Two families of solution exist:
 
-1. **SDK propriétaires par constructeur** (Canon EDSDK, Nikon SDK, Sony
-   Imaging Edge SDK...) — c'est l'approche de Lightroom : un module par
-   marque, chacun sous licence fermée, redistribution soumise à accord
-   constructeur.
-2. **libgphoto2** — bibliothèque C libre (LGPL) qui parle PTP (et les
-   extensions propriétaires par-dessus PTP pour la plupart des marques),
-   couvre plusieurs centaines de boîtiers Canon/Nikon/Sony/Fujifilm/Olympus
-   etc. C'est déjà l'outil qu'utilisent les logiciels tethering libres
-   (entangle, digiKam) et Linux la propose en paquet système standard.
+1. **Per-manufacturer proprietary SDKs** (Canon EDSDK, Nikon SDK, Sony
+   Imaging Edge SDK…) — Lightroom's approach: one module per brand, each
+   under a closed licence, with redistribution subject to a manufacturer
+   agreement.
+2. **libgphoto2** — a free C library (LGPL) that speaks PTP (and the
+   proprietary extensions layered over PTP for most brands), covering several
+   hundred Canon/Nikon/Sony/Fujifilm/Olympus bodies. It is already the tool
+   free tethering software uses (entangle, digiKam), and Linux ships it as a
+   standard system package.
 
-## Décision
+## Decision
 
-Leyline implémente le tethering via **libgphoto2**, jamais via un SDK
-constructeur — cohérent avec le choix déjà fait pour LibRaw (ADR 0004),
-Lensfun et LittleCMS (ADR 0005) : des bibliothèques C libres, pas de
-dépendance à un accord de licence par marque d'appareil.
+Leyline implements tethering through **libgphoto2**, never through a
+manufacturer SDK — consistent with the choice already made for LibRaw (ADR
+0004), Lensfun and LittleCMS (ADR 0005): free C libraries, with no dependence
+on a per-camera-brand licence agreement.
 
-Nouveau crate **`leyline-tether`**, qui enveloppe le crate Rust `gphoto2`
-(bindings sûrs par-dessus libgphoto2) et n'expose que :
+A new **`leyline-tether`** crate wraps the `gphoto2` Rust crate (safe bindings
+over libgphoto2) and exposes only:
 
-* `TetherSession::connect(staging_dir, on_event)` — auto-détecte la
-  première caméra USB trouvée, démarre un thread dédié qui interroge la
-  caméra (`Camera::wait_event`, scrutation à 500 ms) et télécharge chaque
-  fichier signalé (`CameraEvent::NewFile`) dans `staging_dir` ;
-* `TetherSession::stop()` (et `Drop`) — arrête la scrutation et relâche la
-  caméra ;
-* `TetherEvent::{Captured, Disconnected}` — notifications remontées par
-  `on_event`, appelé sur le thread de la session.
+* `TetherSession::connect(staging_dir, on_event)` — auto-detects the first USB
+  camera found, starts a dedicated thread that polls the camera
+  (`Camera::wait_event`, polling every 500 ms) and downloads every file it
+  reports (`CameraEvent::NewFile`) into `staging_dir`;
+* `TetherSession::stop()` (and `Drop`) — stops the polling and releases the
+  camera;
+* `TetherEvent::{Captured, Disconnected}` — notifications surfaced through
+  `on_event`, called on the session's thread.
 
-Ce crate ne touche jamais le catalogue : c'est au moteur d'importer chaque
-fichier reçu. `Library::tether_connect()` (`leyline-engine`) démarre une
-session et, pour chaque `TetherEvent::Captured`, appelle le cœur d'import
-existant (`Library::import`, `copy_files: true`) — **une capture tethering
-est un import comme un autre**, pas un chemin de données séparé : même
-checksum BLAKE3, même vignette générée, même déclenchement de
-`Event::AssetsAdded` (`docs/engine-api.md` §3.2). Aucun nouvel événement
-« capture » n'existe : `Event::AssetsAdded` suffit, le client re-requête
-comme pour tout import (principe déjà posé par ADR 0011 — les événements
-sont des notifications, jamais des données).
+That crate never touches the catalog: importing each received file is the
+engine's business. `Library::tether_connect()` (`leyline-engine`) starts a
+session and, for every `TetherEvent::Captured`, calls the existing import core
+(`Library::import`, `copy_files: true`) — **a tethered capture is an import
+like any other**, not a separate data path: the same BLAKE3 checksum, the same
+thumbnail generated, the same `Event::AssetsAdded` fired
+(`docs/engine-api.md` §3.2). No new "capture" event exists:
+`Event::AssetsAdded` suffices, and the client re-queries as for any import (a
+principle already laid down by ADR 0011 — events are notifications, never
+data).
 
-Deux événements nouveaux, seulement pour le cycle de vie de la connexion,
-que `AssetsAdded` ne peut pas porter :
+Two new events, only for the connection's life cycle, which `AssetsAdded`
+cannot carry:
 
 ```rust
 pub enum Event {
@@ -65,58 +65,57 @@ pub enum Event {
 }
 ```
 
-`docs/engine-api.md` §3.2 est complété en conséquence. Une seule session
-par `Library` (une seule caméra à la fois) : `tether_connect` refuse une
-deuxième connexion tant qu'une session est ouverte — le multi-caméra
-simultané reste hors périmètre, à revisiter si le besoin se présente.
+`docs/engine-api.md` §3.2 is extended accordingly. One session per `Library`
+(one camera at a time): `tether_connect` refuses a second connection while a
+session is open — simultaneous multi-camera stays out of scope, to be
+revisited if the need arises.
 
-Rien ne change au pipeline de rendu : le tethering ne touche que l'import,
-aucune version de process n'est concernée.
+Nothing changes in the render pipeline: tethering touches only import, and no
+process version is concerned.
 
-## Conséquences
+## Consequences
 
-* Nouvelle dépendance système : `libgphoto2` (+ ses en-têtes de
-  développement à la compilation) — même famille de contrainte que LibRaw,
-  Lensfun, LittleCMS déjà packagées par l'installeur (`docs/adr/0019`).
-  Windows/macOS devront embarquer ou lier `libgphoto2` comme ces
-  bibliothèques ; ce travail de packaging par plateforme reste ouvert (le
-  crate et le moteur sont prêts, seule la distribution binaire par OS
-  reste à faire — même statut que le reste de Phase 8).
-* `docs/specification.md` §Inclus gagne « Capture tethering (USB,
-  libgphoto2) ».
-* `leyline-cli` gagne `leyline tether <library>` : ouvre une session,
-  affiche chaque asset importé, s'arrête proprement à la déconnexion ou à
-  un Ctrl+C — la même API que Studio utilisera pour son panneau tethering
-  (§13, ADR 0011 : CLI et Studio consomment la même surface SDK).
-* Interface Studio : File ▸ Tethered Capture… (`T`) ouvre un panneau modal
-  qui appelle `tether_connect`/`tether_disconnect`, affiche l'état de la
-  connexion, le compte de prises de la session et le nom du dernier fichier
-  reçu — juste un client de plus sur l'API ci-dessus, aucune décision
-  d'architecture supplémentaire n'a été nécessaire pour l'ajouter.
-* Sans caméra USB branchée (CI, poste de développement courant),
-  `TetherSession::connect` échoue proprement avec `TetherError::NoCamera`
-  plutôt que de bloquer ou paniquer — c'est le seul comportement testable
-  sans matériel, et les tests de `leyline-tether`/`leyline-engine` le
-  vérifient explicitement.
+* A new system dependency: `libgphoto2` (plus its development headers at build
+  time) — the same family of constraint as LibRaw, Lensfun and LittleCMS,
+  already packaged by the installer (`docs/adr/0019`). Windows and macOS will
+  have to bundle or link `libgphoto2` as they do those libraries; that
+  per-platform packaging work stays open (the crate and the engine are ready,
+  only the per-OS binary distribution remains — the same status as the rest of
+  Phase 8).
+* `docs/specification.md` §Included gains "Tethered capture (USB,
+  libgphoto2)".
+* `leyline-cli` gains `leyline tether <library>`: it opens a session, prints
+  each imported asset, and stops cleanly on disconnection or on Ctrl+C — the
+  same API Studio will use for its tethering panel (§13, ADR 0011: the CLI and
+  Studio consume the same SDK surface).
+* Studio's interface: File ▸ Tethered Capture… (`T`) opens a modal panel that
+  calls `tether_connect`/`tether_disconnect`, shows the connection's state,
+  the session's shot count and the name of the last file received — just one
+  more client of the API above, with no further architectural decision needed
+  to add it.
+* With no USB camera plugged in (CI, an ordinary development machine),
+  `TetherSession::connect` fails cleanly with `TetherError::NoCamera` rather
+  than blocking or panicking — that is the only behaviour testable without
+  hardware, and `leyline-tether`/`leyline-engine`'s tests verify it
+  explicitly.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **SDK propriétaire par constructeur (Canon EDSDK, etc.)** : redistribution
-  et compilation par plateforme soumises à un accord constructeur distinct
-  par marque, incompatible avec le modèle « un seul dépôt, licence GPL-3.0
-  uniforme » (ADR 0009) — il aurait fallu un crate par marque, chacun avec
-  ses propres contraintes de licence binaire.
-* **Watch-folder générique (surveiller un dossier où un logiciel tiers ou
-  la caméra elle-même dépose les fichiers)** : plus simple, zéro nouvelle
-  dépendance, mais ne répond pas à la demande « comme Lightroom » — ajoute
-  une latence (écriture sur disque avant détection) et dépend d'un outil
-  tiers pour piloter réellement l'appareil. Reste une extension possible
-  plus tard (ex. appareils non supportés par libgphoto2) mais n'est pas la
-  voie principale retenue ici.
-* **Modéliser la capture comme un `Job` (`JobId`/`JobFinished`)** : une
-  session tethering n'a ni total ni fin déterminée à l'avance — elle dure
-  tant que l'appareil reste branché. Le contrat `Job` (`docs/engine-api.md`
-  §3.1) suppose une fin ; forcer ce cas dedans aurait signifié un
-  `JobFinished` qui ne finit jamais, ou un total arbitraire. Un état de
-  connexion (`TetherConnected`/`TetherDisconnected`) plus les `AssetsAdded`
-  habituels décrit mieux ce qui se passe réellement.
+* **A per-manufacturer proprietary SDK (Canon EDSDK, and so on)**:
+  redistribution and per-platform compilation subject to a separate
+  manufacturer agreement per brand, incompatible with the "one repository, a
+  uniform GPL-3.0 licence" model (ADR 0009) — it would have required one crate
+  per brand, each with its own binary licence constraints.
+* **A generic watch folder (watching a folder where third-party software or
+  the camera itself drops files)**: simpler, zero new dependencies, but it
+  does not answer the "like Lightroom" ask — it adds latency (a disk write
+  before detection) and depends on a third-party tool to actually drive the
+  camera. It remains a possible extension later (for cameras libgphoto2 does
+  not support) but is not the main route taken here.
+* **Modelling capture as a `Job` (`JobId`/`JobFinished`)**: a tethering
+  session has neither a total nor an end determined in advance — it lasts as
+  long as the camera stays plugged in. The `Job` contract
+  (`docs/engine-api.md` §3.1) assumes an end; forcing this case into it would
+  have meant a `JobFinished` that never finishes, or an arbitrary total. A
+  connection state (`TetherConnected`/`TetherDisconnected`) plus the usual
+  `AssetsAdded` describes what actually happens better.
