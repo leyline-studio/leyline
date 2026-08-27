@@ -1,308 +1,286 @@
-# ADR 0077 — Se mettre à jour : un manifeste signé, et une question posée une fois
+# ADR 0077 — Updating: a signed manifest, and a question asked once
 
-**Statut :** Accepté — 2026-08
+**Status:** Accepted — 2026-08
 
-## Contexte
+## Context
 
-Le dépôt s'ouvre bientôt, et [ADR 0019](0019-distribution-i18n.md) a livré les
-trois façons d'installer Leyline — AppImage, installeur NSIS, `.dmg`. Aucune ne
-dit ce qui se passe **ensuite**. Une personne qui installe la 0.1.0 aujourd'hui
-n'a aucun moyen d'apprendre que la 0.2.0 existe, sinon revenir d'elle-même sur
-une page de téléchargement dont rien ne lui a donné l'adresse.
+The repository opens soon, and [ADR 0019](0019-distribution-i18n.md) delivered
+the three ways to install Leyline — AppImage, NSIS installer, `.dmg`. None of
+them says what happens **next**. Someone who installs 0.1.0 today has no way of
+learning that 0.2.0 exists, short of going back on their own to a download page
+whose address nothing gave them.
 
-C'est le dernier manque de la mise en distribution, et il a été **reporté
-explicitement** le 2026-08-02 à « avant l'ouverture » : sans binaires publiés,
-un mécanisme de mise à jour pointe vers un vide.
+It is the last gap in getting distribution done, and it was **explicitly
+deferred** on 2026-08-02 to "before opening up": with no published binaries, an
+update mechanism points at a void.
 
-### Ce que la vision impose, et qui n'est pas négociable ici
+### What the vision imposes, and what is not negotiable here
 
-[`vision.md`](../vision.md) autorise le réseau pour exactement cet usage, et
-pose la contrainte dans la même phrase :
+[`vision.md`](../vision.md) allows the network for exactly this use, and sets
+the constraint in the same sentence:
 
-> Le réseau ne sert qu'à des usages **optionnels et explicites** : vérifier
-> qu'une mise à jour existe, la télécharger, éventuellement partager un preset.
+> The network serves only **optional and explicit** uses: checking that an
+> update exists, downloading it, possibly sharing a preset.
 
-« Optionnel et explicite » n'est pas une préférence de style : c'est ce qui
-distingue Leyline d'un logiciel qui téléphone chez lui. Rien de ce qui suit ne
-peut envoyer autre chose que **la version installée et la plateforme**, ni
-partir sans que quelqu'un l'ait demandé.
+"Optional and explicit" is not a matter of style: it is what separates Leyline
+from software that phones home. Nothing that follows can send anything other
+than **the installed version and the platform**, nor leave without someone
+having asked for it.
 
-### Ce que la brique de packaging donne déjà
+### What the packaging brick already gives
 
-`cargo packager` est déjà la chaîne d'empaquetage (ADR 0019). Sa brique
-compagnon `cargo-packager-updater` lit un manifeste JSON, compare les
-versions, télécharge le paquet de la plateforme courante et le remplace. Elle
-apporte trois choses qu'on n'a pas à écrire :
+`cargo packager` is already the packaging chain (ADR 0019). Its companion brick
+`cargo-packager-updater` reads a JSON manifest, compares versions, downloads the
+current platform's package and replaces it. It brings three things we do not
+have to write:
 
-* la **signature du paquet** (paire de clés minisign : la privée signe à la
-  publication, la publique est compilée dans le binaire) — sans elle, une mise
-  à jour est un téléchargement d'exécutable arbitraire.
+* the **package signature** (a minisign key pair: the private key signs at
+  publication, the public key is compiled into the binary) — without it, an
+  update is a download of an arbitrary executable.
 
-  > **Ce qui est signé, précisément** — vérifié dans
-  > `cargo-packager-updater` 0.2.3 : le manifeste JSON lui-même **n'est pas
-  > signé**, il *porte* la signature minisign de chaque paquet, et cette
-  > signature est vérifiée sur les octets téléchargés avant toute
-  > installation (`verify_signature`, appelé par `Update::download`). La
-  > propriété obtenue est celle qui compte : personne ne peut faire installer
-  > un binaire qu'il n'a pas signé. Ce qu'elle ne couvre pas, et qui reste
-  > tenu par HTTPS seul : rediriger vers une **version publiée plus
-  > ancienne**, ou empêcher la découverte d'une mise à jour. Un dépôt qui
-  > perdrait la maîtrise de ses releases aurait de toute façon un problème
-  > plus grand que celui-là ;
-* le remplacement **en place** par plateforme : une AppImage se réécrit
-  elle-même, et l'installeur NSIS est déjà en `installer-mode = "currentUser"`
-  (`crates/leyline-studio/Cargo.toml`), donc **aucune élévation UAC** n'est
-  demandée ;
-* le cas macOS, qui exige que le `.app` soit **notarisé** avant qu'un
-  remplacement soit acceptable — contrainte de plateforme, pas de conception.
+  > **What is signed, precisely** — verified in `cargo-packager-updater` 0.2.3:
+  > the JSON manifest itself is **not signed**, it *carries* each package's
+  > minisign signature, and that signature is verified against the downloaded
+  > bytes before any installation (`verify_signature`, called by
+  > `Update::download`). The property obtained is the one that matters: nobody
+  > can get a binary installed that they did not sign. What it does not cover,
+  > and what HTTPS alone holds: redirecting to an **older published version**,
+  > or preventing the discovery of an update. A repository that lost control of
+  > its releases would have a bigger problem than that one anyway;
+* the **in-place** replacement per platform: an AppImage rewrites itself, and
+  the NSIS installer is already in `installer-mode = "currentUser"`
+  (`crates/leyline-studio/Cargo.toml`), so **no UAC elevation** is asked for;
+* the macOS case, which requires the `.app` to be **notarized** before a
+  replacement is acceptable — a platform constraint, not a design one.
 
-## Décision
+## Decision
 
-### 1. Le manifeste vit sur GitHub Releases, à une URL qui ne bouge jamais
+### 1. The manifest lives on GitHub Releases, at a URL that never moves
 
-Le manifeste est un asset de release nommé `latest.json`, et le binaire
-interroge la redirection stable que GitHub maintient :
+The manifest is a release asset named `latest.json`, and the binary queries the
+stable redirect GitHub maintains:
 
 ```
 https://github.com/leyline-studio/leyline/releases/latest/download/latest.json
 ```
 
-Cette URL désigne toujours l'asset de la release la plus récente, sans que son
-texte change d'une version à l'autre. C'est ce qui permet de la **compiler en
-dur** — et il le faut : une URL de mise à jour configurable est une surface de
-détournement, pas une commodité. En changer est une release, pas un réglage.
+That URL always designates the most recent release's asset, without its text
+changing from one version to the next. That is what allows it to be
+**hard-compiled** — and it must be: a configurable update URL is a hijacking
+surface, not a convenience. Changing it is a release, not a setting.
 
-Le choix se fait sur une seule question : **qu'est-ce que le projet accepte de
-devoir maintenir en vie ?** Un binaire installé interroge son URL pendant des
-années. Un domaine, un certificat TLS et un hébergement sont trois choses à
-renouveler indéfiniment sous peine de casser les copies déjà installées ; les
-releases sont l'endroit où les binaires vont **déjà**, et le manifeste y voyage
-avec eux, publié par le même geste. Un projet local-first qui refuse d'opérer un
-service pour ses utilisateurs ne va pas en opérer un pour ses propres mises à
-jour.
+The choice turns on a single question: **what is the project willing to have to
+keep alive?** An installed binary queries its URL for years. A domain, a TLS
+certificate and hosting are three things to renew indefinitely on pain of
+breaking already-installed copies; releases are where the binaries go
+**already**, and the manifest travels with them, published by the same gesture.
+A local-first project that refuses to operate a service for its users is not
+going to operate one for its own updates.
 
-La clé privée de signature ne vit **ni dans le dépôt ni dans le CI** : elle
-signe à la main au moment de publier. Le dépôt ne porte que la clé publique.
+The private signing key lives **neither in the repository nor in CI**: it signs
+by hand at publication time. The repository carries only the public key.
 
-### 2. On demande une fois, puis on vérifie tout seul — mais on n'installe jamais tout seul
+### 2. We ask once, then check by ourselves — but we never install by ourselves
 
-C'est la cadence de Firefox sans son silence, et les deux moitiés se séparent
-proprement.
+It is Firefox's cadence without its silence, and the two halves separate
+cleanly.
 
-**Le consentement est demandé une fois, et vaut « non » tant qu'il n'a pas été
-donné.** « Vérifier automatiquement si une mise à jour existe ? » — une
-question, une réponse stockée, jamais reposée. C'est ce qui rend la suite
-conforme à `vision.md` : la vérification reste **optionnelle et explicite** au
-sens fort — quelqu'un l'a autorisée en connaissance de cause — plutôt qu'au
-sens littéral d'un clic à chaque fois. Un défaut à « non » est ce qui distingue
-cette lecture d'une permission arrachée.
+**Consent is asked once, and counts as "no" until it has been given.** "Check
+automatically whether an update exists?" — one question, one stored answer,
+never asked again. That is what makes the rest conform to `vision.md`: the check
+stays **optional and explicit** in the strong sense — someone authorized it
+knowingly — rather than in the literal sense of a click every time. A default of
+"no" is what separates that reading from a permission extracted by pressure.
 
-**Si c'est oui : une vérification par lancement, et pas davantage.** Quelques
-secondes après l'ouverture de la bibliothèque, jamais pendant — et sautée si la
-dernière a réussi il y a moins de 24 h, pour que cinq lancements dans un
-après-midi ne fassent pas cinq requêtes. **Aucun minuteur en cours de session :**
-une séance de développement dure des heures, et un appel réseau qui part au
-milieu est exactement la surprise que le principe local-first refuse.
+**If it is yes: one check per launch, and no more.** A few seconds after the
+library opens, never during — and skipped if the last one succeeded less than
+24 h ago, so that five launches in an afternoon do not make five requests. **No
+timer during a session:** an editing session lasts hours, and a network call
+leaving in the middle of it is exactly the surprise the local-first principle
+refuses.
 
-**Rien trouvé, rien dit.** Pas de notification « vous êtes à jour », pas
-d'entrée de journal. Le cas normal est le silence total.
+**Nothing found, nothing said.** No "you are up to date" notification, no log
+entry. The normal case is total silence.
 
-**Quelque chose trouvé : une pastille, pas une fenêtre.** Le libellé **Aide**
-de la barre de menus porte une marque discrète, et l'entrée
-*Rechercher des mises à jour…* devient *Mettre à jour vers 0.2.0…*. Aucune
-modale ne s'interpose, rien n'interrompt le travail en cours, et l'information
-attend qu'on la regarde.
+**Something found: a badge, not a window.** The menu bar's **Help** label
+carries a discreet mark, and the *Check for updates…* entry becomes *Update to
+0.2.0…*. No modal interposes itself, nothing interrupts the work in progress,
+and the information waits until it is looked at.
 
-> Cette pastille est possible **parce que la barre de menus est écrite à la
-> main** ([ADR 0020](0020-menu-bar.md), correction du 2026-08-05) : un
-> `MenuBar` natif ne se décore pas. Le contournement d'un bug de repaint se
-> révèle après coup être ce qui rend cette surface disponible.
+> That badge is possible **because the menu bar is hand-written**
+> ([ADR 0020](0020-menu-bar.md), correction of 2026-08-05): a native `MenuBar`
+> cannot be decorated. The workaround for a repaint bug turns out after the fact
+> to be what makes this surface available.
 
-**L'installation demande toujours un clic**, et c'est ce qui referme
-gratuitement le danger du §4 : une migration de catalogue est irréversible, et
-personne ne peut en subir une qu'il n'a pas déclenchée. C'est la moitié de
-Firefox qu'on ne prend pas, et ce n'est pas seulement par prudence — la brique
-ne sait pas la donner (voir §Alternatives écartées).
+**Installation always asks for a click**, and that closes §4's danger for free:
+a catalog migration is irreversible, and nobody can undergo one they did not
+trigger. It is the half of Firefox we do not take, and not only out of caution —
+the brick cannot give it (see §Alternatives rejected).
 
-**Où vit le réglage.** Dans le panneau **Préférences** — l'entrée du menu
-Fichier était désactivée depuis [ADR 0020](0020-menu-bar.md) parce
-qu'[ADR 0019](0019-distribution-i18n.md) avait mis le choix de langue « hors
-scope immédiat ». Ce panneau avait **deux locataires** et une raison d'être
-construit ; c'est son propre ADR, et la présente décision en dépendait pour
-être livrable. [ADR 0078](0078-preferences-panel.md) l'a écrit, et les deux
-sont livrées. Ce qui est fixé ici et qu'il ne peut pas changer : la question
-est posée une fois, le défaut avant réponse est « non », et elle ne s'interpose
-jamais devant un premier lancement ([ADR 0054](0054-first-run-and-basic-mode.md)
-possède cet écran).
+**Where the setting lives.** In the **Preferences** panel — the File menu entry
+had been disabled since [ADR 0020](0020-menu-bar.md) because
+[ADR 0019](0019-distribution-i18n.md) had put the language choice "out of
+immediate scope". That panel had **two tenants** and a reason to be built; it is
+its own ADR, and the present decision depended on it to be deliverable.
+[ADR 0078](0078-preferences-panel.md) wrote it, and both are delivered. What is
+fixed here and what it cannot change: the question is asked once, the default
+before an answer is "no", and it never interposes itself in front of a first
+launch ([ADR 0054](0054-first-run-and-basic-mode.md) owns that screen).
 
-> C'est [ADR 0078](0078-preferences-panel.md) qui l'écrit, en respectant ces
-> trois contraintes : la question est posée au **second** lancement, **toute
-> façon de fermer le dialogue vaut « non »** et est stockée comme telle, et le
-> réglage vit dans `preferences.json` avec `last_update_check` — le plafond de
-> 24 h du présent paragraphe lit ce champ.
+> It is [ADR 0078](0078-preferences-panel.md) that writes it, respecting those
+> three constraints: the question is asked on the **second** launch, **every way
+> of closing the dialog counts as "no"** and is stored as such, and the setting
+> lives in `preferences.json` alongside `last_update_check` — the present
+> paragraph's 24 h ceiling reads that field.
 
-### 3. Rien n'est envoyé, et rien n'est installé sans un second geste
+### 3. Nothing is sent, and nothing is installed without a second gesture
 
-* La requête ne porte que ce que l'URL contient — **aucun identifiant, aucun
-  compteur, aucune donnée de bibliothèque**. La version installée et la
-  plateforme sont connues du client, pas transmises comme télémétrie : elles
-  servent à choisir une ligne du manifeste, localement.
-* Un échec réseau n'est **pas** une erreur de l'application : hors ligne est
-  l'état normal de Leyline. Le dialogue dit qu'il n'a pas pu joindre le serveur
-  et se ferme ; rien ne réessaie.
-* Trouver une version ne l'installe pas. Le dialogue montre le numéro et les
-  notes de version, et attend un second clic.
+* The request carries only what the URL contains — **no identifier, no counter,
+  no library data**. The installed version and the platform are known to the
+  client, not transmitted as telemetry: they serve to pick a line of the
+  manifest, locally.
+* A network failure is **not** an application error: offline is Leyline's normal
+  state. The dialog says it could not reach the server and closes; nothing
+  retries.
+* Finding a version does not install it. The dialog shows the number and the
+  release notes, and waits for a second click.
 
-### 4. Le catalogue est sauvegardé avant qu'une version plus récente y touche
+### 4. The catalog is backed up before a newer version touches it
 
-C'est la partie de cette décision qui n'a rien à voir avec le réseau, et la
-seule dont l'absence peut **perdre du travail**.
+This is the part of this decision that has nothing to do with the network, and
+the only one whose absence can **lose work**.
 
-`Catalog::open` applique les migrations en attente, une transaction par
-migration. Elles n'ont **pas de retour arrière** : il n'existe pas de script
-descendant, et `Catalog::open` **refuse** un catalogue plus récent que le moteur
-(`LeylineError::NewerCatalog`). Aujourd'hui c'est sans conséquence — on
-n'installe une nouvelle version qu'en le voulant. Avec une mise à jour à un
-clic, la séquence « je mets à jour, la migration tourne, je veux revenir en
-arrière » devient atteignable par accident, et l'ancienne version ne peut plus
-ouvrir la bibliothèque.
+`Catalog::open` applies the pending migrations, one transaction per migration.
+They have **no rollback**: there is no down script, and `Catalog::open`
+**refuses** a catalog newer than the engine (`LeylineError::NewerCatalog`).
+Today that is inconsequential — one only installs a new version deliberately.
+With a one-click update, the sequence "I update, the migration runs, I want to
+go back" becomes reachable by accident, and the old version can no longer open
+the library.
 
-Donc : **avant d'appliquer une migration, `catalog.db` est copié dans
-`Backups/`**, sous un nom qui porte la version de schéma quittée. Le dossier
-`Backups/` existe dans le squelette d'une bibliothèque depuis
-[ADR 0010](0010-relative-paths.md) et `catalog.md` §3 — il est créé à chaque
-`Library::create` et **rien n'y a jamais écrit**. C'est son usage.
+So: **before applying a migration, `catalog.db` is copied into `Backups/`**,
+under a name carrying the schema version being left. The `Backups/` folder has
+existed in a library's skeleton since [ADR 0010](0010-relative-paths.md) and
+`catalog.md` §3 — it is created by every `Library::create` and **nothing has
+ever written to it**. This is its use.
 
-**Ce n'est pas une copie de fichier, et ça ne pouvait pas l'être.** Les
-connexions sont en mode **WAL** (`docs/catalog.md` §6) : des pages validées
-peuvent encore vivre dans `catalog.db-wal` et non dans `catalog.db`. Copier le
-seul fichier produit donc une sauvegarde à laquelle il manque, silencieusement,
-le travail le plus récent — précisément celui qu'on voudrait retrouver. C'est
-`VACUUM INTO` qui est utilisé : SQLite construit lui-même une image cohérente
-de toute la base en un fichier. Le test le vérifie en gardant une connexion
-d'écriture **ouverte** pendant la migration, parce que la fermer suffirait à
-rabattre le WAL dans le fichier principal et à faire passer une copie naïve.
+**It is not a file copy, and it could not have been one.** The connections are
+in **WAL** mode (`docs/catalog.md` §6): committed pages may still live in
+`catalog.db-wal` and not in `catalog.db`. Copying the one file therefore
+produces a backup that is silently missing the most recent work — precisely what
+one would want to get back. `VACUUM INTO` is what is used: SQLite itself builds
+a coherent image of the whole database into one file. The test verifies it by
+keeping a write connection **open** during the migration, because closing it
+would be enough to fold the WAL back into the main file and let a naive copy
+pass.
 
-Trois précisions qui font la différence entre une sauvegarde et une illusion :
+Three details that make the difference between a backup and an illusion:
 
-* la copie est faite **avant** la première migration et **une seule fois** par
-  ouverture, pas une par migration : ce qu'on veut restaurer est l'état d'avant
-  la mise à jour, pas un état intermédiaire ;
-* si la copie échoue, l'ouverture **échoue** au lieu de migrer quand même. Une
-  migration irréversible sur un catalogue non sauvegardé est précisément ce que
-  ce paragraphe existe pour empêcher ;
-* elle ne se déclenche que s'il y a réellement une migration à appliquer —
-  ouvrir une bibliothèque à jour ne recopie rien, sans quoi le dossier
-  grossirait à chaque lancement.
+* the copy is made **before** the first migration and **only once** per open,
+  not one per migration: what we want to restore is the state before the update,
+  not an intermediate state;
+* if the copy fails, the open **fails** instead of migrating anyway. An
+  irreversible migration on an unsaved catalog is precisely what this paragraph
+  exists to prevent;
+* it triggers only if there really is a migration to apply — opening an
+  up-to-date library copies nothing, otherwise the folder would grow at every
+  launch.
 
-Cette partie est **indépendante du reste de l'ADR** : elle ne touche pas au
-réseau, elle est utile immédiatement, et elle est livrée sans attendre qu'il y
-ait des binaires à télécharger.
+This part is **independent of the rest of the ADR**: it does not touch the
+network, it is useful immediately, and it is delivered without waiting for there
+to be binaries to download.
 
-### 5. Ce que cet ADR ne fait pas
+### 5. What this ADR does not do
 
-* **Aucune migration de bibliothèque, aucun changement de schéma.**
-* **Aucun pixel, aucune version d'étage.** `pipeline.md` §5 est hors de cause :
-  une mise à jour peut changer le rendu — c'est même à ça que servent les
-  versions d'étage ([ADR 0042](0042-versioned-stage-pipeline.md)) — mais rien
-  ici ne touche au contrat. Et il vaut la peine d'écrire le corollaire
-  rassurant, parce que la crainte spontanée est l'inverse : **une mise à jour
-  ne retouche aucune photo déjà développée.** Une révision porte sa carte
-  d'étages et le moteur honore la version qu'elle enregistre
-  ([ADR 0043](0043-collapse-prerelease-render-history.md)) ; une version
-  d'étage plus récente ne s'applique qu'au **retraitement**, qui est un acte
-  explicite. Le seul état qu'une mise à jour modifie sans qu'on le lui demande
-  est le **schéma du catalogue** — d'où le §4.
-* **La CLI et le SDK ne se mettent pas à jour.** Une bibliothèque Rust est mise
-  à jour par le gestionnaire de paquets de qui l'utilise ; un binaire en ligne
-  de commande, par la distribution qui l'a installé. C'est Studio, application
-  livrée par installeur, qui a le problème.
+* **No library migration, no schema change.**
+* **No pixel, no stage version.** `pipeline.md` §5 is not implicated: an update
+  can change the rendering — that is what stage versions are for
+  ([ADR 0042](0042-versioned-stage-pipeline.md)) — but nothing here touches the
+  contract. And the reassuring corollary is worth writing, because the
+  spontaneous fear is the opposite: **an update does not retouch any
+  already-developed photo.** A revision carries its stage map and the engine
+  honours the version it records
+  ([ADR 0043](0043-collapse-prerelease-render-history.md)); a newer stage version
+  applies only on **reprocessing**, which is an explicit act. The only state an
+  update modifies unasked is the **catalog schema** — hence §4.
+* **The CLI and the SDK do not update themselves.** A Rust library is updated by
+  the package manager of whoever uses it; a command-line binary, by the
+  distribution that installed it. It is Studio, an application delivered by
+  installer, that has the problem.
 
-## Conséquences
+## Consequences
 
-* **Une personne qui installe Leyline apprend qu'une version existe sans avoir
-  à y penser**, et sans que Leyline observe qui elle est. C'était le dernier
-  manque de la mise en distribution d'ADR 0019.
-* **Ce que la vérification révèle malgré tout, et qu'il faut dire.** Aucune
-  donnée n'est *transmise* (§3), mais une requête HTTP en révèle par sa seule
-  existence : l'adresse IP, et le fait qu'une copie de Leyline s'est lancée à
-  cet instant. Une vérification par lancement, plafonnée à une par 24 h,
-  fait de ce signal une trace grossière d'usage chez l'hébergeur — pas une
-  identité, pas un historique d'édition, mais pas rien non plus. C'est
-  exactement ce que le « non » par défaut et la question posée une fois
-  laissent décider à chacun, et c'est aussi pourquoi il n'y a **aucun minuteur
-  en session** : une seule requête par jour de travail, pas une horloge qui bat.
-* **Le projet n'opère aucun service.** Pas de domaine, pas de certificat, pas
-  d'hébergement : la disponibilité des mises à jour est celle de GitHub, ce qui
-  est déjà la disponibilité du code source. Le corollaire est assumé : changer
-  d'hébergeur un jour demandera une release de transition, que les copies
-  installées avant elle ne verront pas.
-* **Une clé privée devient un actif du projet.** La perdre veut dire publier une
-  nouvelle clé publique dans un binaire, donc une mise à jour manuelle pour tout
-  le monde. Elle ne vit pas dans le CI, ce qui rend la publication d'une release
-  manuelle — c'est le prix de ne pas laisser une machine signer des exécutables
-  toute seule.
-* **`Backups/` cesse d'être un dossier vide** et devient l'endroit d'où l'on
-  repart quand une mise à jour a migré une bibliothèque qu'on voulait laisser
-  telle quelle.
-* **macOS reste en retrait**, comme pour le packaging
-  ([ADR 0019](0019-distribution-i18n.md), et la construction `.dmg` repoussée) :
-  sans notarisation, le remplacement du `.app` n'est pas proposé. Ce n'est pas
-  une exception de conception, c'est la même dépendance qui bloque déjà la
-  distribution macOS.
+* **Someone who installs Leyline learns that a version exists without having to
+  think about it**, and without Leyline observing who they are. That was ADR
+  0019's last distribution gap.
+* **What the check nevertheless reveals, and must be said.** No data is
+  *transmitted* (§3), but an HTTP request reveals some by its mere existence: the
+  IP address, and the fact that a copy of Leyline launched at that instant. One
+  check per launch, capped at one per 24 h, makes that signal a coarse trace of
+  usage at the host — not an identity, not an editing history, but not nothing
+  either. That is exactly what the default "no" and the question asked once leave
+  each person to decide, and it is also why there is **no in-session timer**: one
+  request per working day, not a clock ticking.
+* **The project operates no service.** No domain, no certificate, no hosting:
+  update availability is GitHub's availability, which is already the source
+  code's availability. The corollary is owned: changing host one day will require
+  a transition release, which copies installed before it will not see.
+* **A private key becomes a project asset.** Losing it means publishing a new
+  public key in a binary, hence a manual update for everyone. It does not live in
+  CI, which makes publishing a release manual — that is the price of not letting
+  a machine sign executables on its own.
+* **`Backups/` stops being an empty folder** and becomes the place one starts
+  again from when an update has migrated a library one wanted left as it was.
+* **macOS stays behind**, as for packaging
+  ([ADR 0019](0019-distribution-i18n.md), and the deferred `.dmg` build):
+  without notarization, replacing the `.app` is not offered. It is not a design
+  exception, it is the same dependency that already blocks macOS distribution.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Un serveur de mise à jour opéré par le projet** (domaine + manifeste
-  statique). Donnerait l'indépendance vis-à-vis de GitHub, au prix d'une
-  infrastructure à maintenir aussi longtemps que la plus vieille copie
-  installée. Un projet qui met « aucun cloud, aucun compte » dans sa vision ne
-  commence pas par se doter d'un service dont chaque installation dépend.
-* **GitHub Pages plutôt que les assets de release.** Une seconde surface de
-  publication pour les mêmes octets, à tenir synchronisée avec les releases à
-  la main. La redirection `releases/latest/download/` fait le même travail sans
-  second geste.
-* **Une URL de mise à jour configurable.** Utile pour tester, et c'est
-  exactement pourquoi c'est dangereux : le réglage qui aide au test est le
-  réglage qui redirige une installation vers un binaire choisi par
-  quelqu'un d'autre. Les tests visent une URL de compilation, pas un réglage
-  d'exécution.
-* **Vérifier au démarrage par défaut, avec un réglage pour désactiver.** C'est
-  le comportement de la plupart des applications, et il inverse la phrase de
-  `vision.md` : le réseau partirait sans qu'on l'ait demandé, la case à cocher
-  ne servant qu'à réparer après coup. Le défaut est ce qui compte dans « aucune
-  vérification silencieuse » — d'où la question posée une fois du §2, qui
-  obtient le même résultat en le demandant.
-* **Ne vérifier que manuellement** (position tenue par la première rédaction de
-  cet ADR). Défendable — un clic *est* le consentement, et rien à concevoir —
-  mais presque personne ne clique : les gens attentifs sont informés, les
-  autres restent sur leur version indéfiniment. Le risque que cela laisse
-  ouvert est nommable : Leyline n'a ni compte, ni synchronisation, ni serveur,
-  donc sa surface d'attaque est **l'analyse d'un fichier qu'on ouvre soi-même**,
-  essentiellement LibRaw. Un correctif qui n'arrive jamais protège de fichiers
-  qu'on ouvrira quand même. La question posée une fois coûte un panneau de
-  Préférences qu'il faut de toute façon construire.
-* **Le modèle Firefox complet : télécharger et appliquer en silence**, la
-  nouvelle version prenant effet au lancement suivant. C'est ce qui rend
-  Firefox agréable — on ne le voit jamais arriver — et
-  `cargo-packager-updater` **ne sait pas le faire** : `download_and_install()`
-  installe *maintenant*, il n'y a pas de mise en attente. « À la Firefox » avec
-  cette brique serait donc **plus** intrusif que Firefox, l'installeur se
-  déclenchant pendant qu'on travaille. Le reproduire demanderait d'écrire le
-  remplacement différé par plateforme (AppImage, NSIS), soit exactement le
-  travail qu'[ADR 0019](0019-distribution-i18n.md) a choisi `cargo packager`
-  pour ne pas avoir à faire. S'ajoute une raison propre à Leyline, que Firefox
-  n'a pas : une mise à jour **migre le catalogue** sans retour arrière, après
-  quoi la version précédente ne peut plus ouvrir la bibliothèque. Subir ça sans
-  l'avoir déclenché n'est pas acceptable. À rouvrir si la brique gagne un jour
-  une installation différée — la question serait alors uniquement celle du
-  catalogue.
-* **Ne rien faire et laisser les gestionnaires de paquets s'en charger**
-  (Flatpak, winget, Homebrew). Ce serait la bonne réponse si Leyline y était
-  publié ; ADR 0019 a choisi trois installateurs autonomes précisément parce
-  qu'il ne l'est pas. À rouvrir le jour où il l'est — ce serait alors cet ADR
-  qu'on remplacerait, pas qu'on complèterait.
-* **Sauvegarder le catalogue à chaque ouverture**, plutôt qu'avant une
-  migration. Copier des dizaines de mégaoctets à chaque lancement pour un
-  événement qui arrive une fois par an, et remplir `Backups/` de copies qu'on
-  ne saurait plus distinguer.
+* **An update server operated by the project** (domain + static manifest). It
+  would give independence from GitHub, at the price of infrastructure to
+  maintain as long as the oldest installed copy. A project that puts "no cloud,
+  no accounts" in its vision does not start by giving itself a service every
+  installation depends on.
+* **GitHub Pages rather than release assets.** A second publication surface for
+  the same bytes, to be kept in sync with the releases by hand. The
+  `releases/latest/download/` redirect does the same work with no second gesture.
+* **A configurable update URL.** Useful for testing, and that is exactly why it
+  is dangerous: the setting that helps testing is the setting that redirects an
+  installation to a binary chosen by someone else. The tests target a
+  compile-time URL, not a runtime setting.
+* **Checking at startup by default, with a setting to disable it.** That is most
+  applications' behaviour, and it inverts `vision.md`'s sentence: the network
+  would leave without having been asked, the checkbox serving only to repair
+  after the fact. The default is what counts in "no silent check" — hence §2's
+  question asked once, which gets the same result by asking for it.
+* **Checking only manually** (the position held by this ADR's first draft).
+  Defensible — a click *is* consent, and nothing to design — but almost nobody
+  clicks: attentive people are informed, the others stay on their version
+  indefinitely. The risk that leaves open is nameable: Leyline has no account, no
+  sync and no server, so its attack surface is **parsing a file one opens
+  oneself**, essentially LibRaw. A fix that never arrives protects from files one
+  will open anyway. The question asked once costs a Preferences panel that has to
+  be built regardless.
+* **The full Firefox model: download and apply silently**, the new version taking
+  effect at the next launch. That is what makes Firefox pleasant — one never sees
+  it coming — and `cargo-packager-updater` **cannot do it**:
+  `download_and_install()` installs *now*, there is no queuing. "Firefox-style"
+  with this brick would therefore be **more** intrusive than Firefox, the
+  installer firing while one works. Reproducing it would require writing deferred
+  replacement per platform (AppImage, NSIS), which is exactly the work
+  [ADR 0019](0019-distribution-i18n.md) chose `cargo packager` to avoid. There is
+  also a reason specific to Leyline that Firefox does not have: an update
+  **migrates the catalog** with no way back, after which the previous version can
+  no longer open the library. Undergoing that without having triggered it is not
+  acceptable. To be reopened if the brick ever gains deferred installation — the
+  question would then be the catalog's alone.
+* **Doing nothing and letting package managers handle it** (Flatpak, winget,
+  Homebrew). That would be the right answer if Leyline were published there; ADR
+  0019 chose three standalone installers precisely because it is not. To be
+  reopened the day it is — it would then be this ADR being replaced, not
+  completed.
+* **Backing up the catalog at every open**, rather than before a migration.
+  Copying tens of megabytes at every launch for an event that happens once a
+  year, and filling `Backups/` with copies one could no longer tell apart.
