@@ -1,362 +1,356 @@
-# ADR 0082 — L'import montre l'imagette du boîtier, il ne la rend pas
+# ADR 0082 — Import shows the body's embedded preview, it does not render it
 
-**Statut :** Accepté — 2026-08
+**Status:** Accepted — 2026-08
 
-## Contexte
+## Context
 
-`Library::import` rend une vignette par fichier importé, en série, à travers
-le pipeline complet — décodage capteur compris. Mesuré le 2026-08-26,
-`--release`, sur de vrais CR2 : importer 10 fichiers prend **6,95 s**, dont
-**0,1 s** d'import réel.
+`Library::import` renders one thumbnail per imported file, serially, through the
+full pipeline — sensor decode included. Measured on 2026-08-26, `--release`, on
+real CR2s: importing 10 files takes **6.95 s**, of which **0.1 s** is the actual
+import.
 
-| Poste, par fichier | Coût |
+| Item, per file | Cost |
 |---|---|
-| BLAKE3 sur le fichier | 5 ms |
-| Copie sous `Photos/` | 4 ms |
-| LibRaw `identify` | 0,4 ms |
-| `add_asset` (les 5 écritures) | 0,2 ms |
-| Tout le reste d'`import_one` | ~10 ms |
+| BLAKE3 over the file | 5 ms |
+| Copy under `Photos/` | 4 ms |
+| LibRaw `identify` | 0.4 ms |
+| `add_asset` (the 5 writes) | 0.2 ms |
+| Everything else in `import_one` | ~10 ms |
 | **`generate_import_thumbnails`** | **~680 ms** |
 
-Sur le corpus de test réel — 15 000 CR2 — cela fait **2 h 50, dont cinq
-minutes d'import**. Le reste est un décodage capteur par fichier, payé pour
-produire une image de 256 px.
+On the real test corpus — 15,000 CR2s — that is **2 h 50, of which five minutes
+are the import**. The rest is one sensor decode per file, paid to produce a
+256 px image.
 
-Le commentaire de la fonction énonçait déjà le verdict : *« Left serial;
-worth revisiting if import-time thumbnailing shows up in the perf benches. »*
-C'est fait, et ce n'est pas la sérialisation le sujet : c'est le décodage.
+The function's comment already stated the verdict: *"Left serial; worth
+revisiting if import-time thumbnailing shows up in the perf benches."* It has,
+and serialization is not the subject: the decode is.
 
-### La décision est déjà prise, une étape plus tôt
+### The decision is already made, one step earlier
 
-[ADR 0065](0065-selective-import.md) §2 s'appelle « L'imagette vient du fichier,
-jamais du pipeline », et sa justification est mot pour mot celle-ci : *« le but
-de tout l'exercice est justement de ne pas payer un décodage par fichier avant
-de savoir lesquels on garde »*. Le scan, qui précède l'import, a donc raison
-depuis 2026 ; l'import, qui le suit, paie exactement ce que le scan refusait.
+[ADR 0065](0065-selective-import.md) §2 is titled "The preview comes from the
+file, never from the pipeline", and its justification is word for word this
+one's: *"the whole point of the exercise is precisely not to pay a decode per
+file before knowing which ones we keep"*. The scan, which precedes the import,
+has therefore been right since 2026; the import, which follows it, pays exactly
+what the scan refused.
 
-ADR 0065 §2 donnait une raison précise de ne pas garder ces imagettes : *« le
-cache est indexé par asset, ces fichiers n'en ont pas »*. Après l'import,
-l'asset existe. La raison a disparu, la décision peut traverser.
+ADR 0065 §2 gave a precise reason not to keep those previews: *"the cache is
+indexed by asset, and these files do not have one"*. After the import, the asset
+exists. The reason is gone, the decision can cross over.
 
-### Ce que la mesure impose à la conception
+### What measurement imposes on the design
 
-Sept CR2, deux boîtiers (60D et 5D Mark IV), cinq dossiers du corpus :
+Seven CR2s, two bodies (60D and 5D Mark IV), five folders of the corpus:
 
-* **L'imagette embarquée est un JPEG pleine taille** — 5184×3456 dans les sept
-  cas, 1,3 à 3,2 Mo. Elle n'est jamais le facteur limitant d'une classe de
-  taille ; sur les fichiers enregistrés en mRAW elle est même **plus grande que
-  ce que le RAW décode** (5184×3456 contre 3888×2592).
-* **L'extraire ne coûte presque rien, la décoder coûte le reste.**
-  `leyline_raw::thumbnail` rend les octets en **41 ms** de moyenne ; le décodage
-  JPEG de ces 17,9 Mpx en prend **76** ; la réduction à 256 px et l'écriture
-  PNG, **5**. Total **122 ms**, contre **680** aujourd'hui.
-* **Toute la ladder ne vaut pas son prix.** Produire les quatre classes
-  (256, 1024, 2048, 4096) du même décodage JPEG coûte 276 ms et **16,9 Mo de
-  cache par photo** — 250 Go sur une bibliothèque de 15 000 images. Une seule
-  classe en coûte 53 à 98 ko.
-* **L'orientation est un piège déjà désamorcé.** LibRaw n'applique aucune
-  rotation à l'imagette embarquée, contrairement à `decode` ; et cette imagette
-  porte *parfois* sa propre balise EXIF d'orientation, parfois non.
-  `scan.rs::embedded_preview` traite déjà les deux cas — c'est cette fonction
-  qui sert, pas une seconde écriture du même raisonnement.
+* **The embedded preview is a full-size JPEG** — 5184×3456 in all seven cases,
+  1.3 to 3.2 MB. It is never the limiting factor for a size class; on files
+  recorded in mRAW it is even **larger than what the RAW decodes to** (5184×3456
+  against 3888×2592).
+* **Extracting it costs almost nothing, decoding it costs the rest.**
+  `leyline_raw::thumbnail` returns the bytes in **41 ms** on average; the JPEG
+  decode of those 17.9 Mpx takes **76**; the reduction to 256 px and the PNG
+  write, **5**. Total **122 ms**, against **680** today.
+* **The whole ladder is not worth its price.** Producing the four classes (256,
+  1024, 2048, 4096) from the same JPEG decode costs 276 ms and **16.9 MB of cache
+  per photo** — 250 GB on a library of 15,000 images. A single class costs 53 to
+  98 kB.
+* **Orientation is a trap already defused.** LibRaw applies no rotation to the
+  embedded preview, unlike `decode`; and that preview *sometimes* carries its own
+  EXIF orientation tag, sometimes not. `scan.rs::embedded_preview` already handles
+  both cases — it is that function that is used, not a second writing of the same
+  reasoning.
 
-## Décision
+## Decision
 
-### 1. La vignette vient du fichier, quel que soit le demandeur
+### 1. The thumbnail comes from the file, whoever asks for it
 
-La décision porte sur **le chemin d'aperçu**, pas sur la passe d'import. C'est
-`preview()` lui-même qui, pour la classe vignette, se sert de ce que le fichier
-porte déjà au lieu de développer une révision :
+The decision bears on **the preview path**, not on the import pass. It is
+`preview()` itself that, for the thumbnail class, uses what the file already
+carries instead of developing a revision:
 
-* un RAW ou un DNG donne son imagette embarquée ;
-* un JPEG, PNG ou TIFF se donne lui-même, décodé puis réduit ;
-* un fichier dont l'imagette est absente, illisible, ou **plus petite que la
-  classe demandée**, retombe sur le rendu d'aujourd'hui. Une vignette floue
-  agrandie serait pire qu'une vignette lente ; `scaled_to_fit` n'agrandit
-  jamais, et ce cas doit rester un rendu plutôt qu'une image dégradée.
+* a RAW or a DNG gives its embedded preview;
+* a JPEG, PNG or TIFF gives itself, decoded then reduced;
+* a file whose preview is missing, unreadable, or **smaller than the requested
+  class**, falls back on today's render. A blurry enlarged thumbnail would be
+  worse than a slow thumbnail; `scaled_to_fit` never enlarges, and this case must
+  stay a render rather than a degraded image.
 
-Le placer là plutôt que dans `generate_import_thumbnails` est le point de
-toute la décision, et c'est une correction : la première rédaction de cet ADR
-le mettait dans la passe d'import, ce qui aurait laissé le **chemin paresseux**
-— celui qui remplit la grille pendant qu'on la parcourt — payer 680 ms par
-cellule visible. Un écran de cent vignettes aurait mis plus d'une minute, et
-la passe d'import serait devenue le seul moyen d'avoir une grille utilisable :
-exactement l'inverse du but.
+Putting it there rather than in `generate_import_thumbnails` is the whole point
+of the decision, and it is a correction: this ADR's first draft put it in the
+import pass, which would have left the **lazy path** — the one that fills the
+grid as it is scrolled — paying 680 ms per visible cell. A screen of a hundred
+thumbnails would have taken over a minute, and the import pass would have become
+the only way to have a usable grid: exactly the opposite of the goal.
 
-Comme aujourd'hui, produire une vignette est **au mieux** : celle qu'on ne peut
-pas produire ne fait jamais échouer un import.
+As today, producing a thumbnail is **best-effort**: one that cannot be produced
+never fails an import.
 
-**Une seule classe de taille**, la vignette. Les autres restent développées à la
-demande — un aperçu de loupe est un vrai rendu, et c'est ce qu'on veut y voir.
-Le grief est le temps d'import, pas le nombre de tailles disponibles, et la
-ladder complète coûterait 250 Go sur le corpus.
+**A single size class**, the thumbnail. The others stay developed on demand — a
+loupe preview is a real render, and that is what one wants to see there. The
+grievance is import time, not the number of available sizes, and the full ladder
+would cost 250 GB on the corpus.
 
-### 2. Le catalogue dit d'où viennent les pixels
+### 2. The catalog says where the pixels come from
 
-Une imagette de boîtier **n'est pas le rendu d'une révision**. L'y faire passer
-serait un mensonge que tout le reste croirait : `valid_preview` (`catalog.md`
-§20) répond « voici l'aperçu de la révision de tête », et un aperçu qui n'a
-jamais traversé le pipeline s'y installerait pour toujours — aucun rendu ne
-viendrait jamais le remplacer, et un `undo` revenant sur cette révision
-ressortirait le JPEG du boîtier en croyant montrer un développement.
+A body's embedded preview **is not a revision's render**. Passing it off as one
+would be a lie everything else would believe: `valid_preview` (`catalog.md` §20)
+answers "here is the head revision's preview", and a preview that never went
+through the pipeline would settle there forever — no render would ever come to
+replace it, and an `undo` returning to that revision would bring back the body's
+JPEG believing it was showing a development.
 
-`previews` gagne donc une colonne (migration 6) :
+`previews` therefore gains a column (migration 6):
 
 ```sql
-origin INTEGER NOT NULL DEFAULT 0   -- 0 : rendu par le pipeline
-                                    -- 1 : l'imagette que le fichier portait
+origin INTEGER NOT NULL DEFAULT 0   -- 0: rendered by the pipeline
+                                    -- 1: the preview the file carried
 ```
 
-Elle est portée par la ligne, pas déduite d'une convention de chemin, pour la
-raison habituelle : une convention se relit de deux façons.
+It is carried by the row, not deduced from a path convention, for the usual
+reason: a convention can be read back two ways.
 
-* `valid_preview` gagne `AND origin = 0`. La question qu'elle pose — « la tête
-  a-t-elle son rendu ? » — garde exactement la réponse d'avant.
-* Une imagette embarquée s'ancre sur la **révision initiale**, la seule qui
-  existe à l'import ; la clé `UNIQUE(asset_id, revision_id, kind)` et la clé
-  étrangère sont satisfaites sans invention.
-* La fenêtre de rétention d'[ADR 0075](0075-preview-cache-retention.md) ne la
-  voit pas : elle appartient au **fichier**, pas à une révision, donc elle ne
-  vieillit pas avec l'historique et ne s'évince pas avec lui. Elle meurt avec
-  l'asset, par la cascade. `retain_previews` et `remove_revision_previews`
-  excluent `origin = 1`.
+* `valid_preview` gains `AND origin = 0`. The question it asks — "does the head
+  have its render?" — keeps exactly its previous answer.
+* An embedded preview is anchored to the **initial revision**, the only one that
+  exists at import; the `UNIQUE(asset_id, revision_id, kind)` key and the foreign
+  key are satisfied without invention.
+* [ADR 0075](0075-preview-cache-retention.md)'s retention window does not see it:
+  it belongs to the **file**, not to a revision, so it does not age with the
+  history and is not evicted with it. It dies with the asset, by the cascade.
+  `retain_previews` and `remove_revision_previews` exclude `origin = 1`.
 
-### 3. Ce qu'un client affiche, et ce qu'il en sait
+### 3. What a client displays, and what it knows about it
 
-`Library::cached_preview` répond désormais à « que peut-on montrer de la
-version courante ? » et non à « quel est le rendu de la tête ? ». La nuance
-est la décision entière, et elle a été tranchée en écrivant le code, contre
-une première rédaction de cette section :
+`Library::cached_preview` now answers "what can we show of the current
+version?" and not "what is the head's render?". The nuance is the whole
+decision, and it was settled while writing the code, against a first draft of
+this section:
 
-**L'imagette n'est pas un bouche-trou.** Elle *est* la vignette tant que la
-photo n'a pas été développée, et le pipeline la reprend au moment où il y a
-une retouche à montrer — c'est-à-dire exactement quand l'utilisateur s'attend
-à voir sa vignette changer. La version d'abord envisagée, où chaque cellule
-regardée déclenchait un rendu qui remplaçait l'imagette, coûtait 680 ms de
-processeur par photo parcourue, à vie, et faisait changer la couleur de
-chaque vignette sous les yeux de l'utilisateur pendant qu'il défile.
+**The embedded preview is not a stopgap.** It *is* the thumbnail as long as the
+photo has not been developed, and the pipeline takes over the moment there is a
+retouch to show — that is, exactly when the user expects to see their thumbnail
+change. The version first considered, where every cell looked at triggered a
+render that replaced the embedded preview, cost 680 ms of CPU per photo
+scrolled past, for life, and made the colour of every thumbnail change under the
+user's eyes while scrolling.
 
-Une conséquence heureuse : **Studio ne change pas d'une ligne**. Un client n'a
-besoin d'aucune notion de provenance — une cellule a une image ou n'en a pas,
-comme avant. La colonne `origin` de §2 reste indispensable, mais elle sert au
-catalogue à ne pas mentir, pas au client à savoir quoi faire.
+A happy consequence: **Studio does not change by a line**. A client needs no
+notion of provenance — a cell has an image or it does not, as before. §2's
+`origin` column stays indispensable, but it serves the catalog in not lying, not
+the client in knowing what to do.
 
-Techniquement, la distinction se lit sur la tête de version : une imagette ne
-s'écrit que sur la révision initiale, donc dès qu'il y a un développement la
-tête a bougé et aucune imagette ne s'y trouve. Rien à comparer, rien à
-expliquer au client.
+Technically, the distinction reads off the version head: a preview is only
+written on the initial revision, so as soon as there is a development the head
+has moved and no embedded preview is there. Nothing to compare, nothing to
+explain to the client.
 
-Une cellule qui n'a pas encore son image **n'est pas vide** : elle porte déjà
-son nom de fichier, sa note, son étiquette et ses pastilles — dont le `RAW+J`
-d'[ADR 0079](0079-raw-jpeg-pairing.md) §6, dessiné qu'il y ait une vignette ou
-non. Seul le rectangle de l'image manque, et le combler par un aplat neutre est
-un détail de Studio, pas une décision de moteur.
+A cell that does not yet have its image **is not empty**: it already carries its
+filename, its rating, its label and its badges — including
+[ADR 0079](0079-raw-jpeg-pairing.md) §6's `RAW+J`, drawn whether there is a
+thumbnail or not. Only the image rectangle is missing, and filling it with a
+neutral flat is a Studio detail, not an engine decision.
 
-La conséquence est celle qu'on veut : **on paie le rendu de ce qu'on regarde**,
-pas de ce qu'on importe. Parcourir un dossier de cent photos rend cent
-vignettes ; importer quinze mille n'en rend aucune.
+The consequence is the one wanted: **we pay to render what we look at**, not
+what we import. Scrolling through a folder of a hundred photos renders a hundred
+thumbnails; importing fifteen thousand renders none.
 
-### 4. L'import rend la main dès que le catalogue est écrit
+### 4. Import hands back control as soon as the catalog is written
 
-Remplir le catalogue et remplir le cache sont deux travaux, et seul le premier
-est l'import. `Library::import` ne bloque donc plus sur les vignettes : il rend
-son rapport quand les assets existent — **~20 ms par fichier** — et la passe
-part comme un travail de fond (§3.1 de `engine-api.md`), qui émet ses
-`PreviewReady` comme n'importe quel rendu.
+Filling the catalog and filling the cache are two jobs, and only the first is
+the import. `Library::import` therefore no longer blocks on thumbnails: it
+returns its report when the assets exist — **~20 ms per file** — and the pass
+leaves as a background job (`engine-api.md` §3.1), emitting its `PreviewReady`
+events like any render.
 
-Et cette passe est **parallèle**. Le commentaire de `generate_import_thumbnails`
-donnait une raison exacte de ne pas la paralléliser : `preview()` sérialise sur
-le cache de décodage et le cache d'étages, deux mutex tenus pendant tout le
-rendu — le verrou du catalogue, lui, est déjà relâché entre-temps
-([ADR 0023](0023-catalog-lock-narrowing-preview.md)). Une vignette tirée de
-l'imagette embarquée ne touche **ni l'un ni l'autre** : pas de décodage
-capteur, pas d'étage. L'objection tombe avec la cause.
+And that pass is **parallel**. `generate_import_thumbnails`'s comment gave an
+exact reason not to parallelize it: `preview()` serializes on the decode cache
+and the stage cache, two mutexes held for the whole render — the catalog lock,
+for its part, is already released in the meantime
+([ADR 0023](0023-catalog-lock-narrowing-preview.md)). A thumbnail drawn from the
+embedded preview touches **neither one**: no sensor decode, no stage. The
+objection falls with its cause.
 
-Mesuré sur 16 CR2, page cache chaud, 16 cœurs : **128 ms par fichier en série,
-24 ms avec `rayon` — ×5,3**. Le facteur n'est pas le nombre de cœurs, la
-lecture des fichiers et la bande passante mémoire des décodages 17,9 Mpx
-faisant leur part.
+Measured on 16 CR2s, warm page cache, 16 cores: **128 ms per file serially,
+24 ms with `rayon` — ×5.3**. The factor is not the core count, file reading and
+the memory bandwidth of the 17.9 Mpx decodes doing their part.
 
-`ImportOptions` gagne malgré tout `thumbnails: bool`, à `true` par défaut :
-c'est exactement le drapeau que `ScanOptions` porte déjà, pour la raison
-qu'énonce [ADR 0065](0065-selective-import.md) §2 — *« `thumbnails: false`
-existe pour l'appelant qui n'affiche rien (la CLI) »*. Ce n'est pas une
-préférence au sens d'[ADR 0078](0078-preferences-panel.md) §1 : cela porte sur
-un import donné, pas sur l'installation.
+`ImportOptions` gains `thumbnails: bool` all the same, `true` by default: it is
+exactly the flag `ScanOptions` already carries, for the reason
+[ADR 0065](0065-selective-import.md) §2 states — *"`thumbnails: false` exists for
+the caller that displays nothing (the CLI)"*. It is not a preference in the
+sense of [ADR 0078](0078-preferences-panel.md) §1: it bears on a given import,
+not on the installation.
 
-**La passe suit l'ordre de la grille, pas celui de l'import.** Sa première
-seconde doit aller aux photos qu'on verra en premier, et l'ordre de l'import
-n'a aucune raison d'être celui-là — importer une carte de photos anciennes les
-range au fond d'une grille triée par date de prise de vue. Demander au
-catalogue les premières lignes de la requête par défaut coûte **0,46 ms**
-depuis [ADR 0081](0081-grid-page-cost.md) : l'ordre est gratuit, le prendre est
-donc obligatoire.
+**The pass follows the grid's order, not the import's.** Its first second must
+go to the photos one will see first, and the import's order has no reason to be
+that one — importing a card of old photos files them at the bottom of a grid
+sorted by capture date. Asking the catalog for the default query's first rows
+costs **0.46 ms** since [ADR 0081](0081-grid-page-cost.md): the ordering is free,
+so taking it is compulsory.
 
-Cela dit, **la première page n'est déjà pas le problème**, et c'est ce qui
-autorise la passe à être un simple travail de fond. Le client la préchauffe
-tout seul, et mieux que le moteur ne saurait le faire : `AssetsAdded` déclenche
-`reload`, qui appelle `load_window`, qui partitionne les vignettes manquantes
-**lignes visibles d'abord** et remplit la file que `dispatch_thumbnails` vide
-par trois. Studio connaît son filtre, son tri et son dossier ; le moteur ne les
-connaît pas. Un écran de cent cellules se remplit ainsi en ~4 s à 122 ms par
-vignette et trois travaux en vol, contre ~23 s aujourd'hui.
+That said, **the first page is already not the problem**, and that is what allows
+the pass to be a plain background job. The client warms it up by itself, and
+better than the engine could: `AssetsAdded` triggers `reload`, which calls
+`load_window`, which partitions the missing thumbnails **visible rows first** and
+fills the queue that `dispatch_thumbnails` drains three at a time. Studio knows
+its filter, its sort and its folder; the engine does not. A screen of a hundred
+cells thus fills in ~4 s at 122 ms per thumbnail and three jobs in flight,
+against ~23 s today.
 
-Une conséquence à connaître sans la trancher ici : `MAX_PREVIEW_JOBS = 3` a été
-dimensionné contre un chemin qui tenait les mutex du cache de décodage et du
-cache d'étages. §1 les libère, et cette borne mérite d'être reprise — c'est un
-réglage de Studio, mesurable une fois le reste en place.
+One consequence to know without settling it here: `MAX_PREVIEW_JOBS = 3` was
+sized against a path that held the decode-cache and stage-cache mutexes. §1
+frees them, and that bound deserves revisiting — it is a Studio setting,
+measurable once the rest is in place.
 
-Ce qui reste vrai dans tous les cas, et qui est le vrai filet : **rien de tout
-cela n'est nécessaire pour que la grille soit utilisable**. §1 vaut pour le
-minuteur comme pour la passe. Un préchauffage annulé, une bibliothèque
-importée avec `thumbnails: false`, un cache effacé à la main — dans les trois
-cas la grille se remplit en la parcourant, à 122 ms par cellule et trois
-travaux en vol.
+What stays true in every case, and is the real safety net: **none of this is
+necessary for the grid to be usable**. §1 holds for the timer as for the pass. A
+cancelled warm-up, a library imported with `thumbnails: false`, a cache erased by
+hand — in all three cases the grid fills by being scrolled, at 122 ms per cell
+and three jobs in flight.
 
-### 5. Un compagnon n'a pas de vignette à produire
+### 5. A companion has no thumbnail to produce
 
-Un boîtier réglé en RAW+JPEG écrit deux fichiers, et l'import en enregistre
-deux assets. [ADR 0079](0079-raw-jpeg-pairing.md) §5 sort le compagnon de la
-grille par une clause, et le volet de détails ne montre de lui que **son nom**
-(§6) — aucun écran de Studio n'affiche la vignette d'un compagnon.
-`generate_import_thumbnails` en produit une quand même, pour chaque fichier
-importé : sur un dossier réglé ainsi, **la moitié de la passe est jetée**.
+A body set to RAW+JPEG writes two files, and the import records two assets.
+[ADR 0079](0079-raw-jpeg-pairing.md) §5 takes the companion out of the grid with
+a clause, and the details panel shows only **its name** of it (§6) — no Studio
+screen displays a companion's thumbnail. `generate_import_thumbnails` produces
+one anyway, for every imported file: on a folder set that way, **half the pass is
+thrown away**.
 
-La passe saute donc les assets dont `companion_of` n'est pas nul. C'est une
-décision **neutre par construction** : une bibliothèque sans paires ne saute
-rien, et §1 la porte entièrement. Personne n'y perd, un cas fréquent y gagne
-un facteur deux.
+The pass therefore skips assets whose `companion_of` is not null. It is a
+decision **neutral by construction**: a library with no pairs skips nothing, and
+§1 carries it entirely. Nobody loses, a frequent case gains a factor of two.
 
-Deux suites en découlent, toutes deux couvertes par le chemin paresseux de §3 :
+Two consequences follow, both covered by §3's lazy path:
 
-* **Dépairer rend le JPEG à la grille** ([ADR 0079](0079-raw-jpeg-pairing.md)
-  §6). Il n'a alors pas de vignette, et la file du minuteur la produit comme
-  pour toute cellule visible qui n'en a pas.
-* **La passe d'appairage explicite** sur une bibliothèque existante
-  ([ADR 0079](0079-raw-jpeg-pairing.md) §7) laisse en place les vignettes déjà
-  produites. Elles deviennent inutiles sans devenir fausses ; les effacer
-  rendrait un dépairage lent pour récupérer quelques dizaines de kilo-octets.
+* **Unpairing gives the JPEG back to the grid**
+  ([ADR 0079](0079-raw-jpeg-pairing.md) §6). It then has no thumbnail, and the
+  timer's queue produces it as for any visible cell that has none.
+* **The explicit pairing pass** on an existing library
+  ([ADR 0079](0079-raw-jpeg-pairing.md) §7) leaves already-produced thumbnails in
+  place. They become useless without becoming wrong; erasing them would make an
+  unpairing slow to recover a few tens of kilobytes.
 
-Et **le compagnon n'est pas non plus une meilleure source** pour la vignette du
-maître, ce qu'on pouvait croire — il est sur le disque, pleine taille, déjà en
-JPEG. Mesuré sur six paires réelles, page cache chaud :
+And **the companion is not a better source either** for the master's thumbnail,
+as one might have believed — it is on disk, full size, already in JPEG. Measured
+on six real pairs, warm page cache:
 
-| Source de la vignette du RAW | Coût par prise |
+| Source of the RAW's thumbnail | Cost per shot |
 |---|---|
-| l'imagette embarquée dans le CR2 | **119 ms** |
-| le fichier JPEG compagnon | 161 ms |
+| the preview embedded in the CR2 | **119 ms** |
+| the companion JPEG file | 161 ms |
 
-Le compagnon est un encodage de **meilleure qualité** que l'imagette embarquée
-— 5,2 à 10,6 Mo contre 1,3 à 3,2 — donc plus long à décoder (111 à 159 ms
-contre 69 à 93), pour la même image de 5184×3456. Le lire coûte moins cher que
-d'ouvrir le RAW, et cela ne rattrape pas l'écart. §1 s'applique donc au maître
-sans exception, et la paire ne change qu'une chose : le compagnon ne coûte
-rien du tout.
+The companion is a **higher-quality** encoding than the embedded preview — 5.2 to
+10.6 MB against 1.3 to 3.2 — hence longer to decode (111 to 159 ms against 69 to
+93), for the same 5184×3456 image. Reading it costs less than opening the RAW,
+and that does not make up the difference. §1 therefore applies to the master
+without exception, and the pair changes only one thing: the companion costs
+nothing at all.
 
-### 6. Ce que l'utilisateur voit, et qu'il faut dire
+### 6. What the user sees, and what must be said
 
-Une vignette de boîtier n'est pas un rendu neutre de Leyline : elle porte le
-contraste, la saturation et la balance que le fabricant applique. Sur une
-photo jamais développée, la grille montrera donc le rendu Canon **et la loupe
-le rendu neutre Leyline** — les deux diffèrent, et c'est le prix.
+A body's thumbnail is not a neutral Leyline render: it carries the contrast, the
+saturation and the balance the manufacturer applies. On a never-developed photo,
+the grid will therefore show the Canon rendering **and the loupe the neutral
+Leyline rendering** — the two differ, and that is the price.
 
-Il est assumé, et c'est celui que Lightroom fait payer sous le nom « Embedded
-& Sidecar ». Le refuser coûterait 2 h 50 sur quinze mille fichiers, dont
-l'immense majorité ne sera jamais regardée de près.
+It is owned, and it is the one Lightroom charges under the name "Embedded &
+Sidecar". Refusing it would cost 2 h 50 on fifteen thousand files, the vast
+majority of which will never be looked at closely.
 
-Ce qu'on ne paie **pas**, en revanche, c'est un scintillement : la vignette ne
-change qu'à la première retouche, jamais au passage du regard. §3 explique
-pourquoi cette version-là a été écartée, et ce qu'elle aurait coûté.
+What we do **not** pay, on the other hand, is flicker: the thumbnail changes
+only at the first retouch, never as one's gaze passes. §3 explains why that
+version was rejected, and what it would have cost.
 
-## Conséquences
+## Consequences
 
-Par fichier, sur les sept CR2 mesurés :
+Per file, on the seven CR2s measured:
 
-| | aujourd'hui | après | rapport |
+| | today | after | ratio |
 |---|---|---|---|
-| vignette d'import | ~680 ms | **122 ms** | ×5,6 |
-| import complet (une photo) | ~700 ms | **~142 ms** | ×4,9 |
-| import complet, `thumbnails: false` | ~700 ms | **~20 ms** | ×35 |
-| cache écrit par photo | 53–98 ko | 53–98 ko | inchangé |
+| import thumbnail | ~680 ms | **122 ms** | ×5.6 |
+| full import (one photo) | ~700 ms | **~142 ms** | ×4.9 |
+| full import, `thumbnails: false` | ~700 ms | **~20 ms** | ×35 |
+| cache written per photo | 53–98 kB | 53–98 kB | unchanged |
 
-Sur les 15 000 CR2 du corpus, la passe passe de **2 h 50 à 31 min** en série et
-à **6 min** en parallèle (×5,3 mesuré). Mais c'est la ligne du dessous qui
-compte le plus, puisque §4 la sort du chemin de l'import :
+On the corpus's 15,000 CR2s, the pass goes from **2 h 50 to 31 min** serially
+and to **6 min** in parallel (×5.3 measured). But it is the line below that
+counts most, since §4 takes it off the import path:
 
-| 15 000 CR2 | aujourd'hui | après |
+| 15,000 CR2 | today | after |
 |---|---|---|
-| avant que le catalogue soit utilisable | 2 h 50 | **~5 min** |
-| avant que la grille soit entièrement chaude | 2 h 50 | ~6 min de plus, en fond |
-| pour parcourir une grille jamais préchauffée | — | 122 ms par cellule visible |
+| before the catalog is usable | 2 h 50 | **~5 min** |
+| before the grid is entirely warm | 2 h 50 | ~6 min more, in the background |
+| to scroll a never-warmed grid | — | 122 ms per visible cell |
 
-Pour un boîtier réglé en RAW+JPEG, §5 s'ajoute. Coûts par fichier mesurés
-aujourd'hui — 700 ms pour un CR2, **248 ms pour un JPEG** (pas de décodage
-capteur) — reportés sur un dossier réel du corpus, `2022_04_17`, qui tient
-29 paires :
+For a body set to RAW+JPEG, §5 adds to this. Per-file costs measured today —
+700 ms for a CR2, **248 ms for a JPEG** (no sensor decode) — carried over to a
+real folder of the corpus, `2022_04_17`, which holds 29 pairs:
 
-| 29 paires (58 fichiers) | aujourd'hui | après |
+| 29 pairs (58 files) | today | after |
 |---|---|---|
-| fichiers traités par la passe | 58 | **29** |
-| durée de l'import | ~27,5 s | **~4,6 s** |
+| files handled by the pass | 58 | **29** |
+| import duration | ~27.5 s | **~4.6 s** |
 
-Le facteur global y est de **~6**, dont un facteur deux vient de §5 seul.
+The overall factor there is **~6**, of which a factor of two comes from §5
+alone.
 
-Le décodage JPEG (76 ms) devient le poste dominant de la passe, à 62 % de son
-temps. C'est un décodage pleine résolution — 17,9 Mpx — pour produire 256 px.
+The JPEG decode (76 ms) becomes the pass's dominant item, at 62 % of its time.
+It is a full-resolution decode — 17.9 Mpx — to produce 256 px.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Paralléliser la passe telle quelle**, sans changer la source des pixels.
-  C'est ce que le commentaire du code proposait, et cela ne s'attaque pas au bon
-  terme : seize cœurs sur un décodage capteur, c'est encore une vingtaine de
-  minutes passées à démosaïquer pour produire des images de 256 px. Et c'est
-  précisément dans cet ordre-là que la parallélisation était bloquée — par les
-  mutex du cache de décodage et du cache d'étages. Changer la source d'abord
-  (§1) supprime l'obstacle et rend le gain intéressant : §4 parallélise donc,
-  mais seulement parce que §1 la précède.
-* **Produire toutes les vignettes avant de rendre la main.** C'est le
-  comportement d'aujourd'hui, et §4 le refuse : remplir le catalogue et remplir
-  le cache sont deux travaux, et faire attendre le premier sur le second n'a
-  jamais servi personne. La grille reste utilisable sans préchauffage — c'est
-  §1 qui l'assure, à 122 ms par cellule visible, et non la passe.
-* **Produire les quatre classes du même décodage JPEG.** Séduisant (un seul
-  décodage sert tout), mesuré, et rejeté sur le chiffre : 250 Go de cache sur le
-  corpus, pour des tailles que personne n'a demandées.
-* **Stocker l'imagette sous une révision fictive, ou par une convention de
-  chemin.** Les deux évitent la colonne de §2 et les deux font dire au
-  catalogue quelque chose de faux. La clé étrangère de `previews` refuse la
-  première ; la seconde encode un fait dans un nom de fichier, où il se déduit
-  au lieu de se lire — [ADR 0047](0047-xmp-sidecar-read.md) a montré ce que
-  coûte une convention de nommage dont on n'est pas seul maître.
-* **Prendre la vignette du maître dans son JPEG compagnon**, quand il y en a un
-  — il est déjà sur le disque, pleine taille, et déjà en JPEG. Mesuré sur six
-  paires réelles : **161 ms contre 119**. Le compagnon est un encodage de
-  meilleure qualité que l'imagette embarquée (5,2 à 10,6 Mo contre 1,3 à 3,2),
-  donc plus long à décoder pour exactement la même image. L'idée coûterait en
-  plus un chemin de code qui ne servirait qu'aux paires.
-* **Remplacer l'imagette par un rendu dès qu'une cellule est regardée.** La
-  grille finirait toujours par dire la vérité sur ce que produisent les
-  réglages, et grille et loupe concorderaient. Le prix est double et il est
-  rédhibitoire : 680 ms de processeur par photo parcourue, à vie, et la
-  couleur de chaque vignette qui change une fois sous les yeux de
-  l'utilisateur pendant qu'il défile. §3 retient l'autre branche — l'imagette
-  tient jusqu'à la première retouche — parce qu'un catalogue de photos non
-  développées n'a rien à dire de plus que ce que le boîtier a rendu.
-* **Garder l'imagette même après une retouche.** Là, la grille mentirait
-  vraiment : elle montrerait autre chose que ce que les réglages produisent,
-  et un retour de la loupe vers la grille donnerait deux images
-  contradictoires de la même photo.
+* **Parallelizing the pass as it stands**, without changing the source of the
+  pixels. That is what the code's comment suggested, and it does not attack the
+  right term: sixteen cores on a sensor decode is still some twenty minutes spent
+  demosaicing to produce 256 px images. And it is precisely in that order that
+  parallelization was blocked — by the decode-cache and stage-cache mutexes.
+  Changing the source first (§1) removes the obstacle and makes the gain worth
+  having: §4 therefore parallelizes, but only because §1 precedes it.
+* **Producing every thumbnail before handing back control.** That is today's
+  behaviour, and §4 refuses it: filling the catalog and filling the cache are two
+  jobs, and making the first wait on the second has never served anyone. The grid
+  stays usable without a warm-up — it is §1 that guarantees that, at 122 ms per
+  visible cell, and not the pass.
+* **Producing the four classes from the same JPEG decode.** Tempting (a single
+  decode serves everything), measured, and rejected on the figure: 250 GB of cache
+  on the corpus, for sizes nobody asked for.
+* **Storing the preview under a fictitious revision, or by a path convention.**
+  Both avoid §2's column and both make the catalog say something false.
+  `previews`'s foreign key refuses the first; the second encodes a fact in a
+  filename, where it is deduced instead of read —
+  [ADR 0047](0047-xmp-sidecar-read.md) showed what a naming convention one does
+  not solely control costs.
+* **Taking the master's thumbnail from its companion JPEG**, when there is one —
+  it is already on disk, full size, and already in JPEG. Measured on six real
+  pairs: **161 ms against 119**. The companion is a higher-quality encoding than
+  the embedded preview (5.2 to 10.6 MB against 1.3 to 3.2), hence longer to decode
+  for exactly the same image. The idea would additionally cost a code path serving
+  pairs alone.
+* **Replacing the embedded preview with a render as soon as a cell is looked
+  at.** The grid would always end up telling the truth about what the settings
+  produce, and grid and loupe would agree. The price is twofold and it is
+  prohibitive: 680 ms of CPU per photo scrolled past, for life, and the colour of
+  every thumbnail changing once under the user's eyes while scrolling. §3 keeps
+  the other branch — the embedded preview holds until the first retouch — because
+  a catalog of undeveloped photos has nothing more to say than what the body
+  rendered.
+* **Keeping the embedded preview even after a retouch.** There, the grid really
+  would lie: it would show something other than what the settings produce, and
+  going back from the loupe to the grid would give two contradictory images of the
+  same photo.
 
-## Ce que cet ADR ne fait pas
+## What this ADR does not do
 
-Aucun pixel du pipeline ne bouge : ni étage, ni version d'étage, ni révision.
-`pipeline.md` §5.1 est hors de cause — une imagette embarquée n'est pas un
-rendu, et c'est tout l'objet de §2 que de l'écrire dans le catalogue plutôt que
-de le laisser deviner.
+No pipeline pixel moves: no stage, no stage version, no revision.
+`pipeline.md` §5.1 is not implicated — an embedded preview is not a render, and
+the whole point of §2 is to write that in the catalog rather than leave it to be
+guessed.
 
-Il ne touche pas non plus au **décodage JPEG pleine résolution** qui devient le
-poste dominant. Un décodage à l'échelle (le DCT du JPEG permet 1/2, 1/4, 1/8 —
-648×432 suffirait très largement pour 256 px) le réduirait encore beaucoup, et
-`zune-jpeg`, le décodeur que la caisse `image` embarque ici, ne l'expose pas.
-Cela demanderait un décodeur de plus dans l'arbre : une décision de dépendance,
-non mesurée à ce jour, et qui n'a pas à être prise dans le même mouvement.
+Nor does it touch the **full-resolution JPEG decode** that becomes the dominant
+item. A scaled decode (JPEG's DCT allows 1/2, 1/4, 1/8 — 648×432 would be more
+than enough for 256 px) would reduce it much further, and `zune-jpeg`, the
+decoder the `image` crate embeds here, does not expose it. That would require one
+more decoder in the tree: a dependency decision, unmeasured to date, and one that
+does not have to be taken in the same move.
