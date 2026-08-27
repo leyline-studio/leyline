@@ -1,197 +1,195 @@
-# ADR 0041 — Rendu interactif : preview à la résolution d'affichage et cache d'étages de pipeline
+# ADR 0041 — Interactive rendering: a preview at display resolution, and a pipeline stage cache
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-`docs/roadmap.md` phase 7 (« Optimisations CPU/GPU ») est la phase courante.
-Deux mesures prises le 2026-07-25 (`crates/leyline-engine/benches/process1.rs`,
-groupe `process11`, image synthétique 3 Mpx, i9-9900K 16 threads) cadrent le
-problème :
+`docs/roadmap.md` phase 7 ("CPU/GPU optimizations") is the current phase. Two
+measurements taken on 2026-07-25
+(`crates/leyline-engine/benches/process1.rs`, group `process11`, a synthetic
+3 Mpx image, i9-9900K with 16 threads) frame the problem:
 
-* le coût d'un curseur isolé va de **~0 ms** (courbe tonale, color grading,
-  matrice de profil) à **+232 ms** (masque brosse à 64 dabs), **+112 ms**
-  (dehaze), **+94 ms** (huit taches), **+70 ms** (réduction de bruit) ;
-* le rendu complet d'un CR2 réel (3888×2592) en preview `Small` prend **0,97 s**
-  à neutre et **2,39 s** tous curseurs actifs, décodage compris.
+* the cost of an isolated slider ranges from **~0 ms** (tone curve, colour
+  grading, profile matrix) to **+232 ms** (a brush mask at 64 dabs), **+112 ms**
+  (dehaze), **+94 ms** (eight spots), **+70 ms** (noise reduction);
+* a complete render of a real CR2 (3888×2592) into a `Small` preview takes
+  **0.97 s** at neutral and **2.39 s** with every slider active, decoding
+  included.
 
-Deux gaspillages structurels expliquent l'essentiel de cet écart, et **aucun des
-deux n'est un problème d'opérateur** — chaque opérateur pris isolément est déjà
-raisonnable :
+Two structural wastes explain most of that gap, and **neither is an operator
+problem** — each operator taken in isolation is already reasonable:
 
-**1. Le pipeline tourne à une résolution qui n'est jamais affichée.**
-`preview::plan_preview` décode en `half_size` pour les classes `Thumbnail` et
-`Small`, puis développe **le buffer décodé entier** avant que
-`leyline_preview::cache` ne réduise le résultat à `max_edge`. Pour un boîtier
-10 Mpx en preview `Small`, cela développe 1944×1296 (2,5 Mpx) pour afficher
-1024×683 (0,7 Mpx) : **~3,6× de pixels calculés puis jetés**, à chaque
-déplacement de curseur.
+**1. The pipeline runs at a resolution that is never displayed.**
+`preview::plan_preview` decodes at `half_size` for the `Thumbnail` and `Small`
+classes, then develops **the whole decoded buffer** before
+`leyline_preview::cache` reduces the result to `max_edge`. For a 10 Mpx body in
+a `Small` preview, that develops 1944×1296 (2.5 Mpx) in order to display
+1024×683 (0.7 Mpx): **~3.6× the pixels computed and then thrown away**, on
+every slider move.
 
-**2. Chaque rendu repart du buffer décodé.** `process11::develop` reconstruit la
-chaîne complète à chaque appel. Un étage neutre est sauté, mais tout étage
-**non neutre en amont** de celui qu'on modifie est recalculé pour rien : bouger
-`sharpening` (dernier étage, ~13 ms) re-exécute dehaze, clarté, texture, TSL et
-les réglages locaux déjà calculés à l'identique au rendu précédent. C'est la
-différence structurelle avec Lightroom, Capture One et Darktable, qui mettent en
-cache les étages intermédiaires et ne rejouent que l'aval du nœud édité.
+**2. Every render starts again from the decoded buffer.**
+`process11::develop` rebuilds the complete chain on every call. A neutral stage
+is skipped, but every **non-neutral stage upstream** of the one being changed
+is recomputed for nothing: moving `sharpening` (the last stage, ~13 ms) re-runs
+dehaze, clarity, texture, HSL and the local adjustments already computed
+identically on the previous render. That is the structural difference from
+Lightroom, Capture One and Darktable, which cache intermediate stages and
+replay only what is downstream of the edited node.
 
-Une troisième piste — **exécuter le pipeline sur le GPU** — a été explicitement
-écartée par **ADR 0012** (« déterminisme inter-GPU non garanti ; reporté à une
-exploration ultérieure de phase 7 »). Le présent ADR **ne rouvre pas** ce choix :
-il traite les deux gaspillages CPU, qui sont sans risque de déterminisme, sans
-dépendance nouvelle et multiplicatifs entre eux. La question GPU sera reprise
-avec les mesures d'après-optimisation, dans son propre ADR, si elle se justifie
-encore.
+A third avenue — **running the pipeline on the GPU** — was explicitly rejected
+by **ADR 0012** ("determinism across GPUs not guaranteed; deferred to a later
+phase-7 exploration"). The present ADR **does not reopen** that choice: it
+addresses the two CPU wastes, which carry no determinism risk, need no new
+dependency, and multiply with each other. The GPU question will be taken up
+again with the post-optimization measurements, in its own ADR, if it still
+warrants it.
 
-## Décision
+## Decision
 
-Les deux optimisations portent **exclusivement sur le chemin preview**. Export et
-impression restent inchangés, à pleine résolution, sans cache d'étages, **bit
-pour bit identiques à aujourd'hui**. Il n'y a donc **aucune nouvelle process
-version** : la process version décrit ce que produit le contrat de rendu
-(`docs/pipeline.md` §5), et ce contrat ne bouge pas.
+Both optimizations bear **exclusively on the preview path**. Export and
+printing stay unchanged, at full resolution, with no stage cache, **bit for
+bit identical to today**. There is therefore **no new process version**: the
+process version describes what the render contract produces
+(`docs/pipeline.md` §5), and that contract does not move.
 
-### 1. La preview est développée à sa résolution d'affichage
+### 1. The preview is developed at its display resolution
 
-`plan_preview` cesse de développer le buffer décodé pour développer un buffer
-déjà réduit à la taille de la classe demandée (`leyline_preview::max_edge`). Le
-redimensionnement passe **avant** le pipeline au lieu d'après.
+`plan_preview` stops developing the decoded buffer and develops a buffer
+already reduced to the requested class's size (`leyline_preview::max_edge`).
+The resizing moves **before** the pipeline instead of after.
 
-L'ordre exact devient : décoder (`half_size` inchangé) → réduire à `max_edge` →
-développer → encoder. `PreviewKind::Full` n'a pas de `max_edge` : ce chemin est
-inchangé, il développe à pleine résolution comme aujourd'hui.
+The exact order becomes: decode (`half_size` unchanged) → reduce to `max_edge`
+→ develop → encode. `PreviewKind::Full` has no `max_edge`: that path is
+unchanged, and develops at full resolution as it does today.
 
-> **Suite, 2026-08-05.** Ce paragraphe ne dit rien de ce qu'il advient du
-> buffer réduit : il était rebâti à chaque rendu, ce qui est devenu le poste
-> dominant une fois le §3 en place. [ADR 0076](0076-proxy-cache.md) le met en
-> cache à côté du décodage.
+> **A sequel, 2026-08-05.** This paragraph says nothing of what becomes of the
+> reduced buffer: it was rebuilt on every render, which became the dominant
+> cost once §3 was in place. [ADR 0076](0076-proxy-cache.md) caches it
+> alongside the decode.
 
-### 2. Les rayons exprimés en pixels sont mis à l'échelle du proxy
+### 2. Radii expressed in pixels are scaled to the proxy
 
-Développer une image réduite avec des rayons inchangés donnerait un rendu
-**faux**, pas seulement rapide : un flou de σ = 40 px sur un buffer 3,6× plus
-petit couvre 3,6× plus de sujet. Tout paramètre dénominé en pixels est donc
-multiplié par le facteur d'échelle `s = largeur_proxy / largeur_décodée` :
+Developing a reduced image with unchanged radii would give a **wrong**
+rendering, not merely a fast one: a blur of σ = 40 px on a buffer 3.6× smaller
+covers 3.6× more subject. Every parameter denominated in pixels is therefore
+multiplied by the scale factor `s = proxy_width / decoded_width`:
 
-| Paramètre | Où | Unité |
+| Parameter | Where | Unit |
 | --- | --- | --- |
-| `sharpening.radius` | paramètre utilisateur | σ pixels |
-| `CLARITY_RADIUS` (40,0) | constante d'étage | σ pixels |
-| `TEXTURE_RADIUS` (6,0) | constante d'étage | σ pixels |
-| `DEHAZE_PATCH_RADIUS` (7) | constante d'étage | rayon pixels |
-| σ de la réduction de bruit (`k·2,0`, `k·3,0`) | dérivé de la force | σ pixels |
+| `sharpening.radius` | a user parameter | σ pixels |
+| `CLARITY_RADIUS` (40.0) | a stage constant | σ pixels |
+| `TEXTURE_RADIUS` (6.0) | a stage constant | σ pixels |
+| `DEHAZE_PATCH_RADIUS` (7) | a stage constant | a pixel radius |
+| the noise reduction's σ (`k·2.0`, `k·3.0`) | derived from the strength | σ pixels |
 
-Les autres paramètres spatiaux sont déjà **normalisés** `[0, 1]` et donc
-invariants d'échelle : recadrage, rotation, masques radial/gradient/brosse,
-taches (`spot.radius × max(w, h)`), correction d'objectif (géométrie en
-coordonnées normalisées). Ils ne sont pas touchés.
+The other spatial parameters are already **normalized** to `[0, 1]` and
+therefore scale-invariant: crop, rotation, radial/gradient/brush masks, spots
+(`spot.radius × max(w, h)`), lens correction (geometry in normalized
+coordinates). They are untouched.
 
-Cette mise à l'échelle est une **approximation**, pas une identité : réduire
-puis flouter à σ·s n'égale pas flouter à σ puis réduire. Pour une gaussienne
-l'écart est petit et va dans le bon sens. Le point important est que la preview
-d'aujourd'hui est **déjà** une approximation de l'export — elle développe à
-2,5 Mpx puis réduit à 0,7 Mpx, ce qui fait par exemple disparaître une netteté
-de rayon 1 px. La preview proxy n'introduit pas une infidélité nouvelle : elle
-en remplace une par une autre, moins coûteuse et plus proche de ce que l'export
-donnera à taille d'affichage égale.
+That scaling is an **approximation**, not an identity: reducing and then
+blurring at σ·s does not equal blurring at σ and then reducing. For a Gaussian
+the difference is small and errs in the right direction. The important point is
+that today's preview is **already** an approximation of the export — it
+develops at 2.5 Mpx and then reduces to 0.7 Mpx, which for instance makes a
+1 px-radius sharpening vanish. The proxy preview introduces no new infidelity:
+it replaces one with another, less costly and closer to what the export will
+give at equal display size.
 
-### 3. Le pipeline preview met en cache des étages intermédiaires
+### 3. The preview pipeline caches intermediate stages
 
-Le rendu preview gagne un cache d'**états intermédiaires**, en mémoire, tenu par
-la `Library` à côté du cache de décodage, et jeté avec elle.
+Preview rendering gains a cache of **intermediate states**, in memory, held by
+the `Library` alongside the decode cache, and discarded with it.
 
-> **Amendement du 2026-08-02, à l'implémentation.** Ce paragraphe disait
-> « tenu par la session d'édition ouverte ». C'était intenable : la vue
-> develop de Studio rend par `Library::preview`, jamais par une
-> `EditSession`, si bien qu'un cache porté par la session n'aurait jamais
-> été touché par l'interaction même qu'il vise. Il vit donc où vit déjà
-> `DecodeCache`. Rien d'autre ne change — le cache reste purement dérivé,
-> propre au chemin preview, et jeté à volonté.
+> **An amendment of 2026-08-02, at implementation time.** This paragraph said
+> "held by the open edit session". That was untenable: Studio's develop view
+> renders through `Library::preview`, never through an `EditSession`, so that
+> a cache carried by the session would never have been touched by the very
+> interaction it targets. It therefore lives where `DecodeCache` already
+> lives. Nothing else changes — the cache stays purely derived, specific to
+> the preview path, and discardable at will.
 
-Le pipeline est une **séquence linéaire** d'étages. Chaque point de contrôle
-retient `(index d'étage, empreinte des réglages de tous les étages amont,
-buffer)`. À chaque rendu, le moteur calcule les empreintes de préfixe, retient
-le **point de contrôle valide le plus profond**, et ne rejoue que l'aval. Bouger
-`sharpening` avec dehaze et clarté actifs ne recalcule alors que `sharpening`.
+The pipeline is a **linear sequence** of stages. Each checkpoint retains
+`(stage index, a fingerprint of every upstream stage's settings, buffer)`. On
+every render, the engine computes the prefix fingerprints, keeps the **deepest
+valid checkpoint**, and replays only what is downstream. Moving `sharpening`
+with dehaze and clarity active then recomputes `sharpening` alone.
 
-Les points de contrôle ne sont pas placés à chaque étage — le coût mémoire ne le
-justifierait pas — mais **avant les étages chers**, là où le gain paie sa
-copie : après correction d'objectif et taches (chers, quasi jamais retouchés en
-rafale), après le bloc tonal, après clarté/texture/dehaze, après les réglages
-locaux. À la résolution proxy un buffer coûte ~8 Mo (0,7 Mpx × 3 canaux ×
-`f32`), soit une trentaine de mégaoctets pour l'ensemble : acceptable pour une
-session, et une raison de plus pour que ce cache **n'existe que sur le chemin
-preview**, jamais en export où les buffers pleine résolution le rendraient
-prohibitif.
+Checkpoints are not placed at every stage — the memory cost would not justify
+it — but **ahead of the expensive stages**, where the gain pays for its copy:
+after lens correction and spots (expensive, and almost never adjusted in rapid
+succession), after the tonal block, after clarity/texture/dehaze, after the
+local adjustments. At proxy resolution a buffer costs ~8 MB (0.7 Mpx × 3
+channels × `f32`), some thirty megabytes for the set: acceptable for a session,
+and one more reason for this cache to **exist only on the preview path**, never
+in export where full-resolution buffers would make it prohibitive.
 
-**Un seuil désigne une position, pas un étage.** Un point de contrôle se pose
-avant le premier étage dont le rang atteint le seuil, jamais devant un rang
-exact : l'étage qui occupe ce rang est souvent neutre, donc absent du plan.
-La mesure l'a montré — en visant le rang exact, trois des quatre points de
-contrôle n'étaient jamais pris, et le gain tombait à 10 %.
+**A threshold designates a position, not a stage.** A checkpoint is placed
+ahead of the first stage whose rank reaches the threshold, never in front of an
+exact rank: the stage occupying that rank is often neutral, and therefore
+absent from the plan. Measurement showed it — aiming at the exact rank, three
+of the four checkpoints were never taken, and the gain fell to 10 %.
 
-**Résultat mesuré le 2026-08-02** (carte de test 1024×683, bloc tonal +
-clarté + texture + dehaze + netteté actifs, `--release`) : déplacer le
-curseur de netteté, dernier étage du plan, passe de **~60 ms à ~14 ms**,
-soit **−78 %**. C'est le gain qu'annonçait le §Contexte.
+**Measured on 2026-08-02** (a 1024×683 test card, with the tonal block plus
+clarity, texture, dehaze and sharpening active, `--release`): moving the
+sharpening slider, the plan's last stage, goes from **~60 ms to ~14 ms**, that
+is **−78 %**. That is the gain the §Context announced.
 
-Le cache est purement **dérivé** : le jeter à tout instant ne change aucun
-pixel, seulement le temps de rendu. C'est ce qui le rend sûr — il ne peut pas
-introduire d'incohérence d'état, au pire une lenteur.
+The cache is purely **derived**: discarding it at any moment changes no pixel,
+only the render time. That is what makes it safe — it cannot introduce state
+inconsistency, at worst slowness.
 
-### 4. Ce qui ne change pas
+### 4. What does not change
 
-* **Le contrat de reproductibilité** (`docs/pipeline.md` §5) : inchangé, il
-  porte sur le rendu d'export.
-* **Les process versions** : aucune nouvelle. Un preview n'est pas une révision.
-* **Les modules `processN.rs` gelés** (ADR 0028) : la mise à l'échelle des
-  rayons est appliquée **par l'appelant** (le planificateur de preview), qui
-  transmet un facteur d'échelle ; elle ne réécrit pas la math figée d'un module
-  de process existant.
+* **The reproducibility contract** (`docs/pipeline.md` §5): unchanged, it
+  bears on export rendering.
+* **Process versions**: none new. A preview is not a revision.
+* **The frozen `processN.rs` modules** (ADR 0028): radius scaling is applied
+  **by the caller** (the preview planner), which passes a scale factor; it
+  does not rewrite the frozen mathematics of an existing process module.
 
-## Conséquences
+## Consequences
 
-* **Le coût d'un déplacement de curseur baisse de deux facteurs indépendants qui
-  se multiplient** : ~3,6× de pixels en moins, et le saut de tout étage amont
-  inchangé. Sur le pire cas mesuré (masque brosse, 255 ms à 3 Mpx), les deux
-  ensemble ramènent la classe de latence dans la même bande que les curseurs
-  ordinaires.
-* **La preview n'est plus le même calcul que l'export.** C'était déjà vrai (voir
-  §2) mais cela devient une propriété **assumée et documentée** plutôt qu'un
-  effet de bord du redimensionnement final. Corollaire assumé : un défaut visible
-  seulement à pleine résolution (bruit fin, halo de netteté) ne se juge pas sur
-  une preview réduite — c'est ce à quoi sert `PreviewKind::Full`.
-* **Un facteur d'échelle traverse désormais l'API de rendu interne.** C'est une
-  entrée de plus à passer correctement ; le mauvais facteur donne un rendu
-  faux et non une erreur, donc il est couvert par des tests dédiés (un rendu
-  proxy et un rendu pleine résolution réduit doivent rester proches à tolérance
-  donnée).
-* **Le cache d'étages ajoute de l'état mutable à la session d'édition.** Il est
-  dérivé et jetable, donc sans risque de corruption, mais il faut que
-  l'empreinte de préfixe soit **exhaustive** : un réglage oublié dans
-  l'empreinte produirait un rendu obsolète. C'est le seul vrai risque de
-  correction de cet ADR, et il est testable directement (modifier chaque
-  paramètre l'un après l'autre doit invalider le cache).
-* **La question GPU reste ouverte, et mieux posée.** Ces deux optimisations
-  retirent du travail *inutile* ; le GPU accélère du travail *utile*. Les
-  mesurer d'abord évite de porter sur GPU un pipeline qui calculait 3,6× trop de
-  pixels — et donnera les chiffres qui manquaient à ADR 0012 pour trancher.
+* **The cost of a slider move falls by two independent factors that
+  multiply**: ~3.6× fewer pixels, and skipping every unchanged upstream stage.
+  On the worst case measured (a brush mask, 255 ms at 3 Mpx), the two together
+  bring the latency class back into the same band as ordinary sliders.
+* **The preview is no longer the same computation as the export.** That was
+  already true (see §2) but it becomes an **owned and documented** property
+  rather than a side effect of the final resizing. An accepted corollary: a
+  flaw visible only at full resolution (fine noise, a sharpening halo) is not
+  judged on a reduced preview — that is what `PreviewKind::Full` is for.
+* **A scale factor now travels through the internal render API.** That is one
+  more input to pass correctly; the wrong factor gives a wrong rendering and
+  not an error, so it is covered by dedicated tests (a proxy render and a
+  reduced full-resolution render must stay close within a given tolerance).
+* **The stage cache adds mutable state to the edit session.** It is derived
+  and disposable, hence free of corruption risk, but the prefix fingerprint
+  must be **exhaustive**: a setting forgotten from the fingerprint would
+  produce a stale rendering. That is this ADR's only real correctness risk, and
+  it is directly testable (changing each parameter in turn must invalidate the
+  cache).
+* **The GPU question stays open, and better posed.** These two optimizations
+  remove *useless* work; a GPU accelerates *useful* work. Measuring them first
+  avoids porting to GPU a pipeline that was computing 3.6× too many pixels —
+  and will give the figures ADR 0012 lacked in order to decide.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Passer le pipeline sur GPU (wgpu/OpenCL) tout de suite** : écarté par
-  ADR 0012 pour le déterminisme inter-GPU, et prématuré ici — cela optimiserait
-  un pipeline qui fait structurellement trop de travail. À reprendre après
-  mesure, dans son propre ADR.
-* **Rendu progressif (afficher une version grossière puis raffiner)** : masque
-  la latence au lieu de la réduire, et double les chemins de rendu à maintenir.
-  Le proxy à résolution d'affichage donne le même ressenti sans second chemin.
-* **Cache d'étages persistant sur disque** : la reconstruction d'un étage coûte
-  moins cher que sa sérialisation/relecture aux tailles en jeu, et cela
-  introduirait un artefact de cache à invalider entre versions du moteur — tout
-  ce que `docs/pipeline.md` évite en ne stockant que des réglages.
-* **Mettre en cache un seul état (le buffer décodé)** : c'est exactement l'état
-  actuel (`DecodeCache`) — il évite le re-décodage, pas le re-calcul.
-* **Développer la preview à `max_edge` sans mettre les rayons à l'échelle** :
-  plus rapide et **faux** ; les curseurs de détail et de contraste local
-  n'auraient plus le même sens d'une classe de preview à l'autre.
+* **Moving the pipeline to the GPU (wgpu/OpenCL) right away**: rejected by
+  ADR 0012 for determinism across GPUs, and premature here — it would optimize
+  a pipeline that structurally does too much work. To be taken up after
+  measurement, in its own ADR.
+* **Progressive rendering (showing a coarse version and then refining)**: it
+  masks the latency instead of reducing it, and doubles the render paths to
+  maintain. The display-resolution proxy gives the same feel with no second
+  path.
+* **A stage cache persisted to disk**: rebuilding a stage costs less than
+  serializing and re-reading it at the sizes in play, and it would introduce a
+  cache artefact to invalidate between engine versions — everything
+  `docs/pipeline.md` avoids by storing settings alone.
+* **Caching a single state (the decoded buffer)**: that is exactly the current
+  state (`DecodeCache`) — it avoids re-decoding, not re-computing.
+* **Developing the preview at `max_edge` without scaling the radii**: faster
+  and **wrong**; the detail and local-contrast sliders would no longer mean the
+  same thing from one preview class to the next.
