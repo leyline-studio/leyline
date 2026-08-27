@@ -1,159 +1,160 @@
-# ADR 0076 — Le proxy d'affichage se met en cache
+# ADR 0076 — The display proxy gets cached
 
-**Statut :** Accepté — 2026-08
+**Status:** Accepted — 2026-08
 
-## Contexte
+## Context
 
-[ADR 0074](0074-live-preview-while-dragging.md) §3 a branché le rendu sur le
-geste, l'a mesuré sur de vrais fichiers, et s'est terminée sur une phrase qui
-désigne la suite :
+[ADR 0074](0074-live-preview-while-dragging.md) §3 wired rendering to the
+gesture, measured it on real files, and ended on a sentence that names what
+comes next:
 
-> « Le poste dominant est identifié et n'est pas le pipeline : la prochaine
-> mesure porte sur la mise en cache du proxy. »
+> "The dominant cost is identified and it is not the pipeline: the next
+> measurement bears on caching the proxy."
 
-Le proxy est le buffer d'[ADR 0041](0041-interactive-preview-rendering.md) §1 :
-le décodage réduit à la taille de la classe d'aperçu **avant** d'entrer dans le
-pipeline. ADR 0041 décide de réduire avant de développer ; elle ne dit rien de
-ce qu'il advient du résultat. Il n'en advenait rien — `preview::proxy`
-rebâtissait le buffer réduit à chaque appel, y compris pour les cinquante appels
-d'un glissement de curseur sur la même photo, à la même classe, depuis le même
-décodage.
+The proxy is [ADR 0041](0041-interactive-preview-rendering.md) §1's buffer: the
+decode reduced to the preview class's size **before** entering the pipeline.
+ADR 0041 decides to reduce before developing; it says nothing of what becomes
+of the result. Nothing became of it — `preview::proxy` rebuilt the reduced
+buffer on every call, including for the fifty calls of a slider drag on the
+same photo, at the same class, from the same decode.
 
-C'est un calcul **entièrement redondant** : le proxy est une fonction pure du
-fichier source et de la taille demandée. Ni les réglages, ni la révision, ni la
-version d'étage n'y entrent. Il a donc exactement la nature de ce que
-`DecodeCache` garde déjà — et il était le seul terme du chemin live à n'être
-gardé nulle part.
+That is an **entirely redundant** computation: the proxy is a pure function of
+the source file and the requested size. Neither the settings, nor the revision,
+nor the stage version enters into it. It therefore has exactly the nature of
+what `DecodeCache` already keeps — and it was the only term of the live path
+kept nowhere.
 
-### Ce que ça coûtait, mesuré
+### What it cost, measured
 
-`live_preview_keeps_up_with_a_finger` (`--release`, aperçu `Small`, i9-9900K),
-sur deux fichiers du corpus réel, moyenne de 20 images après la première :
+`live_preview_keeps_up_with_a_finger` (`--release`, a `Small` preview,
+i9-9900K), on two files from the real corpus, averaged over 20 frames after the
+first:
 
-| Fichier | Curseur | Avant |
+| File | Slider | Before |
 |---|---|---|
-| Canon 60D, 10 Mpx | exposition (rang 40) | 55,4 ms |
-| Canon 60D, 10 Mpx | accentuation (rang 190) | 56,8 ms |
-| Canon 5D IV, 30 Mpx | exposition | 48,6 ms |
-| Canon 5D IV, 30 Mpx | accentuation | 50,1 ms |
+| Canon 60D, 10 Mpx | exposure (rank 40) | 55.4 ms |
+| Canon 60D, 10 Mpx | sharpening (rank 190) | 56.8 ms |
+| Canon 5D IV, 30 Mpx | exposure | 48.6 ms |
+| Canon 5D IV, 30 Mpx | sharpening | 50.1 ms |
 
-Ce tableau dit deux choses. D'abord que le curseur de **fin** de pipeline coûte
-autant que celui de tête, alors qu'ADR 0041 §3 mesurait 14 ms contre 60 sur ce
-même écart : le cache d'étages fait bien son travail, mais il ne porte plus que
-sur une fraction du temps. Ensuite qu'un 30 Mpx ne coûte pas plus qu'un
-10 Mpx — les deux sont ramenés au même buffer de 1024 px avant de développer.
-Les deux observations pointent le même terme : la réduction elle-même, refaite
-à chaque image, indépendante de tout ce qui la suit.
+That table says two things. First, that the slider at the **end** of the
+pipeline costs as much as the one at the head, when ADR 0041 §3 measured 14 ms
+against 60 on that same gap: the stage cache does its job, but it now covers
+only a fraction of the time. Second, that a 30 Mpx costs no more than a 10 Mpx
+— both are brought down to the same 1024 px buffer before developing. Both
+observations point at the same term: the reduction itself, redone on every
+frame, independent of everything that follows it.
 
-## Décision
+## Decision
 
-### 1. Le proxy est gardé, là où le décodage est déjà gardé
+### 1. The proxy is kept where the decode is already kept
 
-`DecodeCache` cesse d'être un cache de décodages pour devenir un cache de
-**buffers source** : les décodages, et les proxies qui en dérivent. Deux listes
-MRU dans le même objet, sous le même verrou, jetées ensemble avec la `Library`.
+`DecodeCache` stops being a cache of decodes and becomes a cache of **source
+buffers**: the decodes, and the proxies derived from them. Two MRU lists in the
+same object, under the same lock, discarded together with the `Library`.
 
-Une entrée de proxy est indexée par `(asset, DecodeParams, max_edge)` :
+A proxy entry is indexed by `(asset, DecodeParams, max_edge)`:
 
-* `DecodeParams` est déjà la clé du décodage — il porte `half_size` et tout ce
-  que la version d'étage `input` demande au décodeur (ADR 0050, 0061, 0066).
-  Le proxy ne peut donc pas survivre à un changement qui modifierait le buffer
-  dont il dérive ;
-* `max_edge` est la classe d'aperçu, seul autre paramètre de la réduction.
+* `DecodeParams` is already the decode's key — it carries `half_size` and
+  everything the `input` stage version asks of the decoder (ADR 0050, 0061,
+  0066). The proxy therefore cannot survive a change that would modify the
+  buffer it derives from;
+* `max_edge` is the preview class, the reduction's only other parameter.
 
-Rien d'autre n'entre dans la clé, parce que rien d'autre n'entre dans le
-calcul. C'est ce qui rend ce cache sûr : comme celui d'étages, il est purement
-**dérivé**, et le jeter à tout instant ne change aucun pixel.
+Nothing else enters the key, because nothing else enters the computation. That
+is what makes this cache safe: like the stage cache, it is purely **derived**,
+and discarding it at any moment changes no pixel.
 
-**Un succès saute la réduction *et* le décodage.** Le proxy se suffit à
-lui-même : il survit au buffer décodé dont il est issu si celui-ci est évincé
-en premier. C'est voulu — garder 4 Mo pour éviter de garder 90 Mo est le bon
-échange sur le chemin d'aperçu.
+**A hit skips the reduction *and* the decode.** The proxy is
+self-sufficient: it survives the decoded buffer it came from if that one is
+evicted first. That is intended — keeping 4 MB to avoid keeping 90 MB is the
+right trade on the preview path.
 
-`PreviewKind::Full` n'a pas de `max_edge` et n'a donc pas de proxy : ce chemin
-rend le décodage lui-même, à l'échelle 1,0, comme avant. Une image déjà assez
-petite ne paie pas non plus une seconde copie — c'est le buffer décodé qui est
-enregistré comme son propre proxy.
+`PreviewKind::Full` has no `max_edge` and therefore no proxy: that path renders
+the decode itself, at scale 1.0, as before. An image already small enough does
+not pay for a second copy either — the decoded buffer is registered as its own
+proxy.
 
-### 2. Le plafond est en octets, pas en entrées
+### 2. The ceiling is in bytes, not in entries
 
-Les classes d'aperçu s'étalent sur 250× : un proxy `Thumbnail` pèse 0,26 Mo,
-un `Small` 4,2 Mo, un `Large` 67 Mo. Un plafond en nombre d'entrées voudrait
-donc dire deux choses incompatibles selon la classe. La liste de proxies se
-borne en **mémoire — 64 Mo**, ce qui tient une douzaine de `Small` (la classe
-de la vue develop, celle du glissement) ou un seul `Large`.
+The preview classes span 250×: a `Thumbnail` proxy weighs 0.26 MB, a `Small`
+4.2 MB, a `Large` 67 MB. A ceiling in number of entries would therefore mean
+two incompatible things depending on the class. The proxy list is bounded in
+**memory — 64 MB**, which holds a dozen `Small`s (the develop view's class, the
+one being dragged) or a single `Large`.
 
-**L'entrée la plus récente est toujours conservée**, quelle que soit sa taille :
-évincer le buffer que l'appelant s'apprête à utiliser ne rendrait pas la
-mémoire et perdrait le cache.
+**The most recent entry is always kept**, whatever its size: evicting the
+buffer the caller is about to use would not give memory back and would lose the
+cache.
 
-Le décodage, lui, garde son plafond en entrées (2) : ses tailles ne varient que
-d'un facteur 3, et ce plafond-là est déjà écrit et compris.
+The decode keeps its ceiling in entries (2): its sizes vary only by a factor of
+3, and that ceiling is already written and understood.
 
-### 3. Ce qui ne change pas
+### 3. What does not change
 
-* **Aucun pixel.** Le proxy servi est octet pour octet celui qu'une réduction
-  fraîche produirait, comme le décodage servi est celui d'un décodage frais.
-  `docs/pipeline.md` §5 n'est pas en jeu, ADR 0012 non plus.
-* **L'export et l'impression** ne passent pas par là : ils rendent à pleine
-  résolution, sans proxy (ADR 0041 §Décision).
-* **La borne des 40 ms** d'ADR 0074 §3. Elle ne mordait pas ; elle mord
-  désormais, ce qui est exactement ce qu'ADR 0074 annonçait.
+* **No pixel.** The proxy served is byte for byte the one a fresh reduction
+  would produce, as the decode served is a fresh decode's. `docs/pipeline.md`
+  §5 is not in play, nor is ADR 0012.
+* **Export and printing** do not go through it: they render at full
+  resolution, without a proxy (ADR 0041 §Decision).
+* **ADR 0074 §3's 40 ms bound.** It was not biting; it bites now, which is
+  exactly what ADR 0074 announced.
 
-## Conséquences
+## Consequences
 
-**Mesuré, mêmes fichiers, même machine, même test :**
+**Measured, same files, same machine, same test:**
 
-| Fichier | Curseur | Avant | Après | |
+| File | Slider | Before | After | |
 |---|---|---|---|---|
-| Canon 60D, 10 Mpx | exposition | 55,4 ms | **15,5 ms** | −72 % |
-| Canon 60D, 10 Mpx | accentuation | 56,8 ms | **14,4 ms** | −75 % |
-| Canon 5D IV, 30 Mpx | exposition | 48,6 ms | **11,3 ms** | −77 % |
-| Canon 5D IV, 30 Mpx | accentuation | 50,1 ms | **12,6 ms** | −75 % |
+| Canon 60D, 10 Mpx | exposure | 55.4 ms | **15.5 ms** | −72 % |
+| Canon 60D, 10 Mpx | sharpening | 56.8 ms | **14.4 ms** | −75 % |
+| Canon 5D IV, 30 Mpx | exposure | 48.6 ms | **11.3 ms** | −77 % |
+| Canon 5D IV, 30 Mpx | sharpening | 50.1 ms | **12.6 ms** | −75 % |
 
-* **On passe de ~18 à ~70 images par seconde** sur le rendu lui-même. C'est
-  au-delà de ce que la borne des 40 ms laisse passer : le curseur est désormais
-  limité par la décision d'ADR 0074 (25 images/s, « la limite étant l'œil et
-  non la machine ») et non plus par le coût du rendu. Le retard perceptible sur
-  le doigt que notait ADR 0074 disparaît, et avec lui la raison qu'elle donnait
-  d'envisager un rendu asynchrone : à 14 ms, la complexité d'un ordre d'arrivée
-  à gérer ne se paie plus.
-* **Le curseur de fin de pipeline redevient le moins cher**, de peu. Le cache
-  d'étages d'ADR 0041 §3 reprend la place qu'il avait dans sa propre mesure :
-  ce qui le masquait a disparu.
-* **64 Mo de plus au pire**, à côté des ~144 Mo que le cache de décodages peut
-  déjà tenir. Le chiffre est un plafond, pas une consommation : une session de
-  develop sur une photo tient un `Small` et un `Thumbnail`, soit ~4,5 Mo.
-* **Un troisième cache dérivé sur le chemin d'aperçu**, après le décodage et
-  les étages. Tous trois partagent la même propriété et c'est ce qui les rend
-  tenables : les jeter est toujours correct, jamais nécessaire. Aucun n'est
-  persistant, aucun n'a d'invalidation à écrire — la clé décrit intégralement
-  le calcul.
-* **Le poste dominant du rendu live n'est plus identifié.** Les ~14 ms
-  restants se répartissent entre le pipeline aval, la conversion en 8 bits et
-  l'affichage ; aucun ne ressort assez pour justifier une mesure de plus tant
-  que la borne des 40 ms est ce qui limite. La prochaine question de perf
-  d'aperçu n'est plus celle-ci.
+* **We go from ~18 to ~70 frames per second** on the rendering itself. That is
+  beyond what the 40 ms bound lets through: the slider is now limited by ADR
+  0074's decision (25 frames/s, "the limit being the eye and not the machine")
+  and no longer by the render's cost. The perceptible lag behind the finger ADR
+  0074 noted disappears, and with it the reason it gave for contemplating
+  asynchronous rendering: at 14 ms, the complexity of an arrival order to
+  manage no longer pays for itself.
+* **The end-of-pipeline slider becomes the cheapest again**, by a little. ADR
+  0041 §3's stage cache takes back the place it had in its own measurement:
+  what was masking it has gone.
+* **64 MB more at worst**, beside the ~144 MB the decode cache can already
+  hold. The figure is a ceiling, not a consumption: a develop session on one
+  photo holds one `Small` and one `Thumbnail`, that is ~4.5 MB.
+* **A third derived cache on the preview path**, after the decode and the
+  stages. All three share the same property and that is what makes them
+  tenable: discarding them is always correct, never necessary. None is
+  persistent, and none has invalidation to write — the key describes the
+  computation entirely.
+* **The live render's dominant cost is no longer identified.** The remaining
+  ~14 ms are spread between the downstream pipeline, the conversion to 8 bits
+  and the display; none stands out enough to justify one more measurement while
+  the 40 ms bound is what limits. The next preview performance question is no
+  longer this one.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Garder le proxy dans la session d'édition**, comme ADR 0041 §3 l'avait
-  d'abord prévu pour le cache d'étages. Même erreur, corrigée au même endroit :
-  la vue develop rend par `Library::preview_live`, qui ouvre et abandonne une
-  session par image (ADR 0074 §2). Un cache porté par la session serait vide à
-  chaque appel.
-* **Un cache de proxies séparé de `DecodeCache`.** Deux objets, deux verrous,
-  un paramètre de plus à traverser quatre fonctions — pour deux listes dont
-  l'une est calculée à partir de l'autre et dont la clé partage `DecodeParams`.
-  Le coût de plomberie ne payait rien.
-* **Ne garder que le proxy et jeter le décodage.** Séduisant sur le chemin
-  d'aperçu (le proxy s'y suffit) et faux dès qu'on en sort : `PreviewKind::Full`
-  et un changement de classe d'aperçu repartent du buffer décodé, qu'il faudrait
-  alors re-décoder — ~1 s, contre 90 Mo gardés.
-* **Un plafond en nombre d'entrées**, comme celui du décodage. Il aurait fallu
-  le dimensionner soit pour `Large` (et ne garder qu'un `Small`), soit pour
-  `Small` (et laisser passer 800 Mo de `Large`). L'écart de 250× entre les
-  classes rend le nombre d'entrées dénué de sens ici.
-* **Persister les proxies sur disque.** Même réponse qu'ADR 0041 pour les
-  étages : la réduction coûte moins que sa sérialisation et sa relecture, et
-  cela ajouterait un artefact de cache à invalider entre versions du moteur.
+* **Keeping the proxy in the edit session**, as ADR 0041 §3 first provided for
+  the stage cache. The same mistake, corrected in the same place: the develop
+  view renders through `Library::preview_live`, which opens and abandons a
+  session per frame (ADR 0074 §2). A cache carried by the session would be
+  empty on every call.
+* **A proxy cache separate from `DecodeCache`.** Two objects, two locks, one
+  more parameter threading through four functions — for two lists of which one
+  is computed from the other and whose key shares `DecodeParams`. The plumbing
+  cost paid for nothing.
+* **Keeping the proxy alone and discarding the decode.** Appealing on the
+  preview path (the proxy suffices there) and wrong as soon as one leaves it:
+  `PreviewKind::Full` and a change of preview class start again from the
+  decoded buffer, which would then have to be re-decoded — ~1 s, against 90 MB
+  kept.
+* **A ceiling in number of entries**, like the decode's. It would have had to
+  be sized either for `Large` (and keep only one `Small`) or for `Small` (and
+  let 800 MB of `Large` through). The 250× spread between classes makes a
+  number of entries meaningless here.
+* **Persisting the proxies to disk.** The same answer as ADR 0041 for the
+  stages: the reduction costs less than serializing and re-reading it, and it
+  would add a cache artefact to invalidate between engine versions.
