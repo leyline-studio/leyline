@@ -1,26 +1,26 @@
-# ADR 0004 — LibRaw (branche LGPL) pour le décodage RAW
+# ADR 0004 — LibRaw (the LGPL branch) for RAW decoding
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-Le décodage RAW exige la couverture de centaines de formats propriétaires (CR3, NEF, ARW, RAF...), en évolution constante à chaque nouveau boîtier.
+RAW decoding demands coverage of hundreds of proprietary formats (CR3, NEF, ARW, RAF…), which keep evolving with every new camera body.
 
-## Décision
+## Decision
 
-`leyline-raw` s'appuie sur LibRaw, utilisé exclusivement sous sa branche **LGPL-2.1** (sa branche CDDL est incompatible avec la GPL-3.0 du projet).
+`leyline-raw` builds on LibRaw, used exclusively under its **LGPL-2.1** branch (its CDDL branch is incompatible with the project's GPL-3.0).
 
-Le décodage est isolé derrière l'API de `leyline-raw` : aucun autre crate ne voit LibRaw.
+Decoding is isolated behind `leyline-raw`'s API: no other crate ever sees LibRaw.
 
-## Conséquences
+## Consequences
 
-* Couverture de formats immédiate et maintenue par un projet établi.
-* FFI C confinée à un seul crate.
-* Pour une future version propriétaire : linkage dynamique requis (obligation de substitution LGPL).
-* Plan B documenté : `rawler` (décodeur RAW pur Rust, LGPL-2.1) peut remplacer LibRaw derrière la même API si le besoin apparaît.
+* Immediate format coverage, maintained by an established project.
+* C FFI confined to a single crate.
+* For a future proprietary edition: dynamic linking is required (the LGPL substitution obligation).
+* A documented plan B: `rawler` (a pure-Rust RAW decoder, LGPL-2.1) can replace LibRaw behind the same API should the need arise.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **rawler seul** : pur Rust, séduisant, mais couverture de formats et maturité inférieures à LibRaw aujourd'hui — conservé comme alternative de repli.
-* **dcraw** : abandonné.
-* **Décodeurs maison** : des années de travail pour rattraper l'existant.
+* **rawler alone**: pure Rust and appealing, but its format coverage and maturity fall short of LibRaw's today — kept as the fallback.
+* **dcraw**: abandoned upstream.
+* **Decoders of our own**: years of work to catch up with what already exists.

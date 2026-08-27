@@ -1,30 +1,30 @@
-# ADR 0011 — API moteur : bibliothèque Rust, requêtes synchrones, travaux asynchrones
+# ADR 0011 — Engine API: a Rust library, synchronous queries, asynchronous jobs
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-Le moteur sert plusieurs clients (Studio, CLI, scripts). Il faut une frontière stable, réactive pour l'UI, sans imposer d'infrastructure aux clients légers.
+The engine serves several clients (Studio, CLI, scripts). It needs a stable boundary, responsive enough for a UI, without imposing infrastructure on lightweight clients.
 
-## Décision
+## Decision
 
-* L'API est une **bibliothèque Rust** (`leyline-sdk`), pas un serveur ni un protocole.
-* **Requêtes catalogue synchrones** (SQLite répond en microsecondes) ; **travaux lourds asynchrones** (`JobId` + flux d'événements).
-* Aucun runtime async imposé : threads natifs + canaux standard.
-* Les événements sont des notifications, jamais des données : le client re-requête.
-* L'édition passe par `EditSession`, qui implémente la coalescence des révisions.
+* The API is a **Rust library** (`leyline-sdk`), not a server and not a protocol.
+* **Synchronous catalog queries** (SQLite answers in microseconds); **asynchronous heavy jobs** (`JobId` plus an event stream).
+* No async runtime imposed: native threads and standard channels.
+* Events are notifications, never data: the client re-queries.
+* Editing goes through `EditSession`, which implements revision coalescing.
 
-Détails : `docs/engine-api.md`.
+Details: `docs/engine-api.md`.
 
-## Conséquences
+## Consequences
 
-* Studio, CLI et scripts appellent strictement la même API — « API avant interface graphique » est structurel, pas déclaratif.
-* Pas de dépendance tokio dans le SDK ; intégration Slint par simple canal.
-* Une passerelle C FFI reste possible (signatures sans génériques ni lifetimes exposés).
-* Le schéma SQLite n'est **pas** une API publique : les clients passent par le SDK.
+* Studio, the CLI and scripts call strictly the same API — "API before GUI" is structural, not declarative.
+* No tokio dependency in the SDK; Slint integration through a plain channel.
+* A C FFI gateway stays possible (signatures exposing neither generics nor lifetimes).
+* The SQLite schema is **not** a public API: clients go through the SDK.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Serveur local (gRPC/HTTP)** : sérialisation et latence injustifiées pour du in-process ; possible plus tard par-dessus le SDK.
-* **API entièrement async (tokio)** : impose un runtime à tous les clients, y compris une CLI de trois lignes.
-* **Accès SQLite direct par les clients** : couplage au schéma, fin de la liberté de migration.
+* **A local server (gRPC/HTTP)**: serialization and latency unjustified for in-process work; still possible later, on top of the SDK.
+* **A fully async API (tokio)**: imposes a runtime on every client, including a three-line CLI.
+* **Direct SQLite access from clients**: coupling to the schema, and the end of any freedom to migrate.

@@ -1,25 +1,25 @@
-# ADR 0005 — Lensfun et LittleCMS
+# ADR 0005 — Lensfun and LittleCMS
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-La correction optique exige une base de profils d'objectifs ; la gestion colorimétrique exige des transformations ICC fiables.
+Optical correction demands a database of lens profiles; colour management demands reliable ICC transforms.
 
-## Décision
+## Decision
 
-* `leyline-lens` s'appuie sur **Lensfun** (LGPL-3.0 ; base de données CC-BY-SA, attribution requise).
-* `leyline-color` s'appuie sur **LittleCMS** (MIT).
+* `leyline-lens` builds on **Lensfun** (LGPL-3.0; the database is CC-BY-SA, attribution required).
+* `leyline-color` builds on **LittleCMS** (MIT).
 
-Chaque dépendance est confinée à son crate, derrière une API Leyline.
+Each dependency is confined to its own crate, behind a Leyline API.
 
-## Conséquences
+## Consequences
 
-* Profils d'objectifs maintenus par la communauté, corrections (distorsion, vignettage, aberrations) immédiatement disponibles.
-* Gestion ICC éprouvée (LittleCMS est l'implémentation de référence de l'industrie).
-* Mêmes obligations LGPL que LibRaw pour une future version propriétaire (linkage dynamique).
+* Community-maintained lens profiles, so corrections (distortion, vignetting, aberrations) are available immediately.
+* Proven ICC handling — LittleCMS is the industry's reference implementation.
+* The same LGPL obligations as LibRaw for a future proprietary edition (dynamic linking).
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Profils maison** : impossible de rattraper la couverture de Lensfun.
-* **qcms / moxcms** : moins complets que LittleCMS pour les usages photo (profils v4, intents).
+* **Profiles of our own**: catching up with Lensfun's coverage is out of reach.
+* **qcms / moxcms**: less complete than LittleCMS for photographic use (v4 profiles, rendering intents).

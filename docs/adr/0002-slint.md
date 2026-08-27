@@ -1,25 +1,25 @@
-# ADR 0002 — Slint pour l'interface graphique
+# ADR 0002 — Slint for the graphical interface
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-Leyline Studio doit être multiplateforme, léger, fluide sur des grilles de centaines de milliers d'éléments, et s'intégrer naturellement à un moteur Rust.
+Leyline Studio has to be cross-platform, light, fluid over grids of hundreds of thousands of items, and to sit naturally on top of a Rust engine.
 
-## Décision
+## Decision
 
-L'interface de Leyline Studio est construite avec Slint.
+Leyline Studio's interface is built with Slint.
 
-## Conséquences
+## Consequences
 
-* Intégration Rust native, pas de pont JavaScript ni de runtime embarqué.
-* Rendu GPU, empreinte mémoire faible.
-* Licence : branche GPL-3.0 pour la version community ; licence royalty-free Slint pour une future version desktop propriétaire (voir ADR 0009).
-* Écosystème plus jeune que Qt : certains widgets seront à construire.
+* Native Rust integration, no JavaScript bridge and no embedded runtime.
+* GPU rendering, small memory footprint.
+* Licence: the GPL-3.0 branch for the community edition; Slint's royalty-free licence for a future proprietary desktop edition (see ADR 0009).
+* A younger ecosystem than Qt's: some widgets will have to be built.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Qt** : mature mais C++ et licence commerciale coûteuse ; bindings Rust de second ordre.
-* **Tauri / Electron** : runtime web, empreinte mémoire et latence incompatibles avec l'objectif « Fast ».
-* **egui** : excellent pour l'outillage, mode immédiat inadapté à une UI riche persistante.
-* **GTK** : intégration macOS/Windows médiocre.
+* **Qt**: mature, but C++ and an expensive commercial licence; second-rate Rust bindings.
+* **Tauri / Electron**: a web runtime, with a memory footprint and a latency incompatible with the "Fast" goal.
+* **egui**: excellent for tooling, but immediate mode is unsuited to a rich, persistent UI.
+* **GTK**: poor integration on macOS and Windows.

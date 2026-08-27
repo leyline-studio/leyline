@@ -1,24 +1,24 @@
-# ADR 0010 — Bibliothèque autonome, chemins relatifs
+# ADR 0010 — A self-contained library, relative paths
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-Une bibliothèque doit survivre à un déménagement de disque, un changement de machine ou d'OS (`C:\...` vs `/home/...`), et se sauvegarder par simple copie.
+A library has to survive moving to another disk, another machine or another OS (`C:\…` vs `/home/…`), and has to be backed up by a plain copy.
 
-## Décision
+## Decision
 
-Une bibliothèque est un dossier autonome (`catalog.db`, `Photos/`, `Cache/`, `Exports/`, `Backups/`). Le catalogue ne stocke **aucun chemin absolu** : toutes les références sont relatives à la racine, séparateur `/`.
+A library is a self-contained folder (`catalog.db`, `Photos/`, `Cache/`, `Exports/`, `Backups/`). The catalog stores **no absolute path**: every reference is relative to the root, with `/` as the separator.
 
-Le chemin d'un asset est toujours dérivé (`folders.relative_path` + `filename`) — jamais stocké en double.
+An asset's path is always derived (`folders.relative_path` + `filename`) — never stored twice.
 
-## Conséquences
+## Consequences
 
-* Portabilité totale Windows/Linux/macOS ; sauvegarde et restauration = copie de dossier.
-* Déplacer la bibliothèque ne casse rien ; renommer un dossier ne désynchronise rien.
-* Exception unique et documentée : les destinations d'export (`export_history.destination`) pointent hors bibliothèque.
+* Complete portability across Windows, Linux and macOS; backup and restore are a folder copy.
+* Moving the library breaks nothing; renaming a folder desynchronizes nothing.
+* One documented exception: export destinations (`export_history.destination`) point outside the library.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Chemins absolus (Lightroom historique)** : source classique de catalogues cassés après migration.
-* **Photos hors du dossier bibliothèque par défaut** : possible techniquement (`copy_files: false` à l'import), mais l'autonomie du dossier reste le cas nominal.
+* **Absolute paths (historical Lightroom)**: the classic source of catalogs broken by a migration.
+* **Photos outside the library folder by default**: technically possible (`copy_files: false` at import), but a self-contained folder stays the nominal case.

@@ -1,26 +1,26 @@
-# ADR 0007 — Modèle de développement inspiré de Git
+# ADR 0007 — A develop model inspired by Git
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-Le développement non destructif exige un historique fiable : undo/redo, snapshots, copies virtuelles. Un unique JSON écrasé à chaque réglage (modèle initial) rendait l'historique impossible sans refonte.
+Non-destructive development demands a dependable history: undo/redo, snapshots, virtual copies. A single JSON overwritten on every setting change — the initial model — made history impossible without a rewrite.
 
-## Décision
+## Decision
 
-Les réglages forment un graphe de **révisions immuables** (`parent_revision_id`), les **versions** sont des branches nommées (pointeur de tête), la version courante est un simple pointeur. Une copie virtuelle est une branche, pas une ligne d'asset.
+Settings form a graph of **immutable revisions** (`parent_revision_id`), **versions** are named branches (a head pointer), and the current version is a plain pointer. A virtual copy is a branch, not an asset row.
 
-Détails : `catalog.md` §16–18, coalescence §17, process versions dans `pipeline.md` §3.3.
+Details: `catalog.md` §16–18, coalescing in §17, process versions in `pipeline.md` §3.3.
 
-## Conséquences
+## Consequences
 
-* Undo/redo = déplacement de pointeur ; historique complet gratuit ; previews revalidées par identifiant de révision.
-* Copies virtuelles sans duplication de fichier ni de métadonnées.
-* Volume maîtrisé par la coalescence (une révision = une intention, jamais un événement d'interface).
-* Complexité assumée : deux tables de plus qu'un simple champ JSON.
+* Undo/redo is a pointer move; the complete history comes for free; previews are revalidated by revision identifier.
+* Virtual copies with no duplication of file or metadata.
+* Volume kept in check by coalescing (one revision is one intent, never one interface event).
+* Complexity accepted: two tables more than a plain JSON field.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **JSON unique écrasé (Lightroom)** : pas d'historique, contradiction avec les objectifs du projet.
-* **Historique en pile linéaire (Darktable)** : pas de branches, copies virtuelles dupliquées.
-* **Deltas plutôt qu'états complets** : rejouer une chaîne de deltas pour chaque rendu, fragilité en cas de corruption d'un maillon.
+* **A single overwritten JSON (Lightroom)**: no history, which contradicts the project's goals.
+* **A linear history stack (Darktable)**: no branches, and virtual copies are duplicated.
+* **Deltas rather than complete states**: replaying a chain of deltas for every render, and fragility if one link is corrupted.

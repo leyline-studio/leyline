@@ -1,31 +1,31 @@
-# ADR 0008 — La version comme unité de bibliothèque
+# ADR 0008 — The version as the library's unit
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-Avec le modèle Git (ADR 0007), une copie virtuelle est une branche. Restait à décider où vivent note, label, pick, collections et mots-clés : sur le fichier (asset) ou sur la branche (version) ?
+Under the Git model (ADR 0007), a virtual copy is a branch. What remained to decide was where rating, label, pick, collections and keywords live: on the file (the asset) or on the branch (the version)?
 
-## Décision
+## Decision
 
-Ligne de partage :
+The dividing line:
 
 ```text
-Fait sur l'image      → asset      (mots-clés, EXIF, checksum)
-Jugement sur un rendu → version    (note, label, pick, collections)
+A fact about the image     → asset      (keywords, EXIF, checksum)
+A judgement on a rendering → version    (rating, label, pick, collections)
 ```
 
-La grille énumère des versions. Noter une photo simple = noter sa version `Default`.
+The grid enumerates versions. Rating an ordinary photo means rating its `Default` version.
 
-## Conséquences
+## Consequences
 
-* Chaque copie virtuelle se note, se labellise et se classe indépendamment (parité Lightroom).
-* Les mots-clés restent partagés : « retrouve mes hérons » remonte toutes les versions, et l'export XMP reste attaché au fichier.
-* La grille coûte une jointure 1:1 indexée (`develop_versions JOIN assets`) — mesuré comme négligeable à l'échelle cible.
-* Extension réservée si le besoin apparaît : `version_keywords` additif (`catalog.md` §38).
+* Every virtual copy is rated, labelled and classified independently (parity with Lightroom).
+* Keywords stay shared: "find my herons" brings back every version, and the XMP export stays attached to the file.
+* The grid costs one indexed 1:1 join (`develop_versions JOIN assets`) — measured as negligible at the target scale.
+* An extension held in reserve should the need arise: an additive `version_keywords` (`catalog.md` §38).
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Tout sur l'asset** : les copies virtuelles partagent la note — limitation réelle constatée dans les workflows de tri.
-* **Tout sur la version, mots-clés compris** : duplication du tagging à chaque branche, divergences silencieuses, XMP ambigu.
-* **Surcharges nullables (héritage asset → version)** : deux sources de vérité, COALESCE dans chaque requête — dette permanente.
+* **Everything on the asset**: virtual copies share the rating — a real limitation, observed in culling workflows.
+* **Everything on the version, keywords included**: tagging duplicated on every branch, silent divergences, ambiguous XMP.
+* **Nullable overrides (asset → version inheritance)**: two sources of truth and a COALESCE in every query — permanent debt.

@@ -1,28 +1,28 @@
-# ADR 0009 — GPL-3.0 + CLA, modèle double licence
+# ADR 0009 — GPL-3.0 + CLA, a dual-licence model
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-Objectif à terme : une version community open source pérenne **et** une offre commerciale. Une licence permissive est irréversible (le code publié en MIT le reste) ; sans propriété du copyright, aucun relicenciement n'est possible après la première contribution externe.
+The eventual goal is a durable open-source community edition **and** a commercial offering. A permissive licence is irreversible (code published under MIT stays MIT); and without owning the copyright, no relicensing is possible after the first external contribution.
 
-## Décision
+## Decision
 
-* Code sous **GPL-3.0** (LibRaw pris sous sa branche LGPL, la CDDL étant incompatible GPL).
-* **CLA** obligatoire pour toute contribution : le projet conserve le droit de distribuer sous d'autres licences.
-* Modèle double licence type Qt : community intégralement GPL, licences commerciales vendues par le projet.
-* La marque « Leyline » est hors licence du code (`TRADEMARK.md`).
+* Code under **GPL-3.0** (LibRaw taken under its LGPL branch, the CDDL being GPL-incompatible).
+* A **CLA** required for every contribution: the project keeps the right to distribute under other licences.
+* A Qt-style dual-licence model: the community edition entirely GPL, commercial licences sold by the project.
+* The "Leyline" mark falls outside the code licence (`TRADEMARK.md`).
 
-## Conséquences
+## Consequences
 
-* Le projet — et lui seul — peut vendre des exceptions propriétaires ; un fork reste GPL.
-* La GPL crée la demande commerciale : intégrer le moteur SDK dans un produit fermé exige une licence payante.
-* Assouplir plus tard (GPL → LGPL/MIT) reste possible ; durcir ne l'aurait pas été.
-* Friction CLA assumée et annoncée dès le premier jour (pas de changement de règles en cours de route).
-* Dépôt de la marque (INPI/EUIPO, classes 9/42) à faire avant la version commerciale.
+* The project — and it alone — can sell proprietary exceptions; a fork stays GPL.
+* The GPL is what creates the commercial demand: embedding the SDK engine in a closed product requires a paid licence.
+* Loosening later (GPL → LGPL/MIT) stays possible; tightening would not have been.
+* CLA friction accepted, and announced from day one (no changing the rules midway).
+* Trademark registration (INPI/EUIPO, classes 9/42) to be done before the commercial edition.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **MIT/Apache-2.0** : adoption maximale mais aucune exclusivité — un concurrent peut commercialiser le moteur.
-* **AGPL-3.0** : pertinente pour du SaaS, superflue pour un logiciel desktop local-first.
-* **BSL / licences source-available** : non open source, contraire à la vision du projet.
+* **MIT/Apache-2.0**: maximum adoption but no exclusivity — a competitor could sell the engine.
+* **AGPL-3.0**: apt for SaaS, superfluous for local-first desktop software.
+* **BSL / source-available licences**: not open source, contrary to the project's vision.

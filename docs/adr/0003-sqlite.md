@@ -1,24 +1,24 @@
-# ADR 0003 — SQLite comme unique base du catalogue
+# ADR 0003 — SQLite as the catalog's only database
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-Le catalogue doit gérer des centaines de milliers d'assets, fonctionner hors ligne, tenir dans un fichier sauvegardable par simple copie, et rester lisible dans des décennies.
+The catalog has to handle hundreds of thousands of assets, work offline, fit in a file that a plain copy backs up, and stay readable decades from now.
 
-## Décision
+## Decision
 
-Le catalogue est une base SQLite unique par bibliothèque (`catalog.db`), en mode WAL, avec FTS5 pour le texte libre. Schéma complet : `docs/catalog.md`.
+The catalog is a single SQLite database per library (`catalog.db`), in WAL mode, with FTS5 for free text. Complete schema: `docs/catalog.md`.
 
-## Conséquences
+## Consequences
 
-* Aucun serveur, aucune installation ; sauvegarde = copie de dossier.
-* Format de fichier parmi les plus pérennes de l'industrie (SQLite est un format d'archivage recommandé par la Library of Congress).
-* Une seule instance en écriture par bibliothèque (verrou) ; lecteurs multiples via WAL.
-* Recherche plein texte sans index externe (FTS5 intégré).
+* No server, no installation; a backup is a folder copy.
+* One of the industry's most durable file formats (SQLite is a recommended archival format at the Library of Congress).
+* One writer per library (a lock); many readers through WAL.
+* Full-text search with no external index (FTS5 is built in).
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **PostgreSQL** : serveur à administrer, contraire au Local First.
-* **Fichiers sidecar seuls (modèle Darktable XMP)** : recherche et collections impraticables à grande échelle ; les XMP restent un export optionnel (`catalog.md` §29).
-* **Bases embarquées clé-valeur (sled, RocksDB)** : pas de requêtes relationnelles, pérennité de format inférieure.
+* **PostgreSQL**: a server to administer, contrary to Local First.
+* **Sidecar files alone (the Darktable XMP model)**: search and collections become impractical at scale; XMP stays an optional export (`catalog.md` §29).
+* **Embedded key-value stores (sled, RocksDB)**: no relational queries, and a less durable format.

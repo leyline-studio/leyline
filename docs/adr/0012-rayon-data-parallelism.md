@@ -1,46 +1,45 @@
-# ADR 0012 — Parallélisme de données avec Rayon dans le moteur
+# ADR 0012 — Data parallelism with Rayon in the engine
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-La phase 7 vise des rendus interactifs. Les opérateurs de `process 1` sont
-par-pixel ou par-ligne : ils se prêtent au parallélisme de données. Mais le
-contrat de reproductibilité (`docs/pipeline.md` §5) exige un rendu strictement
-déterministe : un même `settings_json` doit produire les mêmes pixels quel que
-soit le nombre de threads. Le nombre de threads est précisément le genre de
-variable que §5.1 refuse de laisser entrer dans le résultat — contrairement à
-la plateforme et à la chaîne de compilation, que §5.2 place hors garantie.
+Phase 7 aims at interactive renders. The operators of `process 1` are
+per-pixel or per-row: they lend themselves to data parallelism. But the
+reproducibility contract (`docs/pipeline.md` §5) demands a strictly
+deterministic render: one `settings_json` must produce the same pixels
+whatever the number of threads. The thread count is precisely the kind of
+variable §5.1 refuses to let into the result — unlike the platform and the
+toolchain, which §5.2 places outside the guarantee.
 
-## Décision
+## Decision
 
-Les boucles chaudes du moteur utilisent Rayon (`par_chunks_mut` par lignes).
-Règle absolue : la parallélisation ne change jamais la formule scalaire ni
-l'ordre des opérations *pour un échantillon donné*. Chaque ligne est calculée
-indépendamment, aucune réduction flottante inter-threads n'est autorisée —
-le résultat reste bit-pour-bit identique à l'exécution mono-thread, ce que
-les tests de rendu existants vérifient — et, depuis ADR 0042 §7, les rendus
-de référence de `stages/golden.rs`, dont aucune empreinte ne dépend du
-nombre de threads.
+The engine's hot loops use Rayon (`par_chunks_mut` over rows). The absolute
+rule: parallelization never changes the scalar formula nor the order of
+operations *for a given sample*. Every row is computed independently and no
+cross-thread floating-point reduction is allowed — the result stays
+bit-for-bit identical to the single-threaded run, which the existing render
+tests verify, and, since ADR 0042 §7, so do the reference renders of
+`stages/golden.rs`, none of whose fingerprints depends on the thread count.
 
-Un process version gelé peut donc être parallélisé après coup : ce n'est pas
-un changement de rendu au sens de `docs/pipeline.md` §3.3.
+A frozen process version can therefore be parallelized after the fact: that
+is not a change of rendering in the sense of `docs/pipeline.md` §3.3.
 
-## Conséquences
+## Consequences
 
-* À 3 MP, l'édition complète passe de 709 ms à 167 ms (−76 %) sur la machine
-  de référence ; les benchmarks `cargo bench -p leyline-engine` suivent ces
-  chiffres.
-* Rayon possède son pool global : le moteur reste sans runtime asynchrone
-  (cohérent avec ADR 0011 — threads natifs).
-* Toute optimisation future qui modifierait l'ordre des additions flottantes
-  (SIMD horizontal, réductions parallèles) devra passer par une nouvelle
-  version de process.
+* At 3 MP, a complete edit falls from 709 ms to 167 ms (−76 %) on the
+  reference machine; the `cargo bench -p leyline-engine` benchmarks track
+  those figures.
+* Rayon has its own global pool: the engine stays free of an async runtime
+  (consistent with ADR 0011 — native threads).
+* Any future optimization that changed the order of floating-point additions
+  (horizontal SIMD, parallel reductions) would have to go through a new
+  process version.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Threads manuels + canaux** : réinventer un work-stealing éprouvé, sans
+* **Manual threads and channels**: reinventing proven work-stealing, for no
   gain.
-* **GPU (wgpu)** : gains supérieurs mais déterminisme inter-GPU non garanti ;
-  reporté à une exploration ultérieure de phase 7, derrière une nouvelle
-  version de process si nécessaire.
+* **GPU (wgpu)**: larger gains, but determinism across GPUs is not
+  guaranteed; deferred to a later phase-7 exploration, behind a new process
+  version if need be.
