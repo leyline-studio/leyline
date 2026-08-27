@@ -1,162 +1,163 @@
-# ADR 0033 — Clarté, texture, dehaze : contraste local unifié à deux rayons et dehaze par dark channel prior en forme close
+# ADR 0033 — Clarity, texture, dehaze: one two-radius local contrast, and dehaze by closed-form dark channel prior
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-`docs/v2-scope.md` §6 (« Dehaze / texture / clarté ») relève que seul « détail »
-existe aujourd'hui (réduction de bruit + netteté, `process2.rs:324`, `:357`), sans
-contrôles séparés de **clarté**, **texture** et **dehaze** — trois traitements de
-contraste local/fréquentiel distincts qu'attend tout développeur RAW en parité
-Lightroom/Darktable/Capture One.
+`docs/v2-scope.md` §6 ("Dehaze / texture / clarity") notes that only "detail"
+exists today (noise reduction plus sharpening, `process2.rs:324`, `:357`), with
+no separate controls for **clarity**, **texture** and **dehaze** — three
+distinct local/frequency contrast treatments that any RAW developer expects at
+parity with Lightroom, Darktable and Capture One.
 
-Trois décisions transversales sont **consommées, non re-litigées, ici** :
+Three cross-cutting decisions are **consumed here, not relitigated**:
 
-* **ADR 0028** fige la stratégie de versionnage : une process version par
-  fonctionnalité pixel, chacune dans son propre module `processN.rs` gelé, créé
-  en copiant le module précédent entier. Ces trois curseurs sont des opérateurs
-  pixel : ils prennent une nouvelle process version, sans que cet ADR ait à
-  re-choisir la convention.
-* **ADR 0027** confirme que l'espace de travail interne du rendu reste sRGB
-  gamma-encodé entre opérateurs (`process2.rs:30`) — l'espace où le bloc
-  présence/détail existant est défini et où ces trois étages s'insèrent.
-* **ADR 0029** a introduit le masquage spatial (couverture `[0,1]` par pixel) ;
-  le présent document livre les trois curseurs **en global** et défère leur
-  version masquée à un futur ADR adossé à cette infrastructure (voir ci-dessous).
+* **ADR 0028** freezes the versioning strategy: one process version per pixel
+  feature, each in its own frozen `processN.rs` module, created by copying the
+  previous module whole. These three sliders are pixel operators: they take a
+  new process version, without this ADR having to re-choose the convention.
+* **ADR 0027** confirms that the render's internal working space stays sRGB
+  gamma-encoded between operators (`process2.rs:30`) — the space where the
+  existing presence/detail block is defined and where these three stages fit
+  in.
+* **ADR 0029** introduced spatial masking (a per-pixel `[0,1]` coverage); the
+  present document ships the three sliders **globally** and defers their
+  masked version to a future ADR built on that infrastructure (see below).
 
-Le §6 laissait trois questions ouvertes propres à l'item : le déterminisme du
-dehaze, l'ordre « global d'abord, masqué ensuite », et le coût CPU du contraste
-local multi-échelle sur les grandes previews (`docs/engine-api.md` §11). Ce
-document les tranche en même temps qu'il fixe la mathématique, le placement et le
-stockage.
+§6 left three questions open specific to the item: dehaze's determinism, the
+"global first, masked later" order, and the CPU cost of multi-scale local
+contrast on large previews (`docs/engine-api.md` §11). This document settles
+them at the same time as it fixes the mathematics, the placement and the
+storage.
 
-## Décision
+## Decision
 
-Clarté, texture et dehaze sont des opérateurs pixel : ils prennent une **nouvelle
-process version**, **le prochain numéro de process disponible au moment de la
-sortie de cette fonctionnalité** (ADR 0028), dans son propre module `processN.rs`
-copie intégrale du module précédent augmentée des seuls étages nouveaux. Cet ADR
-**ne fige pas** un entier de process précis.
+Clarity, texture and dehaze are pixel operators: they take a **new process
+version**, **the next available process number at the time this feature ships**
+(ADR 0028), in its own `processN.rs` module, a complete copy of the previous
+module plus the new stages alone. This ADR **does not freeze** a specific
+process integer.
 
-Le périmètre est **exactement trois curseurs indépendants** — `clarity`,
-`texture`, `dehaze` — aucun curseur supplémentaire n'est inventé.
+The scope is **exactly three independent sliders** — `clarity`, `texture`,
+`dehaze` — and no further slider is invented.
 
-### Clarté et texture — un seul contraste local paramétré, deux rayons
+### Clarity and texture — one parameterized local contrast, two radii
 
-Clarté et texture appartiennent à **une seule famille d'algorithme** : le
-contraste local par masque flou (*unsharp mask*), c'est-à-dire l'amplification de
-la différence entre un pixel et une version passe-bas (floutée) de lui-même —
-exactement la forme du `sharpen` existant `L' = L + amount·(L − blur(L, σ))`
-(`process2.rs:357`), mais à plus grand rayon et sans être bornée au détail fin.
-Elles se distinguent **par le rayon du flou** :
+Clarity and texture belong to **one algorithm family**: local contrast by
+blurred mask (*unsharp mask*), that is, amplifying the difference between a
+pixel and a low-pass (blurred) version of itself — exactly the shape of the
+existing `sharpen`, `L' = L + amount·(L − blur(L, σ))` (`process2.rs:357`), but
+at a larger radius and without being bounded to fine detail. They differ **by
+the blur's radius**:
 
-* **clarté** — **grand rayon** : contraste local large, le « look clarté »
-  classique qui donne de la présence aux tons moyens ;
-* **texture** — **petit rayon** : contraste local fin, le micro-détail.
+* **clarity** — a **large radius**: broad local contrast, the classic "clarity
+  look" that gives presence to the midtones;
+* **texture** — a **small radius**: fine local contrast, the micro-detail.
 
-**Décision : les deux sont implémentées comme une seule fonction interne de
-contraste local paramétrée**, appelée **deux fois** avec des constantes de
-rayon/force différentes — **pas** deux algorithmes inventés indépendamment. C'est
-de la **réutilisation de code *intra-version*, à l'intérieur d'un même module
-process**, et c'est explicitement permis : **ADR 0028 n'interdit que le partage
-de code *entre* modules de process versions gelés** (le risque qu'un correctif
-altère silencieusement un rendu figé antérieur), **pas** la factorisation à
-l'intérieur d'un seul module. Ce point est énoncé explicitement parce qu'il
-pourrait sinon sembler contredire ADR 0028 : il ne le contredit pas — la fonction
-partagée vit entièrement dans le nouveau module, gelée avec lui, sans lien avec
-aucun module antérieur.
+**Decision: both are implemented as a single parameterized internal
+local-contrast function**, called **twice** with different radius and strength
+constants — **not** two independently invented algorithms. That is
+***intra-version* code reuse, inside one process module**, and it is explicitly
+allowed: **ADR 0028 forbids only sharing code *between* frozen process-version
+modules** (the risk of a fix silently altering an earlier frozen rendering),
+**not** factoring within a single module. The point is stated explicitly
+because it might otherwise seem to contradict ADR 0028: it does not — the
+shared function lives entirely inside the new module, frozen with it, with no
+link to any earlier module.
 
-### Dehaze — dark channel prior en procédure close et déterministe
+### Dehaze — a dark channel prior as a closed, deterministic procedure
 
-Le dehaze est une **suppression de voile atmosphérique de type *dark channel
-prior*** (le canal sombre d'un pixel étant le minimum sur ses canaux RGB dans un
-voisinage local, voile atmosphérique et transmission s'en estimant).
+Dehaze is an **atmospheric-veil removal of the *dark channel prior* kind** (a
+pixel's dark channel being the minimum over its RGB channels within a local
+neighbourhood, from which the atmospheric veil and the transmission are
+estimated).
 
-**L'estimation de la lumière atmosphérique et de la transmission doit être une
-procédure entièrement spécifiée, déterministe et en forme close** — **aucune
-optimisation itérative**, rien dont le résultat dépende d'une initialisation ou
-d'une tolérance de convergence. **Décision : la lumière atmosphérique est estimée
-à partir d'un percentile fixe des pixels les plus brillants du canal sombre de
-l'image** (une **sélection en forme close**, pas un solveur itératif), et la
-règle exacte de sélection est **gelée dans le contrat de rendu** une fois
-implémentée.
+**The estimation of the atmospheric light and of the transmission must be an
+entirely specified, deterministic, closed-form procedure** — **no iterative
+optimization**, nothing whose result depends on an initialization or a
+convergence tolerance. **Decision: the atmospheric light is estimated from a
+fixed percentile of the brightest pixels of the image's dark channel** (a
+**closed-form selection**, not an iterative solver), and the exact selection
+rule is **frozen into the render contract** once implemented.
 
-Ce qui est **gelé ici**, c'est le **choix d'algorithme et de famille** — dark
-channel prior, lumière atmosphérique par percentile supérieur du canal sombre,
-transmission dérivée en forme close. Les **constantes numériques exactes** —
-valeur du percentile, taille du voisinage du canal sombre, facteur de garde de la
-transmission — relèvent de la PR d'implémentation, au **même niveau de précision**
-qu'ADR 0016 (mathématique interne de Lensfun), ADR 0030 (spline tonale) et
-ADR 0031 (modèle de teinte). Figer le modèle suffit à garantir la reproductibilité
-une fois la process version publiée (`docs/pipeline.md` §5).
+What is **frozen here** is the **choice of algorithm and family** — a dark
+channel prior, atmospheric light from an upper percentile of the dark channel,
+transmission derived in closed form. The **exact numerical constants** — the
+percentile's value, the dark channel's neighbourhood size, the transmission's
+guard factor — belong to the implementation PR, at the **same level of
+precision** as ADR 0016 (Lensfun's internal mathematics), ADR 0030 (the tonal
+spline) and ADR 0031 (the hue model). Freezing the model is enough to
+guarantee reproducibility once the process version is published
+(`docs/pipeline.md` §5).
 
-### Coût CPU — flou approché par downsampling, pas de grand noyau plein résolution
+### CPU cost — an approximate blur by downsampling, not a full-resolution large kernel
 
-Le flou à grand rayon de la clarté est **coûteux** en plein résolution sur les
-grandes previews/exports (`docs/engine-api.md` §11, signalé par la question
-ouverte #3 du §6). Le `gaussian_blur` séparable existant (`process2.rs:396`) a un
-noyau de rayon `⌈3σ⌉` : à grand σ il devient prohibitif.
+Clarity's large-radius blur is **costly** at full resolution on large previews
+and exports (`docs/engine-api.md` §11, flagged by §6's open question #3). The
+existing separable `gaussian_blur` (`process2.rs:396`) has a kernel of radius
+`⌈3σ⌉`: at large σ it becomes prohibitive.
 
-**Décision : la famille d'algorithme du flou est une approximation par
-sous-échantillonnage / filtre boîte (type pyramide gaussienne)** du flou à grand
-rayon — **pas** un noyau gaussien littéral à grand rayon en pleine résolution —
-afin de borner le coût. Le **facteur de sous-échantillonnage exact** et la
-**taille de noyau** sont des constantes de la PR d'implémentation, pas décidées
-ici — **même niveau de précision** que partout ailleurs dans cette série d'ADR ;
-seule la **famille** — flou approché borné — est figée.
+**Decision: the blur's algorithm family is an approximation by
+downsampling / box filter (of the Gaussian-pyramid kind)** of the large-radius
+blur — **not** a literal large-radius Gaussian kernel at full resolution — so
+as to bound the cost. The **exact downsampling factor** and the **kernel size**
+are constants of the implementation PR, not decided here — the **same level of
+precision** as everywhere else in this series of ADRs; only the **family** — a
+bounded approximate blur — is frozen.
 
-### Global uniquement en V2 — le masqué est déféré
+### Global only in V2 — the masked version is deferred
 
-Les trois curseurs sont livrés **en global**. Le **dehaze/clarté/texture masqué
-ou régional** (les combiner avec l'infrastructure de masque spatial d'ADR 0029)
-est **explicitement hors périmètre de la V2** — même coupe d'une ligne qu'ADR 0031
-pour le color grading régional : c'est une extension naturelle une fois que cette
-fonctionnalité et le masquage existent tous deux, déférée à un futur ADR adossé à
-ADR 0029, pas conçue ici. Des curseurs globaux sont livrables **sans attendre**
-l'item 2 (`docs/v2-scope.md` §6, question ouverte #2).
+The three sliders ship **globally**. **Masked or regional dehaze, clarity and
+texture** (combining them with ADR 0029's spatial mask infrastructure) is
+**explicitly outside V2's scope** — the same one-line cut as ADR 0031 for
+regional colour grading: it is a natural extension once both this feature and
+masking exist, deferred to a future ADR built on ADR 0029, not designed here.
+Global sliders are shippable **without waiting for** item 2
+(`docs/v2-scope.md` §6, open question #2).
 
-### Place dans le pipeline — clarté → texture → dehaze, avant Vibrance/Saturation
+### Place in the pipeline — clarity → texture → dehaze, before Vibrance/Saturation
 
-Les trois étages s'insèrent dans l'ordre fixe de `docs/pipeline.md` §3.1 dans le
-**bloc tonal/présence, avant Vibrance/Saturation** : clarté et texture (contraste
-local) près des curseurs de présence, dehaze après les curseurs tonals grossiers.
-Ce que la ligne « Pipeline (§3.1) » du tableau `docs/v2-scope.md` §6 fixe déjà
-(« clarté/texture… dans le bloc tonal/présence ; dehaze après le bloc tonal ») —
-cet ADR **confirme et consomme** ce placement, il ne le re-dérive pas.
+The three stages fit into the fixed order of `docs/pipeline.md` §3.1 in the
+**tonal/presence block, before Vibrance/Saturation**: clarity and texture
+(local contrast) near the presence sliders, dehaze after the coarse tonal
+sliders. Which the "Pipeline (§3.1)" row of `docs/v2-scope.md` §6's table
+already fixes ("clarity/texture… in the tonal/presence block; dehaze after the
+tonal block") — this ADR **confirms and consumes** that placement, it does not
+re-derive it.
 
-**Ordre précis des trois entre eux et vis-à-vis de Vibrance/Saturation :
-clarté → texture → dehaze → Vibrance/Saturation.** Les trois atterrissent dans le
-bloc tonal **avant** Vibrance/Saturation. Conséquence voulue : la position de
-l'étage « Réglages locaux » d'ADR 0029 (immédiatement **après**
-Vibrance/Saturation) reste **inchangée**, que cette fonctionnalité-ci ou l'item 2
-sorte en premier — les deux insèrent leurs étages à des positions fixes distinctes
-de l'ordre, sans se chevaucher et sans réconciliation (ADR 0028).
+**The precise order among the three, and relative to Vibrance/Saturation:
+clarity → texture → dehaze → Vibrance/Saturation.** All three land in the tonal
+block **before** Vibrance/Saturation. An intended consequence: the position of
+ADR 0029's "Local adjustments" stage (immediately **after**
+Vibrance/Saturation) stays **unchanged**, whichever of this feature or item 2
+ships first — both insert their stages at distinct fixed positions of the
+order, without overlapping and without reconciliation (ADR 0028).
 
-### Stockage — schéma additif
+### Storage — an additive schema
 
-`clarity`, `texture` et `dehaze` sont trois curseurs **additifs** de
-`settings_json`, dans `[-100, +100]`, **neutre = 0, absent = 0** — la même
-convention d'unité et de plage que les curseurs sans dimension physique existants
-(`contrast`, `vibrance`… `process2.rs:236`, `docs/pipeline.md` §3.2). À 0, chaque
-étage est **entièrement sauté**, rendu **bit-pour-bit identique** à la process
-version précédente — l'invariant « *a parameter at its neutral value skips its
-operator entirely, so the neutral rendering is bit-for-bit the decoded image* »
-(`process3.rs:25`). Aucun bump de schéma requis, cohérent avec « process +1,
-schema inchangé » (`docs/v2-scope.md` §1) ; les champs inconnus d'un moteur ancien
-sont préservés verbatim (`Settings::extra`,
+`clarity`, `texture` and `dehaze` are three **additive** sliders of
+`settings_json`, in `[-100, +100]`, **neutral = 0, absent = 0** — the same unit
+and range convention as the existing sliders with no physical dimension
+(`contrast`, `vibrance`… `process2.rs:236`, `docs/pipeline.md` §3.2). At 0, each
+stage is **entirely skipped**, rendered **bit-for-bit identically** to the
+previous process version — the invariant "*a parameter at its neutral value
+skips its operator entirely, so the neutral rendering is bit-for-bit the
+decoded image*" (`process3.rs:25`). No schema bump is required, consistent with
+"process +1, schema unchanged" (`docs/v2-scope.md` §1); fields unknown to an
+older engine are preserved verbatim (`Settings::extra`,
 `crates/leyline-core/src/settings.rs`).
 
-> **Note de plage.** Les trois curseurs sont bidirectionnels `[-100, +100]` pour
-> une uniformité de vocabulaire avec les curseurs existants et la parité
-> Lightroom (dehaze négatif ré-ajoute un voile atmosphérique plutôt que de le
-> retirer, clarté/texture négatives adoucissent le contraste local). C'est un
-> détail d'UI mineur, **pas** un gel du contrat de rendu : la PR d'implémentation
-> pourrait le restreindre à `[0, 100]` pour le dehaze si l'ergonomie l'exige, sans
-> rouvrir cet ADR.
+> **A note on range.** All three sliders are bidirectional `[-100, +100]` for
+> vocabulary uniformity with the existing sliders and for Lightroom parity (a
+> negative dehaze adds atmospheric veil back rather than removing it; negative
+> clarity and texture soften local contrast). That is a minor UI detail, **not**
+> a freezing of the render contract: the implementation PR could restrict
+> dehaze to `[0, 100]` if the ergonomics demand it, without reopening this ADR.
 
-### Esquisse JSON
+### A JSON sketch
 
-Le style suit `docs/pipeline.md` §3.2. Un exemple non neutre puis le cas neutre :
+The style follows `docs/pipeline.md` §3.2. A non-neutral example, then the
+neutral case:
 
 ```json
 {
@@ -170,8 +171,8 @@ Le style suit `docs/pipeline.md` §3.2. Un exemple non neutre puis le cas neutre
 }
 ```
 
-Cas neutre — champs absents (ou à 0), rendu bit-pour-bit identique à la process
-version précédente :
+The neutral case — the fields absent (or at 0), rendered bit-for-bit
+identically to the previous process version:
 
 ```json
 {
@@ -181,81 +182,82 @@ version précédente :
 }
 ```
 
-> *Le `process: 9` ci-dessus est purement illustratif : le numéro réel est le
-> prochain disponible au moment de la sortie (ADR 0028), pas fixé par cet ADR.*
+> *The `process: 9` above is purely illustrative: the real number is whatever
+> is next available at shipping time (ADR 0028), not fixed by this ADR.*
 
-> **Note d'implémentation (pas une édition de spec ici).** Cet ADR ne modifie
-> **pas** le diagramme de `docs/pipeline.md` §3.1 ni le tableau des process
-> versions §3.3. Comme pour ADR 0029/0030/0031/0032, la spec est mise à jour dans
-> le même changement que l'implémentation réelle, conformément à CLAUDE.md. Le
-> présent document fixe **où** les étages atterrissent et **quels** modèles ils
-> gèlent ; le diagramme §3.1 et le tableau §3.3 seront amendés par la PR qui livre
-> le module process.
+> **An implementation note (not a spec edit here).** This ADR does **not**
+> modify `docs/pipeline.md` §3.1's diagram nor §3.3's process-version table. As
+> for ADR 0029/0030/0031/0032, the spec is updated in the same change as the
+> actual implementation, in keeping with CLAUDE.md. The present document fixes
+> **where** the stages land and **which** models they freeze; the §3.1 diagram
+> and the §3.3 table will be amended by the PR that ships the process module.
 
-## Conséquences
+## Consequences
 
-* **Le champ `process` garde sa lisibilité sémantique** (ADR 0028) : le nouveau
-  numéro signifiera exactement « clarté/texture/dehaze actifs », un fait lisible
-  comme `process: 3` signifie « correction de distorsion active ».
-* **Sortie neutre gelée** : à 0, les trois étages sont bit-pour-bit la process
-  version précédente (`process3.rs:25`).
-* **Un seul chemin de contraste local à maintenir** : clarté et texture
-  partagent une fonction paramétrée appelée à deux rayons — moins de code gelé,
-  une seule surface de régression, et la distinction avec ADR 0028 (partage
-  interdit *entre* modules, permis *dans* un module) est explicite.
-* **Le dehaze est reproductible par construction** : estimation atmosphérique en
-  forme close (percentile du canal sombre), aucune itération, aucune dépendance à
-  une initialisation — gelée avec la process version (`docs/pipeline.md` §5).
-* **Coût borné sur les grandes previews** : le flou à grand rayon est approché par
-  sous-échantillonnage, jamais un noyau plein résolution — la préoccupation de
-  `docs/engine-api.md` §11 est adressée par le choix de famille, les constantes
-  restant à la PR.
-* **Le dehaze/clarté/texture régional reste ouvert** pour un futur ADR adossé à
-  ADR 0029, sans bloquer la version globale livrée ici (`docs/v2-scope.md` §6).
-* **Trois étages avant Vibrance/Saturation** : la position de l'étage d'ADR 0029
-  (après Vibrance/Saturation) reste intacte quel que soit l'ordre de sortie
-  (ADR 0028).
-* **Le contrat de reproductibilité** (`docs/pipeline.md` §5) est respecté :
-  modèle de contraste local et règle de sélection atmosphérique figés par la
-  process version, opérateurs purs et déterministes (ADR 0012), tout dans
-  `settings_json`.
-* **Un module `processN.rs` de plus** (ADR 0028) : aucun module antérieur touché,
-  le gel « mêmes pixels dans dix ans » reste infalsifiable (§3.3).
-* **La spec `docs/pipeline.md` (§3.1, §3.3) n'est pas éditée par cet ADR** : elle
-  le sera par la PR d'implémentation, conformément à CLAUDE.md.
+* **The `process` field keeps its semantic legibility** (ADR 0028): the new
+  number will mean exactly "clarity/texture/dehaze active", a fact as readable
+  as `process: 3` meaning "distortion correction active".
+* **A frozen neutral output**: at 0, the three stages are bit-for-bit the
+  previous process version (`process3.rs:25`).
+* **One local-contrast path to maintain**: clarity and texture share a
+  parameterized function called at two radii — less frozen code, a single
+  regression surface, and the distinction from ADR 0028 (sharing forbidden
+  *between* modules, allowed *within* a module) is explicit.
+* **Dehaze is reproducible by construction**: a closed-form atmospheric
+  estimate (a dark channel percentile), no iteration, no dependence on an
+  initialization — frozen with the process version (`docs/pipeline.md` §5).
+* **A bounded cost on large previews**: the large-radius blur is approximated
+  by downsampling, never a full-resolution kernel — `docs/engine-api.md` §11's
+  concern is addressed by the choice of family, the constants being left to the
+  PR.
+* **Regional dehaze, clarity and texture stay open** for a future ADR built on
+  ADR 0029, without blocking the global version shipped here
+  (`docs/v2-scope.md` §6).
+* **Three stages before Vibrance/Saturation**: the position of ADR 0029's stage
+  (after Vibrance/Saturation) stays intact whatever the shipping order (ADR
+  0028).
+* **The reproducibility contract** (`docs/pipeline.md` §5) is respected: the
+  local-contrast model and the atmospheric selection rule are frozen by the
+  process version, the operators are pure and deterministic (ADR 0012), and
+  everything lives in `settings_json`.
+* **One more `processN.rs` module** (ADR 0028): no earlier module is touched,
+  and the "same pixels in ten years" freeze stays unfalsifiable (§3.3).
+* **The `docs/pipeline.md` spec (§3.1, §3.3) is not edited by this ADR**: it
+  will be by the implementation PR, in keeping with CLAUDE.md.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Clarté et texture comme deux algorithmes pleinement indépendants** au lieu
-  d'une fonction paramétrée à deux rayons. Écarté : les deux **sont** le même
-  algorithme — contraste local par masque flou — à un seul paramètre près, le
-  rayon. Les écrire séparément dupliquerait la même mathématique dans le même
-  module pour aucun bénéfice, et multiplierait les points où une régression
-  pourrait diverger entre deux traitements censés être la même famille. La
-  factorisation *intra-module* est permise (ADR 0028 n'interdit que le partage
-  *entre* modules gelés) : une fonction, deux jeux de constantes.
-* **Une estimation de voile itérative / par optimisation** au lieu d'une règle en
-  forme close par percentile. Écarté : une optimisation itérative rendrait le
-  résultat dépendant de l'initialisation et de la tolérance de convergence — un
-  poison direct pour la reproductibilité « mêmes pixels » (`docs/pipeline.md`
-  §5). Un percentile du canal sombre est une **sélection déterministe close**,
-  gelable telle quelle avec la process version, à la précision d'ADR 0016.
-* **Un flou gaussien littéral à grand rayon en pleine résolution** au lieu d'une
-  approximation par sous-échantillonnage. Écarté : le noyau `⌈3σ⌉` de
-  `gaussian_blur` (`process2.rs:396`) devient prohibitif au grand σ qu'exige la
-  clarté, sur les grandes previews/exports (`docs/engine-api.md` §11). Un flou
-  approché borné (downsampling / filtre boîte / pyramide) donne le même contraste
-  large pour un coût maîtrisé ; l'approximation fait partie du rendu gelé, donc
-  reproductible.
-* **Supporter le dehaze/clarté/texture régional (sous masque) en V2.** Écarté :
-  déféré à un futur ADR adossé à l'infrastructure de masque d'ADR 0029 — même
-  coupe qu'ADR 0031 pour le color grading régional. La version globale est
-  autonome et livrable sans le masquage ; la version régionale s'y adossera le
-  moment venu, dans le référentiel commun d'ADR 0026, sans être recodée.
-* **Insérer les trois étages après l'étage « Réglages locaux » d'ADR 0029** au
-  lieu d'avant Vibrance/Saturation. Écarté : clarté/texture appartiennent au bloc
-  présence et le dehaze suit les curseurs tonals grossiers, tous avant le bloc
-  couleur (`docs/v2-scope.md` §6). Les placer après ADR 0029 déplacerait la
-  position de son étage et changerait quels pixels alimentent le masquage. Les
-  deux fonctionnalités insèrent à des positions fixes distinctes, sans
-  réconciliation (ADR 0028) : celle qui sort la première n'impose rien à l'autre.
+* **Clarity and texture as two fully independent algorithms** instead of one
+  function parameterized at two radii. Rejected: the two **are** the same
+  algorithm — local contrast by blurred mask — differing in a single parameter,
+  the radius. Writing them separately would duplicate the same mathematics
+  within the same module for no benefit, and would multiply the points at which
+  a regression could diverge between two treatments meant to be the same
+  family. *Intra-module* factoring is allowed (ADR 0028 forbids only sharing
+  *between* frozen modules): one function, two sets of constants.
+* **An iterative / optimization-based veil estimate** instead of a closed-form
+  percentile rule. Rejected: an iterative optimization would make the result
+  depend on the initialization and on the convergence tolerance — direct poison
+  for "the same pixels" reproducibility (`docs/pipeline.md` §5). A dark channel
+  percentile is a **closed, deterministic selection**, freezable as it is with
+  the process version, at ADR 0016's precision.
+* **A literal large-radius Gaussian blur at full resolution** instead of an
+  approximation by downsampling. Rejected: `gaussian_blur`'s `⌈3σ⌉` kernel
+  (`process2.rs:396`) becomes prohibitive at the large σ clarity requires, on
+  large previews and exports (`docs/engine-api.md` §11). A bounded approximate
+  blur (downsampling / box filter / pyramid) gives the same broad contrast at a
+  controlled cost; the approximation is part of the frozen rendering, and
+  therefore reproducible.
+* **Supporting regional dehaze, clarity and texture (under a mask) in V2.**
+  Rejected: deferred to a future ADR built on ADR 0029's mask infrastructure —
+  the same cut as ADR 0031 for regional colour grading. The global version
+  stands alone and can ship without masking; the regional version will build on
+  it when the time comes, in the common frame of ADR 0026, without being
+  rewritten.
+* **Inserting the three stages after ADR 0029's "Local adjustments" stage**
+  instead of before Vibrance/Saturation. Rejected: clarity and texture belong
+  to the presence block and dehaze follows the coarse tonal sliders, all before
+  the colour block (`docs/v2-scope.md` §6). Placing them after ADR 0029 would
+  move its stage's position and change which pixels feed masking. The two
+  features insert at distinct fixed positions, with no reconciliation (ADR
+  0028): whichever ships first imposes nothing on the other.
