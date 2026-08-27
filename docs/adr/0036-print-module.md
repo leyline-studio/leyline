@@ -1,131 +1,127 @@
-# ADR 0036 — Module d'impression : « un export avec une dimension physique et un profil de destination », une photo par page, hand-off OS laissé à Studio
+# ADR 0036 — The print module: "an export with a physical dimension and a destination profile", one photo per page, the OS hand-off left to Studio
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-`docs/v2-scope.md` §7 regroupe trois manques sous un même item — épreuvage
-écran, filigrane, module d'impression — en soulignant que **c'est l'item le
-moins « pipeline »** : aucun des trois ne modifie les pixels de la révision
-stockée. ADR 0034 a tranché les deux premiers tiers (épreuvage vue seule,
-filigrane texte à l'export) et **déféré explicitement l'impression à « son
-propre futur ADR »**, la cotant L/XL et « surtout UI + chemin de sortie
-dédié », en refusant de la stuber avec des décisions de remplissage. Ce
-document est cet ADR annoncé.
+`docs/v2-scope.md` §7 groups three gaps under one item — soft proofing,
+watermark, print module — stressing that **it is the least "pipeline" item**:
+none of the three modifies the stored revision's pixels. ADR 0034 settled the
+first two thirds (view-only proofing, a text watermark at export) and
+**explicitly deferred printing to "its own future ADR"**, sizing it L/XL and
+"mostly UI plus a dedicated output path", refusing to stub it with filler
+decisions. This document is that announced ADR.
 
-Deux décisions transversales sont **consommées, non re-litigées, ici** :
+Two cross-cutting decisions are **consumed here, not relitigated**:
 
-* **ADR 0027** a élargi `leyline-color` vers une bibliothèque de
-  transformation ICC générale (chargement de profil, construction de
-  `cmsTransform`, application), et a explicitement prévu que « le module
-  d'impression pourra s'appuyer sur la même primitive de transformation de
-  sortie plutôt que d'en inventer une troisième ». C'est exactement ce que ce
-  document fait : la conversion vers le profil imprimante/papier réutilise la
-  primitive qu'ADR 0027 a construite et qu'ADR 0034 réutilise déjà pour
-  l'épreuvage et l'export non-sRGB.
-* **ADR 0025** (`docs/engine-api.md` §12) a unifié l'export derrière une seule
-  `ExportRequest` (les versions à traiter), une `ExportRecipe`
-  (`Adhoc`/`Preset`) et un `ExportPresetId` résolu à l'exécution — la forme que
-  ce document reprend telle quelle pour l'impression.
+* **ADR 0027** widened `leyline-color` into a general ICC transform library
+  (loading a profile, building a `cmsTransform`, applying it), and explicitly
+  provided that "the print module will be able to lean on that same
+  output-transform primitive rather than inventing a third". That is exactly
+  what this document does: the conversion to the printer/paper profile reuses
+  the primitive ADR 0027 built and that ADR 0034 already reuses for proofing
+  and non-sRGB export.
+* **ADR 0025** (`docs/engine-api.md` §12) unified export behind a single
+  `ExportRequest` (the versions to process), an `ExportRecipe`
+  (`Adhoc`/`Preset`) and an `ExportPresetId` resolved at execution — the shape
+  this document takes over as it stands for printing.
 
-Restait à trancher, item 7 dernier tiers, la **forme concrète** du module
-d'impression. C'est l'objet de cet ADR.
+What remained to settle, item 7's last third, is the **concrete shape** of the
+print module. That is this ADR's subject.
 
-## Décision
+## Decision
 
-### Ni process version, ni `settings_json`, ni étage de pipeline
+### No process version, no `settings_json`, no pipeline stage
 
-**L'impression n'est pas une process version, ne touche pas `settings_json`
-de développement, n'insère aucun étage dans l'ordre du pipeline
-`docs/pipeline.md` §3.1.** C'est exactement la même catégorie que le filigrane
-et l'épreuvage d'ADR 0034 : imprimer ne change pas les pixels d'une révision,
-c'est une **préoccupation de sortie**. Le raisonnement d'ADR 0034 pour ses deux
-pièces s'applique mot pour mot ici — rien dans l'impression ne modifie les
-pixels d'une révision stockée, donc le contrat de reproductibilité
-(`docs/pipeline.md` §5, « même révision → mêmes pixels ») n'est pas engagé, et
-aucune process version n'est introduite (la règle de numérotation d'ADR 0028
-n'a donc **pas** à jouer ici).
+**Printing is not a process version, does not touch develop `settings_json`,
+and inserts no stage into `docs/pipeline.md` §3.1's pipeline order.** It is
+exactly the same category as ADR 0034's watermark and proofing: printing does
+not change a revision's pixels, it is an **output concern**. ADR 0034's
+reasoning for its two pieces applies word for word here — nothing in printing
+modifies the pixels of a stored revision, so the reproducibility contract
+(`docs/pipeline.md` §5, "the same revision → the same pixels") is not engaged,
+and no process version is introduced (ADR 0028's numbering rule therefore does
+**not** come into play here).
 
-### Périmètre V2 — une photo par page, les planches sont coupées
+### V2's scope — one photo per page, contact sheets are cut
 
-**La V2 imprime une seule photo par page.** Les planches contact et les
-dispositions N-up (plusieurs photos par page, math de grille arbitraire,
-rapports d'aspect mixtes, règles de recadrage-pour-remplir) sont **coupées de
-V2** — coupe délibérée, pas un oubli. Une planche est un problème de **moteur
-de mise en page** matériellement plus grand que « page + marges + DPI » pour
-une image unique : il faut trancher la géométrie de grille, la gestion des
-orientations mixtes, le recadrage-à-la-cellule, la pagination multi-pages. C'est
-une autre nature de chantier, exactement comme ADR 0032 a coupé le *heal*
-seamless, ADR 0030 la courbe paramétrique, ADR 0034 le filigrane image/logo et
-ADR 0031/0033 les effets régionaux : nommer **la plus petite chose réellement
-utile** — imprimer une photo à une taille/un papier/un profil choisis — et
-couper le reste proprement plutôt que de le demi-concevoir. Les planches
-reviendront dans leur propre futur ADR si elles sont un jour voulues.
+**V2 prints a single photo per page.** Contact sheets and N-up layouts (several
+photos per page, arbitrary grid mathematics, mixed aspect ratios,
+crop-to-fill rules) are **cut from V2** — a deliberate cut, not an oversight. A
+contact sheet is a **layout engine** problem materially larger than "page +
+margins + DPI" for a single image: one must settle the grid's geometry, the
+handling of mixed orientations, crop-to-cell, and multi-page pagination. It is
+another kind of undertaking, exactly as ADR 0032 cut seamless *heal*, ADR 0030
+the parametric curve, ADR 0034 the image/logo watermark and ADR 0031/0033 the
+regional effects: name **the smallest genuinely useful thing** — printing one
+photo at a chosen size, paper and profile — and cut the rest cleanly rather
+than half-designing it. Contact sheets will come back in their own future ADR
+if they are ever wanted.
 
-### Architecturalement, « un export avec une dimension physique et un profil de destination »
+### Architecturally, "an export with a physical dimension and a destination profile"
 
-L'impression **n'est pas un nouveau sous-système**. Le chemin de rendu réutilise
-la machinerie existante de `leyline-export` :
+Printing is **not a new subsystem**. The render path reuses `leyline-export`'s
+existing machinery:
 
-* Le rendu-vers-tampon puis l'encodage de `leyline-export`
-  (`crates/leyline-export/src/lib.rs`) sont réutilisés tels quels ; la seule
-  différence est **comment on calcule les dimensions cibles en pixels** : au
-  lieu d'un `max_edge` en pixels (ADR 0025/0027), on calcule
-  `taille_papier × DPI` (p. ex. 15 × 10 cm à 300 DPI). C'est un mode de
-  dimensionnement de plus, pas un chemin de rendu de plus.
-* La conversion vers le profil imprimante/papier réutilise **la primitive ICC
-  d'ADR 0027** (`leyline-color`) — la même que l'épreuvage et l'export non-sRGB
-  d'ADR 0034 emploient déjà. Optionnellement, la vue d'épreuvage d'ADR 0034
-  (avec alerte de gamut) peut être chaînée **avant** de valider l'impression,
-  pour que l'utilisateur prévisualise le comportement colorimétrique du tirage
-  avant de dépenser papier et encre.
+* `leyline-export`'s render-to-buffer and then encoding
+  (`crates/leyline-export/src/lib.rs`) are reused as they are; the only
+  difference is **how the target dimensions in pixels are computed**: instead
+  of a `max_edge` in pixels (ADR 0025/0027), one computes
+  `paper size × DPI` (say, 15 × 10 cm at 300 DPI). That is one more sizing
+  mode, not one more render path.
+* The conversion to the printer/paper profile reuses **ADR 0027's ICC
+  primitive** (`leyline-color`) — the same one ADR 0034's proofing and
+  non-sRGB export already use. Optionally, ADR 0034's proofing view (with its
+  gamut warning) can be chained **before** confirming the print, so that the
+  user previews the print's colorimetric behaviour before spending paper and
+  ink.
 
-**Aucun algorithme de rendu nouveau n'est introduit nulle part dans cet ADR.**
+**No new rendering algorithm is introduced anywhere in this ADR.**
 
-### Persistance — un concept `print_presets`, parallèle à `export_presets`
+### Persistence — a `print_presets` concept, parallel to `export_presets`
 
-L'impression se stocke comme un **preset**, sur le modèle exact
-d'`export_presets` (`docs/catalog.md` §27) et de `develop_presets`. Un preset
-d'impression capture : taille de papier, marges/orientation, DPI cible,
-référence au profil ICC de destination, et intention de rendu — le tout dans un
-blob `settings_json`, **le même mécanisme** que celui déjà établi pour
-`export_presets`/`develop_presets`, aucun mécanisme nouveau inventé.
+Printing is stored as a **preset**, on the exact model of `export_presets`
+(`docs/catalog.md` §27) and `develop_presets`. A print preset captures: paper
+size, margins/orientation, target DPI, a reference to the destination ICC
+profile, and the rendering intent — all in a `settings_json` blob, **the same
+mechanism** already established for `export_presets`/`develop_presets`, with no
+new mechanism invented.
 
-Les **données par job** (quelles photos, combien de copies) restent un intrant
-au moment de la requête, **pas** une partie du preset — exactement comme
-`ExportRequest.versions` est séparé de la `ExportRecipe`/du preset stocké
-(`docs/engine-api.md` §12, ADR 0025). On suit cette forme directement :
+The **per-job data** (which photos, how many copies) stays an input at request
+time, **not** part of the preset — exactly as `ExportRequest.versions` is
+separate from the `ExportRecipe`/the stored preset (`docs/engine-api.md` §12,
+ADR 0025). That shape is followed directly:
 
 ```rust
 pub enum PrintRecipe {
-    /// Réglages fournis par l'appelant, non stockés.
+    /// Settings supplied by the caller, not stored.
     Adhoc(PrintSettings),
-    /// Un preset stocké, résolu à l'exécution de la requête.
+    /// A stored preset, resolved when the request runs.
     Preset(PrintPresetId),
 }
 
 pub struct PrintRequest {
-    pub versions: Vec<VersionId>,   // quelles photos — intrant de job, jamais dans le preset
-    pub recipe: PrintRecipe,        // Adhoc(...) ou Preset(id), comme ExportRecipe
-    pub copies: u32,                // intrant de job, jamais dans le preset
+    pub versions: Vec<VersionId>,   // which photos — a job input, never in the preset
+    pub recipe: PrintRecipe,        // Adhoc(...) or Preset(id), like ExportRecipe
+    pub copies: u32,                // a job input, never in the preset
 }
-// forme exacte laissée à la PR, comme pour tout ADR de cette série.
+// the exact shape left to the PR, as for every ADR in this series.
 ```
 
-Table `print_presets`, parallèle à `export_presets` (`docs/catalog.md` §27,
-colonnes id/uuid/name/settings_json/created_at reprises à l'identique) :
+A `print_presets` table, parallel to `export_presets` (`docs/catalog.md` §27,
+with the id/uuid/name/settings_json/created_at columns taken over identically):
 
 ```sql
 CREATE TABLE print_presets (
     id INTEGER PRIMARY KEY,
     uuid TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
-    settings_json TEXT NOT NULL,   -- papier, marges, orientation, DPI, profil ICC, intention
+    settings_json TEXT NOT NULL,   -- paper, margins, orientation, DPI, ICC profile, intent
     created_at INTEGER NOT NULL
 );
 ```
 
-Esquisse d'un `settings_json` de preset d'impression :
+A sketch of a print preset's `settings_json`:
 
 ```json
 {
@@ -138,131 +134,121 @@ Esquisse d'un `settings_json` de preset d'impression :
 }
 ```
 
-### Split crate/propriété — la décision architecturale de fond
+### The crate/ownership split — this ADR's underlying architectural decision
 
-Le partage de responsabilité est la vraie décision de cet ADR ; il se lit en
-deux moitiés.
+The division of responsibility is this ADR's real decision; it reads in two
+halves.
 
-**Le rendu — produire un raster/fichier prêt à imprimer à la taille physique
-cible et dans le profil de destination — est propriété du moteur**, en
-extension de `leyline-export`/`leyline-color`, **sans nouveau crate**. Même
-raisonnement qu'ADR 0035 pour le placement du travail DCP : c'est de la logique
-de domaine couleur/sortie (dimensionnement physique + transformation ICC de
-destination), pas de l'infrastructure couplée aux tampons qui exigerait son
-propre crate. Le dimensionnement `papier × DPI` et la conversion de profil sont
-adjacents au travail d'export déjà logé là.
+**Rendering — producing a raster or file ready to print at the target physical
+size and in the destination profile — is the engine's**, as an extension of
+`leyline-export`/`leyline-color`, **with no new crate**. The same reasoning as
+ADR 0035 for the placement of the DCP work: it is colour/output domain logic
+(physical sizing plus a destination ICC transform), not buffer-coupled
+infrastructure that would demand its own crate. `paper × DPI` sizing and
+profile conversion are adjacent to the export work already housed there.
 
-**Le hand-off physique vers une imprimante — dialogue d'impression de l'OS,
-communication avec le pilote, spooling — n'est explicitement PAS du travail
-moteur.** `docs/engine-api.md` §14 est catégorique : « Pas de rendu à l'écran :
-le moteur produit des fichiers et des buffers, l'affichage appartient au
-client », « Pas de gestion de fenêtres, de raccourcis, de sélection UI ». Le
-dialogue d'impression de l'OS est précisément de la gestion de fenêtres et
-d'intégration système. Et c'est **exactement le même patron** qu'ADR 0020
-(barre de menu) et ADR 0021 (menus contextuels) ont déjà appliqué :
-l'intégration OS/UI vit **entièrement dans `leyline-studio`**, câblée sur des
-appels moteur déjà existants, **sans ajouter la moindre surface au moteur**
-(« Aucun changement du modèle d'événements ou de l'API moteur », ADR 0020 ;
-« Aucune nouvelle capacité moteur », ADR 0021). Ici de même : Studio appelle le
-moteur pour **rendre un fichier prêt à imprimer**, puis Studio — pas le
-moteur — invoque le mécanisme d'impression natif de la plateforme.
+**The physical hand-off to a printer — the OS print dialog, driver
+communication, spooling — is explicitly NOT engine work.**
+`docs/engine-api.md` §14 is categorical: "No on-screen rendering: the engine
+produces files and buffers, display belongs to the client", "No window
+management, shortcuts or UI selection". The OS print dialog is precisely window
+management and system integration. And it is **exactly the same pattern** ADR
+0020 (the menu bar) and ADR 0021 (the context menus) already applied: OS/UI
+integration lives **entirely in `leyline-studio`**, wired onto already-existing
+engine calls, **without adding the slightest surface to the engine** ("No
+change to the event model or to the engine API", ADR 0020; "No new engine
+capability", ADR 0021). Here likewise: Studio calls the engine to **render a
+print-ready file**, and then Studio — not the engine — invokes the platform's
+native printing mechanism.
 
-### Risque ouvert explicite — le mécanisme de hand-off, laissé à la PR
+### An explicit open risk — the hand-off mechanism, left to the PR
 
-**Comment** Studio remet précisément la sortie rendue au flux d'impression de
-l'OS est un **risque genuinely non résolu**, laissé à la PR d'implémentation —
-pas une décision que cet ADR esquive arbitrairement. Les finalistes sont
-nommés, le choix est différé :
+**How** Studio precisely hands the rendered output to the OS's print flow is a
+**genuinely unresolved risk**, left to the implementation PR — not a decision
+this ADR arbitrarily dodges. The finalists are named, the choice deferred:
 
-* **Un PDF auto-généré à la taille de page physique cible, profil embarqué** —
-  probablement le choix le plus portable entre les dialogues d'impression
-  Windows/macOS/Linux, puisque la quasi-totalité des flux d'impression OS
-  acceptent un PDF. Mais ce n'est **pas** posé ici comme un fait acquis.
-* **Un raster brut passé à une API d'impression spécifique à la plateforme.**
-* **La surface d'impression que Slint pourrait ou non exposer** elle-même.
+* **A self-generated PDF at the target physical page size, with an embedded
+  profile** — probably the most portable choice across the Windows/macOS/Linux
+  print dialogs, since almost every OS print flow accepts a PDF. But that is
+  **not** stated here as an established fact.
+* **A raw raster passed to a platform-specific printing API.**
+* **The printing surface Slint may or may not expose** itself.
 
-Ce choix dépend des capacités réelles de Slint et de l'intégration d'impression
-native de chaque plateforme **au moment venu** — il est nommé avec la même
-honnêteté qu'ADR 0035 a employée pour le choix du parseur DCP. Cet ADR
-n'invente **pas** de résolution factice (il n'affirme pas « Leyline génère un
-PDF » comme un fait tranché) : il énonce les options finalistes et diffère
-explicitement le choix.
+That choice depends on Slint's real capabilities and on each platform's native
+print integration **when the time comes** — it is named with the same honesty
+ADR 0035 used for the choice of DCP parser. This ADR does **not** invent a fake
+resolution (it does not assert "Leyline generates a PDF" as a settled fact): it
+states the finalist options and explicitly defers the choice.
 
-## Conséquences
+## Consequences
 
-* **Cet ADR clôt entièrement l'item 7 de `docs/v2-scope.md`** : ses trois
-  sous-pièces sont désormais tranchées — épreuvage écran et filigrane par
-  ADR 0034, module d'impression par ce document. Le seul point restant est le
-  **risque nommé** du mécanisme de hand-off OS, flaggé pour la PR
-  d'implémentation.
-* **Aucune process version, aucun étage pipeline** : comme le filigrane et
-  l'épreuvage d'ADR 0034, l'impression vit hors du contrat de reproductibilité
-  des révisions (`docs/pipeline.md` §5) — c'est une surface de sortie, pas une
-  modification de révision.
-* **Le rendu d'impression hérite gratuitement de la plomberie d'export et de la
-  primitive ICC d'ADR 0027** : aucun algorithme de rendu neuf, aucun troisième
-  chemin couleur — le dimensionnement `papier × DPI` remplace `max_edge`, la
-  conversion de profil est celle d'ADR 0027 déjà partagée avec l'épreuvage et
-  l'export non-sRGB.
-* **Le preset d'impression hérite gratuitement du patron de presets** : une
-  table `print_presets` parallèle à `export_presets`, un blob `settings_json`,
-  aucun mécanisme nouveau ; les données de job (photos, copies) restent séparées
-  du preset, comme `ExportRequest.versions` l'est de `ExportRecipe`.
-* **Le moteur ne gagne aucune surface d'intégration OS** : le hand-off imprimante
-  vit entièrement dans `leyline-studio`, exactement comme les menus (ADR 0020)
-  et les menus contextuels (ADR 0021) — le moteur rend un fichier, Studio le
-  remet à l'OS.
-* **Les planches contact restent ouvertes pour un futur ADR** avec leur vrai
-  coût (moteur de mise en page, grille, orientations mixtes, pagination) : la V2
-  refuse seulement de s'y engager, elle ne ferme pas la porte.
-* **Le mécanisme de hand-off reste un risque ouvert assumé** pour la PR : PDF
-  portable, raster + API plateforme, ou surface Slint — décision qui dépend des
-  capacités réelles au moment de l'implémentation, pas tranchée spéculativement
-  ici.
-* **Ne préjuge pas d'un futur système de plugins/modules.** `docs/roadmap.md`
-  liste « Plugins, SDK stable » en Long terme, hors V2. Le split moteur/Studio
-  décidé ici (rendu = moteur, hand-off OS = Studio) est un choix de placement
-  interne pour la V2 — il n'exclut pas qu'un futur système de plugins vienne
-  s'y greffer, par exemple pour fournir des backends d'impression alternatifs
-  ou des dispositions de planche (aujourd'hui coupées, voir ci-dessus) sans
-  toucher au moteur. Rien ici n'engage la forme de ce futur mécanisme.
+* **This ADR entirely closes `docs/v2-scope.md`'s item 7**: its three
+  sub-pieces are now settled — proofing and watermark by ADR 0034, the print
+  module by this document. The only remaining point is the **named risk** of the
+  OS hand-off mechanism, flagged for the implementation PR.
+* **No process version, no pipeline stage**: like ADR 0034's watermark and
+  proofing, printing lives outside the revisions' reproducibility contract
+  (`docs/pipeline.md` §5) — it is an output surface, not a modification of a
+  revision.
+* **Print rendering inherits the export plumbing and ADR 0027's ICC primitive
+  for free**: no new rendering algorithm and no third colour path — `paper ×
+  DPI` sizing replaces `max_edge`, and the profile conversion is ADR 0027's,
+  already shared with proofing and non-sRGB export.
+* **The print preset inherits the preset pattern for free**: a `print_presets`
+  table parallel to `export_presets`, a `settings_json` blob, no new mechanism;
+  the job data (photos, copies) stays separate from the preset, as
+  `ExportRequest.versions` is from `ExportRecipe`.
+* **The engine gains no OS integration surface**: the printer hand-off lives
+  entirely in `leyline-studio`, exactly like the menus (ADR 0020) and the
+  context menus (ADR 0021) — the engine renders a file, Studio hands it to the
+  OS.
+* **Contact sheets stay open for a future ADR** with their real cost (a layout
+  engine, the grid, mixed orientations, pagination): V2 only refuses to commit
+  to them, it does not close the door.
+* **The hand-off mechanism stays an accepted open risk** for the PR: a portable
+  PDF, a raster plus a platform API, or a Slint surface — a decision that
+  depends on the real capabilities at implementation time, not settled
+  speculatively here.
+* **It prejudges no future plugin/module system.** `docs/roadmap.md` lists
+  "Plugins, a stable SDK" under Long term, outside V2. The engine/Studio split
+  decided here (rendering = engine, OS hand-off = Studio) is an internal
+  placement choice for V2 — it does not preclude a future plugin system
+  grafting onto it, for instance to supply alternative print backends or
+  contact-sheet layouts (cut today, see above) without touching the engine.
+  Nothing here commits to the shape of that future mechanism.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Supporter les planches contact / dispositions multi-images par page dès la
-  V2.** Écarté : une planche est un moteur de mise en page (géométrie de grille
-  arbitraire, rapports d'aspect mixtes, recadrage-à-la-cellule, pagination
-  multi-pages) — un problème matériellement plus grand que page/marges/DPI pour
-  une image unique, d'une autre nature que le reste. Le demi-concevoir ici
-  inventerait une architecture que personne n'a cadrée (« No code before
-  architecture »). On nomme la plus petite chose utile (une photo par page) et
-  on coupe le reste proprement, comme ADR 0032/0030/0034 l'ont fait pour leurs
-  périmètres respectifs. Les planches auront leur propre ADR si elles sont un
-  jour voulues.
-* **Faire de l'impression un étage du pipeline de développement / une process
-  version.** Écarté : imprimer ne modifie pas les pixels d'une révision stockée,
-  c'est une préoccupation de sortie — exactement le constat qu'ADR 0034 a posé
-  pour le filigrane et l'épreuvage. L'inscrire dans `settings_json` ou lui
-  attribuer une process version introduirait un état qui n'affecte aucun pixel
-  de révision et mentirait sur ce qu'est une révision, tout en engageant
-  inutilement le contrat « même révision → mêmes pixels » (`docs/pipeline.md`
-  §5). L'impression vit à la sortie, comme l'export.
-* **Faire posséder au moteur l'intégration du dialogue d'impression de l'OS.**
-  Écarté : `docs/engine-api.md` §14 exclut explicitement la gestion de fenêtres
-  et le rendu à l'écran du moteur — « l'affichage appartient au client ». Un
-  dialogue d'impression système est de l'intégration OS/UI, précisément ce
-  qu'ADR 0020 (barre de menu) et ADR 0021 (menus contextuels) ont logé
-  **entièrement dans `leyline-studio`** sans ajouter la moindre surface au
-  moteur. Faire du moteur un gestionnaire de dialogue d'impression casserait ce
-  patron établi et le rendrait dépendant de la plateforme — exactement ce que la
-  frontière moteur/client existe pour empêcher. Le moteur rend un fichier ;
-  Studio le remet à l'OS.
-* **Trancher dès maintenant un mécanisme de hand-off précis (p. ex. « toujours
-  générer un PDF »).** Écarté : ce choix dépend des capacités réelles de Slint
-  et de l'intégration d'impression native de chaque plateforme au moment de
-  l'implémentation — l'affirmer tranché aujourd'hui serait inventer une
-  résolution factice. Le PDF portable est le finaliste probable, mais le raster
-  + API plateforme et une éventuelle surface Slint restent des candidats réels.
-  Cet ADR nomme les finalistes et diffère honnêtement le choix à la PR, dans le
-  même esprit qu'ADR 0035 a laissé ouvert le choix du parseur DCP — un risque
-  assumé, pas esquivé.
+* **Supporting contact sheets / multi-image page layouts from V2 on.**
+  Rejected: a contact sheet is a layout engine (arbitrary grid geometry, mixed
+  aspect ratios, crop-to-cell, multi-page pagination) — a problem materially
+  larger than page/margins/DPI for a single image, and of another nature from
+  the rest. Half-designing it here would invent an architecture nobody has
+  framed ("No code before architecture"). We name the smallest useful thing
+  (one photo per page) and cut the rest cleanly, as ADR 0032/0030/0034 did for
+  their respective scopes. Contact sheets will have their own ADR if they are
+  ever wanted.
+* **Making printing a develop pipeline stage / a process version.** Rejected:
+  printing does not modify a stored revision's pixels, it is an output concern
+  — exactly the observation ADR 0034 made for the watermark and proofing.
+  Writing it into `settings_json` or giving it a process version would
+  introduce state affecting no revision pixel and would lie about what a
+  revision is, while needlessly engaging the "same revision → same pixels"
+  contract (`docs/pipeline.md` §5). Printing lives at the output, like export.
+* **Having the engine own the OS print dialog's integration.** Rejected:
+  `docs/engine-api.md` §14 explicitly excludes window management and on-screen
+  rendering from the engine — "display belongs to the client". A system print
+  dialog is OS/UI integration, precisely what ADR 0020 (the menu bar) and ADR
+  0021 (the context menus) housed **entirely in `leyline-studio`** without
+  adding the slightest surface to the engine. Making the engine a print-dialog
+  manager would break that established pattern and make it platform-dependent —
+  exactly what the engine/client boundary exists to prevent. The engine renders
+  a file; Studio hands it to the OS.
+* **Settling a precise hand-off mechanism right now (say, "always generate a
+  PDF").** Rejected: that choice depends on Slint's real capabilities and on
+  each platform's native print integration at implementation time — asserting
+  it settled today would be inventing a fake resolution. The portable PDF is
+  the likely finalist, but a raster plus a platform API and a possible Slint
+  surface stay real candidates. This ADR names the finalists and honestly
+  defers the choice to the PR, in the same spirit as ADR 0035 left the choice
+  of DCP parser open — an accepted risk, not a dodged one.
