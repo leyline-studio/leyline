@@ -1,56 +1,56 @@
-# ADR 0021 — Menus contextuels (clic droit)
+# ADR 0021 — Context menus (right-click)
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-ADR 0020 règle la découvrabilité globale (barre de menu), mais une action visée sur *un objet précis* — une photo de la grille, le canevas de développement — reste plus naturelle en clic droit qu'en cherchant l'objet correspondant dans un menu global déjà ouvert. Les applications de bureau habituelles (et l'attente d'un utilisateur venant d'un autre logiciel photo) proposent les deux : barre de menu pour les commandes globales, clic droit pour les commandes qui portent sur ce qui est sous le curseur.
+ADR 0020 settles global discoverability (the menu bar), but an action aimed at *one particular object* — a photo in the grid, the develop canvas — stays more natural as a right-click than as a hunt for the corresponding object in an already-open global menu. Ordinary desktop applications (and the expectation of a user coming from other photo software) offer both: a menu bar for global commands, right-click for commands bearing on whatever sits under the cursor.
 
-## Décision
+## Decision
 
-Deux menus contextuels, tous deux strictement des raccourcis vers des actions déjà décidées (ADR 0020) ou déjà implémentées — même contrainte : **aucune fonctionnalité nouvelle**, uniquement un second point d'accès.
+Two context menus, both strictly shortcuts to actions already decided (ADR 0020) or already implemented — the same constraint: **no new functionality**, only a second way in.
 
-**Grille de la bibliothèque, clic droit sur une vignette :**
+**The library grid, right-clicking a thumbnail:**
 
 * Develop *(D)*
 * ——
-* Rate ▸ (0–5), Label ▸ (couleurs), Flag ▸ (Pick/Reject/Clear) — `docs/catalog.md` §8, mêmes actions que `classify.rs`
+* Rate ▸ (0–5), Label ▸ (colours), Flag ▸ (Pick/Reject/Clear) — `docs/catalog.md` §8, the same actions as `classify.rs`
 * ——
 * Add to Collection *(B)*, Remove from Collection *(Shift+B)*
 * ——
-* Reprocess — **pas** le chemin `EditSession::reprocess` du raccourci `R` (qui exige une session de développement ouverte), mais `Library::reprocess` (§10.4) appliqué à la version cliquée (ou à la sélection courante si plusieurs vignettes sont sélectionnées) : le même appel que `Shift+R`, juste borné à un sous-ensemble au lieu de toute la bibliothèque. Aucun changement d'API requis.
+* Reprocess — **not** the `EditSession::reprocess` path of the `R` shortcut (which requires an open develop session), but `Library::reprocess` (§10.4) applied to the clicked version (or to the current selection if several thumbnails are selected): the same call as `Shift+R`, merely bounded to a subset instead of the whole library. No API change required.
 
-Si plusieurs vignettes sont sélectionnées et que le clic droit tombe sur l'une d'elles, le menu contextuel agit sur toute la sélection (convention standard) plutôt que sur la seule vignette cliquée.
+If several thumbnails are selected and the right-click lands on one of them, the context menu acts on the whole selection (the standard convention) rather than on the clicked thumbnail alone.
 
-**Canevas, clic droit en mode développement :**
+**The canvas, right-clicking in develop mode:**
 
-* Reset Crop — remet `crop` à `None` (le même effet que le bouton *Reset* déjà dans le panneau Geometry)
-* Compare Before/After — bascule le même état que le contrôle déjà présent en haut du canevas
+* Reset Crop — sets `crop` back to `None` (the same effect as the *Reset* button already in the Geometry panel)
+* Compare Before/After — toggles the same state as the control already at the top of the canvas
 * ——
 * Reprocess *(R)*
 * ——
 * Back to Library *(G)*
 
-## Conséquences
+## Consequences
 
-* Aucune nouvelle capacité moteur : chaque entrée appelle un chemin déjà décidé par ADR 0020 ou déjà câblé dans `main.rs`/`leyline-engine`.
-* La grille des collections/mots-clés (panneau gauche) n'a **pas** de menu contextuel dans cette V1 : `leyline-engine` n'expose pas aujourd'hui de renommage/suppression de collection ou de mot-clé côté façade — ajouter un clic droit là inventerait une capacité qui n'existe pas encore. À revisiter si/quand cette capacité est décidée séparément.
+* No new engine capability: every entry calls a path already decided by ADR 0020 or already wired in `main.rs`/`leyline-engine`.
+* The collections and keywords tree (the left panel) has **no** context menu in this V1: `leyline-engine` exposes no renaming or deletion of a collection or a keyword on the façade today — adding a right-click there would invent a capability that does not yet exist. To be revisited if and when that capability is decided separately.
 
-  > **Correction, 2026-08-05.** La condition posée ici s'est réalisée, et la
-  > revisite a eu lieu : la façade expose `rename_collection`,
-  > `move_collection` et `delete_collection`, et l'arbre des collections porte
-  > désormais le menu contextuel correspondant — trois entrées qui ouvrent
-  > chacune un dialogue, parce que chacune a besoin d'une donnée que Rust doit
-  > chercher d'abord (le nom courant, les parents légaux, la taille du
-  > sous-arbre). C'est exactement le « si/quand » que cette phrase prévoyait,
-  > et le motif de clic droit décidé ici qui s'y applique.
+  > **Correction, 2026-08-05.** The condition posed here came about, and the
+  > revisit took place: the façade exposes `rename_collection`,
+  > `move_collection` and `delete_collection`, and the collections tree now
+  > carries the corresponding context menu — three entries that each open a
+  > dialog, because each needs a piece of data Rust must fetch first (the
+  > current name, the legal parents, the size of the subtree). That is exactly
+  > the "if and when" this sentence anticipated, and the right-click pattern
+  > decided here is what applies to it.
   >
-  > **Les mots-clés, eux, n'ont toujours pas de menu contextuel**, et pour la
-  > raison d'origine restée intacte : la façade sait créer un mot-clé et
-  > l'attacher, pas le renommer ni le supprimer.
-* Reprocess depuis la grille utilisant l'API batch (plutôt que l'API session unique) évite d'exiger que la photo soit ouverte en développement juste pour la retraiter — cohérent avec l'esprit de `Shift+R` (retraiter sans ouvrir).
+  > **Keywords still have no context menu**, and for the original reason,
+  > which is intact: the façade knows how to create a keyword and attach it,
+  > not how to rename or delete one.
+* Reprocess from the grid using the batch API (rather than the single-session API) avoids requiring a photo to be open in develop just to reprocess it — consistent with the spirit of `Shift+R` (reprocess without opening).
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Un seul menu contextuel générique partagé partout** : perdrait la distinction entre actions qui portent sur une photo (grille) et actions qui portent sur l'état d'édition courant (canevas) — les deux listes n'ont presque aucun recouvrement.
-* **Reprocess via `EditSession::reprocess` (comme `R`) au lieu de `Library::reprocess`** : forcerait à ouvrir une session de développement pour chaque photo cliquée, plus lent et plus intrusif que le retraitement par lot déjà conçu pour cet usage.
+* **A single generic context menu shared everywhere**: it would lose the distinction between actions bearing on a photo (the grid) and actions bearing on the current editing state (the canvas) — the two lists barely overlap.
+* **Reprocess through `EditSession::reprocess` (as `R` does) instead of `Library::reprocess`**: it would force a develop session open for every clicked photo, slower and more intrusive than the batch reprocessing already designed for this use.

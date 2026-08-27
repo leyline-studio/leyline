@@ -1,88 +1,85 @@
-# ADR 0016 — Process version 3 : correction géométrique d'objectif (Lensfun)
+# ADR 0016 — Process version 3: geometric lens correction (Lensfun)
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-`settings_json` déclare `lens_correction` depuis le schéma 1
-(`docs/pipeline.md` §3.2), et `docs/pipeline.md` §3.1 place la correction
-d'objectif en tête du pipeline de rendu, avant la balance des blancs. Ni
-`process 1` ni `process 2` ne la rendent : `enabled: true` y produit le même
-résultat que `false` (ADR 0013). `docs/specification.md` liste « Correction
-d'objectif (Lensfun) » dans le périmètre V1 — il fallait la brancher.
+`settings_json` has declared `lens_correction` since schema 1
+(`docs/pipeline.md` §3.2), and `docs/pipeline.md` §3.1 places lens correction
+at the head of the render pipeline, ahead of white balance. Neither
+`process 1` nor `process 2` renders it: `enabled: true` produces the same
+result there as `false` (ADR 0013). `docs/specification.md` lists "Lens
+correction (Lensfun)" within V1's scope — it had to be wired up.
 
-Le crate `leyline-lens` matche déjà les chaînes EXIF caméra/objectif contre
-la base de profils Lensfun embarquée (crate `lensfun`, pur Rust) et expose
-une carte de correspondance arrière par ligne (`Correction::source_row`).
-Restait à l'appliquer aux pixels — ce qui change le rendu, donc exige une
-nouvelle version de process (§3.3).
+The `leyline-lens` crate already matches the EXIF camera and lens strings
+against the embedded Lensfun profile database (the `lensfun` crate, pure
+Rust) and exposes a per-row backward mapping (`Correction::source_row`). What
+remained was applying it to the pixels — which changes the rendering, and
+therefore demands a new process version (§3.3).
 
-## Décision
+## Decision
 
-Le moteur introduit `process: 3`, défini dans son propre module gelé
-(`process3.rs`), identique à `process 2` à une seule différence près : la
-correction d'objectif est rendue au lieu d'être un champ mort.
+The engine introduces `process: 3`, defined in its own frozen module
+(`process3.rs`), identical to `process 2` but for one difference: lens
+correction is rendered instead of being a dead field.
 
-Quand `lens_correction.enabled` est vrai et que l'appelant fournit un
-`LensShot` (fabricant/modèle caméra, fabricant/modèle objectif si connus,
-focale en mm — construit depuis `Metadata` du catalogue par
-`render::lens_shot`), le moteur :
+When `lens_correction.enabled` is true and the caller supplies a `LensShot`
+(camera make/model, lens make/model where known, focal length in mm — built
+from the catalog's `Metadata` by `render::lens_shot`), the engine:
 
-1. cherche un profil via `leyline_lens::find_profile` ;
-2. sans correspondance (objectif inconnu de la base, ou aucun `LensShot`
-   fourni), laisse l'image inchangée — l'EXIF est *best-effort*, la
-   correction n'est jamais devinée ;
-3. avec une correspondance, construit une `leyline_lens::Correction` pour la
-   focale et les dimensions de l'image, puis rééchantillonne chaque pixel de
-   sortie par interpolation bilinéaire à la coordonnée source que
-   `Correction::source_row` indique (remapping arrière, même famille que la
-   rotation de `process2.rs`/`process3.rs`). Les échantillons dont la source
-   tombe hors cadre restent noirs — même convention que la rotation, aucun
-   canal alpha dans le tampon de travail.
+1. looks for a profile through `leyline_lens::find_profile`;
+2. with no match (a lens unknown to the database, or no `LensShot` supplied),
+   leaves the image untouched — EXIF is *best-effort*, and a correction is
+   never guessed;
+3. with a match, builds a `leyline_lens::Correction` for the focal length and
+   the image's dimensions, then resamples every output pixel by bilinear
+   interpolation at the source coordinate `Correction::source_row` gives
+   (backward remapping, the same family as the rotation in
+   `process2.rs`/`process3.rs`). Samples whose source falls outside the frame
+   stay black — the same convention as rotation, there being no alpha channel
+   in the working buffer.
 
-Seule la distorsion géométrique est corrigée en V1. Le vignettage et
-l'aberration chromatique transversale (TCA), que `lensfun::Modifier` sait
-aussi calculer, restent hors périmètre de `process 3` : coupe de scope
-volontaire, pas une limite de Lensfun. Seul le profil `"auto"` (correspondance
-par métadonnées) est géré — `lens_correction.profile` n'a pas d'autre valeur
-exploitée en V1.
+Only geometric distortion is corrected in V1. Vignetting and transverse
+chromatic aberration (TCA), which `lensfun::Modifier` can also compute, stay
+outside `process 3`'s scope: a deliberate scope cut, not a limit of Lensfun.
+Only the `"auto"` profile (matching by metadata) is handled —
+`lens_correction.profile` has no other value used in V1.
 
-`CURRENT_PROCESS` passe à 3 : les nouvelles révisions écrivent `process: 3`.
-Les révisions existantes déclarant `process: 1` ou `process: 2` continuent
-d'être rendues par leurs modules respectifs, inchangés pour toujours.
+`CURRENT_PROCESS` moves to 3: new revisions write `process: 3`. Existing
+revisions declaring `process: 1` or `process: 2` go on being rendered by
+their respective modules, unchanged forever.
 
-## Conséquences
+## Consequences
 
-* `render()` gagne un paramètre `shot: Option<&LensShot>`, ignoré par
-  `process1`/`process2`. Les deux points d'appel réels (`preview::preview`,
-  `export::export_version`) le construisent depuis `catalog.metadata(asset)`
-  via `render::lens_shot`. Les appels de test/benchmark, sans EXIF
-  synthétique disponible, passent `None`.
-* `process3.rs` duplique les opérateurs inchangés de `process 2` plutôt que
-  de les partager (même choix qu'ADR 0013) : le gel de chaque process
-  version reste garanti même si un futur `process 4` change un opérateur
-  différent.
-* Deux conventions de coordonnées bilinéaires coexistent dans `process3.rs` :
-  celle de `rotate`/`crop` (centres en `n + 0.5`, choix propre à Leyline) et
-  celle de `lens_bilinear` (centres en coordonnées entières, convention de
-  Lensfun) — elles ne sont pas interchangeables, `lens_bilinear` est un
-  échantillonneur dédié plutôt qu'une réutilisation incorrecte de `bilinear`.
-* Un test borne le rendu à celui de `process 2` quand `lens_correction` est
-  désactivé (bit-exact, la nouvelle étape est un no-op), et un test
-  d'intégration avec un profil réel de la base embarquée (Canon EOS 5D
-  Mark III + EF 16-35mm f/2.8L II USM, déjà utilisé dans les tests de
-  `leyline-lens`) vérifie que la correction déplace effectivement des
-  pixels.
+* `render()` gains a `shot: Option<&LensShot>` parameter, ignored by
+  `process1`/`process2`. The two real call sites (`preview::preview`,
+  `export::export_version`) build it from `catalog.metadata(asset)` through
+  `render::lens_shot`. Test and benchmark calls, with no synthetic EXIF
+  available, pass `None`.
+* `process3.rs` duplicates the unchanged operators of `process 2` rather than
+  sharing them (the same choice as ADR 0013): the freezing of each process
+  version stays guaranteed even if a future `process 4` changes a different
+  operator.
+* Two bilinear coordinate conventions coexist in `process3.rs`: that of
+  `rotate`/`crop` (centres at `n + 0.5`, a choice of Leyline's own) and that
+  of `lens_bilinear` (centres at integer coordinates, Lensfun's convention) —
+  they are not interchangeable, and `lens_bilinear` is a dedicated sampler
+  rather than an incorrect reuse of `bilinear`.
+* One test bounds the rendering to `process 2`'s when `lens_correction` is
+  off (bit-exact, the new step being a no-op), and an integration test with a
+  real profile from the embedded database (Canon EOS 5D Mark III + EF 16-35mm
+  f/2.8L II USM, already used in `leyline-lens`'s tests) verifies that the
+  correction actually moves pixels.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Corriger la distorsion sans nouvelle process version, en la traitant
-  comme un pré-traitement hors contrat** : contredit §3.3 — toute étape qui
-  change les pixels produits par une révision existante doit être une
-  nouvelle version, sans exception pour son rang dans le pipeline.
-* **Vignettage et TCA dans le même tour** : Lensfun les expose
-  (`apply_color_modification_*`, `apply_subpixel_distortion`), mais le TCA
-  nécessite un rééchantillonnage par canal (3 cartes de coordonnées au lieu
-  d'une) et le vignettage un choix d'espace de calcul (linéaire ou gamma)
-  non trivial à valider sans images de référence Lensfun sous la main —
-  reporté à une prochaine process version plutôt que d'être approximé.
+* **Correcting distortion without a new process version, treating it as
+  pre-processing outside the contract**: contradicts §3.3 — any step that
+  changes the pixels an existing revision produces must be a new version,
+  with no exception for its rank in the pipeline.
+* **Vignetting and TCA in the same pass**: Lensfun exposes them
+  (`apply_color_modification_*`, `apply_subpixel_distortion`), but TCA needs
+  per-channel resampling (three coordinate maps instead of one) and
+  vignetting needs a choice of computation space (linear or gamma) that is
+  not trivial to validate without Lensfun reference images at hand —
+  deferred to a later process version rather than approximated.
