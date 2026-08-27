@@ -1,139 +1,139 @@
-# ADR 0062 — Interpoler les illuminants de calibration d'un profil DCP
+# ADR 0062 — Interpolating a DCP profile's calibration illuminants
 
-**Statut :** Accepté — 2026-08
-**Suite :** `camera_profile::v2`, que cet ADR crée, n'est plus la version
-courante : [ADR 0063](0063-dcp-tables.md) applique les tables du profil
-(`HueSatMap`, `LookTable`) en `v3`. L'interpolation en mireds décidée ici est
-inchangée, et sert d'entrée à ces tables.
+**Status:** Accepted — 2026-08
+**Followed by:** `camera_profile::v2`, which this ADR creates, is no longer the
+current version: [ADR 0063](0063-dcp-tables.md) applies the profile's tables
+(`HueSatMap`, `LookTable`) in `v3`. The mired interpolation decided here is
+unchanged, and feeds those tables.
 
-**Amende :** [ADR 0035](0035-camera-profile-dcp.md) (la simplification de §Décision), [ADR 0037](0037-dcp-parsing-dependency.md)
+**Amends:** [ADR 0035](0035-camera-profile-dcp.md) (the simplification in
+§Decision), [ADR 0037](0037-dcp-parsing-dependency.md)
 
-## Contexte
+## Context
 
-Un profil DCP est calibré sous **deux illuminants** : typiquement `Standard
-Light A` (tungstène, 2850 K) et `D65` (lumière du jour, 6500 K). Il porte donc
-deux jeux de matrices, et la spec DNG dit d'**interpoler entre eux selon la
-température de la scène** — une photo au tungstène doit être développée avec la
-calibration tungstène.
+A DCP profile is calibrated under **two illuminants**: typically `Standard
+Light A` (tungsten, 2850 K) and `D65` (daylight, 6500 K). It therefore carries
+two sets of matrices, and the DNG spec says to **interpolate between them
+according to the scene's temperature** — a photo under tungsten must be
+developed with the tungsten calibration.
 
-Leyline **moyenne les deux matrices**, quelle que soit la lumière. C'est une
-simplification que le module `dcp.rs` documente depuis ADR 0035, et qu'ADR 0035
-avait assumée faute de savoir ce qu'elle coûtait.
+Leyline **averages the two matrices**, whatever the light. That is a
+simplification the `dcp.rs` module has documented since ADR 0035, and which ADR
+0035 accepted for want of knowing what it cost.
 
-Elle a été mesurée le 2026-08-02, sur les deux profils Canon réels dont le
-projet dispose. L'écart entre la moyenne et la calibration correcte, en sortie
-sRGB linéaire sur `[0, 1]` :
+It was measured on 2026-08-02, on the two real Canon profiles the project has.
+The difference between the average and the correct calibration, in linear sRGB
+output over `[0, 1]`:
 
-| Échantillon | Canon 60D | Canon 5D Mark IV |
+| Sample | Canon 60D | Canon 5D Mark IV |
 |---|---|---|
-| gris neutre | 0,0000 | 0,0001 |
-| peau claire | 0,016 | 0,012 |
-| ciel | 0,032 | 0,019 |
-| rouge saturé | **0,044** | 0,028 |
+| neutral grey | 0.0000 | 0.0001 |
+| light skin | 0.016 | 0.012 |
+| sky | 0.032 | 0.019 |
+| saturated red | **0.044** | 0.028 |
 
-**L'axe neutre est intact** — c'est ce qui a permis à l'erreur de passer
-inaperçue — mais 0,044 vaut 11 niveaux sur 255. C'est visible sur un aplat, et
-c'est un biais systématique, pas du bruit.
+**The neutral axis is intact** — which is what let the error go unnoticed — but
+0.044 is 11 levels out of 255. It shows on a flat area, and it is a systematic
+bias, not noise.
 
-Les deux profils déclarent bien les deux illuminants, donc le cas « moyenne »
-est le cas courant, pas un cas limite.
+Both profiles do declare both illuminants, so the "average" case is the common
+case, not an edge case.
 
-## Décision
+## Decision
 
-**Un profil garde ses deux jeux de matrices, et la matrice est résolue au
-rendu, pas au parsing.**
+**A profile keeps both sets of matrices, and the matrix is resolved at render
+time, not at parse time.**
 
-### 1. La formule
+### 1. The formula
 
-Celle de la spec DNG, vérifiée contre le code de référence du DNG SDK tel que
-le reprend RawTherapee (`rtengine/dcp.cc`) :
+The DNG spec's, verified against the DNG SDK's reference code as RawTherapee
+takes it up (`rtengine/dcp.cc`):
 
 ```
-mix = (1/T − 1/T₂) / (1/T₁ − 1/T₂),  borné à [0, 1]
+mix = (1/T − 1/T₂) / (1/T₁ − 1/T₂),  clamped to [0, 1]
 M   = mix · M₁ + (1 − mix) · M₂
 ```
 
-L'interpolation se fait sur **l'inverse de la température** — en mireds, la
-grandeur où l'écart de couleur est perceptuellement linéaire. Interpoler sur
-les kelvins donnerait un résultat faux au milieu de l'intervalle, et c'est
-l'erreur qu'on commet naturellement.
+The interpolation is done on **the inverse of the temperature** — in mireds,
+the quantity in which a colour difference is perceptually linear. Interpolating
+over kelvins would give a wrong result in the middle of the interval, and that
+is the error one naturally makes.
 
-Les températures des illuminants viennent de la table du DNG SDK : illuminant
-17 (`Standard Light A`) → **2850 K**, 21 (`D65`) → **6500 K**. Ce sont les
-valeurs du code de référence, pas les valeurs physiques exactes (2856 K pour
-l'illuminant A) : c'est celles-là qu'il faut, puisque le but est de produire le
-même mélange que la référence.
+The illuminants' temperatures come from the DNG SDK's table: illuminant 17
+(`Standard Light A`) → **2850 K**, 21 (`D65`) → **6500 K**. Those are the
+reference code's values, not the exact physical ones (2856 K for illuminant A):
+they are the ones needed, since the aim is to produce the same blend as the
+reference.
 
-### 2. D'où vient la température de la scène
+### 2. Where the scene's temperature comes from
 
-C'est le point où Leyline a un raccourci que les autres implémentations n'ont
-pas, et il faut le dire : **notre `settings.white_balance` porte déjà une
-température en kelvins**. Quand la révision en nomme une, c'est elle, sans
-détour et sans approximation.
+That is where Leyline has a shortcut other implementations do not, and it must
+be said: **our `settings.white_balance` already carries a temperature in
+kelvins**. When the revision names one, that is it, with no detour and no
+approximation.
 
-Reste le cas **« comme à la prise de vue »** (`white_balance: None`), qui est
-l'état de toute photo fraîchement importée — donc le cas majoritaire, pas un
-cas limite. Là, la température se déduit des multiplicateurs du boîtier que
-`SourceColor::Camera { multipliers }` transporte déjà, par le chemin que la
-spec décrit : neutre caméra → XYZ → coordonnées *xy* → température, cette
-dernière étape par la table isotherme de Robertson (31 entrées, colorimétrie
-publiée, reprise telle quelle du DNG SDK).
+That leaves the **"as shot"** case (`white_balance: None`), which is the state
+of every freshly imported photo — hence the majority case, not an edge case.
+There the temperature is derived from the body's multipliers that
+`SourceColor::Camera { multipliers }` already carries, along the path the spec
+describes: camera neutral → XYZ → *xy* coordinates → temperature, the last step
+by Robertson's isotherm table (31 entries, published colorimetry, taken as it
+is from the DNG SDK).
 
-La conversion neutre → *xy* est itérative : elle a besoin de la matrice pour
-trouver le point blanc, et du point blanc pour choisir la matrice. Quelques
-passes suffisent, et le DNG SDK en plafonne le nombre — on fait de même.
+The neutral → *xy* conversion is iterative: it needs the matrix to find the
+white point, and the white point to choose the matrix. A few passes suffice,
+and the DNG SDK caps their number — we do the same.
 
-**Quand rien n'est disponible** — ni température nommée, ni multiplicateurs —
-on retombe sur D65 plutôt que sur la moyenne, et on le documente. Une
-calibration à un bout de l'intervalle est un choix défendable ; une moyenne
-n'en est pas un, elle ne correspond à aucune lumière réelle.
+**When nothing is available** — neither a named temperature nor multipliers —
+we fall back on D65 rather than on the average, and we document it. A
+calibration at one end of the interval is a defensible choice; an average is
+not one, as it corresponds to no real light.
 
 ### 3. `camera_profile::v2`
 
-Les pixels changent, donc c'est une nouvelle version d'étage. Les révisions
-existantes citent `v1` et continuent de rendre exactement comme aujourd'hui
-(`docs/pipeline.md` §5.1), moyenne comprise.
+The pixels change, so it is a new stage version. Existing revisions cite `v1`
+and go on rendering exactly as today (`docs/pipeline.md` §5.1), averaging
+included.
 
-`DcpProfile` cesse d'exposer une matrice unique résolue à la lecture ; il porte
-ce que le fichier contient, et une méthode qui résout pour une température
-donnée. C'est un changement de forme, pas seulement de valeur : la matrice
-n'est plus une propriété du profil, elle est une propriété du couple
-(profil, lumière).
+`DcpProfile` stops exposing a single matrix resolved at read time; it carries
+what the file contains, plus a method that resolves for a given temperature.
+That is a change of shape, not only of value: the matrix is no longer a
+property of the profile, it is a property of the (profile, light) pair.
 
-### 4. Le piège du cache d'étages
+### 4. The stage cache's trap
 
-`camera_profile` dépendait de la seule clé `camera_profile`. Il dépend
-désormais **aussi de `white_balance`**, et son `Stage::reads` doit le dire
-([ADR 0041](0041-interactive-preview-rendering.md) §3). Sans cela, changer la
-température réutiliserait un point de contrôle calculé sous l'ancienne, et
-mettrait des pixels faux à l'écran — silencieusement.
+`camera_profile` depended on the `camera_profile` key alone. It now depends
+**also on `white_balance`**, and its `Stage::reads` must say so
+([ADR 0041](0041-interactive-preview-rendering.md) §3). Without that, changing
+the temperature would reuse a checkpoint computed under the old one, and would
+put wrong pixels on screen — silently.
 
-C'est exactement le genre d'omission que `reads` rend possible, et la raison
-pour laquelle sa documentation dit qu'une clé manquante est un bug de
-correction et non de performance.
+That is exactly the kind of omission `reads` makes possible, and the reason its
+documentation says a missing key is a correctness bug and not a performance
+one.
 
-## Conséquences
+## Consequences
 
-* Une version d'étage de plus, donc une entrée de plus dans les rendus de
-  référence, les précédentes inchangées.
-* Le rendu d'une photo au tungstène avec un profil DCP change — en mieux, et
-  seulement après retraitement vers `camera_profile::v2`.
-* La table de Robertson entre dans `leyline-color`. Trente-et-une lignes de
-  données publiées, sans dépendance nouvelle.
-* La mention « expérimental » d'ADR 0035 ne bouge pas : elle porte sur la
-  concordance avec le *rendu* d'Adobe, que rien ici ne vérifie.
+* One more stage version, hence one more entry in the reference renders, with
+  the previous ones unchanged.
+* The rendering of a tungsten photo with a DCP profile changes — for the
+  better, and only after reprocessing to `camera_profile::v2`.
+* Robertson's table enters `leyline-color`. Thirty-one lines of published data,
+  with no new dependency.
+* ADR 0035's "experimental" caveat does not move: it bears on agreement with
+  Adobe's *rendering*, which nothing here verifies.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Garder la moyenne.** Mesurée, elle coûte jusqu'à 11 niveaux sur 255 sur des
-  couleurs saturées, et ne correspond à aucune lumière physique.
-* **Toujours prendre l'illuminant le plus proche** sans interpoler : évite la
-  table de Robertson, mais fait sauter le rendu d'un profil à l'autre au
-  franchissement d'un seuil, alors que le curseur de température est continu.
-* **Résoudre au parsing avec la température de la révision**, en gardant une
-  matrice unique : semble plus simple, mais oblige à re-parser le fichier à
-  chaque mouvement du curseur de balance des blancs, et fait dépendre un objet
-  « profil » d'une photo. La forme suivrait mal le sens.
-* **Utiliser la température exacte de l'illuminant A (2856 K)** plutôt que les
-  2850 K du DNG SDK : plus juste physiquement, et faux pour ce qu'on cherche —
-  reproduire le mélange de la référence.
+* **Keeping the average.** Measured, it costs up to 11 levels out of 255 on
+  saturated colours, and corresponds to no physical light.
+* **Always taking the nearest illuminant** without interpolating: it avoids
+  Robertson's table, but it makes the rendering jump from one profile to the
+  other at a threshold crossing, when the temperature slider is continuous.
+* **Resolving at parse time with the revision's temperature**, keeping a single
+  matrix: it looks simpler, but it forces the file to be re-parsed on every
+  move of the white-balance slider, and makes a "profile" object depend on a
+  photo. The shape would sit poorly with the meaning.
+* **Using illuminant A's exact temperature (2856 K)** rather than the DNG SDK's
+  2850 K: more physically correct, and wrong for what we are after —
+  reproducing the reference's blend.

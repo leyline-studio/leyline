@@ -1,139 +1,132 @@
-# ADR 0064 — Filtrer la grille par métadonnée de prise de vue
+# ADR 0064 — Filtering the grid by shot metadata
 
-**Statut :** Accepté — 2026-08
+**Status:** Accepted — 2026-08
 
-## Contexte
+## Context
 
-La grille se filtre aujourd'hui par dossier, collection, note, libellé, statut
-de sélection, mots-clés, texte et date. **Rien sur les conditions de prise de
-vue** : ni boîtier, ni objectif, ni sensibilité, ni ouverture, ni focale.
+The grid filters today by folder, collection, rating, label, pick state,
+keywords, text and date. **Nothing on the shooting conditions**: not the body,
+not the lens, not the sensitivity, not the aperture, not the focal length.
 
-C'est un manque d'autant plus net que **la donnée est déjà là, et déjà
-indexée**. La table `metadata` porte `camera_id`, `lens_id`, `iso`, et trois
-colonnes générées `aperture_f`, `focal_length_mm`, `shutter_speed_s` ; six
-index les couvrent (`docs/catalog.md` §32). Le schéma a été conçu pour cet
-usage et rien ne l'a jamais exposé.
+It is a gap all the plainer because **the data is already there, and already
+indexed**. The `metadata` table carries `camera_id`, `lens_id`, `iso`, and
+three generated columns `aperture_f`, `focal_length_mm`, `shutter_speed_s`; six
+indexes cover them (`docs/catalog.md` §32). The schema was designed for that
+use and nothing ever exposed it.
 
-L'observation qui l'a fait remonter vient de RawTherapee, dont le panneau de
-filtres liste boîtiers et objectifs **construits depuis le contenu réel** du
-dossier ouvert. C'est un terrain où un catalogue devrait battre un navigateur
-de fichiers : RawTherapee reconstruit ces listes en parcourant un dossier à
-chaque ouverture, là où une requête indexée les donne sur la bibliothèque
-entière, à n'importe quelle taille.
+The observation that brought it up comes from RawTherapee, whose filter panel
+lists bodies and lenses **built from the actual content** of the open folder.
+It is ground on which a catalog ought to beat a file browser: RawTherapee
+rebuilds those lists by walking a folder on every opening, where an indexed
+query gives them over the whole library, at any size.
 
-Un point de vigilance : **un filtre par boîtier existe déjà**, dans les
-collections dynamiques (`SmartRules::camera`), avec sa propre sémantique de
-correspondance — le modèle seul, ou `fabricant modèle`. Ajouter un second
-filtre boîtier ailleurs, avec d'autres règles, ferait diverger deux réponses à
-la même question.
+One point of caution: **a body filter already exists**, in smart collections
+(`SmartRules::camera`), with its own matching semantics — the model alone, or
+`make model`. Adding a second body filter elsewhere, with other rules, would
+make two answers to the same question diverge.
 
-## Décision
+## Decision
 
-**Six filtres de prise de vue s'ajoutent à `GridQuery`, sans toucher au
-schéma.**
+**Six shot filters are added to `GridQuery`, without touching the schema.**
 
-### 1. Ce qui est filtrable, et comment
+### 1. What is filterable, and how
 
-| Filtre | Forme | Colonne |
+| Filter | Shape | Column |
 |---|---|---|
-| Boîtier | valeur exacte, choisie dans une liste | `cameras` via `camera_id` |
-| Objectif | idem | `lenses` via `lens_id` |
-| Sensibilité | intervalle `[min, max]` | `iso` |
-| Ouverture | intervalle | `aperture_f` |
-| Focale | intervalle | `focal_length_mm` |
-| Vitesse | intervalle | `shutter_speed_s` |
+| Body | an exact value, chosen from a list | `cameras` through `camera_id` |
+| Lens | likewise | `lenses` through `lens_id` |
+| Sensitivity | a `[min, max]` interval | `iso` |
+| Aperture | an interval | `aperture_f` |
+| Focal length | an interval | `focal_length_mm` |
+| Shutter speed | an interval | `shutter_speed_s` |
 
-Les deux premiers sont **discrets** : on choisit un boîtier dans une liste, on
-n'en tape pas le nom. Les quatre autres sont **continus** et se donnent en
-intervalle, les deux bornes étant facultatives — « ISO ≥ 3200 » est une demande
-plus fréquente que « ISO entre 3200 et 6400 ».
+The first two are **discrete**: one chooses a body from a list, one does not
+type its name. The other four are **continuous** and are given as an interval,
+both bounds optional — "ISO ≥ 3200" is a more frequent request than "ISO
+between 3200 and 6400".
 
-Chaque filtre est indépendant, et ils se combinent par **et**. Une photo sans
-métadonnée pour un critère filtré n'apparaît pas : elle ne satisfait pas le
-critère, et la faire apparaître « par défaut » rendrait tout filtre menteur.
+Each filter is independent, and they combine with **and**. A photo with no
+metadata for a filtered criterion does not appear: it does not satisfy the
+criterion, and making it appear "by default" would make every filter lie.
 
-### 2. Le filtre boîtier réutilise la sémantique existante
+### 2. The body filter reuses the existing semantics
 
-La correspondance est celle de `SmartRules::camera` — modèle seul ou
-`fabricant modèle` — et le code de construction de la clause est **partagé**,
-pas recopié. Deux implémentations de la même question finiraient par répondre
-différemment, et c'est le genre d'écart qu'on ne découvre que sur un cas
-bizarre, longtemps après.
+The matching is `SmartRules::camera`'s — the model alone or `make model` — and
+the clause-building code is **shared**, not copied. Two implementations of the
+same question would end up answering differently, and that is the kind of
+divergence one discovers only on a strange case, long afterwards.
 
-### 3. Les listes de valeurs viennent de la bibliothèque entière
+### 3. The value lists come from the whole library
 
-`Catalog::shot_facets()` rend les boîtiers et objectifs présents, ainsi que
-les bornes observées pour les quatre grandeurs continues — un `SELECT
-DISTINCT` et quelques `MIN`/`MAX` sur des colonnes indexées.
+`Catalog::shot_facets()` returns the bodies and lenses present, along with the
+observed bounds for the four continuous quantities — a `SELECT DISTINCT` and a
+few `MIN`/`MAX` over indexed columns.
 
-**Sur la bibliothèque entière, pas sur la sélection filtrée en cours.** Un
-affinement progressif — où choisir « Canon 60D » retirerait de la liste les
-objectifs jamais montés dessus — est plus malin et coûte plus cher : il faut
-recalculer chaque facette à chaque changement, en excluant le filtre dont on
-calcule la liste. Le gain est réel mais mince à cette échelle, et le
-comportement est plus dur à prévoir pour qui l'utilise. À reprendre si l'usage
-le réclame ; ce serait une évolution de cette décision, pas une contradiction.
+**Over the whole library, not over the currently filtered selection.**
+Progressive refinement — where choosing "Canon 60D" would remove from the list
+the lenses never mounted on it — is cleverer and costs more: every facet must
+be recomputed on every change, excluding the filter whose list is being
+computed. The gain is real but slight at this scale, and the behaviour is
+harder to predict for whoever uses it. To be taken up if usage calls for it;
+that would be an evolution of this decision, not a contradiction of it.
 
-### 4. Ni migration, ni index
+### 4. No migration, no index
 
-Rien à ajouter au schéma. C'est ce qui rend cette tranche petite, et c'est
-aussi ce qui explique qu'elle ait attendu si longtemps : rien ne manquait, il
-n'y avait donc rien qui la réclamât.
+Nothing to add to the schema. That is what makes this slice small, and it is
+also what explains why it waited so long: nothing was missing, so nothing
+called for it.
 
-### 5. Les trois clients
+### 5. The three clients
 
-La CLI gagne des options sur `ls` (`--camera`, `--lens`, `--iso`,
-`--aperture`, `--focal`, `--shutter`, les intervalles s'écrivant `min-max`,
-`min-` ou `-max`), le SDK expose les champs de `GridQuery`, et Studio y met un
-panneau repliable sous la barre de filtres — pas un onglet latéral : ces
-filtres se combinent avec la note et le libellé déjà présents, et les séparer
-en deux endroits ferait chercher.
+The CLI gains options on `ls` (`--camera`, `--lens`, `--iso`, `--aperture`,
+`--focal`, `--shutter`, with intervals written `min-max`, `min-` or `-max`),
+the SDK exposes `GridQuery`'s fields, and Studio puts a collapsible panel under
+the filter bar for them — not a side tab: those filters combine with the rating
+and the label already present, and separating them into two places would make
+people hunt.
 
-Trois précisions venues de l'implémentation :
+Three details that came out of the implementation:
 
-* La forme écrite d'un intervalle est **lue par le moteur**
-  (`ShotRange::parse`), pas par chaque client : la CLI et Studio prennent la
-  même chaîne, donc `1/200-` ne peut pas vouloir dire deux choses. Les bornes
-  acceptent les fractions, parce qu'une vitesse s'écrit `1/200` partout
-  ailleurs. Une valeur seule vaut pour les deux bornes.
-* Un intervalle inversé (`3200-400`) est **refusé**, jamais répondu par une
-  grille vide : zéro photo se lit « la bibliothèque n'en contient pas », ce
-  qui serait faux.
-* La CLI gagne aussi `leyline facets <library>`, qui imprime ce que
-  `shot_facets` rend. Sans elle, les listes de §3 n'existeraient que dans
-  Studio et un utilisateur de la CLI devrait deviner l'orthographe exacte
-  d'un boîtier pour s'en servir — l'inverse de ce que §3 promet.
+* An interval's written form is **read by the engine** (`ShotRange::parse`),
+  not by each client: the CLI and Studio take the same string, so `1/200-`
+  cannot mean two things. The bounds accept fractions, because a shutter speed
+  is written `1/200` everywhere else. A lone value stands for both bounds.
+* An inverted interval (`3200-400`) is **refused**, never answered with an
+  empty grid: zero photos reads as "the library contains none", which would be
+  false.
+* The CLI also gains `leyline facets <library>`, which prints what
+  `shot_facets` returns. Without it, §3's lists would exist only in Studio and
+  a CLI user would have to guess a body's exact spelling in order to use it —
+  the opposite of what §3 promises.
 
-Dans Studio, boîtiers et objectifs sont des **puces**, comme les libellés et
-les drapeaux de la même barre, plutôt qu'une liste déroulante : le nombre de
-boîtiers d'une bibliothèque se compte sur les doigts, et une puce montre à la
-fois ce qui existe et ce qui est actif. Les quatre grandeurs continues sont
-des champs de saisie : les deux bornes étant facultatives, un curseur à deux
-poignées devrait inventer une façon de dire « pas de borne du tout ». La puce
-qui déplie le panneau porte le nombre de critères actifs, pour qu'une grille
-filtrée ne paraisse jamais entière quand le panneau est replié.
+In Studio, bodies and lenses are **chips**, like the labels and flags of the
+same bar, rather than a dropdown: a library's bodies can be counted on one
+hand, and a chip shows at once what exists and what is active. The four
+continuous quantities are input fields: both bounds being optional, a
+two-handled slider would have to invent a way of saying "no bound at all". The
+chip that unfolds the panel carries the number of active criteria, so that a
+filtered grid never looks whole when the panel is collapsed.
 
-## Conséquences
+## Consequences
 
-* `GridQuery` gagne six champs. Sa construction reste un chaînage de `AND`
-  optionnels, et une requête sans filtre produit exactement le SQL
-  d'aujourd'hui.
-* Les collections dynamiques ne changent pas, mais partagent désormais leur
-  clause boîtier avec la grille.
-* Les listes de facettes se recalculent quand la bibliothèque change
-  (`AssetsAdded`, `AssetsRemoved`), pas à chaque frappe.
-* `docs/catalog.md` gagne la description de `shot_facets`.
+* `GridQuery` gains six fields. Its construction stays a chain of optional
+  `AND`s, and a query with no filter produces exactly today's SQL.
+* Smart collections do not change, but now share their body clause with the
+  grid.
+* The facet lists are recomputed when the library changes (`AssetsAdded`,
+  `AssetsRemoved`), not on every keystroke.
+* `docs/catalog.md` gains the description of `shot_facets`.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Étendre la recherche plein texte** au lieu d'ajouter des filtres : taper
-  « 60D » trouverait des photos, mais « ISO entre 800 et 3200 » n'est pas une
-  question qu'un index plein texte sait poser, et mélanger les deux rendrait
-  imprévisible ce que la barre de recherche fait.
-* **Un filtre unique par expression** (`iso>800 AND camera="60D"`) : puissant,
-  et il faut l'apprendre. Les listes construites depuis le contenu réel n'ont
-  rien à apprendre — on voit ce qu'on a.
-* **Des facettes progressives** dès cette version : voir §3.
-* **Filtrer côté client, sur les lignes chargées** : la grille est virtuelle,
-  seule une fenêtre est en mémoire, et un filtre qui ne verrait que cette
-  fenêtre serait faux dès la première photo hors écran.
+* **Extending full-text search** instead of adding filters: typing "60D" would
+  find photos, but "ISO between 800 and 3200" is not a question a full-text
+  index knows how to ask, and mixing the two would make what the search bar
+  does unpredictable.
+* **A single expression filter** (`iso>800 AND camera="60D"`): powerful, and it
+  has to be learned. Lists built from the actual content have nothing to learn
+  — one sees what one has.
+* **Progressive facets** from this version on: see §3.
+* **Filtering client-side, over the loaded rows**: the grid is virtual, only a
+  window is in memory, and a filter that saw only that window would be wrong
+  from the first photo off screen.
