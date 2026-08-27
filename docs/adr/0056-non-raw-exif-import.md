@@ -1,129 +1,124 @@
-# ADR 0056 — Métadonnées EXIF des fichiers non-RAW à l'import
+# ADR 0056 — EXIF metadata of non-RAW files at import
 
-**Statut :** Accepté — 2026-08
+**Status:** Accepted — 2026-08
 
-## Contexte
+## Context
 
-À l'import, Leyline ne remplit la table `metadata` que lorsque LibRaw a su
-lire le fichier (`leyline-engine/src/import.rs`, `exif_metadata(&raw)`). Un
-JPEG, un TIFF ou un PNG importés — ce que fait tout le monde en arrivant avec
-une bibliothèque existante, et ce que produit d'ailleurs l'export de Leyline
-lui-même — n'ont donc **aucune métadonnée du tout** dans le catalogue :
+At import, Leyline fills the `metadata` table only when LibRaw has been able to
+read the file (`leyline-engine/src/import.rs`, `exif_metadata(&raw)`). A JPEG,
+a TIFF or a PNG imported — which is what everyone does when arriving with an
+existing library, and what Leyline's own export produces besides — therefore
+have **no metadata at all** in the catalog:
 
-* le panneau de détails affiche `—` pour le boîtier, l'objectif et
-  l'exposition ;
-* la bande de prise de vue de develop ([ADR 0054](0054-first-run-and-basic-mode.md) §2)
-  ne s'affiche pas ;
-* **la date de capture est vide**, donc le tri par défaut (par date de prise
-  de vue) place ces photos ensemble, en fin de liste, quelle que soit la date
-  réelle ;
-* la recherche plein texte ne les trouve ni par boîtier ni par objectif.
+* the details panel shows `—` for the body, the lens and the exposure;
+* develop's shot strip ([ADR 0054](0054-first-run-and-basic-mode.md) §2) does
+  not appear;
+* **the capture date is empty**, so the default sort (by capture date) places
+  those photos together, at the end of the list, whatever the real date;
+* full-text search finds them neither by body nor by lens.
 
-Ce n'est pas une position tenable : le fichier contient l'information, et
-Leyline ne la lit pas. Un dérawtiseur peut refuser de *développer* un JPEG ;
-il ne peut pas prétendre ne pas savoir quand il a été pris.
+That is not a tenable position: the file contains the information, and Leyline
+does not read it. A RAW developer may refuse to *develop* a JPEG; it cannot
+claim not to know when it was taken.
 
-## Décision
+## Decision
 
-### 1. Un lecteur EXIF pour les fichiers que LibRaw ne lit pas
+### 1. An EXIF reader for the files LibRaw does not read
 
-L'import lit les EXIF des fichiers non-RAW et remplit la même table
-`metadata`, avec les mêmes champs, que le chemin RAW. **La source dépend du
-fichier, pas la destination** : rien ne change dans le catalogue, dans les
-requêtes, ni dans ce que l'interface affiche.
+Import reads the EXIF of non-RAW files and fills the same `metadata` table,
+with the same fields, as the RAW path. **The source depends on the file, not
+the destination**: nothing changes in the catalog, in the queries, nor in what
+the interface displays.
 
-La règle de préséance est sans ambiguïté : **si LibRaw a lu le fichier, c'est
-LibRaw qui fait foi**, et le lecteur EXIF ne tourne pas. C'est l'identification
-du décodeur qui rend la photo, elle doit rester la même que celle affichée.
-Le lecteur EXIF n'intervient donc que là où il n'y a rien aujourd'hui.
+The precedence rule is unambiguous: **if LibRaw read the file, LibRaw is
+authoritative**, and the EXIF reader does not run. It is the identification of
+the decoder that renders the photo, and it must stay the one displayed. The
+EXIF reader therefore intervenes only where there is nothing today.
 
-### 2. `kamadak-exif`, dans le moteur, à côté du lecteur XMP
+### 2. `kamadak-exif`, in the engine, beside the XMP reader
 
-La dépendance est `kamadak-exif` : Rust pur, sans `unsafe`, lecture seule,
-sous licence compatible avec la GPL-3.0 du projet, et couvrant les conteneurs
-qui nous concernent (JPEG, TIFF, PNG, WebP, HEIF).
+The dependency is `kamadak-exif`: pure Rust, without `unsafe`, read-only, under
+a licence compatible with the project's GPL-3.0, and covering the containers
+that concern us (JPEG, TIFF, PNG, WebP, HEIF).
 
-Elle est consommée depuis un module `leyline-engine/src/exif.rs`, jumeau de
-`xmp.rs` : même forme, même statut. Ni nouveau crate — il n'y a pas de
-responsabilité nouvelle, seulement une seconde source pour une donnée déjà
-modélisée — ni ajout à `leyline-raw`, dont le rôle est LibRaw et rien d'autre.
+It is consumed from a `leyline-engine/src/exif.rs` module, twin to `xmp.rs`:
+the same shape, the same status. Neither a new crate — there is no new
+responsibility, only a second source for data already modelled — nor an
+addition to `leyline-raw`, whose role is LibRaw and nothing else.
 
-### 3. Ce qui est lu
+### 3. What is read
 
-Les champs que `Metadata` porte déjà et rien de plus : boîtier (marque,
-modèle), objectif, sensibilité, vitesse, ouverture, focale, correction
-d'exposition, flash, mode de balance des blancs, espace de couleur,
-orientation, position GPS, auteur, copyright — plus la **date de capture**,
-qui n'est pas dans `Metadata` mais dans l'asset lui-même, et qui est la
-donnée la plus visible des cinq premières lignes de ce document.
+The fields `Metadata` already carries and no more: body (make, model), lens,
+sensitivity, shutter speed, aperture, focal length, exposure compensation,
+flash, white balance mode, colour space, orientation, GPS position, artist,
+copyright — plus the **capture date**, which is not in `Metadata` but in the
+asset itself, and which is the most visible datum of this document's first five
+lines.
 
-Un champ absent du fichier reste absent du catalogue. **Aucune valeur n'est
-inventée, aucune valeur par défaut n'est écrite.**
+A field absent from the file stays absent from the catalog. **No value is
+invented, and no default value is written.**
 
-### 4. L'heure, et la seule chose qu'on en sait
+### 4. The time, and the only thing we know about it
 
-`DateTimeOriginal` est une heure locale sans fuseau. Quand
-`OffsetTimeOriginal` (EXIF 2.31) est présent, il est appliqué : l'instant
-stocké est le vrai instant UTC, et le décalage est conservé dans
-`capture_offset_minutes`, colonne qui existe pour exactement cela. Quand il est
-absent, l'heure est prise telle quelle et le décalage reste inconnu — la même
-convention que le chemin RAW, qui fait déjà ce choix. Une heure locale
-enregistrée comme telle et signalée comme inconnue est honnête ; une heure
-locale décalée d'un fuseau deviné ne l'est pas.
+`DateTimeOriginal` is a local time with no zone. When `OffsetTimeOriginal`
+(EXIF 2.31) is present, it is applied: the stored instant is the true UTC
+instant, and the offset is kept in `capture_offset_minutes`, a column that
+exists for exactly that. When it is absent, the time is taken as it is and the
+offset stays unknown — the same convention as the RAW path, which already makes
+that choice. A local time recorded as such and flagged as unknown is honest; a
+local time shifted by a guessed zone is not.
 
-### 5. Meilleur effort, jamais bloquant
+### 5. Best effort, never blocking
 
-Un EXIF absent, tronqué ou aberrant **n'échoue pas l'import** : la photo entre
-au catalogue sans métadonnées, exactement comme aujourd'hui. C'est la règle que
-suivent déjà la vignette et le sidecar XMP au même endroit
-([ADR 0047](0047-xmp-sidecar-read.md)) — l'import d'un fichier ne se joue pas
-sur un bloc de métadonnées.
+EXIF that is absent, truncated or aberrant **does not fail the import**: the
+photo enters the catalog without metadata, exactly as today. It is the rule the
+thumbnail and the XMP sidecar already follow at the same place
+([ADR 0047](0047-xmp-sidecar-read.md)) — a file's import does not turn on a
+block of metadata.
 
-### 6. Lecture seule, définitivement
+### 6. Read-only, definitively
 
-Leyline ne réécrit jamais les EXIF d'un fichier source. C'est le principe
-non destructif (`docs/vision.md`), et ce n'est pas négociable ici : la seule
-écriture de métadonnées du projet reste l'export, qui produit un fichier
-nouveau.
+Leyline never rewrites a source file's EXIF. That is the non-destructive
+principle (`docs/vision.md`), and it is not negotiable here: the project's only
+metadata writing stays the export, which produces a new file.
 
-## Hors périmètre
+## Out of scope
 
-* **Appliquer l'orientation EXIF au rendu** d'un JPEG affiché. L'orientation
-  est désormais *lue* et stockée ; qu'elle soit *appliquée* par le pipeline
-  d'affichage est un autre sujet, avec sa propre question de version d'étage.
-* **Les métadonnées propriétaires** (MakerNotes) : modes de prise de vue,
-  points AF, corrections d'objectif du constructeur. Chaque marque a son
-  format, et rien n'en dépend chez nous.
-* **Une resynchronisation des photos déjà importées.** Les JPEG importés avant
-  cette décision restent sans métadonnées jusqu'à un réimport ; leur relire les
-  EXIF a posteriori suppose de décider ce qui gagne en cas de conflit avec ce
-  que l'utilisateur a saisi entre-temps, ce qui est une décision de
-  synchronisation, comme celle qu'ADR 0047 a explicitement refusé de prendre.
-* **L'écriture d'EXIF**, dans le fichier source comme dans un sidecar (§6).
+* **Applying EXIF orientation to the rendering** of a displayed JPEG.
+  Orientation is now *read* and stored; whether it is *applied* by the display
+  pipeline is another subject, with its own stage-version question.
+* **Proprietary metadata** (MakerNotes): shooting modes, AF points, the
+  manufacturer's lens corrections. Every brand has its own format, and nothing
+  here depends on any of it.
+* **A resynchronization of already-imported photos.** JPEGs imported before
+  this decision stay without metadata until a re-import; re-reading their EXIF
+  after the fact presupposes deciding what wins in case of conflict with what
+  the user has entered meanwhile, which is a synchronization decision, like the
+  one ADR 0047 explicitly refused to take.
+* **Writing EXIF**, into the source file as into a sidecar (§6).
 
-## Conséquences
+## Consequences
 
-* **Un JPEG importé a enfin une date, un boîtier et une exposition** : il se
-  trie avec les autres, se cherche comme les autres, et affiche la bande de
-  prise de vue de develop.
-* **Une dépendance de plus** dans `leyline-engine`, en lecture seule et sans
-  `unsafe` (`docs/architecture.md` §Briques externes est mis à jour).
-* **`docs/catalog.md` gagne une phrase** : `capture_offset_minutes` a
-  désormais un producteur.
-* **Aucun changement de schéma, de rendu, de pipeline ni de version d'étage.**
-  Un fichier importé avant et après cette décision se *développe* identiquement.
+* **An imported JPEG at last has a date, a body and an exposure**: it sorts
+  with the others, is searched like the others, and shows develop's shot strip.
+* **One more dependency** in `leyline-engine`, read-only and without `unsafe`
+  (`docs/architecture.md` §External bricks is updated).
+* **`docs/catalog.md` gains a sentence**: `capture_offset_minutes` now has a
+  producer.
+* **No change of schema, of rendering, of pipeline nor of stage version.** A
+  file imported before and after this decision *develops* identically.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Faire lire les JPEG par LibRaw.** LibRaw ouvre certains fichiers non-RAW,
-  mais son identification y est partielle et son coût est celui d'un décodeur
-  RAW complet pour lire quatre nombres.
-* **Écrire notre propre lecteur EXIF.** Le format est un marécage de cas
-  particuliers par constructeur ; c'est exactement le genre de brique qu'ADR
-  0037 a accepté d'écrire à la main *parce qu'elle était minuscule et
-  cadrée* (quelques tags DCP), ce qui n'est pas le cas ici.
-* **Lire les EXIF à l'affichage plutôt qu'à l'import.** Le catalogue existe
-  pour ne pas rouvrir 60 000 fichiers à chaque tri.
-* **Remplacer LibRaw par le lecteur EXIF partout**, pour n'avoir qu'un chemin.
-  L'identification du décodeur qui rend l'image est celle qui doit s'afficher
-  à côté d'elle (§1).
+* **Having LibRaw read the JPEGs.** LibRaw opens some non-RAW files, but its
+  identification there is partial and its cost is that of a complete RAW
+  decoder in order to read four numbers.
+* **Writing our own EXIF reader.** The format is a swamp of per-manufacturer
+  special cases; it is exactly the kind of brick ADR 0037 agreed to write by
+  hand *because it was tiny and framed* (a few DCP tags), which is not the case
+  here.
+* **Reading EXIF at display time rather than at import.** The catalog exists so
+  as not to reopen 60,000 files on every sort.
+* **Replacing LibRaw with the EXIF reader everywhere**, so as to have a single
+  path. The identification of the decoder that renders the image is the one
+  that must be displayed beside it (§1).

@@ -1,129 +1,127 @@
-# ADR 0057 — Départager deux photos : vue Comparaison à zoom lié, et vue Mosaïque
+# ADR 0057 — Choosing between two photos: a Compare view with linked zoom, and a Survey view
 
-**Statut :** Accepté — 2026-08
+**Status:** Accepted — 2026-08
 
-## Contexte
+## Context
 
-[ADR 0055](0055-library-navigation.md) §3 a livré la grille et la loupe, et a
-laissé de côté les deux autres dispositions de Lightroom en renvoyant leur
-décision ici. La raison de les traiter maintenant est un geste précis, que
-Leyline ne sait pas faire aujourd'hui :
+[ADR 0055](0055-library-navigation.md) §3 delivered the grid and the loupe, and
+set aside Lightroom's two other layouts, deferring their decision here. The
+reason to handle them now is a precise gesture Leyline cannot perform today:
 
-> deux photos de la même scène, prises à une seconde d'écart. Laquelle est
-> nette ? Sur quel œil ? À l'écran entier, aucune des deux ne le dit ; il faut
-> les voir **au même endroit, au même agrandissement, en même temps**.
+> two photos of the same scene, taken a second apart. Which one is sharp? On
+> which eye? At full screen neither of them says; they have to be seen **in the
+> same place, at the same magnification, at the same time**.
 
-Aujourd'hui, cela demande d'entrer dans la loupe, de mémoriser, de revenir, de
-naviguer, de re-agrandir. C'est exactement le travail que l'ordinateur devrait
-faire. Et c'est le geste le plus fréquent d'une séance de tri, celle qui
-précède tout développement.
+Today that means entering the loupe, memorizing, coming back, navigating, and
+magnifying again. It is exactly the work the computer should be doing. And it
+is the most frequent gesture of a culling session, the one that precedes any
+development.
 
-**Ce qui est déjà là et qui n'est pas en cause** : la multi-sélection
-(Ctrl/Maj-clic) existe et alimente déjà les actions par lot ; les drapeaux, les
-étoiles et les libellés existent ; la loupe existe. Ce qui manque est une
-manière de *regarder*, pas une manière de classer.
+**What is already there and is not at issue**: multi-selection (Ctrl/Shift
+click) exists and already feeds the batch actions; flags, stars and labels
+exist; the loupe exists. What is missing is a way of *looking*, not a way of
+classifying.
 
-## Décision
+## Decision
 
-### 1. Deux dispositions de plus, du même genre que la loupe
+### 1. Two more layouts, of the same kind as the loupe
 
-**Comparaison** (`C`) montre deux photos côte à côte ; **Mosaïque** (`N`)
-montre toute la sélection à la fois. Comme la loupe, et pour la même raison :
+**Compare** (`C`) shows two photos side by side; **Survey** (`N`) shows the
+whole selection at once. Like the loupe, and for the same reason:
 
-* **aucune session d'édition n'est ouverte** — ce sont les previews en cache,
-  celles que la loupe et develop utilisent déjà, donc rien n'est rendu deux
-  fois ;
-* **rien n'est écrit** : aucune révision, aucun historique, aucune préférence.
-  L'état vit le temps de la fenêtre ([ADR 0045](0045-studio-ui-modularisation.md) §2) ;
-* `G` ramène à la grille, les touches de classement (1-5, 6-9, P/X/U)
-  continuent d'agir sur la photo courante.
+* **no edit session is opened** — these are the cached previews, the ones the
+  loupe and develop already use, so nothing is rendered twice;
+* **nothing is written**: no revision, no history, no preference. The state
+  lives for the window's lifetime
+  ([ADR 0045](0045-studio-ui-modularisation.md) §2);
+* `G` returns to the grid, and the classification keys (1-5, 6-9, P/X/U) go on
+  acting on the current photo.
 
-### 2. Le zoom et le déplacement sont **liés**, en coordonnées d'image
+### 2. Zoom and panning are **linked**, in image coordinates
 
-C'est la décision qui fait exister cette ADR. Deux loupes indépendantes côte à
-côte ne servent à rien : ce qu'on compare, c'est le *même endroit* des deux
-images.
+That is the decision that makes this ADR exist. Two independent loupes side by
+side serve no purpose: what is compared is the *same place* in both images.
 
-Le lien est exprimé en **coordonnées normalisées de l'image** — le point
-regardé est « à 62 % de la largeur, 41 % de la hauteur » — et non en pixels
-d'écran ni en pixels d'image. C'est ce qui fait que deux photos de dimensions
-différentes (un recadrage et son original, un RAW et son JPEG) restent sur la
-même zone. Un facteur d'agrandissement unique s'applique aux deux.
+The link is expressed in **normalized image coordinates** — the point looked at
+is "62 % of the width, 41 % of the height" — and not in screen pixels nor in
+image pixels. That is what keeps two photos of different dimensions (a crop and
+its original, a RAW and its JPEG) on the same area. A single magnification
+factor applies to both.
 
-Deux niveaux, comme la loupe de develop : **ajusté** et **100 %**. Pas de zoom
-continu : le geste qu'on sert ici est « montre-moi les pixels », et un curseur
-de zoom en est une version plus lente.
+Two levels, like develop's loupe: **fit** and **100 %**. No continuous zoom: the
+gesture served here is "show me the pixels", and a zoom slider is a slower
+version of it.
 
-### 3. Gauche = la retenue, droite = la candidate
+### 3. Left = the select, right = the candidate
 
-En Comparaison, la photo de gauche est celle qui est sélectionnée ; celle de
-droite est sa voisine, et les flèches ne déplacent **que la candidate**. Une
-touche les échange : la candidate devient la retenue, et le tri avance.
+In Compare, the left photo is the one selected; the right one is its neighbour,
+and the arrow keys move **only the candidate**. One key swaps them: the
+candidate becomes the select, and the culling moves on.
 
-C'est le modèle de Lightroom (*Select* / *Candidate*), et il vaut mieux que
-« les deux photos sélectionnées » : il donne au geste une direction — on
-défend un tenant du titre contre des challengers — au lieu de demander deux
-sélections avant de pouvoir regarder quoi que ce soit.
+That is Lightroom's model (*Select* / *Candidate*), and it is better than "the
+two selected photos": it gives the gesture a direction — one defends a
+title-holder against challengers — instead of requiring two selections before
+anything can be looked at.
 
-### 4. La mosaïque montre la sélection, et sert à la réduire
+### 4. Survey shows the selection, and serves to reduce it
 
-`N` affiche côte à côte les photos **multi-sélectionnées**, ou la seule photo
-sélectionnée s'il n'y en a qu'une. Cliquer la croix d'une vignette la **retire
-de la sélection** sans rien supprimer : c'est un entonnoir, on part de douze
-photos et on en garde deux.
+`N` shows the **multi-selected** photos side by side, or the single selected
+photo if there is only one. Clicking a thumbnail's cross **removes it from the
+selection** without deleting anything: it is a funnel, one starts with twelve
+photos and keeps two.
 
-C'est le seul endroit de cette décision qui écrit quelque chose — et il
-n'écrit que dans la sélection, qui n'est pas stockée.
+It is the only place in this decision that writes anything — and it writes only
+into the selection, which is not stored.
 
-### 5. Ce que ces vues ne font pas
+### 5. What these views do not do
 
-* **Elles ne développent pas.** Aucun réglage n'y est modifiable ; pour cela il
-  y a develop, à une touche.
-* **Elles ne comparent pas un avant/après.** Ça, c'est `\` dans develop
-  (la vue Compare Before/After), et
-  c'est une autre question : le même fichier à deux états, pas deux fichiers.
-* **Elles ne montrent pas plus de deux photos en Comparaison.** Trois vues à
-  zoom lié tiennent difficilement sur un écran, et la mosaïque couvre le cas
-  « plusieurs ».
+* **They do not develop.** No setting is editable there; for that there is
+  develop, one key away.
+* **They do not compare a before and after.** That is `\` in develop (the
+  Compare Before/After view), and it is another question: the same file in two
+  states, not two files.
+* **They show no more than two photos in Compare.** Three views with linked
+  zoom barely fit on a screen, and Survey covers the "several" case.
 
-## Hors périmètre
+## Out of scope
 
-* **Le zoom continu** (molette progressive, curseur) : §2.
-* **Un mode plein écran sans barre de menus** : ADR 0055 §6 dit pourquoi la
-  barre reste.
-* **Comparer deux *versions* d'une même photo** côte à côte. Le modèle de
-  données le permettrait (une version est l'unité, [ADR 0008](0008-version-as-library-unit.md)),
-  mais c'est une entrée par le catalogue et non par la sélection ; à décider
-  pour elle-même.
-* **Synchroniser le classement entre les deux vues** (noter la gauche note
-  aussi la droite). Non : c'est précisément ce qu'on cherche à distinguer.
+* **Continuous zoom** (a progressive wheel, a slider): §2.
+* **A full-screen mode with no menu bar**: ADR 0055 §6 says why the bar stays.
+* **Comparing two *versions* of one photo** side by side. The data model would
+  allow it (a version is the unit,
+  [ADR 0008](0008-version-as-library-unit.md)), but that is an entry through
+  the catalog and not through the selection; to be decided on its own.
+* **Synchronizing classification between the two views** (rating the left one
+  also rating the right one). No: that is precisely what one is trying to
+  distinguish.
 
-## Conséquences
+## Consequences
 
-* **Le tri devient faisable dans Leyline** sans sortir de l'application ni
-  ouvrir deux fenêtres.
-* **Aucune écriture nouvelle**, aucun accès catalogue nouveau : les deux vues
-  lisent les previews déjà en cache et la sélection déjà en mémoire.
-* **Un composant d'affichage partagé** apparaît (image agrandissable et
-  déplaçable, à zoom piloté de l'extérieur) ; la loupe d'ADR 0055 le reprend et
-  gagne donc le zoom qu'elle n'avait pas, sans code en double.
-* **Deux raccourcis de plus** (`C`, `N`), identiques à ceux de Lightroom. `N`
-  n'était pas libre : il ouvrait « nouvelle collection », qui passe à `Ctrl+N`
-  — le même arbitrage que `E`/`Ctrl+E` dans [ADR 0055](0055-library-navigation.md) §4,
-  et pour la même raison : la touche de *vue* est celle qu'on presse sans y
-  penser, l'action délibérée a déjà un menu et un bouton. Le dialogue des
-  raccourcis, le menu Bibliothèque et le menu Affichage le disent.
+* **Culling becomes feasible inside Leyline** without leaving the application
+  or opening two windows.
+* **No new writing** and no new catalog access: both views read the previews
+  already cached and the selection already in memory.
+* **A shared display component** appears (a magnifiable, pannable image whose
+  zoom is driven from outside); ADR 0055's loupe takes it up and therefore
+  gains the zoom it did not have, with no duplicated code.
+* **Two more shortcuts** (`C`, `N`), identical to Lightroom's. `N` was not
+  free: it opened "new collection", which moves to `Ctrl+N` — the same
+  judgement call as `E`/`Ctrl+E` in
+  [ADR 0055](0055-library-navigation.md) §4, and for the same reason: the
+  *view* key is the one pressed without thinking, and the deliberate action
+  already has a menu and a button. The shortcuts dialog, the Library menu and
+  the View menu all say so.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Deux loupes indépendantes côte à côte.** C'est ce qu'on obtient sans §2, et
-  ça ne répond pas à la question posée.
-* **Lier le déplacement en pixels d'image.** Deux photos de tailles différentes
-  se désalignent immédiatement ; les coordonnées normalisées sont ce qui rend
-  la comparaison entre un original et son recadrage encore lisible.
-* **Comparer les deux dernières photos sélectionnées**, sans notion de retenue
-  ni de candidate. Il faut alors deux sélections avant de voir quoi que ce
-  soit, et rien ne dit laquelle on est en train de défendre.
-* **Faire de la mosaïque une grille filtrée** (« ne montrer que la sélection »
-  dans la barre de filtres) plutôt qu'une vue. Ce serait un filtre de plus dans
-  une barre qui en a déjà six, et il faudrait le retirer à la main après coup.
+* **Two independent loupes side by side.** That is what one gets without §2,
+  and it does not answer the question asked.
+* **Linking panning in image pixels.** Two photos of different sizes go out of
+  alignment immediately; normalized coordinates are what keeps a comparison
+  between an original and its crop still legible.
+* **Comparing the last two selected photos**, with no notion of select and
+  candidate. Two selections are then needed before anything can be seen, and
+  nothing says which one is being defended.
+* **Making Survey a filtered grid** ("show the selection only" in the filter
+  bar) rather than a view. That would be one more filter in a bar that already
+  has six, and it would have to be removed by hand afterwards.
