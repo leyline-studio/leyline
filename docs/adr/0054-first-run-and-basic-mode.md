@@ -1,164 +1,160 @@
-# ADR 0054 — Prise en main : une bibliothèque vide qui explique, et un mode Basique par défaut dans develop
+# ADR 0054 — Getting started: an empty library that explains, and a Basic mode by default in develop
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-Un relevé de ce que les utilisateurs reprochent réellement aux dérawtiseurs
-libres, sur un fil de discussion de juillet 2026 comparant huit d'entre eux
-(darktable, RawTherapee, ART, vkdt, Filmulator, LightZone, RapidRAW, Safelight) :
+A survey of what users actually hold against free RAW developers, on a
+July 2026 discussion thread comparing eight of them (darktable, RawTherapee,
+ART, vkdt, Filmulator, LightZone, RapidRAW, Safelight):
 
-* « courbe d'apprentissage abrupte » ;
-* « je n'arrive tout simplement pas à comprendre » ;
-* « beaucoup plus compliqué que Lightroom » ;
-* un guide de démarrage darktable posté deux fois dans le même fil.
+* "a steep learning curve";
+* "I simply cannot figure it out";
+* "much more complicated than Lightroom";
+* a darktable getting-started guide posted twice in the same thread.
 
-**Aucun message ne réclame une fonctionnalité manquante.** Le manque du marché
-n'est pas fonctionnel, il est d'accès. Et Leyline vient d'aller dans la
-direction opposée : la série ADR 0049–0053 a porté la barre d'outils de develop
-de trois à six outils et le panneau de réglages à quinze groupes.
+**No message asks for a missing feature.** The market's gap is not functional,
+it is one of access. And Leyline has just gone the other way: the ADR 0049–0053
+series took develop's toolbar from three tools to six and the settings panel to
+fifteen groups.
 
-Deux moments concrets où Leyline est aujourd'hui muet :
+Two concrete moments where Leyline is mute today:
 
-1. **Une bibliothèque vide** affiche une grille vide. Rien ne dit qu'il faut
-   importer, ni comment ; la seule indication est un `N: new · B: add photo` en
-   gris à dix pixels, en bas du panneau latéral.
-2. **La vue develop** ouvre quinze groupes repliés dont les noms — *HSL Mixer*,
-   *Color Grading*, *Creative LUT*, *Soft Proof* — ne veulent rien dire pour qui
-   débute. Les deux groupes ouverts par défaut (balance des blancs, tonalité)
-   sont les bons, mais ils sont noyés dans la liste des treize autres.
+1. **An empty library** shows an empty grid. Nothing says that importing is
+   needed, nor how; the only indication is an `N: new · B: add photo` in grey
+   at ten pixels, at the bottom of the side panel.
+2. **The develop view** opens fifteen collapsed groups whose names — *HSL
+   Mixer*, *Color Grading*, *Creative LUT*, *Soft Proof* — mean nothing to a
+   beginner. The two groups open by default (white balance, tone) are the right
+   ones, but they are drowned in the list of the thirteen others.
 
-**Ce qui n'est pas en cause.** Aucune fonctionnalité n'est retirée, aucun
-raccourci ne change, aucun réglage stocké n'est touché. Cette décision ne porte
-que sur ce qui est **montré d'abord**.
+**What is not at issue.** No feature is removed, no shortcut changes, and no
+stored setting is touched. This decision bears only on what is **shown first**.
 
-## Décision
+## Decision
 
-### 1. Une bibliothèque vide dit quoi faire, à l'endroit où on la regarde
+### 1. An empty library says what to do, where one is looking
 
-Quand la grille ne contient aucune photo, elle affiche à sa place le nom de
-l'application, une phrase, et les deux gestes qui font entrer des photos :
-importer un dossier, ou surveiller un dossier. Les deux boutons ouvrent les
-dialogues qui existent déjà — rien de nouveau derrière.
+When the grid holds no photo, it shows in its place the application's name, a
+sentence, and the two gestures that bring photos in: importing a folder, or
+watching a folder. Both buttons open the dialogs that already exist — nothing
+new behind them.
 
-Le raccourci reste affiché où il est. Un raccourci se découvre après coup ; il
-ne remplace pas une porte d'entrée.
+The shortcut stays displayed where it is. A shortcut is discovered after the
+fact; it does not replace a front door.
 
-### 2. Develop s'ouvre en mode **Basique**, et le mode **Complet** est à un clic
+### 2. Develop opens in **Basic** mode, and **Full** mode is one click away
 
-Deux niveaux de dévoilement, choisis par un interrupteur en tête du panneau :
+Two levels of disclosure, chosen by a switch at the head of the panel:
 
-| | Basique (défaut) | Complet |
+| | Basic (default) | Full |
 | :--- | :--- | :--- |
-| Groupes | Balance des blancs, Tonalité, Présence, Correction d'objectif, Détail, Géométrie, Historique | les quinze |
-| Outils sur l'image | Sélection, Recadrage | les six |
+| Groups | White balance, Tone, Presence, Lens correction, Detail, Geometry, History | all fifteen |
+| Tools on the image | Select, Crop | all six |
 
-Le partage n'est pas arbitraire : **Basique contient ce qui a un équivalent
-évident dans n'importe quel outil photo** — une température, une exposition, un
-recadrage, un interrupteur de correction d'objectif. Complet contient ce qui suppose de savoir ce qu'on cherche : masques
-locaux, LUT, épreuvage, profil DCP, courbe, TSL, color grading, suppression de
-tache, reconstruction des hautes lumières.
+The split is not arbitrary: **Basic holds what has an obvious equivalent in any
+photo tool** — a temperature, an exposure, a crop, a lens-correction switch.
+Full holds what presupposes knowing what one is looking for: local masks, LUT,
+soft proofing, DCP profile, curve, HSL, colour grading, spot removal, highlight
+reconstruction.
 
-**L'ordre à l'intérieur de Basique suit le geste, pas l'ordre du modèle de
-données.** Balance des blancs, puis exposition, contraste, hautes lumières,
-ombres, blancs, noirs, puis texture, clarté, voile, éclat, saturation : c'est
-l'ordre dans lequel le panneau *Basic* de Lightroom est enseigné, parce qu'il
-suit la façon dont l'œil lit une image — la lumière d'abord, la matière ensuite,
-la couleur en dernier. Deux ajustements en découlent : *Texture* passe avant
-*Clarté*, et l'**épaule des hautes lumières** (`highlight_rolloff`) sort de la
-séquence pour rejoindre le mode Complet, étant une décision de *sortie* et non
-de présence.
+**The order inside Basic follows the gesture, not the data model's order.**
+White balance, then exposure, contrast, highlights, shadows, whites, blacks,
+then texture, clarity, dehaze, vibrance, saturation: that is the order in which
+Lightroom's *Basic* panel is taught, because it follows the way the eye reads
+an image — light first, matter next, colour last. Two adjustments follow:
+*Texture* comes before *Clarity*, and the **highlight shoulder**
+(`highlight_rolloff`) leaves the sequence for Full mode, being an *output*
+decision and not a presence one.
 
-**Et la séquence est *un seul* groupe.** Balance des blancs, tonalité et
-présence ne sont plus trois groupes repliables mais un groupe *Basique* unique,
-divisé par deux intertitres non cliquables (*Tonalité*, *Présence*). Un
-intertitre qui se replie est une invitation à le replier, et la séquence — la
-lumière, la matière, la couleur — est justement ce qu'on veut lire d'un bout à
-l'autre. Trois conséquences de forme, prises sur les captures d'écran de
-référence dans `assets/` :
+**And the sequence is *one* group.** White balance, tone and presence are no
+longer three collapsible groups but a single *Basic* group, divided by two
+non-clickable subheadings (*Tone*, *Presence*). A subheading that collapses is
+an invitation to collapse it, and the sequence — light, matter, colour — is
+precisely what one wants to read from end to end. Three consequences of form,
+taken from the reference screenshots in `assets/`:
 
-* **un réglage tient sur une ligne** : nom aligné à droite dans une colonne
-  fixe, piste, valeur. Deux lignes par réglage divisaient par deux ce qu'on voit
-  d'une modification à la fois ; sur une ligne, toute la tonalité tient dans un
-  écran ;
-* **la piste montre ce que le réglage fait** quand elle le peut : la température
-  va du bleu à l'ambre, la teinte du vert au magenta, l'éclat et la saturation
-  du gris à la couleur. Les réglages tonals gardent une piste grise ;
-* **un double-clic remet un réglage au neutre** — zéro presque partout, 6500 K
-  pour la température, borné à la plage pour un réglage qui n'atteint pas zéro.
-  Et le signe explicite (`+12`) n'apparaît que sur les réglages à deux sens : une
-  température en kelvins est une quantité, pas un écart.
+* **a setting fits on one line**: the name right-aligned in a fixed column, the
+  track, the value. Two lines per setting halved how much of a modification one
+  sees at a time; on one line, the whole of tone fits in a screen;
+* **the track shows what the setting does** when it can: temperature runs from
+  blue to amber, tint from green to magenta, vibrance and saturation from grey
+  to colour. The tonal settings keep a grey track;
+* **a double-click returns a setting to neutral** — zero almost everywhere,
+  6500 K for temperature, clamped to the range for a setting that does not
+  reach zero. And the explicit sign (`+12`) appears only on two-way settings: a
+  temperature in kelvins is a quantity, not a departure.
 
-Sous l'histogramme, **quatre valeurs de prise de vue** : sensibilité, focale,
-ouverture, temps de pose, réparties sur la largeur. C'est ce qu'on vérifie *en
-corrigeant* une exposition — « est-ce que c'était déjà à 3200 ISO ? » — alors
-que le reste des métadonnées (fichier, dimensions, boîtier, objectif,
-mots-clés) reste où il est, dans le panneau de la bibliothèque. Elles décrivent
-le fichier et non la révision : elles viennent du catalogue, ne changent qu'en
-changeant de photo, et un fichier qui n'en a enregistré aucune n'affiche pas
-une ligne de tirets — la ligne disparaît.
+Under the histogram, **four shot values**: sensitivity, focal length, aperture,
+shutter speed, spread across the width. That is what one checks *while
+correcting* an exposure — "was it already at 3200 ISO?" — whereas the rest of
+the metadata (file, dimensions, body, lens, keywords) stays where it is, in the
+library panel. They describe the file and not the revision: they come from the
+catalog, change only when the photo changes, and a file that recorded none does
+not show a line of dashes — the line disappears.
 
-Le panneau ne liste plus les préréglages : c'est la *modification en cours*, pas
-la bibliothèque des modifications. Enregistrer, appliquer et supprimer un
-préréglage vivent dans le menu **Develop**, où étaient déjà les deux premiers.
+The panel no longer lists the presets: it is the *modification in progress*,
+not the library of modifications. Saving, applying and deleting a preset live
+in the **Develop** menu, where the first two already were.
 
-Trois propriétés à tenir :
+Three properties to hold:
 
-* **le mode ne change aucun rendu.** Un réglage posé en Complet reste actif et
-  visible dans son groupe, même si le groupe est masqué en Basique — masquer un
-  panneau ne remet rien à zéro. C'est ce qui distingue un dévoilement progressif
-  d'un mode dégradé ;
-* **il ne se stocke nulle part.** Ni dans une révision, ni dans un preset, ni
-  dans un fichier de configuration : c'est de l'état d'interface, il vit le
-  temps de la fenêtre, et Rust ne le lit jamais ([ADR 0045](0045-studio-ui-modularisation.md) §2) ;
-* **le passage en Complet est réversible et immédiat**, sans dialogue ni
-  redémarrage.
+* **the mode changes no rendering.** A setting made in Full stays active and
+  visible in its group, even if the group is hidden in Basic — hiding a panel
+  resets nothing. That is what distinguishes progressive disclosure from a
+  degraded mode;
+* **it is stored nowhere.** Not in a revision, not in a preset, not in a
+  configuration file: it is interface state, it lives for the window's
+  lifetime, and Rust never reads it
+  ([ADR 0045](0045-studio-ui-modularisation.md) §2);
+* **switching to Full is reversible and immediate**, with no dialog and no
+  restart.
 
-### 3. Basique est le défaut, y compris pour qui connaît déjà l'application
+### 3. Basic is the default, including for those who already know the application
 
-Le contraire — se souvenir du dernier mode — demanderait de stocker une
-préférence, donc un fichier de configuration que le projet n'a pas, et cette
-décision ne justifie pas d'en créer un. Un utilisateur expérimenté clique une
-fois par session ; un débutant, lui, n'a pas de « une fois » à donner.
+The opposite — remembering the last mode — would require storing a preference,
+hence a configuration file the project does not have, and this decision does
+not justify creating one. An experienced user clicks once per session; a
+beginner has no "once" to give.
 
-### 4. Hors périmètre
+### 4. Out of scope
 
-* **Une visite guidée, des bulles d'aide, un assistant de première ouverture.**
-  Un logiciel qui a besoin d'être expliqué par-dessus son interface a un
-  problème dans son interface.
-* **Réorganiser les quinze groupes** ou en fusionner. Peut-être justifié, mais
-  c'est une refonte, et elle se déciderait avec des utilisateurs réels plutôt
-  qu'avec des suppositions.
-* **Un jeu de préréglages livrés** pour démarrer. Ce serait un choix esthétique
-  de l'éditeur, que `docs/vision.md` refuse.
-* **Traduire la documentation.** Réel, et sans rapport avec l'interface.
+* **A guided tour, tooltips, a first-run assistant.** Software that needs to be
+  explained on top of its interface has a problem in its interface.
+* **Reorganizing the fifteen groups** or merging some. Perhaps justified, but
+  that is a redesign, and it would be decided with real users rather than with
+  assumptions.
+* **A shipped set of presets** to start with. That would be an aesthetic choice
+  by the publisher, which `docs/vision.md` refuses.
+* **Translating the documentation.** Real, and unrelated to the interface.
 
-## Conséquences
+## Consequences
 
-* **Le premier écran cesse d'être vide**, et le deuxième cesse de présenter
-  quinze portes fermées à quelqu'un qui en cherche deux.
-* **Rien n'est perdu pour l'utilisateur avancé** : un clic, et l'interface est
-  exactement celle d'avant cette décision.
-* **Aucun réglage, aucun rendu, aucun format stocké ne change.** Cette ADR
-  n'ajoute pas une ligne à `settings_json` et ne touche à aucun étage.
-* **Le panneau develop gagne un état privé de plus** (`basic-mode`), qui reste
-  du côté UI conformément à ADR 0045 §2 — et le test mécanique de cette règle
-  (aucun `get_*`/`set_*` correspondant côté Rust) continue de passer.
-* **La barre d'outils devient dépendante du mode**, donc l'outil actif doit
-  retomber sur Sélection quand on quitte Complet avec un outil que Basique ne
-  montre pas — sans quoi un clic sur l'image tracerait un masque invisible.
+* **The first screen stops being empty**, and the second stops presenting
+  fifteen closed doors to someone looking for two.
+* **Nothing is lost for the advanced user**: one click, and the interface is
+  exactly the one from before this decision.
+* **No setting, no rendering and no stored format changes.** This ADR adds not
+  a line to `settings_json` and touches no stage.
+* **The develop panel gains one more private state** (`basic-mode`), which
+  stays on the UI side in keeping with ADR 0045 §2 — and the mechanical test of
+  that rule (no corresponding `get_*`/`set_*` on the Rust side) goes on
+  passing.
+* **The toolbar becomes mode-dependent**, so the active tool must fall back to
+  Select when leaving Full with a tool Basic does not show — without which a
+  click on the image would draw an invisible mask.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Ne rien faire, et écrire un guide de démarrage.** C'est la réponse que le
-  fil de discussion donne pour darktable, deux fois, et elle prouve le
-  problème plutôt qu'elle ne le résout.
-* **Masquer les groupes avancés jusqu'à ce qu'ils soient utilisés** (dévoilement
-  automatique). Une interface qui change toute seule est plus difficile à
-  apprendre qu'une interface stable : on ne retrouve plus ce qu'on a vu hier.
-* **Se souvenir du dernier mode dans un fichier de configuration.** §3 : cela
-  créerait le premier fichier de préférences du projet pour un interrupteur.
-* **Un troisième mode intermédiaire.** Trois niveaux demandent de comprendre le
-  découpage avant de choisir, ce qui est exactement le problème traité.
-* **Retirer des fonctionnalités de Studio.** Le fil ne se plaint pas de ce que
-  les outils font, mais de ce qu'ils montrent d'emblée.
+* **Doing nothing, and writing a getting-started guide.** That is the answer
+  the discussion thread gives for darktable, twice, and it proves the problem
+  rather than solving it.
+* **Hiding the advanced groups until they are used** (automatic disclosure). An
+  interface that changes on its own is harder to learn than a stable one: one
+  can no longer find what one saw yesterday.
+* **Remembering the last mode in a configuration file.** §3: it would create
+  the project's first preferences file for a switch.
+* **A third, intermediate mode.** Three levels require understanding the split
+  before choosing, which is exactly the problem being addressed.
+* **Removing features from Studio.** The thread does not complain about what
+  the tools do, but about what they show up front.
