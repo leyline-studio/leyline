@@ -1,57 +1,54 @@
-# ADR 0039 — Import automatique par dossier surveillé (watched-folder)
+# ADR 0039 — Automatic import from a watched folder
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-ADR 0038 (capture tethering) notait déjà le watch-folder générique comme
-extension possible, écartée à l'époque au profit de libgphoto2 pour le cas
-« appareil branché en USB ». Le besoin réapparaît pour un cas différent :
-un dossier où un logiciel tiers, un lecteur de carte réseau ou tout
-processus externe dépose des fichiers — pas forcément un appareil photo — et
-que l'utilisateur veut voir importés automatiquement, sans relancer un
-import manuel à chaque fois. C'est la fonctionnalité « Auto Import » de
-Lightroom.
+ADR 0038 (tethered capture) already noted the generic watch folder as a
+possible extension, set aside at the time in favour of libgphoto2 for the
+"camera plugged in over USB" case. The need reappears for a different case: a
+folder where third-party software, a networked card reader or any external
+process drops files — not necessarily a camera — and that the user wants
+imported automatically, without launching a manual import each time. That is
+Lightroom's "Auto Import" feature.
 
-Le survol des écarts Studio/Lightroom-Darktable du 2026-07-24 (voir
-[[studio-workflow-gaps-progress]]) l'avait identifié comme le dernier écart
-« workflow » réel, volontairement reporté : nouvelle dépendance
-(surveillance de système de fichiers), nouveau cycle de vie de thread
-d'arrière-plan — plus lourd que les 7 autres écarts déjà livrés ce jour-là.
+The survey of Studio/Lightroom-Darktable gaps of 2026-07-24 (see
+[[studio-workflow-gaps-progress]]) had identified it as the last real
+"workflow" gap, deliberately deferred: a new dependency (filesystem watching)
+and a new background-thread life cycle — heavier than the seven other gaps
+already shipped that day.
 
-## Décision
+## Decision
 
-Implémenté directement dans `leyline-engine` (pas un nouveau crate séparé,
-contrairement à `leyline-tether`) : la dépendance ajoutée, `notify` (crate
-Rust pur, portable Linux/macOS/Windows), n'enveloppe aucune bibliothèque C
-système à faire packager par plateforme — elle ne justifie pas la même
-séparation que LibRaw/Lensfun/LittleCMS/libgphoto2.
+Implemented directly in `leyline-engine` (not a new separate crate, unlike
+`leyline-tether`): the dependency added, `notify` (a pure Rust crate, portable
+across Linux, macOS and Windows), wraps no system C library needing per-platform
+packaging — it does not justify the same separation as
+LibRaw/Lensfun/LittleCMS/libgphoto2.
 
-Nouveau module `watch.rs`, qui reprend délibérément la forme de
-`leyline_tether::TetherSession` (même contrat « thread d'arrière-plan +
-callback non-bloquant ») :
+A new `watch.rs` module, which deliberately takes the shape of
+`leyline_tether::TetherSession` (the same "background thread plus a
+non-blocking callback" contract):
 
-* `WatchSession::watch(folder, on_event)` — démarre un `notify::Watcher`
-  récursif sur `folder` et un thread dédié qui débounce les événements bruts
-  du système de fichiers en fichiers « stabilisés » : un événement create/
-  modify (re)démarre le suivi d'un chemin, et à chaque tick (500 ms) tout
-  chemin dont la taille n'a pas changé depuis `STABILITY_WINDOW` (2 s) est
-  promu en `WatchSessionEvent::Ready`. Nécessaire parce qu'un dépôt de
-  fichier réel (copie depuis une carte, écriture réseau) n'est pas atomique :
-  sans ce debounce, un import démarrerait sur un fichier encore à moitié
-  écrit.
-* Seules les extensions reconnues par `leyline_engine::import::media_type`
-  entrent dans le suivi — un sidecar XMP ou un fichier temporaire ne
-  déclenche jamais d'événement.
-* `WatchSession::stop()` (et `Drop`) — arrête la surveillance.
+* `WatchSession::watch(folder, on_event)` — starts a recursive
+  `notify::Watcher` on `folder` and a dedicated thread that debounces the raw
+  filesystem events into "settled" files: a create/modify event (re)starts
+  tracking a path, and on every tick (500 ms) any path whose size has not
+  changed for `STABILITY_WINDOW` (2 s) is promoted to
+  `WatchSessionEvent::Ready`. Necessary because a real file drop (a copy from
+  a card, a network write) is not atomic: without that debounce an import
+  would start on a half-written file.
+* Only the extensions `leyline_engine::import::media_type` recognizes enter
+  tracking — an XMP sidecar or a temporary file never fires an event.
+* `WatchSession::stop()` (and `Drop`) — stops watching.
 
-Comme pour le tethering, ce module ne touche jamais le catalogue :
-`Library::watch_start(folder)` démarre une session et, pour chaque fichier
-prêt, appelle le cœur d'import existant (`Library::import`,
-`copy_files: true`) — **un import par dossier surveillé est un import comme
-un autre**, même checksum BLAKE3, même vignette, même `Event::AssetsAdded`.
-Deux événements nouveaux, seulement pour le cycle de vie de la session,
-même schéma que `TetherConnected`/`TetherDisconnected` :
+As for tethering, that module never touches the catalog:
+`Library::watch_start(folder)` starts a session and, for every ready file,
+calls the existing import core (`Library::import`, `copy_files: true`) — **an
+import from a watched folder is an import like any other**, the same BLAKE3
+checksum, the same thumbnail, the same `Event::AssetsAdded`. Two new events,
+only for the session's life cycle, on the same pattern as
+`TetherConnected`/`TetherDisconnected`:
 
 ```rust
 pub enum Event {
@@ -61,94 +58,88 @@ pub enum Event {
 }
 ```
 
-Une seule session par `Library` (un seul dossier surveillé à la fois),
-refusée si une session est déjà ouverte — même contrat que
-`tether_connect`.
+One session per `Library` (one watched folder at a time), refused if a session
+is already open — the same contract as `tether_connect`.
 
-**Chaque fichier stabilisé est importé individuellement, jamais en lot.**
-`Library::import` tient le mutex du catalogue pendant tout son appel (voir
-sa propre doc) ; ce mutex est aussi sur le chemin de toute opération
-interactive en mode développement (commit, note, aperçu — ADR 0023,
-ADR 0024). Un dossier recevant beaucoup de fichiers d'un coup (import en
-lot depuis une carte) importés un par un garde donc chaque fenêtre de
-verrouillage courte — jamais plus longue qu'un seul fichier — au lieu de
-bloquer le catalogue pour la durée du lot entier. `handle_watch_event`
-reprend ici exactement la même construction que `handle_tether_event`.
-Un benchmark dédié (`leyline-engine/benches/import.rs`, groupe `import`)
-mesure ce coût par fichier — checksum + écriture catalogue + rendu de
-vignette — pour repérer toute régression qui allongerait cette fenêtre.
+**Every settled file is imported individually, never in a batch.**
+`Library::import` holds the catalog mutex for its whole call (see its own
+documentation); that mutex is also on the path of every interactive operation
+in develop mode (commit, rating, preview — ADR 0023, ADR 0024). A folder
+receiving many files at once (a bulk import from a card) imported one by one
+therefore keeps each locking window short — never longer than a single file —
+instead of blocking the catalog for the duration of the whole batch.
+`handle_watch_event` takes exactly the same construction as
+`handle_tether_event` here. A dedicated benchmark
+(`leyline-engine/benches/import.rs`, group `import`) measures that per-file
+cost — checksum + catalog write + thumbnail render — so as to catch any
+regression that would lengthen that window.
 
-## Un bug de deadlock découvert en écrivant les tests
+## A deadlock bug found while writing the tests
 
-`Library::watch_start`/`watch_stop` ont d'abord été écrits en reprenant
-littéralement le code de `tether_connect`/`tether_disconnect`, y compris
+`Library::watch_start`/`watch_stop` were first written by literally reusing
+`tether_connect`/`tether_disconnect`'s code, including
 `if let Some(session) = lock(&self.inner.watch).take() { session.stop(); }`.
-Comme `leyline-tether` ne peut pas être exercé sans matériel USB réel, cette
-ligne n'avait jamais tourné en dehors d'un banc de test physique. `notify`,
-lui, se teste entièrement en local (pas de matériel requis) — et le tout
-premier test bout-en-bout (`tests/watch.rs`) s'est bloqué indéfiniment sur
-`watch_stop()`.
+Since `leyline-tether` cannot be exercised without real USB hardware, that
+line had never run outside a physical test bench. `notify`, by contrast, is
+entirely testable locally (no hardware required) — and the very first
+end-to-end test (`tests/watch.rs`) hung indefinitely on `watch_stop()`.
 
-Cause : en Rust, le garde de mutex temporaire produit par `lock(...)` dans
-le scrutinee d'un `if let Some(x) = EXPR { BODY }` vit pour **tout le
-bloc**, pas seulement pour l'évaluation d'`EXPR` (extension de durée de vie
-des temporaires). Le mutex `watch` restait donc verrouillé pendant tout
-`session.stop()`, qui bloque en attendant que le thread d'arrière-plan se
-termine — sauf que ce thread, en sortant de sa boucle, doit lui-même
-verrouiller `watch` pour publier son propre `WatchSessionEvent::Stopped`
-(`handle_watch_event`). Interblocage classique, thread principal contre
-thread de session, sur le même mutex.
+The cause: in Rust, the temporary mutex guard produced by `lock(...)` in the
+scrutinee of an `if let Some(x) = EXPR { BODY }` lives for **the whole
+block**, not only for the evaluation of `EXPR` (temporary lifetime extension).
+The `watch` mutex therefore stayed locked for the whole of `session.stop()`,
+which blocks waiting for the background thread to finish — except that the
+thread, on leaving its loop, must itself lock `watch` to publish its own
+`WatchSessionEvent::Stopped` (`handle_watch_event`). A classic deadlock, the
+main thread against the session thread, on the same mutex.
 
-Correctif — dans `watch_stop` **et** dans `tether_disconnect`, qui portait
-le même bug latent, jamais détecté faute de test capable de l'exercer :
+The fix — in `watch_stop` **and** in `tether_disconnect`, which carried the
+same latent bug, never detected for want of a test able to exercise it:
 
 ```rust
-// Avant (deadlock si un thread d'arrière-plan doit reprendre ce même
-// mutex avant de se terminer) :
+// Before (a deadlock if a background thread must retake that same mutex
+// before finishing):
 if let Some(session) = lock(&self.inner.watch).take() {
     session.stop();
 }
 
-// Après : le `take()` est sa propre instruction, le garde est donc
-// relâché avant l'appel bloquant.
+// After: the `take()` is a statement of its own, so the guard is released
+// before the blocking call.
 let session = lock(&self.inner.watch).take();
 if let Some(session) = session {
     session.stop();
 }
 ```
 
-Les deux méthodes portent maintenant un commentaire expliquant pourquoi la
-forme en une seule instruction est incorrecte, pas seulement un style à
-préférer.
+Both methods now carry a comment explaining why the single-statement form is
+incorrect, not merely a style to avoid.
 
-## Conséquences
+## Consequences
 
-* Nouvelle dépendance : `notify` (pure Rust, `default-features = false` +
-  `macos_fsevent` — le seul défaut du crate). Aucun packaging par
-  plateforme à prévoir, contrairement à `libgphoto2` (ADR 0038).
-* `docs/specification.md` §Inclus gagne « Import automatique par dossier
-  surveillé ».
-* `leyline-cli` gagne `leyline watch <library> <folder>` — même schéma que
+* A new dependency: `notify` (pure Rust, `default-features = false` plus
+  `macos_fsevent` — the crate's only default). No per-platform packaging to
+  plan for, unlike `libgphoto2` (ADR 0038).
+* `docs/specification.md` §Included gains "Automatic import from a watched
+  folder".
+* `leyline-cli` gains `leyline watch <library> <folder>` — the same pattern as
   `leyline tether`.
-* Interface Studio : File ▸ Auto Import… ouvre un panneau modal
-  (sélecteur de dossier, Start/Stop, compteur de fichiers importés cette
-  session) — client de plus sur l'API ci-dessus.
-* `tether_disconnect` a été corrigé du même bug de deadlock que
-  `watch_stop`, alors que le sujet de ce ticket était l'auto-import : un
-  correctif motivé par le test réel, pas une extension de portée
-  volontaire.
+* Studio's interface: File ▸ Auto Import… opens a modal panel (a folder
+  picker, Start/Stop, a count of files imported this session) — one more
+  client of the API above.
+* `tether_disconnect` was fixed of the same deadlock bug as `watch_stop`,
+  though this ticket's subject was auto-import: a fix prompted by the real
+  test, not a deliberate scope extension.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Un nouveau crate `leyline-watch`** (comme `leyline-tether`) : rejeté —
-  `notify` est du Rust pur, sans bibliothèque C système à isoler ; la
-  séparation en crate de `leyline-tether` sert précisément à isoler la
-  liaison FFI avec libgphoto2, absente ici.
-* **Import du dossier entier en un seul lot par cycle de scrutation** :
-  plus simple, mais tiendrait le mutex du catalogue pour la durée du lot
-  entier à chaque vague de fichiers — voir la section dédiée ci-dessus.
-* **Suivi par `mtime` seul plutôt que par taille stable** : plus simple,
-  mais un `mtime` ne change pas forcément à chaque écriture selon le
-  système de fichiers/l'outil de copie utilisé, alors qu'une taille stable
-  sur deux scrutations consécutives est une garantie directe qu'aucune
-  écriture n'est en cours.
+* **A new `leyline-watch` crate** (like `leyline-tether`): rejected — `notify`
+  is pure Rust, with no system C library to isolate; `leyline-tether`'s
+  separation into a crate serves precisely to isolate the FFI binding to
+  libgphoto2, absent here.
+* **Importing the whole folder as a single batch per polling cycle**: simpler,
+  but it would hold the catalog mutex for the duration of the whole batch on
+  every wave of files — see the dedicated section above.
+* **Tracking by `mtime` alone rather than by stable size**: simpler, but an
+  `mtime` does not necessarily change on every write depending on the
+  filesystem and the copying tool used, whereas a size stable across two
+  consecutive polls is a direct guarantee that no write is in progress.

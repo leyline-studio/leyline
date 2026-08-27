@@ -1,176 +1,175 @@
-# ADR 0043 — Effondrement de l'historique de rendu avant publication, et la révision porte sa carte d'étages
+# ADR 0043 — Collapsing the pre-release render history, and the revision carrying its own stage map
 
-**Statut :** Accepté — 2026-07
-**Complète et amende :** [ADR 0042](0042-versioned-stage-pipeline.md) (§2 livré, §5 rendu sans objet)
+**Status:** Accepted — 2026-07
+**Completes and amends:** [ADR 0042](0042-versioned-stage-pipeline.md) (§2 delivered, §5 rendered moot)
 
-## Contexte
+## Context
 
-ADR 0042 a remplacé les onze `processN.rs` dupliqués par des étages
-versionnés indépendamment. Son §5 prévoyait que `process: N` reste lu et
-compris pour toujours, via une **table d'expansion figée** de onze lignes :
-`process: 4` signifiant `lens::v2` + `gains::v2` + `contrast::v1` + …
+ADR 0042 replaced the eleven duplicated `processN.rs` modules with
+independently versioned stages. Its §5 provided that `process: N` would stay
+read and understood forever, through a **frozen expansion table** of eleven
+rows: `process: 4` meaning `lens::v2` + `gains::v2` + `contrast::v1` + …
 
-Cette table existe, elle est correcte, et les 77 rendus de référence prouvent
-qu'elle rend les onze versions au bit près (commit `bf63df1`). La question que
-le présent ADR tranche n'est pas *si elle marche* : c'est **à qui elle sert**.
+That table exists, it is correct, and the 77 reference renders prove it renders
+the eleven versions to the bit (commit `bf63df1`). The question the present
+ADR settles is not *whether it works*: it is **whom it serves**.
 
-**Réponse : personne.** Leyline n'a pas été publié. Il n'existe, nulle part,
-aucune révision citant `process: 3` en dehors des catalogues de développement
-de l'auteur et des fixtures de test. Les onze versions ne sont pas onze
-promesses tenues envers onze générations d'utilisateurs — ce sont onze étapes
-de construction, conservées par application d'une règle (« un moteur doit
-savoir rendre toutes les process versions passées ») à une période où cette
-règle n'avait encore rien à protéger.
+**The answer: nobody.** Leyline has not been published. Nowhere does there
+exist a single revision citing `process: 3` outside the author's development
+catalogs and the test fixtures. The eleven versions are not eleven promises
+kept to eleven generations of users — they are eleven construction steps, kept
+by applying a rule ("an engine must know how to render every past process
+version") at a time when that rule had nothing yet to protect.
 
-Ce que cet historique coûte, une fois l'effondrement écarté :
+What that history costs, once collapsing is set aside:
 
-* trois versions d'étage qui n'existent que pour lui — `gains::v1` (le `powf`
-  exact d'avant ADR 0013), `lens::v1` (distorsion seule) et `lens::v2`
-  (distorsion + vignettage, sans TCA) ;
-* onze lignes de table d'expansion à maintenir exactes, dont ADR 0042 dit
-  lui-même qu'une erreur « rendrait différemment une photo ancienne » — le
-  point le plus critique du moteur, entretenu pour des photos qui n'existent
-  pas ;
-* 77 cas dorés à recalculer à chaque évolution du harnais ;
-* et surtout un axe de versionnage **en double**. ADR 0042 §2 fait porter le
-  versionnage par la carte `stages` de la révision ; `process: N` devait
-  survivre comme abréviation historique. Deux mécanismes coexistants pour
-  désigner un rendu, dont un seul a un avenir.
+* three stage versions that exist only for it — `gains::v1` (the exact `powf`
+  from before ADR 0013), `lens::v1` (distortion alone) and `lens::v2`
+  (distortion plus vignetting, without TCA);
+* eleven expansion-table rows to keep exact, of which ADR 0042 itself says
+  that an error "would render an old photo differently" — the engine's most
+  critical point, maintained for photos that do not exist;
+* 77 golden cases to recompute on every evolution of the harness;
+* and above all a **duplicated** versioning axis. ADR 0042 §2 has versioning
+  carried by the revision's `stages` map; `process: N` was to survive as a
+  historical shorthand. Two coexisting mechanisms designating a rendering,
+  only one of which has a future.
 
-Le raisonnement est exactement celui qu'ADR 0042 s'applique déjà à lui-même à
-propos du changement de forme de `settings_json` : *« ce n'est acceptable que
-parce que le projet est pré-publication ; après ouverture au monde, cette
-forme serait définitive. C'est la raison de faire ce changement maintenant et
-pas plus tard. »* La même fenêtre, exactement, se referme sur l'historique de
-rendu. Le jour de la publication, ces onze versions deviennent irréversiblement
-des engagements ; aujourd'hui elles ne sont que du code.
+The reasoning is exactly the one ADR 0042 already applies to itself about the
+change in `settings_json`'s shape: *"this is acceptable only because the
+project is pre-release; after opening to the world, that shape would be
+definitive. That is the reason to make this change now and not later."* The
+same window, exactly, is closing on the render history. On publication day
+those eleven versions become irreversibly commitments; today they are only
+code.
 
-## Décision
+## Decision
 
-### 1. Une seule version publiée par opérateur, numérotée `v1`
+### 1. One published version per operator, numbered `v1`
 
-L'historique de rendu antérieur à la publication est effondré. Chaque
-opérateur conserve **une** version : celle qui rend aujourd'hui, c'est-à-dire
-l'état de `process: 11`. `gains::v1`, `lens::v1` et `lens::v2` sont supprimés ;
-`gains::v2` et `lens::v3` deviennent les `v1` de leur opérateur.
+The pre-release render history is collapsed. Every operator keeps **one**
+version: the one that renders today, that is, the state of `process: 11`.
+`gains::v1`, `lens::v1` and `lens::v2` are removed; `gains::v2` and `lens::v3`
+become their operator's `v1`.
 
-Elles sont numérotées `v1` et non `v0` : ce ne sont pas des brouillons. Ce sont
-les premières versions **publiées** de chaque opérateur, gelées au sens plein
-d'ADR 0042 §1 le jour de l'ouverture au monde. `v0` suggérerait un statut
-provisoire qui cessera d'être vrai sans que rien dans le code ne change.
+They are numbered `v1` and not `v0`: these are not drafts. They are each
+operator's first **published** versions, frozen in ADR 0042 §1's full sense on
+the day of opening to the world. `v0` would suggest a provisional status that
+will cease to be true without a line of code changing.
 
-### 2. La révision enregistre sa carte d'étages ; `process` disparaît
+### 2. The revision records its stage map; `process` disappears
 
-ADR 0042 §2 est livré ici, dans le même mouvement, et pour une raison
-mécanique : l'effondrement le rend trivial. Il n'y a plus qu'une expansion
-possible, donc plus rien à expandre — la révision écrit directement la version
-de chaque étage qu'elle utilise :
+ADR 0042 §2 is delivered here, in the same move, and for a mechanical reason:
+collapsing makes it trivial. There is only one possible expansion left, hence
+nothing left to expand — the revision writes directly the version of each
+stage it uses:
 
 ```json
 "stages": { "gains": 1, "tone_curve": 1, "dehaze": 1 }
 ```
 
-Le champ `process` est **retiré** de `settings_json`, sans remplacement et sans
-abréviation historique : il n'a plus de valeur à désigner. Le champ `schema`,
-lui, reste — il versionne la *forme* du document, pas le rendu, et les deux
-axes restent distincts (`docs/pipeline.md` §3.4).
+The `process` field is **removed** from `settings_json`, with no replacement
+and no historical shorthand: it no longer has a value to designate. The
+`schema` field, by contrast, stays — it versions the document's *shape*, not
+the rendering, and the two axes stay distinct (`docs/pipeline.md` §3.4).
 
-Les règles d'ADR 0042 §2 s'appliquent inchangées : un étage neutre ne s'exécute
-pas, n'a donc aucun comportement à épingler, et **n'apparaît pas** dans la
-carte.
+ADR 0042 §2's rules apply unchanged: a neutral stage does not run, therefore
+has no behaviour to pin, and **does not appear** in the map.
 
-### 3. Épingler une version se fait à l'écriture, jamais à la lecture
+### 3. Pinning a version happens at write time, never at read time
 
-Quand une révision est écrite, chaque étage actif reçoit une entrée :
+When a revision is written, every active stage receives an entry:
 
-* l'étage **déjà présent** dans la carte garde sa version — corriger
-  l'exposition d'une photo de 2026 en 2036 ne la fait pas changer de rendu ;
-* l'étage **absent** (nouvellement sorti de sa valeur neutre) reçoit la version
-  courante du moteur — activer la netteté en 2036 donne la meilleure netteté
-  de 2036, pas celle de 2026 ;
-* l'étage **redevenu neutre** perd son entrée, puisqu'il ne rend plus rien.
+* a stage **already present** in the map keeps its version — correcting the
+  exposure of a photo from 2026 in 2036 does not change its rendering;
+* a stage **absent** (newly moved off its neutral value) receives the engine's
+  current version — turning sharpening on in 2036 gives 2036's best
+  sharpening, not 2026's;
+* a stage **back to neutral** loses its entry, since it no longer renders
+  anything.
 
-Rien n'est jamais déduit à la lecture : une carte lue est appliquée telle
-quelle. C'est ce qui rend la révision auto-descriptive au sens d'ADR 0042 §2.
+Nothing is ever inferred at read time: a map read is applied as it stands.
+That is what makes the revision self-describing in ADR 0042 §2's sense.
 
-### 4. Une version d'étage inconnue est refusée, jamais approchée
+### 4. An unknown stage version is refused, never approximated
 
-`process > CURRENT_PROCESS` était le garde-fou d'ADR 0042 (`docs/pipeline.md`
-§3.4) : une révision écrite par un moteur plus récent est refusée, jamais
-devinée. Il devient : **toute carte citant un étage ou une version d'étage que
-ce moteur ne connaît pas échoue** avec `NewerSettings`, et l'appelant retombe
-sur le meilleur aperçu en cache. Le comportement observable est identique ; sa
-granularité est meilleure, puisque le refus nomme l'étage fautif.
+`process > CURRENT_PROCESS` was ADR 0042's guard (`docs/pipeline.md` §3.4): a
+revision written by a newer engine is refused, never guessed. It becomes:
+**any map citing a stage or a stage version this engine does not know fails**
+with `NewerSettings`, and the caller falls back on the best cached preview.
+The observable behaviour is identical; its granularity is better, since the
+refusal names the offending stage.
 
-### 5. Les catalogues de développement existants ne sont pas migrés
+### 5. Existing development catalogs are not migrated
 
-Aucun code de migration n'est écrit. Une révision stockée citant `process: N`
-n'a plus de forme valide et est refusée à la lecture, comme toute révision
-illisible. Les bibliothèques de développement se réimportent.
+No migration code is written. A stored revision citing `process: N` no longer
+has a valid shape and is refused at read time, like any unreadable revision.
+Development libraries are re-imported.
 
-Écrire une migration serait ici une **fausse rigueur** : elle ne pourrait pas
-préserver les pixels des révisions en process < 11 (leur rendu était défini par
-l'absence de vignettage, de TCA, de courbe tonale…, et l'effondrement fait
-précisément disparaître cette absence). Elle ne préserverait que des réglages,
-sur des données de test, au prix d'un code de conversion à maintenir et à
-tester — dont la seule justification serait de faire *comme si* la promesse
-s'appliquait déjà à des photos auxquelles elle ne s'applique pas encore.
+Writing a migration would be **false rigour** here: it could not preserve the
+pixels of revisions at process < 11 (their rendering was defined by the
+absence of vignetting, of TCA, of a tone curve…, and collapsing precisely
+makes that absence disappear). It would preserve only settings, on test data,
+at the price of conversion code to maintain and test — whose only
+justification would be to act *as if* the promise already applied to photos it
+does not yet apply to.
 
-### 6. Les rendus de référence sont re-bénis une fois, délibérément
+### 6. The reference renders are re-blessed once, deliberately
 
-Les 77 cas dorés d'ADR 0042 §7 deviennent les cas du pipeline unique. Le
-manifeste est régénéré **une fois**, par cette décision-ci et sous sa trace.
+ADR 0042 §7's 77 golden cases become the single pipeline's cases. The manifest
+is regenerated **once**, by this decision and on its record.
 
-C'est l'exact opposé du cas interdit. La règle d'ADR 0042 §7 — « ce sont les
-fixtures, pas la relecture du diff, qui établissent l'égalité » — vise le
-digest qui bouge **pendant un refactor censé ne rien changer** : là, le digest
-qui bouge *est* le signal d'échec. Ici la décision précède la mesure et
-l'assume : on a décidé que ces rendus ne sont plus dus à personne. Après cette
-régénération, la règle reprend sa force pleine et sans exception.
+That is the exact opposite of the forbidden case. ADR 0042 §7's rule — "it is
+the fixtures, not reading the diff, that establish equality" — targets the
+digest that moves **during a refactor meant to change nothing**: there, the
+moving digest *is* the failure signal. Here the decision precedes the
+measurement and owns it: we have decided that those renderings are no longer
+owed to anyone. After that regeneration, the rule regains its full force with
+no exception.
 
-### 7. Le mécanisme de versionnage garde un exemple vivant
+### 7. The versioning mechanism keeps a living example
 
-Effet secondaire à traiter, et non à subir : avec une seule version partout, le
-chemin « une ancienne version rend toujours ce qu'elle rendait » n'est plus
-exercé par aucun test. C'est la garantie centrale du projet qui deviendrait,
-pour la première fois, du code non couvert.
+A side effect to be handled rather than endured: with a single version
+everywhere, the path "an old version still renders what it used to render" is
+no longer exercised by any test. That is the project's central guarantee
+becoming, for the first time, uncovered code.
 
-Le registre porte donc en permanence un **étage à deux versions réservé aux
-tests**, compilé uniquement sous `cfg(test)` : la suite vérifie qu'une carte
-citant `v1` rend `v1` alors même que `v2` existe, que le rang déclaré par
-chaque version décide de la position, et qu'une version inconnue est refusée.
-Le mécanisme reste ainsi démontré sans attendre la première vraie correction
-pixel — laquelle, elle, sera bien un `v2` réel.
+The registry therefore permanently carries a **two-version stage reserved for
+tests**, compiled only under `cfg(test)`: the suite verifies that a map citing
+`v1` renders `v1` even though `v2` exists, that the rank each version declares
+decides the position, and that an unknown version is refused. The mechanism
+thus stays demonstrated without waiting for the first real pixel fix — which,
+when it comes, really will be a `v2`.
 
-## Conséquences
+## Consequences
 
-* **Ce qui disparaît :** trois versions d'étage, la table d'expansion et ses
-  onze lignes, le champ `process`, `CURRENT_PROCESS`, et la notion de
-  « migrer une photo vers une process version récente » — remplacée par
-  « remonter les étages épinglés d'une révision à leur version courante »,
-  c'est-à-dire le retraitement (`reprocess`), qui garde son nom et son sens.
-* **La promesse ne bouge pas d'un cran** — elle prend juste sa vraie date. Elle
-  s'énonce toujours comme ADR 0042 §6 l'énonce, par version d'étage ; elle
-  commence à courir à la publication, ce qui est exactement le moment où elle
-  devient due. Prétendre qu'elle courait déjà était l'illusion que le présent
-  ADR retire.
-* **La fenêtre se referme ici.** Après la première version publique, aucun ADR
-  ne pourra plus effondrer quoi que ce soit : les versions d'étage deviennent
-  des engagements, et la seule évolution possible est l'ajout. Le présent ADR
-  est donc, par construction, le dernier de son espèce.
+* **What disappears:** three stage versions, the expansion table and its
+  eleven rows, the `process` field, `CURRENT_PROCESS`, and the notion of
+  "migrating a photo to a recent process version" — replaced by "raising a
+  revision's pinned stages to their current version", that is, reprocessing
+  (`reprocess`), which keeps its name and its meaning.
+* **The promise does not move by an inch** — it merely takes its true date. It
+  is still stated as ADR 0042 §6 states it, per stage version; it starts
+  running at publication, which is exactly when it becomes owed. Pretending it
+  was already running was the illusion the present ADR removes.
+* **The window closes here.** After the first public version, no ADR will be
+  able to collapse anything: stage versions become commitments, and the only
+  possible evolution is addition. The present ADR is therefore, by
+  construction, the last of its kind.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Garder la table d'expansion « au cas où »** : elle ne protège aucune photo
-  existante et coûte l'exactitude la plus critique du moteur. Un mécanisme de
-  sécurité entretenu pour un risque nul n'est pas une sécurité, c'est une
-  surface d'erreur — et celle-ci se trompe silencieusement, en pixels.
-* **Effondrer maintenant, livrer la carte `stages` plus tard** : ferait changer
-  la forme de `settings_json` deux fois de suite, donc casserait les catalogues
-  de développement deux fois, pour un seul résultat final.
-* **Numéroter `v0`** : voir §1. Le numéro survivrait au statut qu'il décrit.
-* **Écrire une migration des catalogues de développement** : voir §5.
-* **Renoncer au gel et adopter `legacy_params` (darktable)** : déjà examiné et
-  écarté par ADR 0042, pour une raison que le présent ADR ne touche pas. On
-  effondre un historique qui n'engage personne ; on ne renonce pas à geler
-  celui qui engagera.
+* **Keeping the expansion table "just in case"**: it protects no existing
+  photo and costs the engine's most critical exactness. A safety mechanism
+  maintained against a nil risk is not safety, it is an error surface — and
+  this one errs silently, in pixels.
+* **Collapsing now, delivering the `stages` map later**: it would change
+  `settings_json`'s shape twice in a row, hence break the development catalogs
+  twice, for a single end result.
+* **Numbering `v0`**: see §1. The number would outlive the status it
+  describes.
+* **Writing a migration for the development catalogs**: see §5.
+* **Giving up freezing and adopting `legacy_params` (darktable)**: already
+  examined and rejected by ADR 0042, for a reason the present ADR does not
+  touch. We are collapsing a history that commits us to nobody; we are not
+  giving up freezing the one that will.
