@@ -404,7 +404,7 @@ pub fn wall_clock_from_local(timestamp: i64) -> i64 {
     unsafe { ffi::leyline_shim_wall_clock(timestamp) }
 }
 
-/// Extracts the preview the camera embedded in a RAW file, without decoding/// Extracts the preview the camera embedded in a RAW file, without decoding
+/// Extracts the preview the camera embedded in a RAW file, without decoding
 /// any sensor data (ADR 0065 §2).
 ///
 /// `Ok(None)` when the file carries no preview, or one this LibRaw build
