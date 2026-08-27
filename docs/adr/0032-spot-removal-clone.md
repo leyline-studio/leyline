@@ -1,186 +1,181 @@
-# ADR 0032 — Suppression de tache : clonage seul, copie bilinéaire déterministe, tôt dans le pipeline
+# ADR 0032 — Spot removal: cloning alone, a deterministic bilinear copy, early in the pipeline
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-`docs/v2-scope.md` §5 (« Suppression de tache / correction ») relève qu'aucun
-outil de clonage ni de correction n'existe aujourd'hui pour retirer poussières
-de capteur et imperfections. C'est un item **intrinsèquement local** : comme les
-réglages masqués (§2), il stocke de la géométrie dessinée sur l'image affichée
-et partage donc le verrou de référentiel de coordonnées déjà tranché.
+`docs/v2-scope.md` §5 ("Spot removal / healing") notes that no clone or heal
+tool exists today for removing sensor dust and blemishes. It is an
+**intrinsically local** item: like masked adjustments (§2), it stores geometry
+drawn on the displayed image and therefore shares the coordinate-frame lock
+already settled.
 
-Trois décisions transversales sont **consommées, non re-litigées, ici** :
+Three cross-cutting decisions are **consumed here, not relitigated**:
 
-* **ADR 0026** fixe le référentiel de toute géométrie de correction locale :
-  normalisée `[0,1]` relative à l'image après rotation, avant recadrage — le
-  même que `crop` — remontée au tampon pré-rotation par la même famille de
-  remapping arrière que `rotate` (`process2.rs:446`) et la correction
-  d'objectif (`process3.rs:180`). ADR 0026 note explicitement que la suppression
-  de tache réutilise ce choix ; ce document le **consomme**, il ne le re-dérive
-  pas.
-* **ADR 0028** fige la stratégie de versionnage : une process version par
-  fonctionnalité pixel, chacune dans son propre module `processN.rs` gelé, créé
-  en copiant le module précédent entier. Cette suppression de tache est un
-  opérateur pixel : elle prend donc une nouvelle process version, sans que cet
-  ADR ait à re-choisir la convention.
-* **ADR 0029** a établi, pour les réglages locaux masqués, le schéma d'extension
-  d'API (`Param`/`Value` étendus plutôt que de nouvelles méthodes `EditSession`)
-  et le principe « géométrie locale dans `settings_json`, aucune table dédiée ».
-  Ce document **applique** ces précédents à la tache, sans les re-concevoir.
+* **ADR 0026** fixes the frame of all local-correction geometry: normalized
+  `[0,1]` relative to the image after rotation and before crop — the same as
+  `crop` — lifted back to the pre-rotation buffer by the same family of
+  backward remapping as `rotate` (`process2.rs:446`) and lens correction
+  (`process3.rs:180`). ADR 0026 explicitly notes that spot removal reuses that
+  choice; this document **consumes** it, it does not re-derive it.
+* **ADR 0028** freezes the versioning strategy: one process version per pixel
+  feature, each in its own frozen `processN.rs` module, created by copying the
+  previous module whole. This spot removal is a pixel operator: it therefore
+  takes a new process version, without this ADR having to re-choose the
+  convention.
+* **ADR 0029** established, for masked local adjustments, the API extension
+  pattern (extended `Param`/`Value` rather than new `EditSession` methods) and
+  the principle "local geometry in `settings_json`, no dedicated table". This
+  document **applies** those precedents to the spot, without redesigning them.
 
-Le §5 laissait deux questions ouvertes propres à l'item (déterminisme de la
-correction *heal*, sélection automatique de la source) ; ce document les tranche
-en même temps qu'il fixe le mode, le placement, l'échantillonnage et le
-stockage.
+§5 left two questions open specific to the item (the determinism of a *heal*
+correction, and automatic source selection); this document settles them at the
+same time as it fixes the mode, the placement, the sampling and the storage.
 
-## Décision
+## Decision
 
-La suppression de tache est un nouvel opérateur pixel, donc une **nouvelle
-process version** : elle prend **le prochain numéro de process disponible au
-moment de la sortie de cette fonctionnalité** (ADR 0028), dans son propre module
-`processN.rs` copie intégrale du module précédent augmentée du seul étage de
-clonage — exactement la convention de duplication par module réaffirmée par
-ADR 0028. Cet ADR **ne fige pas** un entier de process précis : l'ordre de
-sortie des items 3/4/5/6/8 relève du plan d'implémentation futur.
+Spot removal is a new pixel operator, and therefore a **new process version**:
+it takes **the next available process number at the time this feature ships**
+(ADR 0028), in its own `processN.rs` module, a complete copy of the previous
+module plus the cloning stage alone — exactly the per-module duplication
+convention reaffirmed by ADR 0028. This ADR **does not freeze** a specific
+process integer: the shipping order of items 3/4/5/6/8 belongs to the future
+implementation plan.
 
-### La simplification centrale — clonage seul, le *heal* est coupé de la V2
+### The central simplification — cloning alone, healing is cut from V2
 
-**La V2 ne livre que le mode clonage** : une copie déterministe et adoucie d'un
-point source vers un point cible. Le mode *heal* (clonage sans couture, fondu de
-type équation de Poisson) est **retranché du périmètre V2 — coupé comme mode,
-pas déféré comme drapeau**.
+**V2 ships the clone mode only**: a deterministic, softened copy from a source
+point to a target point. The *heal* mode (seamless cloning, a Poisson-equation
+style blend) is **removed from V2's scope — cut as a mode, not deferred as a
+flag**.
 
-Raisonnement, posé dans le même esprit qu'ADR 0016 retranchant vignettage/TCA du
-process 3 « non triviaux à valider sans images de référence sous la main » : un
-*heal* impose de **résoudre une équation de blending de Poisson par tache**, un
-engagement algorithmique matériellement plus lourd et plus risqué qu'une copie
-bilinéaire déterministe, dont la qualité et la correctness ne peuvent pas être
-validées de façon responsable **sans images de référence à disposition** — la
-barre exacte qu'ADR 0016 a déjà posée pour ce type d'affirmation dans ce projet.
-Le clonage (copie déterministe, adoucie par falloff radial, d'un point source
-vers un point cible) couvre le cas d'usage — poussière de capteur, imperfection
-ponctuelle — que l'analyse de manque de `docs/v2-scope.md` §5 nommait
-réellement.
+The reasoning, in the same spirit as ADR 0016 cutting vignetting and TCA from
+process 3 as "not trivial to validate without reference images at hand": a
+*heal* requires **solving a Poisson blending equation per spot**, an
+algorithmic commitment materially heavier and riskier than a deterministic
+bilinear copy, whose quality and correctness cannot be validated responsibly
+**without reference images available** — the exact bar ADR 0016 already set
+for that kind of claim in this project. Cloning (a deterministic copy,
+softened by a radial falloff, from a source point to a target point) covers
+the use case — sensor dust, a point blemish — that `docs/v2-scope.md` §5's gap
+analysis actually named.
 
-Conséquence de schéma : le champ `spot_removal[].mode` esquissé au §5
-(`"clone"|"heal"`) **est abandonné**. Il n'y a que le clonage en V2, donc
-**aucun champ `mode` n'est nécessaire** — plus simple que de conserver un champ
-`mode: "clone"` à valeur légale unique.
+A schema consequence: the `spot_removal[].mode` field sketched in §5
+(`"clone"|"heal"`) **is abandoned**. There is only cloning in V2, so **no
+`mode` field is needed** — simpler than keeping a `mode: "clone"` field with a
+single legal value.
 
-### Place dans le pipeline — tôt, avant le bloc tonal
+### Place in the pipeline — early, before the tonal block
 
-Un nouvel étage **« Suppression de tache »** s'insère dans l'ordre fixe de
-`docs/pipeline.md` §3.1 **immédiatement après Correction d'objectif et avant
-Balance des blancs** — le tout premier étage adjacent au tonal. Il opère ainsi
-sur les données **les moins traitées** (proches du linéaire décodé/corrigé
-objectif), pour la meilleure qualité de clone possible — ce que la ligne
-« Pipeline (§3.1) » du tableau `docs/v2-scope.md` §5 fixe déjà (« tôt dans la
-chaîne… pour opérer sur des données proches du linéaire »). Cet ADR **confirme
-et consomme** ce placement.
+A new **"Spot removal"** stage fits into the fixed order of
+`docs/pipeline.md` §3.1 **immediately after Lens correction and before White
+balance** — the very first stage adjacent to the tonal block. It thus operates
+on the **least processed** data (close to the decoded/lens-corrected linear),
+for the best possible clone quality — which the "Pipeline (§3.1)" row of
+`docs/v2-scope.md` §5's table already fixes ("early in the chain… to operate
+on data close to linear"). This ADR **confirms and consumes** that placement.
 
-Ce point est **plus en amont** que l'étage « Réglages locaux » d'ADR 0029, qui
-s'insère après Vibrance/Saturation. Les deux fonctionnalités V2 atterrissent à
-des points **différents** de l'ordre fixe, et il n'y a **rien à réconcilier**
-entre elles : conformément au versionnage par fonctionnalité d'ADR 0028, celle
-qui sort la première ajoute son étage à sa position propre, et la seconde fait de
-même, indépendamment — pas de module partagé, pas de synchronisation de
-calendrier, pas d'ordre de sortie imposé.
+That point is **further upstream** than ADR 0029's "Local adjustments" stage,
+which fits in after Vibrance/Saturation. The two V2 features land at
+**different** points of the fixed order, and there is **nothing to reconcile**
+between them: under ADR 0028's per-feature versioning, whichever ships first
+adds its stage at its own position, and the second does likewise,
+independently — no shared module, no schedule synchronization, no imposed
+shipping order.
 
-### Référentiel de coordonnées
+### Coordinate frame
 
-Repris d'**ADR 0026 sans modification** : les points cible et source de chaque
-tache sont stockés en coordonnées normalisées `[0,1]` relatives à l'image après
-rotation, avant recadrage — le même référentiel que la géométrie de masque
-d'ADR 0029 et que `crop`. L'étage tourne sur un tampon encore dans l'orientation
-décodée/corrigée-objectif ; il fait remonter les deux points au tampon
-pré-rotation en appliquant la transformation **inverse** de la rotation en
-attente, la même technique de remapping arrière que `rotate`/`crop`
-(`process2.rs:446`, `:507`) et la correction d'objectif (`process3.rs:180`).
-Aucune décision nouvelle : ADR 0026 est cité, pas re-dérivé.
+Taken from **ADR 0026 unchanged**: each spot's target and source points are
+stored in normalized `[0,1]` coordinates relative to the image after rotation
+and before crop — the same frame as ADR 0029's mask geometry and as `crop`.
+The stage runs over a buffer still in the decoded/lens-corrected orientation;
+it lifts both points back to the pre-rotation buffer by applying the
+**inverse** of the pending rotation, the same backward remapping technique as
+`rotate`/`crop` (`process2.rs:446`, `:507`) and lens correction
+(`process3.rs:180`). No new decision: ADR 0026 is cited, not re-derived.
 
-### Échantillonnage du clone — copie bilinéaire déterministe
+### Clone sampling — a deterministic bilinear copy
 
-Pour chaque tache, dans l'ordre du tableau, le moteur copie le disque centré sur
-le point **source** vers le disque centré sur le point **cible**, en
-rééchantillonnant par **interpolation bilinéaire** à l'aide de la fonction
-`bilinear` **déjà présente** dans le module process (`process2.rs:482`,
-`process3.rs:549`) — la convention `n + 0.5`, propre à Leyline, de `rotate`/`crop`
-(et non `lens_bilinear`, réservé à la convention entière de Lensfun). Trois
-paramètres modulent la copie :
+For every spot, in table order, the engine copies the disc centred on the
+**source** point onto the disc centred on the **target** point, resampling by
+**bilinear interpolation** through the `bilinear` function **already present**
+in the process module (`process2.rs:482`, `process3.rs:549`) — the `n + 0.5`
+convention, Leyline's own, of `rotate`/`crop` (and not `lens_bilinear`,
+reserved for Lensfun's integer convention). Three parameters modulate the
+copy:
 
-* **`radius`** — le rayon du disque copié (coordonnées normalisées, même
-  convention que le reste de la géométrie) ;
-* **`feather`** — un **falloff radial au bord du disque** : le patch copié se
-  fond en douceur au lieu de présenter un cercle à bord franc, la fraction
-  copiée décroissant du centre vers le bord selon `feather` ;
-* **`opacity`** — l'intensité globale du fondu du patch sur le fond.
+* **`radius`** — the radius of the copied disc (normalized coordinates, the
+  same convention as the rest of the geometry);
+* **`feather`** — a **radial falloff at the disc's edge**: the copied patch
+  blends in smoothly instead of presenting a hard-edged circle, the copied
+  fraction decreasing from centre to edge according to `feather`;
+* **`opacity`** — the overall strength of the patch's blend onto the
+  background.
 
-Chaque pixel cible reçoit `lerp(fond, échantillon_source, couverture)`, où la
-couverture combine le falloff radial et l'opacité. La copie est **pure et
-déterministe** (ADR 0012) : mêmes points, mêmes paramètres, mêmes pixels. La
-forme exacte de la courbe de falloff est une constante de la PR d'implémentation,
-au même niveau de précision qu'ADR 0016/0030/0031 ; seule la **famille** — copie
-bilinéaire adoucie par falloff radial — est figée ici.
+Every target pixel receives `lerp(background, source_sample, coverage)`, where
+the coverage combines the radial falloff and the opacity. The copy is **pure
+and deterministic** (ADR 0012): the same points, the same parameters, the same
+pixels. The exact shape of the falloff curve is a constant of the
+implementation PR, at the same level of precision as ADR 0016/0030/0031; only
+the **family** — a bilinear copy softened by a radial falloff — is frozen
+here.
 
-### Sélection de la source — manuelle uniquement, aucune suggestion moteur
+### Source selection — manual only, no engine suggestion
 
-La source est placée **explicitement par l'utilisateur** : il pose lui-même le
-point cible **et** le point source. **Aucune fonctionnalité moteur de
-suggestion automatique de source n'existe en V2.**
+The source is placed **explicitly by the user**: they place the target point
+**and** the source point themselves. **No engine feature for automatic source
+suggestion exists in V2.**
 
-Raisonnement : la question ouverte #2 du §5 signalait déjà qu'une source
-proposée par le moteur devrait être **déterministe et enregistrée**, jamais
-recalculée au rendu (`docs/pipeline.md` §5). Couper la suggestion automatique en
-V2 évite de concevoir ce mécanisme de déterminisme/enregistrement
-prématurément.
+The reasoning: §5's open question #2 already flagged that an engine-proposed
+source would have to be **deterministic and recorded**, never recomputed at
+render time (`docs/pipeline.md` §5). Cutting automatic suggestion from V2
+avoids designing that determinism/recording mechanism prematurely.
 
-> **Guidage prospectif (pas un mécanisme conçu ici).** Si une suggestion de
-> source est ajoutée un jour, la même règle s'appliquera : quoi que le moteur
-> propose est **écrit dans `spot_removal[].source`** comme n'importe quelle
-> autre valeur, jamais laissé implicite ni recalculé à la volée. La suggestion
-> ne serait qu'une aide de saisie côté client remplissant un champ existant, pas
-> un chemin de rendu séparé.
+> **Forward guidance (not a mechanism designed here).** If a source suggestion
+> is ever added, the same rule will apply: whatever the engine proposes is
+> **written into `spot_removal[].source`** like any other value, never left
+> implicit nor recomputed on the fly. The suggestion would be nothing but a
+> client-side input aid filling an existing field, not a separate render path.
 
-### Stockage — schéma additif, aucune table dédiée
+### Storage — an additive schema, no dedicated table
 
-`spot_removal` est une **liste** optionnelle de `settings_json`, chaque entrée
-`{ target: {x,y}, source: {x,y}, radius, feather, opacity }`. **Absent ou liste
-vide = neutre** (aucune tache), rendu **bit-pour-bit identique** à la process
-version précédente — l'invariant « *a parameter at its neutral value skips its
-operator entirely, so the neutral rendering is bit-for-bit the decoded image* »
-documenté en tête de `process3.rs:25`. Aucun bump de schéma requis, cohérent avec
-le schéma additif « process +1, schema inchangé » de la plupart des items V2
-(`docs/v2-scope.md` §1) — les champs inconnus d'un moteur ancien sont préservés
-verbatim (`Settings::extra`, `crates/leyline-core/src/settings.rs`).
+`spot_removal` is an optional **list** in `settings_json`, each entry
+`{ target: {x,y}, source: {x,y}, radius, feather, opacity }`. **Absent or an
+empty list means neutral** (no spot), rendered **bit-for-bit identically** to
+the previous process version — the invariant "*a parameter at its neutral
+value skips its operator entirely, so the neutral rendering is bit-for-bit the
+decoded image*" documented at the head of `process3.rs:25`. No schema bump is
+required, consistent with the additive "process +1, schema unchanged" pattern
+of most V2 items (`docs/v2-scope.md` §1) — fields unknown to an older engine
+are preserved verbatim (`Settings::extra`,
+`crates/leyline-core/src/settings.rs`).
 
-Le choix « liste dans `settings_json`, **pas de table dédiée** » n'est pas
-rouvert ici : la ligne « Catalogue » du tableau `docs/v2-scope.md` §5 le fixait
-déjà (liste compacte, cohérente avec « une révision = état complet et autonome »,
-`docs/catalog.md` §17). Ce document se contente de le confirmer. Comme ADR 0029
-et ADR 0028 le posent : si le volume des listes devenait un jour un vrai
-problème, ce sera le problème d'un futur ADR **avec des données réelles**, pas
-une optimisation spéculative aujourd'hui.
+The choice of "a list in `settings_json`, **no dedicated table**" is not
+reopened here: the "Catalog" row of `docs/v2-scope.md` §5's table already
+fixed it (a compact list, consistent with "a revision is a complete,
+self-contained state", `docs/catalog.md` §17). This document merely confirms
+it. As ADR 0029 and ADR 0028 put it: should the volume of those lists one day
+become a real problem, it will be a future ADR's problem **with real data**,
+not a speculative optimization today.
 
-### Extension de l'API — le schéma `Param`/`Value` d'ADR 0029
+### API extension — ADR 0029's `Param`/`Value` pattern
 
-**Aucun mécanisme nouveau.** Le cycle de vie complet d'une tache
-(ajouter/déplacer/supprimer) s'exprime par les `set`/`commit` existants plus le
-même schéma d'extension d'enum qu'ADR 0029 a établi pour les masques
-(`session.rs`) : une variante `Param` indexant la position d'une tache dans le
-tableau `spot_removal` comme **unité de coalescence**, et une variante `Value`
-remplaçant ou supprimant l'entrée complète à cet indice (`Some` = placement
-complet, `None` = suppression, même schéma que `Value::Crop(Option<Crop>)`). Une
-pose de tache complète — du placement du point à son relâchement — est **un point
-de commit** sous la règle existante de `docs/catalog.md` §17 ; des éditions
-successives du **même indice** dans la fenêtre d'amendement existante amendent la
-révision de tête, exactement comme `Param::LocalAdjustment(usize)` d'ADR 0029.
-Ce document ne re-dérive pas ce mécanisme : il pointe ADR 0029 comme précédent et
-l'applique.
+**No new mechanism.** A spot's complete life cycle (add/move/delete) is
+expressed through the existing `set`/`commit` plus the same enum-extension
+pattern ADR 0029 established for masks (`session.rs`): a `Param` variant
+indexing a spot's position in the `spot_removal` array as the **coalescing
+unit**, and a `Value` variant replacing or removing the complete entry at that
+index (`Some` = a complete placement, `None` = removal, the same pattern as
+`Value::Crop(Option<Crop>)`). Placing a spot in full — from placing the point
+to releasing it — is **one commit point** under the existing rule of
+`docs/catalog.md` §17; successive edits of the **same index** within the
+existing amendment window amend the head revision, exactly as ADR 0029's
+`Param::LocalAdjustment(usize)` does. This document does not re-derive that
+mechanism: it points at ADR 0029 as the precedent and applies it.
 
-### Esquisse JSON
+### A JSON sketch
 
-Le style suit `docs/pipeline.md` §3.2. Une tache puis le cas neutre :
+The style follows `docs/pipeline.md` §3.2. One spot, then the neutral case:
 
 ```json
 {
@@ -200,8 +195,8 @@ Le style suit `docs/pipeline.md` §3.2. Une tache puis le cas neutre :
 }
 ```
 
-Cas neutre — champ absent (ou `"spot_removal": []`), rendu bit-pour-bit
-identique à la process version précédente :
+The neutral case — the field absent (or `"spot_removal": []`), rendered
+bit-for-bit identically to the previous process version:
 
 ```json
 {
@@ -211,85 +206,82 @@ identique à la process version précédente :
 }
 ```
 
-> *Le `process: 6` ci-dessus est purement illustratif : le numéro réel est le
-> prochain disponible au moment de la sortie (ADR 0028), pas fixé par cet ADR.*
+> *The `process: 6` above is purely illustrative: the real number is whatever
+> is next available at shipping time (ADR 0028), not fixed by this ADR.*
 
-> **Note d'implémentation (pas une édition de spec ici).** Cet ADR ne modifie
-> **pas** le diagramme de `docs/pipeline.md` §3.1 ni le tableau des process
-> versions §3.3. Comme pour ADR 0029/0030/0031, la spec est mise à jour dans le
-> même changement que l'implémentation réelle, conformément à CLAUDE.md. Le
-> présent document fixe seulement **où** l'étage atterrit et **quelle**
-> mathématique il gèle ; le diagramme §3.1 et le tableau §3.3 seront amendés par
-> la PR qui livre le module process.
+> **An implementation note (not a spec edit here).** This ADR does **not**
+> modify `docs/pipeline.md` §3.1's diagram nor §3.3's process-version table. As
+> for ADR 0029/0030/0031, the spec is updated in the same change as the actual
+> implementation, in keeping with CLAUDE.md. The present document fixes only
+> **where** the stage lands and **which** mathematics it freezes; the §3.1
+> diagram and the §3.3 table will be amended by the PR that ships the process
+> module.
 
-## Conséquences
+## Consequences
 
-* **Le champ `process` garde sa lisibilité sémantique** (ADR 0028) : le nouveau
-  numéro signifiera exactement « suppression de tache par clonage active », un
-  fait unique et lisible, comme `process: 3` signifie « correction de distorsion
-  active ».
-* **Sortie neutre gelée** : sans tache, l'étage est bit-pour-bit la process
-  version précédente. L'invariant « valeur neutre → opérateur entièrement
-  sauté » (`process3.rs:25`) reste vrai pour l'étage entier.
-* **Le *heal* reste ouvert pour un futur ADR** avec des images de référence à
-  disposition : la coupe ne ferme pas la porte, elle refuse seulement de
-  s'engager sur un blending de Poisson que le projet ne peut pas valider
-  aujourd'hui. Le complexité de l'item retombe ainsi de « **M** (clone) à **L**
-  (heal) » (`docs/v2-scope.md` §5) à **M** seul.
-* **La suggestion automatique de source reste ouverte** pour un futur ADR ; si
-  elle arrive, elle écrit dans `spot_removal[].source` comme toute autre valeur,
-  jamais recalculée au rendu (`docs/pipeline.md` §5).
-* **Aucune surface de session nouvelle** : taches créées/déplacées/supprimées
-  entièrement par `set`/`commit` plus l'extension `Param`/`Value` d'ADR 0029. Le
-  reste du moteur (jobs, événements, coalescence, amendement) n'est pas touché.
-* **Deux features locales V2 à des points distincts du pipeline** : la tache tôt
-  (avant Balance des blancs), les réglages masqués tard (après
-  Vibrance/Saturation, ADR 0029). Aucune ne dépend de l'autre, aucune n'attend
-  l'autre — le versionnage par fonctionnalité (ADR 0028) le garantit.
-* **Le contrat de reproductibilité** (`docs/pipeline.md` §5) est respecté : tout
-  paramètre (cible, source, rayon, feather, opacité) est explicite et
-  enregistré, l'échantillonnage est pur et déterministe (ADR 0012), aucune
-  source de hasard ni de devinette côté moteur nulle part dans le chemin de
-  clonage V2 — tout se sérialise dans `settings_json`, « même révision → mêmes
-  pixels ».
-* **Un module `processN.rs` de plus** (ADR 0028) : coût borné et connu ; aucun
-  module de version antérieure n'est touché, le gel « mêmes pixels dans dix ans »
-  reste mécaniquement infalsifiable (`docs/pipeline.md` §3.3).
-* **La spec `docs/pipeline.md` (§3.1, §3.3) n'est pas éditée par cet ADR** :
-  elle le sera par la PR d'implémentation, conformément à CLAUDE.md.
+* **The `process` field keeps its semantic legibility** (ADR 0028): the new
+  number will mean exactly "clone spot removal active", a single readable
+  fact, as `process: 3` means "distortion correction active".
+* **A frozen neutral output**: with no spot, the stage is bit-for-bit the
+  previous process version. The invariant "a neutral value → the operator
+  entirely skipped" (`process3.rs:25`) stays true for the whole stage.
+* **Healing stays open for a future ADR** with reference images available: the
+  cut does not close the door, it only refuses to commit to a Poisson blend
+  the project cannot validate today. The item's complexity therefore falls
+  from "**M** (clone) to **L** (heal)" (`docs/v2-scope.md` §5) to **M** alone.
+* **Automatic source suggestion stays open** for a future ADR; if it arrives,
+  it writes into `spot_removal[].source` like any other value, never
+  recomputed at render time (`docs/pipeline.md` §5).
+* **No new session surface**: spots are created, moved and deleted entirely
+  through `set`/`commit` plus ADR 0029's `Param`/`Value` extension. The rest of
+  the engine (jobs, events, coalescing, amendment) is untouched.
+* **Two local V2 features at distinct points of the pipeline**: the spot early
+  (before White balance), masked adjustments late (after Vibrance/Saturation,
+  ADR 0029). Neither depends on the other, neither waits for the other —
+  per-feature versioning (ADR 0028) guarantees it.
+* **The reproducibility contract** (`docs/pipeline.md` §5) is respected: every
+  parameter (target, source, radius, feather, opacity) is explicit and
+  recorded, the sampling is pure and deterministic (ADR 0012), and there is no
+  source of randomness or guessing on the engine side anywhere in V2's clone
+  path — everything serializes into `settings_json`, "the same revision → the
+  same pixels".
+* **One more `processN.rs` module** (ADR 0028): a bounded and known cost; no
+  earlier version's module is touched, and the "same pixels in ten years"
+  freeze stays mechanically unfalsifiable (`docs/pipeline.md` §3.3).
+* **The `docs/pipeline.md` spec (§3.1, §3.3) is not edited by this ADR**: it
+  will be by the implementation PR, in keeping with CLAUDE.md.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Livrer le *heal* en V2 à côté du clonage.** Écarté — c'est la coupe centrale
-  de cet ADR, dans l'esprit d'ADR 0016 retranchant vignettage/TCA. Un *heal*
-  impose de résoudre une équation de blending de Poisson par tache : un
-  engagement algorithmique matériellement plus lourd qu'une copie bilinéaire
-  déterministe, dont la qualité ne peut être validée de façon responsable sans
-  images de référence à disposition — la barre exacte d'ADR 0016. Le clonage
-  couvre le cas d'usage réellement nommé (poussière de capteur) ; le *heal*
-  s'ajoutera dans son propre ADR le jour où le projet pourra en valider le
-  rendu. Coupé comme **mode**, pas déféré comme drapeau : le schéma ne traîne pas
-  de champ `mode` à valeur unique.
-* **Suggestion automatique de source côté moteur.** Écarté en V2 : elle
-  imposerait de concevoir dès maintenant le mécanisme de déterminisme et
-  d'enregistrement qu'exige la question ouverte #2 du §5 (une source proposée
-  doit être déterministe et écrite dans les paramètres, jamais recalculée au
-  rendu). La sélection manuelle sidesteppe ce chantier ; si la suggestion est
-  ajoutée plus tard, elle remplira simplement `spot_removal[].source` comme une
-  aide de saisie, sans chemin de rendu séparé ni valeur implicite.
-* **Placer l'étage après les réglages locaux d'ADR 0029, au lieu de tôt dans le
-  pipeline.** Écarté : le clonage donne sa meilleure qualité sur des données
-  proches du linéaire décodé/corrigé objectif, avant que le bloc tonal n'étire
-  les valeurs (`docs/v2-scope.md` §5). Le placer tard le ferait copier des pixels
-  déjà tonalisés, changeant quels pixels alimentent aussi réduction de bruit et
-  netteté. Les deux étages n'ont aucun besoin d'être adjacents : ADR 0028 les
-  autorise à des positions fixes distinctes sans réconciliation.
-* **De nouvelles méthodes `EditSession` dédiées (`add_spot`/`remove_spot`/…) au
-  lieu d'étendre `Param`/`Value`.** Écarté pour la même raison qu'ADR 0029 l'a
-  écarté pour les masques : cela dupliquerait le mécanisme de
-  coalescence/amendement, chaque méthode devant re-décider amendement vs nouvelle
-  révision. Indexer le tableau `spot_removal` par une variante `Param` hérite
-  gratuitement de toute la politique `Pending::One`/fenêtre d'amendement existante
-  (`session.rs`). La surface de session reste minimale
-  (`set`/`commit`/`undo`/`redo`) et le comportement de coalescence uniforme sur
-  tous les paramètres.
+* **Shipping *heal* in V2 alongside cloning.** Rejected — it is this ADR's
+  central cut, in the spirit of ADR 0016 cutting vignetting and TCA. A *heal*
+  requires solving a Poisson blending equation per spot: an algorithmic
+  commitment materially heavier than a deterministic bilinear copy, whose
+  quality cannot be validated responsibly without reference images available
+  — ADR 0016's exact bar. Cloning covers the use case actually named (sensor
+  dust); *heal* will be added in its own ADR the day the project can validate
+  its rendering. Cut as a **mode**, not deferred as a flag: the schema does
+  not drag along a `mode` field with a single value.
+* **Automatic source suggestion on the engine side.** Rejected for V2: it
+  would require designing right now the determinism and recording mechanism
+  §5's open question #2 demands (a proposed source must be deterministic and
+  written into the parameters, never recomputed at render time). Manual
+  selection sidesteps that work; if suggestion is added later, it will simply
+  fill `spot_removal[].source` as an input aid, with no separate render path
+  and no implicit value.
+* **Placing the stage after ADR 0029's local adjustments, instead of early in
+  the pipeline.** Rejected: cloning gives its best quality on data close to
+  the decoded/lens-corrected linear, before the tonal block stretches the
+  values (`docs/v2-scope.md` §5). Placing it late would make it copy
+  already-toned pixels, changing which pixels also feed noise reduction and
+  sharpening. The two stages have no need to be adjacent: ADR 0028 allows them
+  distinct fixed positions with no reconciliation.
+* **New dedicated `EditSession` methods (`add_spot`/`remove_spot`/…) instead
+  of extending `Param`/`Value`.** Rejected for the same reason ADR 0029
+  rejected it for masks: it would duplicate the coalescing/amendment
+  mechanism, each method having to re-decide amendment versus new revision.
+  Indexing the `spot_removal` array through a `Param` variant inherits the
+  whole existing `Pending::One`/amendment-window policy for free
+  (`session.rs`). The session surface stays minimal
+  (`set`/`commit`/`undo`/`redo`) and the coalescing behaviour uniform across
+  every parameter.
