@@ -1,102 +1,98 @@
-# ADR 0034 — Épreuvage écran et filigrane : deux surfaces de sortie, aucun process ; le module d'impression reste hors décision
+# ADR 0034 — Soft proofing and watermark: two output surfaces, no process; the print module stays outside this decision
 
-**Statut :** Accepté — 2026-07
-**Suite :** le tiers qu'il laisse explicitement non scopé — le module
-d'impression — a eu son propre ADR comme prévu
-([ADR 0036](0036-print-module.md)) ; la rasterisation effective du filigrane,
-que cet ADR décrit en surface sans choisir de moteur de rendu de texte, est
-tranchée par [ADR 0051](0051-watermark-rasterization-and-soft-proof-surface.md).
-Le titre est donc à lire à sa date : l'impression n'est plus hors décision.
+**Status:** Accepted — 2026-07
+**Followed by:** the third it explicitly leaves unscoped — the print module —
+got its own ADR as anticipated ([ADR 0036](0036-print-module.md)); and the
+actual rasterization of the watermark, which this ADR describes at surface
+level without choosing a text rendering engine, is settled by
+[ADR 0051](0051-watermark-rasterization-and-soft-proof-surface.md). The title
+is therefore to be read as of its date: printing is no longer outside the
+decision.
 
-## Contexte
+## Context
 
-`docs/v2-scope.md` §7 regroupe trois manques sous un même item — épreuvage
-écran, filigrane, module d'impression — en soulignant que **c'est l'item le
-moins « pipeline »** : aucun des trois n'est une modification pixel de la
-révision stockée, mais du travail preview / export / gestion des couleurs /
-UI.
+`docs/v2-scope.md` §7 groups three gaps under one item — soft proofing,
+watermark, print module — stressing that **it is the least "pipeline" item**:
+none of the three is a pixel modification of the stored revision, but preview
+/ export / colour management / UI work.
 
-Le verrou transversal qui les bloquait tous — le gel sRGB de V1 (ADR 0015) —
-est déjà tranché par **ADR 0027** : le pipeline de rendu reste sRGB, mais
-`leyline-color` passe d'« exposer un profil statique » à « charger des
-profils ICC arbitraires et construire des `cmsTransform` entre eux » — une
-petite API de transformation (chargement de profil, construction de
-transform, application). ADR 0027 note explicitement que l'épreuvage et
-l'export non-sRGB **partagent la même primitive sous-jacente** et que le
-module d'impression pourra s'appuyer dessus « plutôt que d'en inventer une
-troisième ». Ce document consomme cette primitive ; il ne la re-dérive pas.
+The cross-cutting lock that blocked all three — V1's sRGB freeze (ADR 0015) —
+is already settled by **ADR 0027**: the render pipeline stays sRGB, but
+`leyline-color` moves from "exposing a static profile" to "loading arbitrary
+ICC profiles and building `cmsTransform`s between them" — a small transform
+API (loading a profile, building a transform, applying it). ADR 0027
+explicitly notes that soft proofing and non-sRGB export **share the same
+underlying primitive** and that the print module will be able to lean on it
+"rather than inventing a third". This document consumes that primitive; it
+does not re-derive it.
 
-Restait à trancher, item 7, ce qu'ADR 0027 a délibérément laissé ouvert : la
-**forme concrète** de l'épreuvage et du filigrane. C'est l'objet de cet ADR.
+What remained to settle, for item 7, is what ADR 0027 deliberately left open:
+the **concrete shape** of soft proofing and of the watermark. That is this
+ADR's subject.
 
-**Cadrage explicite d'entrée — ce document ne conçoit pas le module
-d'impression.** L'impression (mise en page, formats papier, marges, planches,
-sortie via profil imprimante) est une initiative franchement séparée et bien
-plus large — « surtout UI + chemin de sortie dédié » selon `docs/v2-scope.md`
-§7 lui-même, coté **L/XL** — dont la conception responsable demande sa propre
-passe le jour où ce chantier sera réellement planifié, exactement comme le §7
-l'a déjà signalé. Cet ADR **ne stub pas** l'impression avec des décisions de
-remplissage : il tranche les deux pièces réellement traitables aujourd'hui —
-le filigrane et la surface moteur/API de l'épreuvage — et laisse l'impression
-à un futur ADR dédié.
+**An explicit framing up front — this document does not design the print
+module.** Printing (layout, paper formats, margins, contact sheets, output
+through a printer profile) is a frankly separate and much wider undertaking —
+"mostly UI plus a dedicated output path" according to `docs/v2-scope.md` §7
+itself, sized **L/XL** — whose responsible design demands its own pass the day
+that work is actually planned, exactly as §7 has already signalled. This ADR
+**does not stub** printing with filler decisions: it settles the two pieces
+genuinely treatable today — the watermark and soft proofing's engine/API
+surface — and leaves printing to a future dedicated ADR.
 
-## Décision
+## Decision
 
-**Ni le filigrane ni l'épreuvage écran n'est une process version, et aucun
-des deux ne touche `settings_json` de développement.** Le tableau de
-`docs/v2-scope.md` §7 le pose déjà pour chacun : l'épreuvage est une
-transformation « à l'affichage » qui ne modifie **ni** `settings_json` **ni**
-les pixels de la révision (« Aucune process/schema : transformation non
-persistée ») ; le filigrane est une décoration « à l'export », de même
-catégorie que format/qualité (« Aucune process de développement »). Les deux
-vivent donc là où la configuration de sortie vit déjà — à l'export,
-`ExportRecipe`/`ExportSettings` (ADR 0025, `docs/engine-api.md` §12) ; à
-l'affichage, la requête de preview (`docs/engine-api.md` §11) — jamais dans
-une révision ni un `process`.
+**Neither the watermark nor soft proofing is a process version, and neither
+touches develop `settings_json`.** `docs/v2-scope.md` §7's table already
+states it for each: soft proofing is a transform "at display time" that
+modifies **neither** `settings_json` **nor** the revision's pixels ("No
+process/schema: a transform that is not persisted"); the watermark is a
+decoration "at export time", in the same category as format and quality ("No
+develop process"). Both therefore live where output configuration already
+lives — at export, `ExportRecipe`/`ExportSettings` (ADR 0025,
+`docs/engine-api.md` §12); at display, the preview request
+(`docs/engine-api.md` §11) — never in a revision nor a `process`.
 
-**Contrairement à ADR 0029–0033, ce document n'introduit aucune process
-version et n'insère aucun étage dans l'ordre du pipeline `docs/pipeline.md`
-§3.1.** C'est la conséquence directe de la nature « non-pipeline » de l'item
-relevée au §7 : rien ici ne change les pixels d'une révision stockée.
+**Unlike ADR 0029–0033, this document introduces no process version and
+inserts no stage into `docs/pipeline.md` §3.1's pipeline order.** That is the
+direct consequence of the item's "non-pipeline" nature noted in §7: nothing
+here changes the pixels of a stored revision.
 
-### Filigrane — texte seul en V2, l'image/logo est coupée
+### Watermark — text only in V2, image/logo is cut
 
-Le filigrane V2 est **exclusivement textuel** : une chaîne, sa police, sa
-taille, sa couleur, son opacité, et son ancrage/position. Un tel filigrane
-est **entièrement autonome** dans `export_presets.settings_json`
-(`docs/catalog.md` §27) — aucun nouveau problème de référence de ressource.
+The V2 watermark is **exclusively textual**: a string, its font, its size, its
+colour, its opacity, and its anchor/position. Such a watermark is **entirely
+self-contained** in `export_presets.settings_json` (`docs/catalog.md` §27) —
+no new resource-reference problem.
 
-Le **filigrane image/logo est coupé du périmètre V2** — coupe délibérée, pas
-un oubli. Un logo poserait une vraie question de conception que cet ADR
-choisit de ne pas trancher à la légère : où vit le fichier logo et comment
-est-il référencé ? Un chemin relatif dans la bibliothèque
-(`docs/catalog.md` §2.3) — mais le logo n'est pas un asset photo, la règle des
-chemins relatifs ne le couvre pas évidemment ? Un chemin absolu choisi par
-l'utilisateur — que la portabilité de la bibliothèque (§2.3) interdit
-justement de stocker ? Le filigrane texte contourne entièrement cette
-question (il n'a aucune ressource externe) et couvre le cas d'usage nommé
-dans les listes de manque typiques : nom du photographe, copyright, site web.
-Le logo s'ajoutera dans son propre changement le jour où ce problème de
-référence sera tranché.
+The **image/logo watermark is cut from V2's scope** — a deliberate cut, not an
+oversight. A logo would raise a genuine design question this ADR chooses not
+to settle lightly: where does the logo file live and how is it referenced? A
+path relative to the library (`docs/catalog.md` §2.3) — but the logo is not a
+photo asset, and the relative-path rule does not obviously cover it? An
+absolute path chosen by the user — which the library's portability (§2.3)
+precisely forbids storing? A text watermark sidesteps that question entirely
+(it has no external resource) and covers the use case named in typical gap
+lists: the photographer's name, a copyright, a website. The logo will be added
+in its own change the day that reference problem is settled.
 
-**Placement dans le chemin de rendu d'export.** Le filigrane texte est
-composité comme **toute dernière étape du rendu d'export**, *après* la
-transformation ICC optionnelle vers le profil de destination d'ADR 0027 et
-**immédiatement avant l'encodage** (`leyline-export::encode`,
-`crates/leyline-export/src/lib.rs`). Raisonnement : le texte du filigrane doit
-être tracé directement dans l'espace RGB de destination (quel que soit le
-profil visé par l'export), **pas** repassé par une transformation
-colorimétrique photographique conçue pour le contenu image. Le dessiner après
-la conversion de profil évite ce désalignement — le décor de sortie hérite de
-l'espace de sortie, il ne le traverse pas.
+**Placement in the export render path.** The text watermark is composited as
+the **very last step of the export render**, *after* ADR 0027's optional ICC
+transform to the destination profile and **immediately before encoding**
+(`leyline-export::encode`, `crates/leyline-export/src/lib.rs`). The reasoning:
+the watermark's text must be drawn directly in the destination RGB space
+(whatever profile the export targets), **not** put back through a photographic
+colour transform designed for image content. Drawing it after the profile
+conversion avoids that mismatch — output decoration inherits the output space,
+it does not travel through it.
 
-**Stockage — additif.** `ExportSettings` (`crates/leyline-export/src/lib.rs`,
-qui **double comme** le `settings_json` des presets d'export, `docs/catalog.md`
-§27) gagne un champ optionnel `watermark`. Absent = pas de filigrane. Aucun
-bump de schéma d'export : c'est un ajout de champ optionnel de valeur neutre,
-au même titre que `max_edge` l'a été.
+**Storage — additive.** `ExportSettings` (`crates/leyline-export/src/lib.rs`,
+which **doubles as** the `settings_json` of export presets, `docs/catalog.md`
+§27) gains an optional `watermark` field. Absent means no watermark. No export
+schema bump: it is the addition of an optional field with a neutral value,
+just as `max_edge` was.
 
-Esquisse (une recette d'export avec filigrane texte) :
+A sketch (an export recipe with a text watermark):
 
 ```json
 {
@@ -114,116 +110,112 @@ Esquisse (une recette d'export avec filigrane texte) :
 }
 ```
 
-Cas neutre — champ absent, export inchangé par rapport à aujourd'hui :
+The neutral case — the field absent, the export unchanged from today:
 
 ```json
 { "format": "jpeg", "quality": 90 }
 ```
 
-> **Note d'implémentation (pas une édition de code ici).** `ExportSettings`
-> refuse aujourd'hui tout champ inconnu (`#[serde(default,
-> deny_unknown_fields)]`, `crates/leyline-export/src/lib.rs`), et un test s'en
-> sert précisément avec `"watermark": "logo.png"` comme exemple de champ non
-> reconnu à rejeter (§3.4). La PR qui livre le filigrane fait de `watermark`
-> un champ **connu** (un objet, pas la chaîne du test) et met à jour ce test
-> dans le même changement — conformément à CLAUDE.md, la spec et le code
-> bougent ensemble, pas dans cet ADR de pré-décision.
+> **An implementation note (not a code edit here).** `ExportSettings` today
+> refuses any unknown field (`#[serde(default, deny_unknown_fields)]`,
+> `crates/leyline-export/src/lib.rs`), and a test uses precisely
+> `"watermark": "logo.png"` as an example of an unrecognized field to reject
+> (§3.4). The PR that ships the watermark makes `watermark` a **known** field
+> (an object, not the test's string) and updates that test in the same change
+> — in keeping with CLAUDE.md, spec and code move together, not in this
+> pre-decision ADR.
 
-### Épreuvage écran — surface moteur/API, vue seule
+### Soft proofing — an engine/API surface, view only
 
-L'épreuvage est **une extension de la requête de preview** (`docs/engine-api.md`
-§11), pas une révision ni un preset. Un paramètre d'épreuvage **optionnel**
-s'ajoute à un appel de preview : un profil ICC de destination (octets ou
-référence), une intention de rendu, et un drapeau optionnel d'alerte de gamut.
-Cet ajout est **une option de vue sur un seul appel de preview** — **jamais
-persisté**, jamais écrit à aucune révision ni preset, jamais dans
-`settings_json`.
+Soft proofing is **an extension of the preview request** (`docs/engine-api.md`
+§11), not a revision and not a preset. An **optional** proofing parameter is
+added to a preview call: a destination ICC profile (bytes or a reference), a
+rendering intent, and an optional gamut-warning flag. That addition is **a
+view option on a single preview call** — **never persisted**, never written to
+any revision or preset, never in `settings_json`.
 
-La transformation elle-même **réutilise la primitive d'ADR 0027**
-(`leyline-color` : chargement de profil, construction de transform,
-application) — aucune primitive nouvelle, exactement le partage qu'ADR 0027 a
-anticipé entre épreuvage et export non-sRGB. La sortie du pipeline de rendu
-(sRGB, `docs/adr/0015`) est **entièrement inchangée** : la transformation
-d'épreuvage a lieu **strictement après** le rendu normal, pour l'affichage
-seul. L'aperçu se rend d'abord en sRGB comme aujourd'hui, puis, quand un
-paramètre d'épreuvage est fourni, `leyline-color` applique la transformation
-sRGB → profil de destination (plus l'alerte de gamut si demandée) sur le seul
-tampon d'affichage.
+The transform itself **reuses ADR 0027's primitive** (`leyline-color`: loading
+a profile, building a transform, applying it) — no new primitive, exactly the
+sharing ADR 0027 anticipated between proofing and non-sRGB export. The render
+pipeline's output (sRGB, `docs/adr/0015`) is **entirely unchanged**: the
+proofing transform happens **strictly after** the normal render, for display
+alone. The preview renders first in sRGB as it does today, then, when a
+proofing parameter is supplied, `leyline-color` applies the sRGB → destination
+profile transform (plus the gamut warning if asked for) to the display buffer
+alone.
 
-Esquisse conceptuelle du paramètre (forme exacte laissée à la PR, comme pour
-tout ADR de cette série) :
+A conceptual sketch of the parameter (the exact shape left to the PR, as for
+every ADR in this series):
 
 ```rust
 struct SoftProof {
-    profile: IccProfile,       // octets ICC ou référence vers un profil de destination
-    intent: RenderingIntent,   // perceptuel / colorimétrique relatif / …
-    gamut_warning: bool,       // surligner les couleurs hors gamut de destination
+    profile: IccProfile,       // ICC bytes or a reference to a destination profile
+    intent: RenderingIntent,   // perceptual / relative colorimetric / …
+    gamut_warning: bool,       // highlight colours outside the destination gamut
 }
-// param optionnel d'un appel preview — jamais sérialisé, jamais catalogué.
+// an optional parameter of a preview call — never serialized, never catalogued.
 ```
 
-## Conséquences
+## Consequences
 
-* **Cet ADR clôt les deux tiers « épreuvage/filigrane » de l'item 7** qu'ADR
-  0027 avait laissés ouverts. Le tiers restant — le module d'impression —
-  demeure **genuinely non scopé**, suivi comme travail futur, **ni conçu ici
-  ni stubé** avec des décisions de remplissage. C'est une déférence explicite,
-  pas un oubli : l'impression aura son propre ADR quand le chantier sera
-  planifié, dans le même esprit que `docs/v2-scope.md` §7 l'a coté L/XL et
-  décrit comme « surtout UI + chemin de sortie dédié ».
-* **Aucune process version, aucun étage pipeline** : le contrat de
-  reproductibilité des révisions (`docs/pipeline.md` §5, « même révision →
-  mêmes pixels ») n'est pas engagé, exactement comme ADR 0027 l'a établi — le
-  filigrane vit à l'encodage d'export, l'épreuvage dans un tampon d'affichage,
-  deux surfaces déjà hors du périmètre de ce contrat.
-* **Le filigrane hérite gratuitement de la plomberie de presets d'export** :
-  un champ dans `ExportSettings`, donc portable, stockable et rejouable comme
-  n'importe quelle recette (`docs/catalog.md` §27), sans nouvelle table ni
-  nouveau mécanisme.
-* **L'épreuvage et l'export non-sRGB (ADR 0027) partagent une seule primitive
-  ICC** dans `leyline-color` : construire l'un dérisque l'autre, comme ADR 0027
-  l'avait prévu, même si `docs/v2-scope.md` les liste séparément.
-* **La coupe du filigrane image/logo** laisse ouvert, pour un futur ADR, le
-  vrai problème de référence de ressource (chemin relatif de bibliothèque vs.
-  fichier absolu choisi par l'utilisateur) — sans bloquer le cas d'usage
-  courant que le texte couvre déjà.
+* **This ADR closes the two thirds of item 7 that are "proofing/watermark"**,
+  which ADR 0027 had left open. The remaining third — the print module —
+  stays **genuinely unscoped**, tracked as future work, **neither designed
+  here nor stubbed** with filler decisions. That is an explicit deferral, not
+  an oversight: printing will have its own ADR when the work is planned, in
+  the same spirit as `docs/v2-scope.md` §7 sizing it L/XL and describing it as
+  "mostly UI plus a dedicated output path".
+* **No process version, no pipeline stage**: the revisions' reproducibility
+  contract (`docs/pipeline.md` §5, "the same revision → the same pixels") is
+  not engaged, exactly as ADR 0027 established — the watermark lives at export
+  encoding, proofing in a display buffer, two surfaces already outside that
+  contract's scope.
+* **The watermark inherits the export-preset plumbing for free**: a field in
+  `ExportSettings`, hence portable, storable and replayable like any recipe
+  (`docs/catalog.md` §27), with no new table and no new mechanism.
+* **Soft proofing and non-sRGB export (ADR 0027) share a single ICC
+  primitive** in `leyline-color`: building one de-risks the other, as ADR 0027
+  foresaw, even though `docs/v2-scope.md` lists them separately.
+* **Cutting the image/logo watermark** leaves the real resource-reference
+  problem open for a future ADR (a library-relative path vs. an absolute file
+  chosen by the user) — without blocking the common use case text already
+  covers.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Supporter le filigrane image/logo dès la V2.** Écarté : il faudrait
-  trancher où vit le fichier logo et comment il est référencé — un chemin
-  relatif de bibliothèque (`docs/catalog.md` §2.3) alors que le logo n'est pas
-  un asset photo, ou un chemin absolu que la règle de portabilité (§2.3)
-  interdit justement de stocker. Une vraie question de conception que cet ADR
-  refuse d'inventer sous pression ; le filigrane texte est entièrement
-  autonome dans `settings_json` et couvre le cas nommé (nom/copyright/site).
-  Le logo reviendra dans son propre changement, une fois le problème de
-  référence tranché — pas déféré comme drapeau, coupé comme fonctionnalité.
-* **Compositer le filigrane avant la transformation vers le profil de
-  destination.** Écarté : le texte serait alors tracé en sRGB puis repassé
-  par la transformation ICC photographique d'ADR 0027, conçue pour le contenu
-  image, pas pour un décor. Ses couleurs (un blanc à 70 % d'opacité, une
-  teinte de copyright) dériveraient avec le profil de destination. Le tracer
-  **après** la conversion, directement en espace de destination, garantit
-  qu'un filigrane blanc reste le blanc de destination — le décor hérite de
-  l'espace de sortie, il ne le traverse pas.
-* **Persister l'état d'épreuvage dans `settings_json` ou un preset** plutôt
-  que de le garder un paramètre de requête vue-seule. Écarté : l'épreuvage
-  est un **mode de vue**, pas une propriété de la révision (`docs/v2-scope.md`
-  §7). L'écrire au catalogue contredirait le constat même du §7 (« ne modifie
-  ni `settings_json` ni les pixels ») et introduirait un état qui n'affecte
-  aucun pixel rendu ni exporté — un champ qui ment sur ce qu'est une révision.
-  Le garder sur l'appel de preview le maintient exactement là où il agit :
-  l'affichage, rien d'autre.
-* **Scoper le module d'impression dans ce même ADR.** Écarté : l'impression
-  est un sous-système mise en page + sortie (marges, planches, profil
-  imprimante), coté L/XL et « surtout UI + chemin de sortie dédié » par
-  `docs/v2-scope.md` §7 — une initiative franchement plus large que le
-  filigrane et l'épreuvage, et d'une autre nature (UI et plomberie de sortie,
-  pas architecture de pipeline de développement). La concevoir
-  responsablement demande sa propre passe dédiée, le jour où ce chantier sera
-  planifié. La stuber ici avec des décisions de remplissage (formats papier,
-  modèle de marges, gestion des planches) serait inventer une architecture que
-  personne n'a encore réellement cadrée — exactement ce que la maison évite
-  (« No code before architecture »). L'impression garde donc son propre ADR à
-  venir ; cet ADR se contente de le dire explicitement.
+* **Supporting an image/logo watermark from V2 on.** Rejected: it would
+  require settling where the logo file lives and how it is referenced — a
+  library-relative path (`docs/catalog.md` §2.3) when the logo is not a photo
+  asset, or an absolute path that the portability rule (§2.3) precisely
+  forbids storing. A genuine design question this ADR refuses to invent under
+  pressure; the text watermark is entirely self-contained in `settings_json`
+  and covers the named case (name/copyright/website). The logo will come back
+  in its own change, once the reference problem is settled — not deferred as a
+  flag, cut as a feature.
+* **Compositing the watermark before the transform to the destination
+  profile.** Rejected: the text would then be drawn in sRGB and put back
+  through ADR 0027's photographic ICC transform, designed for image content
+  and not for a decoration. Its colours (a white at 70 % opacity, a copyright
+  tint) would drift with the destination profile. Drawing it **after** the
+  conversion, directly in the destination space, guarantees that a white
+  watermark stays the destination's white — the decoration inherits the output
+  space, it does not travel through it.
+* **Persisting the proofing state in `settings_json` or a preset** rather than
+  keeping it a view-only request parameter. Rejected: proofing is a **view
+  mode**, not a property of the revision (`docs/v2-scope.md` §7). Writing it
+  to the catalog would contradict §7's own observation ("modifies neither
+  `settings_json` nor the pixels") and would introduce state affecting no
+  rendered or exported pixel — a field that lies about what a revision is.
+  Keeping it on the preview call keeps it exactly where it acts: the display,
+  and nothing else.
+* **Scoping the print module in this same ADR.** Rejected: printing is a
+  layout plus output subsystem (margins, contact sheets, printer profile),
+  sized L/XL and "mostly UI plus a dedicated output path" by
+  `docs/v2-scope.md` §7 — an undertaking frankly wider than the watermark and
+  proofing, and of another nature (UI and output plumbing, not develop
+  pipeline architecture). Designing it responsibly demands its own dedicated
+  pass, the day that work is planned. Stubbing it here with filler decisions
+  (paper formats, a margin model, contact-sheet handling) would be inventing
+  an architecture nobody has actually framed yet — exactly what the house
+  avoids ("No code before architecture"). Printing therefore keeps its own ADR
+  to come; this ADR merely says so explicitly.
