@@ -316,3 +316,110 @@ fn a_failed_snapshot_refuses_the_migration() {
         0
     );
 }
+
+/// Every `ON DELETE CASCADE` key must be indexed **on the referencing side**
+/// (§32). SQLite enforces a cascade by looking up the children that point at
+/// the deleted parent: with no index on that column, the lookup scans the
+/// whole child table once per deleted row. Nothing fails, nothing warns — the
+/// delete just goes quadratic, which is how `develop_current(version_id)` and
+/// `export_history(asset_id)` stayed uncovered until they were measured.
+///
+/// Written generically on purpose: the next cascading key added to the schema
+/// is checked by this test the day it appears.
+#[test]
+fn every_cascading_foreign_key_is_indexed() {
+    let dir = tempfile::tempdir().unwrap();
+    let catalog = Catalog::create(&temp_catalog_path(&dir), "Cascades").unwrap();
+    let conn = catalog.connection();
+
+    let tables: Vec<String> = conn
+        .prepare(
+            "SELECT name FROM sqlite_master
+              WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
+        )
+        .unwrap()
+        .query_map([], |row| row.get(0))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+
+    let mut checked = 0;
+    let mut uncovered = Vec::new();
+    for table in &tables {
+        // (id, seq, referencing column, on_delete): a composite key spans
+        // several rows sharing an id, and only its first column can lead an
+        // index — so seq 0 is the one that decides.
+        let keys: Vec<(i64, i64, String, String)> = conn
+            .prepare(&format!("PRAGMA foreign_key_list({table})"))
+            .unwrap()
+            .query_map([], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(3)?, row.get(6)?))
+            })
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+
+        for (_, _, column, _) in keys
+            .iter()
+            .filter(|(_, seq, _, on_delete)| *seq == 0 && on_delete.eq_ignore_ascii_case("CASCADE"))
+        {
+            checked += 1;
+            if !leads_an_index(conn, table, column) && !is_rowid_alias(conn, table, column) {
+                uncovered.push(format!("{table}({column})"));
+            }
+        }
+    }
+    assert!(
+        uncovered.is_empty(),
+        "these cascading keys lead no index, so deleting a parent row scans \
+         their table whole: {}",
+        uncovered.join(", ")
+    );
+    // A guard that checked nothing would pass just as quietly.
+    assert!(checked >= 10, "only {checked} cascading keys found");
+}
+
+/// Whether `column` is the first column of some index on `table` — including
+/// the automatic index behind a `UNIQUE` constraint.
+fn leads_an_index(conn: &rusqlite::Connection, table: &str, column: &str) -> bool {
+    let indexes: Vec<String> = conn
+        .prepare(&format!("PRAGMA index_list({table})"))
+        .unwrap()
+        .query_map([], |row| row.get(1))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+
+    indexes.iter().any(|index| {
+        conn.query_row(
+            &format!("SELECT name FROM pragma_index_info('{index}') WHERE seqno = 0"),
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .map(|first| first == column)
+        .unwrap_or(false)
+    })
+}
+
+/// Whether `column` is the `INTEGER PRIMARY KEY`, i.e. the rowid itself: it
+/// needs no index because the table *is* that b-tree.
+fn is_rowid_alias(conn: &rusqlite::Connection, table: &str, column: &str) -> bool {
+    let pk: Vec<(String, String)> = conn
+        .prepare(&format!("PRAGMA table_info({table})"))
+        .unwrap()
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, i64>(5)?,
+            ))
+        })
+        .unwrap()
+        .filter_map(|row| {
+            let (name, kind, pk) = row.unwrap();
+            (pk == 1).then_some((name, kind))
+        })
+        .collect();
+
+    matches!(pk.as_slice(), [(name, kind)] if name == column && kind.eq_ignore_ascii_case("INTEGER"))
+}

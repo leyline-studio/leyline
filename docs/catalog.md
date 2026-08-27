@@ -1433,6 +1433,49 @@ that scan roughly eight times cheaper than the same scan over the composite.
 
 ---
 
+## Cascading foreign keys
+
+```sql
+CREATE INDEX idx_develop_current_version
+ON develop_current(version_id);
+
+CREATE INDEX idx_export_history_asset
+ON export_history(asset_id);
+
+CREATE INDEX idx_previews_revision
+ON previews(revision_id);
+
+CREATE INDEX idx_collection_versions_version
+ON collection_versions(version_id);
+```
+
+Every `ON DELETE CASCADE` key of §33 needs an index **on the referencing
+side**: SQLite enforces a cascade by looking up the child rows that point at
+the deleted parent, and without an index that lookup scans the whole child
+table, once per deleted row. Every other cascading key here is already covered
+by an index some query asked for; these two were covered by nothing.
+
+`develop_current` needs only one of the two: its `asset_id` is the table's
+primary key, so that cascade already had a b-tree — it is the key pointing at
+`develop_versions` that scanned. `collection_versions(version_id)` is the
+subtler case: `idx_collection_versions_position` exists, but it covers
+`(collection_id, position)`, and an index only serves a lookup on the column
+that **leads** it.
+
+Which of these keys are uncovered is not a question to answer by reading. The
+schema answers it: `every_cascading_foreign_key_is_indexed` walks
+`PRAGMA foreign_key_list` over every table and fails on any cascading key that
+leads no index. Two of the four above were named by a hand audit; the other two
+were found by that test.
+
+Deleting 20 000 assets from a library of 20 000, in batches of 500, with an
+export history of 26 667 rows and every version filed in a collection:
+**3 714 µs/asset without, 1 864 µs/asset with** — roughly halved. What remains
+is the cascade chain over eight tables plus the FTS5 row, which no index
+removes.
+
+---
+
 ## Metadata
 
 ```sql

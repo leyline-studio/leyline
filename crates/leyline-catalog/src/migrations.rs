@@ -11,7 +11,7 @@ use leyline_core::Result;
 
 /// Migration scripts: index `n` migrates the database to `user_version` `n + 1`.
 const MIGRATIONS: &[&str] = &[
-    SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6,
+    SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7,
 ];
 
 /// The schema version produced by the newest migration.
@@ -438,4 +438,41 @@ CREATE INDEX idx_assets_grid ON assets(companion_of, capture_date, id);
 const SCHEMA_V6: &str = "
 -- §19 0 = rendered by the pipeline, 1 = the preview the file carried.
 ALTER TABLE previews ADD COLUMN origin INTEGER NOT NULL DEFAULT 0;
+";
+
+/// Version 7: the four `ON DELETE CASCADE` keys no index covered (§32).
+///
+/// SQLite enforces a cascade by looking for the child rows that reference the
+/// deleted parent. Without an index on the referencing column that lookup is a
+/// **full scan of the child table, once per deleted row** — quadratic on a
+/// batch. Nothing fails and nothing warns; the delete simply gets slower with
+/// the library.
+///
+/// The audit of 2026-08-26 had named two of these by hand. The other two came
+/// out of `every_cascading_foreign_key_is_indexed`, which asks the schema
+/// itself rather than a reader's memory:
+///
+/// * `develop_current(version_id)` — one row per asset. Its *other* key needs
+///   nothing: `asset_id` is the table's primary key, so that cascade already
+///   had a b-tree.
+/// * `export_history(asset_id)` — grows with every export the user ever ran.
+/// * `previews(revision_id)` — grows with every render kept in cache.
+/// * `collection_versions(version_id)` — `idx_collection_versions_position`
+///   covers `(collection_id, position)`, and `version_id` does not lead it.
+///
+/// Deleting 20 000 assets from a library of 20 000, in batches of 500, with an
+/// export history of 26 667 rows and every version filed in a collection:
+/// **3 714 µs/asset without, 1 864 µs/asset with** — the cost roughly halved
+/// (−50 %, and −53 % with the two cases run in the opposite order). What
+/// remains is the cascade chain itself over eight tables plus the FTS5 row,
+/// which no index removes.
+///
+/// Purely additive. The price is four b-trees on write paths that are not
+/// where imports spend their time.
+const SCHEMA_V7: &str = "
+-- §32 The cascades that scanned: a delete looks up children by these.
+CREATE INDEX idx_develop_current_version ON develop_current(version_id);
+CREATE INDEX idx_export_history_asset ON export_history(asset_id);
+CREATE INDEX idx_previews_revision ON previews(revision_id);
+CREATE INDEX idx_collection_versions_version ON collection_versions(version_id);
 ";
