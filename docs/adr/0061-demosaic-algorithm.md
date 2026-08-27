@@ -1,118 +1,116 @@
-# ADR 0061 — Choix de l'algorithme de dématriçage
+# ADR 0061 — Choosing the demosaicing algorithm
 
-**Statut :** Accepté — 2026-08
-**Suite :** `input::v3`, que cet ADR crée, n'est plus la version courante :
-[ADR 0066](0066-sensor-white-level.md) fait venir le niveau de blanc du capteur
-plutôt que du contenu de la photo (`v4`). Le choix de dématriçage décidé ici
-traverse ce changement sans bouger.
+**Status:** Accepted — 2026-08
+**Followed by:** `input::v3`, which this ADR creates, is no longer the current
+version: [ADR 0066](0066-sensor-white-level.md) takes the white level from the
+sensor rather than from the photo's content (`v4`). The demosaicing choice
+decided here passes through that change unmoved.
 
-## Contexte
+## Context
 
-Le dématriçage est la toute première décision de rendu : reconstruire trois
-canaux par pixel à partir d'un capteur qui n'en mesure qu'un. Son choix se voit
-sur le détail fin et les motifs répétitifs — feuillage, tissu, maçonnerie — où
-un algorithme produit du moiré là où un autre n'en produit pas.
+Demosaicing is the very first rendering decision: reconstructing three channels
+per pixel from a sensor that measures only one. Its choice shows on fine detail
+and repetitive patterns — foliage, fabric, masonry — where one algorithm
+produces moiré and another does not.
 
-Leyline ne le choisit pas. `params.user_qual` n'est ni exposé ni même écrit :
-on prend le défaut de LibRaw, silencieusement.
-[ADR 0050](0050-highlight-reconstruction.md) avait laissé la question ouverte
-en toutes lettres. `docs/measured-findings.md` §A2 la reprend comme le levier de
-qualité le moins cher du projet : il est **déjà dans la dépendance**, il ne
-reste qu'à le piloter.
+Leyline does not choose it. `params.user_qual` is neither exposed nor even
+written: LibRaw's default is taken, silently.
+[ADR 0050](0050-highlight-reconstruction.md) had left the question open in so
+many words. `docs/measured-findings.md` §A2 takes it up as the project's
+cheapest quality lever: it is **already in the dependency**, and only needs
+driving.
 
-Deux faits ont été vérifiés avant de décider, et ils réduisent tous deux le
-périmètre par rapport à ce que le plan supposait.
+Two facts were verified before deciding, and both narrow the scope relative to
+what the plan assumed.
 
-**AMaZE et LMMSE ne sont pas disponibles.** Ils vivent dans les *demosaic
-packs* GPL2/GPL3, retirés de la distribution principale de LibRaw depuis la
-0.19 et absents de la bibliothèque liée ici (0.20.2 : `user_qual` et
-`dcb_iterations` sont présents, aucun symbole de pack ne l'est). Le plan citait
-RawTherapee, qui les embarque séparément. Les proposer reviendrait à offrir un
-choix qui retombe en silence sur AHD — pire que de ne pas l'offrir.
+**AMaZE and LMMSE are not available.** They live in the GPL2/GPL3 *demosaic
+packs*, removed from LibRaw's main distribution since 0.19 and absent from the
+library linked here (0.20.2: `user_qual` and `dcb_iterations` are present, and
+no pack symbol is). The plan cited RawTherapee, which bundles them separately.
+Offering them would amount to offering a choice that silently falls back to AHD
+— worse than not offering it.
 
-**Le dématriçage n'a aucun effet sur les petites previews.** Les classes
-`Thumbnail` et `Small` décodent en `half_size` (`preview.rs`), et le demi-format
-de LibRaw prend un pixel par groupe de Bayer 2×2 : **l'interpolation est
-purement et simplement court-circuitée**. Le réglage ne change donc rien tant
-qu'on n'est pas en `Medium` ou au-delà, ni à l'export. Ce n'est pas un défaut à
-corriger — c'est ce qui rend la navigation rapide — mais c'est un fait que
-l'interface doit dire, sous peine de proposer un curseur qui « ne fait rien ».
+**Demosaicing has no effect on small previews.** The `Thumbnail` and `Small`
+classes decode at `half_size` (`preview.rs`), and LibRaw's half-size mode takes
+one pixel per 2×2 Bayer group: **the interpolation is simply short-circuited**.
+The setting therefore changes nothing until one is at `Medium` or beyond, or at
+export. That is not a flaw to fix — it is what makes navigation fast — but it
+is a fact the interface must state, on pain of offering a slider that "does
+nothing".
 
-## Décision
+## Decision
 
-**Le dématriçage devient un réglage nommé, écrit dans la révision, porté par une
-nouvelle version de l'étage `input`.**
+**Demosaicing becomes a named setting, written into the revision, carried by a
+new version of the `input` stage.**
 
-### 1. Quatre algorithmes, pas sept
+### 1. Four algorithms, not seven
 
-`Settings` gagne un champ `demosaic`, dont les valeurs sont nommées par ce
-qu'elles font, jamais par le numéro de LibRaw :
+`Settings` gains a `demosaic` field, whose values are named by what they do,
+never by LibRaw's number:
 
-| Valeur | LibRaw | Pourquoi elle est là |
+| Value | LibRaw | Why it is there |
 |---|---|---|
-| `ahd` *(défaut)* | 3 | Le défaut historique de LibRaw et de Leyline. Bon partout, excellent nulle part. |
-| `vng` | 1 | Doux sur les dégradés, moins de labyrinthe sur les zones unies. |
-| `dcb` | 4 | Meilleur rendu des bords nets ; le choix quand le moiré gêne. |
-| `dht` | 11 | Le plus fin sur le détail à haute fréquence, le plus lent. |
+| `ahd` *(default)* | 3 | LibRaw's and Leyline's historical default. Good everywhere, excellent nowhere. |
+| `vng` | 1 | Gentle on gradients, less maze artefacting on flat areas. |
+| `dcb` | 4 | Better rendering of sharp edges; the choice when moiré is a nuisance. |
+| `dht` | 11 | The finest on high-frequency detail, the slowest. |
 
-Écartés délibérément : **AMaZE et LMMSE**, indisponibles (voir Contexte) ;
-**linéaire (0) et PPG (2)**, strictement moins bons que AHD sans être assez
-rapides pour que ça compte, le chemin preview tenant déjà la vitesse par son
-proxy ; **AAHD (12)**, trop proche d'AHD pour justifier une cinquième entrée
-dans une liste que l'utilisateur doit pouvoir parcourir d'un coup d'œil.
+Deliberately rejected: **AMaZE and LMMSE**, unavailable (see Context);
+**linear (0) and PPG (2)**, strictly worse than AHD without being fast enough
+for it to matter, the preview path already holding its speed through its proxy;
+**AAHD (12)**, too close to AHD to justify a fifth entry in a list the user
+must be able to scan at a glance.
 
-### 2. `input::v3`, et le refus qui va avec
+### 2. `input::v3`, and the refusal that goes with it
 
-Changer le dématriçage change les pixels. C'est donc une **nouvelle version de
-l'étage `input`**, jamais une modification de `v2` : les révisions existantes
-citent `v1` ou `v2` et continuent de rendre exactement comme aujourd'hui
-(`docs/pipeline.md` §5.1).
+Changing demosaicing changes the pixels. It is therefore a **new version of the
+`input` stage**, never a modification of `v2`: existing revisions cite `v1` or
+`v2` and go on rendering exactly as today (`docs/pipeline.md` §5.1).
 
-Le défaut de `v3` reste **AHD**, pour que passer une révision en `v3` sans
-toucher au réglage ne déplace aucun pixel. Choisir un « meilleur » défaut aurait
-fait diverger les nouvelles photos des anciennes sans que personne ne l'ait
-demandé.
+`v3`'s default stays **AHD**, so that moving a revision to `v3` without
+touching the setting moves no pixel. Choosing a "better" default would have made
+new photos diverge from old ones without anyone asking.
 
-Un réglage non-AHD sur une révision épinglée en `input: 1` ou `2` est **refusé
-par `validate()`**, en nommant la version qu'il faudrait — la règle de capacité
-déjà appliquée par ADR 0050 à `highlight_reconstruction`. Jamais un silence,
-jamais un repli discret.
+A non-AHD setting on a revision pinned at `input: 1` or `2` is **refused by
+`validate()`**, naming the version that would be needed — the capability rule
+already applied by ADR 0050 to `highlight_reconstruction`. Never a silence,
+never a discreet fallback.
 
-### 3. Ce que l'interface doit dire
+### 3. What the interface must say
 
-Le réglage vit dans le groupe Détail, à côté de la réduction de bruit, et
-**annonce lui-même qu'il ne se voit pas à cette taille d'aperçu** tant que la
-preview affichée est `Thumbnail` ou `Small`. Un réglage dont l'effet est
-invisible sans explication est un réglage qu'on croit cassé.
+The setting lives in the Detail group, beside noise reduction, and **announces
+itself that it is not visible at this preview size** while the displayed
+preview is `Thumbnail` or `Small`. A setting whose effect is invisible without
+explanation is a setting people believe is broken.
 
-Les trois clients l'exposent, comme tout le reste du pipeline : Studio, la CLI
-(`leyline develop <version> demosaic <ahd|vng|dcb|dht>`) et le SDK.
+All three clients expose it, like the rest of the pipeline: Studio, the CLI
+(`leyline develop <version> demosaic <ahd|vng|dcb|dht>`) and the SDK.
 
-## Conséquences
+## Consequences
 
-* Une version d'étage de plus (`input::v3`), donc une entrée de plus dans les
-  rendus de référence de `stages/golden.rs`, et les précédentes inchangées.
-* `DecodeParams` gagne un champ, et le shim C un paramètre — même forme que ce
-  qu'ADR 0050 a fait pour `highlight`.
-* Le champ entre dans `settings_json` et dans le groupe de presets Détail.
-* **Le bénéfice ne se voit qu'en `Medium` et au-delà, et à l'export.** Aucune
-  mesure de qualité ne sera donc concluante sur une petite preview.
-* `dcb_iterations` et `dcb_enhance_fl` restent à leur défaut : ce sont des
-  réglages d'un seul algorithme, et les exposer ferait entrer une arborescence
-  d'options là où le projet veut une liste plate.
+* One more stage version (`input::v3`), hence one more entry in
+  `stages/golden.rs`'s reference renders, with the previous ones unchanged.
+* `DecodeParams` gains a field, and the C shim a parameter — the same shape as
+  what ADR 0050 did for `highlight`.
+* The field enters `settings_json` and the Detail preset group.
+* **The benefit shows only at `Medium` and beyond, and at export.** No quality
+  measurement will therefore be conclusive on a small preview.
+* `dcb_iterations` and `dcb_enhance_fl` stay at their defaults: they are
+  settings of a single algorithm, and exposing them would bring a tree of
+  options into a place where the project wants a flat list.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Ne rien exposer et changer le défaut** pour un algorithme jugé meilleur :
-  déplace les pixels de tout le monde sans le dire, et prive quand même
-  l'utilisateur du choix. Le pire des deux mondes.
-* **Exposer les sept valeurs de LibRaw**, y compris celles qui retombent sur
-  AHD faute de pack GPL : un menu qui ment.
-* **Compiler LibRaw avec les demosaic packs GPL2/GPL3** pour offrir AMaZE :
-  imposerait une compilation maison de LibRaw sur les trois plateformes, là où
-  ADR 0004 tient à un `.so` système substituable, et rouvrirait une question de
-  licence tranchée. À reprendre par son propre ADR si la demande vient.
-* **Un réglage global d'application plutôt que par photo** : contredirait la
-  reproductibilité — une révision doit porter tout ce qui décide de ses pixels
-  (`docs/pipeline.md` §5.1), et un réglage hors révision est précisément ce que
-  cette garantie interdit.
+* **Exposing nothing and changing the default** to an algorithm judged better:
+  it moves everyone's pixels without saying so, and still deprives the user of
+  the choice. The worst of both worlds.
+* **Exposing LibRaw's seven values**, including those that fall back to AHD for
+  want of the GPL pack: a menu that lies.
+* **Compiling LibRaw with the GPL2/GPL3 demosaic packs** in order to offer
+  AMaZE: it would impose an in-house build of LibRaw on all three platforms,
+  where ADR 0004 insists on a substitutable system `.so`, and would reopen a
+  settled licence question. To be taken up in its own ADR if the demand comes.
+* **An application-wide setting rather than a per-photo one**: it would
+  contradict reproducibility — a revision must carry everything that decides
+  its pixels (`docs/pipeline.md` §5.1), and a setting outside the revision is
+  precisely what that guarantee forbids.

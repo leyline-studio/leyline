@@ -1,124 +1,119 @@
-# ADR 0059 — Fond de carte mondial embarqué
+# ADR 0059 — An embedded world basemap
 
-**Statut :** Accepté — 2026-08
+**Status:** Accepted — 2026-08
 
-## Contexte
+## Context
 
-[ADR 0040](0040-gps-map-view.md) a écarté l'idée de livrer un pack de tuiles
-par défaut, au motif qu'« une seule région à résolution utile pèse des
-centaines de Mo à plusieurs Go, incompatible avec un installateur léger ».
-Le raisonnement était juste, mais il portait sur un pack **régional à
-résolution utile**. Il n'a jamais pesé le cas d'un **fond mondial à zoom
-faible**, qui est un objet d'une autre nature : on n'y situe pas une photo à
-la rue près, on y voit les continents, les côtes et les reliefs, ce qui
-suffit à donner un contexte à des punaises GPS.
+[ADR 0040](0040-gps-map-view.md) rejected the idea of shipping a default tile
+pack, on the grounds that "a single region at useful resolution weighs hundreds
+of megabytes to several gigabytes, incompatible with a light installer". The
+reasoning was right, but it bore on a **regional pack at useful resolution**.
+It never weighed the case of a **world basemap at low zoom**, which is an
+object of another nature: one does not locate a photo to the street on it, one
+sees the continents, the coastlines and the relief, which is enough to give GPS
+pins a context.
 
-Conséquence de cette absence : la vue Carte s'ouvre sur un écran vide tant
-que l'utilisateur n'a pas trouvé, téléchargé et importé un `.mbtiles`. Une
-fonctionnalité livrée que personne ne voit fonctionner au premier lancement.
+The consequence of that absence: the Map view opens on an empty screen until
+the user has found, downloaded and imported a `.mbtiles`. A shipped feature
+nobody sees working on first launch.
 
-Le poids a été mesuré avant de décider, et non estimé — tuiles Web Mercator
-rendues depuis le raster Natural Earth I (21600 × 10800), par GDAL :
+The weight was measured before deciding, not estimated — Web Mercator tiles
+rendered from the Natural Earth I raster (21600 × 10800), by GDAL:
 
-| Profondeur | Tuiles | JPEG q80 | PNG 32 bits | PNG 8 bits |
+| Depth | Tiles | JPEG q80 | 32-bit PNG | 8-bit PNG |
 |---|---|---|---|---|
-| z0–5 | 1 365 | **9,0 Mo** | 26,5 Mo | 73,0 Mo |
-| z0–6 | 5 461 | 29,8 Mo | 90,7 Mo | 253,9 Mo |
+| z0–5 | 1,365 | **9.0 MB** | 26.5 MB | 73.0 MB |
+| z0–6 | 5,461 | 29.8 MB | 90.7 MB | 253.9 MB |
 
-À titre de comparaison, l'AppImage pèse 16 Mo et l'installateur Windows
-22 Mo ; darktable, le comparable direct, en pèse 108.
+For comparison, the AppImage weighs 16 MB and the Windows installer 22 MB;
+darktable, the direct comparable, weighs 108.
 
-## Décision
+## Decision
 
-**Un fond de carte mondial z0–5 est embarqué dans Leyline Studio, en JPEG,
-et sert dès qu'aucun pack utilisateur n'est actif.**
+**A z0–5 world basemap is embedded in Leyline Studio, as JPEG, and serves
+whenever no user pack is active.**
 
-* **Données** : Natural Earth I avec relief ombré et eaux
-  (`NE1_HR_LC_SR_W`), **domaine public** — pas de licence à propager, pas
-  d'attribution juridiquement exigée, et surtout pas de redistribution
-  interdite. Les tuiles rendues par le serveur public OpenStreetMap ne
-  peuvent pas être embarquées : leur politique d'usage l'interdit. C'est ce
-  qui écarte OSM comme source d'un pack *livré*, pas comme source d'un pack
-  que l'utilisateur apporte.
-* **Profondeur et format** : z0–5, tuiles JPEG qualité 80, 1 365 tuiles,
-  9,0 Mo. Le z6 quadruplerait le poids pour un cran de détail dont la vue
-  Carte n'a pas besoin, et la source 10m plafonne de toute façon vers z6.
-* **Emplacement** : `assets/basemap/world-z0-5.mbtiles`, versionné dans le
-  dépôt. Un binaire de 9 Mo dans Git est un coût assumé : le pack est
-  immuable, il ne sera pas réédité à chaque version, et l'alternative
-  (le régénérer au build) imposerait GDAL et 309 Mo de source à quiconque
-  compile le projet.
-* **Embarquement** : `include_bytes!`, et ouverture **sans extraction** via
-  `sqlite3_deserialize` en lecture seule (`Connection::deserialize_bytes`,
-  rusqlite 0.37). Pas de copie dans la bibliothèque de l'utilisateur, pas de
-  fichier temporaire à nettoyer, pas de chemin d'écriture sur une
-  bibliothèque ouverte en lecture seule. `leyline-map` gagne un
-  `TilePack::from_static`, à côté de `TilePack::open` : même lecteur, même
-  requêtes, seule la façon d'attacher la base change.
-* **Portée** : derrière une *feature* Cargo `bundled-basemap` de
-  `leyline-engine`, désactivée par défaut et réactivée par Leyline Studio —
-  exactement le montage de la feature `tether`. La CLI et le SDK ne
-  rendent pas de carte ([ADR 0040](0040-gps-map-view.md)) : ils n'ont aucune
-  raison de porter 9 Mo de tuiles.
-* **Priorité** : un pack importé par l'utilisateur gagne toujours. Le fond
-  embarqué est un *repli*, jamais un mélange : Leyline ne compose pas deux
-  packs dans une même vue, il en sert un.
-* **Attribution** : le pack déclare la sienne dans sa table `metadata`
-  (`Natural Earth (public domain)`), et l'interface affiche déjà celle du
-  pack actif. Le repli codé en dur « © OpenStreetMap contributors » reste
-  pour les packs qui ne déclarent rien — la plupart des packs apportés par
-  un utilisateur sont dérivés d'OSM, où l'attribution est obligatoire — mais
-  il ne s'applique plus au fond embarqué, qui serait alors crédité à tort.
-  Aucune API nouvelle pour distinguer les deux packs : ce que l'interface a
-  besoin de dire, la métadonnée `name` du pack le dit déjà.
+* **Data**: Natural Earth I with shaded relief and water
+  (`NE1_HR_LC_SR_W`), **public domain** — no licence to propagate, no
+  attribution legally required, and above all no redistribution forbidden.
+  Tiles rendered by the public OpenStreetMap server cannot be embedded: their
+  usage policy forbids it. That is what rules OSM out as the source of a
+  *shipped* pack, not as the source of a pack the user brings.
+* **Depth and format**: z0–5, JPEG tiles at quality 80, 1,365 tiles, 9.0 MB.
+  z6 would quadruple the weight for a level of detail the Map view does not
+  need, and the 10m source tops out around z6 anyway.
+* **Location**: `assets/basemap/world-z0-5.mbtiles`, versioned in the
+  repository. A 9 MB binary in Git is an accepted cost: the pack is immutable,
+  it will not be re-issued with every version, and the alternative
+  (regenerating it at build time) would impose GDAL and 309 MB of source on
+  anyone compiling the project.
+* **Embedding**: `include_bytes!`, and opening **without extraction** through
+  `sqlite3_deserialize` read-only (`Connection::deserialize_bytes`, rusqlite
+  0.37). No copy into the user's library, no temporary file to clean up, and no
+  write path on a library opened read-only. `leyline-map` gains a
+  `TilePack::from_static`, beside `TilePack::open`: the same reader, the same
+  queries, only the way the database is attached changes.
+* **Scope**: behind a `bundled-basemap` Cargo feature of `leyline-engine`,
+  off by default and re-enabled by Leyline Studio — exactly the arrangement of
+  the `tether` feature. The CLI and the SDK render no map
+  ([ADR 0040](0040-gps-map-view.md)): they have no reason to carry 9 MB of
+  tiles.
+* **Priority**: a pack imported by the user always wins. The embedded basemap
+  is a *fallback*, never a blend: Leyline does not compose two packs in one
+  view, it serves one.
+* **Attribution**: the pack declares its own in its `metadata` table
+  (`Natural Earth (public domain)`), and the interface already displays the
+  active pack's. The hard-coded "© OpenStreetMap contributors" fallback stays
+  for packs that declare nothing — most packs a user brings are derived from
+  OSM, where attribution is mandatory — but it no longer applies to the
+  embedded basemap, which would then be credited wrongly. No new API to
+  distinguish the two packs: what the interface needs to say, the pack's `name`
+  metadata already says.
 
-## Conséquences
+## Consequences
 
-* Poids réel, mesuré après coup sur les paquets construits : l'AppImage
-  passe de 16 à **24 Mo**, l'installateur Windows de 22 à **30 Mo**. On
-  reste sous le tiers de darktable (108 Mo).
-* `packaging/windows/build-nsis.sh` compile avec `--no-default-features`
-  pour retirer le tethering : la feature doit donc y être **renommée
-  explicitement**, sinon l'installateur Windows part sans le fond de carte.
-  C'est la mesure du paquet qui l'a révélé, pas un test.
-* La vue Carte n'a plus d'état vide au premier lancement : elle montre le
-  monde, et les punaises GPS dessus. Le bouton « Importer un pack… » ne
-  disparaît pas pour autant — il devient ce qu'il aurait toujours dû être,
-  le moyen d'**affiner**, pas le prérequis pour voir quoi que ce soit.
-* `docs/specification.md` §1 : la ligne « Vue carte GPS » cesse de dire
-  « tuiles fournies par l'utilisateur » sans nuance.
-* [ADR 0040](0040-gps-map-view.md) voit son alternative « Bundler un pack de
-  tuiles par défaut » corrigée sur place : elle reste écartée pour un pack
-  régional, elle ne l'est plus pour un fond mondial. Cette réécriture est
-  permise tant que le projet n'est pas publié (`docs/adr/README.md`).
-* Regénérer le pack un jour demande GDAL et le raster Natural Earth ; la
-  recette exacte est dans `assets/basemap/README.md`, pour que personne
-  n'ait à la redécouvrir.
+* Real weight, measured afterwards on the built packages: the AppImage goes
+  from 16 to **24 MB**, the Windows installer from 22 to **30 MB**. We stay
+  under a third of darktable (108 MB).
+* `packaging/windows/build-nsis.sh` compiles with `--no-default-features` to
+  remove tethering: the feature must therefore be **explicitly renamed** there,
+  otherwise the Windows installer ships without the basemap. It was measuring
+  the package that revealed it, not a test.
+* The Map view no longer has an empty state on first launch: it shows the
+  world, and the GPS pins on it. The "Import a pack…" button does not disappear
+  for all that — it becomes what it should always have been, the way to
+  **refine**, not the prerequisite for seeing anything at all.
+* `docs/specification.md` §1: the "GPS map view" line stops saying "tiles
+  supplied by the user" without qualification.
+* [ADR 0040](0040-gps-map-view.md) sees its "Bundling a default tile pack"
+  alternative corrected in place: it stays rejected for a regional pack, it no
+  longer is for a world basemap. That rewriting is permitted as long as the
+  project is unpublished (`docs/adr/README.md`).
+* Regenerating the pack one day requires GDAL and the Natural Earth raster; the
+  exact recipe is in `assets/basemap/README.md`, so that nobody has to
+  rediscover it.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Télécharger le pack depuis l'application** (un menu « choisir sa
-  région », le client va chercher les tuiles) : c'est la demande initiale,
-  et elle est écartée pour cette tranche. Elle contredit frontalement
-  « jamais d'appel réseau depuis Leyline lui-même » ([ADR 0040](0040-gps-map-view.md)),
-  ce qui demanderait sa propre décision ; elle suppose d'héberger et de
-  maintenir des packs, donc de la bande passante et une disponibilité que
-  le projet ne s'engage pas encore à tenir ; et elle ne remplace pas le
-  fond embarqué, qui est justement ce qui rend la carte utile **sans**
-  réseau. Rien n'empêche de la reprendre plus tard, par-dessus.
-* **Un choix de précision dans l'installateur** : impossible à tenir sur
-  les trois plateformes. L'AppImage n'a aucune étape d'installation, c'est
-  un fichier qu'on lance ; le `.dmg` est un glisser-déposer. Seul NSIS
-  saurait poser une page de composants, au prix d'un template `.nsi`
-  maison. Un réglage qui n'existe que sur un système sur trois n'est pas un
-  réglage, c'est une asymétrie à expliquer.
-* **z0–6 embarqué** (29,8 Mo) : trois fois le poids pour un niveau de zoom
-  supplémentaire, alors que la vue Carte sert à situer des photos, pas à
-  naviguer. Le pack utilisateur reste la réponse dès qu'on veut du détail.
-* **PNG 8 bits** : le format « léger » évident se révèle huit fois plus
-  lourd que le JPEG sur ce contenu (73 Mo contre 9), la quantification
-  s'accommodant mal d'un dégradé de relief. Mesuré, pas supposé.
-* **Extraire le pack embarqué dans un fichier au premier lancement** :
-  ajouterait un cache à gérer, à invalider entre versions, et un chemin
-  d'écriture là où il n'en faut aucun. `sqlite3_deserialize` rend
-  l'extraction inutile.
+* **Downloading the pack from the application** (a "choose your region" menu,
+  with the client fetching the tiles): that is the initial request, and it is
+  rejected for this slice. It contradicts head-on "never a network call from
+  Leyline itself" ([ADR 0040](0040-gps-map-view.md)), which would need its own
+  decision; it presupposes hosting and maintaining packs, hence bandwidth and
+  an availability the project does not yet commit to; and it does not replace
+  the embedded basemap, which is precisely what makes the map useful **without**
+  a network. Nothing prevents taking it up later, on top.
+* **A precision choice in the installer**: impossible to hold on all three
+  platforms. The AppImage has no installation step, it is a file one launches;
+  the `.dmg` is a drag and drop. Only NSIS could offer a components page, at
+  the price of a hand-written `.nsi` template. A setting that exists on only
+  one system in three is not a setting, it is an asymmetry to explain.
+* **Embedding z0–6** (29.8 MB): three times the weight for one more zoom level,
+  when the Map view serves to locate photos, not to navigate. The user pack
+  stays the answer as soon as detail is wanted.
+* **8-bit PNG**: the obvious "light" format proves eight times heavier than
+  JPEG on this content (73 MB against 9), quantization sitting poorly with a
+  relief gradient. Measured, not assumed.
+* **Extracting the embedded pack to a file on first launch**: it would add a
+  cache to manage, to invalidate between versions, and a write path where none
+  is needed. `sqlite3_deserialize` makes extraction unnecessary.
