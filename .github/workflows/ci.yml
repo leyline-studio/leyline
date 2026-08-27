@@ -165,3 +165,21 @@ jobs:
 
       - name: Name what was produced
         run: ls -la target/x86_64-pc-windows-gnu/release/*-setup.exe
+
+      # Without this the installer is described in the log and destroyed with
+      # the runner. Nothing here publishes a release — the signing key lives
+      # outside this repository and outside CI (ADR 0077 §1), and an unsigned
+      # release would be one the updater refuses anyway. What this gives is
+      # narrower and is the thing missing today: a build testable on a real
+      # Windows machine, from the run's own page, with no tag and nothing
+      # public. Publishing stays `packaging/release-manifest.sh`, by hand.
+      #
+      # `if-no-files-found: error` because the alternative is an empty
+      # artifact and a green run: the build step above would have to fail
+      # first, but a glob that stops matching after a rename would not.
+      - name: Keep the installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: leyline-studio-windows-x64
+          path: target/x86_64-pc-windows-gnu/release/*-setup.exe
+          if-no-files-found: error
