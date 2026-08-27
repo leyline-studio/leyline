@@ -1,231 +1,225 @@
-# ADR 0047 — Lecture des sidecars XMP : une amorce à l'import, jamais une synchronisation
+# ADR 0047 — Reading XMP sidecars: a seeding at import, never a synchronization
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-`crates/leyline-engine/src/xmp.rs` sait **écrire** un sidecar, et le dit sans
-détour dès sa deuxième ligne :
+`crates/leyline-engine/src/xmp.rs` knows how to **write** a sidecar, and says
+so plainly in its second line:
 
 > The catalog is always the source of truth; sidecars exist purely for
 > interoperability with other tools and are **never read back**.
 
-`docs/catalog.md` §29 dit la même chose (« Le moteur ne lit jamais les XMP comme
-source principale »), et §2.4 pose que le catalogue est la seule source de
-vérité. Ces énoncés visent une bonne cible — aucune synchronisation implicite,
-aucun fichier externe capable de contredire le catalogue — mais ils ont une
-conséquence que personne n'a choisie : **Leyline ne sait rien ingérer**.
+`docs/catalog.md` §29 says the same ("the engine never reads XMP as a primary
+source"), and §2.4 states that the catalog is the sole source of truth. Those
+statements aim at a good target — no implicit synchronization, no external file
+able to contradict the catalog — but they have a consequence nobody chose:
+**Leyline can ingest nothing**.
 
-Or c'est exactement l'étape 2 de toute migration depuis un autre logiciel, et
-la seule que les guides recommandent : *exporter les XMP depuis Lightroom, les
-faire lire par le nouvel outil, les mots-clés et les notes suivent les RAW*.
-C'est aussi le seul canal qui existe : les réglages de développement ne sont
-transférables par personne (algorithmes propriétaires), mais le **travail de
-tri** — notes, libellés, mots-clés hiérarchiques, parfois des années de
-classement — l'est, et il est bien plus long à refaire qu'une retouche.
+Yet that is exactly step 2 of any migration from another program, and the only
+one the guides recommend: *export the XMP from Lightroom, have the new tool
+read them, and the keywords and ratings follow the RAWs*. It is also the only
+channel that exists: develop settings are transferable by nobody (proprietary
+algorithms), but the **culling work** — ratings, labels, hierarchical keywords,
+sometimes years of classification — is, and it takes far longer to redo than a
+retouch.
 
-Le résultat aujourd'hui : un photographe qui importe ses 40 000 RAW dans
-Leyline arrive sur un catalogue vide de tout classement, alors que
-l'information est posée à côté de chaque fichier, dans un format que Leyline
-écrit déjà lui-même. Ce n'est pas un manque de fonctionnalité, c'est un
-blocage d'adoption.
+The result today: a photographer importing their 40,000 RAWs into Leyline
+arrives at a catalog empty of all classification, when the information is
+sitting beside every file, in a format Leyline itself already writes. That is
+not a missing feature, it is an adoption blocker.
 
-**Ce qui n'est pas en cause.** Le catalogue reste la source de vérité, et rien
-ici n'ouvre un second canal d'autorité : c'est précisément ce que la politique
-du §3 garantit, et c'est le cœur de la décision plutôt que sa réserve.
+**What is not at issue.** The catalog stays the source of truth, and nothing
+here opens a second channel of authority: that is precisely what §3's policy
+guarantees, and it is the decision's core rather than its reservation.
 
-## Décision
+## Decision
 
-### 1. Le sidecar amorce, il ne synchronise pas
+### 1. A sidecar seeds, it does not synchronize
 
-Leyline lit un sidecar pour **remplir ce qui est vide**, jamais pour remplacer
-ce qui existe. C'est ce qui distingue une amorce d'une synchronisation, et ce
-qui laisse `docs/catalog.md` §2.4 exact : après lecture, la seule autorité
-reste le catalogue, et rien ne relira ce fichier ensuite.
+Leyline reads a sidecar to **fill in what is empty**, never to replace what
+exists. That is what distinguishes a seeding from a synchronization, and what
+leaves `docs/catalog.md` §2.4 exact: after reading, the only authority stays
+the catalog, and nothing will read that file again afterwards.
 
-Il n'y a donc **pas** de symétrie avec les trois modes d'écriture de §29 : pas
-de mode *Always* en lecture, aucune surveillance de fichier, aucune relecture
-au changement, aucune réconciliation. Un sidecar est lu aux deux moments du §2,
-et à aucun autre.
+There is therefore **no** symmetry with §29's three writing modes: no *Always*
+mode on reading, no file watching, no re-read on change, and no reconciliation.
+A sidecar is read at §2's two moments, and at no other.
 
-### 2. Deux moments de lecture, et deux seulement
+### 2. Two moments of reading, and only two
 
-* **À l'import**, automatiquement : si un `photo.xmp` se trouve à côté du
-  fichier importé, il est appliqué à l'asset qui vient d'être créé. C'est le
-  moment qui compte — l'asset est neuf, il n'a rien à écraser, et c'est le
-  geste que fait le migrant sans avoir à connaître l'existence d'une commande.
-  Aucun réglage : le sidecar est à côté du fichier, donc il concerne ce
-  fichier. C'est le sidecar **du fichier source** qui est lu — là où l'autre
-  logiciel l'a laissé — et il n'est pas recopié dans `Photos/` : une fois lu,
-  il n'a plus d'autorité, donc plus de raison d'être conservé.
-* **Explicitement**, sur un asset déjà importé : `Library::read_xmp(asset)`, le
-  miroir exact de `Library::write_xmp(asset)`, pour la bibliothèque déjà
-  constituée avant que les sidecars n'aient été exportés de l'autre logiciel.
+* **At import**, automatically: if a `photo.xmp` is found beside the imported
+  file, it is applied to the asset just created. That is the moment that counts
+  — the asset is new, it has nothing to overwrite, and it is the gesture the
+  migrant makes without having to know a command exists. No setting: the
+  sidecar is beside the file, so it concerns that file. It is the **source
+  file's** sidecar that is read — where the other program left it — and it is
+  not copied into `Photos/`: once read, it has no authority any more, and hence
+  no reason to be kept.
+* **Explicitly**, on an already-imported asset: `Library::read_xmp(asset)`, the
+  exact mirror of `Library::write_xmp(asset)`, for the library already built
+  before the sidecars were exported from the other program.
 
-### 2.1 « À côté du fichier » ne suffit pas à le nommer
+### 2.1 "Beside the file" is not enough to name it
 
-Le point ci-dessus dit « si un `photo.xmp` se trouve à côté du fichier », et
-c'est ce que le code faisait : remplacer l'extension par `.xmp`. Cette phrase
-tranchait une question sans la poser — **les autres logiciels ne nomment pas
-tous le sidecar pareil**, et deux conventions coexistent :
+The point above says "if a `photo.xmp` is found beside the file", and that is
+what the code did: replace the extension with `.xmp`. That sentence settled a
+question without asking it — **other programs do not all name the sidecar the
+same way**, and two conventions coexist:
 
-| Convention | Écrite par | Exemple pour `5D4_7998.CR2` |
+| Convention | Written by | Example for `5D4_7998.CR2` |
 |---|---|---|
-| Nom complet + `.xmp` | darktable, exiftool | `5D4_7998.CR2.xmp` |
-| Extension remplacée | Lightroom, Bridge, Leyline | `5D4_7998.xmp` |
+| Full name + `.xmp` | darktable, exiftool | `5D4_7998.CR2.xmp` |
+| Extension replaced | Lightroom, Bridge, Leyline | `5D4_7998.xmp` |
 
-Une seule des deux était lue. Le corpus de test réel a montré ce que cela
-coûte : sur neuf sidecars, **le seul qui portait des mots-clés était celui de
-darktable**, donc le seul invisible. Rien ne le signalait — c'est exactement le
-mode de défaillance que le §6 refuse pour le parsing, arrivé un cran plus haut,
-sur le nom de fichier.
+Only one of the two was read. The real test corpus showed what that costs: out
+of nine sidecars, **the only one carrying keywords was darktable's**, and hence
+the only invisible one. Nothing signalled it — that is exactly the failure mode
+§6 refuses for parsing, arriving one level higher, on the file name.
 
-**Décision : on écrit une convention, on en lit deux.**
+**Decision: we write one convention, we read two.**
 
-* **Lecture** : le nom complet d'abord, l'extension remplacée ensuite. Le
-  premier qui répond gagne. Cet ordre n'est pas arbitraire : `photo.CR2.xmp`
-  désigne **une** photo, tandis que `photo.xmp` est partagé par tous les
-  fichiers de même racine du dossier — un `IMG_2048.xmp` posé à côté d'un
-  `IMG_2048.CR2`, d'un `IMG_2048.JPG` et d'un `IMG_2048.dng` (cas réel du
-  corpus) ne dit pas duquel il parle. La forme non ambiguë passe donc devant,
-  et c'est elle qui tranche quand l'autre logiciel en a écrit une.
-* **Écriture** : inchangée, l'extension remplacée. C'est la convention
-  d'Adobe, donc celle que cherche le logiciel visé par la migration inverse, et
-  la lecture ci-dessus la reprend — l'aller-retour du §4 tient toujours.
+* **Reading**: the full name first, the replaced extension next. The first that
+  answers wins. That order is not arbitrary: `photo.CR2.xmp` designates **one**
+  photo, whereas `photo.xmp` is shared by every file of the same stem in the
+  folder — an `IMG_2048.xmp` sitting beside an `IMG_2048.CR2`, an
+  `IMG_2048.JPG` and an `IMG_2048.dng` (a real case from the corpus) does not
+  say which one it is about. The unambiguous form therefore goes first, and it
+  is the one that decides when the other program has written one.
+* **Writing**: unchanged, the extension replaced. It is Adobe's convention,
+  hence the one the program targeted by a reverse migration looks for, and the
+  reading above takes it up — §4's round trip still holds.
 
-L'ambiguïté de la forme partagée reste, elle est inhérente à la convention
-d'Adobe et n'est pas à nous de la résoudre : quand plusieurs fichiers de même
-racine cohabitent, ils reçoivent la même amorce. Sous la politique du §3, à
-l'import, cela revient à donner à chaque copie d'une même prise le classement
-que l'autre logiciel lui donnait — la conséquence acceptable de ce que le
-sidecar ne dit pas.
+The shared form's ambiguity remains; it is inherent to Adobe's convention and
+is not ours to resolve: when several files of the same stem live together, they
+receive the same seeding. Under §3's policy, at import, that amounts to giving
+each copy of one shot the classification the other program gave it — the
+acceptable consequence of what the sidecar does not say.
 
-### 3. La politique de conflit : remplir, jamais écraser
+### 3. The conflict policy: fill in, never overwrite
 
-Le point qui demandait une décision plutôt que du code.
+The point that required a decision rather than code.
 
-| Donnée | À la lecture |
+| Data | On reading |
 |---|---|
-| Note (`xmp:Rating`) | Appliquée **si** la version courante n'en a pas |
-| Libellé (`xmp:Label`) | Appliqué **si** la version courante n'en a pas |
-| Mots-clés | **Union** — les mots-clés du sidecar s'ajoutent, aucun n'est retiré |
-| Artiste, copyright | Appliqués **si** le champ correspondant est vide |
+| Rating (`xmp:Rating`) | Applied **if** the current version has none |
+| Label (`xmp:Label`) | Applied **if** the current version has none |
+| Keywords | **Union** — the sidecar's keywords are added, none is removed |
+| Artist, copyright | Applied **if** the corresponding field is empty |
 
-Trois raisons, dans l'ordre où elles pèsent :
+Three reasons, in the order in which they weigh:
 
-1. **À l'import, le cas intéressant, la question ne se pose pas** : tout est
-   vide, donc « remplir » applique le sidecar en entier. La politique ne coûte
-   rien là où elle sert le plus.
-2. **Sur une relecture explicite, l'utilisateur ne peut pas défaire.** Un
-   sidecar peut avoir des années et être plus pauvre que le travail fait depuis
-   dans Leyline ; « le fichier gagne » détruirait ce travail silencieusement, en
-   masse, sur une commande dont personne n'attend cela.
-3. **C'est la seule politique qui ne perd aucune donnée**, dans les deux sens.
-   L'union sur les mots-clés est du même esprit : `add_keyword` est déjà
-   idempotent, donc relire deux fois le même sidecar est un no-op.
+1. **At import, the interesting case, the question does not arise**: everything
+   is empty, so "filling in" applies the sidecar whole. The policy costs
+   nothing where it serves most.
+2. **On an explicit re-read, the user cannot undo.** A sidecar may be years old
+   and poorer than the work done since in Leyline; "the file wins" would
+   destroy that work silently, in bulk, on a command from which nobody expects
+   it.
+3. **It is the only policy that loses no data**, in either direction. The union
+   on keywords is in the same spirit: `add_keyword` is already idempotent, so
+   reading the same sidecar twice is a no-op.
 
-Un mode « le sidecar gagne » serait une décision *séparée*, avec sa propre
-confirmation dans l'interface. Il n'est pas pris ici.
+A "the sidecar wins" mode would be a *separate* decision, with its own
+confirmation in the interface. It is not taken here.
 
-### 4. Le champ lu est exactement le champ écrit
+### 4. The field read is exactly the field written
 
-Le noyau interopérable de `write_xmp_sidecar` : note, libellé, mots-clés plats
-et hiérarchiques, artiste, copyright. Ni plus, ni moins — l'aller-retour
-écriture → lecture est l'invariant, et un test le vérifie plutôt qu'un
-commentaire l'affirme.
+`write_xmp_sidecar`'s interoperable core: rating, label, flat and hierarchical
+keywords, artist, copyright. No more, no less — the write → read round trip is
+the invariant, and a test verifies it rather than a comment asserting it.
 
-**Les mots-clés hiérarchiques font foi** quand les deux formes sont présentes :
-Lightroom écrit `lr:hierarchicalSubject` (`Voyage|Japon|Kyoto`) *et* son
-aplatissement `dc:subject`, et ne garder que le second perdrait l'arborescence
-que le catalogue sait représenter. Les chemins absents de l'arbre de mots-clés
-sont créés, niveau par niveau, sous les nœuds existants.
+**Hierarchical keywords are authoritative** when both forms are present:
+Lightroom writes `lr:hierarchicalSubject` (`Travel|Japan|Kyoto`) *and* its
+flattening `dc:subject`, and keeping only the second would lose the tree the
+catalog can represent. Paths absent from the keyword tree are created, level by
+level, under the existing nodes.
 
-### 5. La lecture est tolérante ; l'import ne casse jamais
+### 5. Reading is tolerant; import never breaks
 
-Un sidecar illisible, mal formé, ou qui ne contient aucun des champs ci-dessus
-n'est **pas** une erreur d'import : le fichier photo s'importe normalement, sans
-métadonnées venues du sidecar. C'est la règle que `import.rs` applique déjà à
-ses propres étapes (« Per-file problems never abort the batch »), étendue d'un
-cran : ici même le problème d'un fichier n'écarte pas ce fichier, il écarte son
-sidecar.
+A sidecar that is unreadable, malformed, or that contains none of the fields
+above is **not** an import error: the photo file imports normally, without
+metadata from the sidecar. It is the rule `import.rs` already applies to its
+own steps ("Per-file problems never abort the batch"), extended one notch: here
+even one file's problem does not set that file aside, it sets its sidecar
+aside.
 
-Symétriquement, aucun sidecar n'est **écrit** par une lecture. Lire ne
-déclenche pas la synchronisation §29.
+Symmetrically, no sidecar is **written** by a read. Reading does not trigger
+§29's synchronization.
 
-### 6. Le parsing prend une dépendance : `roxmltree`
+### 6. Parsing takes a dependency: `roxmltree`
 
-Contrairement à [ADR 0037](0037-dcp-parsing-dependency.md), qui a écrit un
-lecteur maison minimal pour les tags DCP, ce lecteur-ci ne lit pas nos propres
-fichiers : il lit ceux de Lightroom, de darktable, d'exiftool, de Capture One.
-En pratique cela veut dire des préfixes de namespace variables (`xmp:` n'est
-qu'une convention, seule l'URI compte), la même donnée tantôt en attribut
-tantôt en élément (`xmp:Rating="4"` ou `<xmp:Rating>4</xmp:Rating>`), des
-paquets XMP encadrés de `<?xpacket?>`, et de l'espace blanc partout. Un lecteur
-maison n'y échoue pas franchement, il y échoue **silencieusement** — il rend un
-catalogue sans mots-clés sans que rien ne le signale, ce qui est le pire mode
-de défaillance possible pour une fonctionnalité de migration.
+Unlike [ADR 0037](0037-dcp-parsing-dependency.md), which wrote a minimal
+in-house reader for the DCP tags, this reader does not read our own files: it
+reads Lightroom's, darktable's, exiftool's, Capture One's. In practice that
+means variable namespace prefixes (`xmp:` is only a convention, and only the
+URI counts), the same datum sometimes as an attribute and sometimes as an
+element (`xmp:Rating="4"` or `<xmp:Rating>4</xmp:Rating>`), XMP packets framed
+by `<?xpacket?>`, and whitespace everywhere. An in-house reader does not fail
+outright on those, it fails **silently** — it returns a catalog with no
+keywords with nothing to signal it, which is the worst possible failure mode
+for a migration feature.
 
-`roxmltree` est retenu : arbre en lecture seule, conscient des namespaces (donc
-indifférent aux préfixes), Rust pur, sans dépendance transitive lourde et sans
-brique C — contrairement à LibRaw, Lensfun ou LittleCMS, il n'ajoute rien à la
-chaîne de build ni aux installeurs.
+`roxmltree` is retained: a read-only tree, namespace-aware (hence indifferent
+to prefixes), pure Rust, with no heavy transitive dependency and no C brick —
+unlike LibRaw, Lensfun or LittleCMS, it adds nothing to the build chain nor to
+the installers.
 
-### 7. Hors périmètre, explicitement
+### 7. Out of scope, explicitly
 
-* **Les réglages de développement du namespace `crs:`** (Adobe Camera Raw). Ils
-  sont lisibles mais intraduisibles : appliquer une `crs:Exposure2012` à notre
-  pipeline produirait une image *différente* de celle que l'utilisateur voyait
-  dans Lightroom, tout en prétendant l'avoir reproduite. Aucun logiciel ne le
-  fait, et le faire à moitié serait mentir sur le seul point où Leyline
-  promet l'exactitude.
-* **Le XMP embarqué** dans le RAW, le DNG ou le JPEG. Seuls les sidecars `.xmp`
-  posés à côté du fichier sont lus ; l'embarqué demanderait d'écrire dans les
-  fichiers d'origine pour rester cohérent, ce que le contrat de
-  non-destructivité interdit (`docs/pipeline.md` §6).
-* **Les collections, piles, instantanés.** Aucune représentation interopérable
-  n'existe : chaque logiciel les stocke dans son propre catalogue.
+* **Develop settings from the `crs:` namespace** (Adobe Camera Raw). They are
+  readable but untranslatable: applying a `crs:Exposure2012` to our pipeline
+  would produce an image *different* from the one the user saw in Lightroom,
+  while claiming to have reproduced it. No program does it, and doing it
+  halfway would be lying on the one point where Leyline promises exactness.
+* **Embedded XMP** in the RAW, the DNG or the JPEG. Only `.xmp` sidecars sitting
+  beside the file are read; embedded XMP would require writing into the original
+  files to stay consistent, which the non-destructiveness contract forbids
+  (`docs/pipeline.md` §6).
+* **Collections, stacks, snapshots.** No interoperable representation exists:
+  every program stores them in its own catalog.
 
-## Conséquences
+## Consequences
 
-* **La migration depuis Lightroom devient réelle sans nouvelle interface.** Le
-  chemin est celui que tout le monde documente déjà : *Métadonnées → Enregistrer
-  les métadonnées dans les fichiers* chez Adobe, puis un import Leyline
-  ordinaire. Studio, la CLI et le SDK en bénéficient tous les trois du seul fait
-  qu'ils importent, sans qu'aucun n'ajoute un écran.
-* **`docs/catalog.md` §29 gagne une section « Lecture »**, et sa phrase « le
-  moteur ne lit jamais les XMP » est corrigée en ce qu'elle voulait dire : le
-  moteur ne les lit jamais **comme autorité**. §2.4 est inchangé.
-* **Une dépendance de plus dans `leyline-engine`**, la première de parsing XML.
-  Elle est confinée au module `xmp` : rien d'autre dans le moteur ne voit
-  `roxmltree`.
-* **L'aller-retour devient un invariant testé.** Écrire un sidecar depuis un
-  asset classé, relire dans un asset vierge, comparer : c'est le test qui
-  garde le §4 honnête quand l'un des deux côtés bougera.
-* **Le risque d'un import qui ralentit** est borné : deux `stat` par fichier
-  importé quand aucun sidecar n'existe (le cas courant), un parse de quelques
-  kilo-octets quand il en existe un.
-* **La suppression vers la corbeille emporte les deux formes.** Laisser
-  derrière soi le sidecar d'une photo qui n'existe plus, c'est le voir
-  ressusciter au prochain import du même dossier.
+* **Migration from Lightroom becomes real with no new interface.** The path is
+  the one everyone already documents: *Metadata → Save Metadata to Files* at
+  Adobe's end, and then an ordinary Leyline import. Studio, the CLI and the SDK
+  all three benefit from the mere fact that they import, without any of them
+  adding a screen.
+* **`docs/catalog.md` §29 gains a "Reading" section**, and its sentence "the
+  engine never reads XMP" is corrected into what it meant: the engine never
+  reads them **as authority**. §2.4 is unchanged.
+* **One more dependency in `leyline-engine`**, the first for XML parsing. It is
+  confined to the `xmp` module: nothing else in the engine sees `roxmltree`.
+* **The round trip becomes a tested invariant.** Writing a sidecar from a
+  classified asset, reading it back into a blank one, comparing: that is the
+  test that keeps §4 honest when either side moves.
+* **The risk of an import slowing down** is bounded: two `stat`s per imported
+  file when no sidecar exists (the common case), and a parse of a few kilobytes
+  when one does.
+* **Deletion to the trash takes both forms with it.** Leaving behind the
+  sidecar of a photo that no longer exists means seeing it resurrected at the
+  next import of the same folder.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **« Le sidecar gagne »**, en lecture explicite. Écarté au §3 : perte de
-  données silencieuse et irréversible, sur une commande d'apparence anodine.
-  Reste possible plus tard, comme mode distinct et confirmé.
-* **Un mode *Always* en lecture** (surveiller les sidecars et se
-  resynchroniser). C'est un second canal d'autorité sur les mêmes champs, donc
-  la fin de §2.4 — et une classe entière de conflits à arbitrer pour un besoin
-  que personne n'a exprimé.
-* **Lire aussi `crs:`** pour « au moins approcher » le rendu Lightroom. Écarté
-  au §7 : une approximation présentée comme une reprise est pire qu'une absence
-  annoncée.
-* **Un lecteur XML maison**, dans l'esprit d'ADR 0037. Écarté au §6 : le mode de
-  défaillance sur des fichiers étrangers est le silence, et c'est inacceptable
-  pour de la migration. La comparaison avec le DCP ne tient pas — un conteneur
-  TIFF que nous lisons pour nos propres fichiers de profil n'a pas la variabilité
-  d'un paquet RDF écrit par quatre logiciels concurrents.
-* **Un import de catalogue Lightroom** (lire le `.lrcat`, qui est du SQLite).
-  Transférerait les collections, que les XMP ne portent pas. Écarté pour
-  l'instant : format non documenté et versionné par Adobe, donc une surface de
-  rétro-ingénierie permanente — à rouvrir sur demande réelle, avec son ADR.
+* **"The sidecar wins"**, on an explicit read. Rejected in §3: silent and
+  irreversible data loss, on an innocuous-looking command. Still possible
+  later, as a distinct and confirmed mode.
+* **An *Always* mode on reading** (watching the sidecars and resynchronizing).
+  That is a second channel of authority over the same fields, hence the end of
+  §2.4 — and a whole class of conflicts to arbitrate for a need nobody has
+  expressed.
+* **Reading `crs:` too**, so as to "at least approach" Lightroom's rendering.
+  Rejected in §7: an approximation presented as a reproduction is worse than an
+  announced absence.
+* **An in-house XML reader**, in ADR 0037's spirit. Rejected in §6: the failure
+  mode on foreign files is silence, and that is unacceptable for migration. The
+  comparison with DCP does not hold — a TIFF container we read for our own
+  profile files has none of the variability of an RDF packet written by four
+  competing programs.
+* **A Lightroom catalog import** (reading the `.lrcat`, which is SQLite). It
+  would transfer the collections, which XMP does not carry. Rejected for now:
+  an undocumented format versioned by Adobe, hence a permanent
+  reverse-engineering surface — to be reopened on a real request, with its own
+  ADR.
