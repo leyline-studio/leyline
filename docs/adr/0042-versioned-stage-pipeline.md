@@ -1,274 +1,268 @@
-# ADR 0042 — Pipeline composé d'étages versionnés : le gel porte sur l'opérateur, plus sur la version entière
+# ADR 0042 — A pipeline composed of versioned stages: the freeze bears on the operator, no longer on the whole version
 
-**Statut :** Accepté — 2026-07
-**Remplace :** ADR 0028 (une process version par fonctionnalité, duplication par module)
+**Status:** Accepted — 2026-07
+**Supersedes:** ADR 0028 (one process version per feature, per-module duplication)
 
-## Contexte
+## Context
 
-ADR 0028 a figé la convention actuelle : une process version par fonctionnalité
-pixel, chacune dans son propre module `processN.rs` **copie intégrale** du
-précédent. Sa dernière conséquence prévoyait explicitement sa propre
-réouverture :
+ADR 0028 froze the current convention: one process version per pixel feature,
+each in its own `processN.rs` module, a **complete copy** of the previous one.
+Its last consequence explicitly provided for its own reopening:
 
-> Si le nombre de modules devenait un jour un vrai fardeau — un nombre bien
-> supérieur aux cinq actuels, après que plusieurs fonctionnalités V2 ont
-> réellement été livrées — un futur ADR pourra rouvrir la question **avec des
-> données réelles**.
+> Should the number of modules one day become a real burden — a number well
+> above today's five, after several V2 features have actually shipped — a
+> future ADR can reopen the question **with real data**.
 
-Ces données existent maintenant.
+That data now exists.
 
-**Volume.** ADR 0028 mesurait 3 433 lignes sur cinq modules. Aujourd'hui :
+**Volume.** ADR 0028 measured 3,433 lines across five modules. Today:
 
-| Module | Lignes | | Module | Lignes |
+| Module | Lines | | Module | Lines |
 |---|---|---|---|---|
-| `process1.rs` | 471 | | `process7.rs` | 1 384 |
-| `process2.rs` | 580 | | `process8.rs` | 1 633 |
-| `process3.rs` | 750 | | `process9.rs` | 2 048 |
-| `process4.rs` | 804 | | `process10.rs` | 2 556 |
-| `process5.rs` | 954 | | `process11.rs` | 2 671 |
-| `process6.rs` | 1 117 | | **Total** | **14 968** |
+| `process1.rs` | 471 | | `process7.rs` | 1,384 |
+| `process2.rs` | 580 | | `process8.rs` | 1,633 |
+| `process3.rs` | 750 | | `process9.rs` | 2,048 |
+| `process4.rs` | 804 | | `process10.rs` | 2,556 |
+| `process5.rs` | 954 | | `process11.rs` | 2,671 |
+| `process6.rs` | 1,117 | | **Total** | **14,968** |
 
-**Taux de duplication.** Chaque module est identique à son prédécesseur à
-**70–93 %** (lignes strictement identiques) — `process11.rs` l'est à 93 % de
-`process10.rs` : 2 482 lignes sur 2 671.
+**Duplication rate.** Each module is identical to its predecessor at **70–93 %**
+(strictly identical lines) — `process11.rs` is 93 % identical to
+`process10.rs`: 2,482 lines out of 2,671.
 
-**Nature réelle des versions livrées.** Le tableau de `docs/pipeline.md` §3.3
-est sans ambiguïté : **dix des onze versions** sont définies par la formule
-« Identique à N−1, **plus** X ». Une seule — process 2, les fonctions de
-transfert par table (ADR 0013) — a modifié le rendu de réglages *déjà
-existants*. Autrement dit : **dix copies complètes du pipeline ont été payées
-pour des changements qui ne pouvaient affecter aucune photo existante.** Une
-photo sans valeur `dehaze` rend rigoureusement pareil que `dehaze` existe ou
-non dans le moteur.
+**The real nature of the versions shipped.** `docs/pipeline.md` §3.3's table is
+unambiguous: **ten of the eleven versions** are defined by the formula
+"Identical to N−1, **plus** X". Only one — process 2, the table-based transfer
+functions (ADR 0013) — modified the rendering of *already existing* settings. In
+other words: **ten complete copies of the pipeline were paid for changes that
+could affect no existing photo.** A photo with no `dehaze` value renders exactly
+the same whether `dehaze` exists in the engine or not.
 
-**Coût de maintenance, constaté.** ADR 0041 (rendu proxy) a dû faire descendre
-un unique facteur d'échelle jusqu'aux rayons exprimés en pixels. Le même
-changement de trois lignes a dû être appliqué **onze fois**, plus 33 appels de
-test inter-modules et onze blocs de documentation. Le code de netteté de
-`process3.rs` est octet pour octet celui de `process9.rs` : le modifier onze
-fois n'apporte aucune garantie que le modifier une fois n'apporterait pas.
+**The maintenance cost, observed.** ADR 0041 (proxy rendering) had to send a
+single scale factor down to the radii expressed in pixels. The same three-line
+change had to be applied **eleven times**, plus 33 cross-module test calls and
+eleven documentation blocks. `process3.rs`'s sharpening code is byte for byte
+`process9.rs`'s: modifying it eleven times brings no guarantee that modifying it
+once would not.
 
-**Ce qui n'est pas en cause.** La promesse elle-même — *ce RAW, ces réglages,
-ces pixels, dans dix ans* (`docs/pipeline.md` §3.3, §5) — n'est ni affaiblie ni
-renégociée ici. Elle est **comportementale**. La duplication intégrale n'en
-était qu'une *implémentation possible*, jamais son énoncé.
+**What is not at issue.** The promise itself — *this RAW, these settings, these
+pixels, in ten years* (`docs/pipeline.md` §3.3, §5) — is neither weakened nor
+renegotiated here. It is **behavioural**. Complete duplication was only one
+*possible implementation* of it, never its statement.
 
-**Ce qui l'est, en revanche : sa portée.** Le §5 d'origine promettait un
-résultat identique « au pixel près » sans nommer la plateforme. Or le pipeline
-appelle `powf`, `ln` et `exp`, qui sortent de la libm du système : leur dernier
-bit change d'une plateforme, d'une version de libm ou de LLVM à l'autre. La
-promesse était donc, telle qu'écrite, intenable — non par défaut de rigueur,
-mais parce qu'aucun moteur ne la tient : Lightroom ne donne pas les mêmes
-pixels sur ses chemins GPU et CPU, et darktable migre les paramètres des
-anciens modules vers le code courant (`legacy_params`) au lieu de geler ce
-code. §5 est donc rescindé en deux : ce qui est garanti (§5.1) et ce qui ne
-l'est pas (§5.2).
+**What is at issue, however: its scope.** The original §5 promised a result
+identical "to the pixel" without naming the platform. Yet the pipeline calls
+`powf`, `ln` and `exp`, which come out of the system's libm: their last bit
+changes from one platform, one libm version or one LLVM to another. The promise
+was therefore, as written, untenable — not through a lack of rigour, but
+because no engine holds it: Lightroom does not give the same pixels on its GPU
+and CPU paths, and darktable migrates old modules' parameters to the current
+code (`legacy_params`) instead of freezing that code. §5 is therefore split in
+two: what is guaranteed (§5.1) and what is not (§5.2).
 
-Il faut souligner que ces deux relâchements sont **indépendants**, et qu'un
-seul est retenu. Renoncer à l'exactitude inter-plateforme est *forcé* par la
-virgule flottante. Renoncer au gel du code, à la manière de darktable, serait
-un *choix* — et le présent ADR le rend inutile : ce qui rendait le gel coûteux
-était la copie de 2 700 lignes par fonctionnalité, pas le gel lui-même. Une
-fois les étages composés, `sharpen::v2` pèse quelques dizaines de lignes à côté
-de `sharpen::v1`. On abandonne donc la garantie physiquement impossible, et on
-conserve celle qui ne coûte plus grand-chose.
+It must be stressed that these two relaxations are **independent**, and that
+only one is retained. Giving up cross-platform exactness is *forced* by
+floating point. Giving up the code freeze, in darktable's manner, would be a
+*choice* — and the present ADR makes it unnecessary: what made freezing costly
+was copying 2,700 lines per feature, not the freeze itself. Once the stages are
+composed, `sharpen::v2` weighs a few dozen lines beside `sharpen::v1`. We
+therefore abandon the physically impossible guarantee, and keep the one that no
+longer costs much.
 
-## Décision
+## Decision
 
-Le pipeline cesse d'être une suite de modules-versions dupliqués. Il devient la
-**composition d'étages versionnés indépendamment**.
+The pipeline stops being a sequence of duplicated version modules. It becomes
+the **composition of independently versioned stages**.
 
-### 1. L'unité de gel est l'opérateur, pas le pipeline
+### 1. The unit of freezing is the operator, not the pipeline
 
-Chaque opérateur vit dans son propre module versionné — `sharpen/v1.rs`,
-`dehaze/v1.rs`, `tone_curve/v1.rs` — **gelé le jour où il sort**, exactement
-comme un `processN.rs` l'est aujourd'hui.
+Each operator lives in its own versioned module — `sharpen/v1.rs`,
+`dehaze/v1.rs`, `tone_curve/v1.rs` — **frozen on the day it ships**, exactly as
+a `processN.rs` is today.
 
-C'est le point qui répond à l'objection décisive d'ADR 0028 (« du code partagé
-est précisément ce qui expose un rendu gelé au risque qu'un changement futur,
-sans rapport, l'altère silencieusement »). Cette objection vise le **partage
-d'une implémentation mutable** entre plusieurs versions. Ce n'est pas ce que
-décrit le présent ADR : `sharpen::v1` n'est pas une implémentation partagée et
-modifiable, c'est un module figé au même titre que `process3.rs`. Corriger la
-netteté produit `sharpen::v2` ; `v1` n'est **jamais** touché. La garantie reste
-mécaniquement infalsifiable, à l'identique — seule disparaît la re-congélation
-de onze copies d'un opérateur qui n'a pas changé.
+That is the point that answers ADR 0028's decisive objection ("shared code is
+precisely what exposes a frozen rendering to the risk that a future, unrelated
+change silently alters it"). That objection targets the **sharing of a mutable
+implementation** across several versions. That is not what the present ADR
+describes: `sharpen::v1` is not a shared, modifiable implementation, it is a
+module frozen on the same footing as `process3.rs`. Fixing sharpening produces
+`sharpen::v2`; `v1` is **never** touched. The guarantee stays mechanically
+unfalsifiable, identically — what disappears is only the re-freezing of eleven
+copies of an operator that did not change.
 
-### 2. Une révision enregistre la version des étages qu'elle utilise
+### 2. A revision records the version of the stages it uses
 
-Le champ `process` cesse d'être l'axe de versionnage. Une révision enregistre
-la version de chaque étage **effectivement actif** :
+The `process` field ceases to be the versioning axis. A revision records the
+version of each **actually active** stage:
 
 ```json
 "stages": { "exposure": 1, "tone_curve": 1, "dehaze": 1 }
 ```
 
-Un étage **neutre ne s'exécute pas** — c'est déjà le comportement du moteur,
-chaque étage étant sauté quand son réglage vaut sa valeur neutre. Il n'a donc
-aucun comportement à épingler et **n'apparaît pas** dans la carte. Celle-ci est
-par construction proportionnelle à l'édition réelle : trois entrées pour une
-photo peu retouchée, une quinzaine pour une photo très travaillée.
+A **neutral stage does not run** — that is already the engine's behaviour, each
+stage being skipped when its setting is at its neutral value. It therefore has
+no behaviour to pin and **does not appear** in the map. The map is by
+construction proportional to the real editing: three entries for a lightly
+retouched photo, fifteen or so for a heavily worked one.
 
-Ce choix rend la révision **auto-descriptive** : rien n'est déduit d'une table
-de correspondance côté moteur, donc aucun compteur global ne se réintroduit par
-la porte de derrière.
+That choice makes the revision **self-describing**: nothing is inferred from a
+correspondence table on the engine side, so no global counter reintroduces
+itself by the back door.
 
-### 3. La position dans le pipeline est une propriété de la version d'étage
+### 3. The position in the pipeline is a property of the stage version
 
-L'ordre des étages est un état observable : presque toutes nos fonctionnalités
-se sont insérées **au milieu** du pipeline. Chaque version d'étage déclare donc
-son propre rang (`sharpen::v1` au rang 90). Déplacer un étage n'est pas une
-modification d'une version existante mais une **nouvelle version** qui déclare
-un autre rang — les révisions référençant `v1` conservent le rang 90.
+The stages' order is observable state: nearly all our features have inserted
+themselves **in the middle** of the pipeline. Each stage version therefore
+declares its own rank (`sharpen::v1` at rank 90). Moving a stage is not a
+modification of an existing version but a **new version** declaring another rank
+— revisions referencing `v1` keep rank 90.
 
-L'ordre redevient ainsi reproductible **sans** version globale de disposition.
+The order thus becomes reproducible again **without** a global layout version.
 
-### 4. Ajouter une fonctionnalité ne touche rien d'existant
+### 4. Adding a feature touches nothing existing
 
-Un nouvel étage = un module + une entrée au registre. Aucune copie. Les photos
-existantes ne mentionnent pas ce nom dans leur carte `stages`, donc l'étage
-n'existe pas dans leur pipeline : leur rendu est inchangé **par construction**,
-et non parce qu'on a pris soin de ne pas toucher leur module.
+A new stage = a module plus a registry entry. No copying. Existing photos do not
+mention that name in their `stages` map, so the stage does not exist in their
+pipeline: their rendering is unchanged **by construction**, and not because care
+was taken not to touch their module.
 
-### 5. Les révisions existantes continuent d'être rendues à l'identique
+### 5. Existing revisions go on rendering identically
 
-> **Sans objet depuis [ADR 0043](0043-collapse-prerelease-render-history.md).**
-> Ce paragraphe a été appliqué tel quel (table d'expansion des onze versions,
-> égalité bit à bit prouvée, commit `bf63df1`), puis retiré : Leyline n'ayant
-> pas été publié, ces onze versions n'engageaient personne. L'historique de
-> rendu est effondré sur une version par opérateur et `process` disparaît au
-> profit de la carte `stages` du §2. Le reste du présent ADR est intact.
+> **Moot since [ADR 0043](0043-collapse-prerelease-render-history.md).**
+> This paragraph was applied as it stands (an expansion table for the eleven
+> versions, bit-for-bit equality proven, commit `bf63df1`), and then withdrawn:
+> Leyline not having been published, those eleven versions committed us to
+> nobody. The render history is collapsed onto one version per operator, and
+> `process` disappears in favour of §2's `stages` map. The rest of the present
+> ADR is intact.
 
-`process: N` reste lu et compris : chaque N possède une **expansion figée et
-déterministe** vers un ensemble de versions d'étages, écrite une fois dans une
-table de compatibilité. Le champ devient une abréviation historique et un
-libellé d'affichage (« cette photo utilise un process ancien », comme le PV de
-Lightroom), plus un axe qui croît.
+`process: N` stays read and understood: each N has a **frozen and deterministic
+expansion** into a set of stage versions, written once in a compatibility
+table. The field becomes a historical shorthand and a display label ("this
+photo uses an old process", like Lightroom's PV), plus an axis that grows.
 
-### 6. La version d'étage, et non la version applicative, porte la garantie
+### 6. The stage version, and not the application version, carries the guarantee
 
-Le champ `process` n'était pas seulement l'axe de versionnage du rendu : il
-était aussi la seule échelle à laquelle la promesse savait s'énoncer. Elle
-s'énonce désormais par étage :
+The `process` field was not only the rendering's versioning axis: it was also
+the only scale at which the promise knew how to state itself. It is now stated
+per stage:
 
-> **Aucune version publiée — correctif, mineure ou majeure — ne modifie le
-> rendu d'une version d'étage déjà publiée.** Si le rendu doit changer, c'est
-> une nouvelle version d'étage ; les révisions existantes continuent de citer
-> l'ancienne.
+> **No published version — a patch, a minor or a major — modifies the rendering
+> of an already-published stage version.** If the rendering must change, it is a
+> new stage version; existing revisions go on citing the old one.
 
-Un changement de rendu n'est donc **jamais** un incrément de version de
-l'application : c'est un nouvel étage. La version applicative et l'identité du
-rendu sont décorrélées — Leyline 1.0.3 et Leyline 7.2.0 rendent `sharpen::v1`
-à l'identique, puisque c'est le même code gelé dans les deux binaires. C'est
-aussi la bonne échelle côté utilisateur : sa révision nomme les versions
-d'étages qu'elle utilise, alors qu'il ignore quel build a produit ses pixels.
+A change of rendering is therefore **never** an increment of the application's
+version: it is a new stage. The application version and the rendering's
+identity are decoupled — Leyline 1.0.3 and Leyline 7.2.0 render `sharpen::v1`
+identically, since it is the same frozen code in both binaries. It is also the
+right scale on the user's side: their revision names the stage versions it
+uses, whereas they have no idea which build produced their pixels.
 
-Le profil de compilation ne fait pas non plus partie de l'équation : les
-rendus de référence de §7 passent à l'identique en `debug` et en `release`
-(Rust n'active ni *fast-math* ni la contraction FMA, et la vectorisation
-automatique n'a pas le droit de réassocier une réduction flottante).
+The build profile is not part of the equation either: §7's reference renders
+pass identically in `debug` and in `release` (Rust enables neither *fast-math*
+nor FMA contraction, and auto-vectorization is not allowed to reassociate a
+floating-point reduction).
 
-Reste une entrée que personne ne contrôle en écrivant du code : la chaîne de
-compilation. `rust-toolchain.toml` est donc épinglé sur une **version exacte**
-plutôt que sur `stable` — sinon un `rustup update` avant une publication de
-correctif suffirait à déplacer des pixels. En changer impose de rejouer les
-rendus de référence et de consigner la dérive.
+There remains one input nobody controls by writing code: the toolchain.
+`rust-toolchain.toml` is therefore pinned to an **exact version** rather than to
+`stable` — otherwise a `rustup update` before a patch release would suffice to
+move pixels. Changing it requires replaying the reference renders and recording
+the drift.
 
-### 7. Rien ne migre sans preuve : les rendus de référence d'abord
+### 7. Nothing migrates without proof: the reference renders first
 
-**Aucune ligne n'est refactorisée avant que des rendus de référence n'existent.**
-La migration procède dans cet ordre, strictement :
+**Not a line is refactored before reference renders exist.** The migration
+proceeds in this order, strictly:
 
-1. Capturer, depuis le code **actuel**, un rendu de référence par process
-   version (1 à 11) sur des images de test déterministes couvrant chaque
-   opérateur, et les committer comme fixtures.
-2. Refactoriser vers les étages versionnés.
-3. Prouver l'égalité **bit à bit** contre ces fixtures, pour les onze versions.
+1. Capture, from the **current** code, one reference render per process version
+   (1 to 11) over deterministic test images covering every operator, and commit
+   them as fixtures.
+2. Refactor towards versioned stages.
+3. Prove **bit-for-bit** equality against those fixtures, for all eleven
+   versions.
 
-Ce sont les fixtures — pas la relecture du diff — qui établissent qu'une
-révision de 2026 rend en 2036 ce qu'elle rendait en 2026. Elles restent dans la
-suite de tests après la migration, comme garde permanent.
+It is the fixtures — not reading the diff — that establish that a 2026 revision
+renders in 2036 what it rendered in 2026. They stay in the test suite after the
+migration, as a permanent guard.
 
-## Conséquences
+## Consequences
 
-* **La duplication disparaît sans que la promesse bouge.** ~15 000 lignes de
-  pipeline se ramènent aux opérateurs réellement distincts, plus onze
-  déclarations. Un correctif d'opérateur s'écrit une fois, au lieu d'être
-  appliqué onze fois comme sous ADR 0041.
-* **Le coût d'une nouvelle fonctionnalité pixel devient constant** au lieu de
-  croître avec le nombre de versions déjà livrées. La prochaine (les tables
-  DCP, ADR 0037) sera un étage, pas une douzième copie de 2 700 lignes.
-* **`settings_json` change de forme** : c'est le contrat de reproductibilité
-  lui-même qui est amendé. Ce n'est acceptable **que** parce que le projet est
-  pré-publication ; après ouverture au monde, cette forme JSON serait
-  définitive. C'est la raison de faire ce changement maintenant et pas plus
-  tard.
-* **La correction de l'expansion `process: N` devient critique** : une
-  expansion fausse rendrait différemment une photo ancienne. C'est exactement
-  ce que les fixtures de l'étape 7 vérifient, version par version.
-* **Le nombre de versions d'étages peut croître**, lui — mais seulement pour
-  les opérateurs réellement corrigés, pas pour les onze copies de ceux qui ne
-  l'ont pas été. Sur l'historique réel, cela aurait produit une `v2` pour les
-  quelques opérateurs touchés par ADR 0013, et **aucune** autre re-version.
-* **`docs/pipeline.md` §3.3 est réécrit** : le tableau des process versions
-  devient une table de compatibilité historique, et la section de versionnage
-  décrit les étages.
-* **`docs/pipeline.md` §5 est scindé** en ce qui est garanti (§5.1, avec la
-  règle de publication ci-dessus) et ce qui ne l'est pas (§5.2, la dérive
-  inter-plateforme). Le projet énonce désormais une promesse qu'il tient
-  intégralement, au lieu d'une promesse plus large qu'il tenait en partie.
-* **La chaîne de compilation devient une entrée versionnée du rendu** :
-  `rust-toolchain.toml` est épinglé sur une version exacte, et en changer
-  devient un acte qui impose de rejouer les rendus de référence. C'est la seule
-  variable capable de déplacer des pixels sans qu'une ligne de code bouge.
-* **La version applicative cesse de porter quoi que ce soit sur le rendu** :
-  elle peut suivre le semver ordinaire (fonctionnalités, correctifs, interface)
-  sans que la question « est-ce que cette publication change des pixels ? » se
-  pose jamais. La réponse est structurellement non.
-* **ADR 0028 est remplacé, non annulé rétroactivement** : son raisonnement
-  était correct pour les données dont il disposait (cinq modules, 3 433
-  lignes), et il avait lui-même prévu sa réouverture sur données réelles.
+* **The duplication disappears without the promise moving.** ~15,000 lines of
+  pipeline come down to the genuinely distinct operators, plus eleven
+  declarations. An operator fix is written once, instead of being applied eleven
+  times as under ADR 0041.
+* **The cost of a new pixel feature becomes constant** instead of growing with
+  the number of versions already shipped. The next one (the DCP tables, ADR
+  0037) will be a stage, not a twelfth copy of 2,700 lines.
+* **`settings_json` changes shape**: it is the reproducibility contract itself
+  that is amended. That is acceptable **only** because the project is
+  pre-release; after opening to the world, that JSON shape would be definitive.
+  That is the reason to make this change now and not later.
+* **The correctness of the `process: N` expansion becomes critical**: a wrong
+  expansion would render an old photo differently. That is exactly what step
+  7's fixtures verify, version by version.
+* **The number of stage versions can grow**, for its part — but only for the
+  operators actually fixed, not for the eleven copies of those that were not.
+  Over the real history, that would have produced a `v2` for the few operators
+  touched by ADR 0013, and **no** other re-versioning.
+* **`docs/pipeline.md` §3.3 is rewritten**: the process-version table becomes a
+  historical compatibility table, and the versioning section describes the
+  stages.
+* **`docs/pipeline.md` §5 is split** into what is guaranteed (§5.1, with the
+  publication rule above) and what is not (§5.2, cross-platform drift). The
+  project now states a promise it holds in full, instead of a wider promise it
+  held in part.
+* **The toolchain becomes a versioned input of the rendering**:
+  `rust-toolchain.toml` is pinned to an exact version, and changing it becomes
+  an act that requires replaying the reference renders. It is the only variable
+  able to move pixels without a line of code changing.
+* **The application version ceases to carry anything about the rendering**: it
+  can follow ordinary semver (features, fixes, interface) without the question
+  "does this release change any pixels?" ever arising. The answer is
+  structurally no.
+* **ADR 0028 is superseded, not retroactively annulled**: its reasoning was
+  correct for the data it had (five modules, 3,433 lines), and it had itself
+  provided for its reopening on real data.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Conserver ADR 0028 tel quel** : la trajectoire n'est pas « linéaire et
-  prévisible » comme il l'espérait — elle est linéaire en *nombre de modules*
-  mais quadratique en *lignes cumulées*, chaque module étant plus gros que le
-  précédent. De 3 433 à 14 968 lignes pour six fonctionnalités livrées.
-* **Bibliothèque d'opérateurs partagés mutables** (ce qu'ADR 0028 écartait
-  vraiment) : toujours écarté, et pour sa raison d'origine. Un opérateur unique
-  et modifiable utilisé par toutes les versions rendrait un rendu gelé
-  falsifiable. Les étages **versionnés et figés** ne sont pas cela.
-* **Garder un compteur global de disposition** en plus des versions d'étages :
-  redondant. Le rang porté par la version d'étage suffit, et un compteur global
-  recommencerait à croître à chaque insertion — le problème même qu'on retire.
-* **Écrire la carte `stages` complète sur chaque révision**, étages neutres
-  compris : verbeux sans rien garantir de plus. Un étage neutre ne s'exécute
-  pas ; épingler la version d'un code qui ne tourne pas ne pin rien.
-* **Déduire les versions d'étages d'une « ligne de base moteur » enregistrée
-  par révision** : c'est un compteur global déguisé, avec l'inconvénient
-  supplémentaire de rendre la révision non auto-descriptive.
-* **Migrer sans rendus de référence, en relisant le diff** : la seule partie du
-  système où « ça devrait aller » n'est pas un critère acceptable.
-* **Adopter aussi le `legacy_params` de darktable** — convertir les paramètres
-  des anciennes versions d'étages vers le code courant plutôt que de geler
-  l'ancien code. C'est le modèle des deux références du domaine, et il ne coûte
-  rien en lignes conservées ; il a été examiné sérieusement, puis écarté. La
-  raison n'est pas doctrinale : c'est que le présent ADR lui retire son
-  intérêt. Ce qui rendait le gel coûteux était la copie intégrale du pipeline,
-  pas le gel ; une fois les étages composés, geler revient à laisser vivre
-  quelques dizaines de lignes qui ne demanderont plus jamais d'attention. On
-  échangerait la seule garantie qui distingue Leyline de Lightroom et de
-  darktable contre quelques centaines de lignes par décennie. Si le calcul
-  devait un jour s'inverser, l'échappatoire reste ouverte **et mesurable** :
-  la structure d'ADR 0042 accueille les deux sémantiques, et les rendus de
-  référence de §7 diraient exactement ce qu'un tel basculement coûterait, au
-  pixel près.
-* **Garder `docs/pipeline.md` §5 tel quel** (« identique au pixel près », sans
-  mention de la plateforme) : intenable. Une promesse invérifiable sur une
-  autre machine n'est pas une promesse plus forte, c'en est une plus fragile —
-  la première dérive de libm constatée par un utilisateur la démolirait tout
-  entière, y compris la partie qui, elle, tient.
-* **Épingler la chaîne d'outils sur `stable`** : c'est ce qui était en place, et
-  c'est précisément le trou. Sur un canal flottant, la promesse dépend de la
-  date à laquelle chaque contributeur a lancé `rustup update`.
+* **Keeping ADR 0028 as it stands**: the trajectory is not "linear and
+  predictable" as it hoped — it is linear in the *number of modules* but
+  quadratic in *cumulative lines*, each module being larger than the last. From
+  3,433 to 14,968 lines for six shipped features.
+* **A library of shared mutable operators** (what ADR 0028 really rejected):
+  still rejected, and for its original reason. A single, modifiable operator
+  used by every version would make a frozen rendering falsifiable. **Versioned
+  and frozen** stages are not that.
+* **Keeping a global layout counter** alongside the stage versions: redundant.
+  The rank carried by the stage version suffices, and a global counter would
+  start growing again with every insertion — the very problem being removed.
+* **Writing the complete `stages` map on every revision**, neutral stages
+  included: verbose without guaranteeing anything more. A neutral stage does not
+  run; pinning the version of code that does not run pins nothing.
+* **Deriving the stage versions from an "engine baseline" recorded per
+  revision**: that is a global counter in disguise, with the further drawback of
+  making the revision non-self-describing.
+* **Migrating without reference renders, by reading the diff**: the one part of
+  the system where "it should be fine" is not an acceptable criterion.
+* **Adopting darktable's `legacy_params` too** — converting old stage versions'
+  parameters to the current code rather than freezing the old code. It is the
+  model of the field's two references, and it costs nothing in lines kept; it
+  was examined seriously, and then rejected. The reason is not doctrinal: it is
+  that the present ADR removes its appeal. What made freezing costly was the
+  complete copying of the pipeline, not the freeze; once the stages are
+  composed, freezing amounts to letting a few dozen lines live on that will
+  never demand attention again. We would be trading the one guarantee that
+  distinguishes Leyline from Lightroom and darktable for a few hundred lines
+  per decade. Should the calculation one day invert, the escape hatch stays
+  open **and measurable**: ADR 0042's structure accommodates both semantics,
+  and §7's reference renders would say exactly what such a switch would cost,
+  to the pixel.
+* **Keeping `docs/pipeline.md` §5 as it stands** ("identical to the pixel",
+  with no mention of the platform): untenable. A promise unverifiable on
+  another machine is not a stronger promise, it is a more fragile one — the
+  first libm drift a user observed would demolish it entirely, including the
+  part that does hold.
+* **Pinning the toolchain to `stable`**: that is what was in place, and it is
+  precisely the hole. On a floating channel, the promise depends on the date
+  each contributor last ran `rustup update`.
