@@ -1,104 +1,101 @@
-# ADR 0024 — Ne pas tenir le verrou catalogue pendant un rendu d'export
+# ADR 0024 — Not holding the catalog lock during an export render
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-`ADR 0023` a resserré la fenêtre du verrou catalogue autour de `Library::preview` :
-le rendu (décodage RAW + pipeline `process1`–`5` + encodage) ne touche jamais le
-catalogue, donc le tenir verrouillé pendant ce temps bloquait toute la
-navigation, la recherche et l'édition de métadonnées de Studio pour rien.
+`ADR 0023` narrowed the catalog lock's window around `Library::preview`: the
+render (RAW decode + the `process1`–`5` pipeline + encoding) never touches
+the catalog, so holding it locked for that time blocked all of Studio's
+navigation, search and metadata editing for nothing.
 
-`Library::export`, et les lots qu'il sous-tend (`export_batch`,
-`export_with_preset`, et leurs jobs `export_async` /
-`export_with_preset_async`), avaient le même défaut, en pire : un rendu de
-preview coûte quelques dizaines à ~100 ms, mais un export ajoute le scaling
-et un encodage plein format (JPEG/TIFF/WebP/AVIF), et surtout `export_batch`
-enchaînait toutes les versions du lot **sous un seul verrou pris une fois au
-début** — un lot de plusieurs dizaines de photos pouvait donc geler tout
-accès catalogue pendant plusieurs minutes, alors que Studio laisse
-l'utilisateur continuer à trier et éditer pendant qu'un export tourne en
-tâche de fond.
+`Library::export`, and the batches it underpins (`export_batch`,
+`export_with_preset`, and their `export_async` / `export_with_preset_async`
+jobs), had the same flaw, and worse: a preview render costs a few tens of
+milliseconds to ~100 ms, but an export adds scaling and a full-size encode
+(JPEG/TIFF/WebP/AVIF), and above all `export_batch` chained every version of
+the batch **under a single lock taken once at the start** — a batch of
+several dozen photos could therefore freeze all catalog access for minutes,
+while Studio lets the user go on culling and editing as an export runs in the
+background.
 
-Contrairement à une preview, un export n'est pas un cache indexé par
-révision que `valid_preview` pourrait plus tard servir comme « à jour » :
-c'est un fichier one-shot que l'appelant a demandé une fois, écrit sur disque
-et journalisé dans `export_history` (§28) pour l'historique — rien ne le
-relit ensuite pour décider s'il est encore « valide ». Le garde-fou
-d'atomicité d'ADR 0023 (`record_preview_if_current`), nécessaire parce qu'un
-amendement concurrent pouvait faire passer un rendu périmé pour la preview
-valide de la révision qu'il vient de réécrire, n'a donc pas d'équivalent
-ici : rien ne peut faire passer un export pour autre chose que ce qu'il est.
-Le pire cas d'une course avec un amendement reste identique à avant cette
-décision — le fichier exporté reflète les réglages lus au moment du plan, pas
-forcément les tout derniers — un comportement déjà inhérent à « exporter à la
-révision de tête », pas quelque chose que cette décision change.
+Unlike a preview, an export is not a cache indexed by revision that
+`valid_preview` could later serve as "up to date": it is a one-shot file the
+caller asked for once, written to disk and journaled in `export_history`
+(§28) for the record — nothing reads it back afterwards to decide whether it
+is still "valid". ADR 0023's atomicity guard
+(`record_preview_if_current`), necessary because a concurrent amendment could
+pass a stale render off as the valid preview of the revision it had just
+rewritten, therefore has no equivalent here: nothing can pass an export off
+as anything other than what it is. The worst case of a race with an amendment
+stays identical to what it was before this decision — the exported file
+reflects the settings read at planning time, not necessarily the very latest
+— behaviour already inherent to "export at the head revision", not something
+this decision changes.
 
-## Décision
+## Decision
 
-`export::export_version` se scinde en trois phases séquencées par
-l'appelant, sur le même modèle qu'ADR 0023, avec le verrou catalogue tenu
-seulement pour la première et la dernière — jamais pendant le rendu :
+`export::export_version` splits into three phases sequenced by the caller, on
+the same model as ADR 0023, with the catalog lock held only for the first and
+the last — never during the render:
 
-1. **`plan_export`** (lecture seule, verrou court) : lit l'asset, la tête, les
-   réglages de développement de la révision, le chemin source et les
-   métadonnées objectif, et calcule le radical du nom de fichier de sortie.
-2. **`render_export`** : aucun verrou catalogue tenu — décodage, rendu
-   `process1`–`5`, mise à l'échelle éventuelle, refus si le fichier de
-   destination existe déjà (règle « jamais d'écrasement »), et encodage sur
-   disque.
-3. **`journal_export`** (écriture, verrou court) : enregistre l'export dans
+1. **`plan_export`** (read-only, a short lock): reads the asset, the head,
+   the revision's develop settings, the source path and the lens metadata,
+   and computes the stem of the output file name.
+2. **`render_export`**: no catalog lock held — decode, `process1`–`5`
+   rendering, any scaling, refusal if the destination file already exists
+   (the "never overwrite" rule), and encoding to disk.
+3. **`journal_export`** (a write, a short lock): records the export in
    `export_history`.
 
-`Library::export` séquence ces trois phases en relâchant le verrou entre la
-première et la deuxième. `Library::export_batch` et
-`Library::export_with_preset` ne prennent plus le verrou une seule fois pour
-tout le lot : ils appellent `Library::export` version par version, donc le
-verrou n'est jamais tenu plus longtemps que le plan + le journal d'**une
-seule** version à la fois — la même contrainte que si le client appelait
-`export` en boucle lui-même.
+`Library::export` sequences those three phases, releasing the lock between
+the first and the second. `Library::export_batch` and
+`Library::export_with_preset` no longer take the lock once for the whole
+batch: they call `Library::export` version by version, so the lock is never
+held longer than the plan plus the journal of **one** version at a time — the
+same constraint as if the client called `export` in a loop itself.
 
-> **Correction, 2026-08-05.** Ce paragraphe ne décrit plus le moteur, sur ses
-> deux moitiés. Les trois méthodes qu'il nomme ont fusionné en `export` /
-> `export_async` autour d'un `ExportRequest`
-> ([ADR 0025](0025-unified-export-request.md)). Et le découpage du lot s'est
-> **inversé** : [ADR 0068](0068-concurrent-export-batch.md) §2 planifie
-> désormais toutes les versions d'un lot **en un seul verrou**, en ordre de
-> requête, pour que deux versions d'un même asset se collisionnent de façon
-> déterministe plutôt que de courir au même chemin de sortie.
+> **Correction, 2026-08-05.** This paragraph no longer describes the engine,
+> on both its halves. The three methods it names have merged into `export` /
+> `export_async` around an `ExportRequest`
+> ([ADR 0025](0025-unified-export-request.md)). And the batch's split has
+> **inverted**: [ADR 0068](0068-concurrent-export-batch.md) §2 now plans every
+> version of a batch **under a single lock**, in request order, so that two
+> versions of the same asset collide deterministically rather than racing for
+> the same output path.
 >
-> Ce qui reste vrai, et qui est la décision de cet ADR : le découpage en trois
-> phases, et **aucun verrou tenu pendant un rendu**. ADR 0068 §3 note que
-> cette discipline n'est pas seulement conservée mais devenue nécessaire — les
-> photos d'un lot se rendent maintenant en parallèle, et un worker qui
-> tiendrait le catalogue les sérialiserait toutes.
+> What stays true, and is this ADR's decision: the split into three phases,
+> and **no lock held during a render**. ADR 0068 §3 notes that this discipline
+> is not merely preserved but has become necessary — a batch's photos now
+> render in parallel, and a worker holding the catalog would serialize them
+> all.
 
-Les fonctions libres `export::export_version` et `export::export_batch`
-(utilisées directement par les tests d'intégration de ce crate) gardent leur
-signature `&mut Catalog` tenu de bout en bout — elles pilotent les trois
-phases sur un seul verrou, comme `preview::preview` le fait pour ADR 0023.
+The free functions `export::export_version` and `export::export_batch` (used
+directly by this crate's integration tests) keep their `&mut Catalog`
+signature held end to end — they drive the three phases under a single lock,
+as `preview::preview` does for ADR 0023.
 
-## Conséquences
+## Consequences
 
-* Toute la navigation/recherche/édition de métadonnées du catalogue reste
-  disponible pendant un export ou un lot d'export, y compris un lot de
-  plusieurs dizaines de versions — le gel global disparaît.
-* Aucun changement de schéma catalogue, aucune nouvelle méthode catalogue
-  (contrairement à ADR 0023, pas de garde-fou d'atomicité nécessaire ici) ;
-  signatures publiques de `Library::export`, `export_batch`,
-  `export_with_preset` et de leurs jobs inchangées.
-* Aucun changement aux formules `process1`–`5` ni au format du fichier
-  journalisé : uniquement le moment où le verrou catalogue est tenu et le
-  découpage par version d'un lot.
+* All of the catalog's navigation, search and metadata editing stays
+  available during an export or a batch of exports, including a batch of
+  several dozen versions — the global freeze disappears.
+* No catalog schema change, and no new catalog method (unlike ADR 0023, no
+  atomicity guard is needed here); the public signatures of
+  `Library::export`, `export_batch`, `export_with_preset` and their jobs are
+  unchanged.
+* No change to the `process1`–`5` formulas nor to the format of the journaled
+  file: only when the catalog lock is held, and how a batch is split per
+  version.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Garder le verrou pour tout le lot mais le relâcher entre chaque
-  version** (au lieu de router chaque version par `Library::export`) :
-  équivalent en pratique mais duplique la logique de narrowing déjà écrite
-  pour l'appel unique — router par `Library::export` réutilise le même code
-  et garantit qu'un futur changement du narrowing (ex. un futur garde-fou)
-  s'applique aux deux chemins sans double maintenance.
-* **Garde-fou d'atomicité façon `record_preview_if_current`** : écarté, cf.
-  Contexte — rien ne relit un export pour décider s'il est « à jour »,
-  contrairement à une preview.
+* **Keeping the lock for the whole batch but releasing it between versions**
+  (instead of routing every version through `Library::export`): equivalent in
+  practice, but it duplicates the narrowing logic already written for the
+  single call — routing through `Library::export` reuses the same code and
+  guarantees that a future change to the narrowing (a future guard, say)
+  applies to both paths without double maintenance.
+* **An atomicity guard in the style of `record_preview_if_current`**:
+  rejected, cf. Context — nothing reads an export back to decide whether it
+  is "up to date", unlike a preview.

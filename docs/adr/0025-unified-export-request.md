@@ -1,35 +1,34 @@
-# ADR 0025 — Une seule requête d'export : `ExportRequest`/`ExportRecipe`
+# ADR 0025 — One export request: `ExportRequest`/`ExportRecipe`
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-`engine-api.md` §12 documentait depuis son premier jet une forme cible à
-requête unique (`ExportRequest { versions, preset, destination }` → un seul
-`Library::export(request) -> Result<JobId>`), marquée « reste à venir »: la
-surface réellement livrée avait divergé en cinq points d'entrée sur
-`Library` — `export` (une version, synchrone), `export_batch` (recette ad
-hoc, synchrone), `export_with_preset` (preset stocké, synchrone),
-`export_async` (recette ad hoc, job), `export_with_preset_async` (preset
-stocké, job). Chaque paire synchrone/job dupliquait la même logique de
-validation, de résolution de preset et de bouclage par version — déjà
-factorée une fois en interne par `ADR 0024` (`export_batch_with_preset`)
-mais restée invisible aux appelants (CLI, Studio) qui devaient choisir entre
-cinq noms de méthode selon deux axes indépendants (recette ad hoc vs.
-preset ; synchrone vs. job) au lieu d'une seule décision.
+Since its first draft, `engine-api.md` §12 documented a target single-request
+shape (`ExportRequest { versions, preset, destination }` → one
+`Library::export(request) -> Result<JobId>`), marked "still to come": the
+surface actually shipped had diverged into five entry points on `Library` —
+`export` (one version, synchronous), `export_batch` (an ad-hoc recipe,
+synchronous), `export_with_preset` (a stored preset, synchronous),
+`export_async` (an ad-hoc recipe, a job), `export_with_preset_async` (a
+stored preset, a job). Each synchronous/job pair duplicated the same
+validation, preset resolution and per-version looping logic — already
+factored once internally by `ADR 0024` (`export_batch_with_preset`) but left
+invisible to callers (the CLI, Studio), who had to choose between five method
+names along two independent axes (ad-hoc recipe vs. preset; synchronous vs.
+job) instead of making one decision.
 
-Le brouillon initial ne prévoyait cependant qu'un champ `preset:
-ExportPresetId` obligatoire — pas de recette ad hoc — et un unique `export`
-retournant toujours un `JobId`. Les deux prémisses ne correspondaient pas à
-l'usage réel : la CLI (`leyline export` sans `--preset`) et le dialogue
-d'export de Studio (« Web », recette non enregistrée) ont besoin d'une
-recette ad hoc aussi souvent que d'un preset stocké ; et un usage scripté
-(CLI, SDK) veut pouvoir exporter un lot et récupérer le rapport directement,
-sans avoir à s'abonner aux événements pour un appel ponctuel.
+The initial draft, however, provided only a mandatory `preset:
+ExportPresetId` field — no ad-hoc recipe — and a single `export` always
+returning a `JobId`. Neither premise matched real use: the CLI (`leyline
+export` without `--preset`) and Studio's export dialog ("Web", an unsaved
+recipe) need an ad-hoc recipe as often as a stored preset; and a scripted use
+(CLI, SDK) wants to export a batch and get the report back directly, without
+having to subscribe to events for a one-off call.
 
-## Décision
+## Decision
 
-Une requête unique remplace les cinq méthodes :
+A single request replaces the five methods:
 
 ```rust
 pub enum ExportRecipe {
@@ -50,52 +49,49 @@ impl Library {
 }
 ```
 
-`ExportRecipe` remplace le champ `preset: ExportPresetId` forcé du brouillon
-par une union à deux variantes — la même « recette ad hoc ou preset stocké »
-que `export_batch`/`export_with_preset` distinguaient déjà par le nom de la
-méthode, maintenant portée par le type plutôt que par le choix de
-l'appelant entre deux call sites. Un `ExportRecipe::Preset` est résolu une
-seule fois, sous verrou court, avant la boucle par version — un preset
-modifié en cours de requête ne change donc pas rétroactivement les versions
-déjà exportées, la même garantie que `export_with_preset` offrait déjà.
+`ExportRecipe` replaces the draft's forced `preset: ExportPresetId` field
+with a two-variant union — the same "ad-hoc recipe or stored preset" that
+`export_batch`/`export_with_preset` already distinguished by method name, now
+carried by the type rather than by the caller's choice between two call
+sites. An `ExportRecipe::Preset` is resolved once, under a short lock, before
+the per-version loop — a preset modified mid-request therefore does not
+retroactively change the versions already exported, the same guarantee
+`export_with_preset` already offered.
 
-`export` reste synchrone (recette : le brouillon ne prévoyait qu'un
-`JobId`) : la CLI et un usage SDK scripté n'ont pas besoin du mécanisme
-d'événements pour un export ponctuel, et `export_async` reste le point
-d'entrée pour Studio, qui veut retourner immédiatement et suivre
-`JobProgress`/`JobFinished`. `export_async` construit sur `export` (même
-relation qu'avant cet ADR entre `export_batch` et son job), donc le
-narrowing du verrou catalogue par version d'`ADR 0024` s'applique
-identiquement aux deux formes.
+`export` stays synchronous (a correction to the draft, which provided only a
+`JobId`): the CLI and a scripted SDK use have no need of the event mechanism
+for a one-off export, and `export_async` remains the entry point for Studio,
+which wants to return immediately and follow `JobProgress`/`JobFinished`.
+`export_async` builds on `export` (the same relation as before this ADR
+between `export_batch` and its job), so ADR 0024's per-version narrowing of
+the catalog lock applies identically to both forms.
 
-## Conséquences
+## Consequences
 
-* `Library` passe de cinq méthodes d'export (`export`, `export_batch`,
-  `export_with_preset`, `export_async`, `export_with_preset_async`) à deux
-  (`export`, `export_async`) plus `export_presets`/`create_export_preset`
-  inchangées. `leyline-engine` étant interne (§13), ce renommage n'est pas
-  un changement cassant au sens semver — mais il touche les trois clients du
-  dépôt : CLI, Studio, et les tests d'intégration, tous mis à jour dans le
-  même changement.
-* Les fonctions libres `export::export_version`/`export::export_batch`
-  (utilisées directement par les tests d'intégration de `leyline-engine` sur
-  un `&mut Catalog`) ne changent pas : elles restent le noyau bas niveau, pas
-  la façade.
-* Aucun changement de schéma catalogue, aucun changement aux formules
-  `process1`–`5` : uniquement la forme de la requête et le nombre de points
-  d'entrée.
+* `Library` goes from five export methods (`export`, `export_batch`,
+  `export_with_preset`, `export_async`, `export_with_preset_async`) to two
+  (`export`, `export_async`) plus `export_presets`/`create_export_preset`,
+  unchanged. `leyline-engine` being internal (§13), this rename is not a
+  breaking change in the semver sense — but it touches the repository's three
+  clients: the CLI, Studio, and the integration tests, all updated in the
+  same change.
+* The free functions `export::export_version`/`export::export_batch` (used
+  directly by `leyline-engine`'s integration tests over a `&mut Catalog`) do
+  not change: they remain the low-level core, not the façade.
+* No catalog schema change and no change to the `process1`–`5` formulas: only
+  the shape of the request and the number of entry points.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Garder cinq méthodes, ajouter `ExportRequest` en sixième forme de
-  confort** : rejeté — duplique la surface au lieu de la réduire, l'inverse
-  de l'objectif ; les cinq méthodes existantes n'apportaient chacune aucune
-  capacité que la requête unique ne couvre pas.
-* **`preset: ExportPresetId` obligatoire, conforme au brouillon initial** :
-  rejeté, cf. Contexte — la recette ad hoc est un cas réel et déjà utilisé
-  partout (CLI par défaut, dialogue Studio), pas un besoin hypothétique à
-  anticiper.
-* **`export` retournant toujours un `JobId`, conforme au brouillon initial** :
-  rejeté — un appel scripté ponctuel (CLI, SDK) n'a pas besoin du mécanisme
-  d'événements ; la forme synchrone existait déjà (`export_batch`,
-  `export_with_preset`) et n'avait pas de raison de disparaître.
+* **Keeping the five methods and adding `ExportRequest` as a sixth
+  convenience form**: rejected — it would duplicate the surface instead of
+  reducing it, the opposite of the goal; none of the five existing methods
+  brought a capability the single request does not cover.
+* **A mandatory `preset: ExportPresetId`, as in the initial draft**:
+  rejected, cf. Context — the ad-hoc recipe is a real case, already used
+  everywhere (the CLI by default, Studio's dialog), not a hypothetical need
+  to anticipate.
+* **`export` always returning a `JobId`, as in the initial draft**: rejected
+  — a one-off scripted call (CLI, SDK) has no need of the event mechanism;
+  the synchronous form already existed (`export_batch`,
+  `export_with_preset`) and had no reason to disappear.

@@ -1,116 +1,113 @@
-# ADR 0023 — Ne pas tenir le verrou catalogue pendant un rendu de preview
+# ADR 0023 — Not holding the catalog lock during a preview render
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-`Library::preview()` tient le `Mutex<Catalog>` unique — celui que traverse
-toute lecture (`catalog()`) et toute écriture (`catalog_mut()`, `edit()`) —
-pendant toute sa durée, y compris le rendu complet (décodage RAW + pipeline
-`process1`–`5` + encodage PNG), qui ne touche jamais le catalogue. Un rendu
-coûte de quelques dizaines à ~100 ms (bancs `process1.rs`) ; le pool de rendu
-borné admet jusqu'à 16 jobs concurrents. Chaque rendu — et chaque job
-`preview_async` du pool — bloque donc toute la navigation, la recherche et
-l'édition de métadonnées de Studio le temps du rendu, alors que le rendu
-lui-même n'a besoin d'aucun accès au catalogue.
+`Library::preview()` holds the single `Mutex<Catalog>` — the one every read
+(`catalog()`) and every write (`catalog_mut()`, `edit()`) goes through — for
+its whole duration, including the complete render (RAW decode + the
+`process1`–`5` pipeline + PNG encoding), which never touches the catalog. A
+render costs from a few tens of milliseconds to ~100 ms (the `process1.rs`
+benchmarks); the bounded render pool admits up to 16 concurrent jobs. Every
+render — and every `preview_async` job in the pool — therefore blocks all of
+Studio's navigation, search and metadata editing for the duration of the
+render, when the render itself needs no catalog access whatsoever.
 
-`rusqlite::Connection` est `Send` mais `!Sync` : `Catalog` encapsule une
-connexion unique, donc un `RwLock<Catalog>` ne compilerait pas pour des
-lectures concurrentes — ce n'est pas seulement la cohérence logique qui est
-protégée par le mutex, c'est l'unique connexion elle-même. Un pool de
-connexions (lecteurs multiples + un écrivain, permis par WAL) résoudrait la
-contention plus largement, mais c'est un changement invasif à toute
-l'API `leyline-catalog` (emprunts, transactions, ouverture/migration) pour un
-gain qui dépasse le bug ciblé ici — écarté de cette décision, à revisiter
-séparément si la contention lecture-vs-écriture s'avère un jour mesurable.
+`rusqlite::Connection` is `Send` but `!Sync`: `Catalog` wraps a single
+connection, so an `RwLock<Catalog>` would not compile for concurrent reads —
+it is not only logical consistency that the mutex protects, it is the single
+connection itself. A connection pool (many readers plus one writer, which WAL
+permits) would address contention more broadly, but that is an invasive
+change to all of `leyline-catalog`'s API (borrows, transactions,
+opening/migration) for a gain wider than the bug targeted here — excluded
+from this decision, to be revisited separately if read-versus-write
+contention ever proves measurable.
 
-Réduire simplement la fenêtre du verrou (le prendre pour la lecture des
-réglages, le relâcher pendant le rendu, le reprendre pour l'écriture de la
-preview) semblait à première vue sans risque : entre les deux prises, la
-révision de tête pourrait avancer (`commit_revision`) ou bouger (`undo`/
-`redo`), mais ces opérations créent une nouvelle révision ou déplacent la
-tête vers une révision immuable existante — la preview qu'on enregistre
-reste une preview *correcte* de la révision R qu'on a rendue, simplement non
-tête, donc ignorée par `valid_preview` tant qu'on ne revient pas dessus.
-Rien d'incorrect.
+Simply narrowing the lock's window (taking it to read the settings, releasing
+it during the render, taking it again to write the preview) looked risk-free
+at first glance: between the two acquisitions the head revision could advance
+(`commit_revision`) or move (`undo`/`redo`), but those operations create a
+new revision or move the head onto an existing immutable revision — the
+preview being recorded stays a *correct* preview of the revision R that was
+rendered, merely no longer the head, and therefore ignored by `valid_preview`
+until one comes back to it. Nothing incorrect.
 
-Il existe cependant une exception : `try_amend_head` (§17, fenêtre
-d'amendement de 2 s) **réécrit `settings_json` d'une révision en place, en
-conservant le même identifiant R**, et supprime les previews de R (règle déjà
-documentée, `catalog.md` §17). Sans le verrou tenu de bout en bout, la
-séquence suivante devient possible :
+There is however one exception: `try_amend_head` (§17, the 2 s amendment
+window) **rewrites a revision's `settings_json` in place, keeping the same
+identifier R**, and deletes R's previews (a rule already documented,
+`catalog.md` §17). Without the lock held end to end, the following sequence
+becomes possible:
 
-1. Le thread de rendu lit tête = R, réglages = S1.
-2. Il rend S1 sans verrou.
-3. Un amendement concurrent réécrit R : R signifie maintenant S2, les
-   previews de R sont supprimées.
-4. Le thread de rendu enregistre sa preview pour R avec les pixels S1.
-5. `valid_preview` pour tête = R trouve cette ligne et la sert comme preview
-   valide de R — alors que les pixels sont S1 et que R signifie S2 : preview
-   périmée servie comme fraîche, sans aucun signal de fraîcheur pour le
-   détecter.
+1. The render thread reads head = R, settings = S1.
+2. It renders S1 with no lock held.
+3. A concurrent amendment rewrites R: R now means S2, and R's previews are
+   deleted.
+4. The render thread records its preview for R with the S1 pixels.
+5. `valid_preview` for head = R finds that row and serves it as R's valid
+   preview — while the pixels are S1 and R means S2: a stale preview served
+   as fresh, with no freshness signal by which to detect it.
 
-Réduire la fenêtre sans rien d'autre réintroduit donc une vraie corruption
-silencieuse, pas seulement un gaspillage de rendu.
+Narrowing the window and nothing else therefore reintroduces genuine silent
+corruption, not merely a wasted render.
 
-## Décision
+## Decision
 
-`preview::preview` se scinde en trois phases séquencées par l'appelant, avec
-le verrou catalogue tenu seulement pour les deux premières et la dernière —
-jamais pendant le rendu :
+`preview::preview` splits into three phases sequenced by the caller, with the
+catalog lock held only for the first two and the last — never during the
+render:
 
-1. **`plan_preview`** (lecture seule, verrou court) : sert le cache si une
-   preview valide existe déjà, sinon lit tête, réglages, chemin source et
-   métadonnées, et capture la chaîne `settings_json` brute de la révision.
-2. **Décodage + rendu** : aucun verrou catalogue tenu ; le cache de
-   décodages (`Mutex<DecodeCache>`) n'est tenu que le temps de
-   `get_or_insert_with`, qui rend un `Arc<RawImage>` possédé.
-3. **`record_render`** (écriture, verrou court) : enregistre la preview via
-   une nouvelle méthode catalogue, `record_preview_if_current`, qui compare
-   — dans la même transaction que l'écriture — la chaîne `settings_json`
-   captée en phase 1 à celle actuellement stockée pour cette révision.
-   Égalité ⇒ écriture ; différence (ou révision disparue) ⇒ rien n'est
-   écrit, le fichier rendu reste affichable pour cet appel mais n'est pas
-   marqué valide, un appel `preview` ultérieur régénère.
+1. **`plan_preview`** (read-only, a short lock): serves the cache if a valid
+   preview already exists, otherwise reads the head, the settings, the source
+   path and the metadata, and captures the revision's raw `settings_json`
+   string.
+2. **Decode + render**: no catalog lock held; the decode cache
+   (`Mutex<DecodeCache>`) is held only for the duration of
+   `get_or_insert_with`, which returns an owned `Arc<RawImage>`.
+3. **`record_render`** (a write, a short lock): records the preview through a
+   new catalog method, `record_preview_if_current`, which compares — in the
+   same transaction as the write — the `settings_json` string captured in
+   phase 1 against the one currently stored for that revision. Equal ⇒ the
+   write happens; different (or the revision gone) ⇒ nothing is written, the
+   rendered file stays displayable for that call but is not marked valid, and
+   a later `preview` call regenerates.
 
-L'invariant garanti : un amendement concurrent ne peut jamais faire passer
-pour valide un rendu obtenu avec d'anciens réglages. `commit_revision`,
-`undo` et `redo` ne modifient jamais `settings_json` d'une révision
-existante, donc ne déclenchent jamais ce garde-fou — seul `try_amend_head`
-peut le faire, exactement le cas visé.
+The guaranteed invariant: a concurrent amendment can never pass off a render
+obtained with old settings as valid. `commit_revision`, `undo` and `redo`
+never modify an existing revision's `settings_json`, so they never trip this
+guard — only `try_amend_head` can, which is exactly the case in view.
 
-## Conséquences
+## Consequences
 
-* Toute la navigation/recherche/édition de métadonnées du catalogue reste
-  disponible pendant un rendu, y compris sous charge du pool de rendu borné
-  (jusqu'à 16 jobs concurrents) — le blocage global disparaît.
-* Nouvelle méthode catalogue additive (`Catalog::record_preview_if_current`),
-  aucune migration de schéma, aucun changement de l'API publique du moteur
-  (`Library::preview` garde sa signature).
-* Pire cas en cas de course avec un amendement : un rendu gaspillé, jamais
-  une preview corrompue — le prochain appel régénère normalement. Ceci
-  renforce la règle déjà documentée en `catalog.md` §17 (l'amendement
-  invalide les previews de la révision) au lieu de la changer.
-* Le décodage RAW reste sérialisé par `Mutex<DecodeCache>` pendant sa propre
-  durée (inchangé, hors scope) — un futur resserrement de cette section
-  précise resterait un correctif indépendant et plus modeste si jamais
-  mesuré nécessaire.
-* Aucun changement aux formules `process1`–`5` : uniquement le moment où le
-  verrou catalogue est tenu, jamais l'ordre ou la valeur des calculs de
-  pixels.
+* All of the catalog's navigation, search and metadata editing stays
+  available during a render, including under load from the bounded render
+  pool (up to 16 concurrent jobs) — the global block disappears.
+* A new additive catalog method (`Catalog::record_preview_if_current`), no
+  schema migration, and no change to the engine's public API
+  (`Library::preview` keeps its signature).
+* The worst case of a race with an amendment is a wasted render, never a
+  corrupted preview — the next call regenerates normally. This reinforces the
+  rule already documented in `catalog.md` §17 (an amendment invalidates the
+  revision's previews) instead of changing it.
+* RAW decoding stays serialized by `Mutex<DecodeCache>` for its own duration
+  (unchanged, out of scope) — a future tightening of that particular section
+  would remain an independent and more modest fix, if ever measured
+  necessary.
+* No change to the `process1`–`5` formulas: only when the catalog lock is
+  held, never the order or the value of the pixel computations.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **`RwLock<Catalog>`** : ne compile pas pour des lectures concurrentes,
-  `rusqlite::Connection` étant `!Sync` — aucun bénéfice.
-* **Pool de connexions lecteur/écrivain (WAL)** : direction pertinente à long
-  terme pour la contention lecture-vs-écriture en général, mais changement
-  invasif sur toute `leyline-catalog` pour un gain qui dépasse le bug ciblé
-  ici ; reporté à une décision séparée si la contention devient mesurable.
-* **Verrou par asset** : ajoute une carte de verrous et de la complexité sans
-  répondre à la contention catalogue globale (la navigation touche tous les
-  assets) ; le mutex catalogue global resterait de toute façon tenu pour les
-  opérations SQL elles-mêmes.
-* **Réduire la fenêtre sans garde-fou d'atomicité** : rejeté — réintroduit la
-  corruption silencieuse décrite ci-dessus au bénéfice de la seule fenêtre
-  d'amendement, un cas réel et déjà utilisé (glissement de curseur).
+* **`RwLock<Catalog>`**: does not compile for concurrent reads,
+  `rusqlite::Connection` being `!Sync` — no benefit.
+* **A reader/writer connection pool (WAL)**: a relevant long-term direction
+  for read-versus-write contention in general, but an invasive change across
+  all of `leyline-catalog` for a gain wider than the bug targeted here;
+  deferred to a separate decision should the contention become measurable.
+* **A per-asset lock**: adds a map of locks and complexity without answering
+  global catalog contention (navigation touches every asset); the global
+  catalog mutex would still be held for the SQL operations themselves.
+* **Narrowing the window with no atomicity guard**: rejected — it
+  reintroduces the silent corruption described above, for the benefit of the
+  amendment window alone, a real case and one already in use (dragging a
+  slider).
