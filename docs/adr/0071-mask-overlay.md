@@ -1,131 +1,126 @@
-# ADR 0071 — Voir un masque : la couverture en surimpression
+# ADR 0071 — Seeing a mask: the coverage as an overlay
 
-**Statut :** Accepté — 2026-08
+**Status:** Accepted — 2026-08
 
-## Contexte
+## Context
 
-[ADR 0049](0049-local-adjustments-clients.md) a livré les outils de masquage
-dans les trois clients et a laissé trois choses de côté, dont la première :
-**la surimpression de la couverture calculée par le moteur**. Elle est restée
-ouverte depuis.
+[ADR 0049](0049-local-adjustments-clients.md) delivered the masking tools in
+all three clients and set three things aside, the first of them: **an overlay
+of the coverage the engine computes**. It has stayed open since.
 
-Elle n'est plus un confort. Trois raisons, dans l'ordre où elles pèsent :
+It is no longer a convenience. Three reasons, in the order in which they
+weigh:
 
-1. **Un masque stocké n'a aucune poignée.** [ADR 0070](0070-stored-mask-coverage.md)
-   vient d'ajouter `Mask::Coverage` : un radial dessine son ellipse, un dégradé
-   son axe, une brosse ses dabs — une couverture importée ne dessine *rien*.
-   On l'importe et on devine son effet au résultat. La surimpression est le
-   seul moyen de la voir.
-2. **Un masque par plage ne se devine pas du tout.** ADR 0048 multiplie la
-   géométrie par des bandes de luminance et de teinte ; le résultat n'a plus
-   de forme prévisible.
-3. C'est ainsi qu'on travaille un masque partout ailleurs. Voir la zone
-   couverte n'est pas une aide au débogage, c'est l'outil.
+1. **A stored mask has no handle at all.**
+   [ADR 0070](0070-stored-mask-coverage.md) has just added `Mask::Coverage`: a
+   radial draws its ellipse, a gradient its axis, a brush its dabs — an
+   imported coverage draws *nothing*. One imports it and guesses its effect
+   from the result. The overlay is the only way to see it.
+2. **A range mask cannot be guessed at all.** ADR 0048 multiplies the geometry
+   by luminance and hue bands; the result no longer has a predictable shape.
+3. It is how one works a mask everywhere else. Seeing the covered area is not a
+   debugging aid, it is the tool.
 
-## Décision
+## Decision
 
-**Studio peut afficher, par-dessus l'aperçu, la couverture du masque
-sélectionné.**
+**Studio can display, over the preview, the coverage of the selected mask.**
 
-### 1. C'est une *vue*, jamais un rendu
+### 1. It is a *view*, never a rendering
 
-La surimpression ne produit aucun pixel de photo, n'entre dans aucune
-révision, et n'a **pas de version d'étage**. `pipeline.md` §5.1 n'est pas
-concernée : rien de ce qui est gelé ne change, et rien de ce qui est affiché
-ici ne sera jamais exporté.
+The overlay produces no photo pixel, enters no revision, and has **no stage
+version**. `pipeline.md` §5.1 is not concerned: nothing frozen changes, and
+nothing displayed here will ever be exported.
 
-C'est la même nature que l'épreuvage écran d'[ADR 0051](0051-watermark-rasterization-and-soft-proof-surface.md) :
-une transformation d'affichage, décidée par l'interface, que le moteur calcule
-mais n'enregistre pas.
+It is the same nature as the soft proofing of
+[ADR 0051](0051-watermark-rasterization-and-soft-proof-surface.md): a display
+transform, decided by the interface, which the engine computes but does not
+record.
 
-### 2. Elle doit tomber au bon endroit, donc elle passe par la géométrie
+### 2. It must land in the right place, so it goes through the geometry
 
-C'est tout le problème, et la raison pour laquelle la surimpression n'est pas
-un simple dessin côté interface.
+That is the whole problem, and the reason the overlay is not a mere drawing on
+the interface side.
 
-Une couverture est rasterisée dans le repère du **tampon de travail**, non
-tourné (`mask::rasterize_coverage`, ADR 0026). L'aperçu affiché, lui, sort de
-trois étages de géométrie qui s'exécutent *après* les réglages locaux :
-`rotate` (rang 200), `perspective` (205) et `crop` (210). Une couverture
-dessinée sans eux serait décalée, inclinée, et déborderait du cadre — d'autant
-plus visiblement que le recadrage est serré.
+A coverage is rasterized in the **working buffer's** frame, unrotated
+(`mask::rasterize_coverage`, ADR 0026). The displayed preview, for its part,
+comes out of three geometry stages that run *after* the local adjustments:
+`rotate` (rank 200), `perspective` (205) and `crop` (210). A coverage drawn
+without them would be offset, tilted, and would spill outside the frame — the
+more visibly the tighter the crop.
 
-La couverture est donc **poussée à travers ces trois étages-là**, aux versions
-que la révision épingle, exactement comme les pixels de la photo. Rien n'est
-réimplémenté : ce sont les mêmes étages gelés, appliqués à un autre tampon.
+The coverage is therefore **pushed through those three stages**, at the
+versions the revision pins, exactly like the photo's pixels. Nothing is
+reimplemented: they are the same frozen stages, applied to another buffer.
 
-Les étages entre 160 et 200 — LUT, bruit, accentuation — sont au contraire
-**sautés** : ce sont des opérateurs de pixels, ils déformeraient une image de
-masque sans rien lui apporter.
+The stages between 160 and 200 — LUT, noise, sharpening — are by contrast
+**skipped**: they are pixel operators, and they would distort a mask image
+without bringing it anything.
 
-### 3. Elle montre la couverture *effective*, plages comprises
+### 3. It shows the *effective* coverage, ranges included
 
-Montrer la seule géométrie serait montrer ce qu'on sait déjà, et taire ce
-qu'on ne devine pas (§Contexte, point 2). La surimpression est donc calculée
-sur le tampon tel qu'il est au rang 160 — après les opérateurs de couleur, là
-où les termes de plage lisent leurs valeurs — puis multipliée par l'opacité de
-l'entrée.
+Showing the geometry alone would be showing what one already knows, and staying
+silent about what one cannot guess (§Context, point 2). The overlay is
+therefore computed on the buffer as it stands at rank 160 — after the colour
+operators, where the range terms read their values — and then multiplied by the
+entry's opacity.
 
-Ce que l'utilisateur voit est ce que le moteur applique.
+What the user sees is what the engine applies.
 
-**Le prix, assumé :** le terme de plage vit dans les modules gelés de
-`local_adjustments`, où il est déjà recopié de version en version. La
-surimpression le recopie une fois de plus, dans un module qui **aiguille sur
-la version épinglée**. C'est la contrepartie du gel, et elle est bornée par la
-même propriété : un module gelé ne reçoit jamais de correctif, seulement un
-successeur, donc deux copies ne peuvent pas diverger.
+**The price, accepted:** the range term lives in `local_adjustments`'s frozen
+modules, where it is already copied from version to version. The overlay copies
+it once more, into a module that **dispatches on the pinned version**. That is
+the counterpart of freezing, and it is bounded by the same property: a frozen
+module never receives a fix, only a successor, so two copies cannot diverge.
 
-### 4. Un seul masque à la fois : celui qui est sélectionné
+### 4. One mask at a time: the selected one
 
-Superposer plusieurs couvertures donnerait une bouillie où l'on ne sait plus
-quelle entrée fait quoi. Le panneau a déjà une notion de ligne sélectionnée
-(ADR 0049) ; la surimpression suit cette sélection, et disparaît quand rien
-n'est sélectionné.
+Superimposing several coverages would give a mush in which one no longer knows
+which entry does what. The panel already has a notion of selected row (ADR
+0049); the overlay follows that selection, and disappears when nothing is
+selected.
 
-### 5. Rouge à 50 %, et un interrupteur
+### 5. Red at 50 %, and a switch
 
-La convention de tous les logiciels du domaine, et elle est bonne : une teinte
-franche qu'aucune photo ne contient uniformément, assez transparente pour
-qu'on juge encore l'image dessous.
+The convention of every program in the field, and it is a good one: a frank hue
+no photo contains uniformly, transparent enough that the image beneath can
+still be judged.
 
-L'affichage est un **interrupteur** de l'interface, pas un réglage de la
-photo : il ne s'enregistre pas dans la révision, et repart à l'état affiché à
-chaque sélection de masque — c'est ce qu'on veut voir en travaillant un
-masque, et jamais ce qu'on veut retrouver figé sur une photo trois mois plus
-tard.
+The display is an **interface switch**, not a setting of the photo: it is not
+recorded in the revision, and reverts to the displayed state on each mask
+selection — it is what one wants to see while working a mask, and never what
+one wants to find frozen on a photo three months later.
 
-### 6. Ce que cette ADR ne fait pas
+### 6. What this ADR does not do
 
-Les deux autres reliquats d'ADR 0049 restent ouverts, et chacun est un travail
-distinct : la **pipette de plage**, et les **poignées de déplacement** d'une
-géométrie déjà tracée.
+The two other leftovers of ADR 0049 stay open, and each is a distinct piece of
+work: the **range eyedropper**, and the **drag handles** of an
+already-drawn geometry.
 
-## Conséquences
+## Consequences
 
-* Le moteur gagne une surface : rendre la couverture d'un masque à la taille
-  d'un aperçu, `Library::mask_coverage_preview`. Elle rend une image en niveaux
-  de gris, jamais une couleur — la teinte est une décision d'interface.
-* Un masque stocké devient **utilisable** : jusqu'ici on l'importait à
-  l'aveugle (ADR 0070 §7).
-* Un coût de calcul supplémentaire, du même ordre qu'un aperçu, et payé
-  seulement quand la surimpression est allumée.
-* Le terme de plage existe désormais en deux exemplaires de plus, aiguillés par
-  version. C'est écrit ici pour que ce ne soit pas découvert plus tard comme
-  une négligence.
+* The engine gains a surface: rendering a mask's coverage at a preview's size,
+  `Library::mask_coverage_preview`. It returns a greyscale image, never a
+  colour — the hue is an interface decision.
+* A stored mask becomes **usable**: until now one imported it blind (ADR 0070
+  §7).
+* An extra computation cost, of the same order as a preview, and paid only when
+  the overlay is on.
+* The range term now exists in two more copies, dispatched by version. It is
+  written here so that it is not discovered later as an oversight.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Dessiner la géométrie côté interface**, en Slint, sans passer par le
-  moteur. Ne sait rien des plages ni des couvertures stockées — donc muet
-  précisément là où on a besoin de voir — et devrait réimplémenter rotation,
-  perspective et recadrage pour tomber juste.
-* **Ne montrer que la géométrie**, sans les plages. Moins cher, et il tait ce
-  qu'on ne devine pas.
-* **Superposer tous les masques** avec une couleur par entrée. Illisible dès
-  trois entrées, et ne dit plus laquelle on est en train de régler.
-* **Un rendu complet avec le masque substitué à l'image**, en laissant tous les
-  étages s'exécuter. La LUT, le bruit et l'accentuation déformeraient l'image
-  de masque : on verrait un masque accentué, pas le masque.
-* **Enregistrer l'état de la surimpression dans la révision.** Ce n'est pas une
-  propriété de la photo ; la retrouver allumée trois mois plus tard serait une
-  surprise, pas un service.
+* **Drawing the geometry on the interface side**, in Slint, without going
+  through the engine. It knows nothing of ranges nor of stored coverages —
+  hence mute precisely where one needs to see — and would have to reimplement
+  rotation, perspective and crop in order to land correctly.
+* **Showing the geometry only**, without the ranges. Cheaper, and it stays
+  silent about what one cannot guess.
+* **Superimposing every mask** with a colour per entry. Illegible from three
+  entries on, and it no longer says which one is being tuned.
+* **A complete render with the mask substituted for the image**, letting every
+  stage run. The LUT, the noise and the sharpening would distort the mask
+  image: one would see a sharpened mask, not the mask.
+* **Recording the overlay's state in the revision.** It is not a property of
+  the photo; finding it on three months later would be a surprise, not a
+  service.
