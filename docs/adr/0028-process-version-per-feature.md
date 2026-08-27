@@ -1,43 +1,42 @@
-# ADR 0028 — Une process version par fonctionnalité pixel : maintien de la duplication par module
+# ADR 0028 — One process version per pixel feature: keeping per-module duplication
 
-**Statut :** Remplacé par [ADR 0042](0042-versioned-stage-pipeline.md) — 2026-07
+**Status:** Superseded by [ADR 0042](0042-versioned-stage-pipeline.md) — 2026-07
 
-> Ce document décrivait la convention en vigueur jusqu'en juillet 2026 : une
-> process version par fonctionnalité, chacune dans un `processN.rs` copie
-> intégrale du précédent. Sa dernière conséquence prévoyait sa réouverture « avec
-> des données réelles » ; ADR 0042 le fait, sur la base de 14 968 lignes
-> cumulées et de 70–93 % de duplication entre modules consécutifs. Conservé tel
-> quel pour la trace du raisonnement.
+> This document described the convention in force until July 2026: one process
+> version per feature, each in a `processN.rs` that is a complete copy of the
+> previous one. Its last consequence anticipated its own reopening "with real
+> data"; ADR 0042 does that, on the basis of 14,968 cumulative lines and 70–93 %
+> duplication between consecutive modules. Kept as it was, for the record of the
+> reasoning.
 
-## Contexte
+## Context
 
-`docs/v2-scope.md` §9 relève un quatrième fil transversal, non bloquant mais
-structurant : la **prolifération des process versions**. La maison duplique un
-module `processN.rs` complet par version — `process2.rs` copie `process 1`,
-`process3.rs` copie `process 2`, et ainsi de suite — en ne changeant que le
-seul opérateur nouveau ou différent. C'est un choix délibéré, motivé dans les
-sections « Alternatives écartées » d'ADR 0013 et d'ADR 0016 : le partage de
-code est exactement ce qui risquerait qu'un correctif futur d'un opérateur
-altère silencieusement le rendu gelé d'une version antérieure, censée figée
-« mêmes pixels dans dix ans » (`docs/pipeline.md` §3.3).
+`docs/v2-scope.md` §9 notes a fourth cross-cutting thread, non-blocking but
+structural: the **proliferation of process versions**. The house duplicates a
+complete `processN.rs` module per version — `process2.rs` copies `process 1`,
+`process3.rs` copies `process 2`, and so on — changing only the one new or
+different operator. That is a deliberate choice, argued in the "Alternatives
+rejected" sections of ADR 0013 and ADR 0016: sharing code is exactly what
+would risk a future fix to one operator silently altering the frozen
+rendering of an earlier version, which is meant to be fixed forever — "the
+same pixels in ten years" (`docs/pipeline.md` §3.3).
 
-Cinq versions existent aujourd'hui, toutes liées à la correction d'objectif
-ou aux fonctions de transfert (ADR 0013, 0016–0018). La plupart des items du
-périmètre V2 sont *pixel-affectants* et exigeraient, chacun, une nouvelle
-process version sous cette convention (`docs/v2-scope.md` §2, §3, §4, §5, §6,
-§8 : tous notés « Process +1 »). Empiler six items ou plus signifierait donc
-autant de nouveaux modules `processN.rs` dupliqués s'ajoutant aux cinq
-existants.
+Five versions exist today, all tied to lens correction or to the transfer
+functions (ADR 0013, 0016–0018). Most items in V2's scope are
+*pixel-affecting* and would each demand a new process version under this
+convention (`docs/v2-scope.md` §2, §3, §4, §5, §6, §8: all marked "Process
++1"). Stacking six or more items would therefore mean as many new duplicated
+`processN.rs` modules added to the five existing ones.
 
-Le §9 pose la question ouverte : un process par fonctionnalité (statu quo,
-plus de modules dupliqués) ou un bump groupé « process V2 consolidé » (moins
-de modules, mais des fonctionnalités qui ne peuvent plus sortir
-indépendamment) ? Plutôt que de laisser chaque futur ADR de fonctionnalité
-V2 re-trancher cette stratégie, ce document la fige une fois.
+§9 poses the open question: one process per feature (the status quo, more
+duplicated modules) or a grouped "consolidated V2 process" bump (fewer
+modules, but features that can no longer ship independently)? Rather than let
+every future V2 feature ADR settle that strategy again, this document freezes
+it once.
 
-Coût réel mesuré de la duplication à ce jour (`wc -l crates/leyline-engine/src/process*.rs`) :
+The real cost of duplication to date (`wc -l crates/leyline-engine/src/process*.rs`):
 
-| Module | Lignes |
+| Module | Lines |
 |---|---|
 | `process1.rs` | 451 |
 | `process2.rs` | 560 |
@@ -46,73 +45,70 @@ Coût réel mesuré de la duplication à ce jour (`wc -l crates/leyline-engine/s
 | `process5.rs` | 923 |
 | **Total** | **3433** |
 
-## Décision
+## Decision
 
-**La convention reste inchangée : une process version par fonctionnalité
-pixel, chacune dans son propre module `processN.rs` gelé, créé en copiant le
-module précédent entier et en ne changeant que l'opérateur nouveau ou
-différent** — exactement ce qu'ADR 0013 et ADR 0016 ont établi. La V2
-n'introduit **ni** bump groupé (« process V2 » multi-fonctionnalités), **ni**
-bibliothèque d'opérateurs partagés que les versions composeraient au lieu de
-dupliquer.
+**The convention stays unchanged: one process version per pixel feature, each
+in its own frozen `processN.rs` module, created by copying the previous
+module whole and changing only the new or different operator** — exactly what
+ADR 0013 and ADR 0016 established. V2 introduces **neither** a grouped bump
+(a multi-feature "V2 process") **nor** a shared operator library that
+versions would compose instead of duplicating.
 
-Ce document ne décide d'aucune fonctionnalité V2 : il fige la *stratégie de
-versionnage* que chaque futur ADR de fonctionnalité (courbe tonale, TSL,
-réglages locaux, suppression de tache, dehaze, DCP…) appliquera sans la
-re-litiger. Chaque fonctionnalité pixel prête à sortir prend le prochain
-numéro de process disponible et son propre module.
+This document decides no V2 feature: it freezes the *versioning strategy*
+that every future feature ADR (tone curve, HSL, local adjustments, spot
+removal, dehaze, DCP…) will apply without relitigating it. Every pixel
+feature ready to ship takes the next available process number and its own
+module.
 
-## Conséquences
+## Consequences
 
-* Chaque fonctionnalité V2 pixel-affectante peut sortir **indépendamment**,
-  dès qu'elle est prête, sans être bloquée par une autre fonctionnalité du
-  même lot théorique — le versionnage ne devient jamais un point de
-  synchronisation entre chantiers non liés.
-* Le champ `process` d'une révision garde sa **lisibilité sémantique** :
-  `process: 3` signifie aujourd'hui exactement « correction de distorsion
-  d'objectif active », un fait unique et lisible ; il continuera de désigner
-  une fonctionnalité identifiable plutôt qu'un lot opaque de fonctionnalités
-  sans rapport.
-* Le nombre de modules `processN.rs` croît d'une unité par fonctionnalité
-  pixel — coût borné et connu (3433 lignes cumulées pour cinq versions,
-  ci-dessus). La base tolère déjà cinq versions sans friction ; la trajectoire
-  reste linéaire et prévisible.
-* La garantie de gel est préservée intégralement : aucun module de version
-  antérieure n'est touché quand une nouvelle sort, puisqu'aucun code de rendu
-  n'est partagé entre versions (le contrat « mêmes pixels dans dix ans » reste
-  mécaniquement infalsifiable, `docs/pipeline.md` §3.3).
-* Si le nombre de modules devenait un jour un vrai fardeau — un nombre bien
-  supérieur aux cinq actuels, après que plusieurs fonctionnalités V2 ont
-  réellement été livrées — un futur ADR pourra rouvrir la question **avec des
-  données réelles**. Ce document ne préempte pas cette décision ; il refuse
-  seulement de l'anticiper spéculativement aujourd'hui.
+* Every pixel-affecting V2 feature can ship **independently**, as soon as it
+  is ready, without being blocked by another feature of the same theoretical
+  batch — versioning never becomes a synchronization point between unrelated
+  pieces of work.
+* A revision's `process` field keeps its **semantic legibility**: `process: 3`
+  today means exactly "lens distortion correction active", a single readable
+  fact; it will go on designating an identifiable feature rather than an
+  opaque bundle of unrelated ones.
+* The number of `processN.rs` modules grows by one per pixel feature — a
+  bounded and known cost (3433 cumulative lines for five versions, above).
+  The codebase already tolerates five versions without friction; the
+  trajectory stays linear and predictable.
+* The freezing guarantee is preserved in full: no earlier version's module is
+  touched when a new one ships, since no render code is shared between
+  versions (the "same pixels in ten years" contract stays mechanically
+  unfalsifiable, `docs/pipeline.md` §3.3).
+* Should the number of modules one day become a real burden — a number well
+  above today's five, after several V2 features have actually shipped — a
+  future ADR can reopen the question **with real data**. This document does
+  not preempt that decision; it only refuses to anticipate it speculatively
+  today.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Bump groupé « process V2 consolidé »** (plusieurs fonctionnalités pixel
-  réunies sous une seule nouvelle process version, donc un seul module
-  supplémentaire) : n'économise pas la duplication future qu'il prétend
-  éviter. La règle §3.3 impose qu'*un* correctif d'*une seule* des
-  fonctionnalités groupées, une fois la version publiée, force malgré tout une
-  process version entièrement nouvelle — donc un module complet de plus. Le
-  groupage ne fait donc que **retarder** la croissance des modules (en
-  bloquant la sortie indépendante des fonctionnalités déjà prêtes) sans
-  jamais l'éviter. Il dégrade en prime la lisibilité du champ `process`, qui
-  n'annoncerait plus un fait sémantique unique mais un paquet opaque de
-  fonctionnalités hétérogènes. Écarté : tous les coûts, aucun des bénéfices
-  supposés.
-* **Bibliothèque d'opérateurs partagés** (extraire les opérateurs communs
-  pour que les versions les *composent* au lieu de les *dupliquer*, réduisant
-  le total de lignes) : contredit frontalement la raison d'être de la
-  duplication intégrale, motivée dans ADR 0013 et ADR 0016. Du code partagé
-  est précisément ce qui expose un rendu gelé au risque qu'un changement
-  futur, sans rapport, l'altère silencieusement — la duplication par module
-  n'est pas une négligence à optimiser, c'est le mécanisme même qui rend le
-  gel infalsifiable. Écarté : réintroduirait exactement le danger que la
-  convention existe pour supprimer.
-* **Différer la décision et laisser chaque ADR de fonctionnalité V2 choisir**
-  sa stratégie : c'était le statu quo implicite, mais `docs/v2-scope.md`
-  montre que six items ou plus convergent vers le même choix de versionnage.
-  Le trancher une fois maintenant évite que chaque futur ADR re-dérive — ou
-  pire, tranche différemment — la même réponse, au risque d'une convention de
-  versionnage incohérente d'un item à l'autre.
+* **A grouped "consolidated V2 process" bump** (several pixel features
+  gathered under a single new process version, hence one extra module):
+  it does not save the future duplication it claims to avoid. Rule §3.3
+  requires that *one* fix to *one* of the grouped features, once the version
+  is published, forces an entirely new process version anyway — hence one
+  more complete module. Grouping therefore merely **delays** the growth in
+  modules (by blocking the independent release of features already ready)
+  without ever avoiding it. It degrades the legibility of the `process` field
+  into the bargain, which would no longer announce a single semantic fact but
+  an opaque parcel of heterogeneous features. Rejected: all the costs, none
+  of the supposed benefits.
+* **A shared operator library** (extracting the common operators so that
+  versions *compose* them instead of *duplicating* them, reducing the total
+  line count): it contradicts head-on the very reason for complete
+  duplication, argued in ADR 0013 and ADR 0016. Shared code is precisely what
+  exposes a frozen rendering to the risk that a future, unrelated change
+  silently alters it — per-module duplication is not an oversight to
+  optimize, it is the very mechanism that makes the freeze unfalsifiable.
+  Rejected: it would reintroduce exactly the danger the convention exists to
+  remove.
+* **Deferring the decision and letting each V2 feature ADR choose** its own
+  strategy: that was the implicit status quo, but `docs/v2-scope.md` shows
+  six or more items converging on the same versioning choice. Settling it
+  once now prevents every future ADR from re-deriving — or worse, deciding
+  differently — the same answer, at the risk of a versioning convention that
+  is inconsistent from one item to the next.
