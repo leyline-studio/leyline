@@ -1,145 +1,142 @@
-# ADR 0030 — Courbe tonale : courbe par points, spline cubique monotone, appliquée en luminance via LUT
+# ADR 0030 — Tone curve: a point curve, a monotone cubic spline, applied in luminance through a LUT
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-`docs/v2-scope.md` §3 (« Courbe tonale ») relève qu'aucune courbe — ni
-paramétrique ni par points — n'existe aujourd'hui : seuls les curseurs
-grossiers du bloc tonal (exposition, contraste, hautes lumières/ombres,
-blancs/noirs) sont réalisés (`crates/leyline-engine/src/process2.rs:236`,
-`:257`, `:280`). Une courbe tonale est l'outil de mise au point fine que ces
-curseurs ne couvrent pas : elle laisse repositionner librement n'importe quel
-niveau d'entrée sur n'importe quel niveau de sortie.
+`docs/v2-scope.md` §3 ("Tone curve") notes that no curve exists today —
+neither parametric nor point-based: only the coarse sliders of the tonal
+block (exposure, contrast, highlights/shadows, whites/blacks) are implemented
+(`crates/leyline-engine/src/process2.rs:236`, `:257`, `:280`). A tone curve
+is the fine-tuning tool those sliders do not cover: it lets any input level
+be freely repositioned onto any output level.
 
-Le §3 esquisse trois champs (`tone_curve.points`, `tone_curve.parametric`,
-`tone_curve.channel`) et laisse deux questions ouvertes : l'interpolation à
-geler dans le contrat de rendu (`docs/pipeline.md` §5 : deux moteurs, mêmes
-points, mêmes pixels), et le choix « courbes par canal RGB dès la V2 ou
-luminance seule d'abord ». Le §9 confirme l'éligibilité d'un ADR propre
-(« nouveau process, interpolation gelée (ADR léger) »).
+§3 sketches three fields (`tone_curve.points`, `tone_curve.parametric`,
+`tone_curve.channel`) and leaves two questions open: the interpolation to
+freeze into the render contract (`docs/pipeline.md` §5: two engines, the same
+points, the same pixels), and the choice between "per-channel RGB curves from
+V2 on, or luminance alone first". §9 confirms that it warrants an ADR of its
+own ("a new process, frozen interpolation (a light ADR)").
 
-Trois décisions transversales sont déjà prises en amont et **consommées, non
-re-litigées, ici** :
+Three cross-cutting decisions are already taken upstream and **consumed here,
+not relitigated**:
 
-* **ADR 0028** fige la stratégie de versionnage : une process version par
-  fonctionnalité pixel, chacune dans son propre module `processN.rs` gelé,
-  créé en copiant le module précédent entier. Cette courbe est un opérateur
-  pixel : elle prend donc une nouvelle process version, sans que cet ADR ait
-  à re-choisir la convention.
-* **ADR 0013** a établi la convention de fonction de transfert par table :
-  une LUT de `LUT_SIZE` intervalles dont l'entrée `i` est la formule exacte
-  évaluée en `i / LUT_SIZE`, les lookups interpolant linéairement entre
-  entrées adjacentes (`process2.rs:54`–`:101`). Cet ADR **réemploie** cette
-  convention pour la courbe, il ne la réinvente pas.
-* **ADR 0027** confirme que l'espace de travail interne du rendu reste sRGB
-  gamma-encodé entre opérateurs — l'espace où le bloc tonal existant est
-  défini et où cette courbe s'insère.
+* **ADR 0028** freezes the versioning strategy: one process version per pixel
+  feature, each in its own frozen `processN.rs` module, created by copying
+  the previous module whole. This curve is a pixel operator: it therefore
+  takes a new process version, without this ADR having to re-choose the
+  convention.
+* **ADR 0013** established the table-based transfer-function convention: a
+  LUT of `LUT_SIZE` intervals whose entry `i` is the exact formula evaluated
+  at `i / LUT_SIZE`, with lookups interpolating linearly between adjacent
+  entries (`process2.rs:54`–`:101`). This ADR **reuses** that convention for
+  the curve, it does not reinvent it.
+* **ADR 0027** confirms that the render's internal working space stays sRGB
+  gamma-encoded between operators — the space where the existing tonal block
+  is defined and where this curve fits in.
 
-## Décision
+## Decision
 
-La courbe tonale est un nouvel opérateur pixel, donc une **nouvelle process
-version** : elle prend **le prochain numéro de process disponible au moment de
-la sortie de cette fonctionnalité** (ADR 0028), dans son propre module
-`processN.rs` copie intégrale du module précédent augmentée du seul opérateur
-courbe — exactement la convention de duplication par module réaffirmée par
-ADR 0028. Cet ADR **ne fige pas** un entier de process précis : l'ordre de
-sortie des items 3/4/5/6/8 relève du plan d'implémentation futur, pas de ce
-document.
+The tone curve is a new pixel operator, and therefore a **new process
+version**: it takes **the next available process number at the time this
+feature ships** (ADR 0028), in its own `processN.rs` module, a complete copy
+of the previous module plus the curve operator alone — exactly the
+per-module duplication convention reaffirmed by ADR 0028. This ADR **does not
+freeze** a specific process integer: the shipping order of items 3/4/5/6/8
+belongs to the future implementation plan, not to this document.
 
-### La simplification centrale — courbe par points seulement, pas de moteur paramétrique
+### The central simplification — a point curve only, no parametric engine
 
-**La V2 ne livre que la courbe par points** (`tone_curve.points`, liste de
-points de contrôle `{x, y}` normalisés `[0,1]`). Le champ
-`tone_curve.parametric` esquissé au §3 (régions highlights/lights/darks/
-shadows + points de bascule) est **retiré du contrat de rendu du moteur**.
+**V2 ships only the point curve** (`tone_curve.points`, a list of `{x, y}`
+control points normalized to `[0,1]`). The `tone_curve.parametric` field
+sketched in §3 (highlights/lights/darks/shadows regions plus pivot points) is
+**removed from the engine's render contract**.
 
-Raisonnement, posé comme la décision centrale de cet ADR et non comme un
-oubli : une courbe paramétrique n'est **pas une mathématique de rendu
-distincte**, c'est une **UI différente pour générer une liste de points de
-contrôle**. Les curseurs de régions d'une courbe paramétrique produisent, in
-fine, une courbe — c'est-à-dire un jeu de points. Si Studio veut un jour offrir
-un éditeur de style paramétrique, il calcule **côté client** la liste de points
-équivalente et l'écrit dans `tone_curve.points` ; le moteur n'a alors **qu'un
-seul chemin mathématique de courbe** à geler et à maintenir « mêmes pixels dans
-dix ans » (`docs/pipeline.md` §3.3), au lieu de deux. Porter deux moteurs de
-courbe séparés dans le rendu gelé serait deux contrats à figer, deux surfaces
-de régression, pour une capacité que le premier subsume entièrement.
+The reasoning, stated as this ADR's central decision and not as an oversight:
+a parametric curve is **not distinct render mathematics**, it is a
+**different UI for generating a list of control points**. A parametric
+curve's region sliders produce, in the end, a curve — that is, a set of
+points. If Studio one day wants to offer a parametric-style editor, it
+computes the equivalent point list **on the client side** and writes it into
+`tone_curve.points`; the engine then has **one single curve mathematics** to
+freeze and to keep to "the same pixels in ten years" (`docs/pipeline.md`
+§3.3), instead of two. Carrying two separate curve engines in the frozen
+render would be two contracts to freeze and two regression surfaces, for a
+capability the first entirely subsumes.
 
-### Interpolation — figée dans le contrat de rendu
+### Interpolation — frozen into the render contract
 
-L'interpolation entre points de contrôle est une **spline cubique monotone**
-(Fritsch–Carlson ou équivalent préservant la monotonie). Ce choix est gelé
-ici parce qu'il fait partie du contrat de reproductibilité (`docs/pipeline.md`
-§5 : deux moteurs, mêmes points, doivent produire les mêmes pixels) — au même
-titre que la fonction de transfert d'ADR 0013 ou la mathématique interne de
-Lensfun d'ADR 0016. Une spline cubique **monotone** est choisie spécifiquement
-pour éviter l'*overshoot*/le *ringing* qu'une spline cubique naïve introduit
-entre des points de contrôle largement espacés : entre deux points, une
-cubique naïve peut dépasser puis revenir, créant des inversions de tons
-visibles (bandes, halos) là où l'utilisateur attend une transition monotone.
-Un opérateur tonal doit rester monotone comme le sont déjà `contrast`,
-`highlights_shadows` et `whites_blacks` (« *both blends are monotone* »,
-`process2.rs:235` ; « *so the endpoints are fixed and the response is
-monotone* », `process2.rs:256`).
+Interpolation between control points is a **monotone cubic spline**
+(Fritsch–Carlson or an equivalent that preserves monotonicity). That choice
+is frozen here because it is part of the reproducibility contract
+(`docs/pipeline.md` §5: two engines, the same points, must produce the same
+pixels) — just like ADR 0013's transfer function or ADR 0016's internal
+Lensfun mathematics. A **monotone** cubic spline is chosen specifically to
+avoid the *overshoot* and *ringing* a naive cubic spline introduces between
+widely spaced control points: between two points, a naive cubic can overshoot
+and come back, creating visible tonal inversions (banding, halos) where the
+user expects a monotone transition. A tonal operator must stay monotone, as
+`contrast`, `highlights_shadows` and `whites_blacks` already are ("*both
+blends are monotone*", `process2.rs:235`; "*so the endpoints are fixed and
+the response is monotone*", `process2.rs:256`).
 
-Cet ADR gèle le **choix de modèle** (spline cubique monotone). Les détails
-numériques exacts de l'implémentation (formulation précise des tangentes,
-gestion des points colinéaires) relèvent de la PR d'implémentation, au même
-niveau de précision qu'ADR 0016 pour la mathématique interne de Lensfun —
-figer le modèle suffit à garantir la reproductibilité une fois la process
-version publiée.
+This ADR freezes the **choice of model** (a monotone cubic spline). The exact
+numerical details of the implementation (the precise tangent formulation, the
+handling of collinear points) belong to the implementation PR, at the same
+level of precision as ADR 0016 for Lensfun's internal mathematics — freezing
+the model is enough to guarantee reproducibility once the process version is
+published.
 
-### Canal — luminance seule
+### Channel — luminance alone
 
-La V2 applique la courbe **en luminance uniquement** : une seule courbe
-partagée, appliquée au même tampon RGB de travail gamma-encodé sRGB
-(`process2.rs:30`), et **non** trois courbes indépendantes par canal R/G/B.
-Le champ `tone_curve.channel` esquissé au §3 est donc réduit à sa seule valeur
-neutre implicite (luminance) ; les courbes par canal sont **retranchées de la
-V2** comme une fonctionnalité séparée et plus lourde (UI plus grande, trois
-fois l'état de courbe, question de l'ordre d'application des trois courbes) —
-à concevoir plus tard si elle est voulue, dans son propre ADR. C'est une coupe
-délibérée, dans le même esprit qu'ADR 0016 retranchant vignettage/TCA du
-process 3 pour livrer d'abord le cœur.
+V2 applies the curve **in luminance only**: a single shared curve, applied to
+the same sRGB gamma-encoded RGB working buffer (`process2.rs:30`), and **not**
+three independent per-channel R/G/B curves. The `tone_curve.channel` field
+sketched in §3 is therefore reduced to its single implicit neutral value
+(luminance); per-channel curves are **cut from V2** as a separate and heavier
+feature (a larger UI, three times the curve state, the question of the order
+in which the three curves apply) — to be designed later if wanted, in an ADR
+of its own. That is a deliberate cut, in the same spirit as ADR 0016 cutting
+vignetting and TCA from process 3 in order to ship the core first.
 
-### Précalcul — LUT, pas d'évaluation par pixel
+### Precomputation — a LUT, not per-pixel evaluation
 
-La courbe est précalculée en **LUT** puis appliquée par lookup interpolé, en
-réutilisant exactement la convention d'ADR 0013 (`process2.rs:74`–`:90`) :
-table + interpolation linéaire entre entrées, plutôt que d'évaluer la spline
-en chaque pixel. La spline est évaluée une fois par entrée de table à la
-construction de la révision ; le rendu par pixel n'est qu'un lookup. La
-**résolution** exacte de la LUT est une constante de la PR d'implémentation,
-pas décidée ici (comme `LUT_SIZE` est une constante gelée du module process,
-`process2.rs:54`, et non un choix d'ADR) ; seule la *méthode* — précalcul en
-LUT — est figée.
+The curve is precomputed into a **LUT** and then applied by interpolated
+lookup, reusing exactly ADR 0013's convention (`process2.rs:74`–`:90`): a
+table plus linear interpolation between entries, rather than evaluating the
+spline at every pixel. The spline is evaluated once per table entry when the
+revision is built; per-pixel rendering is only a lookup. The LUT's exact
+**resolution** is a constant of the implementation PR, not decided here (as
+`LUT_SIZE` is a frozen constant of the process module, `process2.rs:54`, and
+not an ADR's choice); only the *method* — precomputing into a LUT — is
+frozen.
 
-### Place dans le pipeline
+### Place in the pipeline
 
-L'étage courbe s'insère dans l'ordre fixe de `docs/pipeline.md` §3.1 **après
-Blancs/Noirs et avant Vibrance/Saturation** — ce que la ligne « Pipeline
-(§3.1) » du tableau `docs/v2-scope.md` §3 fixe déjà. Cet ADR **confirme et
-consomme** ce placement, il ne le re-dérive pas. C'est la dernière étape du
-bloc tonal avant le bloc couleur : la courbe opère sur des tons déjà réglés
-par les curseurs grossiers, avant que la saturation ne s'applique.
+The curve stage fits into the fixed order of `docs/pipeline.md` §3.1 **after
+Whites/Blacks and before Vibrance/Saturation** — which the "Pipeline (§3.1)"
+row of `docs/v2-scope.md` §3's table already fixes. This ADR **confirms and
+consumes** that placement, it does not re-derive it. It is the last step of
+the tonal block before the colour block: the curve operates on tones already
+set by the coarse sliders, before saturation applies.
 
-### Stockage — schéma additif
+### Storage — an additive schema
 
-`tone_curve.points` est un champ **additif** de `settings_json`. **Absent ou
-liste vide = courbe identité** (chaque niveau se mappe sur lui-même), rendu
-**bit-pour-bit identique** à la process version précédente. Cela préserve
-l'invariant « *a parameter at its neutral value skips its operator entirely,
-so the neutral rendering is bit-for-bit the decoded image* » documenté en tête
-de `process3.rs:25`. Aucun bump de schéma requis, cohérent avec le schéma
-additif « process +1, schema inchangé » de la plupart des items V2
-(`docs/v2-scope.md` §1) — les champs inconnus d'un moteur ancien sont déjà
-préservés verbatim (`Settings::extra`, `crates/leyline-core/src/settings.rs`).
+`tone_curve.points` is an **additive** field of `settings_json`. **Absent or
+an empty list means the identity curve** (every level maps onto itself),
+rendered **bit-for-bit identically** to the previous process version. That
+preserves the invariant "*a parameter at its neutral value skips its operator
+entirely, so the neutral rendering is bit-for-bit the decoded image*"
+documented at the head of `process3.rs:25`. No schema bump is required,
+consistent with the additive "process +1, schema unchanged" pattern of most
+V2 items (`docs/v2-scope.md` §1) — fields unknown to an older engine are
+already preserved verbatim (`Settings::extra`,
+`crates/leyline-core/src/settings.rs`).
 
-### Esquisse JSON
+### A JSON sketch
 
-Le style suit `docs/pipeline.md` §3.2. Une courbe en S doux (relève les ombres,
-abaisse les hautes lumières) et le cas neutre :
+The style follows `docs/pipeline.md` §3.2. A gentle S-curve (lifting the
+shadows, lowering the highlights) and the neutral case:
 
 ```json
 {
@@ -158,8 +155,8 @@ abaisse les hautes lumières) et le cas neutre :
 }
 ```
 
-Cas neutre — champ absent (ou `"points": []`), rendu bit-pour-bit identique à
-la process version précédente :
+The neutral case — the field absent (or `"points": []`), rendered bit-for-bit
+identically to the previous process version:
 
 ```json
 {
@@ -169,75 +166,73 @@ la process version précédente :
 }
 ```
 
-> *Le `process: 7` ci-dessus est purement illustratif : le numéro réel est le
-> prochain disponible au moment de la sortie (ADR 0028), pas fixé par cet ADR.*
+> *The `process: 7` above is purely illustrative: the real number is whatever
+> is next available at shipping time (ADR 0028), not fixed by this ADR.*
 
-### Masquage — hors décision ici
+### Masking — outside this decision
 
-Cet ADR ne décide **pas** si la courbe tonale devient un réglage masquable
-sous ADR 0029 (`LocalAdjustment`) : ce serait une petite extension future du
-jeu de champs ajustables de ce struct, pas conçue ici.
+This ADR does **not** decide whether the tone curve becomes a maskable
+setting under ADR 0029 (`LocalAdjustment`): that would be a small future
+extension of that struct's set of adjustable fields, not designed here.
 
-> **Note d'implémentation (pas une édition de spec ici).** Cet ADR ne modifie
-> **pas** le diagramme de `docs/pipeline.md` §3.1 ni le tableau des process
-> versions §3.3. Comme pour ADR 0029, la spec est mise à jour dans le même
-> changement que l'implémentation réelle, conformément à CLAUDE.md. Le présent
-> document fixe seulement **où** l'étage atterrit et **quelle** mathématique il
-> gèle ; le diagramme §3.1 et le tableau §3.3 seront amendés par la PR qui
-> livre le module process de la courbe.
+> **An implementation note (not a spec edit here).** This ADR does **not**
+> modify `docs/pipeline.md` §3.1's diagram nor §3.3's process-version table.
+> As for ADR 0029, the spec is updated in the same change as the actual
+> implementation, in keeping with CLAUDE.md. The present document fixes only
+> **where** the stage lands and **which** mathematics it freezes; the §3.1
+> diagram and the §3.3 table will be amended by the PR that ships the curve's
+> process module.
 
-## Conséquences
+## Consequences
 
-* **Le champ `process` garde sa lisibilité sémantique** (ADR 0028) : le
-  nouveau numéro signifiera exactement « courbe tonale par points active », un
-  fait unique et lisible, comme `process: 3` signifie « correction de
-  distorsion active ».
-* **Sortie neutre gelée** : sans points, l'étage est bit-pour-bit la process
-  version précédente. L'invariant « valeur neutre → opérateur entièrement
-  sauté » (`process3.rs:25`) reste vrai pour l'étage entier.
-* **Un seul chemin de courbe à maintenir** : la coupe du mode paramétrique
-  garde le rendu gelé minimal ; un futur éditeur paramétrique de Studio
-  n'ajoute aucun code de rendu, il écrit des points.
-* **Le contrat de reproductibilité** (`docs/pipeline.md` §5) est respecté :
-  l'interpolation monotone est figée par la process version, la LUT est pure
-  et déterministe (ADR 0012), tout se sérialise dans `settings_json` — « même
-  révision → mêmes pixels ».
-* **Deux extensions restent ouvertes pour de futurs ADR** sans bloquer le
-  cœur : courbes par canal R/G/B, et courbe masquée sous ADR 0029. Aucune
-  n'est requise pour livrer la courbe par points en luminance.
-* **Un module `processN.rs` de plus** (ADR 0028) : coût borné et connu ; aucun
-  module de version antérieure n'est touché, le gel « mêmes pixels dans dix
-  ans » reste mécaniquement infalsifiable (`docs/pipeline.md` §3.3).
-* **La spec `docs/pipeline.md` (§3.1, §3.3) n'est pas éditée par cet ADR** :
-  elle le sera par la PR d'implémentation, conformément à CLAUDE.md.
+* **The `process` field keeps its semantic legibility** (ADR 0028): the new
+  number will mean exactly "point tone curve active", a single readable fact,
+  as `process: 3` means "distortion correction active".
+* **A frozen neutral output**: with no points, the stage is bit-for-bit the
+  previous process version. The invariant "a neutral value → the operator
+  entirely skipped" (`process3.rs:25`) stays true for the whole stage.
+* **One curve path to maintain**: cutting the parametric mode keeps the
+  frozen render minimal; a future parametric editor in Studio adds no render
+  code, it writes points.
+* **The reproducibility contract** (`docs/pipeline.md` §5) is respected: the
+  monotone interpolation is frozen by the process version, the LUT is pure
+  and deterministic (ADR 0012), and everything serializes into
+  `settings_json` — "the same revision → the same pixels".
+* **Two extensions stay open for future ADRs** without blocking the core:
+  per-channel R/G/B curves, and a masked curve under ADR 0029. Neither is
+  required to ship the point curve in luminance.
+* **One more `processN.rs` module** (ADR 0028): a bounded and known cost; no
+  earlier version's module is touched, and the "same pixels in ten years"
+  freeze stays mechanically unfalsifiable (`docs/pipeline.md` §3.3).
+* **The `docs/pipeline.md` spec (§3.1, §3.3) is not edited by this ADR**: it
+  will be by the implementation PR, in keeping with CLAUDE.md.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Livrer les courbes paramétriques par régions comme fonctionnalité moteur
-  distincte de premier ordre**, à côté de la courbe par points. Écarté :
-  c'est la simplification centrale de cet ADR. Une courbe paramétrique ne
-  produit qu'une liste de points ; en faire un second moteur de rendu obligerait
-  à geler et maintenir **deux** chemins mathématiques de courbe « mêmes pixels
-  dans dix ans » (§3.3), deux surfaces de régression, alors que la courbe par
-  points les subsume toutes deux. Studio calcule la liste de points équivalente
-  côté client si un éditeur paramétrique est un jour voulu — aucun code de
-  rendu supplémentaire, aucun contrat gelé supplémentaire.
-* **Courbes par canal R/G/B dès la V2.** Écarté comme fonctionnalité séparée
-  et plus lourde : trois fois l'état de courbe, une UI par canal, et la
-  question de l'ordre d'application des trois courbes entre elles. La luminance
-  seule couvre l'usage tonal principal ; les courbes par canal (virage
-  colorimétrique par courbe) sont un chantier à part, à concevoir plus tard
-  dans son propre ADR si voulu — même esprit de coupe qu'ADR 0016.
-* **Spline cubique naïve (non monotone).** Écarté : entre points de contrôle
-  largement espacés, une cubique naïve *overshoote* puis revient, créant des
-  inversions de tons visibles (bandes, halos) là où l'utilisateur attend une
-  transition monotone. Tous les opérateurs tonals existants sont monotones à
-  dessein (`process2.rs:235`, `:256`) ; une courbe qui romprait cette propriété
-  serait un régression de qualité perceptible. La spline cubique monotone
-  (Fritsch–Carlson) donne des transitions douces **sans** dépassement.
-* **Évaluer la spline par pixel plutôt que via une LUT.** Écarté : la spline
-  est coûteuse à évaluer et ne dépend que de la valeur d'entrée `[0,1]` — le
-  cas d'usage exact d'une table (ADR 0013). Précalculer une LUT une fois par
-  révision puis faire un lookup interpolé par pixel réutilise la convention
-  déjà gelée du moteur (`process2.rs:54`–`:90`), pour un coût par pixel
-  constant au lieu d'une évaluation de spline complète à chaque échantillon.
+* **Shipping region-based parametric curves as a distinct first-class engine
+  feature**, alongside the point curve. Rejected: it is this ADR's central
+  simplification. A parametric curve produces only a list of points; making
+  it a second render engine would force **two** curve mathematics paths to be
+  frozen and maintained at "the same pixels in ten years" (§3.3), two
+  regression surfaces, when the point curve subsumes both. Studio computes
+  the equivalent point list client-side if a parametric editor is ever wanted
+  — no extra render code, and no extra frozen contract.
+* **Per-channel R/G/B curves from V2 on.** Rejected as a separate and heavier
+  feature: three times the curve state, a UI per channel, and the question of
+  the order in which the three curves apply to one another. Luminance alone
+  covers the main tonal use; per-channel curves (colour toning by curve) are
+  a piece of work apart, to be designed later in an ADR of their own if
+  wanted — the same spirit of cutting as ADR 0016.
+* **A naive (non-monotone) cubic spline.** Rejected: between widely spaced
+  control points, a naive cubic *overshoots* and comes back, creating visible
+  tonal inversions (banding, halos) where the user expects a monotone
+  transition. Every existing tonal operator is monotone by design
+  (`process2.rs:235`, `:256`); a curve that broke that property would be a
+  perceptible quality regression. The monotone cubic spline
+  (Fritsch–Carlson) gives smooth transitions **without** overshoot.
+* **Evaluating the spline per pixel rather than through a LUT.** Rejected:
+  the spline is costly to evaluate and depends only on the `[0,1]` input
+  value — the exact use case for a table (ADR 0013). Precomputing a LUT once
+  per revision and then doing an interpolated lookup per pixel reuses the
+  engine's already-frozen convention (`process2.rs:54`–`:90`), for a constant
+  per-pixel cost instead of a full spline evaluation at every sample.
