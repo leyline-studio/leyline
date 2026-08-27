@@ -1,201 +1,192 @@
-# ADR 0048 — Masques par plage : un raffinement de luminance et de couleur, déterministe, au-dessus des masques géométriques
+# ADR 0048 — Range masks: a deterministic luminance and colour refinement, on top of the geometric masks
 
-**Statut :** Accepté — 2026-07
-**Suite :** `local_adjustments::v2`, que cet ADR crée, n'est plus la version
-courante : [ADR 0070](0070-stored-mask-coverage.md) ajoute la couverture
-**stockée** (`v3`). Les plages de luminance et de couleur décidées ici
-s'appliquent inchangées à ce nouveau type de masque, qui est échantillonné sur
-le même canevas normalisé que les quatre variantes existantes.
+**Status:** Accepted — 2026-07
+**Followed by:** `local_adjustments::v2`, which this ADR creates, is no longer
+the current version: [ADR 0070](0070-stored-mask-coverage.md) adds **stored**
+coverage (`v3`). The luminance and colour ranges decided here apply unchanged
+to that new kind of mask, which is sampled on the same normalized canvas as the
+four existing variants.
 
-## Contexte
+## Context
 
-[ADR 0029](0029-process-6-local-adjustments.md) a livré trois masques :
-brosse, radial, gradué. Tous les trois sont de la **géométrie pure** —
-`crates/leyline-engine/src/mask.rs` le dit dans son premier paragraphe, et sa
-fonction de rastérisation ne reçoit d'ailleurs aucun pixel, seulement une
-taille et un angle. Le photographe désigne donc *où*, jamais *quoi*.
+[ADR 0029](0029-process-6-local-adjustments.md) delivered three masks: brush,
+radial, graduated. All three are **pure geometry** —
+`crates/leyline-engine/src/mask.rs` says so in its first paragraph, and its
+rasterization function receives no pixels at all, only a size and an angle. The
+photographer therefore designates *where*, never *what*.
 
-C'est la moitié du geste. Assombrir un ciel demande de désigner le ciel, pas
-le haut du cadre : un gradué mord sur la montagne, une brosse sur chaque
-branche d'arbre qui dépasse. Les concurrents résolvent exactement ce cas, et
-c'est leur argument de vente le plus visible :
+That is half the gesture. Darkening a sky means designating the sky, not the
+top of the frame: a graduated filter bites into the mountain, a brush into
+every tree branch that sticks out. Competitors solve exactly this case, and it
+is their most visible selling point:
 
-* **DxO** avec ses masques U Point, présentés comme « masques IA » mais qui
-  sont, sous le marketing, une sélection par **couleur et luminance** ;
-* **Lightroom** avec son *Range Mask* (plage de luminance, plage de couleur),
-  qui vient **raffiner** un masque local existant plutôt que le remplacer ;
-* **Capture One** avec ses masques combinés.
+* **DxO** with its U Point masks, presented as "AI masks" but which are, under
+  the marketing, a selection by **colour and luminance**;
+* **Lightroom** with its *Range Mask* (luminance range, colour range), which
+  comes to **refine** an existing local mask rather than replace it;
+* **Capture One** with its combined masks.
 
-La sélection de sujet ou de ciel par réseau de neurones (Capture One *People
-Masking*, Luminar *Sky AI*) tombe, elle, sous l'exclusion d'IA de
-`docs/specification.md` §4 : elle n'est pas visée ici et le présent ADR ne la
-rouvre pas. Ce qui est visé est précisément la partie que le marketing
-concurrent appelle IA sans qu'elle en soit : un seuillage sur des grandeurs
-que le pixel porte déjà.
+Subject or sky selection by neural network (Capture One *People Masking*,
+Luminar *Sky AI*) falls, for its part, under `docs/specification.md` §4's AI
+exclusion: it is not aimed at here and the present ADR does not reopen it. What
+is aimed at is precisely the part competitors' marketing calls AI without its
+being any: a thresholding over quantities the pixel already carries.
 
-**Ce qui n'est pas en cause.** Le modèle de composition d'ADR 0029
-(`output = lerp(buffer, opérateurs_locaux(...), couverture)`), le référentiel
-de coordonnées d'[ADR 0026](0026-mask-spot-coordinate-referential.md), et le
-jeu de réglages qu'un masque peut re-paramétrer. Seule la **provenance de la
-couverture** change.
+**What is not at issue.** ADR 0029's composition model
+(`output = lerp(buffer, local_operators(...), coverage)`), the coordinate frame
+of [ADR 0026](0026-mask-spot-coordinate-referential.md), and the set of
+settings a mask can re-parameterize. Only the **provenance of the coverage**
+changes.
 
-## Décision
+## Decision
 
-### 1. Un raffinement, pas un quatrième masque
+### 1. A refinement, not a fourth mask
 
-Une plage ne remplace pas un masque : elle le **multiplie**.
+A range does not replace a mask: it **multiplies** it.
 
 ```
-couverture = géométrie(x, y) × plage_luminance(pixel) × plage_couleur(pixel)
+coverage = geometry(x, y) × luminance_range(pixel) × colour_range(pixel)
 ```
 
-C'est le modèle de Lightroom, et il est plus expressif que celui d'un masque
-autonome pour une raison concrète : le geste réel est « je brosse
-grossièrement, puis je restreins au bleu du ciel ». Un masque de plage
-autonome ne saurait pas exprimer cela ; un raffinement exprime les deux, le
-cas autonome étant le raffinement d'une géométrie qui couvre tout.
+That is Lightroom's model, and it is more expressive than a standalone mask's
+for a concrete reason: the real gesture is "I brush roughly, then restrict to
+the sky's blue". A standalone range mask could not express that; a refinement
+expresses both, the standalone case being the refinement of a geometry covering
+everything.
 
-Concrètement, `LocalAdjustment` gagne un champ optionnel :
+Concretely, `LocalAdjustment` gains an optional field:
 
 ```rust
 pub struct LocalAdjustment {
     pub mask: Mask,
-    pub range: Option<RangeMask>,   // nouveau, None = comportement d'ADR 0029
+    pub range: Option<RangeMask>,   // new, None = ADR 0029's behaviour
     pub opacity: f64,
     pub adjustments: LocalAdjustmentValues,
 }
 ```
 
-et `Mask` gagne une variante `Everything` — couverture pleine, deux lignes
-dans le rastériseur — pour que la plage puisse se passer de géométrie sans
-qu'on ait à détourner un radial géant ou un gradué dégénéré.
+and `Mask` gains an `Everything` variant — full coverage, two lines in the
+rasterizer — so that a range can do without geometry rather than our having to
+divert a giant radial or a degenerate graduated filter.
 
-### 2. Deux termes, tous deux facultatifs et tous deux à bords doux
+### 2. Two terms, both optional and both soft-edged
 
 ```rust
 pub struct RangeMask {
-    /// Bande de luminance sur l'axe d'affichage, `None` = pas de terme.
+    /// A luminance band on the display axis, `None` = no term.
     pub luminance: Option<LuminanceRange>,
-    /// Bande de teinte, `None` = pas de terme.
+    /// A hue band, `None` = no term.
     pub color: Option<ColorRange>,
 }
 ```
 
-* **Luminance** : `min`, `max` dans `[0, 1]`, plus `softness`. Pleine
-  couverture entre `min` et `max`, décroissance lissée
-  (`smoothstep`) sur une largeur `softness` de part et d'autre. Un bord dur
-  produirait un contour visible dès que le bruit fait osciller un pixel
-  autour du seuil — c'est la raison d'être du paramètre, pas un ornement.
-* **Couleur** : `center` (teinte en degrés), `width` (demi-largeur en degrés),
-  `softness`. La teinte est circulaire, donc la distance est prise modulo 360.
+* **Luminance**: `min`, `max` in `[0, 1]`, plus `softness`. Full coverage
+  between `min` and `max`, with a smoothed falloff (`smoothstep`) over a width
+  of `softness` on either side. A hard edge would produce a visible contour as
+  soon as noise made a pixel oscillate around the threshold — that is the
+  parameter's reason for being, not an ornament.
+* **Colour**: `center` (a hue in degrees), `width` (a half-width in degrees),
+  `softness`. Hue is circular, so the distance is taken modulo 360.
 
-Un pixel **sans chroma n'a pas de teinte** : un gris n'est ni rouge ni bleu, et
-lui en attribuer une par convention ferait entrer tous les gris dans n'importe
-quelle bande de couleur. Le terme de couleur pondère donc par la saturation du
-pixel, de sorte qu'un gris reçoive une couverture nulle. C'est ce qui rend
-« restreindre au bleu du ciel » utilisable sans sélectionner aussi les nuages.
+A pixel **with no chroma has no hue**: a grey is neither red nor blue, and
+assigning it one by convention would bring every grey into any colour band. The
+colour term therefore weights by the pixel's saturation, so that a grey
+receives zero coverage. That is what makes "restrict to the sky's blue" usable
+without also selecting the clouds.
 
-### 3. L'axe : celui de l'affichage
+### 3. The axis: the display's
 
-Les deux termes sont évalués sur l'axe d'affichage (`kernel::v1::display`,
-ADR 0044), pas en lumière linéaire. « Luminance 0,3 à 0,7 » doit désigner ce
-que l'utilisateur voit sur son histogramme, et un intervalle linéaire
-équivalent placerait sa borne basse dans le noir absolu. Même raisonnement que
-pour les opérateurs de tonalité.
+Both terms are evaluated on the display axis (`kernel::v1::display`, ADR 0044),
+not in linear light. "Luminance 0.3 to 0.7" must designate what the user sees
+on their histogram, and an equivalent linear interval would place its lower
+bound in absolute black. The same reasoning as for the tonal operators.
 
-Le pixel évalué est celui **du tampon tel qu'il arrive à l'étage** — donc après
-tous les opérateurs globaux, comme le reste d'ADR 0029. Une plage se règle en
-regardant l'image telle qu'elle est à l'écran, ce qui est aussi la seule
-définition qu'un utilisateur peut prédire.
+The pixel evaluated is the one **in the buffer as it arrives at the stage** —
+hence after every global operator, like the rest of ADR 0029. A range is tuned
+by looking at the image as it is on screen, which is also the only definition a
+user can predict.
 
-### 4. Le code de la plage vit dans une version d'étage, pas dans `mask.rs`
+### 4. The range's code lives in a stage version, not in `mask.rs`
 
-`mask.rs` est partagé, non versionné, et le justifie explicitement : il
-« n'encode aucune formule de transformation de pixel ». Une plage **est** une
-formule sur les pixels. L'y mettre ferait dépendre le rendu gelé de
-`local_adjustments::v1` d'un code modifiable, ce qu'ADR 0042 §1 interdit.
+`mask.rs` is shared, unversioned, and explicitly justifies that: it "encodes no
+pixel transformation formula". A range **is** a formula over pixels. Putting it
+there would make `local_adjustments::v1`'s frozen rendering depend on modifiable
+code, which ADR 0042 §1 forbids.
 
-Donc :
+Therefore:
 
-* `mask.rs` garde la géométrie seule, y compris `Mask::Everything` (qui est de
-  la géométrie) ;
-* le calcul de la plage et sa composition avec la géométrie vivent dans
-  **`local_adjustments::v2`**, gelé comme n'importe quelle version d'étage ;
-* `local_adjustments::v1` n'est pas touchée et continue de rendre ce qu'elle
-  rendait.
+* `mask.rs` keeps geometry alone, including `Mask::Everything` (which is
+  geometry);
+* the range's computation and its composition with the geometry live in
+  **`local_adjustments::v2`**, frozen like any stage version;
+* `local_adjustments::v1` is untouched and goes on rendering what it rendered.
 
-### 5. Une plage sur une révision épinglée en `v1` est **refusée**, pas ignorée
+### 5. A range on a revision pinned at `v1` is **refused**, not ignored
 
-Le piège de cette forme : une révision de 2026 épingle
-`local_adjustments: 1` ; un utilisateur y ajoute une plage en 2027 ; la règle
-d'épinglage d'ADR 0042 §2 dit que l'étage **garde** sa version, donc `v1`
-rendrait — et `v1` ne connaît pas les plages. Le réglage disparaîtrait sans un
-mot.
+The trap in this shape: a 2026 revision pins `local_adjustments: 1`; a user
+adds a range to it in 2027; ADR 0042 §2's pinning rule says the stage **keeps**
+its version, so `v1` would render — and `v1` knows nothing of ranges. The
+setting would disappear without a word.
 
-C'est inacceptable, et la réponse n'est pas de relâcher l'épinglage :
-`Settings::validate()` **refuse** un `range` non nul quand la carte `stages`
-épingle `local_adjustments` en version 1. Le message nomme le remède, qui est
-celui du projet : retraiter la photo vers les versions courantes
-(`docs/pipeline.md` §4.5), ce qui crée une nouvelle révision épinglée en `v2`.
+That is unacceptable, and the answer is not to loosen the pinning:
+`Settings::validate()` **refuses** a non-empty `range` when the `stages` map
+pins `local_adjustments` at version 1. The message names the remedy, which is
+the project's: reprocess the photo towards the current versions
+(`docs/pipeline.md` §4.5), which creates a new revision pinned at `v2`.
 
-Une erreur explicite là où le silence était possible : c'est la même règle que
-`MixedWorkingSpaces` applique déjà à un plan incohérent (ADR 0044 §4), et le
-premier cas où une *capacité* — non un rendu — se révèle liée à une version
-d'étage. La règle générale qui s'en dégage, et qui vaudra pour toute
-fonctionnalité future ajoutée à un étage existant : **un réglage qu'une version
-épinglée ne sait pas exprimer est un refus de validation, jamais une valeur
-perdue.**
+An explicit error where silence was possible: it is the same rule
+`MixedWorkingSpaces` already applies to an incoherent plan (ADR 0044 §4), and
+the first case where a *capability* — not a rendering — proves tied to a stage
+version. The general rule that emerges, and that will hold for any future
+feature added to an existing stage: **a setting a pinned version cannot express
+is a validation refusal, never a lost value.**
 
-### 6. Hors périmètre
+### 6. Out of scope
 
-* **La détection de sujet, de ciel ou de visage.** Exclusion d'IA
-  (`docs/specification.md` §4), inchangée.
-* **La combinaison de plusieurs masques géométriques** (union, intersection,
-  soustraction — les *Combined Masks* de Capture One). Utile, indépendant, et
-  qui demanderait de changer la forme de `Mask` plutôt que de l'étendre : son
-  propre ADR.
-* **La plage de profondeur.** Il n'y a pas de carte de profondeur à lire.
-* **L'exposition dans Studio et la CLI.** Les réglages locaux d'ADR 0029
-  eux-mêmes n'y sont pas encore exposés — ni brosse, ni radial, ni gradué —
-  donc les plages arrivent au même niveau que ce qu'elles raffinent : moteur,
-  SDK et sessions d'édition (`Param::LocalAdjustment`). Exposer les masques
-  aux clients est un travail à part entière, et le manque est antérieur à
-  cette décision.
+* **Subject, sky or face detection.** The AI exclusion
+  (`docs/specification.md` §4), unchanged.
+* **Combining several geometric masks** (union, intersection, subtraction —
+  Capture One's *Combined Masks*). Useful, independent, and it would require
+  changing `Mask`'s shape rather than extending it: its own ADR.
+* **Depth range.** There is no depth map to read.
+* **Exposure in Studio and the CLI.** ADR 0029's local adjustments themselves
+  are not yet exposed there — neither brush, nor radial, nor graduated — so
+  ranges arrive at the same level as what they refine: engine, SDK and edit
+  sessions (`Param::LocalAdjustment`). Exposing masks to the clients is a piece
+  of work in its own right, and the gap predates this decision.
 
-## Conséquences
+## Consequences
 
-* **Le geste « assombrir ce ciel » devient faisable** sans mordre sur la
-  montagne, avec le même vocabulaire que les concurrents (plage de luminance,
-  plage de couleur) et sans emprunter à leur marketing d'IA.
-* **`settings_json` gagne un champ optionnel à valeur neutre absente**, ce qui
-  est explicitement compatible au sens de `docs/pipeline.md` §3.4 : `schema`
-  n'est pas incrémenté.
-* **Deuxième version d'étage réelle du projet**, après ADR 0046. Le mécanisme
-  d'ADR 0042 sert maintenant deux fois, et sert ici pour une raison différente
-  — non pas corriger un rendu, mais **étendre** un opérateur — ce qui exerce
-  la règle d'épinglage sous un angle que rien n'avait encore éprouvé (§5).
-* **Le coût est proportionnel au raffinement demandé** : sans `range`, rien ne
-  change ni en pixels ni en temps ; avec, un passage supplémentaire sur les
-  pixels couverts.
-* **`mask.rs` conserve son invariant** — géométrie pure, partageable par toutes
-  les versions — ce qui était la raison de ne pas y toucher.
+* **The "darken this sky" gesture becomes feasible** without biting into the
+  mountain, with the same vocabulary as the competitors (luminance range,
+  colour range) and without borrowing their AI marketing.
+* **`settings_json` gains an optional field whose neutral value is absence**,
+  which is explicitly compatible in `docs/pipeline.md` §3.4's sense: `schema`
+  is not incremented.
+* **The project's second real stage version**, after ADR 0046. ADR 0042's
+  mechanism now serves twice, and here serves for a different reason — not
+  fixing a rendering but **extending** an operator — which exercises the
+  pinning rule from an angle nothing had yet tested (§5).
+* **The cost is proportional to the refinement asked for**: with no `range`,
+  nothing changes in pixels or in time; with one, an extra pass over the
+  covered pixels.
+* **`mask.rs` keeps its invariant** — pure geometry, shareable by every version
+  — which was the reason not to touch it.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Une quatrième variante de `Mask`, autonome.** Moins expressive (pas de
-  raffinement d'une brosse), et elle placerait quand même une formule de
-  pixels dans le rastériseur partagé, donc dans `mask.rs` — le problème du §4
-  sans le bénéfice du §1.
-* **Étendre `mask.rs` avec les plages.** Écarté au §4 : le rendu gelé de `v1`
-  dépendrait d'un code que rien n'empêche de modifier.
-* **Ignorer silencieusement un `range` sur une révision en `v1`.** Écarté au
-  §5. C'est le comportement qu'on aurait obtenu sans y penser, et le plus
-  mauvais : l'utilisateur voit son curseur ne rien faire.
-* **Rendre `local_adjustments::v1` capable de lire les plages** (donc modifier
-  un module gelé). Interdit par ADR 0042 §1, et sans nécessité : `v2` coûte
-  quelques dizaines de lignes.
-* **Une sélection par proximité de couleur au point cliqué**, à la manière des
-  points de contrôle DxO. C'est une interface au-dessus de la même mécanique,
-  pas une mécanique différente : elle calcule un `center`/`width` à partir du
-  pixel désigné. À faire quand les masques auront une interface, sans nouvelle
-  décision de moteur.
+* **A fourth, standalone `Mask` variant.** Less expressive (no refinement of a
+  brush), and it would still place a pixel formula in the shared rasterizer,
+  hence in `mask.rs` — §4's problem without §1's benefit.
+* **Extending `mask.rs` with the ranges.** Rejected in §4: `v1`'s frozen
+  rendering would depend on code nothing prevents from being modified.
+* **Silently ignoring a `range` on a `v1` revision.** Rejected in §5. It is the
+  behaviour one would have got without thinking, and the worst: the user sees
+  their slider do nothing.
+* **Making `local_adjustments::v1` able to read ranges** (hence modifying a
+  frozen module). Forbidden by ADR 0042 §1, and unnecessary: `v2` costs a few
+  dozen lines.
+* **A selection by colour proximity to the clicked point**, in the manner of
+  DxO's control points. That is an interface on top of the same mechanics, not
+  different mechanics: it computes a `center`/`width` from the designated
+  pixel. To be done when masks have an interface, with no new engine decision.

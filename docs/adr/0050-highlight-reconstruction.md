@@ -1,197 +1,192 @@
-# ADR 0050 — Reconstruction des hautes lumières : un mode de décodage, épinglé par `input::v2`
+# ADR 0050 — Highlight reconstruction: a decoding mode, pinned by `input::v2`
 
-**Statut :** Accepté — 2026-07
-**Suite :** `input::v2`, que cet ADR crée, n'est plus la version courante.
-[ADR 0061](0061-demosaic-algorithm.md) rend l'algorithme de dématriçage
-choisissable (`v3`, identique bit pour bit à `v2` à réglage neutre), puis
-[ADR 0066](0066-sensor-white-level.md) fait venir le niveau de blanc du capteur
-plutôt que du contenu de la photo (`v4`, délibérément **pas** identique à son
-prédécesseur). La reconstruction des hautes lumières décidée ici traverse les
-deux sans changer.
+**Status:** Accepted — 2026-07
+**Followed by:** `input::v2`, which this ADR creates, is no longer the current
+version. [ADR 0061](0061-demosaic-algorithm.md) makes the demosaicing algorithm
+selectable (`v3`, bit-for-bit identical to `v2` at the neutral setting), and
+then [ADR 0066](0066-sensor-white-level.md) takes the white level from the
+sensor rather than from the photo's content (`v4`, deliberately **not**
+identical to its predecessor). The highlight reconstruction decided here passes
+through both unchanged.
 
-## Contexte
+## Context
 
-Le décodeur n'a jamais reçu d'instruction sur les hautes lumières écrêtées.
-`crates/leyline-raw/src/shim.c` ne touche pas `params.highlight`, dont la valeur
-par défaut de LibRaw est **0 — écrêter au blanc**. Chaque canal qui a saturé au
-capteur ressort donc à la valeur maximale, et l'information que les deux autres
-canaux portent encore est jetée avant le premier curseur.
+The decoder has never been given an instruction about clipped highlights.
+`crates/leyline-raw/src/shim.c` does not touch `params.highlight`, whose LibRaw
+default is **0 — clip at white**. Every channel that saturated at the sensor
+therefore comes out at the maximum value, and the information the other two
+channels still carry is thrown away before the first slider.
 
-Ce que cela coûte est visible sur toute photo où un canal sature seul, ce qui
-est le cas courant : un ciel bleu clair (le bleu sature d'abord), une peau en
-plein soleil (le rouge), un nuage lumineux. La zone ressort en aplat blanc, et
-aucun réglage en aval ne peut la reconstruire — `Settings::highlights`
-redescend une luminosité, il ne réinvente pas un canal perdu.
+What that costs is visible on any photo where one channel saturates alone,
+which is the common case: a light blue sky (blue saturates first), skin in full
+sun (red), a bright cloud. The area comes out as a flat white, and no
+downstream setting can rebuild it — `Settings::highlights` brings a brightness
+down, it does not reinvent a lost channel.
 
-Les concurrents traitent exactement ce cas, et depuis longtemps : dcraw
-l'expose en `-H` depuis vingt ans, RawTherapee en fait un module à quatre
-méthodes, darktable en a deux (dont sa *guided laplacian*). C'est le défaut de
-rendu le plus visible de Leyline face à eux, et il ne vient pas d'un arbitrage :
-personne n'avait posé la question.
+Competitors handle exactly this case, and have long done so: dcraw has exposed
+it as `-H` for twenty years, RawTherapee makes it a module with four methods,
+darktable has two (including its *guided laplacian*). It is Leyline's most
+visible rendering flaw against them, and it does not come from a judgement
+call: nobody had asked the question.
 
-**Ce qui n'est pas en cause.** L'espace de travail non borné d'
-[ADR 0044](0044-linear-wide-gamut-working-space.md), qui est ce qui rend cette
-décision utile — un tampon écrêté au blanc n'aurait nulle part où mettre ce
-qu'on reconstruit. Ni l'épaule de sortie (`output_rendering`), qui décide ce que
-*devient* la marge au-dessus du blanc et non ce qui la remplit.
+**What is not at issue.** The unbounded working space of
+[ADR 0044](0044-linear-wide-gamut-working-space.md), which is what makes this
+decision useful — a buffer clipped at white would have nowhere to put what is
+rebuilt. Nor the output shoulder (`output_rendering`), which decides what
+*becomes* of the headroom above white and not what fills it.
 
-## Décision
+## Decision
 
-### 1. La reconstruction est une configuration du décodeur, pas un opérateur
+### 1. Reconstruction is a decoder configuration, not an operator
 
-Les modes de LibRaw opèrent sur les données **avant dématriçage**, là où le
-voisinage d'un pixel saturé est encore une mosaïque de canaux distincts. C'est
-la seule place où l'information nécessaire existe : après dématriçage, un pixel
-écrêté est entouré de pixels déjà interpolés depuis des canaux écrêtés.
+LibRaw's modes operate on the data **before demosaicing**, where a saturated
+pixel's neighbourhood is still a mosaic of distinct channels. That is the only
+place the necessary information exists: after demosaicing, a clipped pixel is
+surrounded by pixels already interpolated from clipped channels.
 
-Écrire notre propre reconstruction demanderait donc d'abord d'exposer la
-mosaïque brute à travers le shim, puis de réimplémenter — moins bien — un
-algorithme que LibRaw livre déjà, testé sur des milliers de boîtiers. Le mode de
-LibRaw est retenu ; §1 des alternatives écartées dit pourquoi la question se
-reposera peut-être un jour, mais pas ici.
+Writing our own reconstruction would therefore mean first exposing the raw
+mosaic through the shim, then reimplementing — less well — an algorithm LibRaw
+already ships, tested on thousands of bodies. LibRaw's mode is retained; §1 of
+the rejected alternatives says why the question may one day be asked again, but
+not here.
 
-Conséquence directe : c'est un réglage que **`input` épingle**, puisque `input`
-est précisément l'étage qui porte « la configuration demandée au décodeur »
-(ADR 0044 §3, `docs/pipeline.md` §3.3). Il ne crée aucun étage nouveau et ne
-déplace aucun rang.
+A direct consequence: it is a setting that **`input` pins**, since `input` is
+precisely the stage carrying "the configuration asked of the decoder" (ADR 0044
+§3, `docs/pipeline.md` §3.3). It creates no new stage and moves no rank.
 
-### 2. Trois modes, pas neuf
+### 2. Three modes, not nine
 
-`params.highlight` de LibRaw accepte 0 à 9. Leyline en expose trois :
+LibRaw's `params.highlight` accepts 0 to 9. Leyline exposes three:
 
-| Réglage | LibRaw | Ce que ça fait |
+| Setting | LibRaw | What it does |
 | :--- | :---: | :--- |
-| `clip` (défaut, neutre) | 0 | écrêter au blanc — le comportement d'avant cette décision |
-| `blend` | 2 | mélanger les canaux écrêtés et non écrêtés : récupère de la texture sans dériver en couleur |
-| `rebuild` | 5 | reconstruire le canal manquant depuis les autres : récupère le plus, au prix d'un risque de teinte dans les zones très saturées |
+| `clip` (default, neutral) | 0 | clip at white — the behaviour from before this decision |
+| `blend` | 2 | blend the clipped and unclipped channels: recovers texture without drifting in colour |
+| `rebuild` | 5 | rebuild the missing channel from the others: recovers the most, at the price of a hue risk in very saturated areas |
 
-Le mode 1 (*unclip*) n'est pas exposé : il laisse les hautes lumières prendre la
-teinte magenta caractéristique d'un canal laissé au-delà des autres, ce qui a
-l'apparence d'un bug pour tout utilisateur qui n'a pas lu dcraw. Les niveaux 3
-à 9 sont une même famille avec un curseur de force ; 5 est la valeur médiane et
-celle que dcraw documente comme point de départ. Exposer un entier de 3 à 9
-demanderait à l'utilisateur de deviner ce que le chiffre veut dire.
+Mode 1 (*unclip*) is not exposed: it lets the highlights take on the
+characteristic magenta cast of a channel left beyond the others, which looks
+like a bug to any user who has not read dcraw. Levels 3 to 9 are one family
+with a strength dial; 5 is the median value and the one dcraw documents as a
+starting point. Exposing an integer from 3 to 9 would ask the user to guess
+what the number means.
 
-`clip` reste le défaut. Ce n'est pas une préférence esthétique : c'est la règle
-du projet — la valeur neutre d'un réglage est celle qui ne change rien —, et
-elle est ici doublement nécessaire, puisque changer le défaut modifierait le
-rendu de toute photo déjà importée.
+`clip` stays the default. That is not an aesthetic preference: it is the
+project's rule — a setting's neutral value is the one that changes nothing —
+and it is doubly necessary here, since changing the default would modify the
+rendering of every already-imported photo.
 
-### 3. Rendre le gain que le décodeur retire
+### 3. Giving back the gain the decoder takes away
 
-Mesuré sur un vrai CR2 : demander `blend` ou `rebuild` **assombrit toute la
-photo** d'environ un tiers, hautes lumières comprises. Ce n'est pas un défaut
-d'implémentation, c'est le fonctionnement de dcraw, repris par LibRaw : la
-normalisation par les multiplicateurs de balance des blancs divise par le
-**plus petit** d'entre eux quand on écrête — tous les canaux montent alors à 1
-ou au-dessus, et le plus fort sature — et par le **plus grand** quand on
-reconstruit, pour qu'aucun canal ne puisse dépasser le blanc. L'écart entre les
-deux est un gain global, identique pour tous les pixels.
+Measured on a real CR2: asking for `blend` or `rebuild` **darkens the whole
+photo** by about a third, highlights included. That is not an implementation
+flaw, it is how dcraw works, inherited by LibRaw: the normalization by the
+white-balance multipliers divides by the **smallest** of them when clipping —
+every channel then rises to 1 or above, and the strongest saturates — and by
+the **largest** when rebuilding, so that no channel can exceed white. The gap
+between the two is a global gain, identical for every pixel.
 
-Le laisser tel quel serait inacceptable : « récupérer les hautes lumières »
-donnerait l'apparence d'un curseur d'exposition, et l'utilisateur compenserait
-à la main sans savoir pourquoi. `input::v2` le **rend** donc, en multipliant le
-tampon par le rapport `max/min` des multiplicateurs as-shot du boîtier, que
-`leyline-raw` expose pour cela (`RawMetadata::camera_multipliers`).
+Leaving it as it is would be unacceptable: "recovering the highlights" would
+look like an exposure slider, and the user would compensate by hand without
+knowing why. `input::v2` therefore **gives it back**, multiplying the buffer by
+the ratio `max/min` of the body's as-shot multipliers, which `leyline-raw`
+exposes for that purpose (`RawMetadata::camera_multipliers`).
 
-Le résultat est exactement ce que la fonction doit être : les tons moyens
-reviennent là où l'écrêtage les mettait — mesuré à 0,1 % près sur le même
-fichier — et ce qui a été reconstruit atterrit **au-dessus du blanc**, où le
-tampon non borné d'ADR 0044 le garde jusqu'à ce que `output_rendering` décide de
-son sort. C'est une opération sur les hautes lumières, pas sur l'exposition.
+The result is exactly what the function must be: the midtones come back where
+clipping put them — measured to within 0.1 % on the same file — and what has
+been rebuilt lands **above white**, where ADR 0044's unbounded buffer keeps it
+until `output_rendering` decides its fate. It is an operation on the highlights,
+not on the exposure.
 
-Un fichier sans balance des blancs enregistrée ne reçoit aucune compensation :
-pas de multiplicateurs, donc pas de rapport à rendre — et pas de correction
-inventée.
+A file with no recorded white balance receives no compensation: no multipliers,
+hence no ratio to give back — and no invented correction.
 
-### 4. `input::v2`, et un `v1` qui ne bouge pas
+### 4. `input::v2`, and a `v1` that does not move
 
-Le mode de décodage fait partie du rendu, donc de la promesse de
-`docs/pipeline.md` §5.1. Il lui faut une nouvelle version d'étage :
+The decoding mode is part of the rendering, hence of `docs/pipeline.md` §5.1's
+promise. It needs a new stage version:
 
-* `input::v1` continue de demander exactement ce qu'elle demandait et **ignore**
-  le réglage ;
-* `input::v2` lit le réglage et le passe au décodeur ; sa conversion vers
-  l'espace de travail est une copie de celle de `v1` (ADR 0042 : la duplication
-  est le prix du gel) ;
-* les nouvelles révisions épinglent `input: 2`, les anciennes gardent `input: 1`.
+* `input::v1` goes on asking exactly what it asked and **ignores** the setting;
+* `input::v2` reads the setting and passes it to the decoder; its conversion to
+  the working space is a copy of `v1`'s (ADR 0042: duplication is the price of
+  freezing);
+* new revisions pin `input: 2`, old ones keep `input: 1`.
 
-La table `INPUT_DECODE` qui associe une version d'`input` à sa configuration de
-décodeur voit sa signature passer de `fn(bool)` à `fn(&Settings, bool)`. Ce
-n'est pas une édition de version publiée au sens d'ADR 0042 §1 : ce que le gel
-protège est **ce que `v1` demande au décodeur**, et `v1` demande la même chose
-qu'avant en ignorant son nouvel argument.
+The `INPUT_DECODE` table that maps a version of `input` to its decoder
+configuration sees its signature go from `fn(bool)` to `fn(&Settings, bool)`.
+That is not an edit to a published version in ADR 0042 §1's sense: what the
+freeze protects is **what `v1` asks of the decoder**, and `v1` asks the same
+thing as before while ignoring its new argument.
 
-### 5. Un mode non neutre sur une révision épinglée en `input: 1` est **refusé**
+### 5. A non-neutral mode on a revision pinned at `input: 1` is **refused**
 
-C'est le cas de figure d'[ADR 0048](0048-range-masks.md) §5, mot pour mot :
-une révision de 2026 épingle `input: 1`, l'utilisateur y demande `rebuild` en
-2027, la règle d'épinglage garde `v1`, et `v1` ne connaît pas le réglage. Le
-mode disparaîtrait en silence.
+It is [ADR 0048](0048-range-masks.md) §5's case, word for word: a 2026 revision
+pins `input: 1`, the user asks for `rebuild` on it in 2027, the pinning rule
+keeps `v1`, and `v1` knows nothing of the setting. The mode would disappear in
+silence.
 
-`Settings::validate()` refuse donc la combinaison, et le message nomme le
-remède : retraiter la photo (`docs/pipeline.md` §4.5), ce qui crée une révision
-épinglée en `input: 2`. C'est la deuxième application de la règle générale
-qu'ADR 0048 §5 a dégagée — **un réglage qu'une version épinglée ne sait pas
-exprimer est un refus de validation, jamais une valeur perdue** — et la
-première qui ne concerne pas un opérateur de pixels mais le décodeur.
+`Settings::validate()` therefore refuses the combination, and the message names
+the remedy: reprocess the photo (`docs/pipeline.md` §4.5), which creates a
+revision pinned at `input: 2`. It is the second application of the general rule
+ADR 0048 §5 drew out — **a setting a pinned version cannot express is a
+validation refusal, never a lost value** — and the first that concerns not a
+pixel operator but the decoder.
 
-### 6. Ce que la reproductibilité couvre ici
+### 6. What reproducibility covers here
 
-La reconstruction est déterministe : mêmes octets d'entrée, mêmes paramètres,
-mêmes pixels. Elle dépend en revanche de la **version de LibRaw**, comme tout le
-décodage depuis le premier jour — ce que `docs/pipeline.md` §5.2 range déjà sous
-« changer de plateforme ». Cette décision n'élargit pas la zone non garantie :
-elle y ajoute un paramètre dont l'effet est visible, là où le décodage y était
-déjà entièrement.
+The reconstruction is deterministic: the same input bytes, the same parameters,
+the same pixels. It does however depend on the **version of LibRaw**, as all
+decoding has since day one — which `docs/pipeline.md` §5.2 already files under
+"changing platform". This decision does not widen the ungaranteed zone: it adds
+to it a parameter whose effect is visible, where decoding was already entirely
+inside it.
 
-### 7. Hors périmètre
+### 7. Out of scope
 
-* **Le choix de l'algorithme de dématriçage** (`params.user_qual`), aujourd'hui
-  laissé au défaut de LibRaw. Même famille de question — un paramètre de
-  décodeur qu'`input` épinglerait —, mais des arbitrages entièrement
-  différents ; son propre ADR.
-* **Une reconstruction maison à partir de la mosaïque** (§1 des alternatives).
-* **Un curseur de force pour `rebuild`** (les niveaux 3 à 9). Ajoutable plus
-  tard sans nouvelle décision : ce serait un mode de plus dans la même énumération.
+* **The choice of demosaicing algorithm** (`params.user_qual`), today left at
+  LibRaw's default. The same family of question — a decoder parameter `input`
+  would pin — but entirely different judgement calls; its own ADR.
+* **An in-house reconstruction from the mosaic** (§1 of the alternatives).
+* **A strength dial for `rebuild`** (levels 3 to 9). Addable later with no new
+  decision: it would be one more mode in the same enumeration.
 
-## Conséquences
+## Consequences
 
-* **Le défaut de rendu le plus visible face à darktable et RawTherapee
-  disparaît**, pour un réglage à trois valeurs et une version d'étage.
-* **Le tampon non borné d'ADR 0044 sert enfin à ce qu'il promettait** : ce que
-  `rebuild` remonte au-dessus du blanc traverse tout le pipeline et c'est
-  l'épaule de `output_rendering` qui le ramène — les deux décisions composent
-  exactement comme prévu, sans que l'une ait à connaître l'autre.
-* **`leyline-raw` expose une donnée de plus, et une seule** : les
-  multiplicateurs as-shot, pour le gain du §3. Aucun autre étage ne les lit.
-* **Un cas de rendu de référence de plus**, qui gèle la compensation du §3 —
-  la seule partie de cette décision qu'un tampon synthétique puisse exercer,
-  le mode lui-même vivant dans le décodeur.
-* **Le cache de décodage reste correct sans y toucher** : il est indexé par
-  `(asset, DecodeParams)`, donc deux modes sont deux entrées.
-* **Troisième version d'étage réelle du projet** (après 0046 et 0048), et la
-  première sur un étage d'encadrement — ce qui exerce le fait qu'`input` épingle
-  autre chose que des pixels calculés par nous.
-* **Un réglage de plus au-dessus du blanc, mais aucun schéma changé** :
-  champ optionnel à valeur neutre absente (`docs/pipeline.md` §3.4).
+* **The most visible rendering flaw against darktable and RawTherapee
+  disappears**, for a three-valued setting and one stage version.
+* **ADR 0044's unbounded buffer finally serves what it promised**: what
+  `rebuild` raises above white travels through the whole pipeline and it is
+  `output_rendering`'s shoulder that brings it back — the two decisions compose
+  exactly as foreseen, without either having to know the other.
+* **`leyline-raw` exposes one more piece of data, and one only**: the as-shot
+  multipliers, for §3's gain. No other stage reads them.
+* **One more reference render**, which freezes §3's compensation — the only
+  part of this decision a synthetic buffer can exercise, the mode itself living
+  in the decoder.
+* **The decode cache stays correct without being touched**: it is indexed by
+  `(asset, DecodeParams)`, so two modes are two entries.
+* **The project's third real stage version** (after 0046 and 0048), and the
+  first on a framing stage — which exercises the fact that `input` pins
+  something other than pixels computed by us.
+* **One more setting above white, but no schema changed**: an optional field
+  whose neutral value is absence (`docs/pipeline.md` §3.4).
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Reconstruire nous-mêmes depuis la mosaïque brute.** Il faudrait exposer les
-  données Bayer à travers le shim, gérer les motifs non Bayer (X-Trans), et
-  réimplémenter un algorithme éprouvé. Le jour où le dématriçage deviendra un
-  choix du projet (hors périmètre §6), la question se reposera dans un cadre où
-  elle a du sens ; aujourd'hui elle ajouterait du risque sans rien gagner.
-* **Reconstruire après dématriçage, dans un étage à nous.** Séduisant parce que
-  cela resterait dans du code gelé par nous plutôt que dans LibRaw — mais
-  l'information nécessaire n'existe plus à cet endroit (§1). On obtiendrait un
-  lissage de zones blanches, pas une reconstruction.
-* **Activer `blend` par défaut.** Meilleur rendu pour presque toute photo, et
-  inacceptable : cela changerait le rendu de l'existant, ce que la règle de
-  publication interdit (§5.1).
-* **Exposer les neuf modes de LibRaw.** Une énumération dont l'utilisateur ne
-  peut pas prédire les éléments n'est pas un réglage, c'est un formulaire.
-* **Passer le mode par une option de rendu plutôt que par les réglages de la
-  révision.** Il changerait les pixels sans être inscrit dans la révision —
-  exactement ce qu'ADR 0044 §3 a corrigé pour `camera_native`.
+* **Rebuilding it ourselves from the raw mosaic.** It would mean exposing the
+  Bayer data through the shim, handling non-Bayer patterns (X-Trans), and
+  reimplementing a proven algorithm. The day demosaicing becomes a project
+  choice (out of scope, §6), the question will be asked again in a frame where
+  it makes sense; today it would add risk and gain nothing.
+* **Rebuilding after demosaicing, in a stage of our own.** Appealing because it
+  would stay in code frozen by us rather than in LibRaw — but the necessary
+  information no longer exists at that point (§1). One would get a smoothing of
+  white areas, not a reconstruction.
+* **Turning `blend` on by default.** A better rendering for almost any photo,
+  and unacceptable: it would change the rendering of what exists, which the
+  publication rule forbids (§5.1).
+* **Exposing LibRaw's nine modes.** An enumeration whose members the user
+  cannot predict is not a setting, it is a form.
+* **Passing the mode through a render option rather than through the
+  revision's settings.** It would change the pixels without being recorded in
+  the revision — exactly what ADR 0044 §3 corrected for `camera_native`.
