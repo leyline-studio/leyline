@@ -75,6 +75,7 @@ unsafe extern "C" {
     pub(crate) fn leyline_shim_aperture(data: *const LibrawData) -> f32;
     pub(crate) fn leyline_shim_focal_len(data: *const LibrawData) -> f32;
     pub(crate) fn leyline_shim_timestamp(data: *const LibrawData) -> c_longlong;
+    pub(crate) fn leyline_shim_wall_clock(timestamp: c_longlong) -> c_longlong;
     pub(crate) fn leyline_shim_flip(data: *const LibrawData) -> c_int;
     pub(crate) fn leyline_shim_raw_width(data: *const LibrawData) -> c_int;
     pub(crate) fn leyline_shim_raw_height(data: *const LibrawData) -> c_int;

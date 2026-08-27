@@ -348,6 +348,10 @@ The convention:
 
 That column has had a producer since [ADR 0056](adr/0056-non-raw-exif-import.md): importing a **non-RAW** file reads `OffsetTimeOriginal` where present and then fills both columns together. The RAW path supplies no offset and leaves the column NULL — the second case above.
 
+**The trap on the RAW path, named because it was fallen into.** LibRaw parses the camera's naive `DateTimeOriginal` with `mktime`, which interprets it in the time zone of the machine doing the import. Taken as it comes, the same file dates two hours apart in Paris and eleven in Tokyo, the displayed time is no longer the one on the body, and a library stops carrying the same value everywhere. `leyline-raw` therefore **undoes** that interpretation before handing the value over: it breaks the timestamp back down in the zone that built it and reassembles those fields as UTC, which cancels the zone rules exactly, daylight saving on the day of the shot included.
+
+The consequence is worth stating because it is not local: a RAW and the JPEG shot with it are only ever the same instant if both readers agree on this convention, and the pairing criterion below compares that instant to the second. A divergence there does not report an error — it silently pairs nothing.
+
 In both cases:
 
 * chronological sorting uses `capture_date` directly;

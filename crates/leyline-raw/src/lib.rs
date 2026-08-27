@@ -192,8 +192,14 @@ pub struct RawMetadata {
     pub aperture_f: Option<f32>,
     /// Focal length in millimetres, when recorded.
     pub focal_mm: Option<f32>,
-    /// Capture instant, Unix epoch milliseconds, when recorded. Cameras write
-    /// wall-clock time; the offset convention of `docs/catalog.md` §9 applies.
+    /// Capture instant, Unix epoch milliseconds, when recorded.
+    ///
+    /// Cameras write a **wall-clock** time with no zone, and a RAW never
+    /// carries an offset, so `docs/catalog.md` §9's second case applies: the
+    /// clock reading is stored as if it were UTC. The value is therefore the
+    /// same on every machine, and displaying it without conversion gives back
+    /// what the photographer saw on the body. `leyline_shim_timestamp` undoes
+    /// LibRaw's local-zone interpretation to get there.
     pub capture_ms: Option<i64>,
     /// dcraw flip code (0 none, 3 = 180°, 5 = 90° CCW, 6 = 90° CW).
     pub flip: i32,
@@ -379,7 +385,26 @@ pub fn identify(path: &Path) -> Result<RawMetadata, RawError> {
     Ok(Handle::open(path)?.metadata())
 }
 
-/// Extracts the preview the camera embedded in a RAW file, without decoding
+/// Re-reads a LibRaw capture timestamp under the convention of
+/// `docs/catalog.md` §9: the camera's wall clock, stored as if it were UTC.
+///
+/// LibRaw parses the naive `DateTimeOriginal` with `mktime`, so its
+/// `timestamp` depends on the time zone of the machine doing the import —
+/// the same file dates two hours apart in Paris and eleven in Tokyo. This
+/// undoes that interpretation exactly, by breaking the value down in the same
+/// zone that built it and reassembling those fields as UTC.
+///
+/// Exposed for the test that pins a zone and checks the arithmetic; the
+/// decode path applies it on its own and callers of [`identify`] and
+/// [`decode`] get a corrected value already.
+#[doc(hidden)]
+pub fn wall_clock_from_local(timestamp: i64) -> i64 {
+    // SAFETY: a pure arithmetic helper over C time functions; it touches no
+    // LibRaw state and takes no pointer.
+    unsafe { ffi::leyline_shim_wall_clock(timestamp) }
+}
+
+/// Extracts the preview the camera embedded in a RAW file, without decoding/// Extracts the preview the camera embedded in a RAW file, without decoding
 /// any sensor data (ADR 0065 §2).
 ///
 /// `Ok(None)` when the file carries no preview, or one this LibRaw build

@@ -5,7 +5,14 @@
  * would hard-code one version's layout; going through this shim keeps the
  * offsets correct for whatever LibRaw version is installed. */
 
+/* `timegm` is POSIX-2024 but a GNU/BSD extension before that; glibc hides it
+ * unless a feature macro is set, and this must come before any header. */
+#ifndef _WIN32
+#define _DEFAULT_SOURCE
+#endif
+
 #include <libraw/libraw.h>
+#include <time.h>
 
 /* --- processing parameters ------------------------------------------- */
 
@@ -130,8 +137,49 @@ float leyline_shim_iso(const libraw_data_t *d) { return d->other.iso_speed; }
 float leyline_shim_shutter(const libraw_data_t *d) { return d->other.shutter; }
 float leyline_shim_aperture(const libraw_data_t *d) { return d->other.aperture; }
 float leyline_shim_focal_len(const libraw_data_t *d) { return d->other.focal_len; }
+/* The capture instant, under the convention of `docs/catalog.md` §9.
+ *
+ * LibRaw parses the camera's naive `DateTimeOriginal` with `mktime`, which
+ * interprets it in the **importing machine's** time zone. The same file then
+ * yields a different instant in Paris and in Tokyo, and the time Leyline
+ * displays is not the one the photographer read on the camera.
+ *
+ * §9 wants the opposite, and says so for this exact path: with no offset
+ * known — and a RAW never supplies one — the wall clock is stored as if it
+ * were UTC, so that a library carries the same value everywhere and the
+ * displayed time is the one on the body.
+ *
+ * Undoing LibRaw's interpretation is exact rather than approximate: break the
+ * timestamp back down in the very zone that built it, then reassemble those
+ * same fields as UTC. Going through the zone rules twice cancels them,
+ * including the daylight-saving state in force on the day of the shot.
+ *
+ * Returns 0 when the file records no date, which the caller reads as "none". */
+long long leyline_shim_wall_clock(long long timestamp) {
+    time_t stamp = (time_t)timestamp;
+    if (timestamp <= 0) {
+        return 0;
+    }
+    /* The zone can have changed since the last call (a test pinning `TZ`, a
+     * long-running process crossing a rule update): re-read it rather than
+     * trust whatever the C library cached. */
+    tzset();
+    struct tm local;
+#ifdef _WIN32
+    if (localtime_s(&local, &stamp) != 0) {
+        return 0;
+    }
+    return (long long)_mkgmtime(&local);
+#else
+    if (localtime_r(&stamp, &local) == NULL) {
+        return 0;
+    }
+    return (long long)timegm(&local);
+#endif
+}
+
 long long leyline_shim_timestamp(const libraw_data_t *d) {
-    return (long long)d->other.timestamp;
+    return leyline_shim_wall_clock((long long)d->other.timestamp);
 }
 int leyline_shim_flip(const libraw_data_t *d) { return d->sizes.flip; }
 int leyline_shim_raw_width(const libraw_data_t *d) { return d->sizes.width; }
