@@ -1,34 +1,34 @@
-# ADR 0015 — Gestion des couleurs V1 : pipeline et export figés en sRGB
+# ADR 0015 — V1 colour management: pipeline and export frozen in sRGB
 
-**Statut :** Accepté — 2026-07
-**Suite :** l'espace de travail *interne* qu'il fige a été remplacé par
-[ADR 0044](0044-linear-wide-gamut-working-space.md) (Rec. 2020 linéaire non
-borné) ; ce qui concerne la **sortie** a d'abord été élargi par
+**Status:** Accepted — 2026-07
+**Followed by:** the *internal* working space it froze has been replaced by
+[ADR 0044](0044-linear-wide-gamut-working-space.md) (unbounded linear
+Rec. 2020); what concerns the **output** was first widened by
 [ADR 0027](0027-color-management-beyond-srgb.md).
 
-## Contexte
+## Context
 
-`specification.md` inclut « Gestion des couleurs (LittleCMS) » et ADR 0005 a choisi LittleCMS pour `leyline-color`, sans jamais préciser ce que la V1 en fait concrètement. En pratique le pipeline est déjà entièrement sRGB de bout en bout et fonctionne : `leyline-raw` demande à LibRaw une sortie sRGB 8 bits (`crates/leyline-raw/src/lib.rs`), et `process1`/`process2` (`pipeline.md` §3.3, ADR 0013) appliquent la fonction de transfert sRGB au rendu tonal. Il manquait la pièce qui rend cette hypothèse vérifiable en dehors du code : aucun fichier exporté ne porte de profil ICC, donc un visualiseur géré en couleur n'a que la convention pour deviner l'espace des pixels.
+`specification.md` includes "Colour management (LittleCMS)" and ADR 0005 chose LittleCMS for `leyline-color`, without ever saying what V1 concretely does with it. In practice the pipeline is already sRGB from end to end and it works: `leyline-raw` asks LibRaw for 8-bit sRGB output (`crates/leyline-raw/src/lib.rs`), and `process1`/`process2` (`pipeline.md` §3.3, ADR 0013) apply the sRGB transfer function to the tonal rendering. What was missing is the piece that makes that assumption verifiable outside the code: no exported file carries an ICC profile, so a colour-managed viewer has nothing but convention from which to guess the pixels' space.
 
-## Décision
+## Decision
 
-**V1 ne gère qu'un seul espace, du décodage à l'export : sRGB.** Pas de sélection d'espace de travail, pas de profil d'entrée par appareil, pas de conversion d'espace de sortie configurable — c'est le pipeline existant, documenté comme décision plutôt que comme hasard d'implémentation.
+**V1 handles a single space, from decode to export: sRGB.** No working-space selection, no per-camera input profile, no configurable output-space conversion — this is the existing pipeline, documented as a decision rather than as an accident of implementation.
 
-**`leyline-color` expose un profil, pas une bibliothèque de transformations.** `srgb_icc_profile()` génère le profil ICC sRGB canonique de LittleCMS (`lcms2::Profile::new_srgb`) une seule fois (`OnceLock`) et rend ses octets ICC bruts. Pas de `cmsTransform`, pas de gestion de profils appareil : ce que LittleCMS apporte en V1, c'est un profil de référence correct plutôt qu'un profil maison encodé en dur, rien de plus.
+**`leyline-color` exposes a profile, not a library of transforms.** `srgb_icc_profile()` generates LittleCMS's canonical sRGB ICC profile (`lcms2::Profile::new_srgb`) once (`OnceLock`) and returns its raw ICC bytes. No `cmsTransform`, no device-profile handling: what LittleCMS brings in V1 is a correct reference profile rather than a hand-rolled one hard-coded in the binary, and nothing more.
 
-**`leyline-export` embarque ce profil dans les formats qui le supportent.** JPEG (segment APP2 `ICC_PROFILE`, via `jpeg-encoder`), PNG (bloc `iCCP`, via `png`) et TIFF (tag `ICCProfile` 34675, via `tiff`) le portent nativement. WebP (`image-webp`) et AVIF (`ravif`) n'exposent aucune API d'embarquement ICC dans leur version actuelle : ils sortent sans profil, ce qui est la convention acceptée du web pour ces formats (sRGB implicite).
+**`leyline-export` embeds that profile in the formats that support it.** JPEG (the APP2 `ICC_PROFILE` segment, via `jpeg-encoder`), PNG (the `iCCP` chunk, via `png`) and TIFF (the `ICCProfile` tag 34675, via `tiff`) carry it natively. WebP (`image-webp`) and AVIF (`ravif`) expose no ICC-embedding API in their current versions: they come out without a profile, which is the web's accepted convention for those formats (implicit sRGB).
 
-**Liaison LittleCMS.** Le crate `lcms2` (MIT) embarque `lcms2-sys`, qui lie dynamiquement à `liblcms2` si `pkg-config` la trouve, et se rabat sinon sur une compilation vendue via `cc` — LittleCMS étant MIT (contrairement à LibRaw, ADR 0004), aucune des deux options ne crée d'obligation de linkage dynamique.
+**Linking LittleCMS.** The `lcms2` crate (MIT) embeds `lcms2-sys`, which links dynamically to `liblcms2` if `pkg-config` finds it and otherwise falls back on a vendored build via `cc` — LittleCMS being MIT (unlike LibRaw, ADR 0004), neither option creates a dynamic-linking obligation.
 
-## Conséquences
+## Consequences
 
-* Le contrat implicite « tout est sRGB » devient un fait testé : `leyline-color` vérifie que le profil généré a un en-tête ICC valide et est déterministe ; `leyline-export` vérifie que les octets du profil se retrouvent bien dans les fichiers JPEG/PNG/TIFF encodés.
-* Un visualiseur géré en couleur (navigateur, Preview macOS, etc.) affiche les JPEG/PNG/TIFF de Leyline correctement même sur un écran à gamut large, sans dépendre de la convention « pas de profil = sRGB ».
-* Aucun changement au format des pixels ni à `process1`/`process2` : ADR 0012 (parallélisme, rendu bit-pour-bit) n'est pas engagé, ceci n'est qu'un embarquement de métadonnées à l'export.
-* Un futur espace de travail plus large (ProPhoto, Adobe RGB en interne) resterait un changement structurant à part entière — cet ADR ne le prépare pas et ne l'exclut pas.
+* The implicit contract "everything is sRGB" becomes a tested fact: `leyline-color` checks that the generated profile has a valid ICC header and is deterministic; `leyline-export` checks that the profile's bytes really do end up in the encoded JPEG/PNG/TIFF files.
+* A colour-managed viewer (a browser, macOS Preview, and so on) displays Leyline's JPEG/PNG/TIFF correctly even on a wide-gamut screen, without depending on the "no profile means sRGB" convention.
+* No change to the pixel format nor to `process1`/`process2`: ADR 0012 (parallelism, bit-for-bit rendering) is not engaged, this being only a metadata embedding at export.
+* A future, wider working space (ProPhoto or Adobe RGB internally) would remain a structural change in its own right — this ADR neither prepares it nor rules it out.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Profil ICC statique embarqué en binaire** : aurait évité la dépendance à LittleCMS pour ce seul usage, mais aurait réintroduit exactement ce que ADR 0005 a écarté (« profils maison ») et un fichier qu'il faut faire confiance sans pouvoir le régénérer ; générer via LittleCMS coûte une poignée de lignes et documente que la bibliothèque choisie sert à quelque chose dès la V1.
-* **Attendre la correction d'objectif et livrer les deux features Lensfun/LittleCMS ensemble** : la correction d'objectif (`leyline-lens`) exige en plus des métadonnées objectif/boîtier à l'import (EXIF `LensModel`, non extraites aujourd'hui) et une nouvelle version de process (ADR 0012 interdit de changer l'ordre des opérations par échantillon d'un process existant) — une portée nettement plus large, à traiter dans un ADR séparé.
-* **Transformation ICC complète (profil d'entrée appareil → sRGB via `cmsTransform`)** : LibRaw produit déjà du sRGB 8 bits directement ; ajouter une conversion ICC par-dessus doublerait un travail déjà fait sans bénéfice mesurable pour la V1.
+* **A static ICC profile embedded in the binary**: it would have avoided depending on LittleCMS for this one use, but would have reintroduced exactly what ADR 0005 rejected ("profiles of our own") and a file one has to trust without being able to regenerate it; generating it through LittleCMS costs a handful of lines and documents that the chosen library serves a purpose from V1 onwards.
+* **Waiting for lens correction and shipping the Lensfun and LittleCMS features together**: lens correction (`leyline-lens`) additionally demands lens and body metadata at import (EXIF `LensModel`, not extracted today) and a new process version (ADR 0012 forbids changing the per-sample order of operations of an existing process) — a distinctly wider scope, to be handled in a separate ADR.
+* **A complete ICC transform (a device input profile → sRGB through `cmsTransform`)**: LibRaw already produces 8-bit sRGB directly; adding an ICC conversion on top would duplicate work already done, with no measurable benefit for V1.

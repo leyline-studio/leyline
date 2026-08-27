@@ -1,39 +1,39 @@
-# ADR 0019 — Distribution : installateur par plateforme et internationalisation FR/EN
+# ADR 0019 — Distribution: a per-platform installer, and FR/EN internationalization
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-Leyline Studio ne se lance aujourd'hui que par `cargo run -p leyline-studio <dossier>` : aucun mécanisme d'installation, aucune traduction, l'interface est en anglais codé en dur. Une V1 destinée à des utilisateurs finaux (pas seulement des développeurs) doit pouvoir s'installer sans passer par Cargo, et l'équipe veut au moins le français et l'anglais dès le lancement, avec la possibilité d'ajouter d'autres langues sans toucher au code.
+Leyline Studio can only be launched today through `cargo run -p leyline-studio <folder>`: no installation mechanism, no translation, and an interface in hard-coded English. A V1 aimed at end users — not developers alone — must be installable without going through Cargo, and the team wants at least French and English from launch, with the ability to add other languages without touching the code.
 
-## Décision
+## Decision
 
-### Installateur par plateforme
+### A per-platform installer
 
-Génération via `cargo-packager`, piloté depuis un nouveau répertoire `packaging/` à la racine (fichiers de configuration par OS + scripts, **pas un nouveau crate Rust** — même séparation code/outillage que le reste du workspace) :
+Generated with `cargo-packager`, driven from a new `packaging/` directory at the root (per-OS configuration files plus scripts, **not a new Rust crate** — the same code/tooling separation as the rest of the workspace):
 
-* **Windows** : installeur NSIS (`.exe`), assistant classique avec une page « choisir le dossier d'installation » — répond directement au besoin exprimé.
-* **macOS** : bundle `.app` livré en `.dmg`, glisser-déposer vers `/Applications` — convention native macOS ; pas de choix de dossier ici, ce n'est pas l'usage sur cette plateforme et un installeur « chemin personnalisé » y paraîtrait suspect plutôt que pratique.
-* **Linux** : AppImage portable en premier livrable — l'utilisateur choisit lui-même où le placer, l'équivalent le plus proche d'un « dossier d'installation » sans dépendre d'un gestionnaire de paquets. Un `.deb` pourra s'ajouter ensuite si la demande existe, mais n'a pas la même flexibilité de dossier (chemins FHS imposés).
+* **Windows**: an NSIS installer (`.exe`), the classic wizard with a "choose the installation folder" page — which answers the stated need directly.
+* **macOS**: a `.app` bundle delivered in a `.dmg`, dragged and dropped into `/Applications` — the native macOS convention; no folder choice here, as that is not how the platform works and a "custom path" installer would look suspicious rather than practical.
+* **Linux**: a portable AppImage as the first deliverable — the user places it wherever they like, the closest equivalent to an "installation folder" without depending on a package manager. A `.deb` can follow if the demand exists, but it does not offer the same folder flexibility (FHS paths are imposed).
 
-### Internationalisation (FR/EN, extensible)
+### Internationalization (FR/EN, extensible)
 
-Slint a un support natif de traduction : les chaînes de l'UI passent par `@tr(...)` dans les fichiers `.slint` (et `slint::tr!()` côté Rust), extraites vers des fichiers `.po` par `slint-tr-extractor`, puis chargées au runtime. Décision :
+Slint has native translation support: UI strings go through `@tr(...)` in the `.slint` files (and `slint::tr!()` on the Rust side), are extracted into `.po` files by `slint-tr-extractor`, and are loaded at runtime. The decision:
 
-* Toutes les chaînes visibles de Leyline Studio passent par `@tr(...)` au lieu d'être codées en dur (elles le sont actuellement, cf. `docs/roadmap.md` phase 5 déjà livrée — reste un travail d'extraction à faire, voir Conséquences).
-* Deux langues au lancement : l'anglais existant devient la locale de référence (source des extractions), le français est la première traduction ajoutée.
-* Détection de la langue système au démarrage, repli sur l'anglais si aucune traduction disponible pour cette langue ; un réglage explicite pourra la surcharger plus tard (hors scope immédiat — livré par [ADR 0078](0078-preferences-panel.md) §3, qui le fait basculer à chaud).
-* Ajouter une langue = ajouter un fichier `.po` traduit, sans toucher au code Rust ni aux fichiers `.slint`. **Corrigé par [ADR 0078](0078-preferences-panel.md) §3** : depuis qu'un menu nomme les langues, il faut aussi une ligne dans la table des noms natifs — la liste que Slint expose (`["", "fr"]`) ne porte aucun nom affichable. Un test compare `translations/` et cette table, pour qu'un `.po` ajouté seul échoue au lieu de produire une entrée de menu vide.
-* La CLI (`leyline-cli`) reste en anglais uniquement pour la V1 : un outil scriptable n'a pas le même besoin de traduction qu'une UI graphique, et traduire ses messages casserait le parsing pour tout script qui les inspecterait (`docs/engine-api.md` §1 — la CLI est un client fin, ses messages ne font pas partie du contrat API).
+* Every visible string of Leyline Studio goes through `@tr(...)` instead of being hard-coded (they currently are, cf. `docs/roadmap.md` phase 5, already delivered — the extraction work remains, see Consequences).
+* Two languages at launch: the existing English becomes the reference locale (the source of extractions), and French is the first translation added.
+* System-language detection at startup, falling back on English if no translation exists for that language; an explicit setting may override it later (out of immediate scope — delivered by [ADR 0078](0078-preferences-panel.md) §3, which makes it switch live).
+* Adding a language means adding a translated `.po` file, without touching Rust code or `.slint` files. **Corrected by [ADR 0078](0078-preferences-panel.md) §3**: now that a menu names the languages, a line in the table of native names is needed too — the list Slint exposes (`["", "fr"]`) carries no displayable name. A test compares `translations/` against that table, so that a `.po` added on its own fails instead of producing an empty menu entry.
+* The CLI (`leyline-cli`) stays English-only for V1: a scriptable tool does not have a graphical UI's need for translation, and translating its messages would break parsing for any script that inspected them (`docs/engine-api.md` §1 — the CLI is a thin client, and its messages are not part of the API contract).
 
-## Conséquences
+## Consequences
 
-* Nouveau dossier `packaging/` (icônes, scripts de build par OS, pas de code applicatif) — même logique que `docs/adr/0004-libraw.md` : l'outillage de build reste séparé du code métier. Correction après implémentation : la table `[package.metadata.packager]` elle-même vit dans `crates/leyline-studio/Cargo.toml`, pas dans un fichier autonome sous `packaging/` — `cargo-packager` ne fait le rapprochement automatique avec les métadonnées du crate (binaires, version, out-dir) que lorsqu'il lit cette table depuis un `Cargo.toml` de workspace, pas via un fichier passé en `-c`. Seuls les chemins vers les assets (icônes, `.ico`) et les scripts de build par OS restent sous `packaging/`.
-* Un inventaire des chaînes UI de Leyline Studio à faire passer par `@tr(...)` est un prérequis avant que la traduction soit réellement effective — c'est un chantier propre (Phase 8, voir `docs/roadmap.md`), pas fait d'un coup avec cet ADR.
-* Produire les trois installateurs demande de compiler sur (ou de cross-compiler pour) Windows/macOS/Linux ; les vérifications `fmt`/`clippy`/`test` restent locales comme aujourd'hui (`docs/no-github-ci-yet` reste la décision en vigueur — cet ADR n'y touche pas).
+* A new `packaging/` folder (icons, per-OS build scripts, no application code) — the same logic as `docs/adr/0004-libraw.md`: build tooling stays separate from domain code. A correction made after implementation: the `[package.metadata.packager]` table itself lives in `crates/leyline-studio/Cargo.toml`, not in a standalone file under `packaging/` — `cargo-packager` only matches it up automatically with the crate's metadata (binaries, version, out-dir) when it reads that table from a workspace `Cargo.toml`, not through a file passed with `-c`. Only the paths to assets (icons, `.ico`) and the per-OS build scripts stay under `packaging/`.
+* An inventory of Leyline Studio's UI strings to route through `@tr(...)` is a prerequisite before translation is actually effective — that is a piece of work of its own (Phase 8, see `docs/roadmap.md`), not done in one go with this ADR.
+* Producing the three installers requires building on (or cross-compiling for) Windows, macOS and Linux; the `fmt`/`clippy`/`test` checks stay local as they are today (`docs/no-github-ci-yet` remains the decision in force — this ADR does not touch it).
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **cargo-dist** : plus orienté binaires CLI livrés par GitHub Releases (scripts shell/PowerShell, formules Homebrew) que véritables installeurs graphiques avec assistant et dossier au choix — moins adapté à une application desktop grand public comme Leyline Studio.
-* **gettext appelé directement, en dehors de Slint** : réinventerait ce que `slint-tr-extractor`/`@tr(...)` fait déjà nativement pour du code UI Slint, sans bénéfice.
-* **Traduire aussi la CLI dès la V1** : reporté — voir le dernier point de la décision.
+* **cargo-dist**: aimed more at CLI binaries delivered through GitHub Releases (shell/PowerShell scripts, Homebrew formulae) than at genuine graphical installers with a wizard and a folder of one's choosing — less suited to a consumer desktop application like Leyline Studio.
+* **gettext called directly, outside Slint**: it would reinvent what `slint-tr-extractor`/`@tr(...)` already does natively for Slint UI code, for no benefit.
+* **Translating the CLI too, from V1**: deferred — see the last point of the decision.

@@ -1,38 +1,38 @@
-# ADR 0022 — Bibliothèque par défaut au premier lancement
+# ADR 0022 — A default library on first launch
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-`leyline-studio` exigeait un argument obligatoire : le chemin d'une bibliothèque déjà existante (`leyline-studio <library-dir>`). Absent, `run()` renvoyait `Err("usage: leyline-studio <library-dir>")`, affiché par `eprintln!` puis `ExitCode::FAILURE`.
+`leyline-studio` required a mandatory argument: the path of an already existing library (`leyline-studio <library-dir>`). Without it, `run()` returned `Err("usage: leyline-studio <library-dir>")`, printed by `eprintln!` and followed by `ExitCode::FAILURE`.
 
-Cette erreur n'a jamais de spectateur : lancé depuis un raccourci graphique — l'entrée du menu Démarrer posée par l'installeur NSIS Windows, l'AppImage Linux, un double-clic sur le `.app` macOS — aucun de ces chemins n'attache de console. L'échec ressemble donc, du point de vue de l'utilisateur, à un crash instantané et silencieux : la fenêtre ne s'ouvre jamais et rien n'explique pourquoi. Constaté en conditions réelles ce soir : l'utilisateur a installé l'installeur Windows fraîchement construit et l'a lancé depuis l'Explorateur — exactement ce chemin.
+That error never has an audience: launched from a graphical shortcut — the Start menu entry the Windows NSIS installer creates, the Linux AppImage, a double-click on the macOS `.app` — none of those paths attaches a console. From the user's point of view the failure therefore looks like an instant, silent crash: the window never opens and nothing explains why. Observed in real conditions this evening: the user installed the freshly built Windows installer and launched it from Explorer — exactly that path.
 
-Le bug n'est pas spécifique à Windows : les trois plateformes partagent le même `run()`, donc le même comportement.
+The bug is not specific to Windows: the three platforms share the same `run()`, hence the same behaviour.
 
-## Décision
+## Decision
 
-Quand `leyline-studio` est lancé **sans argument**, il ne renvoie plus d'erreur : il ouvre — ou crée, à la première utilisation — une bibliothèque à un emplacement par défaut, résolu via la crate `directories` (déjà un choix conventionnel, bien maintenue, dépendance triviale — même famille que `sys-locale` déjà dans le workspace) :
+When `leyline-studio` is launched **with no argument**, it no longer returns an error: it opens — or creates, on first use — a library at a default location, resolved through the `directories` crate (already a conventional choice, well maintained, a trivial dependency — the same family as `sys-locale`, already in the workspace):
 
-* `<Documents de l'utilisateur>/Leyline Library` sur les trois plateformes (`UserDirs::document_dir()`) ;
-* repli sur `<home>/Leyline Library` (`UserDirs::home_dir()`) si le système — un conteneur minimal, par exemple — n'expose pas de dossier Documents.
+* `<the user's Documents>/Leyline Library` on all three platforms (`UserDirs::document_dir()`);
+* falling back on `<home>/Leyline Library` (`UserDirs::home_dir()`) if the system — a minimal container, say — exposes no Documents folder.
 
-Le dossier est créé s'il n'existe pas (`std::fs::create_dir_all`), puis :
+The folder is created if it does not exist (`std::fs::create_dir_all`), and then:
 
-* si un `catalog.db` y existe déjà (relances suivantes), `Library::open` — comportement inchangé ;
-* sinon (premier lancement), `Library::create` avec le nom `"Leyline Library"`.
+* if a `catalog.db` is already there (subsequent launches), `Library::open` — unchanged behaviour;
+* otherwise (first launch), `Library::create` with the name `"Leyline Library"`.
 
-**Un argument explicite garde le comportement historique à l'identique** : `Library::open` seul, sans repli ni création automatique. Un chemin fautif ou inexistant continue donc d'échouer franchement — aucun changement pour les scripts, le harnais de tests CLI, ou un utilisateur qui passe déjà un chemin sur sa propre bibliothèque.
+**An explicit argument keeps the historical behaviour exactly**: `Library::open` alone, with no fallback and no automatic creation. A wrong or non-existent path therefore goes on failing outright — no change for scripts, for the CLI test harness, or for a user who already passes a path to their own library.
 
-L'emplacement résolu est affiché dans **Aide ▸ À propos de Leyline** (le dialogue `about` ajouté par ADR 0020), sous la ligne de description existante — la seule addition faite à ce dialogue. Pas de nouveau réglage, pas de fenêtre dédiée : l'utilisateur qui se demande où sont passées ses photos peut ouvrir ce dialogue et voir le chemin exact, sans qu'une préférence supplémentaire n'ait à être conçue pour ça.
+The resolved location is shown in **Help ▸ About Leyline** (the `about` dialog added by ADR 0020), below the existing description line — the only addition made to that dialog. No new setting, no dedicated window: a user wondering where their photos went can open that dialog and see the exact path, without a further preference having to be designed for it.
 
-## Conséquences
+## Consequences
 
-* Premier lancement sans argument : plus jamais silencieux — soit la fenêtre s'ouvre sur une bibliothèque vide fraîchement créée, soit (relances suivantes) sur celle déjà créée au même endroit.
-* `default_library_root` est une fonction pure prenant les dossiers candidats en paramètres (pas d'appel direct à `directories::UserDirs` à l'intérieur) : testable sans toucher au vrai dossier personnel du poste qui fait tourner les tests. `default_library_dir` est le mince appel qui la connecte aux vrais répertoires utilisateur.
-* Nouvelle dépendance : `directories = "6"` (workspace), utilisée uniquement par `leyline-studio`.
+* A first launch with no argument is never silent again — either the window opens on a freshly created empty library, or (on subsequent launches) on the one already created in the same place.
+* `default_library_root` is a pure function taking the candidate folders as parameters (with no direct call to `directories::UserDirs` inside): testable without touching the real home folder of the machine running the tests. `default_library_dir` is the thin call that connects it to the real user directories.
+* A new dependency: `directories = "6"` (workspace), used by `leyline-studio` alone.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Dialogue de sélection de dossier au premier lancement** (un `FolderDialog` natif demandant où créer la bibliothèque) : plus proche de ce qu'un installeur d'application photo propose habituellement, mais plus de portée que ce correctif du soir ne justifie — nouvelle UI, nouvel état de premier lancement à concevoir et traduire (ADR 0019). Un défaut silencieux mais découvrable (via À propos) referme le bug immédiat sans engager cette conception ; un vrai choix de dossier au premier lancement reste une amélioration future, digne de son propre ADR si elle est décidée.
-* **Dossier de données applicatif (`ProjectDirs::data_dir`, ex. `%APPDATA%`/`~/.local/share`) plutôt que Documents** : techniquement plus proche des conventions « données d'app », mais une bibliothèque de photos est un contenu que l'utilisateur possède et voudrait retrouver, sauvegarder ou déplacer lui-même — Documents correspond mieux à cet usage que le dossier de données caché d'une application.
+* **A folder-selection dialog on first launch** (a native `FolderDialog` asking where to create the library): closer to what a photo application's installer usually offers, but a wider scope than this evening's fix justifies — new UI, and a new first-launch state to design and translate (ADR 0019). A silent but discoverable default (through About) closes the immediate bug without committing to that design; a real folder choice on first launch remains a future improvement, worth its own ADR if it is decided.
+* **An application data folder (`ProjectDirs::data_dir`, e.g. `%APPDATA%`/`~/.local/share`) rather than Documents**: technically closer to "app data" conventions, but a photo library is content the user owns and would want to find, back up or move themselves — Documents matches that use better than an application's hidden data folder.
