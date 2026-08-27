@@ -1,135 +1,134 @@
-# ADR 0052 — Correction de perspective : une homographie à deux curseurs, entre la rotation et le recadrage
+# ADR 0052 — Perspective correction: one homography with two sliders, between rotation and crop
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-Le pipeline sait redresser un horizon (`rotation`) et recadrer (`crop`). Il ne
-sait pas redresser des **verticales fuyantes** : photographier un bâtiment en
-levant l'appareil fait converger ses arêtes, et aucun réglage de Leyline ne
-touche à cela. C'est le trou fonctionnel le plus franc du pipeline
-géométrique — il n'a même pas d'ADR qui l'écarte, contrairement au *heal*
-([ADR 0032](0032-spot-removal-clone.md)) ou au GPU
+The pipeline knows how to straighten a horizon (`rotation`) and to crop
+(`crop`). It does not know how to straighten **converging verticals**:
+photographing a building with the camera tilted up makes its edges converge,
+and no Leyline setting touches that. It is the geometric pipeline's plainest
+functional gap — it does not even have an ADR rejecting it, unlike *heal*
+([ADR 0032](0032-spot-removal-clone.md)) or the GPU
 ([ADR 0012](0012-rayon-data-parallelism.md)).
 
-Tous les concurrents l'ont : darktable (*rotate and perspective*), RawTherapee
-(*transform*), Lightroom (*Transform*), digiKam. C'est aussi le premier réglage
-que réclame quiconque photographie de l'architecture ou reproduit des documents.
+Every competitor has it: darktable (*rotate and perspective*), RawTherapee
+(*transform*), Lightroom (*Transform*), digiKam. It is also the first setting
+anyone photographing architecture or copying documents asks for.
 
-**Ce qui n'est pas en cause.** Le référentiel de coordonnées d'
-[ADR 0026](0026-mask-spot-coordinate-referential.md) (les masques et les taches
-se placent *avant* la géométrie), l'ordre du pipeline, et la mise à l'échelle
-des préversions ([ADR 0041](0041-interactive-preview-rendering.md)).
+**What is not at issue.** The coordinate frame of
+[ADR 0026](0026-mask-spot-coordinate-referential.md) (masks and spots are
+placed *before* geometry), the pipeline's order, and preview scaling
+([ADR 0041](0041-interactive-preview-rendering.md)).
 
-## Décision
+## Decision
 
-### 1. Deux curseurs, et pas six
+### 1. Two sliders, not six
 
-`Settings` gagne un champ optionnel :
+`Settings` gains an optional field:
 
 ```rust
 pub struct Perspective {
-    /// Correction verticale, curseur dans [-100, +100].
+    /// Vertical correction, a slider in [-100, +100].
     pub vertical: i32,
-    /// Correction horizontale, curseur dans [-100, +100].
+    /// Horizontal correction, a slider in [-100, +100].
     pub horizontal: i32,
 }
 ```
 
-Absent = neutre. Deux termes, parce que ce sont les deux que le geste
-photographique produit : lever l'appareil (verticales fuyantes) et le tourner
-(horizontales fuyantes).
+Absent means neutral. Two terms, because they are the two the photographic
+gesture produces: tilting the camera up (converging verticals) and turning it
+(converging horizontals).
 
-Ce que Lightroom appelle *Aspect*, *Scale*, *X/Y Offset* n'entre pas. `Aspect`
-est un étirement, pas une perspective ; `Scale` et les décalages sont un
-recadrage, que `crop` fait déjà — les ajouter ici donnerait deux manières
-d'exprimer la même chose, avec deux ordres d'application possibles et un
-`settings_json` qui ne dirait plus laquelle a eu lieu.
+What Lightroom calls *Aspect*, *Scale*, *X/Y Offset* does not enter. `Aspect`
+is a stretch, not a perspective; `Scale` and the offsets are a crop, which
+`crop` already does — adding them here would give two ways of expressing the
+same thing, with two possible orders of application and a `settings_json` that
+would no longer say which took place.
 
-**La correction automatique n'entre pas non plus** : détecter les lignes de
-fuite demande une détection de contours et un vote de Hough, c'est-à-dire un
-algorithme d'analyse d'image dont le résultat dépend du contenu. Ce serait une
-décision à part entière (et un candidat sérieux : la mécanique de rendu, elle,
-est celle-ci).
+**Automatic correction does not enter either**: detecting vanishing lines
+requires edge detection and a Hough vote, that is, an image-analysis algorithm
+whose result depends on the content. It would be a decision in its own right
+(and a serious candidate: the render mechanics would be these).
 
-### 2. Une homographie, pas deux cisaillements
+### 2. A homography, not two shears
 
-La correction est une **transformation projective** (homographie 3×3) dont les
-coefficients viennent des deux curseurs : chaque curseur rapproche les deux
-coins d'un bord et écarte ceux du bord opposé, dans le référentiel normalisé du
-cadre. La matrice est ensuite **inversée** et le rendu échantillonne la source
-en arrière (comme `rotate::v1`), en bilinéaire.
+The correction is a **projective transform** (a 3×3 homography) whose
+coefficients come from the two sliders: each slider brings the two corners of
+one edge closer together and spreads those of the opposite edge apart, in the
+frame's normalized coordinates. The matrix is then **inverted** and the render
+samples the source backwards (as `rotate::v1` does), bilinearly.
 
-Un cisaillement affine — plus simple à écrire — ne corrige *pas* une
-perspective : il incline les verticales sans changer leur convergence. Ce qui
-distingue une correction de perspective d'un simple redressement est justement
-la division par la troisième coordonnée.
+An affine shear — simpler to write — does *not* correct a perspective: it
+tilts the verticals without changing their convergence. What distinguishes a
+perspective correction from a mere straightening is precisely the division by
+the third coordinate.
 
-### 3. Rang 205 : après la rotation, avant le recadrage
+### 3. Rank 205: after rotation, before crop
 
-L'ordre est contraint des deux côtés :
+The order is constrained on both sides:
 
-* **après `rotate`** (rang 200), parce qu'un horizon droit est le repère par
-  rapport auquel une verticale est verticale ; corriger la perspective d'une
-  image penchée demanderait à l'utilisateur de composer mentalement les deux ;
-* **avant `crop`** (rang 210), parce que la correction élargit le cadre (les
-  bords deviennent des trapèzes) et qu'on recadre ce que l'on voit, pas
-  l'inverse.
+* **after `rotate`** (rank 200), because a level horizon is the reference
+  against which a vertical is vertical; correcting the perspective of a tilted
+  image would ask the user to compose the two mentally;
+* **before `crop`** (rank 210), because the correction widens the frame (the
+  edges become trapezoids) and one crops what one sees, not the reverse.
 
-Le rang 205 était libre, ce qui est exactement à quoi servent les dizaines
-d'ADR 0042.
+Rank 205 was free, which is exactly what ADR 0042's tens are for.
 
-### 4. Le cadre grandit, il ne se remplit pas
+### 4. The frame grows, it does not fill in
 
-Comme `rotate::v1`, l'étage rend la **boîte englobante** du quadrilatère
-transformé, et les pixels qui n'ont pas de source restent noirs. Aucun
-remplissage, aucun recadrage automatique dans le contenu utile.
+Like `rotate::v1`, the stage renders the **bounding box** of the transformed
+quadrilateral, and the pixels with no source stay black. No fill, and no
+automatic crop into the useful content.
 
-C'est cohérent avec la rotation, qui fait déjà exactement cela, et c'est ce que
-`crop` sert à corriger — l'utilisateur voit ce que la correction a produit et
-décide lui-même de ce qu'il garde. Un recadrage automatique déciderait à sa
-place, et perdrait des pixels qu'il aurait peut-être voulu garder.
+That is consistent with rotation, which already does exactly this, and it is
+what `crop` serves to correct — the user sees what the correction produced and
+decides for themselves what to keep. An automatic crop would decide for them,
+and would lose pixels they might have wanted to keep.
 
-### 5. Une valeur normalisée, donc indépendante de la taille
+### 5. A normalized value, hence independent of size
 
-Les deux curseurs n'expriment aucune longueur en pixels : ils déplacent des
-coins en fractions du cadre. Une préversion réduite (ADR 0041) et un export
-pleine résolution subissent donc **la même** transformation, sans facteur
-d'échelle à propager — contrairement aux rayons de flou de la clarté ou du
-débruitage.
+Neither slider expresses any length in pixels: they move corners as fractions
+of the frame. A reduced preview (ADR 0041) and a full-resolution export
+therefore undergo **the same** transform, with no scale factor to propagate —
+unlike the blur radii of clarity or denoising.
 
-### 6. Hors périmètre
+### 6. Out of scope
 
-* **La correction automatique** (§1).
-* **La correction de l'objectif** — distorsion, TCA, vignettage — qui est un
-  autre problème, déjà traité par Lensfun ([ADR 0016](0016-process-3-lens-correction.md)–[0018](0018-process-5-tca.md)) et à un autre rang.
-* **Le recadrage automatique dans le contenu utile** (§4).
-* **`Aspect`, `Scale`, décalages** (§1).
+* **Automatic correction** (§1).
+* **Lens correction** — distortion, TCA, vignetting — which is another problem,
+  already handled by Lensfun
+  ([ADR 0016](0016-process-3-lens-correction.md)–[0018](0018-process-5-tca.md))
+  and at another rank.
+* **Automatic cropping into the useful content** (§4).
+* **`Aspect`, `Scale`, offsets** (§1).
 
-## Conséquences
+## Consequences
 
-* **Le dernier trou du pipeline géométrique se ferme**, avec un étage neutre par
-  défaut : aucune révision existante ne change de rendu.
-* **Un étage de plus dans le pipeline géométrique**, donc un rééchantillonnage
-  de plus quand il est actif. C'est le prix d'un ordre lisible : composer
-  rotation et perspective en une seule matrice serait plus propre en pixels,
-  mais ferait dépendre le rendu de `rotate` d'un réglage qui n'est pas le sien,
-  et casserait le gel de `rotate::v1`.
-* **`settings_json` gagne un champ optionnel à valeur neutre absente**, donc
-  `schema` n'est pas incrémenté (`docs/pipeline.md` §3.4).
-* **Les trois clients l'exposent** : deux curseurs dans le groupe *Geometry* de
-  Studio, `develop … perspective <vertical> <horizontal>` dans la CLI.
+* **The geometric pipeline's last gap closes**, with a stage neutral by
+  default: no existing revision changes its rendering.
+* **One more stage in the geometric pipeline**, hence one more resampling when
+  it is active. That is the price of a legible order: composing rotation and
+  perspective into a single matrix would be cleaner in pixels, but it would
+  make `rotate`'s rendering depend on a setting that is not its own, and would
+  break `rotate::v1`'s freeze.
+* **`settings_json` gains an optional field whose neutral value is absence**,
+  so `schema` is not incremented (`docs/pipeline.md` §3.4).
+* **All three clients expose it**: two sliders in Studio's *Geometry* group,
+  `develop … perspective <vertical> <horizontal>` in the CLI.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Un cisaillement affine.** Ne corrige pas une perspective (§2).
-* **Composer la perspective dans `rotate`**, pour n'échantillonner qu'une fois.
-  Interdit par le gel : `rotate::v1` rend ce qu'elle rend, et une `rotate::v2`
-  qui lirait un nouveau réglage obligerait toute révision voulant la
-  perspective à changer aussi de version de rotation, donc de rendu de
-  rotation. Deux étages indépendants sont la forme qu'ADR 0042 rend possible.
-* **Huit paramètres (les quatre coins).** Plus expressif, et inutilisable au
-  clavier ; l'interface qui les rendrait utiles est un tracé de quadrilatère sur
-  l'image, à faire par-dessus la même mécanique le jour où le besoin s'en fait
-  sentir — comme les poignées de masque d'[ADR 0049](0049-local-adjustments-clients.md) §6.
-* **Recadrer automatiquement après correction.** §4.
+* **An affine shear.** It does not correct a perspective (§2).
+* **Composing perspective inside `rotate`**, so as to sample only once.
+  Forbidden by the freeze: `rotate::v1` renders what it renders, and a
+  `rotate::v2` reading a new setting would force every revision wanting
+  perspective to change its rotation version too, and hence its rotation
+  rendering. Two independent stages are the shape ADR 0042 makes possible.
+* **Eight parameters (the four corners).** More expressive, and unusable from
+  the keyboard; the interface that would make them useful is a quadrilateral
+  drawn on the image, to be built on top of this same mechanics the day the
+  need arises — like the mask handles of
+  [ADR 0049](0049-local-adjustments-clients.md) §6.
+* **Cropping automatically after correction.** §4.

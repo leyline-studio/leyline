@@ -1,143 +1,139 @@
-# ADR 0053 — LUT créative : fichiers `.cube` fournis par l'utilisateur, appliqués sur l'axe d'affichage, dosables
+# ADR 0053 — Creative LUT: `.cube` files supplied by the user, applied on the display axis, with a strength control
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-Leyline sait re-colorer une photo par ses propres opérateurs (courbe, mélangeur
-TSL, roues de color grading, [ADR 0030](0030-tone-curve.md),
-[ADR 0031](0031-hsl-color-grading.md)). Il ne sait pas appliquer une **LUT 3D**,
-c'est-à-dire un look distribué comme un fichier : simulations de film, rendus de
-maison de production, conversions de log vers un rendu d'affichage.
+Leyline knows how to recolour a photo through its own operators (curve, HSL
+mixer, colour grading wheels, [ADR 0030](0030-tone-curve.md),
+[ADR 0031](0031-hsl-color-grading.md)). It does not know how to apply a **3D
+LUT**, that is, a look distributed as a file: film simulations, production-house
+renderings, log-to-display conversions.
 
-Les trois concurrents libres le font (darktable *lut 3D*, RawTherapee *film
-simulation*, ART), le format `.cube` d'Adobe/Iridas est l'échange de fait, et
-des milliers de ces fichiers circulent — gratuits ou vendus. C'est le dernier des
-cinq écarts fonctionnels relevés face à eux, et le moins coûteux à combler :
-tout est déjà en place sauf la lecture du fichier et l'interpolation.
+The three free competitors do it (darktable *lut 3D*, RawTherapee *film
+simulation*, ART), Adobe/Iridas's `.cube` format is the de facto exchange, and
+thousands of those files circulate — free or sold. It is the last of the five
+functional gaps noted against them, and the cheapest to close: everything is
+already in place but reading the file and interpolating.
 
-**Ce qui n'est pas en cause.** Les opérateurs de couleur existants, qui restent
-la voie normale : une LUT n'est pas un réglage, c'est un look qu'on a choisi
-ailleurs.
+**What is not at issue.** The existing colour operators, which stay the normal
+route: a LUT is not a setting, it is a look chosen elsewhere.
 
-## Décision
+## Decision
 
-### 1. Un fichier référencé comme un profil DCP, jamais copié dans la révision
+### 1. A file referenced like a DCP profile, never copied into the revision
 
-Le modèle d'[ADR 0035](0035-camera-profile-dcp.md) s'applique mot pour mot, et
-il a été conçu pour ce cas de figure :
+[ADR 0035](0035-camera-profile-dcp.md)'s model applies word for word, and it
+was designed for this case:
 
 ```rust
 pub struct Lut {
     pub enabled: bool,
-    /// Chemin relatif à la bibliothèque, `Profiles/LUT/<nom>.cube`.
+    /// A library-relative path, `Profiles/LUT/<name>.cube`.
     pub path: String,
-    /// `blake3:` + 64 hexadécimaux des octets importés.
+    /// `blake3:` plus 64 hex digits of the imported bytes.
     pub checksum: String,
-    /// Dosage, curseur dans [0, 100]. 100 = la LUT telle quelle.
+    /// Strength, a slider in [0, 100]. 100 = the LUT as it is.
     pub strength: i32,
 }
 ```
 
-* le fichier est **importé** dans `Profiles/LUT/` par le moteur, jamais
-  référencé là où l'utilisateur l'a trouvé — sans quoi la bibliothèque cesserait
-  d'être déplaçable ([ADR 0010](0010-relative-paths.md)) ;
-* la révision porte le **checksum** des octets importés, donc un remplacement
-  silencieux du fichier est détectable ;
-* un import qui écraserait un nom déjà pris est **refusé**, comme pour un `.dcp`.
+* the file is **imported** into `Profiles/LUT/` by the engine, never referenced
+  where the user found it — without which the library would cease to be
+  movable ([ADR 0010](0010-relative-paths.md));
+* the revision carries the **checksum** of the imported bytes, so a silent
+  replacement of the file is detectable;
+* an import that would overwrite a name already taken is **refused**, as for a
+  `.dcp`.
 
-Aucune table de catalogue, aucun mécanisme nouveau : c'est le même chemin, pour
-la même raison.
+No catalog table and no new mechanism: it is the same path, for the same
+reason.
 
-### 2. Le dosage fait partie du réglage
+### 2. The strength is part of the setting
 
-`strength` n'est pas un ornement : une LUT de simulation de film est presque
-toujours trop forte à 100 %, et tous les concurrents exposent ce curseur. Le
-mélange est linéaire entre l'entrée et la sortie de la LUT, sur l'axe
-d'affichage (§3) — le seul endroit où « 50 % de ce look » veut dire ce que
-l'utilisateur voit.
+`strength` is not an ornament: a film-simulation LUT is almost always too
+strong at 100 %, and every competitor exposes that slider. The blend is linear
+between the LUT's input and output, on the display axis (§3) — the only place
+where "50 % of that look" means what the user sees.
 
-### 3. Appliquée sur l'axe d'affichage, pas en lumière linéaire
+### 3. Applied on the display axis, not in linear light
 
-Un `.cube` est écrit pour des valeurs **display-referred** dans `[0, 1]` :
-son auteur l'a réglé en regardant une image, pas un tampon linéaire non borné.
-L'appliquer sur nos valeurs linéaires donnerait un résultat qui n'a aucun
-rapport avec ce que le fichier décrit.
+A `.cube` is written for **display-referred** values in `[0, 1]`: its author
+tuned it looking at an image, not at an unbounded linear buffer. Applying it to
+our linear values would give a result bearing no relation to what the file
+describes.
 
-L'étage encode donc chaque échantillon vers l'axe d'affichage
-(`kernel::v1::display`, ADR 0044), applique la LUT, et **revient** en linéaire.
-C'est le même raisonnement que les masques par plage
-([ADR 0048](0048-range-masks.md) §3), et la même fonction.
+The stage therefore encodes every sample onto the display axis
+(`kernel::v1::display`, ADR 0044), applies the LUT, and **comes back** to
+linear. It is the same reasoning as range masks
+([ADR 0048](0048-range-masks.md) §3), and the same function.
 
-Conséquence assumée : ce qui dépasse le blanc est **écrêté à 1 avant la LUT**,
-puisque la LUT n'a pas de valeur définie au-delà. Une LUT est un look de sortie ;
-la marge au-dessus du blanc est le domaine de `output_rendering`, qui vient
-après.
+An accepted consequence: whatever exceeds white is **clipped to 1 before the
+LUT**, since the LUT has no defined value beyond it. A LUT is an output look;
+the headroom above white is `output_rendering`'s domain, which comes after.
 
-### 4. Rang 165 : après toute la couleur, avant le détail
+### 4. Rank 165: after all the colour, before the detail
 
-La LUT est la **dernière décision de couleur**, donc après la courbe, le
-mélangeur TSL, le color grading *et* les réglages locaux — un look s'applique sur
-l'image étalonnée, pas avant elle. Et **avant** le débruitage et l'accentuation :
-ceux-ci travaillent sur des structures locales, qu'une LUT à fort contraste
-amplifierait si elle passait après.
+The LUT is the **last colour decision**, hence after the curve, the HSL mixer,
+colour grading *and* the local adjustments — a look applies to the graded
+image, not before it. And **before** denoising and sharpening: those work on
+local structures, which a high-contrast LUT would amplify if it came after.
 
-Rang 165, libre entre `local_adjustments` (160) et `noise_luminance` (170).
+Rank 165, free between `local_adjustments` (160) and `noise_luminance` (170).
 
-### 5. Interpolation trilinéaire, `.cube` 1D et 3D
+### 5. Trilinear interpolation, 1D and 3D `.cube`
 
-* le lecteur accepte `LUT_3D_SIZE` (le cas courant) et `LUT_1D_SIZE`, les
-  directives `DOMAIN_MIN`/`DOMAIN_MAX`, les commentaires `#` et les titres ;
-* l'interpolation est **trilinéaire**. La tétraédrique est légèrement plus
-  fidèle aux arêtes du cube et significativement plus longue à écrire ; elle sera
-  une `v2` si une différence visible se présente, exactement comme n'importe
-  quelle correction de rendu ;
-* une taille hors de `[2, 128]`, une ligne mal formée, un fichier tronqué : une
-  **erreur nommée**, jamais un rendu approximatif. Le lecteur vit dans
-  `leyline-color`, à côté du lecteur DCP et pour la même raison
-  ([ADR 0037](0037-dcp-parsing-dependency.md)) : lire un format de données
-  tabulaires bien spécifié n'est pas un problème qui mérite une dépendance.
+* the reader accepts `LUT_3D_SIZE` (the common case) and `LUT_1D_SIZE`, the
+  `DOMAIN_MIN`/`DOMAIN_MAX` directives, `#` comments and titles;
+* the interpolation is **trilinear**. Tetrahedral is slightly more faithful at
+  the cube's edges and significantly longer to write; it will be a `v2` if a
+  visible difference presents itself, exactly like any other rendering
+  correction;
+* a size outside `[2, 128]`, a malformed line, a truncated file: a **named
+  error**, never an approximate rendering. The reader lives in
+  `leyline-color`, beside the DCP reader and for the same reason
+  ([ADR 0037](0037-dcp-parsing-dependency.md)): reading a well-specified
+  tabular data format is not a problem that deserves a dependency.
 
-### 6. Hors périmètre
+### 6. Out of scope
 
-* **Les formats `.3dl`, `.look`, `.icc` de type link, et les HaldCLUT en PNG.**
-  `.cube` couvre l'échange réel ; les autres s'ajouteront comme des variantes du
-  même étage si le besoin apparaît, sans nouvelle décision de fond.
-* **Les LUT livrées avec l'application.** Leyline n'embarque aucun look : ce
-  serait un choix esthétique de l'éditeur, et le projet n'en fait pas
-  (`docs/vision.md`). L'utilisateur apporte les siennes.
-* **L'interpolation tétraédrique** (§5).
-* **Une LUT par masque local.** `LocalAdjustmentValues` re-paramètre des
-  curseurs, pas des références de fichier (ADR 0029) ; l'y faire entrer est une
-  autre décision.
+* **The `.3dl`, `.look`, link-type `.icc` formats, and HaldCLUTs as PNG.**
+  `.cube` covers the real exchange; the others will be added as variants of the
+  same stage if the need arises, with no new fundamental decision.
+* **LUTs shipped with the application.** Leyline embeds no look: that would be
+  an aesthetic choice by the publisher, and the project does not make those
+  (`docs/vision.md`). The user brings their own.
+* **Tetrahedral interpolation** (§5).
+* **A LUT per local mask.** `LocalAdjustmentValues` re-parameterizes sliders,
+  not file references (ADR 0029); fitting one in there is another decision.
 
-## Conséquences
+## Consequences
 
-* **Le dernier des cinq écarts face aux concurrents libres se ferme.** Les
-  fichiers que l'utilisateur possède déjà fonctionnent.
-* **Aucun mécanisme nouveau** : import de ressource et référence checksummée
-  d'ADR 0035, axe d'affichage d'ADR 0048 §3, étage versionné d'ADR 0042.
-* **Un nouvel étage neutre par défaut**, donc aucune révision existante ne
-  change de rendu.
-* **`leyline-color` gagne un second lecteur de format**, et le même argument que
-  pour le DCP : dépendance nulle, surface de lecture seule, erreurs nommées.
-* **Deux conversions d'axe par pixel quand la LUT est active** (aller-retour
-  linéaire ↔ affichage), ce qui est le coût de l'appliquer là où elle a un sens.
+* **The last of the five gaps against the free competitors closes.** The files
+  the user already owns work.
+* **No new mechanism**: ADR 0035's resource import and checksummed reference,
+  ADR 0048 §3's display axis, ADR 0042's versioned stage.
+* **A new stage neutral by default**, so no existing revision changes its
+  rendering.
+* **`leyline-color` gains a second format reader**, and the same argument as
+  for DCP: no dependency, a read-only surface, named errors.
+* **Two axis conversions per pixel when the LUT is active** (a linear ↔ display
+  round trip), which is the cost of applying it where it means something.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Appliquer la LUT en lumière linéaire**, sans conversion. Moins de calcul, et
-  un rendu qui n'a rien à voir avec ce que le fichier décrit : le contenu d'un
-  `.cube` est défini sur des valeurs d'affichage (§3).
-* **La placer après `output_rendering`**, dans l'espace de sortie. Ce serait la
-  place la plus fidèle à l'intention d'un coloriste, mais elle mettrait un
-  opérateur *après* la conversion vers l'espace de sortie, donc hors du tampon
-  de travail — et rendrait le résultat dépendant du profil de sortie choisi à
-  l'export. Un look ne doit pas changer selon qu'on exporte en sRGB ou en
+* **Applying the LUT in linear light**, with no conversion. Less computation,
+  and a rendering bearing no relation to what the file describes: a `.cube`'s
+  content is defined over display values (§3).
+* **Placing it after `output_rendering`**, in the output space. That would be
+  the place most faithful to a colourist's intent, but it would put an operator
+  *after* the conversion to the output space, hence outside the working buffer
+  — and would make the result depend on the output profile chosen at export. A
+  look must not change according to whether one exports in sRGB or in
   Adobe RGB.
-* **Copier les octets de la LUT dans `settings_json`.** Une révision autonome
-  jusqu'au bout, et un `settings_json` de plusieurs mégaoctets par photo. ADR
-  0035 a déjà tranché ce compromis dans l'autre sens.
-* **Un chemin absolu vers le fichier de l'utilisateur.** Interdit par
-  ADR 0010 : la bibliothèque cesserait d'être déplaçable.
-* **Embarquer un jeu de simulations de film.** §6.
+* **Copying the LUT's bytes into `settings_json`.** A revision self-contained
+  to the very end, and a `settings_json` of several megabytes per photo. ADR
+  0035 already settled that trade-off the other way.
+* **An absolute path to the user's file.** Forbidden by ADR 0010: the library
+  would cease to be movable.
+* **Embedding a set of film simulations.** §6.
