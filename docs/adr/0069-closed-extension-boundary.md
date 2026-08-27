@@ -1,120 +1,117 @@
-# ADR 0069 — Une extension fermée s'attache, elle ne duplique pas le dépôt
+# ADR 0069 — A closed extension attaches, it does not duplicate the repository
 
-**Statut :** Accepté — 2026-08
+**Status:** Accepted — 2026-08
 
-## Contexte
+## Context
 
-Leyline veut une fonctionnalité payante (les masques assistés, C2 de
-`measured-findings.md`) sans cesser d'être un logiciel libre. La question posée
-était : faut-il **cloner le dépôt** et maintenir deux projets portant « le même
-code pour l'essentiel », l'un ouvert, l'autre payant ?
+Leyline wants a paid feature (assisted masks, C2 of
+`measured-findings.md`) without ceasing to be free software. The question asked
+was: should the **repository be cloned** and two projects maintained carrying
+"essentially the same code", one open and one paid?
 
-Non, et le refus n'est pas d'abord économique.
+No, and the refusal is not primarily economic.
 
-### Pourquoi un clone est le pire des choix ici
+### Why a clone is the worst of choices here
 
-Un fork « presque identique » coûte, pour un mainteneur seul, un report de
-correctif à chaque correctif, pour toujours. Mais Leyline a une raison plus
-dure que la fatigue.
+An "almost identical" fork costs a lone maintainer a cherry-pick per fix,
+forever. But Leyline has a harder reason than fatigue.
 
-`pipeline.md` §5.1 promet qu'une version d'étage rend **identiquement, partout
-et pour toujours**. Cette promesse est portée par du code gelé : `sharpen::v1`
-est littéralement le même code dans tous les binaires. **Deux dépôts ne peuvent
-pas être tous les deux propriétaires de `sharpen::v1`.** À la première dérive —
-un correctif appliqué d'un côté, un `renders.json` béni deux fois — la promesse
-est rompue, et elle est rompue *silencieusement* : personne ne s'en aperçoit
-avant qu'une photo de 2026 ne se rende autrement en 2031.
+`pipeline.md` §5.1 promises that a stage version renders **identically,
+everywhere and forever**. That promise is carried by frozen code: `sharpen::v1`
+is literally the same code in every binary. **Two repositories cannot both own
+`sharpen::v1`.** At the first drift — a fix applied on one side, a
+`renders.json` blessed twice — the promise is broken, and it is broken
+*silently*: nobody notices before a photo from 2026 renders differently in
+2031.
 
-Le clone ne duplique donc pas seulement du code, il duplique **la chose que le
-projet promet de ne jamais dupliquer**.
+The clone therefore duplicates not merely code, it duplicates **the very thing
+the project promises never to duplicate**.
 
-### Ce que le projet a déjà décidé
+### What the project has already decided
 
-Le `CLA.md` existe et dit la suite : Leyline « intends, over time, to offer
-additional commercial licenses alongside the GPL community edition ». Les
-droits nécessaires sont donc déjà rassemblés — contributeurs compris. Ce qui
-manquait n'était pas la permission, c'était **la couture** : par où une
-extension fermée s'attache sans toucher au dépôt ouvert.
+`CLA.md` exists and says what follows: Leyline "intends, over time, to offer
+additional commercial licenses alongside the GPL community edition". The
+necessary rights are therefore already gathered — contributors included. What
+was missing was not permission, it was **the seam**: where a closed extension
+attaches without touching the open repository.
 
-## Décision
+## Decision
 
-**Le dépôt public reste entier et unique. Une extension fermée est un crate
-séparé, dans son propre dépôt privé, qui s'attache par une frontière que le
-moteur ne franchit jamais.**
+**The public repository stays whole and unique. A closed extension is a
+separate crate, in its own private repository, which attaches through a
+boundary the engine never crosses.**
 
-### 1. La règle : une extension produit des *réglages*, jamais des pixels
+### 1. The rule: an extension produces *settings*, never pixels
 
-C'est le cœur de l'ADR, et tout le reste en découle.
+That is the ADR's core, and everything else follows from it.
 
-Une extension peut **lire** une image décodée et **écrire** dans une révision.
-Elle ne participe pas au rendu. Elle n'est pas un étage, elle n'a pas de
-version d'étage, elle n'apparaît pas dans la carte `stages`.
+An extension may **read** a decoded image and **write** into a revision. It
+does not take part in rendering. It is not a stage, it has no stage version,
+and it does not appear in the `stages` map.
 
-Architecturalement, un masque assisté est donc **la même chose que l'outil
-pinceau** : quelque chose qui produit de la donnée de masque, que le pipeline
-ouvert rend ensuite. Le pinceau est piloté par une souris, celui-là par un
-modèle ; du point de vue du moteur, la différence n'existe pas.
+Architecturally, an assisted mask is therefore **the same thing as the brush
+tool**: something that produces mask data, which the open pipeline then
+renders. The brush is driven by a mouse, that one by a model; from the engine's
+point of view, the difference does not exist.
 
-Trois conséquences, et ce sont elles qui rendent la décision sûre :
+Three consequences, and they are what make the decision safe:
 
-* **§5.1 est hors d'atteinte.** Aucun composant fermé n'entre dans le chemin de
-  rendu, donc aucune version d'étage ne dépend d'un code que le public ne peut
-  pas lire. La promesse la plus chère du projet ne rencontre jamais la frontière
-  de licence.
-* **La version libre rend tout.** Une photo retouchée avec un masque assisté
-  s'ouvre, se rend et s'exporte **à l'identique** sur une compilation sans
-  l'extension : le masque est de la donnée dans `settings_json`, comme un tracé
-  de pinceau. Ce qui manque à la version libre, c'est l'outil qui *propose* le
-  masque, jamais celui qui l'applique.
-* **Le format de catalogue ne se scinde pas.** C'est le corollaire du point
-  précédent, et la ligne rouge : le jour où un fichier écrit par l'édition
-  payante ne serait plus lisible par l'édition libre, la non-destructivité
-  (`pipeline.md` §6) serait rompue *contre nos propres utilisateurs*.
+* **§5.1 is out of reach.** No closed component enters the render path, so no
+  stage version depends on code the public cannot read. The project's dearest
+  promise never meets the licence boundary.
+* **The free version renders everything.** A photo retouched with an assisted
+  mask opens, renders and exports **identically** on a build without the
+  extension: the mask is data in `settings_json`, like a brush stroke. What the
+  free version lacks is the tool that *proposes* the mask, never the one that
+  applies it.
+* **The catalog format does not split.** That is the previous point's
+  corollary, and the red line: the day a file written by the paid edition were
+  no longer readable by the free edition, non-destructiveness
+  (`pipeline.md` §6) would be broken *against our own users*.
 
-### 2. L'attache est le SDK, pas le moteur
+### 2. The attachment is the SDK, not the engine
 
-Une extension est un **client** de `leyline-sdk`, au même titre que Studio ou
-la CLI (`architecture.md` : `Studio → SDK → Engine → Core`). Elle demande un
-aperçu, calcule, et écrit par une session d'édition ordinaire.
+An extension is a **client** of `leyline-sdk`, on the same footing as Studio or
+the CLI (`architecture.md`: `Studio → SDK → Engine → Core`). It asks for a
+preview, computes, and writes through an ordinary edit session.
 
-Le moteur ne gagne donc **aucune surface d'extension** : pas de registre de
-greffons, pas de trait de rappel appelé pendant un rendu, pas de chargement
-dynamique. Ce qui n'existe pas ne peut pas devenir un canal par lequel du code
-fermé s'infiltre dans le pipeline — c'est la garantie du §1, rendue structurelle
-plutôt que promise.
+The engine therefore gains **no extension surface**: no plugin registry, no
+callback trait invoked during a render, and no dynamic loading. What does not
+exist cannot become a channel through which closed code creeps into the
+pipeline — that is §1's guarantee, made structural rather than promised.
 
-### 3. Ce que le moteur doit tout de même apprendre
+### 3. What the engine must nevertheless learn
 
-Pour qu'un masque calculé soit *exprimable* comme donnée, `Mask` doit pouvoir
-porter une couverture calculée, et non seulement une géométrie paramétrique
-(`Radial`, `Gradient`, `Brush`, `Everything` — ADR 0029, ADR 0048).
+For a computed mask to be *expressible* as data, `Mask` must be able to carry a
+computed coverage, and not only a parametric geometry (`Radial`, `Gradient`,
+`Brush`, `Everything` — ADR 0029, ADR 0048).
 
-C'est un ajout au moteur **ouvert**, avec sa propre ADR et sa propre version
-d'étage `local_adjustments` : une couverture stockée est un rendu que les
-versions gelées ne savent pas produire, et la règle de capacité s'applique
-telle quelle — une version d'étage qui ne sait pas exprimer un réglage le
-**refuse**, elle ne l'ignore pas en silence.
+That is an addition to the **open** engine, with its own ADR and its own
+`local_adjustments` stage version: a stored coverage is a rendering the frozen
+versions do not know how to produce, and the capability rule applies as it
+stands — a stage version that cannot express a setting **refuses** it, it does
+not silently ignore it.
 
-Cet étage est ouvert, gratuit, et rend les masques de tout le monde. C'est ce
-qui fait tenir le §1.
+That stage is open, free, and renders everyone's masks. It is what makes §1
+hold.
 
-### 4. La permission additionnelle GPLv3 §7
+### 4. The GPLv3 §7 additional permission
 
-Un crate propriétaire lié à `leyline-sdk` forme une œuvre combinée que la
-GPLv3 gouverne. Le projet détient les droits nécessaires (§Contexte), il peut
-donc l'autoriser — mais **cela doit être écrit**, sans quoi le dépôt public dit
-une chose et le binaire livré en fait une autre.
+A proprietary crate linked to `leyline-sdk` forms a combined work the GPLv3
+governs. The project holds the necessary rights (§Context), so it can authorize
+it — but **that must be written down**, without which the public repository
+says one thing and the shipped binary does another.
 
-La forme retenue est une *permission additionnelle* au sens de la GPLv3 §7,
-consignée dans un fichier propre au projet. Le texte de la GPL lui-même n'est
-**jamais** modifié : il reste verbatim dans `LICENSE`.
+The form retained is an *additional permission* in GPLv3 §7's sense, recorded
+in a file of the project's own. The GPL's text itself is **never** modified: it
+stays verbatim in `LICENSE`.
 
-**Consignée le 2026-08-27** dans `LICENSE-EXCEPTION.md`, à la racine, et
-référencée depuis la section License du `README.md`. Le fichier reprend la
-rédaction ci-dessous mot pour mot ; ce qui l'entoure y est explicitement
-marqué comme explicatif et non opérant.
+**Recorded on 2026-08-27** in `LICENSE-EXCEPTION.md`, at the root, and
+referenced from `README.md`'s License section. The file reproduces the wording
+below word for word; what surrounds it is explicitly marked there as
+explanatory and not operative.
 
-Rédaction retenue :
+The wording retained:
 
 > **Additional permission under GNU GPL version 3 section 7**
 >
@@ -127,65 +124,64 @@ Rédaction retenue :
 > modify Leyline, this additional permission does not apply to your modified
 > version, and you may remove it.
 
-### 5. Ce qui n'est **pas** décidé ici
+### 5. What is **not** decided here
 
-**Le système de licence payante.** Vérification de clé, activation, édition
-gratuite contre payante : rien de tout cela n'est tranché par cette ADR, et
-rien n'a besoin de l'être pour commencer.
+**The paid licensing system.** Key verification, activation, a free edition
+against a paid one: none of that is settled by this ADR, and none of it needs
+to be in order to start.
 
-C'est délibéré. La frontière ci-dessus ne coûte presque rien et constitue une
-meilleure architecture indépendamment de toute question commerciale — elle
-permet de commencer le travail sur les masques assistés sans avoir décidé du
-modèle. Le contrôle de licence viendra, s'il vient, **derrière** cette frontière
-et sans toucher au moteur.
+That is deliberate. The boundary above costs almost nothing and constitutes a
+better architecture independently of any commercial question — it lets work on
+assisted masks begin without the model having been decided. Licence checking
+will come, if it comes, **behind** that boundary and without touching the
+engine.
 
-Deux points resteront à trancher ce jour-là, et il vaut mieux les nommer
-maintenant :
+Two points will remain to be settled that day, and it is better to name them
+now:
 
-* la vérification devra être **hors ligne** — `vision.md` (Local First)
-  interdit l'appel serveur, et une clé qui téléphone contredirait la promesse
-  la plus lisible du projet ;
-* `specification.md` §4 range aujourd'hui l'abonnement parmi les exclusions
-  délibérées. Une édition payante devra corriger ce texte plutôt que le
-  contourner.
+* verification will have to be **offline** — `vision.md` (Local First) forbids
+  a server call, and a key that phones home would contradict the project's most
+  legible promise;
+* `specification.md` §4 today files subscription among the deliberate
+  exclusions. A paid edition will have to correct that text rather than work
+  around it.
 
-## Conséquences
+## Consequences
 
-* **Un seul dépôt public, entier.** Rien n'en est retiré, aucune fonctionnalité
-  n'y est amputée pour être revendue ailleurs.
-* **Le crate fermé est petit** : il propose des masques, il n'en rend aucun.
-  Tout ce qui est cher et délicat — décodage, pipeline, couleur, export —
-  reste ouvert et partagé.
-* **Aucun fork, donc aucun report de correctif.** L'extension suit les
-  versions publiées du SDK comme n'importe quel client.
-* **Les dépendances devront être revérifiées** avant la première livraison
-  fermée : la brique GUI (Slint) offre plusieurs licences dont l'option GPLv3,
-  qui cesse de convenir dès qu'un binaire livré n'est plus GPLv3 ; LibRaw et
-  Lensfun sont en LGPL, ce qui impose de laisser l'utilisateur relier — une
-  décision de build, que la compilation croisée Windows touche déjà.
-* La permission du §4 devra être **ajoutée au dépôt** avant la première
-  livraison combinée, pas après.
+* **One public repository, whole.** Nothing is taken out of it, and no feature
+  is amputated from it in order to be resold elsewhere.
+* **The closed crate is small**: it proposes masks, it renders none. Everything
+  expensive and delicate — decoding, the pipeline, colour, export — stays open
+  and shared.
+* **No fork, hence no cherry-picking.** The extension follows the SDK's
+  published versions like any client.
+* **The dependencies will have to be re-checked** before the first closed
+  release: the GUI brick (Slint) offers several licences including the GPLv3
+  option, which stops being suitable as soon as a shipped binary is no longer
+  GPLv3; LibRaw and Lensfun are LGPL, which requires letting the user relink —
+  a build decision, which the Windows cross-build already touches.
+* §4's permission will have to be **added to the repository** before the first
+  combined release, not after.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Cloner le dépôt** (la question d'origine). Écartée au §Contexte : deux
-  propriétaires pour une même version d'étage, donc une rupture silencieuse de
-  §5.1 — plus le report de correctif perpétuel qui, seul, suffirait déjà.
-* **Un greffon appelé pendant le rendu.** La forme intuitive, et exactement ce
-  que le §1 interdit : le rendu d'une révision dépendrait alors d'un composant
-  dont la version n'est pas dans la carte `stages` et dont personne ne peut
-  auditer le gel. C'est §5.1 abandonnée pour de la commodité d'architecture.
-* **Retirer la fonctionnalité du dépôt ouvert** (open core par soustraction).
-  Le moteur y perdrait un étage, et une photo éditée avec l'édition payante
-  cesserait d'être rendue par l'édition libre — le format de catalogue se
-  scinde, et la non-destructivité est rompue pour l'utilisateur qui a le
-  malheur de revenir en arrière.
-* **Double licence du moteur entier**, à la Qt, sans extension fermée. C'est le
-  modèle que `CLA.md` garde ouvert et il reste possible ; il ne répond
-  simplement pas à la question posée ici, parce qu'il monétise les
-  redistributeurs — or les utilisateurs de Leyline sont des photographes, qui
-  ne redistribuent rien.
-* **Un binaire séparé communiquant par le catalogue.** Évite la question du
-  liage, au prix d'un second processus, d'un second cycle de vie et d'un
-  contournement de la façade que `engine-api.md` §13 existe pour empêcher. La
-  permission du §4 coûte trois paragraphes et évite tout cela.
+* **Cloning the repository** (the original question). Rejected in §Context: two
+  owners for one stage version, hence a silent breach of §5.1 — plus the
+  perpetual cherry-picking that would already suffice on its own.
+* **A plugin called during rendering.** The intuitive shape, and exactly what
+  §1 forbids: a revision's rendering would then depend on a component whose
+  version is not in the `stages` map and whose freezing nobody can audit. That
+  is §5.1 abandoned for architectural convenience.
+* **Removing the feature from the open repository** (open core by
+  subtraction). The engine would lose a stage, and a photo edited with the paid
+  edition would cease to be rendered by the free one — the catalog format
+  splits, and non-destructiveness is broken for the user unlucky enough to go
+  back.
+* **Dual-licensing the whole engine**, Qt-style, with no closed extension. That
+  is the model `CLA.md` keeps open and it remains possible; it simply does not
+  answer the question asked here, because it monetizes redistributors — and
+  Leyline's users are photographers, who redistribute nothing.
+* **A separate binary communicating through the catalog.** It avoids the
+  linking question, at the price of a second process, a second life cycle and a
+  bypass of the façade `engine-api.md` §13 exists to prevent. §4's permission
+  costs three paragraphs and avoids all of it.
