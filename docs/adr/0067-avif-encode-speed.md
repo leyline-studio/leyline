@@ -1,10 +1,10 @@
-# ADR 0067 — La vitesse d'encodage AVIF est un réglage, et son défaut était le mauvais
+# ADR 0067 — AVIF encoding speed is a setting, and its default was the wrong one
 
-**Statut :** Accepté — 2026-08
+**Status:** Accepted — 2026-08
 
-## Contexte
+## Context
 
-`leyline-export` encode l'AVIF avec `ravif`, et lui passe une constante :
+`leyline-export` encodes AVIF with `ravif`, and passes it a constant:
 
 ```rust
 ravif::Encoder::new()
@@ -12,122 +12,120 @@ ravif::Encoder::new()
     .with_speed(6)
 ```
 
-Ce `6` est le seul réglage d'encodeur du projet que personne ne peut voir ni
-changer. Il n'a jamais été choisi : c'est une valeur d'exemple, arrivée avec le
-code qui l'entoure. Or [le relevé B2](../measured-findings.md) a montré que
-l'AVIF coûte **25× le JPEG** à taille égale — c'est le format où un curseur
-d'encodeur pèse le plus lourd, et le seul où il est caché.
+That `6` is the project's only encoder setting nobody can see or change. It was
+never chosen: it is an example value, arrived with the code around it. And yet
+[survey B2](../measured-findings.md) showed that AVIF costs **25× JPEG** at
+equal size — it is the format where an encoder dial weighs the most, and the
+only one where it is hidden.
 
-### Ce que le curseur fait réellement
+### What the dial actually does
 
-Chemin d'export complet — `leyline export --format avif`, décodage, rendu et
-encodage compris — sur une photo du corpus réel, 18,0 Mpx, qualité 90 :
+The complete export path — `leyline export --format avif`, decoding, rendering
+and encoding included — on a photo from the real corpus, 18.0 Mpx, quality 90:
 
-| `avif_speed` | Temps | CPU | Fichier |
+| `avif_speed` | Time | CPU | File |
 |---|---|---|---|
-| 4 | 12,03 s | 97,6 s | 1 562 ko |
-| **6 — la constante d'aujourd'hui** | **8,61 s** | **52,5 s** | **1 616 ko** |
-| 8 | 8,29 s | 52,2 s | 1 620 ko |
-| 9 | 6,24 s | 24,8 s | 1 637 ko |
-| 10 | 2,26 s | 10,9 s | 1 803 ko |
+| 4 | 12.03 s | 97.6 s | 1,562 kB |
+| **6 — today's constant** | **8.61 s** | **52.5 s** | **1,616 kB** |
+| 8 | 8.29 s | 52.2 s | 1,620 kB |
+| 9 | 6.24 s | 24.8 s | 1,637 kB |
+| 10 | 2.26 s | 10.9 s | 1,803 kB |
 
-Deux choses en sortent.
+Two things come out of it.
 
-**1. Le point 6 n'a rien de particulier à défendre.** Passer à 9 rend **28 % du
-temps et 53 % du CPU pour 1,3 % de poids**. Aucun arbitrage raisonnable ne
-préfère 6 à ce marché-là ; la constante n'a d'ailleurs jamais été choisie pour
-en trancher un.
+**1. Point 6 has nothing particular to defend.** Moving to 9 gives back **28 %
+of the time and 53 % of the CPU for 1.3 % of the weight**. No reasonable
+judgement prefers 6 to that bargain; and the constant was never chosen to
+settle one anyway.
 
-**2. Le bon compromis dépend de la photo.** Le même relevé, encodage isolé
-(pixels déjà passés par un JPEG, donc plus faciles à comprimer), inverse le
-signe : à 9 le fichier y était **plus petit** qu'à 6 (1 517 ko contre 1 718 sur
-18 Mpx ; 1 973 contre 2 008 sur 12 Mpx). Et le prix de la vitesse 10 varie de
-0 à 14 % du poids selon l'image — la table de B2, mesurée sur une autre photo,
-donnait +14 %, celle ci-dessus donne +10 %.
+**2. The right compromise depends on the photo.** The same survey, encoding in
+isolation (pixels already through a JPEG, hence easier to compress), reverses
+the sign: at 9 the file was **smaller** than at 6 (1,517 kB against 1,718 at
+18 Mpx; 1,973 against 2,008 at 12 Mpx). And the price of speed 10 varies from
+0 to 14 % of the weight depending on the image — B2's table, measured on
+another photo, gives +14 %, the one above gives +10 %.
 
-C'est précisément l'argument contre une constante : quelqu'un qui exporte un
-lot de contrôle veut la vitesse 10, quelqu'un qui prépare une galerie en ligne
-ne la veut pas, et le bon réglage dépend en plus de ce qu'il y a sur la photo.
-Un nombre écrit en dur tranche pour tout le monde.
+That is precisely the argument against a constant: someone exporting a check
+batch wants speed 10, someone preparing an online gallery does not, and the
+right setting depends on top of that on what is in the photo. A number written
+into the code decides for everyone.
 
-### Ce que le curseur ne fait pas
+### What the dial does not do
 
-Il ne change pas l'image. La qualité visée reste celle de `with_quality` ; la
-vitesse ne décide que de l'effort de recherche de l'encodeur — donc du poids
-obtenu à cette qualité-là, pas de l'image. Vérifié plutôt qu'affirmé — PSNR
-entre le résultat de chaque vitesse et celui de la vitesse 6 : **46,3 à
-50,8 dB**, soit au-dessus du seuil de
-discernement, et la vitesse 10 n'est pas plus éloignée de 6 que ne l'est la
-vitesse 1 (49,0 dB). Contre la source, les six vitesses sont à 0,001 dB les
-unes des autres.
+It does not change the image. The quality aimed at stays that of
+`with_quality`; the speed decides only the encoder's search effort — hence the
+weight obtained at that quality, not the image. Verified rather than asserted —
+the PSNR between each speed's result and speed 6's: **46.3 to 50.8 dB**, above
+the threshold of discernment, and speed 10 is no further from 6 than speed 1 is
+(49.0 dB). Against the source, the six speeds are within 0.001 dB of one
+another.
 
-C'est ce qui range cette décision hors du périmètre de `pipeline.md` §5.1 : la
-promesse porte sur **le rendu** — les pixels que le pipeline produit, gelés par
-des versions d'étages. L'encodeur est en aval, il reçoit ces pixels déjà
-calculés. Aucun étage, aucune version d'étage n'est en cause ici.
+That is what places this decision outside `pipeline.md` §5.1's scope: the
+promise bears on **the rendering** — the pixels the pipeline produces, frozen
+by stage versions. The encoder is downstream, and receives those pixels already
+computed. No stage and no stage version is at issue here.
 
-## Décision
+## Decision
 
-**La vitesse d'encodage AVIF devient un champ d'`ExportSettings`, et son défaut
-passe de 6 à 9.**
+**AVIF encoding speed becomes a field of `ExportSettings`, and its default
+moves from 6 to 9.**
 
-### 1. Le champ
+### 1. The field
 
-`ExportSettings.avif_speed`, entier de 1 à 10, refusé hors de cet intervalle
-par `validate()` comme l'est déjà `quality`. Ignoré par tous les autres
-formats, exactement comme `quality` l'est par les formats sans perte — la
-structure décrit une recette d'export, pas un codec.
+`ExportSettings.avif_speed`, an integer from 1 to 10, refused outside that
+interval by `validate()` as `quality` already is. Ignored by every other
+format, exactly as `quality` is by the lossless formats — the structure
+describes an export recipe, not a codec.
 
-Il est **toujours sérialisé**, y compris dans un preset JPEG. C'est délibéré :
-un preset écrit aujourd'hui épingle sa vitesse, donc il produira le même
-fichier quand le défaut bougera de nouveau. Le bruit dans le JSON est le prix
-de cette propriété, et `format` comme `quality` sont déjà écrits sans condition.
+It is **always serialized**, including in a JPEG preset. That is deliberate: a
+preset written today pins its speed, so it will produce the same file when the
+default moves again. The noise in the JSON is the price of that property, and
+`format` as well as `quality` are already written unconditionally.
 
-### 2. Le défaut : 9, pas 10
+### 2. The default: 9, not 10
 
-9 est le meilleur marché qu'on puisse imposer à quelqu'un qui n'a rien demandé :
-**1,3 % de poids en plus, 28 % de temps et 53 % de CPU en moins**. Un poids
-qui bouge d'un centième ne change la décision de personne ; un export deux fois
-moins cher en CPU, si.
+9 is the best bargain one can impose on someone who asked for nothing:
+**1.3 % more weight, 28 % less time and 53 % less CPU**. A weight that moves by
+a hundredth changes nobody's decision; an export half as expensive in CPU
+does.
 
-10 va bien plus vite encore (~4× le défaut), mais son coût en poids varie de
-0 à 14 % selon l'image, et l'AVIF est choisi *pour* sa compacité — quelqu'un
-qui accepte 25× le temps d'un JPEG le fait pour obtenir un petit fichier. Lui
-reprendre 14 % de ce bénéfice par défaut, sans qu'il l'ait demandé, prendrait
-la décision à sa place. Le champ du §1 la lui rend : 10 est à un mot.
+10 goes much faster still (~4× the default), but its cost in weight varies from
+0 to 14 % depending on the image, and AVIF is chosen *for* its compactness —
+someone accepting 25× a JPEG's time does so in order to obtain a small file.
+Taking 14 % of that benefit back by default, without their asking, would decide
+for them. §1's field gives the decision back: 10 is one word away.
 
-### 3. Ce que cela change aux presets déjà enregistrés
+### 3. What it changes for already-saved presets
 
-Un preset AVIF existant ne porte pas le champ, donc il reçoit 9 à la lecture :
-**ses prochains exports seront des fichiers différents** — plus rapides, à peu
-près du même poids, visuellement identiques (§Contexte). C'est assumé : un
-export est un artefact dérivé, régénérable à volonté, et rien dans le catalogue
-n'en dépend. Aucune révision, aucune photo, aucun réglage de développement
-n'est touché.
+An existing AVIF preset does not carry the field, so it receives 9 on read:
+**its next exports will be different files** — faster, roughly the same weight,
+visually identical (§Context). That is accepted: an export is a derived
+artefact, regenerable at will, and nothing in the catalog depends on it. No
+revision, no photo and no develop setting is touched.
 
-## Conséquences
+## Consequences
 
-* Un lot AVIF s'exporte **~28 % plus vite pour moitié moins de CPU** sans que
-  personne ne change de réglage, et ~4× plus vite pour qui met le curseur à 10.
-* Le champ traverse les trois clients : `--avif-speed` dans la CLI (export et
-  création de preset), un champ dans le dialogue d'export de Studio, le SDK
-  par simple ré-export.
-* `docs/catalog.md` §27 gagne la description du champ dans `settings_json`.
-* **Le seul réglage d'encodeur caché du projet disparaît.** S'il en réapparaît
-  un, la question à poser est celle-ci : est-ce un arbitrage que l'utilisateur
-  peut vouloir trancher autrement ?
+* An AVIF batch exports **~28 % faster for half the CPU** without anyone
+  changing a setting, and ~4× faster for whoever puts the dial at 10.
+* The field travels through all three clients: `--avif-speed` in the CLI
+  (export and preset creation), a field in Studio's export dialog, and the SDK
+  by plain re-export.
+* `docs/catalog.md` §27 gains the field's description in `settings_json`.
+* **The project's only hidden encoder setting disappears.** Should another
+  appear, the question to ask is this one: is it a judgement call the user
+  might want to settle differently?
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Ne changer que le défaut, sans exposer le champ.** Corrigerait le point le
-  plus visible et laisserait le vrai défaut en place : un arbitrage
-  temps/poids, qui dépend de l'usage et de l'image, décidé une fois pour toutes
-  dans le code.
-* **Défaut à 10.** Écarté au §2 : reprend une part variable du bénéfice qu'on
-  vient chercher en choisissant l'AVIF, sans que l'utilisateur l'ait demandé.
-* **Un champ générique `speed` pour tous les formats.** Aucun autre encodeur du
-  projet n'en a la notion ; un champ que quatre formats sur cinq ignorent
-  promettrait un réglage qui n'existe pas.
-* **Déduire la vitesse de la taille de l'image** (rapide sur les grandes,
-  lent sur les petites). Une heuristique non écrite qui reprendrait la décision
-  à l'utilisateur sous une autre forme, en plus difficile à prévoir.
+* **Changing the default alone, without exposing the field.** It would correct
+  the most visible point and leave the real flaw in place: a time/weight
+  judgement, which depends on the use and on the image, decided once and for
+  all in the code.
+* **A default of 10.** Rejected in §2: it takes back a variable share of the
+  benefit one comes looking for in choosing AVIF, without the user asking.
+* **A generic `speed` field for every format.** No other encoder in the project
+  has the notion; a field four formats in five ignore would promise a setting
+  that does not exist.
+* **Inferring the speed from the image's size** (fast on large ones, slow on
+  small ones). An unwritten heuristic that would take the decision back from
+  the user in another form, and a harder one to predict.

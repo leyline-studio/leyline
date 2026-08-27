@@ -1,134 +1,131 @@
-# ADR 0075 — Le cache d'aperçus garde une fenêtre, pas tout l'historique
+# ADR 0075 — The preview cache keeps a window, not the whole history
 
-**Statut :** Accepté — 2026-08
+**Status:** Accepted — 2026-08
 
-## Contexte
+## Context
 
-Un aperçu est indexé par `(asset, révision, kind)` et **un commit ordinaire
-laisse en place ceux de la révision précédente**. C'est délibéré :
-[`catalog.md`](../catalog.md) §20 en fait une propriété — « un undo qui ramène
-la tête sur une révision déjà prévisualisée revalide automatiquement les
-anciens aperçus : aucune régénération n'est nécessaire ».
+A preview is indexed by `(asset, revision, kind)` and **an ordinary commit
+leaves the previous revision's in place**. That is deliberate:
+[`catalog.md`](../catalog.md) §20 makes it a property — "an undo that brings
+the head back onto an already-previewed revision automatically revalidates the
+old previews: no regeneration is necessary".
 
-Ce qui n'était pas décidé, c'est **quand ils s'en vont**. Réponse : jamais.
-Seul un *amendement* de la tête supprime les siens
-(`Catalog::remove_revision_previews`). Il n'existe ni plafond de taille, ni
-éviction, ni commande de purge, ni dans Studio ni dans la CLI.
+What was not decided is **when they go away**. The answer: never. Only an
+*amendment* of the head deletes its own
+(`Catalog::remove_revision_previews`). There is no size ceiling, no eviction
+and no purge command, neither in Studio nor in the CLI.
 
-### Ce que ça coûte, mesuré
+### What it costs, measured
 
-Sur une photo Canon 5D IV du corpus réel :
+On a Canon 5D IV photo from the real corpus:
 
-| | Poids |
+| | Weight |
 |---|---|
-| Le CR2 | ~35 Mo |
-| Aperçu 1024 px (celui de la vue develop) | **0,68 Mo** |
-| Aperçu 2048 px | 2,47 Mo |
-| Aperçu 4096 px | 9,03 Mo |
+| The CR2 | ~35 MB |
+| A 1024 px preview (the develop view's) | **0.68 MB** |
+| A 2048 px preview | 2.47 MB |
+| A 4096 px preview | 9.03 MB |
 
-Trois copies virtuelles d'une photo coûtent donc ~2 Mo d'aperçus contre 35 Mo
-de RAW : **+6 %**, et non ×3 — un point qui vaut d'être écrit, parce que la
-crainte spontanée est que « les photos soient doublées », alors qu'une version
-de développement est une **ligne** qui référence l'asset et qu'un retraitement
-écrit une révision JSON.
+Three virtual copies of a photo therefore cost ~2 MB of previews against 35 MB
+of RAW: **+6 %**, and not ×3 — a point worth writing down, because the
+spontaneous fear is that "the photos are duplicated", when a develop version is
+a **row** referencing the asset and a reprocessing writes a JSON revision.
 
-Le vrai risque est ailleurs et il est réel : **cent retouches sur une même
-photo laissent ~70 Mo d'aperçus périmés, davantage que le RAW lui-même**. Sur
-une bibliothèque travaillée pendant des années, c'est là que le disque part.
+The real risk is elsewhere and it is real: **a hundred edits on one photo leave
+~70 MB of stale previews, more than the RAW itself**. On a library worked for
+years, that is where the disk goes.
 
-### Ce qu'on sait déjà, et qui décide de la forme
+### What we already know, and what decides the shape
 
-Un aperçu froid coûte de l'ordre de la **seconde** (décodage compris), et le
-cache est **reconstructible par définition** — le supprimer ne perd rien. Une
-fenêtre glissante suffit donc : au-delà, on régénère plutôt qu'on ne garde.
+A cold preview costs on the order of a **second** (decoding included), and the
+cache is **rebuildable by definition** — deleting it loses nothing. A sliding
+window therefore suffices: beyond it, we regenerate rather than keep.
 
-## Décision
+## Decision
 
-### 1. Une fenêtre par photo, et les têtes toujours
+### 1. A window per photo, and the heads always
 
-Sont **conservés**, pour un asset donné :
+**Kept**, for a given asset:
 
-1. l'aperçu de la **tête de chaque version** (copie virtuelle) — une copie
-   parquée sur une révision ancienne doit garder son aperçu, sans quoi la
-   grille se remettrait à rendre à chaque défilement ;
-2. les aperçus des **trois révisions les plus récentes** de cet asset.
+1. the preview of **each version's head** (a virtual copy) — a copy parked on
+   an old revision must keep its preview, without which the grid would start
+   rendering again on every scroll;
+2. the previews of that asset's **three most recent revisions**.
 
-Tout le reste est évincé : ligne supprimée, fichier supprimé.
+Everything else is evicted: the row deleted, the file deleted.
 
-La seconde règle est ce qui garde undo *et* redo instantanés autour du point
-de travail : après un undo, la tête est une révision récente, et celle qu'on
-vient de quitter — la cible du redo — l'est aussi. Les deux sont dans la
-fenêtre sans qu'on ait à raisonner sur le sens du déplacement.
+The second rule is what keeps undo *and* redo instant around the point of work:
+after an undo, the head is a recent revision, and the one just left — redo's
+target — is too. Both are in the window without our having to reason about
+which way the head last moved.
 
-**Trois**, parce que c'est ce qu'il faut pour couvrir le va-et-vient d'un
-réglage sans mémoriser une session entière. Le nombre est une constante
-nommée, pas un réglage : un utilisateur n'a pas à arbitrer une taille de cache,
-et la fenêtre coûte au plus ~2 Mo par photo *effectivement retouchée*.
+**Three**, because that is what it takes to cover the back and forth of a
+setting without memorizing a whole session. The number is a named constant, not
+a setting: a user should not have to arbitrate a cache size, and the window
+costs at most ~2 MB per photo *actually edited*.
 
-### 2. Au-delà de la fenêtre, on régénère — et on ne précharge pas
+### 2. Beyond the window we regenerate — and we do not preload
 
-Remonter plus loin dans l'historique rend l'aperçu manquant. Le chemin
-existant s'en charge déjà sans une ligne de plus : `latest_preview` sert
-l'image périmée la plus récente, marquée `Preview::Stale`, pendant que la
-bonne se calcule (`engine-api.md` §11).
+Going further back in the history makes the preview missing. The existing path
+handles it already without one extra line: `latest_preview` serves the most
+recent stale image, marked `Preview::Stale`, while the right one is computed
+(`engine-api.md` §11).
 
-**Rien n'est préchargé en arrière-plan**, et c'est un choix : le cas ne se
-présente qu'au quatrième undo consécutif — les trois premiers tombent dans la
-fenêtre — et il coûte alors une seconde, une fois. Construire une anticipation
-pour cela reviendrait à rendre des images que personne ne regardera, ce qui est
-exactement le gaspillage que cette ADR corrige.
+**Nothing is preloaded in the background**, and that is a choice: the case
+arises only on the fourth consecutive undo — the first three fall inside the
+window — and it then costs a second, once. Building an anticipation for that
+would amount to rendering images nobody will look at, which is exactly the
+waste this ADR corrects.
 
-### 3. L'éviction a lieu là où le cache grossit
+### 3. Eviction happens where the cache grows
 
-Après chaque enregistrement d'un aperçu (`Library::preview`), et là seulement.
+After each recording of a preview (`Library::preview`), and there alone.
 
-Pas de balayage périodique, pas de tâche de fond, pas de « vider le cache » à
-la charge de l'utilisateur : le seul moment où le cache peut dépasser sa
-fenêtre est celui où on vient d'y ajouter quelque chose. Une purge attachée à
-ce point est bornée par construction et n'a besoin d'aucun ordonnanceur.
+No periodic sweep, no background task, and no "empty the cache" left to the
+user: the only moment the cache can exceed its window is the one where
+something has just been added to it. A purge attached to that point is bounded
+by construction and needs no scheduler.
 
-Corollaire assumé : une bibliothèque qu'on n'ouvre plus ne se nettoie pas
-toute seule. C'est cohérent — un cache qui ne grossit plus n'a rien à rendre.
+An accepted corollary: a library one no longer opens does not clean itself. That
+is consistent — a cache that no longer grows has nothing to give back.
 
-### 4. Ce que l'éviction ne touche jamais
+### 4. What eviction never touches
 
-* **Les photos.** Rien de ce document ne concerne les fichiers importés : le
-  cache vit dans `Cache/`, et une bibliothèque dont on efface entièrement ce
-  dossier rend exactement les mêmes pixels, une seconde plus tard.
-* **Les révisions.** Aucune n'est supprimée : l'historique reste entier et
-  reste rejouable. On évince des *images dérivées*, jamais une intention.
-* **La promesse §5.1.** Un aperçu n'est pas un rendu d'export ; il n'y a ni
-  version d'étage ni pixel garanti dans cette affaire.
+* **The photos.** Nothing in this document concerns the imported files: the
+  cache lives in `Cache/`, and a library whose entire folder is deleted renders
+  exactly the same pixels, one second later.
+* **The revisions.** None is deleted: the history stays whole and stays
+  replayable. We evict *derived images*, never an intent.
+* **The §5.1 promise.** A preview is not an export render; there is neither a
+  stage version nor a guaranteed pixel in this affair.
 
-## Conséquences
+## Consequences
 
-* **Le cache devient `O(photos retouchées × 3)` au lieu de
-  `O(retouches)`.** C'est le changement de forme qui compte : le premier est
-  prévisible et proportionné à la bibliothèque, le second croît avec le temps
-  passé à travailler.
-* **Un défaut silencieux disparaît.** Rien, dans l'interface, n'aurait signalé
-  un cache de 40 Go : ni erreur, ni ralentissement — seulement un disque plein
-  un jour, avec une cause introuvable.
-* **`catalog.md` §20 gagne son revers.** Le document disait quand un aperçu
-  redevient valide ; il dit maintenant aussi quand il cesse d'exister.
-* **Aucune migration.** La règle porte sur des lignes qu'on supprime, pas sur
-  le schéma : une bibliothèque existante se met dans sa fenêtre au premier
-  aperçu qu'elle enregistre.
+* **The cache becomes `O(photos edited × 3)` instead of `O(edits)`.** That is
+  the change of shape that matters: the first is predictable and proportionate
+  to the library, the second grows with the time spent working.
+* **A silent flaw disappears.** Nothing in the interface would have signalled a
+  40 GB cache: no error and no slowdown — only a full disk one day, with an
+  untraceable cause.
+* **`catalog.md` §20 gains its other side.** The document said when a preview
+  becomes valid again; it now also says when it ceases to exist.
+* **No migration.** The rule bears on rows we delete, not on the schema: an
+  existing library settles into its window at the first preview it records.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Un plafond global en gigaoctets, avec éviction LRU.** La première idée, et
-  moins bonne : elle demande un réglage à l'utilisateur, une comptabilité de
-  taille, et elle évince par ancienneté d'accès — donc potentiellement
-  l'aperçu de la photo qu'on regarde, sur une bibliothèque au plafond. La
-  fenêtre par photo ne peut pas se tromper de cible.
-* **Ne garder que la tête.** Une révision, un aperçu : simple, et il rend
-  chaque undo coûteux d'une seconde alors que le va-et-vient sur un réglage
-  est le geste le plus ordinaire du développement.
-* **Précharger la révision suivante en arrière-plan.** Rend des images que
-  personne ne regardera dans le cas courant ; voir §2.
-* **Une commande « vider le cache ».** Ne résout rien — elle déplace le
-  problème sur l'utilisateur, qui doit d'abord découvrir qu'il en a un. Rien
-  n'interdit de l'ajouter plus tard comme confort ; ce n'est pas la réponse.
-* **Purger à l'ouverture de la bibliothèque.** Fait payer un balayage complet
-  au démarrage pour un dépassement qui, lui, arrive un aperçu à la fois.
+* **A global ceiling in gigabytes, with LRU eviction.** The first idea, and the
+  worse one: it requires a setting from the user, a size accounting, and it
+  evicts by access age — hence potentially the preview of the photo being
+  looked at, on a library at its ceiling. A window per photo cannot pick the
+  wrong target.
+* **Keeping only the head.** One revision, one preview: simple, and it makes
+  every undo cost a second when going back and forth on a setting is
+  development's most ordinary gesture.
+* **Preloading the next revision in the background.** It renders images nobody
+  will look at in the common case; see §2.
+* **An "empty the cache" command.** It solves nothing — it moves the problem
+  onto the user, who must first discover they have one. Nothing prevents adding
+  it later as a convenience; it is not the answer.
+* **Purging when the library opens.** It makes a complete sweep payable at
+  startup for an overrun that arrives one preview at a time.
