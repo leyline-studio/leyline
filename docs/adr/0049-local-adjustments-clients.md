@@ -1,169 +1,164 @@
-# ADR 0049 — Exposer les retouches locales aux clients : outils de tracé dans Studio, payload JSON dans la CLI
+# ADR 0049 — Exposing local adjustments to the clients: drawing tools in Studio, a JSON payload in the CLI
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-[ADR 0029](0029-process-6-local-adjustments.md) a livré les masques (brosse,
-radial, gradué) et [ADR 0048](0048-range-masks.md) leur raffinement par plage.
-Les deux sont **entièrement implémentés dans le moteur** : `Mask`,
-`LocalAdjustment`, `RangeMask`, la rastérisation de `mask.rs`, les étages
-`local_adjustments::v1` et `v2`, et le pilotage par
+[ADR 0029](0029-process-6-local-adjustments.md) delivered the masks (brush,
+radial, graduated) and [ADR 0048](0048-range-masks.md) their refinement by
+range. Both are **entirely implemented in the engine**: `Mask`,
+`LocalAdjustment`, `RangeMask`, `mask.rs`'s rasterization, the
+`local_adjustments::v1` and `v2` stages, and the driving through
 `Param::LocalAdjustment(index)`.
 
-Aucun client ne les expose. Ni Studio (aucune occurrence de
-`local_adjustments` sous `crates/leyline-studio/`), ni la CLI (idem). ADR 0048
-§6 l'écrivait noir sur blanc et renvoyait la question à « un travail à part
-entière » : c'est celui-ci.
+No client exposes them. Not Studio (no occurrence of `local_adjustments` under
+`crates/leyline-studio/`), and not the CLI (likewise). ADR 0048 §6 wrote it in
+so many words and deferred the question to "a piece of work in its own right":
+this is it.
 
-Le manque est le plus grave du projet. La retouche locale est la fonction
-centrale de darktable et de Lightroom, et ici elle n'est atteignable qu'en
-écrivant du JSON à la main à travers le SDK. Du code écrit, testé et gelé ne
-sert à personne.
+The gap is the project's most serious. Local retouching is the central function
+of darktable and Lightroom, and here it is reachable only by writing JSON by
+hand through the SDK. Code that is written, tested and frozen serves nobody.
 
-**Ce qui n'est pas en cause.** Le modèle de données, le référentiel de
-coordonnées ([ADR 0026](0026-mask-spot-coordinate-referential.md)), la
-sémantique des étages, la frontière SDK. Cette décision ne touche que les deux
-clients : elle n'ajoute aucun réglage, aucun étage, aucune version.
+**What is not at issue.** The data model, the coordinate frame
+([ADR 0026](0026-mask-spot-coordinate-referential.md)), the stages' semantics,
+the SDK boundary. This decision touches only the two clients: it adds no
+setting, no stage and no version.
 
-## Décision
+## Decision
 
-### 1. Une retouche locale est un *outil*, pas un curseur
+### 1. A local adjustment is a *tool*, not a slider
 
-Le panneau develop expose une liste de retouches, pas un jeu de curseurs :
-chaque entrée de `Settings::local_adjustments` est une ligne, sélectionnable,
-supprimable, et dont les valeurs se règlent en dessous. C'est la forme de
-Lightroom et de darktable, et c'est celle que le modèle impose déjà — un
-`Vec<LocalAdjustment>` piloté par index.
+The develop panel exposes a list of adjustments, not a set of sliders: each
+entry of `Settings::local_adjustments` is a row, selectable, deletable, and
+whose values are set below it. That is Lightroom's and darktable's shape, and
+it is the one the model already imposes — a `Vec<LocalAdjustment>` driven by
+index.
 
-La géométrie se **trace sur l'image**, jamais au clavier : un outil actif dans
-la barre au-dessus de la preview, comme *Crop* et *Spot Removal* le font déjà
-(ADR 0032). Trois gestes, un par géométrie :
+The geometry is **drawn on the image**, never typed: a tool active in the bar
+above the preview, as *Crop* and *Spot Removal* already do (ADR 0032). Three
+gestures, one per geometry:
 
-| Outil | Geste | Ce qu'il écrit |
+| Tool | Gesture | What it writes |
 | :--- | :--- | :--- |
-| Radial | un glissement | l'ellipse inscrite dans le rectangle glissé, `angle: 0` |
-| Gradué | un glissement | l'axe : appui = couverture pleine, relâché = couverture nulle |
-| Brosse | des clics | un `BrushStroke` par clic, ajouté au tracé |
+| Radial | a drag | the ellipse inscribed in the dragged rectangle, `angle: 0` |
+| Graduated | a drag | the axis: press = full coverage, release = zero coverage |
+| Brush | clicks | one `BrushStroke` per click, added to the stroke |
 
-`Mask::Everything` (ADR 0048 §1) n'a pas de géométrie à tracer : il s'ajoute
-depuis le panneau, par un bouton, ce qui est exactement l'emploi prévu — une
-plage sans géométrie.
+`Mask::Everything` (ADR 0048 §1) has no geometry to draw: it is added from the
+panel, by a button, which is exactly the intended use — a range with no
+geometry.
 
-### 2. Le geste crée l'entrée ; il n'y a pas d'entrée vide
+### 2. The gesture creates the entry; there is no empty entry
 
-`Settings::validate()` refuse un `Mask::Brush` sans dab. Une brosse ne peut
-donc pas être créée avant son premier coup, et l'interface ne fait pas
-semblant du contraire : le premier dab de l'outil Brosse **crée** la retouche,
-les suivants l'allongent. Radial et gradué, dont la géométrie est complète dès
-le relâchement, suivent la même règle par cohérence : le glissement crée.
+`Settings::validate()` refuses a `Mask::Brush` with no dab. A brush therefore
+cannot be created before its first stroke, and the interface does not pretend
+otherwise: the Brush tool's first dab **creates** the adjustment, and the
+following ones lengthen it. Radial and graduated, whose geometry is complete on
+release, follow the same rule for consistency: the drag creates.
 
-Une entrée sélectionnée est retracée au lieu d'être doublée — le même
-glissement sur une retouche radiale déjà sélectionnée remplace sa géométrie.
-Sans cela, corriger un radial mal placé demanderait de le supprimer d'abord.
+A selected entry is redrawn rather than duplicated — the same drag on an
+already-selected radial adjustment replaces its geometry. Without that,
+correcting a badly placed radial would require deleting it first.
 
-### 3. Valeur neutre = *absente*, sauf la balance des blancs
+### 3. Neutral value = *absent*, except white balance
 
-`LocalAdjustmentValues` est un jeu d'`Option` : `None` signifie « pas de
-changement ici », ce qui n'est pas la même chose que « 0 ». Pour les huit
-champs dont le neutre *est* zéro (exposition, contraste, hautes lumières,
-ombres, blancs, noirs, éclat, saturation), la distinction n'a aucune
-conséquence de rendu, et un curseur ramené à zéro écrit donc `None` : le
-`settings_json` reste propre, et la retouche n'énumère que ce qu'elle change.
+`LocalAdjustmentValues` is a set of `Option`s: `None` means "no change here",
+which is not the same as "0". For the eight fields whose neutral *is* zero
+(exposure, contrast, highlights, shadows, whites, blacks, vibrance,
+saturation), the distinction has no rendering consequence, and a slider brought
+back to zero therefore writes `None`: the `settings_json` stays clean, and the
+adjustment enumerates only what it changes.
 
-`temperature` et `tint` n'ont pas cette propriété — `temperature: 0` est
-refusé par `validate()`, et 0 n'est pas un neutre de teinte. La paire est donc
-pilotée par un interrupteur explicite, qui l'amorce à la température globale
-de la photo quand on l'active et la remet à `None` quand on l'éteint. Même
-raisonnement pour les deux termes de `RangeMask`, dont `None` est la seule
-manière de dire « pas de terme ».
+`temperature` and `tint` do not have that property — `temperature: 0` is
+refused by `validate()`, and 0 is not a neutral tint. The pair is therefore
+driven by an explicit switch, which seeds it with the photo's global
+temperature when turned on and sets it back to `None` when turned off. The same
+reasoning for `RangeMask`'s two terms, for which `None` is the only way to say
+"no term".
 
-### 4. La CLI prend le JSON stocké, pas une grammaire de son invention
+### 4. The CLI takes the stored JSON, not a grammar of its own invention
 
 ```
-leyline develop <lib> <ver> local-adjustment <json|@fichier>
+leyline develop <lib> <ver> local-adjustment <json|@file>
 leyline develop <lib> <ver> local-adjustment rm <index>
 leyline develop <lib> <ver> local-adjustment reset
 ```
 
-Le payload est **exactement** la forme sérialisée d'un `LocalAdjustment`, celle
-que `settings_json` contient et que `docs/pipeline.md` §3.2 documente. Une
-grammaire positionnelle à la manière de `spot-removal` demanderait sept à
-douze champs dans un ordre à retenir, plus une syntaxe imbriquée pour `range` —
-soit un second dialecte à documenter, à valider et à faire vieillir en
-parallèle du premier.
+The payload is **exactly** the serialized form of a `LocalAdjustment`, the one
+`settings_json` contains and `docs/pipeline.md` §3.2 documents. A positional
+grammar in the manner of `spot-removal` would demand seven to twelve fields in
+an order to be remembered, plus a nested syntax for `range` — that is, a second
+dialect to document, to validate and to age in parallel with the first.
 
-Le JSON est validé par `Settings::validate()` comme n'importe quel réglage :
-un payload mal formé ou hors bornes est une erreur nommée, pas un silence.
-`@fichier` lit le payload sur disque, parce qu'un masque de brosse à trente dabs n'entre
-pas dans une ligne de commande.
+The JSON is validated by `Settings::validate()` like any setting: a malformed
+or out-of-range payload is a named error, not a silence. `@file` reads the
+payload from disk, because a brush mask with thirty dabs does not fit on a
+command line.
 
-### 5. Ce que l'interface montre de la couverture
+### 5. What the interface shows of the coverage
 
-Studio dessine le **contour** de la géométrie sélectionnée sur la preview —
-l'ellipse d'un radial, l'axe d'un gradué, les dabs d'une brosse — calculé côté
-UI à partir de la géométrie stockée, sans rien demander au moteur.
+Studio draws the **outline** of the selected geometry on the preview — a
+radial's ellipse, a graduated filter's axis, a brush's dabs — computed on the
+UI side from the stored geometry, asking nothing of the engine.
 
-Le contour ne reflète pas la rotation d'une ellipse (`angle`) : les outils
-n'en écrivent jamais — un glissement à deux coins n'a pas de rotation à
-rapporter (§1) — et une ellipse inclinée écrite par la CLI ou le SDK montre
-donc son contour non tourné.
+The outline does not reflect an ellipse's rotation (`angle`): the tools never
+write one — a two-corner drag has no rotation to report (§1) — and a tilted
+ellipse written by the CLI or the SDK therefore shows its outline unrotated.
 
-Il ne dessine **pas** la couverture réelle en surimpression (le « masque rouge »
-de Lightroom). Cette couverture inclut le terme de plage, donc dépend des
-pixels : la produire demanderait au moteur un rendu de masque, c'est-à-dire une
-nouvelle sortie de rendu à spécifier, à mettre en cache et à mettre à l'échelle
-comme la preview (ADR 0041). C'est une décision de moteur, séparable, et son
-absence ne bloque pas le geste : le contour suffit à savoir *où* on a tracé.
+It does **not** draw the real coverage as an overlay (Lightroom's "red mask").
+That coverage includes the range term, and therefore depends on the pixels:
+producing it would demand a mask rendering from the engine, that is, a new
+render output to specify, to cache and to scale like the preview (ADR 0041).
+That is an engine decision, separable, and its absence does not block the
+gesture: the outline is enough to know *where* one has drawn.
 
-### 6. Hors périmètre
+### 6. Out of scope
 
-* **La surimpression de couverture calculée par le moteur** (§5), y compris
-  pour le terme de plage.
-* **La sélection de plage par pipette** sur un pixel désigné (les points de
-  contrôle de DxO), déjà nommée comme faisable sans décision moteur par
-  ADR 0048 §6 — elle demande une pipette, donc sa propre tranche.
-* **Le déplacement d'une géométrie déjà tracée par poignées.** Retracer
-  remplace (§2) ; des poignées sont de l'ergonomie pure, ajoutable après.
-* **La copie de retouches locales entre photos.** `SettingsGroup`
-  (`docs/presets.md` §3.1) ne comporte pas de groupe pour elles, et lui en
-  ajouter un touche les presets, pas les clients.
+* **The engine-computed coverage overlay** (§5), including for the range term.
+* **Range selection by eyedropper** on a designated pixel (DxO's control
+  points), already named as feasible with no engine decision by ADR 0048 §6 —
+  it requires an eyedropper, and hence its own slice.
+* **Moving an already-drawn geometry by handles.** Redrawing replaces (§2);
+  handles are pure ergonomics, addable afterwards.
+* **Copying local adjustments between photos.** `SettingsGroup`
+  (`docs/presets.md` §3.1) has no group for them, and adding one touches the
+  presets, not the clients.
 
-## Conséquences
+## Consequences
 
-* **Le moteur cesse d'avoir des fonctions inaccessibles.** Les deux ADR les
-  plus coûteuses en pixels (0029, 0048) deviennent utilisables par un
-  photographe, ce qui était leur objet.
-* **La barre d'outils de develop passe de trois outils à six**, sur le même
-  mécanisme d'`active-tool` : aucun nouveau chemin d'interaction, aucune
-  nouvelle convention de coordonnées — la boîte à lettres de `letterbox_unit`
-  sert les trois nouveaux gestes comme elle sert le crop et le spot.
-* **Les règles de décodage restent pures et testées** dans `crate::masks`
-  (Studio), libres de tout type Slint, comme `crate::develop` l'est déjà.
-* **La CLI gagne un payload JSON, ce qu'aucune autre commande n'avait.** C'est
-  assumé et borné à ce cas : la justification (§4) est la profondeur de la
-  structure, pas la commodité.
-* **`ui/state/mask.slint` est le huitième global de domaine** (ADR 0045 §1).
-  Il porte la liste des retouches, les trois champs de la brosse **et la ligne
-  sélectionnée** : celle-ci traverse la frontière parce qu'un geste qui *crée*
-  une retouche doit la sélectionner depuis Rust (§2). L'outil actif et les
-  replis, que Rust ne lit jamais, restent privés au panneau.
+* **The engine stops having unreachable functions.** The two ADRs most costly
+  in pixels (0029, 0048) become usable by a photographer, which was their
+  point.
+* **Develop's toolbar goes from three tools to six**, on the same `active-tool`
+  mechanism: no new interaction path and no new coordinate convention —
+  `letterbox_unit`'s letterbox serves the three new gestures as it serves crop
+  and spot.
+* **The decoding rules stay pure and tested** in `crate::masks` (Studio), free
+  of any Slint type, as `crate::develop` already is.
+* **The CLI gains a JSON payload, which no other command had.** That is
+  accepted and bounded to this case: the justification (§4) is the structure's
+  depth, not convenience.
+* **`ui/state/mask.slint` is the eighth domain global** (ADR 0045 §1). It
+  carries the list of adjustments, the brush's three fields **and the selected
+  row**: the last crosses the boundary because a gesture that *creates* an
+  adjustment must select it from Rust (§2). The active tool and the collapse
+  states, which Rust never reads, stay private to the panel.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Une grammaire positionnelle dans la CLI**, par symétrie avec
-  `spot-removal`. Écartée au §4 : un second dialecte pour la même structure.
-* **Des champs numériques dans Studio pour la géométrie** (cx, cy, rx, ry…).
-  Écrit vite, inutilisable : personne ne place un radial en tapant des
-  pourcentages. Le tracé est le geste, ce qui est précisément pourquoi les
-  concurrents n'offrent que lui.
-* **Un curseur « désactivé » par champ** plutôt que la règle « neutre =
-  absent » du §3. Deux fois plus de contrôles pour distinguer deux états dont
-  le rendu est identique.
-* **Attendre la surimpression de couverture pour livrer l'interface.** Cela
-  garderait la fonction centrale du logiciel inaccessible en attendant une
-  décision de moteur indépendante. Le contour (§5) est ce qui rend le tracé
-  utilisable ; le reste est un raffinement.
-* **Exposer les masques uniquement dans la CLI**, en attendant une refonte de
-  l'interface. La CLI ne sert pas le geste : tracer une brosse en JSON n'est
-  pas retoucher.
+* **A positional grammar in the CLI**, by symmetry with `spot-removal`.
+  Rejected in §4: a second dialect for the same structure.
+* **Numeric fields in Studio for the geometry** (cx, cy, rx, ry…). Quick to
+  write, unusable: nobody places a radial by typing percentages. Drawing is the
+  gesture, which is precisely why the competitors offer nothing else.
+* **A "disabled" toggle per field** rather than §3's "neutral = absent" rule.
+  Twice as many controls to distinguish two states whose rendering is
+  identical.
+* **Waiting for the coverage overlay before shipping the interface.** That
+  would keep the software's central function unreachable while waiting for an
+  independent engine decision. The outline (§5) is what makes drawing usable;
+  the rest is a refinement.
+* **Exposing masks in the CLI only**, while waiting for an interface redesign.
+  The CLI does not serve the gesture: drawing a brush in JSON is not
+  retouching.

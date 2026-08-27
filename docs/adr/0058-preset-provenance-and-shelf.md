@@ -1,168 +1,158 @@
-# ADR 0058 — Les préréglages : rangés, lisibles avant d'être appliqués, et traçables jusqu'à la photo
+# ADR 0058 — Presets: filed, legible before being applied, and traceable down to the photo
 
-**Statut :** Accepté — 2026-08
+**Status:** Accepted — 2026-08
 
-## Contexte
+## Context
 
-Un préréglage de développement, chez Leyline aujourd'hui : un nom, un JSON de
-réglages partiels, une date. Une liste plate, dans un menu. On peut en créer
-un, l'appliquer, le supprimer — et c'est tout. Ni dossier, ni favori, ni
-modification : un préréglage qu'on veut corriger se supprime et se recrée.
+A develop preset in Leyline today: a name, a JSON of partial settings, a date.
+A flat list, in a menu. One can create one, apply it, delete it — and that is
+all. No folder, no favourite, no modification: a preset one wants to correct is
+deleted and recreated.
 
-Lightroom fait mieux sur le rangement : panneau de gauche, dossiers, favoris,
-aperçu au survol. C'est une attente légitime dès qu'on dépasse une dizaine de
-préréglages, et il n'y a aucune raison de faire moins bien.
+Lightroom does better on filing: a left panel, folders, favourites, a preview
+on hover. That is a legitimate expectation as soon as one goes past a dozen
+presets, and there is no reason to do worse.
 
-**Mais Lightroom a un trou, et il est structurel.** Une fois le préréglage
-appliqué, *le lien est perdu* : rien, dans le catalogue, ne dit qu'une photo
-a été développée avec *Kodak Gold*. La conséquence est un scénario que tout
-photographe connaît et qu'aucun outil ne résout :
+**But Lightroom has a hole, and it is structural.** Once the preset is applied,
+*the link is lost*: nothing in the catalog says a photo was developed with
+*Kodak Gold*. The consequence is a scenario every photographer knows and no
+tool solves:
 
-> j'ai amélioré mon préréglage après avoir traité 340 photos d'un mariage.
-> Lesquelles ?
+> I improved my preset after processing 340 photos from a wedding. Which ones?
 
-Chez Leyline, la réponse est à portée de main pour une raison d'architecture,
-pas de fonctionnalité : **appliquer un préréglage produit déjà une révision
-ordinaire** ([ADR 0014](0014-develop-presets.md), `docs/presets.md` §2). Il
-manque seulement que la révision dise *d'où elle vient*.
+In Leyline the answer is within reach for an architectural reason, not a
+functional one: **applying a preset already produces an ordinary revision**
+([ADR 0014](0014-develop-presets.md), `docs/presets.md` §2). All that is
+missing is for the revision to say *where it comes from*.
 
-## Décision
+## Decision
 
-### 1. Les préréglages ont un domicile : un panneau gauche dans develop
+### 1. Presets have a home: a left panel in develop
 
-[ADR 0054](0054-first-run-and-basic-mode.md) §2 les a sortis du panneau de
-droite avec une raison qui tient toujours : **la droite est la modification en
-cours, pas la bibliothèque des modifications**. Leur place est donc à gauche,
-là où [ADR 0055](0055-library-navigation.md) §2 a déjà mis ce qu'on *choisit*
-— dossiers, collections. Develop gagne le même panneau, portant une seule
-chose : les préréglages.
+[ADR 0054](0054-first-run-and-basic-mode.md) §2 took them out of the right
+panel with a reason that still holds: **the right is the modification in
+progress, not the library of modifications**. Their place is therefore on the
+left, where [ADR 0055](0055-library-navigation.md) §2 has already put what one
+*chooses* — folders, collections. Develop gains the same panel, carrying a
+single thing: the presets.
 
-Il se replie avec `Tab` comme les autres (ADR 0055 §6).
+It collapses with `Tab` like the others (ADR 0055 §6).
 
-### 2. Rangés : un niveau de dossiers, et des favoris
+### 2. Filed: one level of folders, and favourites
 
-Les dossiers sont **une table**, pas un préfixe dans le nom : ils se
-renomment, se suppriment (leurs préréglages remontent à la racine, rien n'est
-perdu) et peuvent être vides. Un favori est un drapeau, et les favoris
-s'affichent en tête.
+Folders are **a table**, not a prefix in the name: they can be renamed, deleted
+(their presets move up to the root, nothing is lost) and can be empty. A
+favourite is a flag, and favourites are shown first.
 
-**Un seul niveau.** Lightroom n'en propose pas davantage, personne ne s'en
-plaint, et une profondeur arbitraire ici ne rangerait rien de plus qu'elle ne
-compliquerait.
+**One level only.** Lightroom offers no more, nobody complains, and an
+arbitrary depth here would file nothing more than it would complicate.
 
-### 3. Lisibles avant d'être appliqués
+### 3. Legible before being applied
 
-Le panneau dit **ce que le préréglage change**, en clair — « Exposition +0,35 ·
-Contraste +12 · Température 5200 K » — et non pas seulement son nom.
+The panel says **what the preset changes**, in plain terms — "Exposure +0.35 ·
+Contrast +12 · Temperature 5200 K" — and not merely its name.
 
-C'est possible parce que nos réglages sont structurés, et c'est exactement ce
-que Lightroom ne montre pas : là-bas, un préréglage est une boîte fermée qu'on
-ne comprend qu'en l'appliquant, puis en annulant.
+That is possible because our settings are structured, and it is exactly what
+Lightroom does not show: there, a preset is a closed box one understands only
+by applying it and then undoing.
 
-### 4. Essayables sans être appliqués
+### 4. Triable without being applied
 
-Survoler un préréglage montre la photo courante **avec**, sans rien écrire.
-Trois garde-fous, parce qu'un rendu n'est pas gratuit :
+Hovering a preset shows the current photo **with** it, writing nothing. Three
+safeguards, because a render is not free:
 
-* le survol doit durer (un quart de seconde) avant de déclencher quoi que ce
-  soit — parcourir une liste ne déclenche rien ;
-* **un seul rendu en vol** : le suivant attend, et un résultat qui arrive pour
-  un préréglage qu'on ne survole plus est jeté ;
-* c'est un aperçu, jamais une révision. Quitter le survol rend la photo telle
-  qu'elle est vraiment.
+* the hover must last (a quarter of a second) before triggering anything —
+  running down a list triggers nothing;
+* **one render in flight** at a time: the next waits, and a result arriving for
+  a preset no longer hovered is thrown away;
+* it is a preview, never a revision. Leaving the hover returns the photo as it
+  really is.
 
-### 5. Traçables : la révision dit de quel préréglage elle vient
+### 5. Traceable: the revision says which preset it comes from
 
-Une révision produite par l'application d'un préréglage enregistre **lequel**,
-et **dans quelle version** de ce préréglage.
+A revision produced by applying a preset records **which one**, and **in which
+version** of that preset.
 
-**Dans le catalogue, pas dans `settings_json`.** C'est le point sensible de
-cette décision : `settings_json` est le contrat de *rendu*, et
-[ADR 0043](0043-collapse-prerelease-render-history.md) a montré ce que coûte
-un champ étranger dans ce document. Une provenance n'est pas une entrée du
-pipeline : deux photos aux mêmes réglages doivent rendre les mêmes pixels,
-qu'elles viennent d'un préréglage ou de douze curseurs déplacés à la main.
-Elle vit donc dans deux colonnes de `develop_revisions`, nullables, que le
-moteur de rendu ne lit jamais.
+**In the catalog, not in `settings_json`.** That is this decision's sensitive
+point: `settings_json` is the *render* contract, and
+[ADR 0043](0043-collapse-prerelease-render-history.md) showed what a foreign
+field in that document costs. A provenance is not a pipeline input: two photos
+with the same settings must render the same pixels, whether they come from a
+preset or from twelve sliders moved by hand. It therefore lives in two nullable
+columns of `develop_revisions`, which the render engine never reads.
 
-### 6. Un préréglage a une version, et se met à jour
+### 6. A preset has a version, and can be updated
 
-Aujourd'hui on ne peut que créer et supprimer. Un préréglage devient
-modifiable, et chaque modification **incrémente un compteur**.
+Today one can only create and delete. A preset becomes modifiable, and every
+modification **increments a counter**.
 
-Dès lors, deux questions ont une réponse — les deux que Lightroom ne sait pas
-poser :
+From then on, two questions have an answer — the two Lightroom cannot ask:
 
-* « quelles photos ont été développées avec *Kodak Gold* ? » ;
-* « lesquelles l'ont été avec une version antérieure à l'actuelle ? »
+* "which photos were developed with *Kodak Gold*?";
+* "which of them were, with a version earlier than the current one?"
 
-Et la réponse à « repasse-le sur celles-là » est **un lot de révisions
-ordinaires** : annulables une par une, visibles dans l'historique, comme tout
-le reste.
+And the answer to "run it again over those" is **a batch of ordinary
+revisions**: undoable one by one, visible in the history, like everything else.
 
-### 7. Rien ne se met à jour tout seul
+### 7. Nothing updates itself
 
-Modifier un préréglage ne touche **aucune** révision existante — c'est déjà la
-règle de `docs/presets.md` §2, et cette décision ne l'écorne pas. Les photos
-déjà développées gardent leurs pixels ; le catalogue sait seulement dire
-qu'elles ont été faites avec une version antérieure, et l'utilisateur décide.
-Un préréglage qui changerait une photo sans qu'on l'ait demandé serait
-l'inverse exact de la promesse du projet.
+Modifying a preset touches **no** existing revision — that is already
+`docs/presets.md` §2's rule, and this decision does not chip at it. Photos
+already developed keep their pixels; the catalog can only say they were made
+with an earlier version, and the user decides. A preset that changed a photo
+without being asked would be the exact reverse of the project's promise.
 
-### 8. Le catalogue migre, il ne se réimporte pas
+### 8. The catalog migrates, it is not re-imported
 
-Deux colonnes et deux tables en plus : c'est **additif**, et le mécanisme de
-migration incrémentale (`docs/catalog.md` §34) est fait pour ça. Rien à voir
-avec ADR 0043, qui changeait la forme d'un *rendu stocké* et n'avait donc rien
-à migrer de sensé. Ici une bibliothèque existante s'ouvre et continue.
+Two columns and two tables more: it is **additive**, and the incremental
+migration mechanism (`docs/catalog.md` §34) is made for that. Nothing like ADR
+0043, which changed the shape of a *stored rendering* and therefore had nothing
+sensible to migrate. Here an existing library opens and carries on.
 
-## Hors périmètre
+## Out of scope
 
-* **Des préréglages livrés avec l'application.** `docs/vision.md` refuse que
-  l'éditeur impose un goût, et ADR 0054 §4 l'avait déjà écarté.
-* **Le dosage d'un préréglage** (le curseur *Amount* de Lightroom).
-  Interpoler une carte de réglages partiels n'a pas de sens pour un booléen,
-  un chemin de fichier ou un masque ; il faudrait décider *quoi* se dose, ce
-  qui est une décision à part entière.
-* **Importer les préréglages Lightroom** (`.xmp`). C'est le levier d'adoption
-  le plus évident de tout ce document, et c'est précisément pour ça qu'il ne
-  se traite pas en passant : traduire les noms de paramètres d'Adobe vers les
-  nôtres est une promesse de compatibilité, avec ses cas où l'équivalent
-  n'existe pas. Sa propre ADR.
-* **Les dossiers imbriqués** (§2).
-* **Partager un préréglage entre bibliothèques** : le format JSON est déjà
-  autonome (`docs/presets.md` §2), mais l'import/export de fichiers est un
-  sujet de distribution, pas de rangement.
+* **Presets shipped with the application.** `docs/vision.md` refuses to let the
+  publisher impose a taste, and ADR 0054 §4 had already rejected it.
+* **A preset's amount** (Lightroom's *Amount* slider). Interpolating a map of
+  partial settings makes no sense for a boolean, a file path or a mask; one
+  would have to decide *what* is dosed, which is a decision in its own right.
+* **Importing Lightroom presets** (`.xmp`). It is the most obvious adoption
+  lever in this whole document, and that is precisely why it cannot be handled
+  in passing: translating Adobe's parameter names into ours is a compatibility
+  promise, with its cases where the equivalent does not exist. Its own ADR.
+* **Nested folders** (§2).
+* **Sharing a preset between libraries**: the JSON format is already
+  self-contained (`docs/presets.md` §2), but importing and exporting files is a
+  distribution subject, not a filing one.
 
-## Conséquences
+## Consequences
 
-* **Le catalogue passe en schéma 2** : `preset_folders`, trois colonnes sur
-  `develop_presets` (dossier, favori, version) et deux sur
-  `develop_revisions` (préréglage d'origine, version de ce préréglage).
-  `docs/catalog.md` est mis à jour.
-* **Develop gagne un panneau gauche**, qui n'existait pas — et avec lui la
-  place où poser, plus tard, ce qui se *choisit* plutôt que ce qui se règle.
-* **La CLI gagne deux commandes** pour ne pas rester en retrait de Studio
-  (ADR 0011) : mettre à jour un préréglage depuis une photo, et le repasser
-  sur les photos qui en portent une version antérieure.
-* **Aucun pixel ne change.** Aucun étage, aucune version d'étage, aucune ligne
-  de `settings_json` : la promesse de reproductibilité est intacte, et c'est
-  la condition qui rendait cette décision acceptable.
+* **The catalog moves to schema 2**: `preset_folders`, three columns on
+  `develop_presets` (folder, favourite, version) and two on `develop_revisions`
+  (the originating preset, that preset's version). `docs/catalog.md` is
+  updated.
+* **Develop gains a left panel**, which did not exist — and with it the place
+  to put, later, what is *chosen* rather than what is adjusted.
+* **The CLI gains two commands** so as not to fall behind Studio (ADR 0011):
+  updating a preset from a photo, and running it again over the photos that
+  carry an earlier version of it.
+* **No pixel changes.** No stage, no stage version, and not a line of
+  `settings_json`: the reproducibility promise is intact, and that was the
+  condition that made this decision acceptable.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Mettre la provenance dans `settings_json`.** Le document du rendu doit
-  rester le document du rendu (§5). Un champ de plus, et l'on retrouve
-  exactement la situation qu'ADR 0043 a dû nettoyer.
-* **Une table de liaison `révision ↔ préréglage`.** Plus normalisée, mais une
-  révision est *un* commit : appliquer deux préréglages fait deux révisions.
-  Deux colonnes disent la même chose sans jointure.
-* **Ré-appliquer automatiquement un préréglage modifié** à toutes ses photos
-  (« presets dynamiques »). Séduisant et faux : la révision d'hier deviendrait
-  différente aujourd'hui sans que personne ne l'ait demandé (§7).
-* **Ranger par préfixe dans le nom** (`Film / Kodak Gold`), au lieu d'une
-  table de dossiers. Gratuit à écrire, et le renommage d'un dossier devient
-  une réécriture de N noms, l'ordre dépend de la ponctuation, et un dossier
-  vide n'existe pas.
-* **Aperçu au survol sans délai ni file.** Une liste de cinquante préréglages
-  parcourue au curseur lancerait cinquante rendus (§4).
+* **Putting the provenance in `settings_json`.** The render's document must stay
+  the render's document (§5). One more field, and one is back in exactly the
+  situation ADR 0043 had to clean up.
+* **A `revision ↔ preset` link table.** More normalized, but a revision is
+  *one* commit: applying two presets makes two revisions. Two columns say the
+  same thing without a join.
+* **Automatically re-applying a modified preset** to all its photos ("dynamic
+  presets"). Appealing and wrong: yesterday's revision would become different
+  today without anyone asking (§7).
+* **Filing by a prefix in the name** (`Film / Kodak Gold`), instead of a folder
+  table. Free to write, and renaming a folder becomes a rewriting of N names,
+  the order depends on the punctuation, and an empty folder does not exist.
+* **A hover preview with no delay and no queue.** A list of fifty presets run
+  through with the cursor would launch fifty renders (§4).
