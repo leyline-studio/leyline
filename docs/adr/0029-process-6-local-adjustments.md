@@ -1,245 +1,229 @@
-# ADR 0029 — Process 6 : réglages locaux masqués (brosse, radial, gradient)
+# ADR 0029 — Process 6: masked local adjustments (brush, radial, gradient)
 
-**Statut :** Accepté — 2026-07
-**Suite :** `local_adjustments::v1`, que cet ADR crée, n'est plus la version
-courante. [ADR 0048](0048-range-masks.md) lui ajoute les masques par plage
-(`v2`), puis [ADR 0070](0070-stored-mask-coverage.md) les couvertures
-**stockées** (`v3`) — un masque n'est donc plus nécessairement une géométrie.
-Les trois familles décidées ici — brosse, radial, gradient — et leur
-référentiel de coordonnées ([ADR 0026](0026-mask-spot-coordinate-referential.md))
-sont inchangés.
+**Status:** Accepted — 2026-07
+**Follow-up:** `local_adjustments::v1`, which this ADR creates, is no longer the
+current version. [ADR 0048](0048-range-masks.md) adds range masks to it (`v2`),
+then [ADR 0070](0070-stored-mask-coverage.md) **stored** coverages (`v3`) — a
+mask is therefore no longer necessarily a geometry. The three families decided
+here — brush, radial, gradient — and their coordinate frame
+([ADR 0026](0026-mask-spot-coordinate-referential.md)) are unchanged.
 
-## Contexte
+## Context
 
-`docs/v2-scope.md` §2 (« Réglages locaux / masqués ») est l'item **fondateur**
-de la V2 : il introduit la notion générique de *masque* — une couverture
-spatiale `[0,1]` par pixel — au-dessus de laquelle un sous-ensemble de
-`Settings` s'applique localement plutôt que globalement. Le §9 le confirme
-comme l'infrastructure sur laquelle s'adossent la suppression de tache (§5),
-le dehaze masqué (§6) et le color grading régional (§3). Aujourd'hui, tout
-`Settings` s'applique globalement (`crates/leyline-core/src/settings.rs`) ;
-aucun réglage spatialement restreint n'existe.
+`docs/v2-scope.md` §2 ("Local / masked adjustments") is V2's **founding** item:
+it introduces the generic notion of a *mask* — a spatial coverage `[0,1]` per
+pixel — over which a subset of `Settings` applies locally rather than globally.
+§9 confirms it as the infrastructure on which spot removal (§5), masked dehaze
+(§6) and regional colour grading (§3) rest. Today, every `Settings` applies
+globally (`crates/leyline-core/src/settings.rs`); no spatially restricted
+setting exists.
 
-Trois ADR ont déjà tranché les verrous transversaux qui pesaient sur cet
-item, chacun explicitement « en amont » pour ne pas être re-dérivé ici :
+Three ADRs have already settled the cross-cutting locks that weighed on this
+item, each explicitly "upstream" so as not to be re-derived here:
 
-* **ADR 0026** fixe le référentiel de coordonnées de toute géométrie de
-  masque : normalisée `[0,1]` relative à l'image après rotation, avant
-  recadrage — le même que `crop` — et impose au moteur de la faire remonter
-  au tampon pré-rotation par la même famille de remapping arrière que
-  `rotate`/la correction d'objectif. Ce document **ne rouvre pas** ce choix ;
-  il le consomme.
-* **ADR 0028** fige la stratégie de versionnage : une process version par
-  fonctionnalité pixel, chacune dans son propre module `processN.rs` gelé,
-  créé en copiant le module précédent entier. Ce document **applique** cette
-  convention sans la re-litiger.
-* **ADR 0027** élargit la gestion des couleurs en sortie sans toucher
-  l'espace de travail interne du pipeline — sans rapport direct ici, mais il
-  confirme que le rendu interne reste sRGB, l'espace où les opérateurs
-  tonals/couleur (que les masques réutilisent) sont définis.
+* **ADR 0026** fixes the coordinate frame of every mask geometry: normalized
+  `[0,1]` relative to the image after rotation, before cropping — the same as
+  `crop` — and requires the engine to carry it back to the pre-rotation buffer by
+  the same backward-remapping family as `rotate`/lens correction. This document
+  **does not reopen** that choice; it consumes it.
+* **ADR 0028** fixes the versioning strategy: one process version per pixel
+  feature, each in its own frozen `processN.rs` module, created by copying the
+  previous module whole. This document **applies** that convention without
+  re-litigating it.
+* **ADR 0027** widens output colour management without touching the pipeline's
+  internal working space — not directly relevant here, but it confirms that the
+  internal rendering stays sRGB, the space where the tonal/colour operators (which
+  the masks reuse) are defined.
 
-Ce que ces trois ADR ont **laissé ouvert** pour l'item 2 lui-même
-(`docs/v2-scope.md` §2, questions 2 et 3) : le **stockage** des masques
-(traits vectoriels dans `settings_json` vs table dédiée), et la
-**coalescence** (un trait de brosse est-il une intention ou un geste continu
-à coalescer comme un drag de curseur ?). ADR 0026 note explicitement que ces
-deux points « restent à trancher par l'ADR propre à chaque fonctionnalité ».
-Ce document les tranche, en même temps qu'il fixe la place de l'étage dans le
-pipeline, ce qu'un masque peut régler, et le placement crate.
+What those three ADRs **left open** for item 2 itself (`docs/v2-scope.md` §2,
+questions 2 and 3): the **storage** of masks (vector strokes in `settings_json`
+vs a dedicated table), and **coalescing** (is a brush stroke an intent, or a
+continuous gesture to be coalesced like a slider drag?). ADR 0026 explicitly
+notes that those two points "remain to be settled by each feature's own ADR".
+This document settles them, at the same time as it fixes the stage's place in
+the pipeline, what a mask can adjust, and the crate placement.
 
-Le moteur numérote aujourd'hui `CURRENT_PROCESS = 5`
-(`crates/leyline-core/src/settings.rs`) ; cet ajout pixel prend donc le
+The engine today numbers `CURRENT_PROCESS = 5`
+(`crates/leyline-core/src/settings.rs`); this pixel addition therefore takes
 **process 6**.
 
-## Décision
+## Decision
 
-Les réglages locaux masqués sont **process 6**, dans un nouveau module
-`crates/leyline-engine/src/process6.rs`, copie intégrale de `process5.rs`
-augmentée du seul étage nouveau — exactement la convention de duplication par
-module réaffirmée par ADR 0028. Trois types de masque sont dans le périmètre :
-**brosse**, **radial** et **gradient (linéaire)**.
+Masked local adjustments are **process 6**, in a new module
+`crates/leyline-engine/src/process6.rs`, a whole copy of `process5.rs`
+augmented with the single new stage — exactly the per-module duplication
+convention reaffirmed by ADR 0028. Three mask types are in scope: **brush**,
+**radial** and **gradient (linear)**.
 
-### Place dans le pipeline
+### Place in the pipeline
 
-Un nouvel étage **« Réglages locaux »** s'insère dans l'ordre fixe de
-`docs/pipeline.md` §3.1 **immédiatement après Vibrance/Saturation et avant
-Réduction du bruit**. Les réglages locaux réutilisent exactement la même
-mathématique d'opérateur tonal/couleur que les réglages globaux (exposition,
-contraste, hautes lumières/ombres, blancs/noirs, balance des blancs,
-vibrance/saturation), simplement re-paramétrée par masque et fondue par
-couverture. Les faire tourner en **une passe masquée supplémentaire, juste
-après la passe globale équivalente**, évite de propager la conscience du
-masque dans le site d'appel de chaque opérateur global : c'est la plus petite
-insertion correcte, pas une refonte du pipeline.
+A new **"Local adjustments"** stage is inserted into the fixed order of
+`docs/pipeline.md` §3.1 **immediately after Vibrance/Saturation and before
+Noise reduction**. Local adjustments reuse exactly the same tonal/colour
+operator mathematics as the global settings (exposure, contrast,
+highlights/shadows, whites/blacks, white balance, vibrance/saturation), simply
+re-parameterized per mask and blended by coverage. Running them as **one extra
+masked pass, just after the equivalent global pass**, avoids propagating mask
+awareness into every global operator's call site: it is the smallest correct
+insertion, not a pipeline redesign.
 
-> **Note d'implémentation (pas une édition de spec ici).** Cet ADR ne modifie
-> **pas** le diagramme de `docs/pipeline.md` §3.1. Ce diagramme décrit le
-> pipeline **tel qu'implémenté** ; contrairement à la correction d'objectif
-> (qui était déjà un champ nommé mais inerte depuis le schéma 1), cet étage
-> **n'existe pas encore** dans le code. Conformément à CLAUDE.md, la spec est
-> mise à jour dans le même changement que l'implémentation réelle, pas dans
-> cet ADR de pré-décision. Le présent document fixe seulement **où** l'étage
-> atterrira ; le diagramme §3.1 et le tableau des process versions §3.3
-> seront amendés par la PR qui livre `process6.rs`.
+> **Implementation note (not a spec edit here).** This ADR does **not** modify
+> `docs/pipeline.md` §3.1's diagram. That diagram describes the pipeline **as
+> implemented**; unlike lens correction (which was already a named but inert
+> field since schema 1), this stage **does not yet exist** in the code. Per
+> CLAUDE.md, the spec is updated in the same change as the actual
+> implementation, not in this pre-decision ADR. The present document fixes only
+> **where** the stage will land; §3.1's diagram and §3.3's process-version table
+> will be amended by the PR that ships `process6.rs`.
 >
-> *(Fait. Cette note décrit l'état du dépôt le jour de la décision : l'étage
-> a été livré, et `pipeline.md` amendé avec lui. Le tableau des process
-> versions qu'elle annonce n'existe plus sous cette forme — la révision porte
-> désormais sa carte d'étages, [ADR 0042](0042-versioned-stage-pipeline.md).)*
+> *(Done. This note describes the repository's state on the day of the decision:
+> the stage has shipped, and `pipeline.md` was amended with it. The
+> process-version table it announces no longer exists in that form — the revision
+> now carries its stage map, [ADR 0042](0042-versioned-stage-pipeline.md).)*
 
-### Référentiel de coordonnées
+### Coordinate frame
 
-Repris d'**ADR 0026 sans modification** : la géométrie de chaque masque est
-stockée en coordonnées normalisées `[0,1]` relatives à l'image après
-rotation, avant recadrage. L'étage process 6 tourne sur un tampon encore dans
-l'orientation décodée/corrigée-objectif ; il fait remonter la géométrie au
-tampon pré-rotation en appliquant la transformation **inverse** de la rotation
-en attente, la même technique de remapping arrière que `rotate`/`crop`
-(`process2.rs:446`, `:507`) et la correction d'objectif (`process3.rs`).
-Aucune décision nouvelle ici : ADR 0026 est cité, pas re-dérivé.
+Taken from **ADR 0026 without modification**: each mask's geometry is stored in
+normalized `[0,1]` coordinates relative to the image after rotation, before
+cropping. The process 6 stage runs on a buffer still in the
+decoded/lens-corrected orientation; it carries the geometry back to the
+pre-rotation buffer by applying the **inverse** of the pending rotation, the
+same backward-remapping technique as `rotate`/`crop` (`process2.rs:446`,
+`:507`) and lens correction (`process3.rs`). No new decision here: ADR 0026 is
+cited, not re-derived.
 
-### Ce qu'un masque peut régler
+### What a mask can adjust
 
-Un sous-ensemble restreint de `Settings`, réutilisant **exactement les mêmes
-champs et formules d'opérateur** que leurs équivalents globaux : balance des
-blancs (température/teinte), exposition, contraste, hautes lumières, ombres,
-blancs, noirs, vibrance, saturation.
+A restricted subset of `Settings`, reusing **exactly the same operator fields
+and formulas** as their global equivalents: white balance (temperature/tint),
+exposure, contrast, highlights, shadows, whites, blacks, vibrance, saturation.
 
-Sont **explicitement hors périmètre** d'un réglage masqué en V2 : correction
-d'objectif, réduction du bruit, netteté, rotation/recadrage. Ils restent
-**globaux uniquement** (voir *Conséquences* et *Alternatives écartées* pour le
-raisonnement — même esprit qu'ADR 0016 retranchant vignettage/TCA du process
-3). Ce sont soit des réglages qui n'ont pas de sens spatialement restreint
-(rotation/recadrage **définissent** le cadre lui-même), soit des réglages qui
-ouvrent des questions bien plus larges (noyaux de netteté/débruitage variant
-spatialement, correction d'objectif interagissant avec un remapping arrière
-par pixel qui a déjà lieu à un autre étage) — aucune n'a besoin d'être résolue
-pour livrer l'infrastructure de masquage de base.
+**Explicitly out of scope** for a masked setting in V2: lens correction, noise
+reduction, sharpening, rotation/cropping. They stay **global only** (see
+*Consequences* and *Alternatives rejected* for the reasoning — the same spirit
+as ADR 0016 cutting vignetting/TCA from process 3). They are either settings
+that make no sense spatially restricted (rotation/cropping **define** the frame
+itself), or settings that open far wider questions (spatially varying
+sharpening/denoising kernels, lens correction interacting with a per-pixel
+backward remapping that already happens at another stage) — none of which needs
+solving to ship the basic masking infrastructure.
 
-### Placement crate
+### Crate placement
 
-**Aucun nouveau crate.**
+**No new crate.**
 
-* Les **types de géométrie et de valeurs** des masques vivent dans
-  `leyline-core::Settings` — le même crate que `Crop`, `NoiseReduction`,
-  `Sharpening`.
-* La **rastérisation** (masque → couverture `[0,1]` par pixel) et le
-  **compositing** vivent dans `leyline-engine`, dans un nouveau module (p. ex.
-  `mask.rs`) consommé par `process6.rs` — le même schéma que `rotate`/`crop`
-  qui vivent directement dans les modules process.
+* The masks' **geometry and value types** live in `leyline-core::Settings` —
+  the same crate as `Crop`, `NoiseReduction`, `Sharpening`.
+* **Rasterization** (mask → `[0,1]` coverage per pixel) and **compositing**
+  live in `leyline-engine`, in a new module (e.g. `mask.rs`) consumed by
+  `process6.rs` — the same pattern as `rotate`/`crop`, which live directly in
+  the process modules.
 
-Contraste explicite avec `leyline-lens` : ce crate est séparé parce qu'il
-enveloppe une dépendance externe (Lensfun) et une base de profils externe. Le
-masquage n'enveloppe **rien** d'externe : c'est de la géométrie pure,
-étroitement couplée au tampon de rendu et à son échantillonnage. Une frontière
-de crate séparerait deux choses qui ont besoin de partager les internes de
-tampon/échantillonnage, pour aucun bénéfice à un consommateur hors moteur —
-Studio, la CLI et le SDK n'appellent jamais la rastérisation de masque
-directement, seulement `EditSession`.
+An explicit contrast with `leyline-lens`: that crate is separate because it
+wraps an external dependency (Lensfun) and an external profile database.
+Masking wraps **nothing** external: it is pure geometry, tightly coupled to the
+render buffer and its sampling. A crate boundary would separate two things that
+need to share buffer/sampling internals, for no benefit to any consumer outside
+the engine — Studio, the CLI and the SDK never call mask rasterization directly,
+only `EditSession`.
 
-### Stockage — résout `docs/v2-scope.md` §2 question 2
+### Storage — resolves `docs/v2-scope.md` §2 question 2
 
-Tout vit dans `settings_json`, **aucune table dédiée**.
+Everything lives in `settings_json`, **no dedicated table**.
 
-* Les masques **paramétriques** (radial, gradient) sont quelques flottants
-  chacun — trivialement compacts.
-* Les masques **brosse** stockent la **liste de traits** (points ordonnés,
-  chacun avec x/y/rayon/flux/dureté), **jamais un bitmap rastérisé** —
-  reproductible et portable, cohérent avec `docs/catalog.md` §17 (« une
-  révision = un état complet et autonome »).
+* **Parametric** masks (radial, gradient) are a few floats each — trivially
+  compact.
+* **Brush** masks store the **stroke list** (ordered points, each with
+  x/y/radius/flow/hardness), **never a rasterized bitmap** — reproducible and
+  portable, consistent with `docs/catalog.md` §17 ("one revision = a complete,
+  self-contained state").
 
-Comme ADR 0028 le raisonne à propos de la prolifération des modules process :
-si les listes de traits devenaient un jour un vrai problème de volume, ce sera
-le problème d'un futur ADR **avec des données réelles**, pas quelque chose à
-résoudre spéculativement aujourd'hui.
+As ADR 0028 reasons about process-module proliferation: if stroke lists ever
+became a real volume problem, that will be a future ADR's problem **with real
+data**, not something to solve speculatively today.
 
-### Extension de l'API — résout `docs/v2-scope.md` §2 question 3
+### API extension — resolves `docs/v2-scope.md` §2 question 3
 
-**Aucun mécanisme nouveau.** Le cycle de vie complet d'un masque
-(créer/éditer/supprimer) s'exprime par les `set`/`commit` existants plus deux
-variantes ajoutées aux enums déjà en place (`session.rs`) :
+**No new mechanism.** A mask's whole life cycle (create/edit/delete) is
+expressed by the existing `set`/`commit` plus two variants added to the enums
+already in place (`session.rs`):
 
-* `Param` gagne **`LocalAdjustment(usize)`**, où l'indice adresse la position
-  d'un masque dans le tableau `local_adjustments` courant. Cette variante
-  regroupe la géométrie du masque **et** ses curseurs de réglage comme une
-  seule unité de coalescence — exactement le schéma déjà utilisé par
-  `Param::WhiteBalance`, documenté « *White balance override (temperature +
-  tint together: one tool)* ». Un masque est « un outil » au même sens.
-* `Value` gagne **`LocalAdjustment(Option<LocalAdjustment>)`** : `Some`
-  remplace la définition complète du masque (remplacement de struct entière,
-  même schéma que `Value::Crop(Option<Crop>)`/`NoiseReduction`/`Sharpening` —
-  aucun patch de champ partiel n'existe nulle part dans cette API) ; `None`
-  **supprime** ce masque (miroir de `Crop` dont `None` = plein cadre, de
-  `WhiteBalance` dont `None` = retour au « tel que pris »).
+* `Param` gains **`LocalAdjustment(usize)`**, where the index addresses a mask's
+  position in the current `local_adjustments` array. That variant groups the
+  mask's geometry **and** its adjustment sliders as a single coalescing unit —
+  exactly the pattern already used by `Param::WhiteBalance`, documented as
+  "*White balance override (temperature + tint together: one tool)*". A mask is
+  "one tool" in the same sense.
+* `Value` gains **`LocalAdjustment(Option<LocalAdjustment>)`**: `Some` replaces
+  the mask's whole definition (whole-struct replacement, the same pattern as
+  `Value::Crop(Option<Crop>)`/`NoiseReduction`/`Sharpening` — no partial field
+  patch exists anywhere in this API); `None` **deletes** that mask (mirroring
+  `Crop`, whose `None` = full frame, and `WhiteBalance`, whose `None` = back to
+  "as shot").
 
-La coalescence réutilise **la règle existante inchangée** :
+Coalescing reuses **the existing rule unchanged**:
 
-* Un **trait de brosse complet** — appui souris à relâchement — est exactement
-  **un point de commit** sous la règle existante de `docs/catalog.md` §17
-  (« *l'utilisateur relâche un contrôle (fin de drag)* »). Aucune règle
-  nouvelle n'est inventée.
-* Des éditions successives du **même indice de masque** dans la fenêtre
-  d'amendement de 2 secondes existante amendent la révision de tête —
-  exactement la règle d'amendement par `Param` déjà réalisée par le mécanisme
-  `Pending::One(Param)` de `session.rs`, appliquée telle quelle à la nouvelle
-  variante.
+* A **complete brush stroke** — mouse down to release — is exactly **one commit
+  point** under the existing rule of `docs/catalog.md` §17 ("*the user releases a
+  control (end of drag)*"). No new rule is invented.
+* Successive edits to the **same mask index** within the existing 2-second
+  amendment window amend the head revision — exactly the per-`Param` amendment
+  rule already realized by `session.rs`'s `Pending::One(Param)` mechanism,
+  applied as it stands to the new variant.
 
-**Conséquence explicite : aucun mécanisme de coalescence nouveau, aucune
-méthode `EditSession` nouvelle** (pas d'`add_mask`/`remove_mask`). La surface
-de session reste la même minimale (`set`/`commit`/`undo`/`redo`) qu'aujourd'hui.
+**Explicit consequence: no new coalescing mechanism, no new `EditSession`
+method** (no `add_mask`/`remove_mask`). The session surface stays as minimal
+(`set`/`commit`/`undo`/`redo`) as it is today.
 
-### Composition / rendu
+### Composition / rendering
 
-Les masques s'appliquent **séquentiellement dans l'ordre du tableau** —
-l'ordre du tableau est le **seul** ordre d'empilement (pas de champ z-index ni
-d'identifiant séparé : la position dans le tableau est le seul mécanisme
-d'ordre, à l'image du pipeline fixe lui-même qui n'a pas de concept de
-réordonnancement au-delà de sa structure déclarée).
+Masks apply **sequentially in array order** — array order is the **only**
+stacking order (no z-index field and no separate identifier: position in the
+array is the sole ordering mechanism, in the image of the fixed pipeline itself,
+which has no reordering concept beyond its declared structure).
 
-Pour chaque masque, dans l'ordre :
+For each mask, in order:
 
-1. rastériser sa couverture (`[0,1]` par pixel, remontée au tampon
-   pré-rotation par ADR 0026) ;
-2. multiplier par l'opacité du masque ;
-3. fondre :
+1. rasterize its coverage (`[0,1]` per pixel, carried back to the pre-rotation
+   buffer by ADR 0026);
+2. multiply by the mask's opacity;
+3. blend:
    `output = lerp(buffer, apply_local_operators(buffer, mask.adjustments), coverage)`.
 
-Le masque suivant lit la sortie de ce masque. `apply_local_operators` réutilise
-les **mêmes formules d'opérateur par pixel** que le global (re-paramétrées par
-masque), **pas** de nouvel algorithme : c'est pourquoi le process 6
-n'introduit **aucune mathématique tonale nouvelle**, seulement une application
-masquée de mathématique existante.
+The next mask reads this mask's output. `apply_local_operators` reuses the
+**same per-pixel operator formulas** as the global ones (re-parameterized per
+mask), **not** a new algorithm: that is why process 6 introduces **no new tonal
+mathematics**, only a masked application of existing mathematics.
 
-Un tableau `local_adjustments` **absent ou vide** saute l'étage entier, sortie
-**bit-pour-bit identique** à celle du process 5 — ce qui préserve l'invariant
-« *a parameter at its neutral value skips its operator entirely, so the
-neutral rendering is bit-for-bit the decoded image* » documenté en tête de
+An **absent or empty** `local_adjustments` array skips the whole stage, output
+**bit-for-bit identical** to process 5's — which preserves the invariant "*a
+parameter at its neutral value skips its operator entirely, so the neutral
+rendering is bit-for-bit the decoded image*" documented at the head of
 `process3.rs`.
 
-### Schéma
+### Schema
 
-**Additif** : un tableau optionnel `local_adjustments`, absent/vide = neutre.
-**Aucun bump de schéma requis**, cohérent avec le schéma additif « process +1,
-schema inchangé » de la plupart des items V2 (`docs/v2-scope.md` §1) — les
-champs inconnus d'un moteur ancien sont déjà préservés verbatim
-(`Settings::extra`, `leyline-core/src/settings.rs`).
+**Additive**: an optional `local_adjustments` array, absent/empty = neutral.
+**No schema bump required**, consistent with the additive "process +1, schema
+unchanged" scheme of most V2 items (`docs/v2-scope.md` §1) — fields unknown to
+an older engine are already preserved verbatim (`Settings::extra`,
+`leyline-core/src/settings.rs`).
 
-### Presets — coupe de périmètre explicite
+### Presets — an explicit scope cut
 
 `SettingsGroup` (`docs/engine-api.md` §10.3,
-`crates/leyline-core/src/settings.rs`) **ne gagne pas** de variante
-`LocalAdjustments` en V2. La géométrie de masque est **spécifique à la
-composition** : un filtre radial positionné pour le sujet d'une photo n'a aucun
-sens appliqué verbatim à une autre photo — contrairement aux décalages
-purement numériques de `Tone`/`Presence` qui transfèrent réellement d'une
-photo à l'autre. C'est une coupe délibérée, pas un oubli (même esprit que
-`SettingsGroup::Geometry`, déjà exclu par défaut des presets parce que « *geometry
-is a per-photo judgment, not a reproducible style* »).
+`crates/leyline-core/src/settings.rs`) **does not gain** a `LocalAdjustments`
+variant in V2. Mask geometry is **composition-specific**: a radial filter
+positioned for one photo's subject makes no sense applied verbatim to another
+photo — unlike the purely numeric offsets of `Tone`/`Presence`, which really do
+transfer from one photo to another. It is a deliberate cut, not an oversight
+(the same spirit as `SettingsGroup::Geometry`, already excluded from presets by
+default because "*geometry is a per-photo judgment, not a reproducible style*").
 
-### Esquisse JSON
+### JSON sketch
 
-Une instance de chaque type dans `local_adjustments`, plus le cas neutre. Le
-style suit `docs/pipeline.md` §3.2 :
+One instance of each type in `local_adjustments`, plus the neutral case. The
+style follows `docs/pipeline.md` §3.2:
 
 ```json
 {
@@ -287,8 +271,8 @@ style suit `docs/pipeline.md` §3.2 :
 }
 ```
 
-Cas neutre — tableau absent (ou `"local_adjustments": []`), rendu bit-pour-bit
-identique au process 5 :
+Neutral case — array absent (or `"local_adjustments": []`), render bit-for-bit
+identical to process 5:
 
 ```json
 {
@@ -298,98 +282,90 @@ identique au process 5 :
 }
 ```
 
-Chaque `mask` porte les champs de balance des blancs dans `adjustments` sous la
-même forme que `WhiteBalance` global (`temperature`/`tint`), et les curseurs
-`[-100, +100]` sous la même forme que leurs équivalents globaux : réutilisation
-de vocabulaire, aucune unité nouvelle.
+Each `mask` carries the white balance fields in `adjustments` in the same form
+as the global `WhiteBalance` (`temperature`/`tint`), and the `[-100, +100]`
+sliders in the same form as their global equivalents: vocabulary reuse, no new
+units.
 
-## Conséquences
+## Consequences
 
-* **Le champ `process` garde sa lisibilité sémantique** (ADR 0028) :
-  `process: 6` signifiera exactement « réglages locaux masqués actifs », un
-  fait unique et lisible, comme `process: 3` signifie « correction de
-  distorsion active ».
-* **Sortie neutre gelée** : sans masque, le process 6 est bit-pour-bit le
-  process 5. L'invariant « valeur neutre → opérateur entièrement sauté »
-  (`process3.rs`) reste vrai, mécaniquement, pour l'étage entier.
-* **Aucune surface de session nouvelle** : masques créés/édités/supprimés
-  entièrement par `set`/`commit` plus les deux variantes `Param`/`Value`. Le
-  reste du moteur (jobs, événements, coalescence, amendement) n'est pas touché.
-* **La coupe des réglages masquables** (objectif, débruitage, netteté,
-  rotation/recadrage restent globaux) laisse ces quatre chantiers ouverts pour
-  un futur ADR, sans bloquer l'infrastructure de base. Un réglage masqué de
-  débruitage/netteté demanderait des noyaux variant spatialement ; un objectif
-  masqué interagirait avec le remapping arrière déjà en cours à l'étage
-  correction d'objectif — questions réelles, mais non nécessaires pour livrer
-  le cœur.
-* **La coupe des presets** signifie que les styles restent transférables
-  (offsets numériques) sans traîner de géométrie non transférable ; le color
-  grading régional (`docs/v2-scope.md` §3, §4) pourra rouvrir la question de
-  presets régionaux le moment venu, avec son propre ADR.
-* **Un module `processN.rs` de plus** (ADR 0028) : coût borné et connu, la
-  trajectoire reste linéaire. Aucun module de version antérieure n'est touché ;
-  le gel « mêmes pixels dans dix ans » reste mécaniquement infalsifiable
-  (`docs/pipeline.md` §3.3).
-* **Le contrat de reproductibilité** (`docs/pipeline.md` §5) est respecté : les
-  masques brosse stockent des traits vectoriels déterministes (jamais un raster
-  dépendant du rendu), la rastérisation et le compositing sont purs et
-  déterministes comme tout opérateur (ADR 0012), et tout se sérialise dans
-  `settings_json` — « même révision → mêmes pixels ».
-* **La spec `docs/pipeline.md` (§3.1, §3.3) n'est pas éditée par cet ADR** :
-  elle le sera par la PR d'implémentation, conformément à CLAUDE.md.
+* **The `process` field keeps its semantic legibility** (ADR 0028):
+  `process: 6` will mean exactly "masked local adjustments active", a single,
+  readable fact, as `process: 3` means "distortion correction active".
+* **Frozen neutral output**: with no mask, process 6 is bit-for-bit process 5.
+  The invariant "neutral value → operator entirely skipped" (`process3.rs`) stays
+  true, mechanically, for the whole stage.
+* **No new session surface**: masks created/edited/deleted entirely through
+  `set`/`commit` plus the two `Param`/`Value` variants. The rest of the engine
+  (jobs, events, coalescing, amendment) is untouched.
+* **The cut in maskable settings** (lens, denoising, sharpening,
+  rotation/cropping stay global) leaves those four undertakings open for a future
+  ADR, without blocking the basic infrastructure. A masked denoising/sharpening
+  setting would require spatially varying kernels; a masked lens correction would
+  interact with the backward remapping already under way at the lens correction
+  stage — real questions, but not necessary to ship the core.
+* **The preset cut** means styles stay transferable (numeric offsets) without
+  dragging non-transferable geometry along; regional colour grading
+  (`docs/v2-scope.md` §3, §4) will be able to reopen the question of regional
+  presets when the time comes, with its own ADR.
+* **One more `processN.rs` module** (ADR 0028): a bounded, known cost, the
+  trajectory stays linear. No earlier version module is touched; the "same pixels
+  in ten years" freeze stays mechanically unfalsifiable (`docs/pipeline.md` §3.3).
+* **The reproducibility contract** (`docs/pipeline.md` §5) is respected: brush
+  masks store deterministic vector strokes (never a render-dependent raster),
+  rasterization and compositing are pure and deterministic like any operator
+  (ADR 0012), and everything serializes into `settings_json` — "same revision →
+  same pixels".
+* **The `docs/pipeline.md` spec (§3.1, §3.3) is not edited by this ADR**: it
+  will be by the implementation PR, per CLAUDE.md.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Propager le masquage dans chaque opérateur global au lieu d'un étage
-  post-passe.** On aurait pu rendre chaque opérateur global (exposition,
-  contraste…) conscient du masque à son propre site d'appel, plutôt que
-  d'ajouter une passe masquée après Vibrance/Saturation. Écarté : cela
-  disperserait la logique de masque dans une dizaine de sites d'appel, chacun
-  devant échantillonner la couverture et fondre, alors que la mathématique
-  d'opérateur est déjà écrite et gelée ; une seule passe supplémentaire, qui
-  réutilise ces mêmes formules re-paramétrées, est la plus petite insertion
-  correcte. Cela multiplierait aussi les points où une régression pourrait
-  altérer le rendu global — exactement ce que la duplication par module
-  (ADR 0028) existe pour éviter.
-* **Une table de traits de brosse dédiée au lieu de `settings_json`.** Un blob
-  ou une table par révision pour les traits résoudrait un hypothétique problème
-  de volume. Écarté : cela casse « une révision = un état complet et autonome »
-  (`docs/catalog.md` §17), le socle de la portabilité et de la reproductibilité,
-  au profit d'une optimisation dont aucune donnée réelle ne montre le besoin.
-  Comme ADR 0028 le pose pour la prolifération des modules : si le volume
-  devient un vrai problème un jour, ce sera le problème d'un futur ADR avec des
-  données réelles.
-* **De nouvelles méthodes `EditSession` dédiées (`add_mask`/`remove_mask`/…)
-  au lieu d'étendre `Param`/`Value`.** Écarté : cela dupliquerait le mécanisme
-  de coalescence/amendement — chaque nouvelle méthode devrait re-décider
-  amendement vs nouvelle révision. Une variante `Param::LocalAdjustment(usize)`
-  hérite gratuitement de toute la politique `Pending::One`/fenêtre d'amendement
-  existante (`session.rs`), exactement comme `Param::WhiteBalance` regroupe
-  déjà deux valeurs (température + teinte) en un outil. La surface de session
-  reste minimale et le comportement de coalescence uniforme sur tous les
-  paramètres.
-* **Inclure objectif / débruitage / netteté / rotation-recadrage dans le jeu
-  masquable de V2.** Écarté comme coupe délibérée (esprit d'ADR 0016 coupant
-  vignettage/TCA du process 3). Rotation et recadrage définissent le cadre
-  lui-même : « masqué » n'y a pas de sens. Débruitage et netteté masqués
-  exigeraient des noyaux variant spatialement — un problème algorithmique
-  substantiel. La correction d'objectif interagirait avec le remapping arrière
-  par pixel déjà appliqué à un autre étage. Aucun de ces quatre n'est requis
-  pour l'infrastructure de masquage de base ; les inclure gonflerait le
-  process 6 avec des questions non résolues et retarderait le socle dont les
-  items 3/5/6 dépendent.
-* **Un nouveau crate `leyline-mask` parallèle à `leyline-lens`.** Écarté :
-  `leyline-lens` est un crate séparé parce qu'il enveloppe une dépendance
-  externe (Lensfun) et une base de profils externe. Le masquage n'enveloppe
-  rien d'externe — c'est de la géométrie pure, étroitement couplée aux internes
-  de tampon et d'échantillonnage du moteur, que seul `process6.rs` consomme.
-  Une frontière de crate séparerait deux choses qui doivent partager ces
-  internes, sans bénéfice pour aucun consommateur hors moteur (Studio/CLI/SDK
-  n'appellent que `EditSession`). Un module `leyline-engine::mask` est le bon
-  grain, comme `rotate`/`crop` vivent directement dans les modules process.
-* **Traiter « filtre gradué » et « dégradé linéaire » comme deux types
-  distincts.** `docs/v2-scope.md` §2 les liste séparément. Écarté comme un
-  quatrième type : Lightroom emploie les deux noms pour un seul mécanisme — un
-  dégradé linéaire adouci en travers du cadre. Le périmètre est donc de trois
-  types (brosse, radial, gradient), pas quatre ; c'est une clarification de
-  périmètre, pas un type inventé pour coller à la lettre du wording.
+* **Propagating masking into every global operator instead of a post-pass
+  stage.** One could have made every global operator (exposure, contrast…)
+  mask-aware at its own call site, rather than adding a masked pass after
+  Vibrance/Saturation. Rejected: it would scatter mask logic across a dozen call
+  sites, each having to sample the coverage and blend, when the operator
+  mathematics is already written and frozen; one extra pass, reusing those same
+  re-parameterized formulas, is the smallest correct insertion. It would also
+  multiply the points where a regression could alter the global rendering —
+  exactly what per-module duplication (ADR 0028) exists to avoid.
+* **A dedicated brush-stroke table instead of `settings_json`.** A blob or a
+  per-revision table for the strokes would solve a hypothetical volume problem.
+  Rejected: it breaks "one revision = a complete, self-contained state"
+  (`docs/catalog.md` §17), the foundation of portability and reproducibility, in
+  favour of an optimization no real data shows a need for. As ADR 0028 puts it
+  for module proliferation: if volume becomes a real problem one day, that will
+  be a future ADR's problem with real data.
+* **New dedicated `EditSession` methods (`add_mask`/`remove_mask`/…) instead of
+  extending `Param`/`Value`.** Rejected: it would duplicate the
+  coalescing/amendment mechanism — every new method would have to re-decide
+  amendment vs new revision. A `Param::LocalAdjustment(usize)` variant inherits
+  the whole existing `Pending::One`/amendment-window policy (`session.rs`) for
+  free, exactly as `Param::WhiteBalance` already groups two values (temperature +
+  tint) into one tool. The session surface stays minimal and coalescing behaviour
+  uniform across all parameters.
+* **Including lens / denoising / sharpening / rotation-cropping in V2's
+  maskable set.** Rejected as a deliberate cut (the spirit of ADR 0016 cutting
+  vignetting/TCA from process 3). Rotation and cropping define the frame itself:
+  "masked" has no meaning there. Masked denoising and sharpening would require
+  spatially varying kernels — a substantial algorithmic problem. Lens correction
+  would interact with the per-pixel backward remapping already applied at another
+  stage. None of those four is required for the basic masking infrastructure;
+  including them would swell process 6 with unresolved questions and delay the
+  foundation items 3/5/6 depend on.
+* **A new `leyline-mask` crate parallel to `leyline-lens`.** Rejected:
+  `leyline-lens` is a separate crate because it wraps an external dependency
+  (Lensfun) and an external profile database. Masking wraps nothing external — it
+  is pure geometry, tightly coupled to the engine's buffer and sampling
+  internals, consumed only by `process6.rs`. A crate boundary would separate two
+  things that must share those internals, with no benefit to any consumer outside
+  the engine (Studio/CLI/SDK only call `EditSession`). A `leyline-engine::mask`
+  module is the right grain, as `rotate`/`crop` live directly in the process
+  modules.
+* **Treating "graduated filter" and "linear gradient" as two distinct types.**
+  `docs/v2-scope.md` §2 lists them separately. Rejected as a fourth type:
+  Lightroom uses both names for a single mechanism — a linear gradient feathered
+  across the frame. The scope is therefore three types (brush, radial, gradient),
+  not four; that is a scope clarification, not a type invented to match the
+  letter of the wording.
