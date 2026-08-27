@@ -183,9 +183,16 @@ fn thumbnail(path: &Path, media_type: MediaType) -> Option<Vec<u8>> {
 pub(crate) fn file_image(path: &Path, media_type: MediaType) -> Option<RawImage> {
     match media_type {
         MediaType::Raw | MediaType::Dng => embedded_preview(path),
-        // Decoded whole, then reduced. More expensive than the embedded
-        // preview of a RAW, and the only thing these formats offer.
-        MediaType::Jpeg | MediaType::Png | MediaType::Tiff => {
+        // A JPEG is its own preview, and asking its DCT for an eighth costs
+        // half the decode (ADR 0083 §3). The fallback is the full decode the
+        // develop pipeline uses, which stays exactly as it was.
+        MediaType::Jpeg => std::fs::read(path)
+            .ok()
+            .and_then(|bytes| decode_jpeg(&bytes, THUMBNAIL_EDGE))
+            .map(|(image, _)| image)
+            .or_else(|| crate::source::decode(path, &leyline_raw::DecodeParams::default()).ok()),
+        // Decoded whole, then reduced: no DCT to ask anything of.
+        MediaType::Png | MediaType::Tiff => {
             crate::source::decode(path, &leyline_raw::DecodeParams::default()).ok()
         }
         MediaType::Heif | MediaType::Psd | MediaType::Other => None,
@@ -202,7 +209,7 @@ fn embedded_preview(path: &Path) -> Option<RawImage> {
     let thumb = leyline_raw::thumbnail(path).ok()??;
     match thumb.kind {
         ThumbnailKind::Jpeg(bytes) => {
-            let (image, tagged) = decode_jpeg_with_orientation(&bytes)?;
+            let (image, tagged) = decode_jpeg(&bytes, THUMBNAIL_EDGE)?;
             Some(if tagged {
                 image
             } else {
@@ -214,17 +221,17 @@ fn embedded_preview(path: &Path) -> Option<RawImage> {
     }
 }
 
-/// Decodes an in-memory JPEG, applying its own EXIF orientation, and says
-/// whether it carried one.
-fn decode_jpeg_with_orientation(bytes: &[u8]) -> Option<(RawImage, bool)> {
-    use image::ImageDecoder as _;
-
-    let reader = image::ImageReader::new(std::io::Cursor::new(bytes))
-        .with_guessed_format()
-        .ok()?;
-    let mut decoder = reader.into_decoder().ok()?;
-    let orientation = decoder.orientation().ok()?;
-    let mut decoded = image::DynamicImage::from_decoder(decoder).ok()?;
+/// Decodes an in-memory JPEG down to roughly `min_edge`, applies its own EXIF
+/// orientation, and says whether it carried one (ADR 0083).
+///
+/// Nothing here needs the full image: a thumbnail throws all but 256 pixels
+/// away. The JPEG's own DCT can skip that work — but only by a factor of 8 at
+/// best, the entropy decode having to walk the whole scan whatever scale is
+/// asked for.
+fn decode_jpeg(bytes: &[u8], min_edge: u32) -> Option<(RawImage, bool)> {
+    let orientation = jpeg_orientation(bytes)?;
+    let rgb = scaled_rgb(bytes, min_edge).or_else(|| full_rgb(bytes))?;
+    let mut decoded = image::DynamicImage::ImageRgb8(rgb);
     decoded.apply_orientation(orientation);
     let rgb = decoded.into_rgb8();
     Some((
@@ -236,6 +243,50 @@ fn decode_jpeg_with_orientation(bytes: &[u8]) -> Option<(RawImage, bool)> {
         },
         orientation != image::metadata::Orientation::NoTransforms,
     ))
+}
+
+/// The EXIF orientation of an in-memory JPEG, read from its headers alone.
+///
+/// Left to the `image` crate: it is the one that applies it too, and ADR 0082
+/// defused the trap here — LibRaw does not rotate an embedded preview, most
+/// bodies tag it, and honouring both the tag and the RAW's flip rotates twice.
+fn jpeg_orientation(bytes: &[u8]) -> Option<image::metadata::Orientation> {
+    use image::ImageDecoder as _;
+
+    let reader = image::ImageReader::new(std::io::Cursor::new(bytes))
+        .with_guessed_format()
+        .ok()?;
+    reader.into_decoder().ok()?.orientation().ok()
+}
+
+/// Decodes at the smallest DCT scale that still reaches `min_edge`.
+///
+/// `None` for anything this shortcut cannot read — a colour space that is not
+/// plain RGB, a scan it refuses — so the caller falls back on the full decode
+/// rather than costing the file its thumbnail.
+fn scaled_rgb(bytes: &[u8], min_edge: u32) -> Option<image::RgbImage> {
+    let edge = u16::try_from(min_edge).ok()?;
+    let mut decoder = jpeg_decoder::Decoder::new(std::io::Cursor::new(bytes));
+    // `scale` reports the size it settled on: 1/8, 1/4, 1/2 or 1 of the
+    // original, never what was asked for. Nothing computes that factor here.
+    let (width, height) = decoder.scale(edge, edge).ok()?;
+    let pixels = decoder.decode().ok()?;
+    if decoder.info()?.pixel_format != jpeg_decoder::PixelFormat::RGB24 {
+        return None;
+    }
+    image::RgbImage::from_raw(u32::from(width), u32::from(height), pixels)
+}
+
+/// The full decode, unchanged: the path every JPEG took before ADR 0083.
+fn full_rgb(bytes: &[u8]) -> Option<image::RgbImage> {
+    let reader = image::ImageReader::new(std::io::Cursor::new(bytes))
+        .with_guessed_format()
+        .ok()?;
+    Some(
+        image::DynamicImage::from_decoder(reader.into_decoder().ok()?)
+            .ok()?
+            .into_rgb8(),
+    )
 }
 
 /// Applies a dcraw flip code (`RawMetadata::flip`) to an 8-bit RGB image.
@@ -273,4 +324,79 @@ fn encode_jpeg(image: &RawImage) -> Option<Vec<u8>> {
         )
         .ok()?;
     Some(bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Encodes a solid RGB JPEG of the given size, in memory.
+    fn jpeg(width: u32, height: u32) -> Vec<u8> {
+        let buffer = image::RgbImage::from_pixel(width, height, image::Rgb([90, 140, 200]));
+        let mut bytes = Vec::new();
+        image::DynamicImage::ImageRgb8(buffer)
+            .write_to(
+                &mut std::io::Cursor::new(&mut bytes),
+                image::ImageFormat::Jpeg,
+            )
+            .unwrap();
+        bytes
+    }
+
+    /// A big preview comes back reduced by the DCT, not whole (ADR 0083 §2):
+    /// small enough to prove the scale happened, never below what was asked
+    /// for, and still the same shape.
+    #[test]
+    fn a_large_jpeg_is_decoded_at_a_dct_scale() {
+        let bytes = jpeg(5184, 3456);
+        let (image, _) = decode_jpeg(&bytes, THUMBNAIL_EDGE).expect("decodable");
+
+        assert!(
+            image.width < 5184,
+            "decoded at full size: {}x{}",
+            image.width,
+            image.height
+        );
+        assert!(
+            image.width.max(image.height) >= THUMBNAIL_EDGE,
+            "decoded below the edge the thumbnail needs: {}x{}",
+            image.width,
+            image.height
+        );
+        // 5184x3456 is 3:2, and every DCT scale keeps the ratio.
+        assert_eq!(image.width * 2, image.height * 3);
+        assert_eq!(image.data.len(), (image.width * image.height * 3) as usize);
+    }
+
+    /// A preview too small to serve must stay too small. `file_thumbnail`
+    /// refuses anything under the class's edge and falls back on a real
+    /// render (ADR 0082); a scale that quietly enlarged would defeat it.
+    #[test]
+    fn a_small_jpeg_is_not_enlarged() {
+        let bytes = jpeg(160, 120);
+        let (image, _) = decode_jpeg(&bytes, THUMBNAIL_EDGE).expect("decodable");
+
+        assert_eq!((image.width, image.height), (160, 120));
+        assert!(image.width.max(image.height) < THUMBNAIL_EDGE);
+    }
+
+    /// The scaled path and the full one must agree on the picture, or a
+    /// thumbnail would change with the fallback that produced it.
+    #[test]
+    fn the_scaled_and_full_paths_agree() {
+        let bytes = jpeg(1024, 768);
+        let scaled = scaled_rgb(&bytes, THUMBNAIL_EDGE).expect("scalable");
+        let full = full_rgb(&bytes).expect("decodable");
+
+        assert_eq!(full.dimensions(), (1024, 768));
+        assert!(scaled.width() < full.width());
+        // Same flat colour, so the two decodes must land on the same pixel.
+        let (a, b) = (scaled.get_pixel(1, 1).0, full.get_pixel(1, 1).0);
+        for channel in 0..3 {
+            assert!(
+                a[channel].abs_diff(b[channel]) <= 2,
+                "scaled {a:?} against full {b:?}"
+            );
+        }
+    }
 }
