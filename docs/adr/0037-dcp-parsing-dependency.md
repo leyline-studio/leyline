@@ -1,189 +1,181 @@
-# ADR 0037 — Dépendance de parsing DCP : un lecteur de tags maison minimal au-dessus du crate `tiff` déjà lié, pas de nouvelle dépendance
+# ADR 0037 — The DCP parsing dependency: a minimal in-house tag reader on top of the already-linked `tiff` crate, no new dependency
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-ADR 0035 a tranché le placement pipeline, le crate propriétaire, la source des
-profils et la reproductibilité du profil caméra DCP — mais a laissé
-**explicitement ouverte** une seule question, renvoyée « à la PR
-d'implémentation » : la **dépendance de parsing DCP**. Elle a posé que Leyline
-écrive « un **parseur DCP maison minimal** (les seuls tags nécessaires à
-l'application) ou **intègre un crate Rust existant** (s'il en existe un
-convenable et licenciable au moment venu) », sans trancher, « cela dépend de ce
-qui est disponible et licenciable à ce moment-là ».
+ADR 0035 settled the pipeline placement, the owning crate, the source of the
+profiles and the reproducibility of the DCP camera profile — but left one
+question **explicitly open**, deferred "to the implementation PR": the **DCP
+parsing dependency**. It stated that Leyline would write "a **minimal in-house
+DCP parser** (only the tags needed by the application)" or "**integrate an
+existing Rust crate** (should a suitable and licensable one exist when the
+time comes)", without settling it, "as that depends on what is available and
+licensable at that point".
 
-Ce document résout ce seul point laissé blanc par ADR 0035. Il ne rouvre
-**rien** d'autre : ni le placement `leyline-color` (ADR 0035), ni la source des
-profils, ni la reproductibilité par checksum BLAKE3, ni la process version. Il
-remplit une case, il ne re-litige pas l'ADR précédent.
+This document resolves that single point left blank by ADR 0035. It reopens
+**nothing** else: not the `leyline-color` placement (ADR 0035), not the source
+of the profiles, not reproducibility by BLAKE3 checksum, not the process
+version. It fills in a blank; it does not relitigate the previous ADR.
 
-Faits vérifiés dans le dépôt avant décision :
+Facts verified in the repository before deciding:
 
-* Le crate **`tiff` est déjà une dépendance de l'espace de travail**, pinné
-  `tiff = "0.10"` (`Cargo.toml`, résolu à `0.10.3` dans `Cargo.lock`), consommé
-  par `leyline-export` (`crates/leyline-export/Cargo.toml : tiff.workspace =
-  true`). Il est utilisé aujourd'hui pour l'**écriture** TIFF, avec embarquement
-  du profil ICC (`crates/leyline-export/src/lib.rs` :
-  `tiff::encoder::TiffEncoder`, `tiff::tags::Tag::IccProfile`) — l'adoption
-  décidée par ADR 0015. Sa licence a donc **déjà passé la barre** de vérification
-  du projet quand il a été adopté pour l'export.
+* The **`tiff` crate is already a workspace dependency**, pinned `tiff =
+  "0.10"` (`Cargo.toml`, resolved to `0.10.3` in `Cargo.lock`), consumed by
+  `leyline-export` (`crates/leyline-export/Cargo.toml: tiff.workspace =
+  true`). It is used today for TIFF **writing**, with ICC profile embedding
+  (`crates/leyline-export/src/lib.rs`: `tiff::encoder::TiffEncoder`,
+  `tiff::tags::Tag::IccProfile`) — the adoption decided by ADR 0015. Its
+  licence has therefore **already cleared the project's bar** when it was
+  adopted for export.
 
-## Décision
+## Decision
 
-### Écrire un lecteur de tags DCP maison minimal au-dessus du crate `tiff` déjà lié
+### Write a minimal in-house DCP tag reader on top of the already-linked `tiff` crate
 
-Leyline **écrit un lecteur de tags DCP maison minimal** en s'appuyant sur les
-primitives de lecture d'IFD/tags du crate `tiff` **déjà lié** — plutôt que de
-dépendre d'un nouveau crate externe DCP-spécifique non vérifié, et plutôt que
-d'écrire un lecteur TIFF/IFD de zéro. Trois raisons :
+Leyline **writes a minimal in-house DCP tag reader**, leaning on the IFD/tag
+reading primitives of the **already-linked** `tiff` crate — rather than
+depending on a new, unvetted DCP-specific external crate, and rather than
+writing a TIFF/IFD reader from scratch. Three reasons:
 
-**1. DCP est un conteneur fondé sur les tags TIFF/EP — comme le DNG lui-même.**
-ADR 0035 l'a déjà établi : « DCP est le format d'Adobe, fondé sur les **tags
-TIFF/EP**, **pas** de l'ICC ». Leyline lie **déjà** `tiff` pour l'**écriture**
-TIFF (embarquement ICC, ADR 0015). Réutiliser ses primitives de lecture
-d'IFD/tags pour un chemin de **lecture** DCP est une **extension naturelle
-d'une dépendance déjà vérifiée et déjà liée**, pas une surface de dépendance
-inédite. C'est le même conteneur, lu au lieu d'être écrit.
+**1. DCP is a container founded on TIFF/EP tags — like DNG itself.** ADR 0035
+already established it: "DCP is Adobe's format, founded on **TIFF/EP tags**,
+**not** ICC". Leyline **already** links `tiff` for TIFF **writing** (ICC
+embedding, ADR 0015). Reusing its IFD/tag reading primitives for a DCP
+**reading** path is a **natural extension of an already vetted and already
+linked dependency**, not a novel dependency surface. It is the same container,
+read instead of written.
 
-**2. L'ensemble de tags réellement nécessaire est petit et intégralement
-documenté.** Le rendu DCP n'a besoin que d'un sous-ensemble borné de familles
-de tags, toutes publiées dans la **DNG Specification d'Adobe** — un document
-**publiquement disponible et librement distribué**, pas un format
-rétro-ingénieré ou non documenté :
+**2. The set of tags genuinely needed is small and entirely documented.** DCP
+rendering needs only a bounded subset of tag families, all published in
+Adobe's **DNG Specification** — a document **publicly available and freely
+distributed**, not a reverse-engineered or undocumented format:
 
-* les **matrices colorimétriques** (color matrices) et **matrices de
-  calibration** (calibration matrices),
-* les **illuminants de calibration** (les deux illuminants de référence),
-* les **matrices *forward*** (forward matrices, espace de connexion),
-* la **courbe tonale du profil** (profile tone curve),
-* les **tables de déformation teinte/saturation** (hue/sat map, les tables 3D
-  HSV du profil),
-* la **look table** (table de rendu esthétique du profil).
+* the **colour matrices** and **calibration matrices**,
+* the **calibration illuminants** (the two reference illuminants),
+* the **forward matrices** (the connection space),
+* the **profile tone curve**,
+* the **hue/sat map** tables (the profile's 3D HSV tables),
+* the **look table** (the profile's aesthetic rendering table).
 
-**État de livraison (process 11, 2026-07-25).** Seules les trois premières
-familles sont **effectivement lues** : `ColorMatrix1/2`, `ForwardMatrix1/2`,
-les deux illuminants de calibration, plus le nom du profil. La **courbe
-tonale**, la **hue/sat map** et la **look table** ne sont **ni analysées ni
-appliquées** — `DcpProfile` ne porte à ce jour que le nom et la matrice
-camera→XYZ(D50) résolue. Ce n'est pas un abandon de portée : la liste
-ci-dessus reste la cible de cet ADR, et un profil dont le rendu repose
-surtout sur ces tables donnera un résultat différent de celui d'Adobe tant
-qu'elles manquent. La distinction est signalée ici plutôt que laissée
-implicite, pour qu'aucun lecteur ne déduise du présent ADR une complétude
-que le code n'a pas encore.
+**Delivery status (process 11, 2026-07-25).** Only the first three families
+are **actually read**: `ColorMatrix1/2`, `ForwardMatrix1/2`, the two
+calibration illuminants, plus the profile's name. The **tone curve**, the
+**hue/sat map** and the **look table** are **neither parsed nor applied** —
+`DcpProfile` to this day carries only the name and the resolved
+camera→XYZ(D50) matrix. That is not an abandonment of scope: the list above
+remains this ADR's target, and a profile whose rendering rests mostly on those
+tables will give a result different from Adobe's while they are missing. The
+distinction is flagged here rather than left implicit, so that no reader infers
+from this ADR a completeness the code does not yet have.
 
-*(Les familles de tags sont nommées au niveau de détail que la DNG
-Specification garantit ; les identifiants numériques exacts de chaque tag sont
-laissés à la PR, qui les lira dans la spec plutôt que de les inventer ici —
-même prudence de non-invention de constantes que le reste de cette série d'ADR.)*
+*(The tag families are named at the level of detail the DNG Specification
+guarantees; each tag's exact numeric identifier is left to the PR, which will
+read them from the spec rather than invent them here — the same caution
+against inventing constants as the rest of this series of ADRs.)*
 
-C'est une situation **matériellement différente** d'un format propriétaire non
-documenté : écrire un lecteur minimal contre une spec publiée est une tâche
-**bornée et bien cadrée**, pas un effort de rétro-ingénierie ouvert.
+That is a situation **materially different** from an undocumented proprietary
+format: writing a minimal reader against a published spec is a **bounded and
+well-framed** task, not an open-ended reverse-engineering effort.
 
-**3. L'histoire de dépendance/licence reste propre.** Aucun nouveau crate
-externe à vérifier : la contrainte de licence de dépendance d'ADR 0009 (code
-sous GPL-3.0, dépendances compatibles) n'est pas re-sollicitée, puisque la
-licence de `tiff` **a déjà franchi la barre** quand il a été adopté pour
-l'export (ADR 0015). Réutiliser un crate déjà vérifié évite d'introduire — et de
-devoir re-vérifier — une dépendance DCP-spécifique tierce.
+**3. The dependency and licence story stays clean.** No new external crate to
+vet: ADR 0009's dependency licence constraint (code under GPL-3.0,
+dependencies compatible) is not re-invoked, since `tiff`'s licence **already
+cleared the bar** when it was adopted for export (ADR 0015). Reusing an
+already-vetted crate avoids introducing — and having to re-vet — a third-party
+DCP-specific dependency.
 
-### Portée du parseur — lecture seule, le petit ensemble de tags de rendu
+### The parser's scope — read-only, the small set of rendering tags
 
-Le parseur est **en lecture seule** et se limite au petit ensemble de tags
-nécessaires au rendu (ci-dessus). **Aucun support d'*authoring*/écriture DCP** :
-la V2 ne fait que **lire** des fichiers `.dcp` fournis par l'utilisateur
-(ADR 0035), elle n'en écrit jamais. Cette portée étroite est énoncée
-explicitement : elle **garde le parseur petit** et **évite tout glissement de
-périmètre** vers une boîte à outils DCP générale (édition, ré-encodage,
-conversion) que rien dans la V2 ne réclame.
+The parser is **read-only** and limited to the small set of tags needed for
+rendering (above). **No DCP *authoring*/writing support**: V2 only **reads**
+`.dcp` files supplied by the user (ADR 0035), it never writes one. That narrow
+scope is stated explicitly: it **keeps the parser small** and **prevents any
+scope creep** towards a general DCP toolkit (editing, re-encoding,
+conversion) that nothing in V2 asks for.
 
-### La correctness colorimétrique n'est PAS résolue par cet ADR
+### Colorimetric correctness is NOT resolved by this ADR
 
-Cet ADR résout **comment des octets deviennent des données structurées** — le
-container. Il **ne résout pas** si les matrices/tables ainsi lues sont
-**appliquées correctement** au sens colorimétrique. Ce sont **deux risques
-distincts** : parser le conteneur correctement, et appliquer sa science des
-couleurs correctement.
+This ADR resolves **how bytes become structured data** — the container. It
+**does not resolve** whether the matrices and tables thus read are **applied
+correctly** in the colorimetric sense. Those are **two distinct risks**:
+parsing the container correctly, and applying its colour science correctly.
 
-L'exigence de validation d'ADR 0035 **reste inchangée et n'est en rien
-affaiblie** : le chemin d'application DCP doit être **validé contre de vrais
-fichiers `.dcp` générés par Adobe et leurs rendus de référence avant toute
-sortie** — la même barre qu'ADR 0016 (« non triviaux à valider sans images de
-référence sous la main »). Cet ADR ne touche **que** le premier risque (le
-parsing du conteneur, documenté et à faible risque) ; le second (la correctness
-de la math colorimétrique face au rendu d'Adobe) demeure exactement le risque
-qu'ADR 0035 a nommé, et cet ADR ne prétend pas le refermer.
+ADR 0035's validation requirement **stays unchanged and is in no way
+weakened**: the DCP application path must be **validated against real
+Adobe-generated `.dcp` files and their reference renderings before any
+release** — the same bar as ADR 0016 ("not trivial to validate without
+reference images at hand"). This ADR touches **only** the first risk (the
+container's parsing, documented and low-risk); the second (the correctness of
+the colour mathematics against Adobe's rendering) remains exactly the risk ADR
+0035 named, and this ADR does not claim to close it.
 
-### Placement — inchangé, dans `leyline-color`
+### Placement — unchanged, in `leyline-color`
 
-Le parseur et sa logique d'interprétation des tags vivent dans
-**`leyline-color`**, cohérent avec le placement décidé par ADR 0035 (le parseur
-DCP et l'application de ses matrices/tables y vivent déjà). Cet ADR ne rouvre
-pas ce choix ; il remplit le seul détail qu'ADR 0035 avait laissé blanc.
+The parser and its tag-interpretation logic live in **`leyline-color`**,
+consistent with the placement decided by ADR 0035 (the DCP parser and the
+application of its matrices and tables already live there). This ADR does not
+reopen that choice; it fills in the single detail ADR 0035 had left blank.
 
-## Conséquences
+## Consequences
 
-* **La question de dépendance ouverte par ADR 0035 est refermée** : lecteur de
-  tags maison minimal au-dessus de `tiff` (déjà lié, déjà vérifié), pas de
-  nouveau crate DCP-spécifique, pas de lecteur TIFF/IFD de zéro.
-* **Zéro nouvelle dépendance à vérifier** : la contrainte de licence d'ADR 0009
-  n'est pas re-sollicitée, la licence de `tiff` ayant déjà franchi la barre pour
-  l'export (ADR 0015). L'histoire de dépendance reste propre.
-* **La portée reste petite et gelée** : lecture seule, sous-ensemble de tags de
-  rendu, aucun *authoring*. Pas de glissement vers une boîte à outils DCP
-  générale.
-* **Le parseur livré est un sous-ensemble de cette portée** : matrices,
-  illuminants et nom du profil seulement ; courbe tonale, hue/sat map et look
-  table restent à faire (voir « État de livraison » ci-dessus). Les
-  documenter comme lues alors qu'elles ne le sont pas ferait passer
-  l'implémentation pour plus complète qu'elle n'est.
-* **La correctness colorimétrique reste un risque ouvert, inchangé depuis
-  ADR 0035** : cet ADR résout le parsing du conteneur (documenté, borné, faible
-  risque), **pas** la fidélité de la math couleur au rendu d'Adobe. La validation
-  contre de vrais DCP Adobe et leurs rendus de référence avant sortie (barre
-  d'ADR 0016) demeure exigée telle quelle.
-* **`leyline-color` reste le foyer** du parseur et de l'application DCP
-  (ADR 0035), aux côtés du chemin de transformation ICC de sortie (ADR 0027) —
-  ce document ne déplace rien.
-* **Ne préjuge pas d'un futur système de plugins.** `docs/roadmap.md` liste
-  « Plugins, SDK stable » en Long terme, hors V2. Le lecteur DCP maison décidé
-  ici est un choix d'implémentation interne (où vit le code, aujourd'hui) —
-  il ne ferme pas la porte à un futur mécanisme d'extension (un plugin
-  fournissant un autre parseur de profil, un format supplémentaire) qui
-  s'ajouterait par-dessus, le jour où `docs/roadmap.md` aborde ce chantier.
-  Rien ici n'engage la forme de ce futur système ; ce n'est simplement pas ce
-  que cet ADR ferme.
+* **The dependency question ADR 0035 opened is closed**: a minimal in-house
+  tag reader on top of `tiff` (already linked, already vetted), no new
+  DCP-specific crate, and no TIFF/IFD reader from scratch.
+* **Zero new dependency to vet**: ADR 0009's licence constraint is not
+  re-invoked, `tiff`'s licence having already cleared the bar for export (ADR
+  0015). The dependency story stays clean.
+* **The scope stays small and frozen**: read-only, a subset of rendering tags,
+  no authoring. No creep towards a general DCP toolkit.
+* **The parser shipped is a subset of that scope**: matrices, illuminants and
+  the profile's name only; the tone curve, the hue/sat map and the look table
+  remain to be done (see "Delivery status" above). Documenting them as read
+  when they are not would make the implementation look more complete than it
+  is.
+* **Colorimetric correctness stays an open risk, unchanged since ADR 0035**:
+  this ADR resolves the container's parsing (documented, bounded, low-risk),
+  **not** the colour mathematics' fidelity to Adobe's rendering. Validation
+  against real Adobe DCPs and their reference renderings before release (ADR
+  0016's bar) remains required as it stands.
+* **`leyline-color` stays the home** of DCP parsing and application (ADR
+  0035), alongside the output ICC transform path (ADR 0027) — this document
+  moves nothing.
+* **It prejudges no future plugin system.** `docs/roadmap.md` lists "Plugins,
+  a stable SDK" under Long term, outside V2. The in-house DCP reader decided
+  here is an internal implementation choice (where the code lives, today) — it
+  does not close the door on a future extension mechanism (a plugin supplying
+  another profile parser, an additional format) that would be layered on top
+  the day `docs/roadmap.md` takes up that work. Nothing here commits to the
+  shape of that future system; it simply is not what this ADR closes.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Dépendre d'un crate externe DCP-spécifique.** Écarté : à ce jour, aucun
-  crate DCP-spécifique établi n'est connu ayant la maturité et le niveau
-  d'adoption des autres dépendances du projet (LibRaw, Lensfun, LittleCMS via
-  `lcms2`, `tiff`) — sans prétendre avoir mené un relevé exhaustif de
-  l'écosystème, aucun candidat de ce calibre ne s'impose. Introduire un tel
-  crate imposerait une nouvelle vérification de licence (ADR 0009) et une
-  nouvelle surface de dépendance non éprouvée, pour parser un conteneur dont le
-  sous-ensemble utile est petit et documenté — coût disproportionné face au
-  gain. Réutiliser `tiff`, déjà lié et déjà vérifié, évite les deux.
-* **Écrire un lecteur TIFF/IFD de zéro** plutôt que de réutiliser le crate
-  `tiff` déjà lié. Écarté : réécrirait exactement les primitives de lecture
-  d'IFD/tags que `tiff` fournit déjà et que `leyline-export` emploie déjà pour
-  l'écriture TIFF (ADR 0015). C'est du travail redondant sur un composant
-  (parsing d'IFD/tags) où une dépendance vérifiée existe déjà dans l'arbre —
-  aucune raison de le refaire à la main. Le lecteur DCP maison se limite à la
-  **couche d'interprétation des tags DCP**, au-dessus de la lecture d'IFD que
-  `tiff` porte déjà.
-* **Traiter le DCP comme un format entièrement non documenté exigeant une
-  prudence de rétro-ingénierie équivalente au report du vignettage/TCA d'ADR
-  0016.** Écarté — et il faut distinguer explicitement : le **format conteneur**
-  de DCP est **documenté** (tags TIFF/EP, DNG Specification publiée d'Adobe) et
-  **à faible risque à parser**, ce n'est pas un format rétro-ingénieré. Seule la
-  **correctness colorimétrique de son application** porte le risque de niveau
-  ADR 0016 — et ce risque-là n'est **pas** ce que cet ADR résout : il reste
-  ouvert et validé contre de vrais rendus Adobe, exactement comme ADR 0035
-  l'exige. Confondre les deux mènerait à sur-cadrer le parsing (traiter une
-  tâche bornée comme un effort ouvert) tout en sous-estimant qu'il faut encore
-  valider la math couleur séparément. Les deux risques sont distincts ; cet ADR
-  n'en referme qu'un.
+* **Depending on a DCP-specific external crate.** Rejected: as of today, no
+  established DCP-specific crate is known with the maturity and adoption level
+  of the project's other dependencies (LibRaw, Lensfun, LittleCMS through
+  `lcms2`, `tiff`) — without claiming to have conducted an exhaustive survey of
+  the ecosystem, no candidate of that calibre stands out. Introducing such a
+  crate would impose a new licence check (ADR 0009) and a new, untried
+  dependency surface, in order to parse a container whose useful subset is
+  small and documented — a cost disproportionate to the gain. Reusing `tiff`,
+  already linked and already vetted, avoids both.
+* **Writing a TIFF/IFD reader from scratch** rather than reusing the
+  already-linked `tiff` crate. Rejected: it would rewrite exactly the IFD/tag
+  reading primitives `tiff` already provides and that `leyline-export` already
+  uses for TIFF writing (ADR 0015). That is redundant work on a component
+  (IFD/tag parsing) where a vetted dependency already exists in the tree — no
+  reason to redo it by hand. The in-house DCP reader is limited to the **DCP
+  tag interpretation layer**, on top of the IFD reading `tiff` already
+  carries.
+* **Treating DCP as an entirely undocumented format demanding
+  reverse-engineering caution equivalent to ADR 0016's deferral of vignetting
+  and TCA.** Rejected — and the distinction must be made explicitly: DCP's
+  **container format** is **documented** (TIFF/EP tags, Adobe's published DNG
+  Specification) and **low-risk to parse**; it is not a reverse-engineered
+  format. Only the **colorimetric correctness of its application** carries
+  ADR 0016-level risk — and that risk is **not** what this ADR resolves: it
+  stays open and validated against real Adobe renderings, exactly as ADR 0035
+  requires. Conflating the two would lead to over-framing the parsing
+  (treating a bounded task as an open-ended effort) while underestimating that
+  the colour mathematics still has to be validated separately. The two risks
+  are distinct; this ADR closes only one of them.
