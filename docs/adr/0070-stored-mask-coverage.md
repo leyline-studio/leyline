@@ -1,224 +1,216 @@
-# ADR 0070 — Un masque peut être une couverture calculée, pas seulement une géométrie
+# ADR 0070 — A mask can be a computed coverage, not only a geometry
 
-**Statut :** Accepté — 2026-08
+**Status:** Accepted — 2026-08
 
-## Contexte
+## Context
 
-`Mask` sait décrire quatre choses (ADR 0029, [ADR 0048](0048-range-masks.md)) :
-une ellipse, un dégradé, un tracé de pinceau, et « tout ». Les quatre ont un
-point commun — ce sont des **formules**. `rasterize_coverage` les évalue par
-pixel, à la résolution du rendu en cours, et n'a donc besoin de rien d'autre
-que quelques nombres rangés dans `settings_json`.
+`Mask` can describe four things (ADR 0029,
+[ADR 0048](0048-range-masks.md)): an ellipse, a gradient, a brush stroke, and
+"everything". All four have one thing in common — they are **formulas**.
+`rasterize_coverage` evaluates them per pixel, at the resolution of the render
+under way, and therefore needs nothing but a few numbers stored in
+`settings_json`.
 
-C'est exactement ce qui manque à un masque de sujet, de ciel ou d'arrière-plan
-(C2 de `measured-findings.md`). Sa couverture n'est pas dérivable de six
-paramètres : c'est une image. Tant que `Mask` ne sait porter que des formules,
-un tel masque **n'est pas exprimable**, et [ADR 0069](0069-closed-extension-boundary.md)
-n'a rien à quoi s'attacher — sa règle « une extension produit des réglages,
-jamais des pixels » suppose que le réglage produit puisse exister.
+That is exactly what a subject, sky or background mask lacks (C2 of
+`measured-findings.md`). Its coverage is not derivable from six parameters: it
+is an image. While `Mask` can carry only formulas, such a mask is **not
+expressible**, and [ADR 0069](0069-closed-extension-boundary.md) has nothing to
+attach to — its rule "an extension produces settings, never pixels" presupposes
+that the setting produced can exist.
 
-Cette ADR est donc la moitié **ouverte** et gratuite de ce dispositif : le
-moteur libre apprend à *stocker et rendre* une couverture, quel que soit ce qui
-l'a produite.
+This ADR is therefore the **open** and free half of that arrangement: the free
+engine learns to *store and render* a coverage, whatever produced it.
 
-Ce n'est d'ailleurs pas propre à l'IA. Un masque peint dans un autre logiciel,
-une sélection exportée en PNG, un masque de luminance calculé une fois et figé :
-tous se heurtent au même mur aujourd'hui.
+Nor is that specific to AI. A mask painted in another program, a selection
+exported as a PNG, a luminance mask computed once and frozen: all hit the same
+wall today.
 
-## Décision
+## Decision
 
-**`Mask` gagne une variante `Coverage`, qui référence un fichier de couverture
-au lieu de décrire une forme.**
+**`Mask` gains a `Coverage` variant, which references a coverage file instead
+of describing a shape.**
 
 ```rust
 Mask::Coverage {
-    /// Chemin relatif à la bibliothèque (`catalog.md` §2.3).
+    /// A library-relative path (`catalog.md` §2.3).
     path: String,
-    /// BLAKE3 des octets du fichier, « blake3:<hex> ».
+    /// BLAKE3 of the file's bytes, "blake3:<hex>".
     checksum: String,
 }
 ```
 
-### 1. La forme est celle qui existe déjà deux fois
+### 1. The shape is the one that already exists twice
 
-Chemin relatif + checksum BLAKE3 : c'est exactement la forme de
-[`CameraProfile`](0035-camera-profile-dcp.md) et de [`Lut`](0053-creative-lut.md),
-et pour les mêmes raisons — une bibliothèque reste portable, et une
-substitution de fichier est **détectée** au lieu d'être rendue en silence. Un
-checksum qui ne correspond plus est une erreur, jamais un rendu différent sans
-prévenir.
+A relative path plus a BLAKE3 checksum: that is exactly the shape of
+[`CameraProfile`](0035-camera-profile-dcp.md) and of
+[`Lut`](0053-creative-lut.md), and for the same reasons — a library stays
+portable, and a file substitution is **detected** instead of being rendered in
+silence. A checksum that no longer matches is an error, never a different
+rendering with no warning.
 
-La résolution du fichier se fait **avant** le rendu, comme pour ces deux-là
-(`camera_profile::resolve_from_settings`, `lut::resolve_from_settings`) : le
-chemin des pixels ne lit jamais un fichier, et l'échec a un point unique et
-nommé.
+The file is resolved **before** the render, as for those two
+(`camera_profile::resolve_from_settings`, `lut::resolve_from_settings`): the
+pixel path never reads a file, and failure has a single, named point.
 
-### 2. Le fichier : PNG gris 16 bits, à sa propre résolution
+### 2. The file: a 16-bit grey PNG, at its own resolution
 
-**Sans perte**, parce qu'un masque compressé avec perte ferait dériver le rendu
-d'une révision sans que rien ne le signale.
+**Lossless**, because a lossily compressed mask would make a revision's
+rendering drift with nothing to signal it.
 
-**16 bits et non 8.** Une couverture multiplie un réglage : sur un dégradé
-doux poussé de plusieurs EV, 256 niveaux se voient en bandes. Les masques
-géométriques sont justement évalués en `f64` pour éviter cela ; stocker en
-8 bits rendrait le chemin *stocké* moins bon que le chemin *calculé*
-précisément dans le cas où l'écart se voit. Le PNG gris 16 bits coûte deux fois
-plus d'octets avant compression, et un masque — de grandes zones uniformes
-séparées par une transition fine — se comprime très bien.
+**16-bit and not 8.** A coverage multiplies a setting: on a gentle gradient
+pushed by several EV, 256 levels show as banding. The geometric masks are
+evaluated in `f64` precisely to avoid that; storing in 8 bits would make the
+*stored* path worse than the *computed* one exactly in the case where the
+difference shows. A 16-bit grey PNG costs twice as many bytes before
+compression, and a mask — large uniform areas separated by a fine transition —
+compresses very well.
 
-**À sa propre résolution, sans plafond imposé.** Un modèle de segmentation
-produit typiquement 512 à 1024 pixels de côté ; stocker cela ré-échantillonné à
-la taille du capteur fabriquerait du détail qui n'existe pas et multiplierait
-les octets par trente pour rien. Le fichier porte donc la résolution que son
-producteur avait réellement, et le moteur ne l'invente pas.
+**At its own resolution, with no imposed ceiling.** A segmentation model
+typically produces 512 to 1024 pixels across; storing that resampled to the
+sensor's size would manufacture detail that does not exist and multiply the
+bytes by thirty for nothing. The file therefore carries the resolution its
+producer actually had, and the engine does not invent it.
 
-Corollaire à assumer : **la finesse d'un masque stocké est celle de son
-fichier.** Agrandi vers un export pleine résolution, un masque de 1 024 pixels
-donne un bord doux, pas un bord net. C'est une limite du masque, pas du moteur,
-et c'est au producteur de stocker à une résolution à la hauteur de la
-complexité du bord qu'il décrit.
+A corollary to accept: **a stored mask's fineness is that of its file.**
+Enlarged towards a full-resolution export, a 1,024-pixel mask gives a soft edge,
+not a sharp one. That is a limit of the mask, not of the engine, and it is up
+to the producer to store at a resolution equal to the complexity of the edge it
+describes.
 
-### 3. Les coordonnées sont celles des autres masques
+### 3. The coordinates are those of the other masks
 
-Le fichier est échantillonné **bilinéairement sur le canevas normalisé
-`[0,1]²`** — le repère post-rotation dans lequel `rasterize_coverage` évalue
-déjà les quatre variantes existantes (`CanvasFrame`, ADR 0026).
+The file is sampled **bilinearly on the normalized `[0,1]²` canvas** — the
+post-rotation frame in which `rasterize_coverage` already evaluates the four
+existing variants (`CanvasFrame`, ADR 0026).
 
-Autrement dit, un masque stocké est **la même fonction de la position que les
-masques géométriques, tabulée au lieu d'être calculée**. Il suit la rotation,
-il se combine avec un masque par plage (ADR 0048) et une opacité comme
-n'importe quel autre, et il est indépendant de la résolution du rendu : aperçu
-et export l'échantillonnent pareil.
+In other words, a stored mask is **the same function of position as the
+geometric masks, tabulated instead of computed**. It follows the rotation, it
+combines with a range mask (ADR 0048) and an opacity like any other, and it is
+independent of the render's resolution: preview and export sample it alike.
 
-### 4. `local_adjustments::v3`, et le refus des versions gelées
+### 4. `local_adjustments::v3`, and the frozen versions' refusal
 
-Rendre une variante que `v1` et `v2` ne connaissent pas est un rendu nouveau,
-donc une **nouvelle version d'étage** (`pipeline.md` §5.1).
+Rendering a variant `v1` and `v2` do not know is a new rendering, hence a **new
+stage version** (`pipeline.md` §5.1).
 
-`v3` rend les quatre variantes existantes **exactement** comme `v2` : elle
-n'ajoute qu'un cas exprimable de plus. Les rendus de référence existants ne
-bougent donc pas ; le manifeste gagne des entrées `v3` aux empreintes
-identiques.
+`v3` renders the four existing variants **exactly** as `v2` does: it adds only
+one more expressible case. The existing reference renders therefore do not
+move; the manifest gains `v3` entries with identical fingerprints.
 
-Et la règle de capacité s'applique telle quelle : **une révision épinglée sur
-`v1` ou `v2` qui porte un `Mask::Coverage` est refusée par `validate()`**, avec
-l'erreur qui le dit. Elle n'est pas rendue en ignorant le masque — un masque
-ignoré, c'est un réglage local appliqué à toute l'image.
+And the capability rule applies as it stands: **a revision pinned at `v1` or
+`v2` carrying a `Mask::Coverage` is refused by `validate()`**, with the error
+that says so. It is not rendered by ignoring the mask — an ignored mask is a
+local adjustment applied to the whole image.
 
-### 5. Écrire une couverture : la surface que l'extension utilise
+### 5. Writing a coverage: the surface the extension uses
 
 ```rust
 impl Library {
-    /// Range une couverture dans la bibliothèque et rend le masque prêt à
-    /// être posé dans une révision.
+    /// Files a coverage into the library and returns the mask ready to be
+    /// placed in a revision.
     pub fn store_mask_coverage(&self, width: u32, height: u32,
                                coverage: &[u16]) -> Result<Mask>;
 }
 ```
 
-C'est le seul point d'entrée, et c'est celui qu'un crate fermé d'ADR 0069
-appelle — par le SDK, comme n'importe quel client. Il écrit le fichier, calcule
-le checksum, et rend le `Mask::Coverage` correspondant. L'appelant n'a jamais à
-connaître ni le chemin, ni le format, ni l'emplacement.
+That is the only entry point, and it is the one a closed crate of ADR 0069
+calls — through the SDK, like any client. It writes the file, computes the
+checksum, and returns the corresponding `Mask::Coverage`. The caller never has
+to know the path, the format or the location.
 
-**Les fichiers sont adressés par leur contenu** : `Masks/<blake3-hex>.png`,
-sous la racine de la bibliothèque, à côté de `Profiles/Camera/` et
-`Profiles/LUT/` (`catalog.md` §3). Deux masques identiques deviennent un seul
-fichier, et réécrire le même masque ne fait rien. Le champ `path` reste
-néanmoins explicite dans le réglage, comme chez ses deux prédécesseurs :
-l'uniformité vaut mieux qu'un champ économisé, et elle laisse la porte ouverte
-à une autre disposition plus tard.
+**The files are content-addressed**: `Masks/<blake3-hex>.png`, under the
+library's root, beside `Profiles/Camera/` and `Profiles/LUT/`
+(`catalog.md` §3). Two identical masks become one file, and rewriting the same
+mask does nothing. The `path` field nevertheless stays explicit in the setting,
+as with its two predecessors: uniformity is worth more than a saved field, and
+it leaves the door open to another arrangement later.
 
-### 6. Ce que cette ADR ne fait pas
+### 6. What this ADR does not do
 
-* **Aucun masque n'est produit ici.** Le moteur libre sait *stocker et rendre*
-  une couverture ; ce qui en *propose* une — modèle, runtime, poids — est hors
-  périmètre, et ADR 0069 explique pourquoi cette séparation est le cœur du
-  dispositif plutôt que sa réserve.
-* **Aucun outil de création dans Studio.** Rien dans le projet ne *fabrique*
-  une couverture.
+* **No mask is produced here.** The free engine can *store and render* a
+  coverage; what *proposes* one — a model, a runtime, weights — is out of
+  scope, and ADR 0069 explains why that separation is the arrangement's core
+  rather than its reservation.
+* **No creation tool in Studio.** Nothing in the project *makes* a coverage.
 
-  Studio gagne en revanche un **import** (§7) : cette ADR excluait d'abord
-  toute interface, au motif qu'il n'existait pas de producteur — mais son
-  propre §Contexte en nommait déjà trois (« un masque peint dans un autre
-  logiciel, une sélection exportée en PNG, un masque de luminance calculé une
-  fois et figé »). Le producteur, c'est le logiciel d'à côté. Livrer la
-  variante sans le moyen de s'en servir aurait fait attendre l'IA pour une
-  capacité qui n'en dépend pas.
-* **Aucun ramassage des fichiers orphelins.** Un masque référencé par une
-  révision d'historique doit survivre à un `undo`, sinon un `redo` casse. Les
-  masques ne sont donc **jamais** supprimés implicitement. Un ramassage des
-  fichiers que plus aucune révision ne cite est un travail à part, avec sa
-  propre ADR — il touche à l'historique, donc à ce qu'on promet de ne pas
-  perdre.
+  Studio does however gain an **import** (§7): this ADR at first excluded any
+  interface, on the grounds that no producer existed — but its own §Context
+  already named three ("a mask painted in another program, a selection exported
+  as a PNG, a luminance mask computed once and frozen"). The producer is the
+  program next door. Shipping the variant without the means of using it would
+  have made a capability that does not depend on AI wait for it.
+* **No garbage collection of orphaned files.** A mask referenced by a revision
+  in the history must survive an `undo`, otherwise a `redo` breaks. Masks are
+  therefore **never** deleted implicitly. Collecting the files no revision cites
+  any more is a piece of work apart, with its own ADR — it touches the history,
+  hence what we promise not to lose.
 
-### 7. Importer une couverture depuis un fichier image
+### 7. Importing a coverage from an image file
 
-Studio ouvre un sélecteur de fichier, lit **n'importe quelle image** que le
-projet sait décoder, la convertit en couverture et la range par
-[`Library::store_mask_coverage`]. C'est un *import*, pas un outil de dessin :
-le masque vient d'ailleurs, entier, et Studio ne le retouche pas.
+Studio opens a file picker, reads **any image** the project can decode,
+converts it into a coverage and files it through
+[`Library::store_mask_coverage`]. It is an *import*, not a drawing tool: the
+mask comes from elsewhere, whole, and Studio does not retouch it.
 
-**Quel canal devient la couverture** est la seule vraie question, et se
-tromper inverserait ou aplatirait silencieusement le travail de quelqu'un :
+**Which channel becomes the coverage** is the only real question, and getting
+it wrong would silently invert or flatten someone's work:
 
-1. **Le canal alpha**, s'il existe et n'est pas uniformément opaque — c'est
-   une sélection exportée avec sa transparence, et son alpha *est* le masque ;
-2. **sinon la luminance** — c'est un masque en noir et blanc, blanc =
-   couvert, la convention de tous les éditeurs d'image.
+1. **The alpha channel**, if it exists and is not uniformly opaque — that is a
+   selection exported with its transparency, and its alpha *is* the mask;
+2. **otherwise the luminance** — that is a black and white mask, white =
+   covered, the convention of every image editor.
 
-L'ordre compte : une sélection exportée en PNG porte souvent des pixels noirs
-*et* un alpha, et lire la luminance donnerait un masque vide. Une image
-entièrement opaque, elle, n'a rien à dire par son alpha, d'où le repli.
+The order matters: a selection exported as a PNG often carries black pixels
+*and* an alpha, and reading the luminance would give an empty mask. A wholly
+opaque image, for its part, has nothing to say through its alpha, hence the
+fallback.
 
-**Aucun ré-échantillonnage** : le fichier est stocké à sa taille, §2. Un
-masque de 800 px importé pour une photo de 30 Mpx reste un masque de 800 px,
-avec la douceur de bord que cela implique — et c'est ce que son auteur a
-produit.
+**No resampling**: the file is stored at its size, §2. An 800 px mask imported
+for a 30 Mpx photo stays an 800 px mask, with the edge softness that implies —
+and that is what its author produced.
 
-Les formats acceptés à l'import sont larges (tout ce que le décodeur lit) ;
-la forme *stockée* reste celle du §2, sans exception. L'import convertit, il
-n'élargit pas le contrat.
+The formats accepted at import are broad (whatever the decoder reads); the
+*stored* form stays §2's, with no exception. The import converts, it does not
+widen the contract.
 
-## Conséquences
+## Consequences
 
-* `Mask` cesse d'être fermée sur la géométrie : un masque venu d'ailleurs — un
-  autre logiciel, une sélection exportée, un modèle — devient exprimable, et
-  tout ce qui existe déjà (plages, opacité, rotation, empilement) s'y applique
-  sans rien de neuf.
-* **La version libre rend les masques de tout le monde**, ce qui est la
-  propriété qu'ADR 0069 §1 avait promise et que cette ADR livre.
-* **Et elle sait déjà en recevoir un**, sans attendre le moindre modèle : qui
-  a un masque quelque part peut le faire entrer (§7).
-* Une bibliothèque gagne un répertoire `Masks/` et pèse un peu plus lourd.
-  `catalog.md` §3 le documente.
-* Les couvertures résolues **voyagent comme le profil DCP et la LUT** : de
-  `resolve_from_settings` au bord du moteur, à travers `render`,
-  `render_scaled`, `develop_scaled` et le `Context` des étages, jusqu'à
-  `rasterize_coverage`. Ce n'est pas un seul changement de signature mais la
-  même chaîne que les deux références qui existaient déjà — et les versions
-  d'étage gelées, elles, reçoivent une carte **vide**, ce qui rend leur
-  immunité structurelle au lieu de dépendre du refus de `validate()`.
-* Un fichier de masque manquant ou modifié est une **erreur de rendu**
-  explicite, exactement comme un `.dcp` ou un `.cube` disparu.
+* `Mask` stops being closed on geometry: a mask from elsewhere — another
+  program, an exported selection, a model — becomes expressible, and everything
+  that already exists (ranges, opacity, rotation, stacking) applies to it with
+  nothing new.
+* **The free version renders everyone's masks**, which is the property ADR 0069
+  §1 promised and this ADR delivers.
+* **And it can already receive one**, without waiting for any model: whoever
+  has a mask somewhere can bring it in (§7).
+* A library gains a `Masks/` directory and weighs a little more. `catalog.md`
+  §3 documents it.
+* Resolved coverages **travel like the DCP profile and the LUT**: from
+  `resolve_from_settings` at the engine's edge, through `render`,
+  `render_scaled`, `develop_scaled` and the stages' `Context`, down to
+  `rasterize_coverage`. It is not a single signature change but the same chain
+  as the two references that already existed — and the frozen stage versions,
+  for their part, receive an **empty** map, which makes their immunity
+  structural instead of depending on `validate()`'s refusal.
+* A missing or modified mask file is an explicit **render error**, exactly like
+  a vanished `.dcp` or `.cube`.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Stocker la couverture dans `settings_json`**, en base64. Une couverture
-  30 Mpx pèse 60 Mo en 16 bits, ~80 Mo encodée — dans une colonne TEXT, pour
-  *chaque* révision de l'historique. La forme chemin + checksum existe déjà
-  deux fois dans le projet précisément pour ce genre de donnée.
-* **Un format avec perte** (JPEG, WebP lossy) pour économiser. Le rendu d'une
-  révision dériverait avec le ré-encodage, ce que §5.1 interdit.
-* **Imposer la résolution du capteur.** Fabrique du détail que le producteur
-  n'avait pas, pour trente fois les octets.
-* **Vectoriser la couverture** en contours pour rester dans une « formule ».
-  Un masque de cheveux ou de feuillage n'est pas vectorisable sans le trahir,
-  et l'approximation serait invisible dans le réglage tout en changeant le
-  rendu.
-* **Ranger le fichier à côté de la photo**, comme un sidecar. Contredit le
-  contrat de non-destructivité (`pipeline.md` §6) : rien n'est écrit à côté des
-  originaux.
-* **Ne rien changer et rendre un masque IA depuis un greffon appelé au rendu.**
-  C'est l'alternative qu'ADR 0069 a écartée, et cette ADR est ce qui la rend
-  inutile.
+* **Storing the coverage in `settings_json`**, in base64. A 30 Mpx coverage
+  weighs 60 MB in 16-bit, ~80 MB encoded — in a TEXT column, for *every*
+  revision in the history. The path-plus-checksum shape already exists twice in
+  the project precisely for that kind of data.
+* **A lossy format** (JPEG, lossy WebP) to save space. A revision's rendering
+  would drift with re-encoding, which §5.1 forbids.
+* **Imposing the sensor's resolution.** It manufactures detail the producer did
+  not have, for thirty times the bytes.
+* **Vectorizing the coverage** into outlines so as to stay a "formula". A mask
+  of hair or foliage is not vectorizable without betraying it, and the
+  approximation would be invisible in the setting while changing the rendering.
+* **Filing the file beside the photo**, like a sidecar. It contradicts the
+  non-destructiveness contract (`pipeline.md` §6): nothing is written beside
+  the originals.
+* **Changing nothing and rendering an AI mask from a plugin called at render
+  time.** That is the alternative ADR 0069 rejected, and this ADR is what makes
+  it unnecessary.
