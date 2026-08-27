@@ -1,156 +1,154 @@
-# ADR 0051 — Rasterisation du filigrane (`ab_glyph` + police embarquée) et surface d'épreuvage écran
+# ADR 0051 — Watermark rasterization (`ab_glyph` plus an embedded font) and the soft-proofing surface
 
-**Statut :** Accepté — 2026-07
+**Status:** Accepted — 2026-07
 
-## Contexte
+## Context
 
-[ADR 0034](0034-softproofing-watermark-print.md) a tranché *quoi* : un
-filigrane **texte** rangé dans `ExportSettings`, composité en toute dernière
-étape avant l'encodage ; un épreuvage écran **vue seule**, paramètre optionnel
-d'un appel de preview, jamais persisté. Le module d'impression, troisième tiers
-de l'item, a depuis eu son propre [ADR 0036](0036-print-module.md).
+[ADR 0034](0034-softproofing-watermark-print.md) settled the *what*: a **text**
+watermark held in `ExportSettings`, composited as the very last step before
+encoding; a **view-only** soft proof, an optional parameter of a preview call,
+never persisted. The print module, the item's third part, has since had its own
+[ADR 0036](0036-print-module.md).
 
-Ce qu'ADR 0034 a explicitement laissé « à la PR » et qui se révèle être une
-décision structurelle plutôt qu'un détail :
+What ADR 0034 explicitly left "to the PR" and which proves to be a structural
+decision rather than a detail:
 
-1. **avec quoi dessiner du texte.** Aucune brique du dépôt ne rastérise des
-   glyphes. `leyline-export` ne dépend ni de Slint ni d'un moteur de texte, et
-   il ne doit pas en dépendre : c'est un encodeur d'images sans interface ;
-2. **quelle police**, et où elle vit. Une police système ferait dépendre le
-   rendu d'un filigrane de la machine — donc du poste, donc de la
-   reproductibilité — et contredirait le Local First : deux exports du même
-   preset sur deux postes ne se ressembleraient pas ;
-3. **par où passe l'épreuvage** côté API, ADR 0034 n'ayant donné qu'une esquisse
-   de structure.
+1. **what to draw text with.** No brick in the repository rasterizes glyphs.
+   `leyline-export` depends neither on Slint nor on a text engine, and it must
+   not: it is an image encoder with no interface;
+2. **which font**, and where it lives. A system font would make a watermark's
+   rendering depend on the machine — hence on the workstation, hence on
+   reproducibility — and would contradict Local First: two exports of the same
+   preset on two machines would not look alike;
+3. **which way soft proofing goes** on the API side, ADR 0034 having given only
+   a sketch of a structure.
 
-## Décision
+## Decision
 
-### 1. `ab_glyph` pour la rasterisation, et rien de plus
+### 1. `ab_glyph` for rasterization, and nothing more
 
-`leyline-export` gagne une dépendance : **`ab_glyph`** — Rust pur, sans
-dépendance système, déterministe, et déjà présente dans l'arbre de compilation
-par les dépendances de Slint (donc pas un téléchargement de plus pour qui
-construit Studio).
+`leyline-export` gains one dependency: **`ab_glyph`** — pure Rust, with no
+system dependency, deterministic, and already present in the build tree through
+Slint's dependencies (hence not one more download for whoever builds Studio).
 
-Elle fait exactement une chose : transformer un contour de glyphe en couverture
-de pixels. La mise en page — largeur du texte, position d'ancrage, composition
-alpha — reste du code Leyline, une trentaine de lignes, parce que c'est du
-placement de rectangles et non de la typographie. Aucun moteur de mise en forme
-(HarfBuzz, `rustybuzz`, `cosmic-text`) : un filigrane est une ligne de texte
-sans ligature ni bidi à négocier.
+It does exactly one thing: turn a glyph outline into pixel coverage. Layout —
+the text's width, the anchor position, alpha compositing — stays Leyline code,
+some thirty lines, because it is rectangle placement and not typography. No
+shaping engine (HarfBuzz, `rustybuzz`, `cosmic-text`): a watermark is a line of
+text with no ligature and no bidi to negotiate.
 
-### 2. Une police embarquée : DejaVu Sans
+### 2. An embedded font: DejaVu Sans
 
-Le fichier `crates/leyline-export/assets/DejaVuSans.ttf` est **embarqué dans le
-binaire** (`include_bytes!`), avec sa licence à côté.
+The file `crates/leyline-export/assets/DejaVuSans.ttf` is **embedded in the
+binary** (`include_bytes!`), with its licence beside it.
 
-* **Embarquée**, parce qu'un filigrane doit se dessiner à l'identique partout :
-  une police système ferait du rendu une propriété du poste.
-* **DejaVu Sans**, parce que sa licence (Bitstream Vera + DejaVu) est
-  permissive, donc compatible avec le GPL-3.0-only du projet — ce que la
-  Liberation installée sur la plupart des distributions, sous GPLv2 avec
-  exception police, n'est pas.
-* **Le coût est assumé** : 757 Ko dans chaque binaire. C'est le prix d'un
-  filigrane identique sur deux machines, et le seul poste de dépense de cette
-  décision.
+* **Embedded**, because a watermark must draw identically everywhere: a system
+  font would make the rendering a property of the workstation.
+* **DejaVu Sans**, because its licence (Bitstream Vera + DejaVu) is permissive
+  and therefore compatible with the project's GPL-3.0-only — which the
+  Liberation fonts installed on most distributions, under GPLv2 with a font
+  exception, are not.
+* **The cost is accepted**: 757 kB in every binary. That is the price of an
+  identical watermark on two machines, and this decision's only expenditure.
 
-`ExportSettings.watermark.font` est une énumération, aujourd'hui à une seule
-valeur (`"sans"`). Une seconde fonte s'ajoutera comme une valeur de plus, sans
-changer la forme du document.
+`ExportSettings.watermark.font` is an enumeration, today with a single value
+(`"sans"`). A second face will be added as one more value, without changing the
+document's shape.
 
-### 3. Le filigrane est dessiné dans `encode`, sur une copie
+### 3. The watermark is drawn in `encode`, on a copy
 
-ADR 0034 §Filigrane place le composite « immédiatement avant l'encodage ».
-Concrètement, c'est `leyline_export::encode` qui l'applique, sur une **copie**
-du tampon reçu : la fonction prend `&[u8]` et ne doit pas graver le filigrane
-dans le tampon de l'appelant, qui est le rendu de la révision.
+ADR 0034 §Watermark places the composite "immediately before encoding".
+Concretely, it is `leyline_export::encode` that applies it, on a **copy** of
+the buffer received: the function takes `&[u8]` and must not burn the watermark
+into the caller's buffer, which is the revision's rendering.
 
-L'effet secondaire utile : tout chemin de sortie passant par `encode` — export
-simple, lot, preset — l'obtient sans le savoir, et aucun ne peut l'oublier.
+The useful side effect: every output path going through `encode` — a simple
+export, a batch, a preset — gets it without knowing, and none of them can
+forget it.
 
-Unités, arrêtées ici parce qu'ADR 0034 n'en donnait qu'un exemple :
+Units, settled here because ADR 0034 gave only an example:
 
-| Champ | Unité |
+| Field | Unit |
 | :--- | :--- |
-| `text` | la chaîne, non vide |
+| `text` | the string, non-empty |
 | `font` | `"sans"` |
-| `size` | pourcentage de la **hauteur** de l'image, dans `(0, 50]` — un filigrane suit la taille de l'export, il ne se mesure pas en pixels |
+| `size` | a percentage of the image's **height**, within `(0, 50]` — a watermark follows the export's size, it is not measured in pixels |
 | `color` | `"#RRGGBB"` |
 | `opacity` | `[0, 1]` |
-| `anchor` | `bottom-right` (défaut), `bottom-left`, `top-right`, `top-left`, `center` |
+| `anchor` | `bottom-right` (default), `bottom-left`, `top-right`, `top-left`, `center` |
 
-La marge entre le texte et le bord est la moitié de `size`, jamais réglable :
-c'est du placement, pas une décision de l'utilisateur.
+The margin between the text and the edge is half of `size`, never adjustable:
+that is placement, not a decision for the user.
 
-### 4. L'épreuvage est une méthode de bibliothèque qui rend une image, non un fichier
+### 4. Soft proofing is a library method returning an image, not a file
 
 ```rust
 Library::preview_soft_proofed(asset, kind, &SoftProof) -> Result<Rgb8>
 ```
 
-Trois propriétés, qui sont la traduction directe du « vue seule » d'ADR 0034 :
+Three properties, which are the direct translation of ADR 0034's "view only":
 
-* elle rend **en mémoire** et n'écrit rien — ni cache de previews, ni catalogue.
-  C'est exactement la forme de `preview_before` (comparaison avant/après), pour
-  la même raison : un tampon d'affichage n'est pas un livrable ;
-* le `SoftProof` (profil ICC de destination, intention, alerte de gamut) est un
-  argument d'appel, jamais un champ de révision ni de preset ;
-* la transformation réutilise la primitive ICC d'[ADR 0027](0027-color-management-beyond-srgb.md)
-  (`leyline_color::OutputTransform`), comme ADR 0034 l'exigeait.
+* it renders **in memory** and writes nothing — no preview cache, no catalog.
+  That is exactly the shape of `preview_before` (the before/after comparison),
+  for the same reason: a display buffer is not a deliverable;
+* the `SoftProof` (a destination ICC profile, an intent, a gamut warning) is a
+  call argument, never a field of a revision or a preset;
+* the transform reuses [ADR 0027](0027-color-management-beyond-srgb.md)'s ICC
+  primitive (`leyline_color::OutputTransform`), as ADR 0034 required.
 
-**L'alerte de gamut** utilise l'épreuvage de LittleCMS lui-même — transformation
-de *proofing* avec `gamut check` et couleur d'alarme — et non un aller-retour
-maison comparé à l'original : c'est la même bibliothèque qui décide ce qui est
-hors gamut et qui le signale, donc une seule définition de « hors gamut » dans
-le projet.
+**The gamut warning** uses LittleCMS's own proofing — a *proofing* transform
+with `gamut check` and an alarm colour — and not an in-house round trip
+compared against the original: it is the same library that decides what is out
+of gamut and that flags it, hence a single definition of "out of gamut" in the
+project.
 
-### 5. Ce qui n'entre pas
+### 5. What does not enter
 
-* **L'épreuvage dans la CLI.** Un épreuvage est un mode d'affichage ; une
-  commande sans écran n'en a pas l'usage, et l'exposer inviterait à écrire son
-  résultat dans un fichier — soit exactement l'export vers un profil de
-  destination, qui est une autre fonction (ADR 0027).
-* **Le filigrane image/logo**, coupé par ADR 0034 et pour la raison qu'il
-  donnait : le problème de référence de ressource n'est pas tranché.
-* **Le filigrane sur la sortie d'impression.** L'impression a son propre chemin
-  de sortie (ADR 0036) et ses propres réglages ; y porter le filigrane est un
-  changement à part, pas un effet de bord de celui-ci.
-* **Une police par langue, ou le choix d'une police système.** §2.
+* **Soft proofing in the CLI.** Proofing is a display mode; a command with no
+  screen has no use for it, and exposing it would invite writing its result to
+  a file — that is, exactly the export to a destination profile, which is
+  another function (ADR 0027).
+* **The image/logo watermark**, cut by ADR 0034 and for the reason it gave: the
+  resource-reference problem is not settled.
+* **A watermark on the print output.** Printing has its own output path (ADR
+  0036) and its own settings; carrying the watermark there is a separate
+  change, not a side effect of this one.
+* **A font per language, or the choice of a system font.** §2.
 
-## Conséquences
+## Consequences
 
-* **Deux des trois manques d'ADR 0034 passent de « décidé » à « livré »**, cinq
-  mois après la décision, et le dernier (le logo) reste coupé pour la raison
-  d'origine.
-* **`leyline-export` gagne une dépendance et un actif binaire.** C'est la
-  première police du dépôt et le premier `include_bytes!` d'un fichier de
-  données ; `architecture.md` en tient la liste.
-* **Tout chemin d'export hérite du filigrane** (§3), y compris les lots et les
-  presets, sans ligne de câblage supplémentaire.
-* **L'épreuvage ne peut pas polluer le cache** : il rend en mémoire, comme la
-  comparaison avant/après. Un utilisateur qui épreuve puis exporte obtient un
-  export non épreuvé, ce qui est le comportement correct — l'épreuvage montre ce
-  que *donnerait* une destination, il ne la produit pas.
-* **Une seule définition de « hors gamut »** dans le projet (§4), celle de
-  LittleCMS.
+* **Two of ADR 0034's three gaps move from "decided" to "delivered"**, five
+  months after the decision, and the last (the logo) stays cut for the original
+  reason.
+* **`leyline-export` gains a dependency and a binary asset.** It is the
+  repository's first font and the first `include_bytes!` of a data file;
+  `architecture.md` keeps the list.
+* **Every export path inherits the watermark** (§3), batches and presets
+  included, with no extra wiring.
+* **Proofing cannot pollute the cache**: it renders in memory, like the
+  before/after comparison. A user who proofs and then exports gets an
+  unproofed export, which is the correct behaviour — proofing shows what a
+  destination *would* give, it does not produce it.
+* **A single definition of "out of gamut"** in the project (§4), LittleCMS's.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Utiliser une police système.** Le filigrane deviendrait une propriété du
-  poste : nom du photographe rendu en Helvetica ici, en Arial là, absent
-  ailleurs. Inacceptable pour une décoration destinée à des fichiers publiés.
-* **Écrire notre propre rastériseur de glyphes**, sur le modèle du lecteur DCP
-  maison d'[ADR 0037](0037-dcp-parsing-dependency.md). Le parallèle ne tient
-  pas : lire quelques tags TIFF est borné et vérifiable, rastériser des
-  contours TrueType correctement (hinting, anti-aliasing, kerning) ne l'est pas,
-  et le résultat serait visiblement moins bon pour un gain nul.
-* **Une police bitmap maison**, sans dépendance ni actif. Un filigrane crénelé
-  sur un export 6000 px : la fonction perdrait sa raison d'être.
-* **Dessiner le filigrane dans le moteur plutôt que dans l'encodeur.** Il
-  faudrait le faire dans chaque chemin de sortie, et un chemin oublié
-  n'afficherait rien sans erreur. `encode` est le point de passage obligé.
-* **Un aller-retour ICC maison pour l'alerte de gamut** (transformer, retransformer,
-  comparer). Deux définitions de « hors gamut » dans le projet, dont une à nous,
-  pour une information que LittleCMS donne déjà.
-* **Persister l'épreuvage choisi dans la révision.** Écarté par ADR 0034 ; rien
-  n'a changé.
+* **Using a system font.** The watermark would become a property of the
+  workstation: the photographer's name rendered in Helvetica here, in Arial
+  there, absent elsewhere. Unacceptable for a decoration destined for published
+  files.
+* **Writing our own glyph rasterizer**, on the model of
+  [ADR 0037](0037-dcp-parsing-dependency.md)'s in-house DCP reader. The
+  parallel does not hold: reading a few TIFF tags is bounded and verifiable,
+  rasterizing TrueType outlines correctly (hinting, anti-aliasing, kerning) is
+  not, and the result would be visibly worse for no gain.
+* **An in-house bitmap font**, with no dependency and no asset. An aliased
+  watermark on a 6000 px export: the function would lose its reason for being.
+* **Drawing the watermark in the engine rather than in the encoder.** It would
+  have to be done in every output path, and a forgotten path would show nothing
+  without erroring. `encode` is the compulsory passage.
+* **An in-house ICC round trip for the gamut warning** (transform, transform
+  back, compare). Two definitions of "out of gamut" in the project, one of them
+  ours, for information LittleCMS already gives.
+* **Persisting the chosen proof in the revision.** Rejected by ADR 0034;
+  nothing has changed.
