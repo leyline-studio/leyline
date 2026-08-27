@@ -115,10 +115,13 @@ impl Catalog {
         let rows: Vec<(i64, i64)> = self
             .conn
             .prepare(&format!(
-                "SELECT m.id, c.id {PAIR_JOIN} ORDER BY m.id, c.id"
+                "SELECT m.id AS master_id, c.id AS companion_id
+                 {PAIR_JOIN} ORDER BY m.id, c.id"
             ))
             .map_err(db_err)?
-            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .query_map([], |row| {
+                Ok((row.get("master_id")?, row.get("companion_id")?))
+            })
             .map_err(db_err)?
             .collect::<std::result::Result<_, _>>()
             .map_err(db_err)?;

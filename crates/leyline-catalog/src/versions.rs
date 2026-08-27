@@ -52,7 +52,7 @@ impl Catalog {
             .query_row(
                 "SELECT asset_id, head_revision_id FROM develop_versions WHERE id = ?1",
                 [from.get()],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                |row| Ok((row.get("asset_id")?, row.get("head_revision_id")?)),
             )
             .map_err(|e| match e {
                 rusqlite::Error::QueryReturnedNoRows => LeylineError::VersionMissing(from),
@@ -98,14 +98,16 @@ impl Catalog {
         let rows = stmt
             .query_map([asset.get()], |row| {
                 Ok(VersionInfo {
-                    version: VersionId::new(row.get(0)?),
+                    version: VersionId::new(row.get("id")?),
                     asset,
-                    name: row.get(1)?,
-                    head: RevisionId::new(row.get(2)?),
-                    rating: row.get(3)?,
-                    color_label: row.get::<_, Option<i64>>(4)?.and_then(ColorLabel::from_i64),
-                    pick: PickState::from_i64(row.get(5)?).unwrap_or(PickState::None),
-                    created_at: row.get(6)?,
+                    name: row.get("name")?,
+                    head: RevisionId::new(row.get("head_revision_id")?),
+                    rating: row.get("rating")?,
+                    color_label: row
+                        .get::<_, Option<i64>>("color_label")?
+                        .and_then(ColorLabel::from_i64),
+                    pick: PickState::from_i64(row.get("pick_state")?).unwrap_or(PickState::None),
+                    created_at: row.get("created_at")?,
                 })
             })
             .map_err(db_err)?;

@@ -191,6 +191,28 @@ impl Default for GridQuery {
     }
 }
 
+/// The grid select list, in order.
+///
+/// [`Catalog::grid`] reads its rows **by position**, which is only safe as
+/// long as the SQL built by `grid_sql` selects these names in this order —
+/// and that SQL varies with the sort. This array is the declared order, and
+/// [`Catalog::grid_columns`] is how a test compares it with the one SQLite
+/// actually prepares. Reordering the select list without reordering this
+/// array fails that test rather than swapping two integer columns in silence.
+pub const GRID_COLUMNS: [&str; 11] = [
+    "version_id",
+    "asset_id",
+    "filename",
+    "capture_date",
+    "rating",
+    "color_label",
+    "pick_state",
+    "width",
+    "height",
+    "edited",
+    "paired",
+];
+
 /// One grid cell.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GridItem {
@@ -288,6 +310,18 @@ impl Catalog {
             .map_err(db_err)
     }
 
+    /// The columns one grid query really selects, in the order SQLite
+    /// prepares them.
+    ///
+    /// A diagnostic, for the same reason as [`Catalog::grid_plan`]: the SQL is
+    /// built privately and varies with the sort, so a test that rebuilt it
+    /// would check its own copy. Compare against [`GRID_COLUMNS`].
+    pub fn grid_columns(&self, query: &GridQuery) -> Result<Vec<String>> {
+        let (sql, _) = self.grid_sql(query)?;
+        let stmt = self.conn.prepare(&sql).map_err(db_err)?;
+        Ok(stmt.column_names().into_iter().map(str::to_owned).collect())
+    }
+
     /// Builds the two-level page query of ADR 0081 §1 and its parameters.
     fn grid_sql(&self, query: &GridQuery) -> Result<(String, Vec<SqlValue>)> {
         let filter = self.resolve_collection(query)?;
@@ -317,11 +351,11 @@ impl Catalog {
 
         let sql = format!(
             "WITH page AS (SELECT {keys} {core}{order} LIMIT ? OFFSET ?)
-             SELECT v.id, a.id, a.filename, a.capture_date, v.rating, v.color_label,
-                    v.pick_state, a.width, a.height,
+             SELECT v.id AS version_id, a.id AS asset_id, a.filename, a.capture_date,
+                    v.rating, v.color_label, v.pick_state, a.width, a.height,
                     (SELECT r.parent_revision_id IS NOT NULL FROM develop_revisions r
-                      WHERE r.id = v.head_revision_id),
-                    EXISTS (SELECT 1 FROM assets p WHERE p.companion_of = a.id)
+                      WHERE r.id = v.head_revision_id) AS edited,
+                    EXISTS (SELECT 1 FROM assets p WHERE p.companion_of = a.id) AS paired
              FROM page
              JOIN develop_versions v ON v.id = page.vid
              JOIN assets a ON a.id = page.aid{outer_order}"
@@ -338,6 +372,12 @@ impl Catalog {
         let (sql, params) = self.grid_sql(query)?;
 
         let mut stmt = self.conn.prepare(&sql).map_err(db_err)?;
+        // Read by position, in the order [`GRID_COLUMNS`] declares. `grid`
+        // runs once per scroll step on the interface thread, and reading by
+        // name would scan the statement's column names on every column of
+        // every row — measured at +35 % on the head page of a 50,000-asset
+        // library. `grid_columns_match_the_declared_order` is what makes the
+        // positions safe; it costs nothing at runtime.
         let rows = stmt
             .query_map(rusqlite::params_from_iter(params), |row| {
                 Ok(GridItem {

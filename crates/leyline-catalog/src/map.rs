@@ -28,7 +28,8 @@ impl Catalog {
         let mut stmt = self
             .conn
             .prepare_cached(
-                "SELECT v.id, a.id, m.gps_latitude, m.gps_longitude
+                "SELECT v.id AS version_id, a.id AS asset_id,
+                        m.gps_latitude, m.gps_longitude
                  FROM develop_current c
                  JOIN develop_versions v ON v.id = c.version_id
                  JOIN assets a ON a.id = c.asset_id
@@ -39,10 +40,10 @@ impl Catalog {
         let rows = stmt
             .query_map([], |row| {
                 Ok(MapPin {
-                    version_id: VersionId::new(row.get(0)?),
-                    asset_id: AssetId::new(row.get(1)?),
-                    latitude: row.get(2)?,
-                    longitude: row.get(3)?,
+                    version_id: VersionId::new(row.get("version_id")?),
+                    asset_id: AssetId::new(row.get("asset_id")?),
+                    latitude: row.get("gps_latitude")?,
+                    longitude: row.get("gps_longitude")?,
                 })
             })
             .map_err(db_err)?;

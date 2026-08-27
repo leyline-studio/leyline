@@ -76,10 +76,10 @@ impl Catalog {
         let rows = stmt
             .query_map([], |row| {
                 Ok((
-                    row.get::<_, i64>(0)?,
-                    row.get::<_, Option<i64>>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, String>(3)?,
+                    row.get::<_, i64>("id")?,
+                    row.get::<_, Option<i64>>("parent_id")?,
+                    row.get::<_, String>("name")?,
+                    row.get::<_, String>("path")?,
                 ))
             })
             .map_err(db_err)?;

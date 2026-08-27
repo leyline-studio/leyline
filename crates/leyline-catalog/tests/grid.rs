@@ -604,3 +604,43 @@ fn the_grid_page_walks_its_index_instead_of_sorting_the_library() {
         plan.join("\n")
     );
 }
+
+/// The grid is read by position (ADR 0081 §5), so the select list's order is
+/// part of its contract. `grid_sql` rebuilds that list per sort, and all but
+/// one of its columns are integers: a reordering would otherwise swap a rating
+/// for a colour label without failing anything.
+#[test]
+fn grid_columns_match_the_declared_order() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = Catalog::create(&dir.path().join("catalog.db"), "Order").unwrap();
+    let folder = catalog.ensure_folder("Shoot").unwrap();
+    let collection = catalog.create_collection(None, "Album").unwrap();
+
+    for sort in [
+        Sort::CaptureDate { ascending: true },
+        Sort::CaptureDate { ascending: false },
+        Sort::Filename { ascending: true },
+        Sort::Filename { ascending: false },
+        Sort::ImportedAt { ascending: true },
+        Sort::ImportedAt { ascending: false },
+        Sort::Rating { ascending: true },
+        Sort::Rating { ascending: false },
+        Sort::CollectionOrder,
+    ] {
+        // `CollectionOrder` is the one sort that needs a collection filter.
+        let query = GridQuery {
+            sort,
+            collection: Some(collection),
+            folder: Some(folder),
+            rating_at_least: Some(2),
+            text: Some("sea".to_owned()),
+            range: 0..100,
+            ..GridQuery::default()
+        };
+        assert_eq!(
+            catalog.grid_columns(&query).unwrap(),
+            leyline_catalog::GRID_COLUMNS,
+            "the select list moved under {sort:?} without GRID_COLUMNS following"
+        );
+    }
+}

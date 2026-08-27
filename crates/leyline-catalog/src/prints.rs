@@ -55,9 +55,9 @@ impl Catalog {
                 |row| {
                     Ok(PrintPreset {
                         preset,
-                        name: row.get(0)?,
-                        settings_json: row.get(1)?,
-                        created_at: row.get(2)?,
+                        name: row.get("name")?,
+                        settings_json: row.get("settings_json")?,
+                        created_at: row.get("created_at")?,
                     })
                 },
             )
@@ -79,10 +79,10 @@ impl Catalog {
         let rows = stmt
             .query_map([], |row| {
                 Ok(PrintPreset {
-                    preset: PrintPresetId::new(row.get(0)?),
-                    name: row.get(1)?,
-                    settings_json: row.get(2)?,
-                    created_at: row.get(3)?,
+                    preset: PrintPresetId::new(row.get("id")?),
+                    name: row.get("name")?,
+                    settings_json: row.get("settings_json")?,
+                    created_at: row.get("created_at")?,
                 })
             })
             .map_err(db_err)?;

@@ -129,7 +129,7 @@ impl Catalog {
                 "SELECT parent_revision_id, settings_json
                  FROM develop_revisions WHERE id = ?1",
                 [head.get()],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                |row| Ok((row.get("parent_revision_id")?, row.get("settings_json")?)),
             )
             .map_err(db_err)?;
         if parent.is_none() {
@@ -295,10 +295,12 @@ impl Catalog {
                 |row| {
                     Ok(RevisionRow {
                         revision,
-                        asset: AssetId::new(row.get(0)?),
-                        parent: row.get::<_, Option<i64>>(1)?.map(RevisionId::new),
-                        settings_json: row.get(2)?,
-                        created_at: row.get(3)?,
+                        asset: AssetId::new(row.get("asset_id")?),
+                        parent: row
+                            .get::<_, Option<i64>>("parent_revision_id")?
+                            .map(RevisionId::new),
+                        settings_json: row.get("settings_json")?,
+                        created_at: row.get("created_at")?,
                     })
                 },
             )
@@ -329,11 +331,13 @@ impl Catalog {
         let rows = stmt
             .query_map([head.get()], |row| {
                 Ok(RevisionRow {
-                    revision: RevisionId::new(row.get(0)?),
-                    asset: AssetId::new(row.get(1)?),
-                    parent: row.get::<_, Option<i64>>(2)?.map(RevisionId::new),
-                    settings_json: row.get(3)?,
-                    created_at: row.get(4)?,
+                    revision: RevisionId::new(row.get("id")?),
+                    asset: AssetId::new(row.get("asset_id")?),
+                    parent: row
+                        .get::<_, Option<i64>>("parent_revision_id")?
+                        .map(RevisionId::new),
+                    settings_json: row.get("settings_json")?,
+                    created_at: row.get("created_at")?,
                 })
             })
             .map_err(db_err)?;
@@ -347,7 +351,12 @@ fn version_row(conn: &rusqlite::Connection, version: VersionId) -> Result<(Asset
     conn.query_row(
         "SELECT asset_id, head_revision_id FROM develop_versions WHERE id = ?1",
         [version.get()],
-        |row| Ok((AssetId::new(row.get(0)?), RevisionId::new(row.get(1)?))),
+        |row| {
+            Ok((
+                AssetId::new(row.get("asset_id")?),
+                RevisionId::new(row.get("head_revision_id")?),
+            ))
+        },
     )
     .map_err(|e| match e {
         rusqlite::Error::QueryReturnedNoRows => LeylineError::VersionMissing(version),

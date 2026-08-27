@@ -241,11 +241,11 @@ impl Catalog {
         let rows = stmt
             .query_map([], |row| {
                 Ok((
-                    row.get::<_, i64>(0)?,
-                    row.get::<_, Option<i64>>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, Option<String>>(3)?,
-                    row.get::<_, i64>(4)?,
+                    row.get::<_, i64>("id")?,
+                    row.get::<_, Option<i64>>("parent_collection_id")?,
+                    row.get::<_, String>("name")?,
+                    row.get::<_, Option<String>>("description")?,
+                    row.get::<_, i64>("collection_type")?,
                 ))
             })
             .map_err(db_err)?;

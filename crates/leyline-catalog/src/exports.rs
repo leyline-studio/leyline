@@ -70,9 +70,9 @@ impl Catalog {
                 |row| {
                     Ok(ExportPreset {
                         preset,
-                        name: row.get(0)?,
-                        settings_json: row.get(1)?,
-                        created_at: row.get(2)?,
+                        name: row.get("name")?,
+                        settings_json: row.get("settings_json")?,
+                        created_at: row.get("created_at")?,
                     })
                 },
             )
@@ -94,10 +94,10 @@ impl Catalog {
         let rows = stmt
             .query_map([], |row| {
                 Ok(ExportPreset {
-                    preset: ExportPresetId::new(row.get(0)?),
-                    name: row.get(1)?,
-                    settings_json: row.get(2)?,
-                    created_at: row.get(3)?,
+                    preset: ExportPresetId::new(row.get("id")?),
+                    name: row.get("name")?,
+                    settings_json: row.get("settings_json")?,
+                    created_at: row.get("created_at")?,
                 })
             })
             .map_err(db_err)?;
@@ -148,10 +148,12 @@ impl Catalog {
             .query_map([asset.get()], |row| {
                 Ok(ExportRecord {
                     asset,
-                    preset: row.get::<_, Option<i64>>(0)?.map(ExportPresetId::new),
-                    format: row.get(1)?,
-                    destination: row.get(2)?,
-                    exported_at: row.get(3)?,
+                    preset: row
+                        .get::<_, Option<i64>>("preset_id")?
+                        .map(ExportPresetId::new),
+                    format: row.get("format")?,
+                    destination: row.get("destination")?,
+                    exported_at: row.get("exported_at")?,
                 })
             })
             .map_err(db_err)?;

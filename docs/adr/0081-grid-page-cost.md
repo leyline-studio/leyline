@@ -110,6 +110,47 @@ offer it. It goes on emitting a single query, over the same shared
 `FROM`/`WHERE` trunk — that trunk becomes a function, and that is the only
 reason `build` is split.
 
+### 5. The select lists are named, and the grid's order is tested rather than paid for
+
+Every query in `leyline-catalog` read its rows **by position**. Eleven of the
+grid's columns are integers, and §1 above rewrote its select list: a column
+reordered in the SQL and not in the closure would have gone on compiling, and
+would have swapped a rating for a colour label in silence. The catalog now
+names every column it selects (`AS version_id`, `AS photo_count`, ...) and, for
+every query but one, reads it by that name.
+
+The exception is `Catalog::grid`, and it is a measured one. It runs **once per
+scroll step, on the interface thread**, and `row.get("name")` scans the
+statement's column names on **every column of every row** — 2,200 scans for a
+200-row page. Measured on the same 50,000-asset database, in `--release`:
+
+| | head page | rolling offset |
+|---|---|---|
+| by position | 585 µs | 3,487 µs |
+| by name, per row | 790 µs (**+35 %**) | 3,634 µs (+4.2 %) |
+| names resolved once per statement | 651 µs (**+11 %**) | 3,462 µs (−0.7 %) |
+
+The cost is **flat** — around 200 µs a page, whatever the page — so it
+disappears into the sort at a deep offset and is most visible exactly where §1
+worked hardest to be fast. Averaged over a scroll it reads as +4 %, which
+understates it by a factor of eight at the head.
+
+None of that buys anything, though: naming columns is a **correctness**
+measure, not a performance one, and there is no reason to pay for it at
+runtime. `grid` keeps its positional reads and its 585 µs; the guarantee moves
+into a test. `GRID_COLUMNS` declares the select list's order beside `GridItem`,
+`Catalog::grid_columns` reports the order SQLite really prepares — a diagnostic
+alongside `grid_plan`, and for the same reason: the SQL is built privately and
+varies with the sort, so a test that rebuilt it would check its own copy — and
+`grid_columns_match_the_declared_order` compares the two across all nine sorts.
+Reordering the select list now fails a test instead of swapping two integers.
+Teeth verified by sabotage: swapping `rating` and `color_label` in the SQL
+fails it.
+
+Everywhere else — folders, presets, exports, prints, metadata — the per-row
+named form stays: those queries run once per user action, not once per frame,
+and readability is worth more there than a microsecond.
+
 ## Consequences
 
 Measurements over **one same database** of 50,000 assets, with capture dates

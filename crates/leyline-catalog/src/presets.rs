@@ -75,12 +75,17 @@ impl Catalog {
                 |row| {
                     Ok(Preset {
                         preset,
-                        name: row.get(0)?,
-                        preset_json: row.get(1)?,
-                        created_at: row.get(2)?,
-                        folder: row.get::<_, Option<i64>>(3)?.map(PresetFolderId::new),
-                        favourite: row.get::<_, i64>(4)? != 0,
-                        revision: row.get::<_, i64>(5)?.try_into().unwrap_or(1),
+                        name: row.get("name")?,
+                        preset_json: row.get("preset_json")?,
+                        created_at: row.get("created_at")?,
+                        folder: row
+                            .get::<_, Option<i64>>("folder_id")?
+                            .map(PresetFolderId::new),
+                        favourite: row.get::<_, i64>("favourite")? != 0,
+                        revision: row
+                            .get::<_, i64>("preset_revision")?
+                            .try_into()
+                            .unwrap_or(1),
                     })
                 },
             )
@@ -103,13 +108,18 @@ impl Catalog {
         let rows = stmt
             .query_map([], |row| {
                 Ok(Preset {
-                    preset: PresetId::new(row.get(0)?),
-                    name: row.get(1)?,
-                    preset_json: row.get(2)?,
-                    created_at: row.get(3)?,
-                    folder: row.get::<_, Option<i64>>(4)?.map(PresetFolderId::new),
-                    favourite: row.get::<_, i64>(5)? != 0,
-                    revision: row.get::<_, i64>(6)?.try_into().unwrap_or(1),
+                    preset: PresetId::new(row.get("id")?),
+                    name: row.get("name")?,
+                    preset_json: row.get("preset_json")?,
+                    created_at: row.get("created_at")?,
+                    folder: row
+                        .get::<_, Option<i64>>("folder_id")?
+                        .map(PresetFolderId::new),
+                    favourite: row.get::<_, i64>("favourite")? != 0,
+                    revision: row
+                        .get::<_, i64>("preset_revision")?
+                        .try_into()
+                        .unwrap_or(1),
                 })
             })
             .map_err(db_err)?;
@@ -194,8 +204,8 @@ impl Catalog {
         let rows = stmt
             .query_map([preset.get()], |row| {
                 Ok((
-                    VersionId::new(row.get(0)?),
-                    row.get::<_, Option<i64>>(1)?
+                    VersionId::new(row.get("id")?),
+                    row.get::<_, Option<i64>>("from_preset_revision")?
                         .and_then(|value| u32::try_from(value).ok())
                         .unwrap_or(1),
                 ))
@@ -233,8 +243,8 @@ impl Catalog {
         let rows = stmt
             .query_map([], |row| {
                 Ok(PresetFolder {
-                    folder: PresetFolderId::new(row.get(0)?),
-                    name: row.get(1)?,
+                    folder: PresetFolderId::new(row.get("id")?),
+                    name: row.get("name")?,
                 })
             })
             .map_err(db_err)?;

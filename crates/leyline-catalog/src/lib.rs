@@ -30,7 +30,7 @@ pub use collections::{CollectionNode, RatingRule, SmartRules};
 pub use details::AssetDetails;
 pub use exports::{ExportPreset, ExportRecord};
 pub use folders::FolderNode;
-pub use grid::{GridItem, GridQuery, ShotRange, Sort};
+pub use grid::{GRID_COLUMNS, GridItem, GridQuery, ShotRange, Sort};
 pub use keywords::KeywordNode;
 pub use map::MapPin;
 pub use metadata::{CameraInfo, LensInfo, Metadata, Rational, ShotFacets};
@@ -181,10 +181,10 @@ impl Catalog {
                 [],
                 |row| {
                     Ok(LibraryInfo {
-                        uuid: row.get(0)?,
-                        name: row.get(1)?,
-                        created_at: row.get(2)?,
-                        updated_at: row.get(3)?,
+                        uuid: row.get("uuid")?,
+                        name: row.get("name")?,
+                        created_at: row.get("created_at")?,
+                        updated_at: row.get("updated_at")?,
                     })
                 },
             )

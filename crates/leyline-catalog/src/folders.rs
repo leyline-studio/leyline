@@ -68,7 +68,7 @@ impl Catalog {
         let mut stmt = self
             .conn
             .prepare_cached(
-                "SELECT f.id, f.parent_id, f.relative_path, COUNT(a.id)
+                "SELECT f.id, f.parent_id, f.relative_path, COUNT(a.id) AS photo_count
                  FROM folders f
                  LEFT JOIN assets a ON a.folder_id = f.id AND a.is_missing = 0
                  GROUP BY f.id
@@ -78,10 +78,13 @@ impl Catalog {
         let rows = stmt
             .query_map([], |row| {
                 Ok(FolderNode {
-                    folder: FolderId::new(row.get::<_, i64>(0)?),
-                    parent: row.get::<_, Option<i64>>(1)?.map(FolderId::new),
-                    relative_path: row.get::<_, String>(2)?,
-                    photo_count: row.get::<_, i64>(3)?.try_into().unwrap_or(u32::MAX),
+                    folder: FolderId::new(row.get::<_, i64>("id")?),
+                    parent: row.get::<_, Option<i64>>("parent_id")?.map(FolderId::new),
+                    relative_path: row.get::<_, String>("relative_path")?,
+                    photo_count: row
+                        .get::<_, i64>("photo_count")?
+                        .try_into()
+                        .unwrap_or(u32::MAX),
                 })
             })
             .map_err(db_err)?;

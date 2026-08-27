@@ -58,13 +58,13 @@ impl Catalog {
                 [asset.get()],
                 |row| {
                     Ok((
-                        row.get::<_, String>(0)?,
-                        row.get::<_, i64>(1)?,
-                        row.get::<_, u64>(2)?,
-                        row.get::<_, Option<u32>>(3)?,
-                        row.get::<_, Option<u32>>(4)?,
-                        row.get::<_, Option<i64>>(5)?,
-                        row.get::<_, i64>(6)?,
+                        row.get::<_, String>("filename")?,
+                        row.get::<_, i64>("media_type")?,
+                        row.get::<_, u64>("file_size")?,
+                        row.get::<_, Option<u32>>("width")?,
+                        row.get::<_, Option<u32>>("height")?,
+                        row.get::<_, Option<i64>>("capture_date")?,
+                        row.get::<_, i64>("imported_at")?,
                     ))
                 },
             )

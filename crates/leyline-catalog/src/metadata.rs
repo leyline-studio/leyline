@@ -172,8 +172,8 @@ impl Catalog {
             })?;
 
         let found = self.conn.query_row(
-            "SELECT c.manufacturer, c.model,
-                    l.manufacturer, l.model, l.mount,
+            "SELECT c.manufacturer AS camera_manufacturer, c.model AS camera_model,
+                    l.manufacturer AS lens_manufacturer, l.model AS lens_model, l.mount,
                     m.orientation, m.iso,
                     m.shutter_numerator, m.shutter_denominator,
                     m.aperture_numerator, m.aperture_denominator,
@@ -187,38 +187,53 @@ impl Catalog {
              WHERE m.asset_id = ?1",
             [asset.get()],
             |row| {
-                let camera = match (row.get::<_, Option<String>>(0)?, row.get(1)?) {
+                let camera = match (
+                    row.get::<_, Option<String>>("camera_manufacturer")?,
+                    row.get("camera_model")?,
+                ) {
                     (Some(manufacturer), Some(model)) => Some(CameraInfo {
                         manufacturer,
                         model,
                     }),
                     _ => None,
                 };
-                let lens = match (row.get::<_, Option<String>>(2)?, row.get(3)?) {
+                let lens = match (
+                    row.get::<_, Option<String>>("lens_manufacturer")?,
+                    row.get("lens_model")?,
+                ) {
                     (Some(manufacturer), Some(model)) => Some(LensInfo {
                         manufacturer,
                         model,
-                        mount: row.get(4)?,
+                        mount: row.get("mount")?,
                     }),
                     _ => None,
                 };
                 Ok(Metadata {
                     camera,
                     lens,
-                    orientation: row.get(5)?,
-                    iso: row.get(6)?,
-                    shutter: rational(row.get(7)?, row.get(8)?),
-                    aperture: rational(row.get(9)?, row.get(10)?),
-                    focal_length: rational(row.get(11)?, row.get(12)?),
-                    exposure_bias: row.get(13)?,
-                    flash: row.get(14)?,
-                    white_balance_mode: row.get(15)?,
-                    color_space: row.get(16)?,
-                    gps_latitude: row.get(17)?,
-                    gps_longitude: row.get(18)?,
-                    gps_altitude: row.get(19)?,
-                    artist: row.get(20)?,
-                    copyright: row.get(21)?,
+                    orientation: row.get("orientation")?,
+                    iso: row.get("iso")?,
+                    shutter: rational(
+                        row.get("shutter_numerator")?,
+                        row.get("shutter_denominator")?,
+                    ),
+                    aperture: rational(
+                        row.get("aperture_numerator")?,
+                        row.get("aperture_denominator")?,
+                    ),
+                    focal_length: rational(
+                        row.get("focal_length_numerator")?,
+                        row.get("focal_length_denominator")?,
+                    ),
+                    exposure_bias: row.get("exposure_bias")?,
+                    flash: row.get("flash")?,
+                    white_balance_mode: row.get("white_balance_mode")?,
+                    color_space: row.get("color_space")?,
+                    gps_latitude: row.get("gps_latitude")?,
+                    gps_longitude: row.get("gps_longitude")?,
+                    gps_altitude: row.get("gps_altitude")?,
+                    artist: row.get("artist")?,
+                    copyright: row.get("copyright")?,
                 })
             },
         );
@@ -257,20 +272,30 @@ impl Catalog {
         let bounds = self
             .conn
             .query_row(
-                "SELECT MIN(iso), MAX(iso),
-                        MIN(aperture_f), MAX(aperture_f),
-                        MIN(focal_length_mm), MAX(focal_length_mm),
-                        MIN(shutter_speed_s), MAX(shutter_speed_s)
+                "SELECT MIN(iso) AS iso_min, MAX(iso) AS iso_max,
+                        MIN(aperture_f) AS aperture_min, MAX(aperture_f) AS aperture_max,
+                        MIN(focal_length_mm) AS focal_min, MAX(focal_length_mm) AS focal_max,
+                        MIN(shutter_speed_s) AS shutter_min, MAX(shutter_speed_s) AS shutter_max
                  FROM metadata",
                 [],
                 |row| {
-                    let pair = |index: usize| -> rusqlite::Result<Option<(f64, f64)>> {
-                        Ok(match (row.get(index)?, row.get(index + 1)?) {
-                            (Some(min), Some(max)) => Some((min, max)),
-                            _ => None,
-                        })
+                    let pair = |facet: &str| -> rusqlite::Result<Option<(f64, f64)>> {
+                        Ok(
+                            match (
+                                row.get(format!("{facet}_min").as_str())?,
+                                row.get(format!("{facet}_max").as_str())?,
+                            ) {
+                                (Some(min), Some(max)) => Some((min, max)),
+                                _ => None,
+                            },
+                        )
                     };
-                    Ok((pair(0)?, pair(2)?, pair(4)?, pair(6)?))
+                    Ok((
+                        pair("iso")?,
+                        pair("aperture")?,
+                        pair("focal")?,
+                        pair("shutter")?,
+                    ))
                 },
             )
             .map_err(db_err)?;

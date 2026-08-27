@@ -193,10 +193,10 @@ impl Catalog {
                     asset,
                     revision: head,
                     kind,
-                    width: row.get(0)?,
-                    height: row.get(1)?,
-                    relative_path: row.get(2)?,
-                    generated_at: row.get(3)?,
+                    width: row.get("width")?,
+                    height: row.get("height")?,
+                    relative_path: row.get("relative_path")?,
+                    generated_at: row.get("generated_at")?,
                     origin: PreviewOrigin::Rendered,
                 })
             },
@@ -227,13 +227,14 @@ impl Catalog {
             |row| {
                 Ok(PreviewRow {
                     asset,
-                    revision: RevisionId::new(row.get(0)?),
+                    revision: RevisionId::new(row.get("revision_id")?),
                     kind,
-                    width: row.get(1)?,
-                    height: row.get(2)?,
-                    relative_path: row.get(3)?,
-                    generated_at: row.get(4)?,
-                    origin: PreviewOrigin::from_i64(row.get(5)?).unwrap_or(PreviewOrigin::Rendered),
+                    width: row.get("width")?,
+                    height: row.get("height")?,
+                    relative_path: row.get("relative_path")?,
+                    generated_at: row.get("generated_at")?,
+                    origin: PreviewOrigin::from_i64(row.get("origin")?)
+                        .unwrap_or(PreviewOrigin::Rendered),
                 })
             },
         );
@@ -292,11 +293,12 @@ impl Catalog {
                     asset,
                     revision: head,
                     kind,
-                    width: row.get(0)?,
-                    height: row.get(1)?,
-                    relative_path: row.get(2)?,
-                    generated_at: row.get(3)?,
-                    origin: PreviewOrigin::from_i64(row.get(4)?).unwrap_or(PreviewOrigin::Rendered),
+                    width: row.get("width")?,
+                    height: row.get("height")?,
+                    relative_path: row.get("relative_path")?,
+                    generated_at: row.get("generated_at")?,
+                    origin: PreviewOrigin::from_i64(row.get("origin")?)
+                        .unwrap_or(PreviewOrigin::Rendered),
                 })
             },
         );
