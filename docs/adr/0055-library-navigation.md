@@ -1,195 +1,188 @@
-# ADR 0055 — Navigation de la bibliothèque : les repères qu'un utilisateur de Lightroom cherche en arrivant
+# ADR 0055 — Library navigation: the landmarks a Lightroom user looks for on arriving
 
-**Statut :** Accepté — 2026-08
+**Status:** Accepted — 2026-08
 
-## Contexte
+## Context
 
-[ADR 0054](0054-first-run-and-basic-mode.md) a traité ce que develop **montre
-d'abord**. Le même relevé d'utilisateurs portait sur un second manque, qui est
-d'orientation et non de fonctionnalité : savoir *où l'on est* et *où cliquer*.
+[ADR 0054](0054-first-run-and-basic-mode.md) addressed what develop **shows
+first**. The same user survey bore on a second gap, one of orientation and not
+of functionality: knowing *where one is* and *where to click*.
 
-Une comparaison poste à poste avec la vue Bibliothèque de Lightroom Classic
-donne l'état exact de l'écart. Ce que Leyline a déjà, et qui n'est pas en
-cause : la barre de menus complète, les menus contextuels
-([ADR 0021](0021-context-menus.md)), les raccourcis de classement identiques
-(1-5, 6-9, P/X/U), `G`/`D`/`M` pour changer de vue, les filtres (étoiles,
-labels, drapeaux, recherche, tri), les collections, le double-clic vers
-develop, le filmstrip en develop.
+A point-by-point comparison with Lightroom Classic's Library view gives the
+gap's exact state. What Leyline already has, and which is not at issue: the
+complete menu bar, the context menus ([ADR 0021](0021-context-menus.md)), the
+identical classification shortcuts (1-5, 6-9, P/X/U), `G`/`D`/`M` to change
+view, the filters (stars, labels, flags, search, sort), the collections, the
+double-click into develop, the filmstrip in develop.
 
-Ce qui manque, dans l'ordre où cela désoriente :
+What is missing, in the order in which it disorients:
 
-1. **Aucun sélecteur de module.** Passer de la bibliothèque à develop se fait
-   par un menu ou une touche. Le coin haut-droit, là où un utilisateur de
-   Lightroom pose les yeux et le curseur en arrivant, est vide.
-2. **Le panneau gauche ne porte que les collections.** Pas d'arbre de dossiers
-   — or c'est la façon dont la plupart des gens se représentent leurs photos,
-   et le catalogue a déjà tout ce qu'il faut pour l'afficher (table `folders`
-   avec son `parent_id`, `GridQuery.folder`).
-3. **Aucune barre d'outils sous la grille.** Les vignettes sont figées à
-   176 px (`cell-size`, `panels/browser.slint`), et voir une photo en grand
-   oblige à entrer dans develop, donc à ouvrir une session d'édition.
-4. **Les cellules ne disent presque rien** : nom, pastille de couleur,
-   étoiles. Ni numéro, ni drapeau, ni « celle-ci a déjà été travaillée ».
+1. **No module selector.** Going from the library to develop is done by a menu
+   or a key. The top-right corner, where a Lightroom user's eyes and cursor go
+   on arriving, is empty.
+2. **The left panel carries nothing but collections.** No folder tree — and yet
+   that is how most people picture their photos, and the catalog already has
+   everything needed to display it (a `folders` table with its `parent_id`,
+   `GridQuery.folder`).
+3. **No toolbar under the grid.** The thumbnails are fixed at 176 px
+   (`cell-size`, `panels/browser.slint`), and seeing a photo large requires
+   entering develop, hence opening an edit session.
+4. **The cells say almost nothing**: a name, a colour dot, stars. No number, no
+   flag, and no "this one has already been worked on".
 
-**Ce qui n'est pas en cause.** Aucune fonctionnalité ne manque : tout ce qui
-précède est de la mise en place de ce qui existe déjà. Aucun réglage, aucun
-rendu, aucun format stocké n'est touché par cette décision.
+**What is not at issue.** No feature is missing: everything above is a matter
+of laying out what already exists. No setting, no rendering and no stored
+format is touched by this decision.
 
-## Décision
+## Decision
 
-### 1. Un sélecteur de module à droite de la barre de menus
+### 1. A module selector to the right of the menu bar
 
-**Bibliothèque | Develop | Carte**, aligné à droite dans la barre de menus
-existante — pas une seconde barre : ce côté-là est vide aujourd'hui, et une
-navigation ne mérite pas qu'on lui donne une rangée de pixels de plus. Le
-module courant est mis en évidence ; *Develop* est inactif sans photo
-sélectionnée, exactement comme l'est déjà l'entrée de menu du même nom.
+**Library | Develop | Map**, right-aligned in the existing menu bar — not a
+second bar: that side is empty today, and navigation does not deserve a further
+row of pixels. The current module is highlighted; *Develop* is inactive with no
+photo selected, exactly as the menu entry of the same name already is.
 
-**Imprimer n'y figure pas.** Un sélecteur nomme des *lieux* où l'on reste ;
-imprimer est une *action* qui se termine — elle reste un dialogue, sous
-`Ctrl+P` et dans le menu Fichier, où un utilisateur de Lightroom la trouve
-aussi.
+**Print does not appear there.** A selector names *places* one stays in;
+printing is an *action* that ends — it stays a dialog, under `Ctrl+P` and in
+the File menu, where a Lightroom user finds it too.
 
-### 2. Le panneau gauche porte les dossiers
+### 2. The left panel carries the folders
 
-De haut en bas : **Toutes les photos**, l'**arbre des dossiers** avec le
-nombre de photos de chacun, puis les **collections**. Cliquer un dossier
-filtre la grille (`GridQuery.folder`, qui existe déjà) ; cliquer *Toutes les
-photos* enlève le filtre.
+From top to bottom: **All photos**, the **folder tree** with each one's photo
+count, then the **collections**. Clicking a folder filters the grid
+(`GridQuery.folder`, which already exists); clicking *All photos* removes the
+filter.
 
-L'arbre est **en lecture seule** : on n'y renomme, ne déplace ni ne supprime
-rien. Déplacer un dossier est de la gestion de fichiers, pas du catalogue, et
-Leyline ne modifie jamais ce qu'il n'a pas écrit (`docs/vision.md`).
+The tree is **read-only**: nothing is renamed, moved or deleted there. Moving a
+folder is file management, not cataloguing, and Leyline never modifies what it
+did not write (`docs/vision.md`).
 
-Le catalogue gagne pour cela une seule lecture nouvelle : lister les dossiers
-avec leur parent et leur compte. Aucun changement de schéma.
+For that the catalog gains a single new read: listing the folders with their
+parent and their count. No schema change.
 
-En bas du panneau, les deux boutons **Importer…** et **Exporter…**, à
-l'endroit où Lightroom les met, ouvrant les dialogues existants. La ligne
-grise de raccourcis (`N: new · B: add photo`) disparaît : ADR 0054 §1 disait
-qu'un raccourci ne remplace pas une porte d'entrée ; c'est vrai aussi quand la
-bibliothèque n'est pas vide.
+At the bottom of the panel, the two buttons **Import…** and **Export…**, where
+Lightroom puts them, opening the existing dialogs. The grey shortcut line
+(`N: new · B: add photo`) disappears: ADR 0054 §1 said a shortcut does not
+replace a front door; that is true too when the library is not empty.
 
-**« Import précédent » n'est pas repris.** Le catalogue n'a pas d'identité de
-lot d'import — seulement un `imported_at` par photo — et déduire un lot d'un
-horodatage serait une devinette qui se tromperait le jour où deux imports se
-suivent. Le tri « par date d'import », qui existe, couvre le besoin réel. Lui
-donner une vraie identité serait une décision de catalogue, à prendre pour
-elle-même.
+**"Previous Import" is not taken up.** The catalog has no import-batch identity
+— only an `imported_at` per photo — and deducing a batch from a timestamp would
+be a guess that would be wrong the day two imports follow one another. The
+"by import date" sort, which exists, covers the real need. Giving it a true
+identity would be a catalog decision, to be taken on its own.
 
-### 3. Une barre d'outils sous la grille
+### 3. A toolbar under the grid
 
-Elle porte deux choses, et pas une de plus :
+It carries two things, and not one more:
 
-* un **curseur de taille de vignette**, parce qu'une planche-contact de 400
-  photos et une relecture de trois cadrages ne se regardent pas à la même
-  taille ;
-* deux **modes de vue** : *Grille* et *Loupe*. La loupe montre la photo
-  sélectionnée en grand **sans ouvrir de session d'édition** : c'est la
-  preview, pas develop. La différence est réelle et vaut d'être tenue — aucune
-  révision créée, aucun historique, rien à écrire, et donc un affichage
-  immédiat. Les flèches y naviguent, `G` revient à la grille.
+* a **thumbnail size slider**, because a contact sheet of 400 photos and a
+  re-reading of three crops are not looked at at the same size;
+* two **view modes**: *Grid* and *Loupe*. The loupe shows the selected photo
+  large **without opening an edit session**: it is the preview, not develop.
+  The difference is real and worth holding — no revision created, no history,
+  nothing to write, and therefore an immediate display. The arrow keys navigate
+  there, and `G` returns to the grid.
 
-*Comparaison* (C) et *mosaïque* (N) ne sont pas ici : elles demandent un état
-de zoom partagé entre deux images, ce que la loupe n'a pas, et font donc
-l'objet d'une décision à elles — [ADR 0057](0057-compare-and-survey.md).
+*Compare* (C) and *survey* (N) are not here: they require a zoom state shared
+between two images, which the loupe does not have, and are therefore the
+subject of a decision of their own —
+[ADR 0057](0057-compare-and-survey.md).
 
-Le tri et les filtres restent en haut, où ils sont : les répéter en bas serait
-deux endroits pour un réglage.
+Sorting and filters stay at the top, where they are: repeating them at the
+bottom would be two places for one setting.
 
-### 4. `E` ouvre la loupe, l'export passe à `Ctrl+E`
+### 4. `E` opens the loupe, export moves to `Ctrl+E`
 
-C'est le seul raccourci existant que cette décision déplace, et elle le fait
-délibérément. `G`, `E` et `D` sont les trois touches qu'un utilisateur de
-Lightroom presse sans y penser ; `G` et `D` font déjà chez nous ce qu'il
-attend, `E` est la dernière qui manque. L'export, lui, est une action
-délibérée qu'on atteint par le menu Fichier, par le bouton du panneau gauche
-(§2) et par `Ctrl+E` — trois portes plutôt qu'une lettre.
+That is the only existing shortcut this decision moves, and it does so
+deliberately. `G`, `E` and `D` are the three keys a Lightroom user presses
+without thinking; `G` and `D` already do here what they expect, and `E` is the
+last one missing. Export, for its part, is a deliberate action reached through
+the File menu, through the left panel's button (§2) and through `Ctrl+E` —
+three doors rather than one letter.
 
-Le dialogue des raccourcis, le menu Fichier et `docs/` sont mis à jour en même
-temps : un raccourci qui change sans que l'aide le dise est un bug.
+The shortcuts dialog, the File menu and `docs/` are updated at the same time: a
+shortcut that changes without the help saying so is a bug.
 
-### 5. Le filmstrip est partagé, et les cellules disent l'essentiel
+### 5. The filmstrip is shared, and the cells say the essentials
 
-Le filmstrip devient un composant unique, affiché en **loupe** et en
-**develop**. Pas en grille : il y répéterait la grille elle-même.
+The filmstrip becomes a single component, shown in **loupe** and in
+**develop**. Not in the grid: it would repeat the grid itself there.
 
-Les cellules gagnent trois repères, tous déjà connus du catalogue ou à une
-lecture près :
+The cells gain three landmarks, all already known to the catalog or one read
+away:
 
-* le **numéro d'index** dans la grille, comme Lightroom — c'est ce qui permet
-  de dire « la 47 » à quelqu'un ;
-* le **drapeau** (retenue / rejetée), qui est déjà dans `GridItem` et
-  n'était simplement pas affiché ;
-* un badge **« déjà développée »** : la version porte plus que sa révision
-  initiale. C'est le seul champ nouveau, en lecture, calculé par la même
-  requête que la grille.
+* the **index number** in the grid, like Lightroom — it is what lets one say
+  "number 47" to someone;
+* the **flag** (pick / reject), which is already in `GridItem` and simply was
+  not displayed;
+* an **"already developed"** badge: the version carries more than its initial
+  revision. That is the only new field, read-only, computed by the same query
+  as the grid.
 
-Étoiles et pastille de couleur restent où elles sont.
+Stars and the colour dot stay where they are.
 
-### 6. `Tab` replie les panneaux, `Maj+Tab` tout le reste
+### 6. `Tab` collapses the panels, `Shift+Tab` everything else
 
-Une photo se juge sur la photo. `Tab` masque les panneaux latéraux — la
-bibliothèque à gauche, les métadonnées ou les réglages à droite — et
-`Maj+Tab` masque en plus les barres d'outils et le filmstrip, ne laissant que
-l'image et la barre de menus.
+A photo is judged on the photo. `Tab` hides the side panels — the library on
+the left, the metadata or the settings on the right — and `Shift+Tab` also
+hides the toolbars and the filmstrip, leaving only the image and the menu bar.
 
-**La barre de menus reste**, toujours : elle porte le sélecteur de module
-(§1), c'est-à-dire la seule sortie qui ne demande pas de connaître un
-raccourci. Une interface qui se replie jusqu'à ne plus dire comment en sortir
-est un piège, pas un mode plein écran.
+**The menu bar stays**, always: it carries the module selector (§1), that is,
+the only way out that does not require knowing a shortcut. An interface that
+collapses until it no longer says how to get out is a trap, not a full-screen
+mode.
 
-C'est de l'état d'interface pur, il vit le temps de la fenêtre et Rust ne le
-lit jamais (§6 ci-dessous). Les deux raccourcis sont ceux de Lightroom, à
-l'identique.
+It is pure interface state, it lives for the window's lifetime and Rust never
+reads it (§7 below). Both shortcuts are Lightroom's, identically.
 
-### 7. Trois propriétés à tenir
+### 7. Three properties to hold
 
-* **rien de tout cela ne se stocke** : module courant, mode de vue, taille de
-  vignette et dossier sélectionné sont de l'état d'interface, ils vivent le
-  temps de la fenêtre et Rust ne les lit jamais
-  ([ADR 0045](0045-studio-ui-modularisation.md) §2) ;
-* **aucun réglage, aucun rendu, aucun format stocké ne change** : la seule
-  évolution de surface du catalogue est en lecture ;
-* **rien n'est retiré** : chaque geste qui existait avant existe après, au même
-  endroit ou avec une porte de plus.
+* **none of this is stored**: the current module, the view mode, the thumbnail
+  size and the selected folder are interface state, they live for the window's
+  lifetime and Rust never reads them
+  ([ADR 0045](0045-studio-ui-modularisation.md) §2);
+* **no setting, no rendering and no stored format changes**: the catalog's only
+  surface evolution is read-only;
+* **nothing is removed**: every gesture that existed before exists after, in
+  the same place or with one more door.
 
-## Hors périmètre
+## Out of scope
 
-* **Le Navigateur** (l'aperçu en haut du panneau gauche). Il ne sert vraiment
-  qu'à se déplacer dans une image zoomée au-delà de 100 % ; la grille et la
-  loupe montrent déjà la photo.
-* **Renommer, déplacer ou supprimer des dossiers** depuis l'arbre (§2).
-* **Une identité de lot d'import** (§2).
-* **Cloner l'interface au pixel.** L'objectif est qu'un utilisateur de
-  Lightroom sache où cliquer, pas qu'il croie avoir lancé Lightroom.
+* **The Navigator** (the preview at the top of the left panel). It really
+  serves only to move around an image zoomed beyond 100 %; the grid and the
+  loupe already show the photo.
+* **Renaming, moving or deleting folders** from the tree (§2).
+* **An import-batch identity** (§2).
+* **Cloning the interface to the pixel.** The aim is that a Lightroom user
+  should know where to click, not that they should believe they launched
+  Lightroom.
 
-## Conséquences
+## Consequences
 
-* **Le premier écran d'un migrant a ses trois repères** : où changer de
-  module, où sont ses dossiers, comment grossir les vignettes.
-* **Le catalogue gagne deux lectures** — la liste des dossiers avec leurs
-  comptes, et un booléen « développée » par ligne de grille —, aucune
-  écriture, aucun changement de schéma. `docs/catalog.md` est mis à jour.
-* **Un raccourci change** (`E`), avec sa documentation dans le même geste (§4).
-* **La grille gagne quatre états d'interface** (mode de vue, taille de
-  vignette, dossier courant, repli des panneaux) qui restent du côté UI, et le
-  test mécanique d'ADR 0045 §2 continue de passer.
-* **La ligne de raccourcis grise du panneau gauche disparaît**, remplacée par
-  deux boutons.
+* **A migrant's first screen has its three landmarks**: where to change module,
+  where their folders are, how to enlarge the thumbnails.
+* **The catalog gains two reads** — the folder list with its counts, and a
+  "developed" boolean per grid row — no writes, and no schema change.
+  `docs/catalog.md` is updated.
+* **One shortcut changes** (`E`), with its documentation in the same gesture
+  (§4).
+* **The grid gains four interface states** (view mode, thumbnail size, current
+  folder, panel collapse) which stay on the UI side, and ADR 0045 §2's
+  mechanical test goes on passing.
+* **The left panel's grey shortcut line disappears**, replaced by two buttons.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Ne rien changer et écrire un guide.** Même réponse qu'ADR 0054 : c'est ce
-  qu'on reproche aux autres.
-* **Un mode « raccourcis Lightroom » optionnel.** Deux jeux à maintenir, et un
-  choix à faire avant d'avoir de quoi choisir.
-* **Mettre *Imprimer* dans le sélecteur de module** pour coller à Lightroom.
-  Chez eux, Imprimer *est* un module avec ses panneaux ; chez nous c'est un
-  dialogue ([ADR 0036](0036-print-module.md)). Un sélecteur qui ouvre une
-  fenêtre modale ment sur ce qu'il est.
-* **Garder `E` pour l'export et poser la loupe ailleurs.** Toute autre touche
-  est une touche qu'il faut apprendre — ce que cette décision cherche
-  précisément à éviter.
-* **Afficher le filmstrip aussi en grille**, comme Lightroom. Il y montrerait
-  les mêmes vignettes que la grille, deux fois, dans deux tailles.
+* **Changing nothing and writing a guide.** The same answer as ADR 0054: it is
+  what we hold against the others.
+* **An optional "Lightroom shortcuts" mode.** Two sets to maintain, and a
+  choice to make before having anything to choose from.
+* **Putting *Print* in the module selector** so as to match Lightroom. There,
+  Print *is* a module with its panels; here it is a dialog
+  ([ADR 0036](0036-print-module.md)). A selector that opens a modal window lies
+  about what it is.
+* **Keeping `E` for export and putting the loupe elsewhere.** Any other key is
+  a key to be learned — which is precisely what this decision seeks to avoid.
+* **Showing the filmstrip in the grid too**, like Lightroom. It would show the
+  same thumbnails as the grid, twice, in two sizes.
