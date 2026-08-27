@@ -1,191 +1,179 @@
-# ADR 0035 — Profil caméra (DCP) : nouvel étage colorimétrique en tête de pipeline, fichiers fournis par l'utilisateur, référencés et checksummés
+# ADR 0035 — Camera profile (DCP): a new colorimetric stage at the head of the pipeline, user-supplied files, referenced and checksummed
 
-**Statut :** Accepté — 2026-07
-**Suite :** `camera_profile::v1`, que cet ADR crée, n'est plus la version
-courante. [ADR 0062](0062-dcp-illuminant-interpolation.md) remplace la
-simplification de §Décision par une vraie interpolation des deux illuminants de
-calibration (`v2`), et [ADR 0063](0063-dcp-tables.md) applique enfin les tables
-du profil — `HueSatMap` et `LookTable` (`v3`). Le modèle décidé ici — un étage
-colorimétrique en tête de pipeline, des fichiers fournis par l'utilisateur,
-référencés et checksummés — est inchangé.
+**Status:** Accepted — 2026-07
+**Follow-up:** `camera_profile::v1`, which this ADR creates, is no longer the
+current version. [ADR 0062](0062-dcp-illuminant-interpolation.md) replaces
+§Decision's simplification with a real interpolation of the two calibration
+illuminants (`v2`), and [ADR 0063](0063-dcp-tables.md) finally applies the
+profile's tables — `HueSatMap` and `LookTable` (`v3`). The model decided here —
+a colorimetric stage at the head of the pipeline, user-supplied files,
+referenced and checksummed — is unchanged.
 
-## Contexte
+## Context
 
-`docs/v2-scope.md` §8 relève qu'aucune calibration couleur caméra de type DCP
-n'existe aujourd'hui. La correction d'objectif V1 (Lensfun, ADR 0016–0018,
-process 3–5) couvre distorsion/vignettage/TCA **géométriques**, pas la
-**couleur** du capteur. Un profil DCP calibre le rendu couleur du capteur
-(matrices colorimétriques, tables TSL, courbe tonale, *look table*) — donc
-très tôt dans le pipeline, à la conversion RGB capteur → espace de travail.
+`docs/v2-scope.md` §8 notes that no DCP-style camera colour calibration exists
+today. The V1 lens correction (Lensfun, ADR 0016–0018, process 3–5) covers
+**geometric** distortion/vignetting/TCA, not the sensor's **colour**. A DCP
+profile calibrates the sensor's colour rendering (colorimetric matrices, HSL
+tables, tone curve, *look table*) — hence very early in the pipeline, at the
+sensor RGB → working space conversion.
 
-Deux décisions transversales sont **consommées, non re-litigées, ici** :
+Two cross-cutting decisions are **consumed, not re-litigated, here**:
 
-* **ADR 0027** a élargi `leyline-color` d'« exposer un profil statique »
-  (ADR 0015) vers « charger des profils ICC arbitraires et construire des
-  `cmsTransform` ». Elle a explicitement placé l'authoring DCP **hors de sa
-  propre décision**, en notant qu'il « agit sur la conversion capteur →
-  espace de travail, au **début** du pipeline (un véritable événement de
-  process version) », mais que cet item pourra désormais « supposer que
-  `leyline-color` sera déjà une bibliothèque de transformation ICC générale ».
-  Ce document est cet ADR annoncé par ADR 0027.
-* **ADR 0028** fige la stratégie de versionnage : une process version par
-  fonctionnalité pixel, chacune dans son propre module `processN.rs` gelé,
-  créé en copiant le module précédent entier. Le profil caméra est un
-  opérateur pixel : il prend donc une nouvelle process version sans que cet
-  ADR ait à re-choisir la convention.
+* **ADR 0027** widened `leyline-color` from "expose a static profile"
+  (ADR 0015) to "load arbitrary ICC profiles and build `cmsTransform`s". It
+  explicitly placed DCP authoring **outside its own decision**, noting that it
+  "acts on the sensor → working space conversion, at the **start** of the
+  pipeline (a genuine process-version event)", but that this item would from
+  then on be able to "assume that `leyline-color` will already be a general ICC
+  transformation library". This document is the ADR announced by ADR 0027.
+* **ADR 0028** fixes the versioning strategy: one process version per pixel
+  feature, each in its own frozen `processN.rs` module, created by copying the
+  previous module whole. The camera profile is a pixel operator: it therefore
+  takes a new process version without this ADR having to re-choose the
+  convention.
 
-`docs/v2-scope.md` §8 laisse trois questions ouvertes propres à l'item : la
-dépendance de parsing DCP, l'interaction avec le gel sRGB (résolue en partie
-par ADR 0027), et la reproductibilité d'un chemin couleur entièrement nouveau.
-Ce document tranche le **placement pipeline, le crate propriétaire, la source
-des profils et leur reproductibilité** ; il laisse explicitement ouverte la
-**dépendance de parsing**.
+`docs/v2-scope.md` §8 leaves three questions open that are specific to the item:
+the DCP parsing dependency, the interaction with the sRGB freeze (partly
+resolved by ADR 0027), and the reproducibility of an entirely new colour path.
+This document settles the **pipeline placement, the owning crate, the source of
+the profiles and their reproducibility**; it explicitly leaves the **parsing
+dependency** open.
 
-## Décision
+## Decision
 
-### Un nouvel étage « Profil caméra », tout premier du pipeline — avant même la correction d'objectif
+### A new "Camera profile" stage, the very first of the pipeline — before even lens correction
 
-Un nouvel étage **« Profil caméra »** s'insère dans l'ordre fixe de
-`docs/pipeline.md` §3.1 **entre RAW décodé et Correction d'objectif** — c'est
-le **tout premier** étage, avant même la correction géométrique d'objectif.
+A new **"Camera profile"** stage is inserted into the fixed order of
+`docs/pipeline.md` §3.1 **between decoded RAW and Lens correction** — it is the
+**very first** stage, before even the geometric lens correction.
 
-Cela **précise** l'esquisse du §8 (« entre RAW décodé et Balance des blancs »)
-en fixant aussi l'ordre **relatif à la correction d'objectif** : un DCP
-calibre la réponse **couleur** du capteur (matrices, tables TSL, courbe
-tonale, look table) ; la correction d'objectif traite la **géométrie**
-(distorsion, vignettage, TCA). Les deux **n'interagissent pas** — l'un remappe
-des couleurs, l'autre remappe des positions. Placer la calibration
-colorimétrique en tout premier la fait opérer sur les **données les moins
-traitées possibles** (le RGB capteur juste décodé), cohérent avec les autres
-décisions de placement « opérer sur les données les moins traitées » de cette
-série d'ADR — la suppression de tache d'ADR 0032, placée tôt « pour opérer sur
-des données proches du linéaire ». Un DCP appliqué après un remapping
-géométrique n'aurait aucun sens colorimétrique de plus, et introduirait une
-dépendance d'ordre inutile entre deux opérateurs qui n'en ont aucune.
+That **makes precise** §8's sketch ("between decoded RAW and White balance") by
+also fixing the order **relative to lens correction**: a DCP calibrates the
+sensor's **colour** response (matrices, HSL tables, tone curve, look table);
+lens correction handles **geometry** (distortion, vignetting, TCA). The two
+**do not interact** — one remaps colours, the other remaps positions. Placing
+the colorimetric calibration first makes it operate on the **least-processed
+data possible** (the just-decoded sensor RGB), consistent with this ADR series'
+other "operate on the least-processed data" placement decisions — ADR 0032's
+spot removal, placed early "to operate on data close to linear". A DCP applied
+after a geometric remapping would have no additional colorimetric meaning, and
+would introduce a needless ordering dependency between two operators that have
+none.
 
-C'est un **véritable événement de réordonnancement** — un nouvel étage inséré
-avant l'étage actuellement premier. `docs/pipeline.md` §3.1/§3.3 impose qu'une
-telle insertion (comme toute étape qui change les pixels produits par une
-révision) prenne une **nouvelle process version** au même titre que n'importe
-quelle insertion — **process N, le prochain numéro disponible au moment de la
-sortie de cette fonctionnalité** (ADR 0028), dans son propre module
-`processN.rs` copie intégrale du module précédent augmentée du seul étage de
-profil caméra. Cet ADR **ne fige pas** un entier de process précis :
-l'ordre de sortie des items V2 relève du plan d'implémentation futur.
+It is a **genuine reordering event** — a new stage inserted before the
+currently first stage. `docs/pipeline.md` §3.1/§3.3 requires such an insertion
+(like any step that changes the pixels a revision produces) to take a **new
+process version** just like any insertion — **process N, the next number
+available when this feature ships** (ADR 0028), in its own `processN.rs` module,
+a whole copy of the previous module augmented with the camera-profile stage
+alone. This ADR **does not freeze** a specific process integer: the shipping
+order of the V2 items belongs to the future implementation plan.
 
-### Placement crate — aucun nouveau crate, extension de `leyline-color`
+### Crate placement — no new crate, an extension of `leyline-color`
 
-Le parseur DCP et la logique d'application de ses matrices/tables vivent dans
-**`leyline-color`**, pas dans un nouveau crate. Raisonnement : ADR 0027 a déjà
-établi `leyline-color` comme croissant d'« un profil statique » vers une
-bibliothèque générale de transformation couleur. L'application d'un DCP —
-recette matrice fixe + LUT, **appliquée directement** (pas via
-`lcms2::cmsTransform`, puisque DCP n'est pas de l'ICC, voir plus bas) — est du
-travail de **pipeline couleur adjacent**, parallèle au travail ICC déjà logé
-là. Elle n'a **pas** besoin du couplage aux tampons du moteur.
+The DCP parser and the logic that applies its matrices/tables live in
+**`leyline-color`**, not in a new crate. Reasoning: ADR 0027 already established
+`leyline-color` as growing from "one static profile" into a general colour
+transformation library. Applying a DCP — a fixed matrix + LUT recipe,
+**applied directly** (not through `lcms2::cmsTransform`, since DCP is not ICC,
+see below) — is **adjacent colour pipeline** work, parallel to the ICC work
+already housed there. It does **not** need coupling to the engine's buffers.
 
-Contraste explicite avec deux placements décidés différemment ailleurs dans
-cette série, pour deux raisons différentes :
+An explicit contrast with two placements decided differently elsewhere in this
+series, for two different reasons:
 
-* **Le masquage (ADR 0029) a reçu un module `leyline-engine`, pas un crate** :
-  parce que la rastérisation de masque est étroitement **couplée aux internes
-  du tampon de rendu et à son échantillonnage** — une frontière de crate
-  séparerait deux choses qui doivent partager ces internes.
-* **Le profil caméra reçoit une extension `leyline-color`, pas un crate** :
-  parce que c'est de la **logique de domaine couleur**, parallèle au travail
-  ICC déjà là (ADR 0027), et **non** quelque chose qui a besoin d'un couplage
-  aux tampons du moteur. Le module `processN.rs` **appelle** `leyline-color`
-  pour transformer les échantillons couleur, comme il appelle déjà
-  `leyline-lens` pour la géométrie.
+* **Masking (ADR 0029) got a `leyline-engine` module, not a crate**: because
+  mask rasterization is tightly **coupled to the render buffer's internals and
+  its sampling** — a crate boundary would separate two things that must share
+  those internals.
+* **The camera profile gets a `leyline-color` extension, not a crate**: because
+  it is **colour domain logic**, parallel to the ICC work already there
+  (ADR 0027), and **not** something that needs coupling to the engine's
+  buffers. The `processN.rs` module **calls** `leyline-color` to transform
+  colour samples, just as it already calls `leyline-lens` for geometry.
 
-Deux features, deux raisonnements de placement distincts — énoncés ensemble
-pour que le contraste soit lisible.
+Two features, two distinct placement arguments — stated together so the
+contrast is legible.
 
-### La dépendance de parsing DCP — risque ouvert explicite, non résolu ici
+### The DCP parsing dependency — an explicit open risk, not resolved here
 
-DCP est le format d'Adobe, fondé sur les **tags TIFF/EP**, **pas** de l'ICC :
-`lcms2` ne le parse pas. Que Leyline écrive un **parseur DCP maison minimal**
-(les seuls tags nécessaires à l'application) ou **intègre un crate Rust
-existant** (s'il en existe un convenable et licenciable au moment venu) est
-**laissé à la PR d'implémentation** — cela dépend de ce qui est disponible et
-licenciable à ce moment-là. Cet ADR fixe la décision **pipeline/architecture**,
-pas le choix de dépendance de parsing.
+DCP is Adobe's format, founded on **TIFF/EP tags**, **not** ICC: `lcms2` does
+not parse it. Whether Leyline writes a **minimal in-house DCP parser** (only the
+tags needed for application) or **integrates an existing Rust crate** (if a
+suitable and licensable one exists when the time comes) is **left to the
+implementation PR** — it depends on what is available and licensable at that
+moment. This ADR fixes the **pipeline/architecture** decision, not the parsing
+dependency choice.
 
-Dans le même esprit que la prudence d'ADR 0016 (« non triviaux à valider sans
-images de référence sous la main » pour vignettage/TCA), la **correctness
-colorimétrique** de l'application DCP doit être **validée contre de vrais
-fichiers DCP générés par Adobe et leurs rendus de référence** avant toute
-sortie — c'est exactement la barre que ce projet s'est déjà fixée pour ce type
-d'affirmation. Cet ADR ne prétend pas que le chemin couleur est correct ; il
-fixe où il vit et exige sa validation.
+In the same spirit as ADR 0016's caution ("non-trivial to validate without
+reference images to hand" for vignetting/TCA), the **colorimetric correctness**
+of DCP application must be **validated against real Adobe-generated DCP files
+and their reference renders** before any release — that is exactly the bar this
+project has already set for this kind of claim. This ADR does not claim that the
+colour path is correct; it fixes where it lives and requires its validation.
 
-### Source des profils — fichiers fournis par l'utilisateur, aucune base embarquée en V2
+### Source of the profiles — user-supplied files, no bundled database in V2
 
-**Aucune base de profils DCP embarquée en V2.** Contraste explicite avec
-Lensfun (ADR 0004/0016) : la correction d'objectif s'appuie sur une **base de
-profils ouverte, communautaire, embarquée**, où le matching par chaîne EXIF
-contre des milliers de profils fait sens. Les profils **DCP** sont d'une autre
-nature : ils sont typiquement **générés par l'utilisateur, boîtier par
-boîtier**, via une mire de calibration (ou téléchargés individuellement chez
-un tiers) — pas une base ouverte, maintenue par une communauté, que Leyline
-pourrait embarquer comme celle de Lensfun. Embarquer une telle base est un
-chantier bien plus grand et séparé (droits/licences des données, hébergement,
-maintenance), franchement hors périmètre ici.
+**No bundled DCP profile database in V2.** An explicit contrast with Lensfun
+(ADR 0004/0016): lens correction rests on an **open, community, bundled profile
+database**, where matching by EXIF string against thousands of profiles makes
+sense. **DCP** profiles are of another nature: they are typically **generated by
+the user, body by body**, from a calibration target (or downloaded individually
+from a third party) — not an open, community-maintained database that Leyline
+could bundle the way it bundles Lensfun's. Bundling such a database is a far
+larger and separate undertaking (data rights/licences, hosting, maintenance),
+frankly out of scope here.
 
-La V2 laisse donc l'utilisateur **déposer ses fichiers `.dcp`** dans un dossier
-de profils **relatif à la bibliothèque** (`docs/catalog.md` §2.3 : chemins
-relatifs, jamais absolus, pour la portabilité), par exemple `Profiles/Camera/`,
-et les **référence depuis `settings_json` par chemin relatif**. Le profil est
-matché **par un chemin explicite stocké**, **pas** auto-matché par le modèle
-EXIF de la caméra comme `lens_correction.profile: "auto"` l'est. Raisonnement :
-contrairement à la base communautaire de Lensfun où le matching flou d'une
-chaîne EXIF contre des milliers de profils embarqués a du sens, le fichier DCP
-unique qu'un utilisateur a produit pour son propre boîtier **n'a pas besoin de
-matching flou** — une référence explicite est plus simple et plus prévisible.
+V2 therefore lets the user **drop their `.dcp` files** into a profile folder
+**relative to the library** (`docs/catalog.md` §2.3: relative paths, never
+absolute, for portability), for example `Profiles/Camera/`, and **references
+them from `settings_json` by relative path**. The profile is matched **by an
+explicit stored path**, **not** auto-matched by the camera's EXIF model the way
+`lens_correction.profile: "auto"` is. Reasoning: unlike Lensfun's community
+database where fuzzy matching an EXIF string against thousands of bundled
+profiles makes sense, the single DCP file a user produced for their own body
+**needs no fuzzy matching** — an explicit reference is simpler and more
+predictable.
 
-### Reproductibilité d'un fichier de profil externe référencé — un problème genuinely nouveau
+### Reproducibility of a referenced external profile file — a genuinely new problem
 
-C'est un problème **que ni ADR 0026, ni 0029, ni 0032 n'ont eu à résoudre** :
-tous stockent leur géométrie **inline** dans `settings_json`, sans aucune
-référence à un fichier externe. Ici, `settings_json` **référence un fichier
-`.dcp` hors de lui-même** — un nouvel intrant dont la reproductibilité doit
-être garantie.
+This is a problem **neither ADR 0026, nor 0029, nor 0032 had to solve**: they
+all store their geometry **inline** in `settings_json`, with no reference to an
+external file. Here, `settings_json` **references a `.dcp` file outside
+itself** — a new input whose reproducibility must be guaranteed.
 
-**Décision : stocker un checksum BLAKE3** (même algorithme qu'ADR 0006,
-appliqué à un **nouveau genre de fichier référencé** plutôt qu'à un asset
-photo) des octets du fichier `.dcp`, **à côté de son chemin relatif** dans
-`settings_json`. Au rendu, si le checksum du fichier courant **ne correspond
-pas** au checksum stocké, le moteur **ne doit pas rendre silencieusement avec
-un profil modifié**.
+**Decision: store a BLAKE3 checksum** (the same algorithm as ADR 0006, applied
+to a **new kind of referenced file** rather than to a photo asset) of the `.dcp`
+file's bytes, **next to its relative path** in `settings_json`. At render time,
+if the current file's checksum **does not match** the stored checksum, the
+engine **must not silently render with a modified profile**.
 
-Cela **étend** le contrat de reproductibilité de `docs/pipeline.md` §5 — « deux
-exécutions sont identiques si et seulement si … la ressource d'entrée est
-identique (même `checksum`) », « même révision → mêmes pixels pour toujours » —
-à ce **nouveau cas d'un fichier d'entrée référencé de l'extérieur**, exactement
-comme le contrat s'applique déjà au checksum de l'asset photo lui-même. Un DCP
-est, colorimétriquement, un intrant de rendu au même titre que les pixels
-capteur.
+That **extends** `docs/pipeline.md` §5's reproducibility contract — "two runs
+are identical if and only if … the input resource is identical (same
+`checksum`)", "same revision → same pixels forever" — to this **new case of an
+externally referenced input file**, exactly as the contract already applies to
+the photo asset's own checksum. A DCP is, colorimetrically, a render input just
+as much as the sensor pixels.
 
-**Mode d'échec — pas une catégorie nouvelle.** Un checksum qui ne correspond
-pas est traité **comme le moteur traite déjà un `schema`/`process` qu'il ne
-reconnaît pas** (`docs/pipeline.md` §3.4) : il **ne modifie jamais la
-révision**, **n'édite pas l'asset** (lecture seule), et **affiche la meilleure
-préversion disponible avec un avertissement**. Aucune catégorie d'échec
-nouvelle n'est inventée : la politique existante « ne détruis pas le travail
-antérieur, avertis » est étendue à ce nouveau déclencheur (fichier de profil
-manquant ou modifié).
+**Failure mode — not a new category.** A checksum that does not match is
+handled **as the engine already handles a `schema`/`process` it does not
+recognize** (`docs/pipeline.md` §3.4): it **never modifies the revision**,
+**does not edit the asset** (read-only), and **displays the best available
+preview with a warning**. No new failure category is invented: the existing
+"do not destroy prior work, warn" policy is extended to this new trigger
+(missing or modified profile file).
 
-### Stockage / schéma — additif
+### Storage / schema — additive
 
-`camera_profile` est un objet optionnel de `settings_json`. **Absent =
-neutre** : le chemin par défaut de LibRaw (sortie sRGB, ADR 0015) inchangé —
-exactement le statu quo d'ADR 0015 quand le champ est absent. Aucun bump de
-schéma requis, cohérent avec le schéma additif « process +1, schema inchangé »
-de la plupart des items V2 (`docs/v2-scope.md` §1) — les champs inconnus d'un
-moteur ancien sont préservés verbatim (`Settings::extra`,
-`crates/leyline-core/src/settings.rs`).
+`camera_profile` is an optional object of `settings_json`. **Absent =
+neutral**: LibRaw's default path (sRGB output, ADR 0015) unchanged — exactly
+ADR 0015's status quo when the field is absent. No schema bump required,
+consistent with the additive "process +1, schema unchanged" scheme of most V2
+items (`docs/v2-scope.md` §1) — fields unknown to an older engine are preserved
+verbatim (`Settings::extra`, `crates/leyline-core/src/settings.rs`).
 
-Esquisse (le style suit `docs/pipeline.md` §3.2) :
+Sketch (the style follows `docs/pipeline.md` §3.2):
 
 ```json
 {
@@ -201,127 +189,124 @@ Esquisse (le style suit `docs/pipeline.md` §3.2) :
 }
 ```
 
-Cas neutre — champ absent, rendu bit-pour-bit identique à la process version
-précédente (chemin LibRaw-sRGB par défaut d'ADR 0015) :
+Neutral case — field absent, render bit-for-bit identical to the previous
+process version (ADR 0015's default LibRaw-sRGB path):
 
 ```json
 { "schema": 1, "process": 7, "exposure": 0.2 }
 ```
 
-> *Le `process: 7` ci-dessus est purement illustratif : le numéro réel est le
-> prochain disponible au moment de la sortie (ADR 0028), pas fixé par cet ADR.*
+> *The `process: 7` above is purely illustrative: the real number is the next
+> available one when it ships (ADR 0028), not fixed by this ADR.*
 
-> **Note d'implémentation (pas une édition de spec ici).** Cet ADR ne modifie
-> **pas** le diagramme de `docs/pipeline.md` §3.1 ni le tableau des process
-> versions §3.3. Comme pour ADR 0029–0033, la spec est mise à jour dans le même
-> changement que l'implémentation réelle, conformément à CLAUDE.md. Le présent
-> document fixe seulement **où** l'étage atterrit (tout premier, avant la
-> correction d'objectif), **où** vit son code (`leyline-color`) et **comment**
-> sa reproductibilité est garantie (checksum BLAKE3, mode d'échec §3.4) ; le
-> diagramme §3.1 et le tableau §3.3 seront amendés par la PR qui livre le
-> module process.
+> **Implementation note (not a spec edit here).** This ADR does **not** modify
+> `docs/pipeline.md` §3.1's diagram or §3.3's process-version table. As for
+> ADR 0029–0033, the spec is updated in the same change as the actual
+> implementation, per CLAUDE.md. The present document fixes only **where** the
+> stage lands (very first, before lens correction), **where** its code lives
+> (`leyline-color`) and **how** its reproducibility is guaranteed (BLAKE3
+> checksum, §3.4 failure mode); §3.1's diagram and §3.3's table will be amended
+> by the PR that ships the process module.
 
-> **Note du 2026-08-02, après confrontation à de vrais profils.** Le premier
-> `.dcp` authentique essayé a révélé que **aucun** ne pouvait être lu : un
-> profil est une IFD nue portant la version `0x4352`, là où le lecteur
-> attendait un TIFF standard avec une image. Corrigé par un lecteur d'IFD
-> maison — ce que le §Décision décrivait déjà, mais que l'implémentation
-> avait délégué à `tiff::Decoder`. Sont désormais vérifiés : la lecture de
-> vrais fichiers, et la préservation d'un gris neutre à travers la matrice.
-> Reste non vérifiée, et donc la mention « expérimental » reste : la
-> concordance avec le *rendu* d'Adobe, qui exige Lightroom ou ACR.
+> **Note of 2026-08-02, after confronting real profiles.** The first authentic
+> `.dcp` tried revealed that **none** could be read: a profile is a bare IFD
+> carrying version `0x4352`, where the reader expected a standard TIFF with an
+> image. Fixed by an in-house IFD reader — which §Decision already described,
+> but which the implementation had delegated to `tiff::Decoder`. Now verified:
+> reading real files, and the preservation of a neutral grey through the
+> matrix. Still unverified, and hence the "experimental" mention remains:
+> agreement with Adobe's *rendering*, which requires Lightroom or ACR.
 
-> **Note du 2026-08-03, après comparaison à un rendu indépendant.** Le chemin
-> DCP complet — conteneur, matrices, illuminants interpolés ([ADR 0062](0062-dcp-illuminant-interpolation.md))
-> et tables ([ADR 0063](0063-dcp-tables.md)) — a été confronté à un rendu
-> RawTherapee du même RAW avec le même profil, profil de traitement neutre.
-> **Une fois le niveau normalisé, l'écart médian est de 0,0027 sur 1,0**, soit
-> moins d'un niveau sur 255, et les rapports de canaux s'accordent à 0,007
-> près. La colorimétrie n'est donc plus non validée : elle concorde avec une
-> implémentation indépendante et mature de la même spécification.
+> **Note of 2026-08-03, after comparison with an independent render.** The full
+> DCP path — container, matrices, interpolated illuminants
+> ([ADR 0062](0062-dcp-illuminant-interpolation.md)) and tables
+> ([ADR 0063](0063-dcp-tables.md)) — was confronted with a RawTherapee render of
+> the same RAW with the same profile, neutral processing profile. **Once the
+> level is normalized, the median deviation is 0.0027 out of 1.0**, i.e. less
+> than one level in 255, and the channel ratios agree to within 0.007. The
+> colorimetry is therefore no longer unvalidated: it agrees with an independent
+> and mature implementation of the same specification.
 >
-> Ce qui reste, et qui justifie de garder la mention « expérimental » :
+> What remains, and what justifies keeping the "experimental" mention:
 >
-> * un **gain global de ×1,083** (espace encodé) subsiste, uniforme sur les
->   trois canaux — tonal, pas chromatique. L'enquête du 2026-08-03 a trouvé un
->   vrai défaut de niveau de blanc au passage ([ADR 0066](0066-sensor-white-level.md)) :
->   le décodeur laissait LibRaw choisir ce niveau d'après le pixel le plus clair
->   de chaque image. Sa correction **ne referme pas cet écart-ci** — il reste un
->   facteur ~1,14 non attribué. Ce qui est acquis : **ce n'est pas la couleur**,
->   qui concorde à 0,0027 près ;
-> * aucune comparaison à Adobe lui-même, faute de convertisseur disponible.
+> * an overall **gain of ×1.083** (encoded space) persists, uniform across the
+>   three channels — tonal, not chromatic. The investigation of 2026-08-03 found
+>   a real white-level defect along the way
+>   ([ADR 0066](0066-sensor-white-level.md)): the decoder let LibRaw choose that
+>   level from the brightest pixel of each image. Fixing it **does not close
+>   this gap** — a ~1.14 factor remains unattributed. What is established:
+>   **it is not the colour**, which agrees to within 0.0027;
+> * no comparison with Adobe itself, for want of an available converter.
 
-## Conséquences
+## Consequences
 
-* **Le champ `process` garde sa lisibilité sémantique** (ADR 0028) : le nouveau
-  numéro signifiera exactement « profil caméra DCP actif », un fait unique et
-  lisible, comme `process: 3` signifie « correction de distorsion active ».
-* **Sortie neutre gelée** : sans `camera_profile`, l'étage est bit-pour-bit la
-  process version précédente — le chemin LibRaw-sRGB d'ADR 0015, inchangé.
-  L'invariant « valeur neutre → opérateur entièrement sauté » (`process3.rs`)
-  reste vrai pour l'étage entier.
-* **`leyline-color` devient le foyer de deux chemins couleur** : la
-  transformation ICC de sortie (ADR 0027) et l'application DCP d'entrée (ici) —
-  deux logiques de domaine couleur, aucune ne couplée aux tampons du moteur,
-  cohérent avec le rôle qu'ADR 0027 lui a donné.
-* **La dépendance de parsing DCP reste un risque ouvert** pour la PR : parseur
-  maison minimal ou crate existant, selon ce qui est disponible et licenciable
-  au moment venu. La correctness colorimétrique doit être validée contre de
-  vrais DCP Adobe et leurs rendus de référence avant sortie (barre d'ADR 0016).
-* **La reproductibilité d'un fichier de profil externe est désormais couverte**
-  par le checksum BLAKE3 (ADR 0006) et le mode d'échec §3.4 — un profil manquant
-  ou modifié ne rend jamais silencieusement des pixels différents ; il avertit
-  et n'écrit rien. Le contrat « même révision → mêmes pixels » (`docs/pipeline.md`
-  §5) tient pour ce nouveau genre d'intrant référencé.
-* **La base de profils embarquée reste ouverte pour un futur ADR** avec ses
-  vrais coûts (droits, hébergement, maintenance) : la V2 refuse seulement de
-  s'y engager spéculativement, elle ne ferme pas la porte.
-* **Un module `processN.rs` de plus** (ADR 0028) : coût borné et connu ; aucun
-  module de version antérieure n'est touché, le gel « mêmes pixels dans dix ans »
-  reste mécaniquement infalsifiable (`docs/pipeline.md` §3.3).
+* **The `process` field keeps its semantic legibility** (ADR 0028): the new
+  number will mean exactly "DCP camera profile active", a single, readable fact,
+  as `process: 3` means "distortion correction active".
+* **Frozen neutral output**: without `camera_profile`, the stage is
+  bit-for-bit the previous process version — ADR 0015's LibRaw-sRGB path,
+  unchanged. The invariant "neutral value → operator entirely skipped"
+  (`process3.rs`) stays true for the whole stage.
+* **`leyline-color` becomes the home of two colour paths**: the output ICC
+  transform (ADR 0027) and the input DCP application (here) — two pieces of
+  colour domain logic, neither coupled to the engine's buffers, consistent with
+  the role ADR 0027 gave it.
+* **The DCP parsing dependency stays an open risk** for the PR: a minimal
+  in-house parser or an existing crate, depending on what is available and
+  licensable when the time comes. Colorimetric correctness must be validated
+  against real Adobe DCPs and their reference renders before release
+  (ADR 0016's bar).
+* **The reproducibility of an external profile file is now covered** by the
+  BLAKE3 checksum (ADR 0006) and §3.4's failure mode — a missing or modified
+  profile never silently renders different pixels; it warns and writes nothing.
+  The "same revision → same pixels" contract (`docs/pipeline.md` §5) holds for
+  this new kind of referenced input.
+* **The bundled profile database stays open for a future ADR** with its real
+  costs (rights, hosting, maintenance): V2 only refuses to commit to it
+  speculatively, it does not close the door.
+* **One more `processN.rs` module** (ADR 0028): a bounded, known cost; no
+  earlier version module is touched, the "same pixels in ten years" freeze stays
+  mechanically unfalsifiable (`docs/pipeline.md` §3.3).
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Embarquer une base de profils DCP à la manière de Lensfun.** Écarté : les
-  profils DCP sont typiquement générés par l'utilisateur boîtier par boîtier
-  (mire de calibration) ou téléchargés individuellement, pas une base ouverte
-  et communautaire que Leyline pourrait embarquer comme celle de Lensfun
-  (ADR 0004/0016). Bundler une telle base est un chantier bien plus grand et
-  séparé — droits/licences des données, hébergement, maintenance — franchement
-  hors périmètre V2. Les fichiers fournis par l'utilisateur couvrent le cas
-  réel (« ma calibration pour mon boîtier ») ; la base embarquée reviendra dans
-  son propre ADR si elle est un jour voulue.
-* **Auto-matcher le profil par le modèle EXIF de la caméra** plutôt qu'une
-  référence explicite stockée. Écarté : le matching flou par chaîne EXIF a du
-  sens pour la **base communautaire de milliers de profils** de Lensfun
-  (`lens_correction.profile: "auto"`), pas pour le fichier DCP **unique** qu'un
-  utilisateur a produit pour son propre boîtier. Une référence explicite
-  (chemin relatif stocké) est plus simple et plus prévisible qu'une devinette
-  EXIF quand il n'y a, en pratique, qu'un candidat par boîtier de l'utilisateur.
-* **Ne pas checksummer le fichier de profil référencé** (le traiter comme une
-  valeur de configuration, non comme un intrant dont la reproductibilité
-  compte). Écarté : un DCP est colorimétriquement un intrant de rendu au même
-  titre que les pixels capteur — le contrat `docs/pipeline.md` §5 exige une
-  ressource d'entrée identique (même checksum) pour garantir « même révision →
-  mêmes pixels ». Sans checksum, remplacer ou éditer le `.dcp` sur disque
-  changerait silencieusement le rendu d'une révision réputée gelée — exactement
-  ce que le contrat interdit. Le checksum BLAKE3 (ADR 0006) et le mode d'échec
-  §3.4 étendent la garantie existante à ce nouveau genre de fichier référencé,
-  sans inventer de catégorie d'échec nouvelle.
-* **Placer la logique de profil caméra dans un nouveau crate dédié** (p. ex.
-  `leyline-profile`) plutôt que d'étendre `leyline-color`. Écarté : ADR 0027 a
-  déjà fait de `leyline-color` une bibliothèque de transformation couleur
-  générale ; l'application DCP (matrice + LUT appliquées directement) est du
-  travail de domaine couleur parallèle, sans couplage aux tampons du moteur —
-  contrairement au masquage (ADR 0029), logé dans `leyline-engine` précisément
-  *parce qu'*il est couplé aux internes du tampon. Deux features, deux raisons
-  de placement : le DCP va là où vit déjà la science des couleurs.
-* **Placer le nouvel étage après la correction d'objectif** plutôt qu'avant.
-  Écarté : le profil caméra calibre la **couleur** du capteur, la correction
-  d'objectif remappe la **géométrie** — aucune interaction. Le placer en tout
-  premier le fait opérer sur les données les moins traitées (le RGB capteur
-  juste décodé), meilleur point pour une calibration colorimétrique, et
-  cohérent avec le placement tôt de la suppression de tache (ADR 0032). Le
-  placer après la géométrie n'apporterait aucun bénéfice colorimétrique et
-  introduirait une dépendance d'ordre inutile entre deux opérateurs qui n'en
-  ont aucune.
+* **Bundling a DCP profile database Lensfun-style.** Rejected: DCP profiles are
+  typically generated by the user body by body (calibration target) or
+  downloaded individually, not an open community database that Leyline could
+  bundle the way it bundles Lensfun's (ADR 0004/0016). Bundling such a database
+  is a far larger and separate undertaking — data rights/licences, hosting,
+  maintenance — frankly out of V2 scope. User-supplied files cover the real case
+  ("my calibration for my body"); the bundled database will come back in its own
+  ADR if it is ever wanted.
+* **Auto-matching the profile by the camera's EXIF model** rather than an
+  explicit stored reference. Rejected: fuzzy EXIF-string matching makes sense
+  for Lensfun's **community database of thousands of profiles**
+  (`lens_correction.profile: "auto"`), not for the **single** DCP file a user
+  produced for their own body. An explicit reference (stored relative path) is
+  simpler and more predictable than an EXIF guess when there is, in practice,
+  one candidate per user's body.
+* **Not checksumming the referenced profile file** (treating it as a
+  configuration value, not as an input whose reproducibility matters). Rejected:
+  a DCP is colorimetrically a render input just as much as the sensor pixels —
+  `docs/pipeline.md` §5's contract requires an identical input resource (same
+  checksum) to guarantee "same revision → same pixels". Without a checksum,
+  replacing or editing the `.dcp` on disk would silently change the render of a
+  revision believed frozen — exactly what the contract forbids. The BLAKE3
+  checksum (ADR 0006) and §3.4's failure mode extend the existing guarantee to
+  this new kind of referenced file, without inventing a new failure category.
+* **Putting the camera-profile logic in a new dedicated crate** (e.g.
+  `leyline-profile`) rather than extending `leyline-color`. Rejected: ADR 0027
+  already made `leyline-color` a general colour transformation library; DCP
+  application (matrix + LUT applied directly) is parallel colour domain work,
+  with no coupling to the engine's buffers — unlike masking (ADR 0029), housed
+  in `leyline-engine` precisely *because* it is coupled to the buffer's
+  internals. Two features, two placement reasons: DCP goes where colour science
+  already lives.
+* **Placing the new stage after lens correction** rather than before. Rejected:
+  the camera profile calibrates the sensor's **colour**, lens correction remaps
+  **geometry** — no interaction. Putting it first makes it operate on the
+  least-processed data (the just-decoded sensor RGB), the best point for a
+  colorimetric calibration, and consistent with spot removal's early placement
+  (ADR 0032). Putting it after the geometry would bring no colorimetric benefit
+  and would introduce a needless ordering dependency between two operators that
+  have none.
