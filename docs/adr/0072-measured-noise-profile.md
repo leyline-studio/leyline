@@ -1,362 +1,346 @@
-# ADR 0072 — Le débruitage sait enfin de quel capteur il vient (`noise_luminance::v3`, `noise_color::v3`)
+# ADR 0072 — Denoising finally knows which sensor it came from (`noise_luminance::v3`, `noise_color::v3`)
 
-**Statut :** Accepté — 2026-08
+**Status:** Accepted — 2026-08
 
-## Contexte
+## Context
 
-[ADR 0046](0046-edge-preserving-denoise.md) a remplacé un flou par un vrai
-opérateur — ondelettes à trous, seuillage doux — et a énoncé, dans son §7, ce
-qu'il ne faisait pas :
+[ADR 0046](0046-edge-preserving-denoise.md) replaced a blur with a real
+operator — à-trous wavelets, soft thresholding — and stated, in its §7, what it
+did not do:
 
-> **Pas de profil de bruit par boîtier et par ISO.** Le seuil est un modèle de
-> bruit blanc uniforme, pas la variance mesurée du capteur à cette sensibilité.
+> **No per-body, per-ISO noise profile.** The threshold is a uniform white-noise
+> model, not the sensor's measured variance at that sensitivity.
 
-C'est l'item **A3** de [`measured-findings.md`](../measured-findings.md), le
-dernier de l'axe « justesse du rendu » resté ouvert. Le présent ADR le tranche.
+That is item **A3** of [`measured-findings.md`](../measured-findings.md), the
+last one on the "rendering accuracy" axis to have stayed open. The present ADR
+settles it.
 
-### Ce que « bruit blanc uniforme » coûte
+### What "uniform white noise" costs
 
-Le seuil de `v2` vaut `k · BASE · σ_l` : trois constantes, les mêmes pour tous
-les fichiers du monde. Or le bruit d'un capteur n'est ni uniforme ni constant,
-et il varie sur **deux axes** que ce seuil ignore tous les deux.
+`v2`'s threshold is `k · BASE · σ_l`: three constants, the same for every file
+in the world. But a sensor's noise is neither uniform nor constant, and it
+varies along **two axes** that this threshold ignores, both of them.
 
-**La sensibilité.** Entre ISO 100 et ISO 12800, l'écart-type du bruit d'un
-Canon 60D à mi-gris passe de 0,0015 à 0,0131 — un facteur **neuf**. Un seuil
-unique ne peut donc être juste qu'à une sensibilité : il détruit du détail pour
-rien en dessous, et n'atteint pas le bruit au-dessus. Concrètement, « 30 » sur
-le curseur ne veut pas dire la même chose d'une photo à l'autre, et
-l'utilisateur passe son temps à le redécouvrir fichier par fichier.
+**Sensitivity.** Between ISO 100 and ISO 12800, the noise standard deviation of
+a Canon 60D at mid-grey goes from 0.0015 to 0.0131 — a factor of **nine**. A
+single threshold can therefore only be right at one sensitivity: it destroys
+detail for nothing below, and does not reach the noise above. Concretely, "30"
+on the slider does not mean the same thing from one photo to the next, and the
+user spends their time rediscovering that file by file.
 
-**Le niveau du signal.** Le bruit de photons est poissonien : sa variance
-**croît avec la lumière reçue**, et son écart-type *relatif* décroît. Un seuil
-constant est donc trop faible dans les ombres — là où le bruit se voit — et
-trop fort dans les hautes lumières, où il n'y a presque rien à retirer et où il
-mange de la texture.
+**The signal level.** Photon noise is Poissonian: its variance **grows with the
+light received**, and its *relative* standard deviation decreases. A constant
+threshold is therefore too weak in the shadows — where the noise shows — and too
+strong in the highlights, where there is almost nothing to remove and where it
+eats texture.
 
-### Ce que le bruit est réellement
+### What noise actually is
 
-Le modèle standard, celui que mesurent darktable, DxO et la littérature
-(Foi & al.), est **poissonien-gaussien** : pour une valeur brute `x` normalisée
-sur `[0, 1]`,
+The standard model, the one darktable, DxO and the literature (Foi et al.)
+measure, is **Poissonian-Gaussian**: for a raw value `x` normalized on
+`[0, 1]`,
 
 ```
 var(x) = a · x + b
 ```
 
-`a` porte le bruit de photons (proportionnel au signal, et proportionnel à la
-sensibilité), `b` le bruit de lecture (constant, indépendant du signal). Deux
-nombres par canal et par sensibilité suffisent à décrire un capteur — c'est
-peu, et c'est mesurable.
+`a` carries photon noise (proportional to the signal, and proportional to the
+sensitivity), `b` read noise (constant, independent of the signal). Two numbers
+per channel and per sensitivity are enough to describe a sensor — that is
+little, and it is measurable.
 
-## Décision
+## Decision
 
-### 1. Les mesures viennent de la base de darktable, sous sa licence
+### 1. The measurements come from darktable's database, under its licence
 
-Leyline embarque la table `data/noiseprofiles.json` du projet darktable :
-**434 boîtiers**, 7 842 couples `(ISO, a, b)` par canal, mesurés un par un par
-les contributeurs de ce projet depuis 2014.
+Leyline embeds the darktable project's `data/noiseprofiles.json` table: **434
+bodies**, 7,842 `(ISO, a, b)` triples per channel, measured one by one by that
+project's contributors since 2014.
 
-**La licence permet exactement cela.** darktable est publié sous
-**GPL-3.0-or-later**, Leyline sous [GPL-3.0-only](../../LICENSE) : un travail
-sous « v3 ou ultérieure » entre sans difficulté dans un travail sous « v3 »,
-c'est le sens même de la clause. L'attribution et la licence d'origine sont
-consignées dans l'en-tête du fichier embarqué et dans
-[`architecture.md`](../architecture.md) §Briques externes, au même titre que
-Lensfun ou LittleCMS.
+**The licence permits exactly that.** darktable is published under
+**GPL-3.0-or-later**, Leyline under [GPL-3.0-only](../../LICENSE): a work under
+"v3 or later" enters a work under "v3" without difficulty, that being the very
+meaning of the clause. The attribution and the original licence are recorded in
+the embedded file's header and in [`architecture.md`](../architecture.md)
+§External bricks, on the same footing as Lensfun or LittleCMS.
 
-**Ce que nous ne pouvons pas faire nous-mêmes**, et c'est la raison de fond :
-mesurer un profil demande une série de prises de vue contrôlées **par boîtier
-et par sensibilité**. Le corpus de développement couvre deux boîtiers ; la
-base en couvre 434. Un développeur RAW dont le débruitage ne serait profilé
-que pour les deux appareils de son auteur ne serait pas un développeur RAW.
-Mesurer reste possible — le format de la table est celui de l'amont, et un
-boîtier absent s'y ajoute avec les mêmes deux nombres par canal et par
-sensibilité — mais c'est un complément, pas la base.
+**What we cannot do ourselves**, and this is the underlying reason: measuring a
+profile requires a series of controlled exposures **per body and per
+sensitivity**. The development corpus covers two bodies; the database covers
+434. A RAW developer whose denoising were profiled only for its author's two
+cameras would not be a RAW developer. Measuring stays possible — the table's
+format is upstream's, and a missing body is added to it with the same two
+numbers per channel and per sensitivity — but it is a complement, not the base.
 
-**La table est réduite, pas transformée.** Les champs `name` et `comment` sont
-retirés, les nombres arrondis à six chiffres significatifs (le tampon est en
-`f32`, qui en porte sept), et les doublons d'ISO — plusieurs contributeurs
-ayant mesuré le même boîtier — sont résolus par **la première entrée dans
-l'ordre du fichier amont**, pour que la règle soit une règle et non un hasard
-d'itération. Le fichier garde une ligne par boîtier, ce qui le rend
-diffable contre l'amont, et son en-tête épingle le commit d'origine
-(`e333310b`, 2026-08-03) : la provenance est vérifiable, pas déclarée.
+**The table is reduced, not transformed.** The `name` and `comment` fields are
+removed, the numbers rounded to six significant digits (the buffer is `f32`,
+which carries seven), and ISO duplicates — several contributors having measured
+the same body — are resolved by **the first entry in upstream file order**, so
+that the rule is a rule and not an accident of iteration. The file keeps one
+line per body, which makes it diffable against upstream, and its header pins the
+origin commit (`e333310b`, 2026-08-03): the provenance is verifiable, not
+declared.
 
-### 2. La table est gelée avec la version d'étage
+### 2. The table is frozen with the stage version
 
-C'est le point qui décide de tout le reste. Une table qui évoluerait sous une
-version d'étage publiée changerait le rendu d'une révision existante — soit
-exactement ce que [`pipeline.md`](../pipeline.md) §5.1 interdit.
+This is the point that decides all the rest. A table that evolved under a
+published stage version would change the rendering of an existing revision —
+which is exactly what [`pipeline.md`](../pipeline.md) §5.1 forbids.
 
-Donc : **la table appartient à la version**. `kernel::v3` l'incorpore par
-`include_str!("../../../data/noise_profiles_v1.json")`, au même titre qu'une
-constante. Mettre les mesures à jour, ou ajouter des boîtiers, produit un
-`noise_profiles_v2.json` **et** de nouvelles versions d'étages : jamais une
-modification du fichier existant. Le coût est celui d'un fichier de 774 Ko de
-plus par mise à jour, et il est assumé — c'est le prix exact de la promesse.
+So: **the table belongs to the version**. `kernel::v3` incorporates it via
+`include_str!("../../../data/noise_profiles_v1.json")`, on the same footing as a
+constant. Updating the measurements, or adding bodies, produces a
+`noise_profiles_v2.json` **and** new stage versions: never a modification of the
+existing file. The cost is one more 774 KB file per update, and it is owned —
+that is the exact price of the promise.
 
-**Par contraste, ce que cette décision met en lumière.** La base Lensfun est
-embarquée dans le binaire de la même façon (ADR 0016) et **n'est épinglée par
-rien** : le jour où la version embarquée changera, une révision citant
-`lens::v1` rendra autrement. C'est un trou réel dans §5.1, découvert en
-écrivant ce document, hors de son périmètre, et consigné ici pour qu'il ne se
-redécouvre pas une troisième fois.
+**By contrast, what this decision brings to light.** The Lensfun database is
+embedded in the binary the same way (ADR 0016) and is **pinned by nothing**: the
+day the embedded version changes, a revision citing `lens::v1` will render
+differently. That is a real hole in §5.1, discovered while writing this
+document, outside its scope, and recorded here so it is not rediscovered a third
+time.
 
-### 3. Le seuil devient un seuil par pixel
+### 3. The threshold becomes a per-pixel threshold
 
-L'opérateur d'ADR 0046 ne change pas — décomposition à trous, seuillage doux,
-résidu jamais seuillé. Ce qui change est le seuil, qui cesse d'être un nombre
-pour devenir une fonction du pixel :
+ADR 0046's operator does not change — à-trous decomposition, soft thresholding,
+residual never thresholded. What changes is the threshold, which stops being a
+number and becomes a function of the pixel:
 
 ```
 t_l(i) = k · SIGMAS · σ_l · √( max(a · L_i + b, 0) )
 k = strength / 100
 ```
 
-`L_i` est le plan de luma, calculé **une fois** avant la décomposition : c'est
-l'estimateur du signal, et il n'a pas besoin d'être meilleur que ça — une
-erreur de ±σ sur `L` déplace `√(a·L + b)` de bien moins que le rapport de 9
-entre deux sensibilités. `σ_l` reste le profil par échelle d'ADR 0046 §3
-(`0.890, 0.201, 0.086, 0.041`), qui décrit comment la transformée répartit un
-bruit blanc entre ses niveaux — le modèle mesuré dit *combien* de bruit il y
-a, le profil par échelle dit *où* il va.
+`L_i` is the luma plane, computed **once** before the decomposition: it is the
+signal estimator, and it does not need to be better than that — an error of ±σ
+on `L` moves `√(a·L + b)` by far less than the ratio of 9 between two
+sensitivities. `σ_l` stays ADR 0046 §3's per-scale profile
+(`0.890, 0.201, 0.086, 0.041`), which describes how the transform distributes
+white noise across its levels — the measured model says *how much* noise there
+is, the per-scale profile says *where* it goes.
 
-`b` peut être négatif dans la base (artefact d'ajustement sur certains
-boîtiers, le 60D en donne à toutes ses sensibilités) : la variance est donc
-bornée à zéro avant la racine, ce qui rend simplement le modèle purement
-poissonien là où l'ajustement l'a voulu ainsi.
+`b` can be negative in the database (a fitting artefact on certain bodies; the
+60D gives some at every sensitivity): the variance is therefore clamped to zero
+before the square root, which simply makes the model purely Poissonian where the
+fit intended it that way.
 
-**Les deux constantes.** `SIGMAS_LUMA = 6` place le curseur à mi-course
-(`strength = 50`) sur **3 σ**, la valeur de manuel pour un seuillage doux, et
-lui laisse de quoi aller au double. `SIGMAS_CHROMA = 10` reste plus agressif,
-pour la raison qui valait déjà dans `v2` — la chrominance d'une photo est
-lisse presque partout — mais **pas** dans le rapport 2,5 que `v2` exprimait
-par ses `BASE` (0,05 et 0,12) : une partie de ce rapport est désormais portée
-par le σ mesuré lui-même, qui ressort environ 1,7 fois plus grand sur un plan
-de chrominance que sur la luma (`chroma_terms` §5). Le compter deux fois
-aplatirait de la vraie couleur. Ces deux constantes sont gelées au même titre
-que la table.
+**The two constants.** `SIGMAS_LUMA = 6` puts the slider at mid-travel
+(`strength = 50`) on **3 σ**, the textbook value for a soft threshold, and
+leaves it room to go to double. `SIGMAS_CHROMA = 10` stays more aggressive, for
+the reason that already held in `v2` — a photo's chrominance is smooth almost
+everywhere — but **not** in the 2.5 ratio that `v2` expressed through its `BASE`
+values (0.05 and 0.12): part of that ratio is now carried by the measured σ
+itself, which comes out about 1.7 times larger on a chrominance plane than on
+luma (`chroma_terms` §5). Counting it twice would flatten real colour. Those two
+constants are frozen on the same footing as the table.
 
-**Sur une preview réduite** (ADR 0041), le bruit a déjà été moyenné par la
-réduction : `n × n` pixels moyennés divisent son écart-type par `n`. Le σ
-mesuré est donc multiplié par le facteur `scale` avant de servir de seuil, ce
-qui est la seule façon pour l'aperçu et l'export de montrer le même
-débruitage. Le nombre de niveaux continue de suivre `levels_at_scale`
-(ADR 0046 §5) ; les deux corrections sont indépendantes et toutes deux
-nécessaires.
+**On a reduced preview** (ADR 0041), the noise has already been averaged by the
+reduction: `n × n` averaged pixels divide its standard deviation by `n`. The
+measured σ is therefore multiplied by the `scale` factor before serving as a
+threshold, which is the only way for the preview and the export to show the same
+denoising. The number of levels continues to follow `levels_at_scale`
+(ADR 0046 §5); the two corrections are independent and both necessary.
 
-### 4. Les étages remontent en tête du pipeline (rangs 5 et 6)
+### 4. The stages move up to the head of the pipeline (ranks 5 and 6)
 
-Un modèle mesuré sur les nombres du capteur ne veut plus rien dire une fois
-que l'exposition, le contraste, la courbe tonale et la clarté sont passés.
-Aux rangs 170 et 180, `v2` travaillait sur une image dont plus rien ne
-reliait la valeur d'un pixel à la lumière reçue par la photosite. Un profil y
-serait une décoration.
+A model measured on the sensor's numbers no longer means anything once exposure,
+contrast, the tone curve and clarity have gone by. At ranks 170 and 180, `v2`
+worked on an image where nothing any longer connected a pixel's value to the
+light received by the photosite. A profile there would be decoration.
 
-`noise_luminance::v3` prend donc le **rang 5** et `noise_color::v3` le
-**rang 6** — entre `input` (rang 0) et `camera_profile` (rang 10), le seul
-endroit du pipeline où le tampon est encore une transformation **linéaire**
-des comptes du capteur. Le rang est une propriété de la version, pas de
-l'opérateur ([ADR 0042](0042-versioned-stage-pipeline.md) §3) : c'est
-précisément ce mécanisme qui rend ce déplacement possible sans toucher à
-`v1` ni `v2`, qui restent aux rangs 170 et 180 pour les révisions qui les
-citent.
+`noise_luminance::v3` therefore takes **rank 5** and `noise_color::v3` **rank
+6** — between `input` (rank 0) and `camera_profile` (rank 10), the only place in
+the pipeline where the buffer is still a **linear** transformation of the
+sensor's counts. The rank is a property of the version, not of the operator
+([ADR 0042](0042-versioned-stage-pipeline.md) §3): it is precisely that
+mechanism that makes this move possible without touching `v1` or `v2`, which
+stay at ranks 170 and 180 for the revisions that cite them.
 
-Trois conséquences, dans l'ordre où elles comptent :
+Three consequences, in the order in which they matter:
 
-* **Le débruitage précède la géométrie** (`lens` au rang 20 rééchantillonne,
-  `rotate` et `perspective` aussi). C'est la bonne place : après un
-  rééchantillonnage, le bruit n'est plus indépendant d'un pixel à l'autre et
-  aucun modèle par pixel ne le décrit plus.
-* **L'axe d'affichage est abandonné.** `v1` et `v2` travaillaient sous
-  `in_display` (ADR 0046 §4) parce qu'un seuil constant en lumière linéaire
-  serait énorme dans les ombres et négligeable dans les hautes lumières. Le
-  seuil n'est plus constant : il suit le signal, ce que la courbe d'affichage
-  ne faisait qu'approximer. Deux non-linéarités de moins par rendu, et le
-  modèle appliqué là où il a été mesuré.
-* **Le cache d'étages change de main.** Le curseur de bruit était le
-  quatrième avant la fin ; il devient le second après le début. Bouger *ce*
-  curseur-là rejoue désormais tout le pipeline, pendant que **tous les autres
-  curseurs** trouvent le débruitage — l'étage le plus cher du pipeline — déjà
-  fait dans le cache. Aucun point de contrôle n'est à ajouter pour cela : le
-  premier de ceux d'ADR 0041 §3 est pris *avant* le rang 40, donc après les
-  rangs 5 et 6, et il capture donc déjà le tampon débruité.
+* **Denoising precedes geometry** (`lens` at rank 20 resamples, `rotate` and
+  `perspective` too). That is the right place: after a resampling, the noise is
+  no longer independent from one pixel to the next and no per-pixel model
+  describes it any more.
+* **The display axis is abandoned.** `v1` and `v2` worked under `in_display`
+  (ADR 0046 §4) because a constant threshold in linear light would be enormous in
+  the shadows and negligible in the highlights. The threshold is no longer
+  constant: it follows the signal, which the display curve only approximated. Two
+  fewer non-linearities per render, and the model applied where it was measured.
+* **The stage cache changes hands.** The noise slider was the fourth before the
+  end; it becomes the second after the start. Moving *that* slider now replays
+  the whole pipeline, while **every other slider** finds the denoising — the
+  pipeline's most expensive stage — already done in the cache. No checkpoint has
+  to be added for that: the first of ADR 0041 §3's is taken *before* rank 40, so
+  after ranks 5 and 6, and it therefore already captures the denoised buffer.
 
-### 5. Transporter le modèle jusqu'à l'espace du tampon
+### 5. Carrying the model over into the buffer's space
 
-Les coefficients de la base sont mesurés sur les valeurs brutes du capteur,
-canal par canal, **avant balance des blancs**. Le tampon du rang 5 n'est pas
-cet espace-là : il en est une transformation linéaire, connue, en deux temps.
+The database's coefficients are measured on the sensor's raw values, channel by
+channel, **before white balance**. Rank 5's buffer is not that space: it is a
+known linear transformation of it, in two steps.
 
-**La balance des blancs du boîtier.** LibRaw multiplie le canal `j` par
-`g_j = m_j / min(m)`, où `m` sont les multiplicateurs de la prise de vue
-(`SourceColor::Camera::multipliers`). Multiplier un échantillon par `g` en
-multiplie la variance par `g²`, donc :
+**The body's white balance.** LibRaw multiplies channel `j` by
+`g_j = m_j / min(m)`, where `m` are the shot's multipliers
+(`SourceColor::Camera::multipliers`). Multiplying a sample by `g` multiplies its
+variance by `g²`, hence:
 
 ```
 a_j ← g_j · a_j        b_j ← g_j² · b_j
 ```
 
-(La forme de `a` suit du changement de variable : `var(g·x) = g²(a·x + b)` et
-`x = y/g` donnent `g·a·y + g²·b`. C'est le calcul que darktable fait en
-divisant le pixel par `wb` avant d'évaluer son modèle.) Le mode de
-reconstruction des hautes lumières ne change rien à ce gain : LibRaw y divise
-par `max(m)` au lieu de `min(m)`, et `input::v2` rend exactement ce rapport
+(The form of `a` follows from the change of variable: `var(g·x) = g²(a·x + b)`
+and `x = y/g` give `g·a·y + g²·b`. It is the computation darktable does by
+dividing the pixel by `wb` before evaluating its model.) The highlight
+reconstruction mode changes nothing about that gain: LibRaw there divides by
+`max(m)` instead of `min(m)`, and `input::v2` renders exactly that ratio
 ([ADR 0050](0050-highlight-reconstruction.md) §3).
 
-**La matrice colorimétrique.** Sans profil DCP, `input` a déjà appliqué
-`M = camera_to_rec2020` ; avec un profil, le tampon est encore camera-natif
-et `camera_profile` (rang 10) fera la conversion plus tard. Dans le premier
-cas, une combinaison linéaire de variables indépendantes donne
-`var(y_k) = Σ_j M_kj² · var(x_j)`, d'où, sous l'hypothèse de gris (`x_j ≈ y_k`,
-que la normalisation de `M` rend cohérente sur un neutre) :
+**The colorimetric matrix.** Without a DCP profile, `input` has already applied
+`M = camera_to_rec2020`; with a profile, the buffer is still camera-native and
+`camera_profile` (rank 10) will do the conversion later. In the first case, a
+linear combination of independent variables gives
+`var(y_k) = Σ_j M_kj² · var(x_j)`, whence, under the grey assumption (`x_j ≈
+y_k`, which `M`'s normalization makes coherent on a neutral):
 
 ```
 a'_k = Σ_j M_kj² · a_j      b'_k = Σ_j M_kj² · b_j
 ```
 
-Dans le second, la transformation est l'identité et le modèle s'applique tel
-quel. L'étage sait dans lequel des deux cas il est — c'est ce que
-`ctx.camera_profile.is_some()` dit, et `input::v2` prend déjà sa décision sur
-ce même booléen.
+In the second, the transformation is the identity and the model applies as it
+stands. The stage knows which of the two cases it is in — that is what
+`ctx.camera_profile.is_some()` says, and `input::v2` already makes its decision
+on that same boolean.
 
-**De là aux deux plans traités.** La luma est `Σ w_k y_k` avec les poids
-Rec. 2020 de `pixels::luma`, donc `a_L = Σ w_k² a'_k`. La chrominance du canal
-`k` est `y_k − L`, donc `a_C,k = (1 − w_k)² a'_k + Σ_{j≠k} w_j² a'_j`. Les
-mêmes formules sur `b`. Rien n'y est ajusté à la main : chaque coefficient
-descend de la définition du plan qu'il décrit. Ces poids sont ceux de
-`pixels::luma`, donc ceux du Rec. 2020 : dans le cas « profil DCP », où le
-tampon est encore camera-natif, ils sont appliqués à des canaux qui ne sont
-pas les leurs. C'est l'opérateur lui-même qui fait déjà ce choix — `v1` et
-`v2` extraient la même luma — et l'erreur qui en résulte sur un **seuil** est
-sans commune mesure avec ce que le profil apporte.
+**From there to the two planes processed.** Luma is `Σ w_k y_k` with
+`pixels::luma`'s Rec. 2020 weights, hence `a_L = Σ w_k² a'_k`. Channel `k`'s
+chrominance is `y_k − L`, hence `a_C,k = (1 − w_k)² a'_k + Σ_{j≠k} w_j² a'_j`.
+The same formulas on `b`. Nothing there is hand-tuned: every coefficient
+descends from the definition of the plane it describes. Those weights are
+`pixels::luma`'s, hence Rec. 2020's: in the "DCP profile" case, where the buffer
+is still camera-native, they are applied to channels that are not theirs. It is
+the operator itself that already makes that choice — `v1` and `v2` extract the
+same luma — and the resulting error on a **threshold** is in no way comparable to
+what the profile brings.
 
-**Ce qui n'est pas transporté, et pourquoi.** Le niveau de blanc. Nos valeurs
-sont normalisées par la marge de linéarité du boîtier
-([ADR 0066](0066-sensor-white-level.md)), celles de la base par la constante
-de blanc de darktable — un rapport de l'ordre de 1,1 sur un 60D, donc ~10 %
-sur σ. C'est dérisoire devant le facteur 100 que couvre l'échelle des
-sensibilités, et devant l'incertitude de l'ajustement lui-même. C'est dit ici
-pour que personne n'ait à le déduire d'un silence.
+**What is not carried over, and why.** The white level. Our values are
+normalized by the body's linearity margin
+([ADR 0066](0066-sensor-white-level.md)), the database's by darktable's white
+constant — a ratio of the order of 1.1 on a 60D, hence ~10 % on σ. That is
+derisory next to the factor of 100 the sensitivity scale covers, and next to the
+uncertainty of the fit itself. It is said here so that nobody has to deduce it
+from a silence.
 
-### 6. La correspondance boîtier, et l'interpolation en sensibilité
+### 6. Body matching, and interpolation in sensitivity
 
-La recherche prend la marque, le modèle et la sensibilité EXIF de la prise de
-vue. Le catalogue **retire déjà la marque du modèle** (`exif::without_brand`,
-et LibRaw le fait de son côté) : `Canon` / `EOS 60D`, ce qui est exactement la
-forme de la base. La comparaison est faite à la casse et aux espaces près, et
-rien de plus — une correspondance approximative sur un nom de boîtier
-donnerait le profil d'un autre capteur, ce qui est pire que pas de profil.
+The lookup takes the shot's EXIF make, model and sensitivity. The catalog
+**already strips the make from the model** (`exif::without_brand`, and LibRaw
+does it on its side): `Canon` / `EOS 60D`, which is exactly the database's form.
+The comparison is made up to case and spaces, and nothing more — an approximate
+match on a body name would give another sensor's profile, which is worse than no
+profile.
 
-**Entre deux sensibilités mesurées, les coefficients sont interpolés
-linéairement** en ISO, et bornés aux extrémités de l'échelle. La base est
-dense (le 5D Mark IV y a 29 entrées de 50 à 102 400) : l'interpolation ne fait
-que combler des tiers de tiers de diaphragme, jamais un trou.
+**Between two measured sensitivities, the coefficients are linearly
+interpolated** in ISO, and clamped at the ends of the scale. The database is
+dense (the 5D Mark IV has 29 entries there, from 50 to 102,400): the
+interpolation only fills in thirds of thirds of a stop, never a hole.
 
-**Les sources RAW seulement.** Un JPEG a déjà traversé le débruitage du
-boîtier et sa courbe : le modèle n'y décrit plus rien. `SourceColor::Srgb`
-tombe donc dans le repli du §7, comme un boîtier inconnu.
+**RAW sources only.** A JPEG has already been through the body's denoising and
+its curve: the model no longer describes anything there. `SourceColor::Srgb`
+therefore falls into §7's fallback, like an unknown body.
 
-**Vérifié sur de vrais fichiers, et pas seulement sur des chaînes écrites à la
-main.** Une correspondance qui échoue ne casse rien : elle bascule sur le
-repli, en silence — exactement le défaut qu'ADR 0035 avait laissé passer en ne
-lisant que ses propres fixtures. Un test ignoré par défaut
-(`LEYLINE_TEST_RAW`) part donc d'un CR2 du corpus, en tire les métadonnées par
-le chemin d'import réel et **exige** que la table réponde. Les deux boîtiers
-disponibles y passent : Canon EOS 60D et Canon EOS 5D Mark IV.
+**Verified on real files, and not only on hand-written strings.** A failing match
+breaks nothing: it falls back, silently — exactly the defect ADR 0035 let
+through by reading only its own fixtures. A test ignored by default
+(`LEYLINE_TEST_RAW`) therefore starts from a CR2 of the corpus, pulls its
+metadata through the real import path and **requires** the table to answer. Both
+available bodies pass: Canon EOS 60D and Canon EOS 5D Mark IV.
 
-### 7. Sans correspondance, un modèle par défaut — pas un étage muet
+### 7. With no match, a default model — not a mute stage
 
-L'étage objectif, faute de profil, ne corrige rien (ADR 0016 §2). Ce n'est pas
-transposable ici : un objectif inconnu veut dire « aucune correction n'a été
-demandée », alors qu'un boîtier inconnu ferait perdre **le débruitage
-lui-même** à qui possède un appareil absent de la base — et la version
-épinglée pour toute nouvelle révision est `v3`.
+The lens stage, lacking a profile, corrects nothing (ADR 0016 §2). That does not
+transpose here: an unknown lens means "no correction was asked for", whereas an
+unknown body would make whoever owns a camera missing from the database lose
+**denoising itself** — and the version pinned for every new revision is `v3`.
 
-Le repli est donc un modèle, explicite : `a = 0`, `b = σ₀²` avec
-**σ₀ = 0,003** — un bruit indépendant du signal, de l'ordre de ce que la base
-donne pour un reflex APS-C autour d'ISO 800. C'est exactement l'hypothèse de
-`v2`, replacée en lumière linéaire : le boîtier inconnu retrouve le
-comportement d'avant cet ADR, ni plus ni moins. La constante est définie dans
-les unités du tampon et n'est **pas** transportée par le §5 : transporter un
-nombre inventé ne le rendrait pas plus vrai.
+The fallback is therefore a model, explicit: `a = 0`, `b = σ₀²` with **σ₀ =
+0.003** — a signal-independent noise, of the order of what the database gives for
+an APS-C SLR around ISO 800. It is exactly `v2`'s assumption, put back into
+linear light: the unknown body recovers the behaviour from before this ADR,
+neither more nor less. The constant is defined in the buffer's units and is
+**not** carried over by §5: carrying over an invented number would not make it
+truer.
 
-### 8. Ce que cette décision ne change pas
+### 8. What this decision does not change
 
-* **La surface de réglage.** Deux curseurs `0..100`
+* **The settings surface.** Two `0..100` sliders
   (`noise_reduction.luminance`, `noise_reduction.color`), `settings_json`
-  inchangé, `schema` non incrémenté. Aucun client — Studio, CLI, SDK — n'a un
-  champ à ajouter. Comme pour ADR 0046, ce sont les mêmes valeurs, mieux
-  dépensées.
-* **Les révisions existantes.** `v1` et `v2` ne sont pas touchées et restent
-  enregistrées à leurs rangs. Une révision qui les cite rend à l'identique,
-  pour toujours ; l'utilisateur qui veut le débruitage profilé retraite sa
-  photo, ce qui crée une nouvelle révision.
-* **La révision n'apprend rien du capteur.** Marque, modèle et ISO sont des
-  propriétés **du fichier**, pas de l'intention de l'utilisateur : ils entrent
-  par le même chemin que `SourceColor` et que le `LensShot`, c'est-à-dire un
-  argument de `render`, et non par `settings_json`. Un préréglage reste donc
-  applicable d'un boîtier à l'autre — et c'est la raison décisive de ne pas
-  matérialiser les coefficients dans la révision.
+  unchanged, `schema` not incremented. No client — Studio, CLI, SDK — has a field
+  to add. As for ADR 0046, they are the same values, better spent.
+* **Existing revisions.** `v1` and `v2` are untouched and stay recorded at their
+  ranks. A revision citing them renders identically, forever; the user who wants
+  profiled denoising reprocesses their photo, which creates a new revision.
+* **The revision learns nothing about the sensor.** Make, model and ISO are
+  properties **of the file**, not of the user's intent: they come in by the same
+  path as `SourceColor` and the `LensShot`, that is, an argument of `render`, and
+  not through `settings_json`. A preset therefore stays applicable from one body
+  to another — and that is the decisive reason not to materialize the coefficients
+  in the revision.
 
-## Conséquences
+## Consequences
 
-* **Le curseur veut enfin dire quelque chose.** À réglage égal, une photo
-  ISO 100 est à peine touchée et une photo ISO 6400 est franchement
-  débruitée : c'est le capteur qui porte l'écart, plus l'utilisateur.
-* **Le fichier de mesures pèse 774 Ko dans le binaire**, chargé et analysé une
-  seule fois par processus, à la première utilisation de l'étage
-  (`OnceLock`) — jamais à l'ouverture de l'application.
-* **Le seuil mesuré ne coûte rien.** Le banc `denoise/` compare les trois
-  versions épinglées, à réglages identiques (luminance 40, chroma 30) sur la
-  trame synthétique de 3 Mpx : **98 ms pour `v1`, 231 ms pour `v2`, 219 ms
-  pour `v3`** — un rendu complet, pas l'opérateur seul. `v3` est donc
-  légèrement *plus rapide* que `v2` : une racine carrée par pixel et un plan
-  de σ de plus, contre les deux passes d'aller-retour vers l'axe d'affichage
-  que le §4 supprime, `display()` et `linear()` appelant `powf` sur chaque
-  échantillon. L'échange est favorable, ce qui n'était pas prévu.
-* **Le manifeste golden gagne des entrées, aucune ne bouge.** Les variantes
-  `noise_*::v3` s'y ajoutent, dont une exerçant la correspondance réelle
-  (Canon EOS 60D à ISO 3200) et une le repli. Le blessing reste additif.
-* **`render` prend un argument de plus** (`sensor: Option<&SensorShot>`), et
-  [`engine-api.md`](../engine-api.md) le documente. C'est le huitième argument
-  d'une fonction qui en portait sept : le regroupement de ces entrées résolues
-  dans une structure unique est une simplification à faire, et elle n'a pas sa
-  place dans le même changement que celui-ci.
-* **`docs/pipeline.md` §3.3 gagne deux lignes**, et l'ordre du tableau des
-  étages cesse d'être l'ordre de leur numérotation historique : deux étages y
-  figurent maintenant deux fois, à deux rangs différents. C'est la première
-  fois qu'une version change de rang, et le mécanisme d'ADR 0042 §3 sert donc
-  pour ce qu'il a été écrit.
-* **A3 est fermé** dans [`measured-findings.md`](../measured-findings.md), et
-  l'argument de C1 (« A3 donne une partie du gain visé par le débruitage IA,
-  sans aucune de ses questions ») devient vérifiable.
+* **The slider finally means something.** At an equal setting, an ISO 100 photo
+  is barely touched and an ISO 6400 photo is frankly denoised: the sensor carries
+  the difference now, not the user.
+* **The measurements file weighs 774 KB in the binary**, loaded and parsed once
+  per process, at the stage's first use (`OnceLock`) — never at application
+  startup.
+* **The measured threshold costs nothing.** The `denoise/` bench compares the
+  three pinned versions, at identical settings (luminance 40, chroma 30) on the
+  3 Mpx synthetic frame: **98 ms for `v1`, 231 ms for `v2`, 219 ms for `v3`** — a
+  complete render, not the operator alone. `v3` is therefore slightly *faster*
+  than `v2`: one square root per pixel and one more σ plane, against the two
+  round-trip passes to the display axis that §4 removes, `display()` and
+  `linear()` calling `powf` on every sample. The trade is favourable, which was
+  not foreseen.
+* **The golden manifest gains entries, none of them moves.** The `noise_*::v3`
+  variants are added to it, one of them exercising the real match (Canon EOS 60D
+  at ISO 3200) and one the fallback. Blessing stays additive.
+* **`render` takes one more argument** (`sensor: Option<&SensorShot>`), and
+  [`engine-api.md`](../engine-api.md) documents it. It is the eighth argument of
+  a function that carried seven: grouping those resolved inputs into a single
+  structure is a simplification to be made, and it has no place in the same change
+  as this one.
+* **`docs/pipeline.md` §3.3 gains two lines**, and the stage table's order stops
+  being the order of their historical numbering: two stages now appear there
+  twice, at two different ranks. It is the first time a version has changed rank,
+  and ADR 0042 §3's mechanism therefore serves what it was written for.
+* **A3 is closed** in [`measured-findings.md`](../measured-findings.md), and C1's
+  argument ("A3 gives part of the gain AI denoising aims at, with none of its
+  questions") becomes verifiable.
 
-## Alternatives écartées
+## Alternatives rejected
 
-* **Mesurer nous-mêmes la base.** Deux boîtiers contre 434, pour des mois de
-  prises de vue contrôlées et un protocole à valider. Le protocole reste
-  utile — il est le moyen d'ajouter un boîtier absent — mais il ne peut pas
-  *être* la base.
-* **La transformée stabilisatrice de variance (Anscombe généralisé)**, ce que
-  darktable applique. Plus juste en théorie : elle rend le bruit uniforme, ce
-  qui autorise un seuil constant et une analyse propre. En pratique elle
-  ajoute deux transformations non linéaires par rendu et un biais à corriger
-  à l'inverse, pour un écart au seuil par pixel qui reste petit devant
-  l'incertitude de §5 sur le niveau de blanc. Le seuil par pixel garde en
-  outre l'opérateur d'ADR 0046 littéralement intact, ce qui rend cette version
-  lisible à côté de la précédente.
-* **Matérialiser les coefficients dans la révision.** Rendrait le rendu pur à
-  partir de `settings_json` — et rendrait un préréglage dépendant du boîtier
-  sur lequel il a été créé, ce qui casserait
-  [`presets.md`](../presets.md) pour un gain nul : le fichier est de toute
-  façon nécessaire au rendu, et il porte son propre EXIF.
-* **Garder les rangs 170 et 180.** Aurait évité tout déplacement — et appliqué
-  un modèle mesuré sur des comptes de capteur à une image passée par
-  l'exposition, la courbe tonale et la clarté. Un profil correct au mauvais
-  endroit est un profil faux.
-* **Une table maison à la `camconst`**, mesurée boîtier par boîtier comme
-  RawTherapee le fait pour les niveaux de blanc. Même impasse que la première
-  alternative, avec en plus une base à maintenir seul.
-* **Corriger `v2` sur place.** Interdit par ADR 0042 §1, et c'est aussi ce qui
-  rend le présent ADR peu coûteux.
+* **Measuring the database ourselves.** Two bodies against 434, for months of
+  controlled exposures and a protocol to validate. The protocol stays useful — it
+  is the means of adding a missing body — but it cannot *be* the base.
+* **The variance-stabilizing transform (generalized Anscombe)**, which darktable
+  applies. More correct in theory: it makes the noise uniform, which allows a
+  constant threshold and a clean analysis. In practice it adds two non-linear
+  transformations per render and a bias to correct on the inverse, for a deviation
+  from the per-pixel threshold that stays small next to §5's uncertainty on the
+  white level. The per-pixel threshold also keeps ADR 0046's operator literally
+  intact, which makes this version legible next to the previous one.
+* **Materializing the coefficients in the revision.** It would make the render
+  pure from `settings_json` — and would make a preset dependent on the body it was
+  created on, which would break [`presets.md`](../presets.md) for zero gain: the
+  file is necessary to the render anyway, and it carries its own EXIF.
+* **Keeping ranks 170 and 180.** It would have avoided any move — and applied a
+  model measured on sensor counts to an image that had been through exposure, the
+  tone curve and clarity. A correct profile in the wrong place is a wrong profile.
+* **An in-house table à la `camconst`**, measured body by body as RawTherapee
+  does for white levels. The same dead end as the first alternative, plus a
+  database to maintain alone.
+* **Fixing `v2` in place.** Forbidden by ADR 0042 §1, and that is also what makes
+  the present ADR inexpensive.
