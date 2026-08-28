@@ -99,17 +99,26 @@ export component DevelopPanel inherits HorizontalLayout {
         VerticalLayout {
             horizontal-stretch: 1;
             // `horizontal-stretch` asks for the slack; it cannot take more
-            // than this column's *maximum*, and several of the rows below
-            // carry a bounded one — an un-wrapped `Text` maxes out at its
-            // natural width, an `Image` at its source's pixel size. The
-            // narrowest such bound won, and the whole develop view sat at
-            // 610px of viewer beside 300px of settings while the rest of the
-            // window stayed dark, identically at 1280 and at 1900. Measured,
-            // not guessed: the panel itself was already 1900 wide.
+            // than this column's *maximum*, and the rows below carry a
+            // bounded one. The whole develop view therefore sat at 610px of
+            // viewer beside 300px of settings, the rest of the window dark,
+            // identically at 1280 and at 1900.
             //
-            // Worse, it was self-sustaining — the preview proxy is rendered
-            // at the viewport's size (ADR 0076), so a viewport capped by the
-            // proxy keeps asking for a proxy that caps the viewport.
+            // Attributed by measurement rather than by reading, after two
+            // wrong guesses. A probe reported `root=2400 col=610`: the panel
+            // already filled the window, so the cap was inside this column.
+            // Cutting the shortcut line below to a single character dropped
+            // it to `col=191` — the exact width of the `Select/Crop/100%/Z`
+            // chip row, the next bounded thing. So it is the **un-wrapped
+            // text and the fixed-width chips** that bound this column, each
+            // at its natural width, and the widest of them wins.
+            //
+            // It is *not* the preview image, which was the tempting
+            // explanation and is wrong: the loupe mounts the same
+            // `width: 100%` shape and fills a 2400px window while showing a
+            // 400x300 photo scaled up. Anyone adding a row here should know
+            // that a line of text is what silently sets this view's width.
+            //
             // Declaring no maximum is the only way out in Slint 1.13, the
             // same idiom and the same reason as `StudioWindow`.
             max-width: 100000px;
