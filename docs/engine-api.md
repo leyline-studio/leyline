@@ -160,12 +160,16 @@ One writing instance per library (a file lock); several readers are free (WAL).
 
 ```rust
 pub struct ImportOptions {
-    pub copy_files: bool,      // copy into Photos/ or reference in place
+    pub copy_files: bool,      // copy into Photos/ or reference in place (ADR 0010)
     pub recursive: bool,
     pub pair_companions: bool, // attach the camera JPEG to the RAW (ADR 0079)
     pub thumbnails: bool,      // warm the thumbnail cache afterwards (ADR 0082)
 }
+```
 
+**`copy_files: false` does not mean "photos anywhere".** It skips the copy into `Photos/`; the file must already sit under the library root, the catalog storing nothing but root-relative paths ([ADR 0010](adr/0010-relative-paths.md)). A file located elsewhere is not imported — it joins `ImportReport::skipped` with the reason `file is outside the library root`. Cataloguing a collection where it already lives therefore means creating the library **above** it.
+
+```rust
 /// What a scan looks at (ADR 0065 §1).
 pub struct ScanOptions {
     pub recursive: bool,

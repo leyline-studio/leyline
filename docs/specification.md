@@ -10,7 +10,7 @@ Every feature listed as delivered is delivered on all **three clients**: Studio,
 
 **Library and catalog**
 
-* Importing a folder (RAW, DNG, JPEG, PNG, TIFF), by copy or by reference
+* Importing a folder (RAW, DNG, JPEG, PNG, TIFF), by copy or by reference — a referenced file stays where it is, provided it already sits under the library root ([ADR 0010](adr/0010-relative-paths.md))
 * SQLite catalog — libraries, collections (manual and dynamic), keywords, ratings, colour labels, pick status
 * Removing photos from the catalog, or deleting them from disk to the system trash — two distinct gestures ([ADR 0060](adr/0060-asset-removal.md))
 * Cached thumbnails and previews
