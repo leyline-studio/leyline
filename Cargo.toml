@@ -34,6 +34,10 @@ image = { version = "0.25", default-features = false, features = ["jpeg", "png",
 jpeg-decoder = "0.3"
 jpeg-encoder = "0.6"
 kamadak-exif = "0.6"
+# Only for restoring the default `SIGPIPE` disposition in the CLI: Rust
+# ignores that signal at startup, which turns `leyline ls | head` into a
+# panic instead of a quiet exit. Already in the tree transitively.
+libc = "0.2"
 # `serialize` exposes `sqlite3_deserialize`, which is how `leyline-map`
 # opens the embedded world basemap without extracting it (ADR 0059).
 rusqlite = { version = "0.37", features = ["bundled", "serialize"] }

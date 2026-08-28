@@ -170,7 +170,32 @@ Preset groups (docs/presets.md §3.1, comma-separated, no spaces):
                                     geometry is never included unless named
 ";
 
+/// Restores the default disposition of `SIGPIPE`.
+///
+/// Rust ignores that signal at startup, so a `println!` into a pipe whose
+/// reader has gone away returns `EPIPE`, and the macro's `unwrap` turns that
+/// into a panic — `leyline ls <library> | head` printed a backtrace where
+/// every other Unix tool exits quietly. Restoring the default makes the
+/// process die from the signal, which is what a pipeline expects and what
+/// `head` is counting on.
+///
+/// Unix only: Windows has no `SIGPIPE`, and a closed pipe surfaces there as
+/// an ordinary write error.
+#[cfg(unix)]
+fn restore_sigpipe() {
+    // SAFETY: `signal` with `SIG_DFL` on a signal this process has not
+    // installed a Rust handler for; it touches no memory and is the
+    // documented way to undo the runtime's startup `SIG_IGN`.
+    unsafe {
+        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+    }
+}
+
+#[cfg(not(unix))]
+fn restore_sigpipe() {}
+
 fn main() {
+    restore_sigpipe();
     let args: Vec<String> = std::env::args().skip(1).collect();
     if let Err(message) = run(&args) {
         eprintln!("error: {message}");

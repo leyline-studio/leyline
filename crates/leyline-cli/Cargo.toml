@@ -14,6 +14,9 @@ leyline-sdk.workspace = true
 # than inventing a second grammar for the same structure.
 serde_json.workspace = true
 
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
 [build-dependencies]
 embed-resource = "3.0"
 
