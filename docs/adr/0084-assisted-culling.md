@@ -124,6 +124,51 @@ faces and learned judgement second, behind the socket. This is not a staging
 convenience — it decides how much of the feature exists at all if the model
 half never ships, and the answer must not be "none of it".
 
+#### Measuring at thumbnail scale, and what it is worth
+
+The whole affordability of this half rests on analysing the body's embedded
+preview at an eighth ([ADR 0083](0083-scaled-jpeg-thumbnail-decode.md)) rather
+than the sensor decode. That is only sound if the *ranking* survives the
+downscale — the absolute score obviously does not, gradient energy depending on
+sampling. Measured on 2026-08-28 over a real 64-frame 5D Mark IV shoot,
+`--release`, full-resolution score against eighth-scale score for all 2,016
+pairs:
+
+| Gap at full resolution | Pairs | Eighth-scale agrees |
+|---|---|---|
+| 0–5 % | 88 | 67 % |
+| 5–10 % | 100 | 63 % |
+| 10–20 % | 176 | 64 % |
+| 20–40 % | 328 | 77 % |
+| 40–100 % | 602 | 83 % |
+| > 100 % | 718 | **93 %** |
+
+**The eighth-scale measure agrees where the difference is real and disagrees
+where it is negligible**, which is the shape the design needs. The first
+attempt at this measurement said the opposite and was wrong: ranked by Spearman
+inside one burst it scored −1.000, a perfect inversion — until the scores
+themselves were read. The three frames sat within 3 % of each other at full
+resolution and 0.4 % at an eighth. They were equally sharp, rank correlation
+was ordering noise, and the statistic was the mistake rather than the measure.
+It is recorded here because the same trap is waiting for the next person who
+evaluates a culling heuristic by rank.
+
+Two limits stated rather than implied. **Full resolution is not ground truth**:
+at ISO 2000 its gradient is partly sensor noise, which the downscale averages
+away, so an unknown share of the 7 % residual disagreement is the eighth-scale
+measure being *right*. And 93 % is a ceiling reached only on obvious cases —
+which is the quantitative reason behind §2's rule. A proxy that good is worth
+proposing with; it is nowhere near good enough to reject with.
+
+**Cost.** The measure itself is 4.7 ms per photo on an 840×560 thumbnail
+(median, 33 frames, 20 iterations each) — negligible beside the 66–73 ms ADR
+0083 measured for the scaled decode that feeds it. So ~75 ms per photo, of
+which the analysis is 6 %: **~19 min over 15,000 photos single-threaded**, and
+a few minutes at the ×5.3 the equivalent thumbnail pass reached on 16 cores
+([ADR 0082](0082-embedded-preview-at-import.md)). Against ~0.72 s per photo to
+do the same work on a full-resolution decode, i.e. three hours. The cheap path
+is the only one that makes the feature exist.
+
 ### 5. Weights: the licence is eliminating, and it is checked before any code
 
 [ADR 0073](0073-external-mask-detectors.md) §5 applied this criterion once and

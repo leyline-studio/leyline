@@ -31,6 +31,7 @@ Thirteen crates, each with a single responsibility.
 | `leyline-map` | Reading offline MBTiles tiles for the map view. |
 | `leyline-export` | Output encoding: JPEG, TIFF, PNG, WebP, AVIF, and print-to-PDF. |
 | `leyline-detect` | The contract, discovery and invocation of **external mask detectors** — executables that turn an image into a coverage ([ADR 0073](adr/0073-external-mask-detectors.md)). Detects nothing itself. |
+| `leyline-cull` | Technical quality measures and burst fingerprints for **assisted culling** ([ADR 0084](adr/0084-assisted-culling.md) §4): focus, clipping, perceptual fingerprint. No model, no weights, no I/O — it computes numbers and decides no verdict. |
 | `leyline-sdk` | The engine's stable public surface. The semver contract. |
 | `leyline-cli` | The command-line client. |
 | `leyline-studio` | The desktop application (Slint). |
