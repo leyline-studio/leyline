@@ -460,6 +460,92 @@ And where time really is wasted — 15 cores idle during each
 encoding — the answer is scheduling, not a second processor. **To be
 taken up again if interaction ever becomes the painful point**, not before.
 
+## B4 — Where the remaining headroom is — **measured on 2026-08-28**
+
+**The question.** With B1, B2 and B3 closed, is there anything left, or is the
+CPU path at its ceiling? Asked plainly, and answered by measurement rather than
+by opinion.
+
+### Parallel efficiency: largely spent
+
+The bench binary run directly (not through `cargo`, whose start-up pollutes the
+ratio), `--profile-time 10`, wall clock against CPU time, i9-9900K / 16 threads:
+
+| Bench | Wall | CPU | Parallelism |
+|---|---|---|---|
+| `stages/local_brush_64_dabs` | 10.2 s | 138.6 s | **13.6×** |
+| `stages/tone_sliders` | 10.1 s | 117.2 s | 11.6× |
+| `stages/sharpening` | 9.6 s | 106.3 s | 11.1× |
+| `stages/local_radial` | 10.1 s | 108.8 s | 10.8× |
+| `stages/neutral` | 10.6 s | 114.1 s | 10.7× |
+| `sections/full` | 10.1 s | 100.2 s | 9.9× |
+| `denoise/v1_gaussian` | 10.0 s | 96.9 s | 9.7× |
+| `denoise/v2_wavelet` | 10.1 s | 91.3 s | 9.1× |
+| `denoise/v3_profiled` | 10.2 s | 92.8 s | 9.1× |
+| `stages/dehaze` | 10.0 s | 89.3 s | 8.9× |
+
+**Nothing is single-threaded**, and the spread is narrow: 56 % to 85 % of the
+sixteen cores. The floor is the wavelet denoiser and dehaze at ~9×, the ceiling
+the local brush at 13.6×.
+
+That bounds the prize. Denoising is **70 % of a full edit** (183 ms of the
+261 ms a full edit adds above the neutral floor, 3 Mpx), so lifting it from 9×
+to the 13× the best stage reaches would return **about 20 % of a full edit** —
+real, but neither transformative nor cheap: it is memory-traffic work on a
+multi-pass transform, which is where parallel efficiency goes to die.
+
+### SIMD: the lever is empty, and that is measured, not assumed
+
+The workspace sets no `target-cpu`, so every binary is built for baseline
+x86-64 — SSE2, on a CPU that has AVX2 and FMA. That looks like free money.
+
+It is not. Rebuilt with `-C target-cpu=native`, run **back to back** against
+the baseline binary on the same machine minutes apart:
+
+| Bench | baseline | `target-cpu=native` |
+|---|---|---|
+| `sections/full` | 321.6 ms | 330.3 ms |
+| `denoise/v2_wavelet` | 239.7 ms | 244.1 ms |
+| `sections/tone` | 61.4 ms | 62.6 ms |
+
+**~2 % slower**, consistently. The likely cause is the classic one on this
+generation: all-core AVX2 downclocking costs more than the wider vectors
+return, on code the compiler already auto-vectorises to SSE2. Whatever the
+cause, the lever does not move, and it would have cost the reproducibility
+promise a conversation for nothing.
+
+### The measurement that nearly went wrong, and the rule it leaves
+
+The first pass at the SIMD comparison put `target-cpu=native` **15 % slower**,
+which would have been a striking and entirely false finding. The baseline it
+was compared against was this document's own morning figure — and the same
+baseline binary, re-run in the afternoon, had gone from 288 ms to 321 ms on
+`sections/full`. **The machine had drifted 12 % during the day**; the
+difference attributed to AVX2 was mostly thermal.
+
+The rule this leaves is operational and applies to every future entry here:
+**on this machine, any perf claim below ~10 % must come from back-to-back
+runs**, never from a figure recorded earlier — however carefully that figure
+was recorded. The same trap appeared twice on the same day: Criterion's stored
+baseline, undated and silently overwritten, also offered a false 46 %
+regression on `sections/full` that turned out to be a default denoise version
+changing under it.
+
+### Verdict
+
+The CPU path is **at its ceiling for cheap wins**. What is left, in order:
+
+1. **Denoise and dehaze parallel efficiency**, ~9× → ~13×: bounded at ~20 % of
+   a full edit, and the hardest kind of work in this list;
+2. nothing else with a measured lever. SIMD is empty, the GPU is closed by B3,
+   export has no deficit to catch up (B2), import went 695 → 13 ms per file
+   ([ADR 0082](adr/0082-embedded-preview-at-import.md)–[0083](adr/0083-scaled-jpeg-thumbnail-decode.md)),
+   the stage cache took 78 % off an interactive slider (B1) and batching took
+   2.81× on export ([ADR 0068](adr/0068-concurrent-export-batch.md)).
+
+The honest summary is that performance is no longer where this project's next
+gain lies.
+
 ---
 
 # 4. Axis C — Optional local AI
