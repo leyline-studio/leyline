@@ -75,6 +75,7 @@ The word *experimental* is literal: the colorimetric accuracy of the DCP matrix 
 | Subject | Decision |
 |---|---|
 | Image watermark (a logo) | Cut by [ADR 0034](adr/0034-softproofing-watermark-print.md): the asset-reference problem is not settled |
+| A catalog spanning several volumes | Decided by [ADR 0085](adr/0085-named-roots.md): named roots, identified by a marker file inside the folder and located by an advisory hint outside the catalog. Until it is implemented, a library covers one tree, and photographs are catalogued where they already live by putting the library root above them |
 
 ---
 
