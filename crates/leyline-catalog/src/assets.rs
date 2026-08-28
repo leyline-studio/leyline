@@ -14,6 +14,16 @@ use crate::{Catalog, db_err, now_ms};
 /// Length in bytes of a BLAKE3 checksum (`docs/catalog.md` §12).
 pub const CHECKSUM_LEN: usize = 32;
 
+/// An asset's library-relative path, derived rather than stored
+/// (`docs/catalog.md` §9), as a SQL expression over `assets a JOIN folders f`.
+///
+/// The `CASE` is the library root's own folder row, whose path is empty (§8):
+/// gluing the separator in unconditionally would produce `/IMG_0001.CR2`,
+/// an absolute path on Unix and a rejected one everywhere — from a photograph
+/// that is merely not in a subfolder. Written once and shared by both
+/// callers so the two spellings cannot drift apart.
+const ASSET_PATH: &str = "CASE WHEN f.relative_path = ''                           THEN a.filename                           ELSE f.relative_path || '/' || a.filename END";
+
 /// Facts describing a file to register (`docs/catalog.md` §9).
 ///
 /// Assets are purely factual: rating, label and pick belong to develop
@@ -185,11 +195,11 @@ impl Catalog {
             let id = asset.get();
 
             let file: Option<String> = tx
-                .prepare_cached(
-                    "SELECT f.relative_path || '/' || a.filename
+                .prepare_cached(&format!(
+                    "SELECT {ASSET_PATH}
                      FROM assets a JOIN folders f ON f.id = a.folder_id
-                     WHERE a.id = ?1",
-                )
+                     WHERE a.id = ?1"
+                ))
                 .and_then(|mut stmt| stmt.query_row([id], |row| row.get(0)))
                 .optional()
                 .map_err(db_err)?;
@@ -275,9 +285,11 @@ impl Catalog {
     pub fn asset_relative_path(&self, asset: AssetId) -> Result<String> {
         self.conn
             .query_row(
-                "SELECT f.relative_path || '/' || a.filename
-                 FROM assets a JOIN folders f ON f.id = a.folder_id
-                 WHERE a.id = ?1",
+                &format!(
+                    "SELECT {ASSET_PATH}
+                     FROM assets a JOIN folders f ON f.id = a.folder_id
+                     WHERE a.id = ?1"
+                ),
                 [asset.get()],
                 |row| row.get(0),
             )

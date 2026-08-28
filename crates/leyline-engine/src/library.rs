@@ -20,8 +20,8 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use leyline_catalog::{
-    Catalog, CollectionNode, ExportPreset, FolderNode, KeywordNode, Preset, PresetFolder,
-    PrintPreset, SmartRules,
+    Catalog, CollectionNode, ExportPreset, FolderNode, KeywordNode, LibraryInfo, Preset,
+    PresetFolder, PrintPreset, SmartRules,
 };
 use leyline_core::{
     AssetId, CollectionId, ColorLabel, ExportPresetId, JobId, KeywordId, LeylineError, PickState,
@@ -609,9 +609,21 @@ impl Library {
         self.catalog_mut().delete_collection(id)
     }
 
+    /// The library's own record: name, uuid and dates (catalogue §7).
+    ///
+    /// What a client displays as the library's identity — the title bar, the
+    /// About dialog, and the name of the root row in a folder tree, that row
+    /// being the library folder itself (§8).
+    pub fn info(&self) -> Result<LibraryInfo> {
+        self.catalog().library()
+    }
+
     /// Every folder of the library with its photo count, in display order
     /// (§8) — what a sidebar folder tree lists (ADR 0055 §2). Read-only:
     /// nothing here renames, moves or deletes a folder.
+    ///
+    /// A photograph sitting directly under the library root gives the tree a
+    /// row whose `relative_path` is empty: the root itself.
     pub fn folders(&self) -> Result<Vec<FolderNode>> {
         self.catalog().folders()
     }

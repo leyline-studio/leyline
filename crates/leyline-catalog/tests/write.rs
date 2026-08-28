@@ -61,7 +61,6 @@ fn ensure_folder_rejects_non_portable_paths() {
     let mut catalog = new_catalog(&dir);
 
     for bad in [
-        "",
         "/absolute",
         "Photos\\Wildlife",
         "C:/Photos",
@@ -74,6 +73,10 @@ fn ensure_folder_rejects_non_portable_paths() {
             "path {bad:?} should be rejected"
         );
     }
+
+    // The empty path is not one of them: it is the library root's own row
+    // (§8), for the photographs kept directly under the root.
+    assert!(catalog.ensure_folder("").is_ok());
 }
 
 #[test]

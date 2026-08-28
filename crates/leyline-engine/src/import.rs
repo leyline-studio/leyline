@@ -200,9 +200,15 @@ fn import_one(
     } else {
         reference_in_place(library_root, file)?
     };
-    let (folder_path, _) = relative_path
+    // A file directly under the library root has no parent segment, and the
+    // empty path is exactly how the catalog names the root's own folder row
+    // (`docs/catalog.md` §8). Skipping it instead — as this did until
+    // 2026-08-28 — silently costs the catalog every photograph a user keeps
+    // at the top of their collection: 689 of them, 2.3 GB, on the corpus
+    // this was found on.
+    let folder_path = relative_path
         .rsplit_once('/')
-        .ok_or_else(|| Skip("file sits at the library root, not in a folder".to_owned()))?;
+        .map_or("", |(folder, _)| folder);
     let folder = catalog.ensure_folder(folder_path)?;
 
     let registered = catalog.add_asset(

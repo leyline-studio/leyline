@@ -222,6 +222,66 @@ fn referencing_requires_files_inside_the_library_root() {
     );
 }
 
+/// A photograph kept at the top of a collection, rather than in a subfolder,
+/// is a photograph. Until 2026-08-28 the import skipped it — "file sits at
+/// the library root, not in a folder" — which cost a real corpus 689 files
+/// the day the library root was put on the photo folder itself.
+#[test]
+fn a_file_directly_under_the_library_root_imports_into_the_root_row() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut catalog, root) = library(&dir);
+
+    let reference = ImportOptions {
+        copy_files: false,
+        recursive: true,
+        pair_companions: true,
+        thumbnails: false,
+    };
+    write(&root.join("loose.png"), b"at the root");
+    write(&root.join("Trip/framed.png"), b"in a folder");
+
+    let report = import(&mut catalog, &root, &root, &reference, |_, _| {}).unwrap();
+    // The catalog's own files are skipped on their extension, as they were
+    // before; nothing is skipped for lack of a folder any more.
+    assert!(
+        report
+            .skipped
+            .iter()
+            .all(|file| file.reason.starts_with("unsupported extension")),
+        "unexpected skip: {:?}",
+        report.skipped
+    );
+
+    let mut paths: Vec<&str> = report
+        .imported
+        .iter()
+        .map(|file| file.relative_path.as_str())
+        .collect();
+    paths.sort_unstable();
+    // The root file keeps its bare name: no leading separator, which would
+    // read as an absolute path (catalogue §2.3).
+    assert_eq!(paths, vec!["Trip/framed.png", "loose.png"]);
+
+    // And the same path comes back out of the catalog, derived from a folder
+    // row whose own path is empty.
+    let loose = report
+        .imported
+        .iter()
+        .find(|file| file.relative_path == "loose.png")
+        .unwrap();
+    assert_eq!(
+        catalog.asset_relative_path(loose.registered.asset).unwrap(),
+        "loose.png"
+    );
+    let root_row = catalog
+        .folders()
+        .unwrap()
+        .into_iter()
+        .find(|node| node.relative_path.is_empty())
+        .expect("the library root has its own folder row");
+    assert_eq!((root_row.parent, root_row.photo_count), (None, 1));
+}
+
 #[test]
 fn a_missing_source_fails_the_whole_call() {
     let dir = tempfile::tempdir().unwrap();

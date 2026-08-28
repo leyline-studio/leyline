@@ -10,6 +10,10 @@ use leyline_core::{FolderId, LeylineError, Result};
 use crate::{Catalog, db_err, now_ms};
 
 /// Checks that a folder path is relative, normalized and portable.
+///
+/// The empty path never reaches here: it is the library root's own folder
+/// row (`docs/catalog.md` §8), handled by [`Catalog::ensure_folder`] before
+/// any validation, and it is the one path that has no segment to check.
 fn validate_relative_path(path: &str) -> Result<()> {
     let invalid = |reason: &str| {
         Err(LeylineError::Io(std::io::Error::new(
@@ -50,7 +54,9 @@ pub struct FolderNode {
     pub folder: FolderId,
     /// Its parent, absent for a root folder.
     pub parent: Option<FolderId>,
-    /// Library-relative, forward-slashed path (§2.3).
+    /// Library-relative, forward-slashed path (§2.3). **Empty for the
+    /// library root's own row**, which exists as soon as a photograph sits
+    /// directly under the root rather than in a subfolder (§8).
     pub relative_path: String,
     /// Photos **directly** in this folder, missing ones excluded — the count
     /// a folder row shows next to its name, which answers "is there anything
@@ -97,8 +103,17 @@ impl Catalog {
     ///
     /// `relative_path` is relative to the library root, forward-slashed, e.g.
     /// `"Photos/Wildlife"`.
+    ///
+    /// **The empty path is the library root itself** (§8): a photograph may
+    /// sit directly under the root, and it needs a folder row like any
+    /// other. That row is created on demand — a library whose photographs
+    /// all live in subfolders never has one — carries no parent, and is the
+    /// only path allowed to have no segment.
     pub fn ensure_folder(&mut self, relative_path: &str) -> Result<FolderId> {
         self.ensure_writable()?;
+        if relative_path.is_empty() {
+            return self.ensure_single_folder(None, "");
+        }
         validate_relative_path(relative_path)?;
 
         let mut parent: Option<FolderId> = None;

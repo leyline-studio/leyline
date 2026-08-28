@@ -77,3 +77,49 @@ fn an_empty_library_lists_no_folder_at_all() {
     let catalog = Catalog::create(&dir.path().join("catalog.db"), "Empty").unwrap();
     assert!(catalog.folders().unwrap().is_empty());
 }
+
+/// The library root is a folder like any other once something sits in it
+/// (§8): one row, no parent, an empty path — and an asset path that does not
+/// grow a leading separator from it (§9).
+#[test]
+fn the_library_root_has_a_folder_row_of_its_own() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = Catalog::create(&dir.path().join("catalog.db"), "Root").unwrap();
+
+    let root = catalog.ensure_folder("").unwrap();
+    assert_eq!(catalog.ensure_folder("").unwrap(), root, "idempotent");
+
+    add_photo(&mut catalog, root, 1);
+    let asset = catalog.grid(&Default::default()).unwrap()[0].asset_id;
+    assert_eq!(catalog.asset_relative_path(asset).unwrap(), "IMG_0001.CR3");
+
+    let rows = catalog.folders().unwrap();
+    let row = rows
+        .iter()
+        .find(|node| node.folder == root)
+        .expect("the root row is listed");
+    assert_eq!((row.parent, row.photo_count), (None, 1));
+    // It sorts first, being the shortest path there is.
+    assert_eq!(rows[0].folder, root);
+}
+
+/// Every other path stays validated: the empty one is the root, not a licence
+/// to store anything.
+#[test]
+fn the_root_exception_does_not_relax_any_other_path() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = Catalog::create(&dir.path().join("catalog.db"), "Root").unwrap();
+
+    for refused in [
+        "/Photos",
+        "Photos/",
+        "Photos//Wildlife",
+        "../Photos",
+        "C:/Photos",
+    ] {
+        assert!(
+            catalog.ensure_folder(refused).is_err(),
+            "{refused:?} must stay refused"
+        );
+    }
+}

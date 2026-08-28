@@ -71,6 +71,10 @@ The catalog stores:
 Photos/Wildlife/IMG_0001.CR3
 ```
 
+A file sitting directly under the library root is stored as its bare name —
+`IMG_0002.CR3`, never `/IMG_0002.CR3` — which is the relative path of a file
+at the root, and is what §9 derives from the root's own folder row.
+
 Never:
 
 ```
@@ -267,6 +271,16 @@ Folders represent the physical tree and nothing else.
 
 They hold no business information.
 
+**The library root has a row of its own**, and its `relative_path` is the
+**empty string** — the one path with no segment. It is created on demand, the
+first time a photograph sits directly under the root rather than in a
+subfolder, so a library whose photographs all live in subfolders never has
+one. It carries no parent, and it sorts first.
+
+The empty path is the only exception the folder-path validator makes: every
+other path is still refused unless it is relative, forward-slashed, free of
+`.` and `..` segments and free of a trailing slash.
+
 ---
 
 # 9. Assets
@@ -328,6 +342,11 @@ The full path is always derived:
 ```text
 folders.relative_path + "/" + filename
 ```
+
+with one case: for the root's own folder row (§8), whose path is empty, the
+asset's path is **the filename alone**. Gluing the separator in
+unconditionally would produce `/IMG_0001.CR2` — an absolute path, refused by
+§2.3 — for a photograph whose only particularity is not being in a subfolder.
 
 No `relative_path` column exists in `assets`.
 

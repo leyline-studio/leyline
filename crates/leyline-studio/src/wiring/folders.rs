@@ -45,11 +45,28 @@ pub(crate) fn wire_folders(app: &Rc<RefCell<App>>, window: &StudioWindow) {
 pub(crate) fn refresh_folders(app: &mut App, window: &StudioWindow) -> Result<(), String> {
     let tree = app.library.folders().map_err(|e| e.to_string())?;
     app.folders = tree.iter().map(|node| node.folder).collect();
+    // The library root gets a row of its own as soon as a photograph sits
+    // directly under it (catalogue §8). It has no last segment to show, so it
+    // shows the library's name; and since it is everything else's parent, its
+    // presence shifts the whole tree one indent to the right.
+    let has_root = tree.iter().any(|node| node.relative_path.is_empty());
+    let library_name = if has_root {
+        app.library
+            .info()
+            .map(|info| info.name)
+            .unwrap_or_else(|_| String::new())
+    } else {
+        String::new()
+    };
     let rows: Vec<crate::ui::FolderRow> = tree
         .iter()
         .map(|node| crate::ui::FolderRow {
-            name: SharedString::from(folder_name(&node.relative_path)),
-            depth: folder_depth(&node.relative_path),
+            name: SharedString::from(if node.relative_path.is_empty() {
+                library_name.as_str()
+            } else {
+                folder_name(&node.relative_path)
+            }),
+            depth: folder_depth(&node.relative_path, has_root),
             count: i32::try_from(node.photo_count).unwrap_or(i32::MAX),
         })
         .collect();
@@ -63,9 +80,18 @@ fn folder_name(relative_path: &str) -> &str {
     relative_path.rsplit('/').next().unwrap_or(relative_path)
 }
 
-/// How deep a folder sits, counting from zero at the library root.
-fn folder_depth(relative_path: &str) -> i32 {
-    i32::try_from(relative_path.matches('/').count()).unwrap_or(i32::MAX)
+/// How deep a folder sits, counting from zero.
+///
+/// `has_root` says whether the tree carries the library root's own row. When
+/// it does, that row is depth zero and everything else is one level deeper,
+/// because the root really is their parent; when it does not — the ordinary
+/// case, no photograph directly under the root — nothing moves.
+fn folder_depth(relative_path: &str, has_root: bool) -> i32 {
+    if relative_path.is_empty() {
+        return 0;
+    }
+    let own = i32::try_from(relative_path.matches('/').count()).unwrap_or(i32::MAX);
+    own.saturating_add(i32::from(has_root))
 }
 
 #[cfg(test)]
@@ -75,8 +101,17 @@ mod tests {
     #[test]
     fn a_row_shows_its_last_segment_at_the_depth_of_its_path() {
         assert_eq!(folder_name("Photos"), "Photos");
-        assert_eq!(folder_depth("Photos"), 0);
+        assert_eq!(folder_depth("Photos", false), 0);
         assert_eq!(folder_name("Photos/Wildlife/Birds"), "Birds");
-        assert_eq!(folder_depth("Photos/Wildlife/Birds"), 2);
+        assert_eq!(folder_depth("Photos/Wildlife/Birds", false), 2);
+    }
+
+    /// The root's own row (catalogue §8) is the tree's first row and every
+    /// other row's parent, so it sits at zero and pushes the rest right.
+    #[test]
+    fn the_library_root_row_sits_above_everything_else() {
+        assert_eq!(folder_depth("", true), 0);
+        assert_eq!(folder_depth("Photos", true), 1);
+        assert_eq!(folder_depth("Photos/Wildlife/Birds", true), 3);
     }
 }
