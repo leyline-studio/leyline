@@ -64,22 +64,24 @@ export component MapPanel inherits HorizontalLayout {
                 }
             }
 
-            // Only reachable in a build without the bundled world basemap
-            // (ADR 0059), since that basemap makes a pack always available
-            // otherwise. The old wording here said "no map pack imported
-            // yet", which stopped being true the day the basemap shipped.
-            if !MapState.map-pack-available: VerticalLayout {
-                alignment: center;
-                Text {
-                    text: MapState.map-status == "" ? @tr("This build ships no map background. Import an offline MBTiles map pack to place GPS-tagged photos on a map.") : MapState.map-status;
-                    color: #9a9a9a;
-                    font-size: 13px;
-                    horizontal-alignment: center;
-                    wrap: word-wrap;
-                }
-            }
-
-            if MapState.map-pack-available: Rectangle {
+            // The canvas is instantiated unconditionally, and that is the
+            // fix rather than an incidental detail. It carries
+            // `changed width`/`changed height` so Rust composites tiles at
+            // exactly the canvas's pixel size, and Slint's `ChangeTracker`
+            // reads that geometry the instant the element is created. Behind
+            // an `if MapState.map-pack-available:` — a flag Rust only raises
+            // inside `enter-map` — that creation landed in the middle of the
+            // layout pass the click on "Map" had just started: the tracker
+            // asked for a width that same pass had not finished computing,
+            // and Slint answered "Recursion detected" and took the process
+            // down with it. Every attempt to open the map crashed the app.
+            // Creating the canvas at window construction moves the read to a
+            // moment when no layout is in flight, and Rust already ignores
+            // the 0x0 it reports there: `on_map_resized` returns early until
+            // a map session exists. Same hazard as the empty-library text in
+            // `browser.slint`, ADR 0045 §3 — a geometry read that closes a
+            // loop through the layout that is computing that geometry.
+            Rectangle {
                 // No geometry of its own: the map is the point of this
                 // view, so it takes every pixel the window has left after
                 // the title row. Its real size goes back to Rust on each
@@ -144,18 +146,36 @@ export component MapPanel inherits HorizontalLayout {
                 // library's doing or the app's. Placed over the canvas
                 // rather than replacing it — panning a world map is still
                 // useful, and an empty map is not an error state.
-                if MapState.map-pin-total == 0: Rectangle {
+                // One overlay for the two reasons a map can show nothing:
+                // this build ships no basemap, or this library holds no GPS
+                // coordinates. They used to be two blocks, and the first was
+                // a *sibling* of the canvas — so a build without a pack laid
+                // the view out in a different shape than every other build,
+                // which is the shape nobody ever looks at.
+                //
+                // Both widths are fixed rather than read off the parent, and
+                // the height is read off the wrapped text rather than the
+                // other way round. The canvas is a plain `Rectangle`, so its
+                // layout info is the envelope of its children: an overlay
+                // sized from `parent.width`, wrapping text against it, would
+                // make the canvas's width depend on the canvas's width —
+                // the same loop the canvas comment above describes.
+                if !MapState.map-pack-available || MapState.map-pin-total == 0: Rectangle {
                     x: (parent.width - self.width) / 2;
                     y: (parent.height - self.height) / 2;
-                    width: min(parent.width - 32px, 420px);
+                    width: 420px;
                     height: no-gps.height + 24px;
                     background: #000000cc;
                     border-radius: 6px;
                     no-gps := Text {
                         x: 12px;
                         y: 12px;
-                        width: parent.width - 24px;
-                        text: @tr("No photo in this library has GPS coordinates. Leyline reads them from the file's own metadata — it never invents a position, and never asks the network for one.");
+                        width: 396px;
+                        text: !MapState.map-pack-available
+                            ? (MapState.map-status == ""
+                                ? @tr("This build ships no map background. Import an offline MBTiles map pack to place GPS-tagged photos on a map.")
+                                : MapState.map-status)
+                            : @tr("No photo in this library has GPS coordinates. Leyline reads them from the file's own metadata — it never invents a position, and never asks the network for one.");
                         color: #d8d8d8;
                         font-size: 12px;
                         horizontal-alignment: center;
@@ -167,6 +187,8 @@ export component MapPanel inherits HorizontalLayout {
                 // with wherever the data is displayed, ADR 0040) — a
                 // fixed overlay, not just a mention buried in About.
                 Rectangle {
+                    // Nothing to attribute when no basemap is drawn.
+                    visible: MapState.map-pack-available;
                     x: parent.width - self.width - 4px;
                     y: parent.height - self.height - 4px;
                     width: attribution-text.width + 8px;

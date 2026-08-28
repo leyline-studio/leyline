@@ -229,6 +229,7 @@ fn run() -> Result<(), String> {
         watch_active: false,
         watch_imported: 0,
         map: None,
+        map_canvas: (map_view::DEFAULT_WIDTH, map_view::DEFAULT_HEIGHT),
     }));
 
     let window = StudioWindow::new().map_err(|e| e.to_string())?;

@@ -192,6 +192,18 @@ pub(crate) struct App {
     /// map mode — reset (pins re-fetched, view re-centered) every time the
     /// map is entered.
     pub(crate) map: Option<MapSession>,
+    /// The map canvas's size in pixels, as the layout last reported it —
+    /// kept *outside* the session because the canvas exists, and has a
+    /// size, long before the map is ever opened.
+    ///
+    /// The panel reports its size on every layout change, and entering map
+    /// mode changes nothing about that size, so the report does not fire
+    /// then. A session that started at the fallback size would therefore
+    /// composite its first frame for a canvas nobody is looking at: tiles
+    /// at the wrong scale, and pins projected onto them landing hundreds of
+    /// kilometres from where the photo was taken, until the first window
+    /// resize happened to correct it.
+    pub(crate) map_canvas: (u32, u32),
 }
 
 /// Live state of the GPS map view while it's open.

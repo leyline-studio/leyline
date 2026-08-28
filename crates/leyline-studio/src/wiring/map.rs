@@ -29,7 +29,8 @@ pub(crate) fn wire_map(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 Ok(pins) => (pins, None),
                 Err(error) => (Vec::new(), Some(error.to_string())),
             };
-            app.map = Some(new_map_session(pins, &app.library));
+            let canvas = app.map_canvas;
+            app.map = Some(new_map_session(pins, &app.library, canvas));
             let unsupported = apply_pack_info(&app, &window);
             MapState::get(&window).set_map_status(SharedString::from(
                 status.or(unsupported).unwrap_or_default(),
@@ -51,6 +52,12 @@ pub(crate) fn wire_map(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             };
             let size = (width.max(0.0) as u32, height.max(0.0) as u32);
             let mut app = app.borrow_mut();
+            // Recorded whether or not the map is open: the canvas is part of
+            // the window from the start, so this is usually the *only*
+            // chance to learn its size before the map is first entered.
+            if size != (0, 0) {
+                app.map_canvas = size;
+            }
             let Some(state) = &mut app.map else {
                 return;
             };
@@ -215,7 +222,8 @@ pub(crate) fn wire_map(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                         .as_mut()
                         .map(|state| std::mem::take(&mut state.pins))
                         .unwrap_or_default();
-                    app.map = Some(new_map_session(pins, &app.library));
+                    let canvas = app.map_canvas;
+                    app.map = Some(new_map_session(pins, &app.library, canvas));
                     render_map(&mut app, &window);
                 }
                 Err(error) => {
@@ -290,7 +298,11 @@ pub(crate) fn wire_map(app: &Rc<RefCell<App>>, window: &StudioWindow) {
 /// Builds a fresh [`MapSession`] for `pins`, centered on them, with the
 /// active pack's declared zoom range (a generous default when it declares
 /// none, or there is no pack yet).
-pub(crate) fn new_map_session(pins: Vec<MapPin>, library: &Library) -> MapSession {
+pub(crate) fn new_map_session(
+    pins: Vec<MapPin>,
+    library: &Library,
+    canvas: (u32, u32),
+) -> MapSession {
     let info = library.map_pack_info().ok().flatten();
     // MBTiles metadata is whatever the pack's author wrote: normalize it
     // into a range this renderer can honor before anything projects with
@@ -305,7 +317,7 @@ pub(crate) fn new_map_session(pins: Vec<MapPin>, library: &Library) -> MapSessio
         min_zoom,
         max_zoom,
         visible_pins: Vec::new(),
-        canvas: (map_view::DEFAULT_WIDTH, map_view::DEFAULT_HEIGHT),
+        canvas,
     }
 }
 
