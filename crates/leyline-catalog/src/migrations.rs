@@ -11,7 +11,7 @@ use leyline_core::Result;
 
 /// Migration scripts: index `n` migrates the database to `user_version` `n + 1`.
 const MIGRATIONS: &[&str] = &[
-    SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7,
+    SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8,
 ];
 
 /// The schema version produced by the newest migration.
@@ -475,4 +475,26 @@ CREATE INDEX idx_develop_current_version ON develop_current(version_id);
 CREATE INDEX idx_export_history_asset ON export_history(asset_id);
 CREATE INDEX idx_previews_revision ON previews(revision_id);
 CREATE INDEX idx_collection_versions_version ON collection_versions(version_id);
+";
+
+/// Version 8: the wall clock the pair criterion compares (ADR 0079 §2).
+///
+/// `capture_date` does not hold one thing. Per §9 it holds a true UTC instant
+/// when the file stated its offset, and the camera's naked wall clock stored
+/// as if it were UTC when it did not — and a RAW never states one. So a body
+/// writing `OffsetTimeOriginal` into its JPEG and nothing into its CR2 gives
+/// the two files of *one shot* two `capture_date` values, exactly the offset
+/// apart. Compared raw, they never matched: RAW+JPEG pairing silently found
+/// nothing on every camera that dates its JPEGs properly, which is most of
+/// them. Found on a real 5D Mark IV shoot, where 16 pairs yielded 0.
+///
+/// The criterion now compares the wall clocks, which is the one reading both
+/// cases can produce. This index makes that comparison a lookup instead of a
+/// scan of the table per imported file — the expression is written exactly as
+/// `PAIR_JOIN` writes it, since SQLite only uses an expression index when the
+/// two texts agree.
+const SCHEMA_V8: &str = "
+-- §32 The pair criterion (ADR 0079 §2): capture wall clock, in epoch ms.
+CREATE INDEX idx_assets_capture_wall
+ON assets(capture_date + COALESCE(capture_offset_minutes, 0) * 60000);
 ";

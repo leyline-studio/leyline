@@ -352,6 +352,8 @@ That column has had a producer since [ADR 0056](adr/0056-non-raw-exif-import.md)
 
 The consequence is worth stating because it is not local: a RAW and the JPEG shot with it are only ever the same instant if both readers agree on this convention, and the pairing criterion below compares that instant to the second. A divergence there does not report an error — it silently pairs nothing.
 
+**And the two cases above are themselves such a divergence, which this document missed until it was measured.** A RAW can never state an offset, and most bodies write `OffsetTimeOriginal` into the JPEG — so the two files of one shot fall under *different* cases, and their `capture_date` values sit exactly one offset apart by construction. The criterion below therefore compares the **wall clock**, `capture_date + COALESCE(capture_offset_minutes, 0) × 60000`, which is the one reading both cases can produce. Comparing the stored column directly made RAW+JPEG pairing unsatisfiable for every properly dated JPEG: on a real 5D Mark IV shoot, 16 pairs yielded 0, and nothing said so.
+
 In both cases:
 
 * chronological sorting uses `capture_date` directly;
@@ -368,7 +370,7 @@ Classification (rating, label, pick) belongs to the **develop versions** (§18).
 
 A camera set to RAW+JPEG writes **two files for one shot**. `companion_of` says which one is the rendering of the other: `NULL` — by far the most frequent case — means the asset is itself a photo; a value designates the **master**, always the RAW.
 
-Two files form a pair if all three terms hold ([ADR 0079](adr/0079-raw-jpeg-pairing.md) §2): the same filename stem (case-insensitive), the same `capture_date`, the same camera — **at any depth in the library**, the two files not necessarily being in the same folder. A file with no `capture_date` never pairs.
+Two files form a pair if all three terms hold ([ADR 0079](adr/0079-raw-jpeg-pairing.md) §2): the same filename stem (case-insensitive), the same **capture wall clock** — `capture_date + COALESCE(capture_offset_minutes, 0) × 60000`, for the reason given in §9 — the same camera; **at any depth in the library**, the two files not necessarily being in the same folder. A file with no `capture_date` never pairs.
 
 Three invariants:
 
@@ -1412,6 +1414,9 @@ ON assets(companion_of);
 
 CREATE INDEX idx_assets_grid
 ON assets(companion_of, capture_date, id);
+
+CREATE INDEX idx_assets_capture_wall
+ON assets(capture_date + COALESCE(capture_offset_minutes, 0) * 60000);
 ```
 
 The `UNIQUE(folder_id, filename)` constraint also serves as a path index.
@@ -1430,6 +1435,14 @@ order is its whole point: `companion_of` because every grid query carries
 `idx_assets_companion` is a strict prefix of it and is kept anyway: `count()`
 scans that index whole to size the grid's scrollbar, and narrow entries make
 that scan roughly eight times cheaper than the same scan over the composite.
+
+`idx_assets_capture_wall` is an **expression** index, and serves the pair
+criterion of §9, which cannot compare `capture_date` directly. It earns its
+place: pairing runs once per imported file, so without it every import
+scans the whole assets table, which is quadratic over a shoot. SQLite only
+uses an expression index when the query spells the expression exactly as
+the index does — `pairs.rs` and this schema must keep saying it the same
+way.
 
 ---
 

@@ -33,6 +33,8 @@ of which any reading of the code would have given:
   `5D4_2325`, both files carry `capture_date = 1786731816000`, to the second,
   while the RAW measures 6744×4502 against 6720×4480 for the JPEG — the
   sensor's border pixels. The instant pairs; the geometry does not.
+  (Both carried the same value only because the JPEG path did not yet apply
+  `OffsetTimeOriginal`. Once it did, the two diverged by the offset — see §2.)
 * **The JPEG is imported before the RAW.** `collect()` enumerates by sorted
   path: `Photos/5D4_2326.JPG` precedes `Photos/raw/5D4_2326.CR2`. Pairing
   therefore cannot content itself with looking for an already-present RAW when
@@ -66,8 +68,25 @@ Migration `SCHEMA_V3` — the column is added, it pairs nothing (see §7).
 Two files form a pair if **all three** hold:
 
 1. the same filename **stem**, case-insensitive (`5D4_2326`);
-2. the same **capture instant** (`capture_date`, to the second);
+2. the same **capture wall clock**, to the second —
+   `capture_date + COALESCE(capture_offset_minutes, 0) × 60000`;
 3. the same **body** (`metadata.camera`).
+
+**Term 2 was `capture_date` alone, and that was wrong.** `catalog.md` §9 gives
+that column two readings: a true UTC instant when the file stated its offset,
+the camera's bare clock reading stored as if UTC when it did not. A RAW never
+states one, and most bodies write `OffsetTimeOriginal` into the JPEG — so the
+two files of a single shot fall under different readings and land exactly one
+offset apart. The criterion was then unsatisfiable, and silently: a 5D Mark IV
+shoot of 16 RAW+JPEG pairs produced 32 photos in the grid and `pair` reported
+`0 pair(s)`, with no error anywhere.
+
+The measurement in §1 below did not catch it because on that corpus both files
+carried the same `capture_date` — the JPEG path had not yet been made to apply
+the offset. The lesson is not that the number was wrong but that it was a
+coincidence: a criterion comparing a column whose meaning varies per row has to
+normalise it first, and the test that would have said so must give the two
+sides *different* offsets rather than `None` on both.
 
 **At any depth in the library**, and not in the common folder alone — the
 context's first fact requires it, and the case that opened this ADR would be

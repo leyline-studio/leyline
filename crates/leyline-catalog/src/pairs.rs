@@ -33,11 +33,22 @@ pub enum Pairing {
 /// in turn, so no chains can form. `IS` rather than `=` on `camera_id` so
 /// that two files whose body is equally unknown still match — `=` would be
 /// false for two NULLs and would silently refuse the pair.
+///
+/// The capture terms compare **wall clocks**, not `capture_date`. Per
+/// `docs/catalog.md` §9 that column holds a true UTC instant when the file
+/// stated its offset and the camera's bare clock reading otherwise, and a RAW
+/// never states one — so the CR2 and the JPEG of a single shot sit exactly
+/// one offset apart, and comparing the column directly made the criterion
+/// unsatisfiable for every body that dates its JPEGs. Adding the offset back
+/// returns both rows to the one reading they share. `idx_assets_capture_wall`
+/// indexes this expression verbatim; keep the two spellings identical or
+/// SQLite quietly stops using it.
 const PAIR_JOIN: &str = "
     FROM assets m
     JOIN assets c
       ON c.id <> m.id
-     AND c.capture_date = m.capture_date
+     AND c.capture_date + COALESCE(c.capture_offset_minutes, 0) * 60000
+       = m.capture_date + COALESCE(m.capture_offset_minutes, 0) * 60000
      AND lower(substr(c.filename, 1, length(c.filename) - length(c.extension) - 1))
        = lower(substr(m.filename, 1, length(m.filename) - length(m.extension) - 1))
     LEFT JOIN metadata mm ON mm.asset_id = m.id

@@ -22,6 +22,30 @@ fn add(
     capture_date: Option<i64>,
     camera: Option<&str>,
 ) -> AssetId {
+    add_with_offset(
+        catalog,
+        folder,
+        filename,
+        media_type,
+        capture_date,
+        camera,
+        None,
+    )
+}
+
+/// Same, stating the file's UTC offset — what a JPEG carrying
+/// `OffsetTimeOriginal` gets at import and a RAW never does
+/// (`docs/catalog.md` §9).
+#[allow(clippy::too_many_arguments)]
+fn add_with_offset(
+    catalog: &mut Catalog,
+    folder: &str,
+    filename: &str,
+    media_type: MediaType,
+    capture_date: Option<i64>,
+    camera: Option<&str>,
+    capture_offset_minutes: Option<i32>,
+) -> AssetId {
     let (stem, extension) = filename.rsplit_once('.').unwrap();
     let new = NewAsset {
         folder: catalog.ensure_folder(folder).unwrap(),
@@ -34,7 +58,7 @@ fn add(
         width: Some(6000),
         height: Some(4000),
         capture_date,
-        capture_offset_minutes: None,
+        capture_offset_minutes,
     };
     let registered = catalog.add_asset(&new, &Settings::default()).unwrap();
     if let Some(camera) = camera {
@@ -466,4 +490,83 @@ fn grid_order_sorts_like_the_grid_and_drops_companions() {
         Vec::new()
     );
     assert_eq!(catalog.grid_order(&[]).unwrap(), Vec::new());
+}
+
+/// The defect that made ADR 0079 find nothing on a real shoot.
+///
+/// `capture_date` holds two different readings depending on whether the file
+/// stated its offset (`docs/catalog.md` §9): a true UTC instant when it did,
+/// the camera's bare wall clock stored as if UTC when it did not. A RAW never
+/// states one, and most bodies write `OffsetTimeOriginal` into the JPEG — so
+/// the two files of one shot land exactly one offset apart, and a criterion
+/// comparing the column directly can never be satisfied. Measured on a 5D
+/// Mark IV shoot: 16 RAW+JPEG pairs, 0 found.
+#[test]
+fn a_jpeg_that_states_its_offset_still_pairs_with_its_raw() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+
+    // 2025-04-14 11:00:58 on the body's clock, in Paris summer time. The RAW
+    // stores the reading itself; the JPEG stores the instant it denotes,
+    // which is two hours earlier.
+    let wall_clock = 1_744_628_458_000;
+    let offset_minutes = 120;
+
+    let jpeg = add_with_offset(
+        &mut catalog,
+        "2025_04_14",
+        "5D4_8204.JPG",
+        MediaType::Jpeg,
+        Some(wall_clock - i64::from(offset_minutes) * 60_000),
+        Some("Canon EOS 5D Mark IV"),
+        Some(offset_minutes),
+    );
+    let raw = add(
+        &mut catalog,
+        "2025_04_14/raw",
+        "5D4_8204.CR2",
+        MediaType::Raw,
+        Some(wall_clock),
+        Some("Canon EOS 5D Mark IV"),
+    );
+
+    assert_eq!(
+        catalog.pair_asset(raw).unwrap(),
+        Pairing::Master(vec![jpeg]),
+        "the RAW must adopt the JPEG of the same shot even though only the \
+         JPEG could state its offset"
+    );
+    assert_eq!(shown(&catalog), 1, "one shot is one photo in the grid");
+}
+
+/// The offset is normalised away, not ignored: two files an hour apart on the
+/// same clock are two different shots, whatever their offsets say.
+#[test]
+fn two_different_instants_do_not_pair_because_of_their_offsets() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+
+    let wall_clock = 1_744_628_458_000;
+    let jpeg = add_with_offset(
+        &mut catalog,
+        "shoot",
+        "5D4_8204.JPG",
+        MediaType::Jpeg,
+        // One hour later on the wall clock, once its offset is added back.
+        Some(wall_clock + 3_600_000 - 120 * 60_000),
+        Some("Canon EOS 5D Mark IV"),
+        Some(120),
+    );
+    let raw = add(
+        &mut catalog,
+        "shoot/raw",
+        "5D4_8204.CR2",
+        MediaType::Raw,
+        Some(wall_clock),
+        Some("Canon EOS 5D Mark IV"),
+    );
+
+    assert_eq!(catalog.pair_asset(raw).unwrap(), Pairing::None);
+    assert_eq!(catalog.pair_asset(jpeg).unwrap(), Pairing::None);
+    assert_eq!(shown(&catalog), 2);
 }
