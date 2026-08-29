@@ -83,13 +83,12 @@ nothing. A test asks whether `decoder_version()` is among them and, when it is
 not, fails with a message that says what happened and what to do — not
 `assertion failed`.
 
-**A set, not a single value**, and that is forced by §5 below rather than
-chosen for comfort: Debian, Homebrew and the cross-built Windows leg each
-bring their own LibRaw, so recording one and calling it *the* decoder would
-state something untrue about the deliverables. What the set still buys is the
-whole point — a decoder nobody has looked at cannot get in quietly — and what
-it honestly concedes is that two entries are two renders not promised to
-agree.
+**A set, not a single value.** The deliverables now share one decoder (§6),
+so the set no longer describes them; what it still describes is the machines
+this tree is *built and tested* on, where a contributor's `apt install` and a
+packaging run legitimately differ. A decoder nobody has looked at still cannot
+get in quietly, which is the whole point, and each entry beyond the first has
+to earn its place — by measurement (§4) rather than by convenience.
 
 Blessing is `LEYLINE_BLESS_DECODER=1`, deliberately spelled like
 `LEYLINE_BLESS_GOLDEN=1`, and it *appends*, exactly as blessing a golden
@@ -108,8 +107,13 @@ output. First run over a given file records it; later runs verify it.
 
 Keying by content is what makes it work without shipping a fixture: any
 maintainer with any RAW file builds their own reference set, and it stays
-valid across machines and checkouts. This repository ships the mechanism and
-no entries.
+valid across machines and checkouts.
+
+The repository ships **ten entries** — Canon 60D and 5D Mark IV CR2s, and
+DNGs, from the author's corpus. They are what turned "0.21.2 and 0.21.4 are
+probably the same" into a fact (§6), and they are committed so that claim can
+be replayed rather than believed. Anyone without those files simply has a
+manifest whose keys never match, which costs them nothing.
 
 ### 5. The build floor rises to what is actually tested
 
@@ -123,14 +127,38 @@ upgrade fail the *build*, and §3 already turns that same upgrade into a
 legible test failure — which is the right severity for "this needs looking
 at" as opposed to "this cannot work".
 
-**The legs are not made to converge here, and that is deliberate.** Pinning one
-LibRaw across Linux, macOS and Windows means building it from source on two
-more legs; the macOS half of that cannot be validated by anyone on this project
-today, for the same reason the `.dmg` has never been built (no machine). Naming
-a single version in this ADR and leaving CI to install something else would be
-a decision that documents itself as done while not being done. So the set of
-§3 records the truth — several decoders, each accepted deliberately — and
-convergence stays an open item rather than a claim.
+### 6. The deliverables carry one decoder — **2026-08-30**
+
+Left open when this ADR was first written, and closed two days later because
+the first alpha made it concrete: one tester on Windows, one on Linux, and no
+answer to "should we expect the same pixels?".
+
+**Every deliverable now carries LibRaw 0.21.4, built from source.** The
+Windows installer bundles the cross-built `libraw_r-23.dll`; the AppImage
+bundles the matching `.so` from a pinned prefix, and both packaging scripts
+refuse to run without it. All three CI legs build that same tag rather than
+installing one, which is what the pin is for: left to the package managers
+the same release carried **three** decoders — Ubuntu 0.21.2, the pinned
+Windows 0.21.4, and Homebrew **0.22.2**, a different *minor* version that
+would have failed §3's guard on the macOS leg the moment it ran.
+
+The one thing that did *not* change is the reason the pin is a version rather
+than a promise: 0.21.2 stays in §3's accepted set, because it is what a
+contributor gets from `apt install libraw-dev` and requiring the pinned prefix
+merely to run the tests would tax a first contribution for nothing. It is
+listed on **evidence**: the two were compared on ten real RAW files — Canon
+60D and 5D Mark IV CR2s, and DNGs — through §4's manifest, and produced ten
+identical digests at identical dimensions. Ten files are not a proof for every
+camera LibRaw supports; they are why that line is a measurement rather than an
+assumption, and the entries are committed so it can be replayed.
+
+That measurement also found a defect in §4's own test. It compared whole
+manifest entries, the recorded decoder version among them — so it could never
+pass across two decoders, *even when the pixels were byte-identical*, which is
+precisely the case it exists to distinguish. It now compares the pixels and
+their shape, and reports the decoder as context. A guard that cannot tell its
+own two failure modes apart is worse than no guard: it teaches people to
+re-bless on sight.
 
 ## Consequences
 
@@ -140,10 +168,9 @@ convergence stays an open item rather than a claim.
 * `make check` fails on any machine whose LibRaw is not among the accepted
   ones. That is the point, and it is a two-second fix for a contributor who
   accepts the change.
-* The three release legs still carry three decoders — Windows pins 0.21.4, the
-  Linux and macOS legs install what their package manager offers. Each one now
-  has to be *accepted* to pass `make check`, which is the change; converging
-  them on a single build is left open (§5).
+* The release legs carry **one** decoder, LibRaw 0.21.4, built from source on
+  each (§6). Building it is now a prerequisite of packaging, like the mingw
+  prefix already was for Windows.
 * `pipeline.md` §5.1 and §5.2 change, and `contributing.md` gains the blessing
   gesture beside the golden one.
 * Nothing about `settings_json`, stages or stage versions changes, so no
@@ -189,6 +216,7 @@ convergence stays an open item rather than a claim.
 * **It does not re-validate the existing catalog.** Photographs imported
   before this ADR keep their previews and their revisions; nothing is
   re-decoded and nothing is marked stale.
-* **It does not make the three deliverables share one decoder.** It makes each
-  of them declare which decoder it carries, and refuses the undeclared. The
-  convergence itself needs a macOS machine this project does not have.
+* **It does not make renders comparable across decoder *versions* in general.**
+  The deliverables now share one (§6), and 0.21.2 and 0.21.4 were measured
+  identical on ten files — neither fact promises anything about a version
+  nobody has compared.

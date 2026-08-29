@@ -35,6 +35,10 @@ fn digest(bytes: &[u8]) -> String {
 
 /// One recorded decode. Dimensions ride along so a failure can say *how* the
 /// decode differs before anyone reaches for a hex diff.
+///
+/// `decoder` is recorded but **not compared** — see [`pixels`]. It says which
+/// LibRaw produced the entry, which is context for a failure and provenance
+/// for the entry; it is not part of what the entry asserts.
 fn entry(image: &leyline_raw::RawImage, decoder: &str) -> Value {
     let mut map = Map::new();
     map.insert("decoder".into(), Value::String(decoder.to_owned()));
@@ -43,6 +47,22 @@ fn entry(image: &leyline_raw::RawImage, decoder: &str) -> Value {
     map.insert("bits".into(), Value::from(image.bits));
     map.insert("digest".into(), Value::String(digest(&image.data)));
     Value::Object(map)
+}
+
+/// The part of an entry that is the claim: the pixels and their shape.
+///
+/// Comparing whole entries was wrong, and wrong in the way that mattered most.
+/// This file exists to answer *did the pixels move* — the question a version
+/// string cannot answer — and an entry carrying the decoder's name can never
+/// match across two decoders, even when the two produce byte-identical
+/// output. Measured on 2026-08-30: LibRaw 0.21.2 and 0.21.4 decode the same
+/// CR2 to the same BLAKE3, and the comparison still failed, reporting a
+/// difference in the one field that was never the point.
+fn pixels(entry: &Value) -> Vec<Option<&Value>> {
+    ["digest", "width", "height", "bits"]
+        .iter()
+        .map(|key| entry.get(*key))
+        .collect()
 }
 
 fn read_manifest(path: &Path) -> BTreeMap<String, Value> {
@@ -92,18 +112,19 @@ fn a_real_raw_decodes_to_the_pixels_it_decoded_to_before() {
         }
         Some(pinned) => {
             assert_eq!(
-                pinned,
-                &observed,
-                "\n\nThis RAW file decodes differently than when it was pinned.\n\
+                pixels(pinned),
+                pixels(&observed),
+                "\n\nThis RAW file decodes to different pixels than when it was pinned.\n\
                  \n  file:            {}\n  key:             {key}\n  \
                  pinned decoder:  {}\n  running decoder: {decoder}\n\n\
                  The input is byte-identical — the key is its checksum — so the\n\
                  difference is in the decoder, not in the photograph. This is\n\
                  exactly the change `docs/pipeline.md` §5.1 counts as breaking\n\
-                 bit-for-bit reproducibility (ADR 0086).\n\n\
-                 Renders of this photograph made before and after this change\n\
-                 are not the same image. Decide whether that is acceptable, and\n\
-                 if it is, delete this entry and let the next run re-record it.\n",
+                 bit-for-bit reproducibility (ADR 0086) — and unlike a change of\n\
+                 version string this is the *effect* rather than the trigger:\n\
+                 renders made before and after are not the same image.\n\n\
+                 Decide whether that is acceptable, and if it is, delete this\n\
+                 entry and let the next run re-record it.\n",
                 path.display(),
                 pinned["decoder"].as_str().unwrap_or("?"),
             );

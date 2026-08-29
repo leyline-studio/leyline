@@ -3,20 +3,43 @@
 # One version string per line, as `leyline_raw::decoder_version()` reports it.
 # Blank lines and `#` comments are ignored.
 #
-# This is a set rather than a single value, and the reason is a fact about the
-# project rather than a convenience: LibRaw is linked dynamically (ADR 0004),
-# so each platform brings its own — Debian's, Homebrew's, and the one the
-# Windows leg cross-builds. Recording one and calling it "the" decoder would
-# state something untrue about the deliverables.
-#
-# What the set still buys, and it is the whole point: a decoder nobody has
-# looked at cannot get in quietly. Adding a line is a deliberate act —
+# Adding a line is a deliberate act —
 #
 #   LEYLINE_BLESS_DECODER=1 cargo test -p leyline-raw --test decoder_version
 #
 # — and it means someone accepted that this decoder may render differently
 # from the others in this list. `docs/pipeline.md` §5.1 counts the decoder
-# among the terms of the bit-for-bit promise, so two entries here are two
-# renders that are not promised to agree.
+# among the terms of the bit-for-bit promise.
+#
+# ── What ships ────────────────────────────────────────────────────────────
+#
+# **0.21.4 is the pinned decoder, and every deliverable carries it.** The
+# Windows installer bundles `libraw_r-23.dll` built from that tag, the
+# AppImage bundles the matching `.so` from `/opt/leyline/libraw-linux`, and
+# both packaging scripts refuse to run without the pinned prefix.
+#
+# That pin exists because leaving it to the package managers gave *three*
+# decoders for one release: Ubuntu 0.21.2, the cross-built Windows prefix
+# 0.21.4, Homebrew 0.22.2 — the last a different minor version.
+#
+# ── Why 0.21.2 is still here ──────────────────────────────────────────────
+#
+# It is what Ubuntu 24.04 ships, so it is what a contributor gets from
+# `apt install libraw-dev` and what `make check` runs against on a plain
+# machine. Requiring the pinned prefix just to run the tests would make a
+# first contribution harder for no gain.
+#
+# It is listed on evidence rather than on convenience. On 2026-08-30 the two
+# were compared on **ten real RAW files** from a working corpus — Canon 60D
+# and 5D Mark IV CR2s, and DNGs — through `decode_manifest.rs`, which pins
+# the BLAKE3 of the decoded pixels keyed by the checksum of the input file:
+#
+#   ten files, ten identical digests, identical dimensions.
+#
+# Ten files are not a proof for every camera LibRaw supports. They are the
+# reason this line is a recorded measurement instead of an assumption, and
+# the entries are committed in `decodes.json` so the comparison can be
+# replayed rather than believed.
 
+0.21.4-Release
 0.21.2-Release

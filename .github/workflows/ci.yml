@@ -26,6 +26,13 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  # The pinned decoder, for every leg (ADR 0086). Left to the package
+  # managers this was three decoders for one release — Ubuntu 0.21.2, the
+  # cross-built Windows prefix 0.21.4, Homebrew 0.22.2, the last a different
+  # minor version. LibRaw is what turns a RAW into pixels, and
+  # `docs/pipeline.md` §5.1 counts it among the terms of the bit-for-bit
+  # promise, so it is built from source here rather than installed.
+  LIBRAW_VERSION: 0.21.4
 
 jobs:
   check:
@@ -54,12 +61,17 @@ jobs:
         # libgphoto2-dev: leyline-tether (ADR 0038). Found through pkg-config
         # only, like LibRaw — its absence fails the *build*, which surfaces on
         # whichever step compiles first (Clippy), not as a lint error.
-        run: sudo apt-get update && sudo apt-get install -y libraw-dev libgphoto2-dev nasm
+        #
+        # No libraw-dev: the pinned LibRaw is built below instead. Installing
+        # it as well would only add a second copy for pkg-config to find.
+        run: sudo apt-get update && sudo apt-get install -y libgphoto2-dev nasm
 
       - name: Install system dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install libraw libgphoto2 nasm
+          # No libraw: the pinned one is built below. Homebrew ships 0.22.2,
+          # a different minor version from the one the deliverables carry.
+          brew install libgphoto2 nasm
           # Homebrew's libraw_r.pc hardcodes `-lstdc++` in its Libs line
           # (LibRaw is C++), but current Xcode/macOS SDKs only ship libc++ —
           # there's no standalone libstdc++.dylib/.tbd anymore, so the
@@ -70,6 +82,36 @@ jobs:
           mkdir -p "$HOME/lib-shim"
           ln -sf "$(xcrun --show-sdk-path)/usr/lib/libc++.tbd" "$HOME/lib-shim/libstdc++.tbd"
           echo "LIBRARY_PATH=$HOME/lib-shim:$LIBRARY_PATH" >> "$GITHUB_ENV"
+
+      # Same tag, same recipe, on both legs — this is what makes the decoder
+      # one thing rather than whatever each runner's package manager offers.
+      # `PKG_CONFIG_PATH` puts it ahead of anything else; `LD_LIBRARY_PATH`
+      # (`DYLD_*` on macOS) matters just as much, because 0.21.x releases
+      # share the soname `libraw_r.so.23` and the loader would otherwise be
+      # free to pick a different copy at run time.
+      - name: Cache the pinned LibRaw
+        id: libraw-pin
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/libraw-prefix
+          key: libraw-pin-${{ env.LIBRAW_VERSION }}-${{ runner.os }}
+
+      - name: Build the pinned LibRaw
+        if: steps.libraw-pin.outputs.cache-hit != 'true'
+        run: |
+          curl -sLO https://github.com/LibRaw/LibRaw/archive/refs/tags/${LIBRAW_VERSION}.tar.gz
+          tar xzf ${LIBRAW_VERSION}.tar.gz
+          cd LibRaw-${LIBRAW_VERSION}
+          autoreconf -fiv
+          ./configure --prefix="${{ runner.temp }}/libraw-prefix" \
+                      --disable-examples --disable-static --enable-shared
+          make -j2 && make install
+
+      - name: Point the build at the pinned LibRaw
+        run: |
+          echo "PKG_CONFIG_PATH=${{ runner.temp }}/libraw-prefix/lib/pkgconfig:$PKG_CONFIG_PATH" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=${{ runner.temp }}/libraw-prefix/lib:$LD_LIBRARY_PATH" >> "$GITHUB_ENV"
+          echo "DYLD_FALLBACK_LIBRARY_PATH=${{ runner.temp }}/libraw-prefix/lib:$DYLD_FALLBACK_LIBRARY_PATH" >> "$GITHUB_ENV"
 
       - name: Format
         run: cargo fmt --all --check
@@ -90,7 +132,7 @@ jobs:
     name: windows (cross-compiled)
     runs-on: ubuntu-latest
     env:
-      LIBRAW_VERSION: 0.21.4
+      # LIBRAW_VERSION is inherited from the workflow env: one pin, every leg.
       LIBRAW_MINGW_PREFIX: /opt/leyline/libraw-mingw
       PACKAGER_VERSION: 0.11.8
     steps:
