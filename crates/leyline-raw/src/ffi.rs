@@ -49,6 +49,7 @@ unsafe extern "C" {
     pub(crate) fn libraw_dcraw_clear_mem(image: *mut LibrawProcessedImage);
     pub(crate) fn libraw_close(data: *mut LibrawData);
     pub(crate) fn libraw_strerror(code: c_int) -> *const c_char;
+    pub(crate) fn libraw_version() -> *const c_char;
 
     // shim.c
     pub(crate) fn leyline_shim_set_options(

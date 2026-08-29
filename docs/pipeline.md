@@ -581,7 +581,8 @@ Two runs produce the **same result, bit for bit**, if and only if:
 * the recorded parameters are strictly identical;
 * the stage versions involved are identical (ADR 0042) — including those of the two framing stages, which pin the working space and the decoder configuration (ADR 0044); for a generic pipeline, the pipeline's identity and its version (§4.1);
 * the input resource is identical (the same `checksum`);
-* the platform and the build toolchain are the same (§5.2).
+* the platform and the build toolchain are the same (§5.2);
+* the **decoder is the same, at the same version** ([ADR 0086](adr/0086-decoder-in-the-promise.md)) — LibRaw is linked dynamically (ADR 0004), so it is a property of the machine rather than of the build, and it is the component that turns a file into pixels. `leyline_raw::decoder_version()` reports the one that answered; a test pins it, and a change of decoder fails `make check` rather than passing quietly.
 
 "The same result" is to be read in the strong sense: **the exported file**, not only the pixels. An export therefore carries no clock — in particular, the ICC profile embedded in every file has its creation date zeroed out, LittleCMS otherwise writing the current time into it, which made two otherwise identical exports differ by one byte (`leyline_color::srgb_icc_profile`).
 
@@ -614,6 +615,8 @@ backends producing two images from one revision is exactly what §5.1 exists to
 prevent. What remains — driver versions, vendor differences — sits in this
 section for the same reason libm does. The preview path is unaffected, having
 never been inside §5.1.
+
+**The decoder is not covered by the last-bit clause above.** LibRaw is not libm: between its releases, AHD interpolation, highlight recovery and per-camera white levels have moved by amounts a photographer can see. So it sits in §5.1 as a *condition*, not here as an accepted drift ([ADR 0086](adr/0086-decoder-in-the-promise.md)) — and what §5.1 promises about it is not identical pixels across versions but that a change is **told**, never silent. Two things follow, and both are limits worth stating plainly. The reference renders are built on **synthetic images**, so the decode path has never been under a frozen reference: what guards it is a pinned version string, plus a decode manifest that anyone with RAW files of their own can fill (`crates/leyline-raw/tests/decodes.json`), and this repository ships that manifest empty. And a *pinned* decoder is not yet a *single* decoder across deliverables: the Windows leg cross-builds a pinned LibRaw while the Linux and macOS legs install what their package manager offers, so until those converge, one release of Leyline can carry more than one decoder.
 
 A practical consequence: the toolchain is **pinned to an exact version** in `rust-toolchain.toml`. Changing it is a deliberate act, which requires replaying the reference renders and recording any drift observed — never the side effect of a bug fix.
 

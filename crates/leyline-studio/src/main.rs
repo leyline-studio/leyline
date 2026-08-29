@@ -257,12 +257,20 @@ fn run() -> Result<(), String> {
     LibraryState::get(&window).set_app_version(SharedString::from(env!("CARGO_PKG_VERSION")));
     // Recorded by `build.rs`; every field degrades to "inconnu" rather than
     // failing a build made from a source tarball with no git checkout.
+    // The decoder line is read at run time, unlike the four build-time
+    // constants around it, and that difference is the point: LibRaw is linked
+    // dynamically (ADR 0004), so it is a property of this machine rather than
+    // of this build. `docs/pipeline.md` §5.1 counts it among the terms of the
+    // bit-for-bit promise (ADR 0086), which makes it the one fact about a
+    // render a user cannot otherwise discover — and the first one worth having
+    // in a report that says the pixels changed.
     LibraryState::get(&window).set_build_details(SharedString::from(format!(
-        "Version {}\nCommit {}\nCible {}\n{}",
+        "Version {}\nCommit {}\nCible {}\n{}\nLibRaw {}",
         env!("CARGO_PKG_VERSION"),
         env!("LEYLINE_COMMIT"),
         env!("LEYLINE_TARGET"),
         env!("LEYLINE_RUSTC"),
+        leyline_sdk::decoder_version(),
     )));
     FilterState::get(&window).set_filter_label(-1);
     FilterState::get(&window).set_filter_pick(-1);

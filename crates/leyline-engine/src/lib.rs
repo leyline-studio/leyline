@@ -42,6 +42,15 @@ pub use export::{
 };
 pub use import::{ImportOptions, ImportReport, ImportedFile, SkippedFile, import, import_files};
 pub use leyline_preview::Rgb8;
+/// The RAW decoder that produced this process's pixels, e.g. `"0.21.2-Release"`.
+///
+/// Re-exported here because it is a term of the reproducibility promise
+/// (`docs/pipeline.md` §5.1, [ADR 0086]), and the clients that have to show it
+/// — the CLI's `--version`, Studio's About dialog — depend on the engine and
+/// not on `leyline-raw`.
+///
+/// [ADR 0086]: https://github.com/leyline-studio/leyline/blob/main/docs/adr/0086-decoder-in-the-promise.md
+pub use leyline_raw::decoder_version;
 pub use library::{
     CatalogRead, CatalogWrite, ImportedCameraProfile, ImportedLut, Library, RemovalReport,
     SoftProof,

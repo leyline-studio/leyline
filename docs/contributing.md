@@ -79,6 +79,19 @@ The first of those guards runs only on the reference platform, the one where the
 
 Blessing is **additive**: it never overwrites an existing entry. If a checksum already in the manifest changes, that is a defect — frozen code has been touched — and it is fixed in the code, not in the manifest. The cases themselves are frozen for the same reason: exercising an operator differently is a new case.
 
+### The decoder
+
+The reference renders above are built on **synthetic images**, so nothing in them ever opens a RAW file: the decode path is not under a frozen reference, and it cannot be — LibRaw is linked dynamically ([ADR 0004](adr/0004-libraw-decoding.md)), so it is a property of the machine rather than of the build. [`pipeline.md`](pipeline.md) §5.1 nevertheless counts it among the terms of the bit-for-bit promise ([ADR 0086](adr/0086-decoder-in-the-promise.md)), so it is guarded in the two ways that are available:
+
+* `crates/leyline-raw/tests/decoder.txt` lists the decoders this tree has been validated against, and `make check` fails on one that is not in the list. It is a **set**, because Debian, Homebrew and the cross-built Windows leg each bring their own, and calling any one of them *the* decoder would be untrue.
+* `crates/leyline-raw/tests/decodes.json` pins actual decoded pixels, keyed by the **checksum of the input file** so anyone can build a reference set out of their own photographs. It ships empty, and `make test-raw LEYLINE_TEST_RAW=…` fills it: the first run over a file records it, later runs verify it.
+
+```bash
+LEYLINE_BLESS_DECODER=1 cargo test -p leyline-raw --test decoder_version
+```
+
+Blessing **appends**, like the golden one, and it means the same thing: someone accepted that this decoder may render differently from the others already listed. Reach for it when `make check` reports a decoder it does not know — after checking, if you have RAW files, whether any pixels actually moved.
+
 ## Touching Studio's interface
 
 How the files are divided is described in [`architecture.md`](architecture.md#inside-studio). Three rules are added on top, two of which are easy to break without noticing.

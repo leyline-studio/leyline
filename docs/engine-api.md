@@ -745,6 +745,13 @@ Unlike export, there is no journalling: no `print_history` table (catalog.md §4
 * The types of `leyline-core` (ids, errors, `Settings`) are part of the SDK contract.
 * A C FFI bridge (and therefore Python bindings, and so on) is a planned evolution, outside V1 — the API described here is designed to make it possible (no exposed generics, no lifetimes in public signatures).
 
+```rust
+/// The RAW decoder that produced this process's pixels, e.g. "0.21.2-Release".
+pub fn decoder_version() -> &'static str;
+```
+
+Free-standing, and on the SDK surface deliberately: LibRaw is linked dynamically ([ADR 0004](adr/0004-libraw-decoding.md)), so the decoder is a property of the machine, and [`pipeline.md`](pipeline.md) §5.1 counts it among the terms that must match for two renders to agree bit for bit ([ADR 0086](adr/0086-decoder-in-the-promise.md)). A client reporting *what rendered this* — `leyline --version`, Studio's About dialog — must be able to ask without reaching past the façade into `leyline-raw`.
+
 ---
 
 # 14. What the API does not do

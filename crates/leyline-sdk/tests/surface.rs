@@ -341,3 +341,20 @@ fn mask_detectors_are_reachable_through_the_sdk_surface() {
     .unwrap_err();
     assert!(matches!(error, DetectError::UnknownDetection(_)));
 }
+
+/// The decoder version is reachable without reaching past the façade.
+///
+/// It is not a convenience: `docs/pipeline.md` §5.1 counts the decoder among
+/// the terms of the bit-for-bit promise (ADR 0086), so a client that has to
+/// report *what rendered this* — the CLI's `--version`, Studio's About — must
+/// be able to ask the SDK. Both of them depend on `leyline-sdk` alone, so a
+/// missing re-export here is a hole of exactly the kind this file exists to
+/// catch.
+#[test]
+fn the_decoder_version_is_reachable_through_the_sdk_surface() {
+    let version = leyline_sdk::decoder_version();
+    assert!(
+        version.starts_with(|c: char| c.is_ascii_digit()),
+        "a LibRaw version starts with a digit, got {version:?}"
+    );
+}

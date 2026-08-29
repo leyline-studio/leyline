@@ -32,6 +32,7 @@ What remains open:
 | Local adjustments: range eyedropper, drag handles | Left out of scope by [ADR 0049](adr/0049-local-adjustments-clients.md); the mask overlay itself is delivered ([ADR 0071](adr/0071-mask-overlay.md)) |
 | Detected masks | The **socket** is delivered ([ADR 0073](adr/0073-external-mask-detectors.md)): Studio knows how to call an external detector. No detector ships with Leyline, and no model is embedded |
 | First publication | No binary published, no version cut |
+| One decoder across the three deliverables | Windows cross-builds a pinned LibRaw, Linux and macOS install what their package manager offers. Each is now *accepted* explicitly and an unknown one fails `make check` ([ADR 0086](adr/0086-decoder-in-the-promise.md)), but they are not yet the same build — converging them needs a macOS machine |
 
 The rest of the work is robustness, performance and polish, not missing features.
 

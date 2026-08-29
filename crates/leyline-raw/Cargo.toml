@@ -18,7 +18,9 @@ cc.workspace = true
 pkg-config.workspace = true
 
 [dev-dependencies]
+blake3.workspace = true
 png.workspace = true
+serde_json.workspace = true
 tempfile.workspace = true
 
 [lints]

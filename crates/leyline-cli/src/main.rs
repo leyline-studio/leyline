@@ -168,6 +168,8 @@ Develop params (docs/pipeline.md §3.2, schema 1):
 Preset groups (docs/presets.md §3.1, comma-separated, no spaces):
   white_balance tone presence lens_correction detail geometry
                                     geometry is never included unless named
+
+  leyline --version                 this build, and the RAW decoder it links
 ";
 
 /// Restores the default disposition of `SIGPIPE`.
@@ -242,6 +244,10 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("preset-rm") => preset_rm(&args[1..]),
         Some("preset-update") => preset_update(&args[1..]),
         Some("preset-reapply") => preset_reapply(&args[1..]),
+        Some("--version") | Some("version") => {
+            print!("{}", version_report());
+            Ok(())
+        }
         Some("--help") | Some("help") | None => {
             print!("{USAGE}");
             Ok(())
@@ -606,6 +612,22 @@ fn preview(args: &[String]) -> Result<(), String> {
         file.height
     );
     Ok(())
+}
+
+/// What this build is, and what it renders with.
+///
+/// The decoder line is not a courtesy: LibRaw is linked dynamically
+/// (ADR 0004), so the library that answers here is a property of *this*
+/// machine, and `docs/pipeline.md` §5.1 counts it among the terms that must
+/// match for two renders to agree bit for bit (ADR 0086). It is the one fact
+/// about a render that a user cannot otherwise discover, and the first thing
+/// worth having in a report of "the pixels changed".
+fn version_report() -> String {
+    format!(
+        "leyline {}\ndecoder  LibRaw {}\n",
+        env!("CARGO_PKG_VERSION"),
+        leyline_sdk::decoder_version(),
+    )
 }
 
 /// Parses the version ids at the tail of a classement command.

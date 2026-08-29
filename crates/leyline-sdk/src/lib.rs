@@ -22,7 +22,7 @@ pub use leyline_engine::{
     ImportedFile, ImportedLut, JobResult, Library, Param, PresetApplyReport, Preview, PreviewFile,
     PrintRecipe, PrintReport, PrintRequest, PrintedVersion, RemovalReport, ReprocessReport, Rgb8,
     ScanOptions, SkippedFile, SoftProof, SourceColor, Value, WatchError, WatchSessionEvent,
-    WatchedFile, neutral_settings,
+    WatchedFile, decoder_version, neutral_settings,
 };
 
 pub use leyline_catalog::{

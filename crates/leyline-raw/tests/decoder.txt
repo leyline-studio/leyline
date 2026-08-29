@@ -1,0 +1,22 @@
+# The RAW decoders this tree has been validated against (ADR 0086 §3).
+#
+# One version string per line, as `leyline_raw::decoder_version()` reports it.
+# Blank lines and `#` comments are ignored.
+#
+# This is a set rather than a single value, and the reason is a fact about the
+# project rather than a convenience: LibRaw is linked dynamically (ADR 0004),
+# so each platform brings its own — Debian's, Homebrew's, and the one the
+# Windows leg cross-builds. Recording one and calling it "the" decoder would
+# state something untrue about the deliverables.
+#
+# What the set still buys, and it is the whole point: a decoder nobody has
+# looked at cannot get in quietly. Adding a line is a deliberate act —
+#
+#   LEYLINE_BLESS_DECODER=1 cargo test -p leyline-raw --test decoder_version
+#
+# — and it means someone accepted that this decoder may render differently
+# from the others in this list. `docs/pipeline.md` §5.1 counts the decoder
+# among the terms of the bit-for-bit promise, so two entries here are two
+# renders that are not promised to agree.
+
+0.21.2-Release

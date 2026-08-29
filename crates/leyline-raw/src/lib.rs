@@ -385,6 +385,33 @@ pub fn identify(path: &Path) -> Result<RawMetadata, RawError> {
     Ok(Handle::open(path)?.metadata())
 }
 
+/// What LibRaw reports about itself, e.g. `"0.21.2-Release"`.
+///
+/// This is a **condition of the reproducibility promise**, not a diagnostic
+/// nicety: `docs/pipeline.md` §5.1 names the decoder and its version among the
+/// terms that must match for two renders to agree bit for bit
+/// ([ADR 0086](../../docs/adr/0086-decoder-in-the-promise.md)).
+///
+/// It is read at run time rather than taken from `build.rs`, and the
+/// difference matters. LibRaw is linked dynamically ([ADR 0004](../../docs/adr/0004-libraw-decoding.md)),
+/// so the library that answers here can be a different one from the library
+/// the build probed — and the one that answers here is the one that produced
+/// the pixels.
+///
+/// Returns `"unknown"` in the case LibRaw cannot report, which no released
+/// LibRaw does; the string is informational and never parsed for control flow.
+pub fn decoder_version() -> &'static str {
+    // SAFETY: `libraw_version` returns a pointer to a static string compiled
+    // into LibRaw. It takes no argument, touches no handle, and the pointee
+    // outlives the process.
+    let raw = unsafe { ffi::libraw_version() };
+    if raw.is_null() {
+        return "unknown";
+    }
+    // SAFETY: non-null, NUL-terminated and static, as above.
+    unsafe { CStr::from_ptr(raw) }.to_str().unwrap_or("unknown")
+}
+
 /// Re-reads a LibRaw capture timestamp under the convention of
 /// `docs/catalog.md` §9: the camera's wall clock, stored as if it were UTC.
 ///

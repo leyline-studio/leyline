@@ -3493,10 +3493,12 @@ dependencies = [
 name = "leyline-raw"
 version = "0.1.0"
 dependencies = [
+ "blake3",
  "cc",
  "leyline-core",
  "pkg-config",
  "png 0.18.1",
+ "serde_json",
  "tempfile",
  "thiserror 2.0.18",
 ]
