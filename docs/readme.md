@@ -22,6 +22,8 @@ The aim is not to reproduce an existing product feature by feature, but to build
 
 **The seven features scoped for V2 are delivered too** ([`v2-scope.md`](v2-scope.md)): tone curve, spot removal, masked local adjustments and range masks, HSL mixer and colour grading, clarity/texture/dehaze, text watermark and soft proofing, DCP camera profiles (experimental). To which are added edge-preserving denoising, reading XMP sidecars, highlight reconstruction, perspective correction and creative `.cube` LUTs.
 
+A library is no longer confined to one volume: it may reference **named roots**, each identified by a marker inside the folder rather than by a remembered path, so a catalog spans several disks while `catalog.db` still holds no absolute path ([ADR 0085](adr/0085-named-roots.md)). An unplugged volume makes its photographs *offline*, never *missing*.
+
 Rendering rests on a pipeline of versioned stages ([ADR 0042](adr/0042-versioned-stage-pipeline.md), [ADR 0043](adr/0043-collapse-prerelease-render-history.md)) working in linear wide-gamut light ([ADR 0044](adr/0044-linear-wide-gamut-working-space.md)): that is what carries the reproducibility promise of [`pipeline.md`](pipeline.md) §5.
 
 What remains open:

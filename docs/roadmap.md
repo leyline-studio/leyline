@@ -64,7 +64,9 @@ Since then, the work has been about what a **first publication** still lacks:
 * the render follows the slider while a setting is dragged, and the display proxy is cached ([ADR 0074](adr/0074-live-preview-while-dragging.md), [ADR 0076](adr/0076-proxy-cache.md)); the preview cache fits inside a bounded window ([ADR 0075](adr/0075-preview-cache-retention.md));
 * an installed version knows that a newer one exists, without transmitting anything and without ever installing itself ([ADR 0077](adr/0077-application-updates.md)), and the catalog is backed up before any migration;
 * the Preferences panel exists, along with the admission rule that decides what is allowed into it ([ADR 0078](adr/0078-preferences-panel.md));
-* a camera set to RAW+JPEG no longer doubles the library ([ADR 0079](adr/0079-raw-jpeg-pairing.md)).
+* a camera set to RAW+JPEG no longer doubles the library ([ADR 0079](adr/0079-raw-jpeg-pairing.md));
+* a catalog can span several volumes ([ADR 0085](adr/0085-named-roots.md)) — a root is an identity carried by a marker inside the folder rather than a remembered path, so `catalog.db` still holds no absolute path; an unplugged volume makes its photographs **offline, not missing**, with the grid, the filters and the search still working while anything needing pixels fails with an error naming the root;
+* the RAW decoder became a term of the reproducibility promise instead of an unstated assumption ([ADR 0086](adr/0086-decoder-in-the-promise.md)) — `pipeline.md` §5.1 lists it, `make check` refuses a decoder nobody has accepted, and the limits of that guard are written down rather than implied.
 
 What [`readme.md`](readme.md) lists as still open remains the reference: DCP colorimetry not validated against the profile vendor's own render, and two finishing touches to local-adjustment tooling left out of scope by [ADR 0049](adr/0049-local-adjustments-clients.md).
 
