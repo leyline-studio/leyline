@@ -139,6 +139,18 @@ export component DevelopPanel inherits HorizontalLayout {
                     horizontal-stretch: 1;
                 }
                 Text {
+                    // A hint line, and a hint is what yields when room runs
+                    // short. Without these two lines it did the opposite: a
+                    // `Text` reports its natural width as its column's
+                    // *minimum* even when it would elide, and this is the
+                    // longest string in the module — markedly so in French.
+                    // The column above documents that un-wrapped text sets
+                    // this view's width; that cuts both ways, and here it
+                    // was setting the minimum, which demanded ~1200px and
+                    // pushed the settings panel — the module itself — off
+                    // the right of the window.
+                    min-width: 0px;
+                    overflow: elide;
                     text: @tr("← →: next/prev photo · G: library · Ctrl+Z/Y: undo/redo · S: save preset · R: reprocess · Ctrl+P: print");
                     color: #666666;
                     font-size: 12px;

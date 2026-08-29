@@ -334,9 +334,15 @@ export component BrowserPanel inherits HorizontalLayout {
                     }
                 }
 
+                // The one control on this row that can give ground. Everything
+                // else is a chip sized by its own label, so when the bar runs
+                // out of room the search field is what yields — down to a box
+                // still wide enough to read a short query in, never to zero.
                 Rectangle {
                     height: 24px;
-                    width: 180px;
+                    min-width: 90px;
+                    max-width: 180px;
+                    horizontal-stretch: 1;
                     background: #1b1b1b;
                     border-radius: 12px;
                     border-width: 1px;

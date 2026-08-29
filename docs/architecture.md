@@ -74,6 +74,22 @@ ui/dialogs/         one file per modal dialog
 
 On the Rust side, `src/wiring/` is the exact mirror of `ui/state/`: one module per global, which reaches its own through `Global::<T>::get(&window)` and leaves the others alone. Around it, `app.rs` (application state), `library.rs` (which library is open), `events.rs` (the engine event pump) and `models.rs` (conversions towards display) — plus the pure-logic modules `develop.rs`, `map_view.rs`, `format.rs` and `classify.rs`, which know no Slint type and are the only ones that can be unit-tested.
 
+### The window fits the screen, and the interface fits the window
+
+Two rules, and they only work as a pair.
+
+`startup_size` (`src/main.rs`) opens the window at two thirds of the screen, raised to a floor of 900×600, then **lowered to what the screen can actually show** — that last clamp applied last, so it always wins. The floor is a wish, not a guarantee: a screen too small to hold it gets a window that fits instead of one that overflows. A separate step pulls the other way when there is room, opening wide enough for the side panels whenever the screen can afford them, so folding stays something a small screen forces rather than something a large one chooses.
+
+`narrow-threshold` (`ui/studio.slint`) is the other half: below 1340 logical pixels the browser's side panels fold away on their own. Without it a 900-pixel window would be a lie — the sidebar and the detail panel are 500px of fixed width between them, and the filter bar cannot shrink past its controls, so a narrow window did not compress the layout, it pushed the right-hand panel outside the window where nothing hinted that it existed.
+
+Three things are worth knowing before touching either:
+
+* **Develop is deliberately excluded from the automatic fold.** Its 300px panel *is* the module — every slider lives in it — so folding it would turn Develop into a picture viewer. There, only the manual gesture folds, where hiding the controls is what the user just asked for.
+* **The fold is assigned, never bound.** A binding that reads the window's width is a cycle — the width is derived from what the content asks for, and the content would ask based on the width. Slint reports it as a *warning* and then resolves it with a stale value, so it would have shipped looking correct. It is written from a `changed width` handler instead: an event handler assigns, it does not join the dependency graph. The same geometry hazard [ADR 0045](adr/0045-studio-ui-modularisation.md) §3 records, reached from the other side.
+* **A line of text sets a view's minimum width.** A Slint `Text` reports its natural width as its column's minimum even when it would elide; giving it `min-width` is what lets it yield. Develop's shortcut hint alone demanded ~1200px until it got one — the same mechanism `develop.slint` already documents for the *maximum*, which cuts both ways.
+
+The threshold is tuned from the longest translation rather than from English: the same bar is markedly wider in French, and a threshold set on English would leave French overflowing in the band between the two.
+
 The rule that bounds the use of globals is in [`contributing.md`](contributing.md#ui-state--global-or-local).
 
 ---

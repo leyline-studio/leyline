@@ -66,11 +66,16 @@ export component StudioWindow inherits Window {
     icon: @image-url("../../../packaging/icons/icon.png");
     preferred-width: 1280px;
     preferred-height: 800px;
-    // Keeps the window from being resized below a usable size — mirrors
-    // `MIN_WINDOW_WIDTH`/`MIN_WINDOW_HEIGHT` in main.rs, which only clamp
-    // the *initial* screen-relative size and don't constrain later resizes.
-    min-width: 1024px;
-    min-height: 700px;
+    // The smallest the window may be dragged to — and a size the interface
+    // genuinely honours, which 1024x700 did not: at that width the right
+    // panel was pushed clean off the window, in English before French even
+    // came into it. What makes 900x600 true is `narrow-threshold` below,
+    // which folds the side panels away before the layout runs out of room.
+    //
+    // Mirrors `MIN_WINDOW_WIDTH`/`MIN_WINDOW_HEIGHT` in main.rs, which set
+    // the *initial* size; this constrains later resizes.
+    min-width: 900px;
+    min-height: 600px;
     // A main window's maximum size must never be dictated by what happens to
     // be on screen. Slint derives a window's constraints from its content,
     // and a column of fixed-height rows reports a bounded maximum, which the
@@ -94,6 +99,51 @@ export component StudioWindow inherits Window {
     // module switcher and therefore the way out.
     property <bool> side-panels-hidden: false;
     property <bool> chrome-hidden: false;
+    // Below this width the side panels fold on their own, and the fold is a
+    // constraint rather than a preference: the sidebar and the detail panel
+    // are 500px of fixed width between them, and the filter bar cannot
+    // shrink past its controls, so keeping all three on a narrow window does
+    // not compress the layout — it pushes the right-hand panel outside the
+    // window, where nothing hints that it exists. Folding is what makes
+    // `min-width: 900px` a size the interface can actually honour.
+    //
+    // The threshold is set from the *longest* translation rather than from
+    // English: the same bar is noticeably wider in French, and a threshold
+    // tuned to English would leave French overflowing in the band between.
+    property <length> narrow-threshold: 1340px;
+    // What the **browser** reads. `side-panels-hidden` stays the manual
+    // gesture (Tab, ADR 0055 §6) and keeps working; this is that choice, or
+    // the window being too narrow to have one.
+    //
+    // Deliberately not used by Develop. There, the 300px panel *is* the
+    // module — every slider lives in it — so folding it automatically would
+    // turn Develop into a picture viewer on a small screen, which is a
+    // worse failure than the one this fixes. In the browser the same panel
+    // is informational, and the grid is still a grid without it. Develop
+    // therefore keeps only the manual fold, where hiding the controls is
+    // what the user just asked for.
+    // **Assigned, never bound.** A binding that reads `root.width` here is a
+    // cycle: the window's width is derived from what its content asks for,
+    // the content asks for less once the panels fold, and the fold would be
+    // read off the width — Slint reports
+    // `side-panels-hidden -> layoutinfo-h -> ... -> browser-panels-folded`
+    // and then resolves it with a stale value, which is a warning rather
+    // than an error and would have shipped looking fine. The same geometry
+    // hazard ADR 0045 §3 records, reached from the other side.
+    //
+    // Writing it from a `changed` handler breaks the cycle: an event handler
+    // assigns, it does not participate in the dependency graph.
+    property <bool> browser-panels-folded: false;
+    function refresh-fold() {
+        root.browser-panels-folded =
+            root.side-panels-hidden || root.width < root.narrow-threshold;
+    }
+    changed width => {
+        root.refresh-fold();
+    }
+    changed side-panels-hidden => {
+        root.refresh-fold();
+    }
 
     keys := FocusScope {
         key-pressed(event) => {
@@ -345,6 +395,7 @@ export component StudioWindow inherits Window {
         }
 
         develop := DevelopPanel {
+            // The manual fold only — see `browser-panels-folded`.
             side-panels-hidden: root.side-panels-hidden;
             chrome-hidden: root.chrome-hidden;
         }
@@ -352,7 +403,7 @@ export component StudioWindow inherits Window {
         MapPanel { }
 
         browser := BrowserPanel {
-            side-panels-hidden: root.side-panels-hidden;
+            side-panels-hidden: root.browser-panels-folded;
             chrome-hidden: root.chrome-hidden;
             return-focus => {
                 keys.focus();

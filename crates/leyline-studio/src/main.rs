@@ -86,11 +86,34 @@ fn system_language() -> Option<String> {
     Some(primary.to_lowercase())
 }
 
-/// Never size the window below this, in logical pixels, regardless of how
-/// small the screen-relative computation in [`size_window_to_screen`] comes
-/// out — the UI needs at least this much room to stay usable.
-const MIN_WINDOW_WIDTH: f32 = 1024.0;
-const MIN_WINDOW_HEIGHT: f32 = 700.0;
+/// The size [`size_window_to_screen`] aims for when two thirds of the screen
+/// would be smaller, in logical pixels — the room the interface wants once
+/// the side panels have folded (`studio.slint`, `narrow-threshold`).
+///
+/// A floor on the *wish*, not on the result: a screen too small to hold it
+/// gets a window that fits the screen instead, because a window larger than
+/// the display is worse than a cramped one.
+const MIN_WINDOW_WIDTH: f32 = 900.0;
+const MIN_WINDOW_HEIGHT: f32 = 600.0;
+
+/// The width below which `studio.slint` folds the side panels away
+/// (`narrow-threshold`). Mirrored here so the initial size can clear it.
+///
+/// The two must be changed together: this one decides whether the window
+/// *starts* wide enough to show the panels, that one decides whether they
+/// are shown at any given width.
+const PANELS_THRESHOLD: f32 = 1340.0;
+
+/// How much of the screen a window may occupy at startup.
+///
+/// The desktop keeps some of the screen for itself — a taskbar, a dock, a
+/// panel — and the window manager adds a title bar on top of whatever size
+/// is asked for. winit reports the monitor's full size and no work area, so
+/// this is a proportion rather than a measurement: enough to keep the window
+/// clear of the furniture on every desktop tried, without pretending to know
+/// where that furniture is.
+const USABLE_FRACTION_WIDTH: f32 = 0.94;
+const USABLE_FRACTION_HEIGHT: f32 = 0.88;
 
 /// Resizes and centers the window at roughly two thirds of the primary
 /// monitor's resolution, instead of the fixed `preferred-width` /
@@ -104,6 +127,49 @@ const MIN_WINDOW_HEIGHT: f32 = 700.0;
 /// identified (headless environment, an unsupported platform, or a
 /// windowing system such as Wayland that doesn't report a primary monitor),
 /// this is a no-op and the `.slint` fallback size stands unchanged.
+/// The window size to open at on a screen of this logical size.
+///
+/// Two thirds of the screen is the *wish*; what fits is the rule. The order
+/// of the clamps is the whole point:
+///
+/// 1. two thirds of the screen, which is the shape wanted on a large one;
+/// 2. raised to [`MIN_WINDOW_WIDTH`]/[`MIN_WINDOW_HEIGHT`], the room the
+///    interface wants once its side panels have folded;
+/// 3. **lowered to what the screen can actually show**, which is applied
+///    last and therefore always wins.
+///
+/// Step 3 is what was missing. `.max(MIN)` alone *raised* the size on a
+/// small screen instead of lowering it: on a 1366x768 laptop two thirds
+/// gives 911x512, which the old floor of 1024x700 pushed back up to a window
+/// taller than the space left once the title bar and the taskbar have taken
+/// theirs.
+///
+/// Step 4 pulls the other way, and only when there is room: open wide enough
+/// for the side panels whenever the screen can afford them. Two thirds of
+/// 1920 is 1280, which is *under* [`PANELS_THRESHOLD`] — without this the
+/// commonest desktop screen there is would start with its panels folded, and
+/// folding is meant to be what a small screen forces, never what a large one
+/// chooses.
+///
+/// Split out from [`size_window_to_screen`] so it can be tested without a
+/// monitor, which is the only part of that function a test can reach.
+fn startup_size(logical_width: f32, logical_height: f32) -> (f32, f32) {
+    let usable_width = logical_width * USABLE_FRACTION_WIDTH;
+    let usable_height = logical_height * USABLE_FRACTION_HEIGHT;
+
+    let mut width = (logical_width * 2.0 / 3.0)
+        .max(MIN_WINDOW_WIDTH)
+        .min(usable_width);
+    let height = (logical_height * 2.0 / 3.0)
+        .max(MIN_WINDOW_HEIGHT)
+        .min(usable_height);
+
+    if usable_width >= PANELS_THRESHOLD {
+        width = width.max(PANELS_THRESHOLD);
+    }
+    (width, height)
+}
+
 fn size_window_to_screen(window: &StudioWindow) {
     let win = window.window();
     win.with_winit_window(|winit_window| {
@@ -117,8 +183,7 @@ fn size_window_to_screen(window: &StudioWindow) {
         let monitor_size = monitor.size();
         let logical_width = monitor_size.width as f32 / scale;
         let logical_height = monitor_size.height as f32 / scale;
-        let target_width = (logical_width * 2.0 / 3.0).max(MIN_WINDOW_WIDTH);
-        let target_height = (logical_height * 2.0 / 3.0).max(MIN_WINDOW_HEIGHT);
+        let (target_width, target_height) = startup_size(logical_width, logical_height);
         win.set_size(slint::LogicalSize::new(target_width, target_height));
 
         // Center on the monitor: convert the just-chosen logical size back
@@ -357,4 +422,80 @@ fn run() -> Result<(), String> {
     }
 
     window.run().map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every screen a window may open on must get a window that fits it.
+    ///
+    /// The table is the one measured on real Xvfb screens on 2026-08-29,
+    /// after the fix; before it, the first three rows produced a 1024x700
+    /// window — taller than a 720-pixel screen has left once the desktop's
+    /// own furniture is out.
+    #[test]
+    fn the_window_never_opens_larger_than_the_screen() {
+        for (screen_w, screen_h) in [
+            (1024.0, 768.0),
+            (1280.0, 720.0),
+            (1366.0, 768.0),
+            (1600.0, 900.0),
+            (1920.0, 1080.0),
+            (2560.0, 1440.0),
+            (3840.0, 2160.0),
+        ] {
+            let (w, h) = startup_size(screen_w, screen_h);
+            assert!(
+                w <= screen_w * USABLE_FRACTION_WIDTH,
+                "{screen_w}x{screen_h}: width {w} exceeds the usable width"
+            );
+            assert!(
+                h <= screen_h * USABLE_FRACTION_HEIGHT,
+                "{screen_w}x{screen_h}: height {h} exceeds the usable height"
+            );
+        }
+    }
+
+    /// The floor is a wish, not a guarantee: a screen too small to hold it
+    /// gets a window that fits instead of one that overflows.
+    #[test]
+    fn a_screen_smaller_than_the_floor_still_gets_a_window_that_fits() {
+        let (w, h) = startup_size(800.0, 600.0);
+        // It fits, which is the rule.
+        assert_eq!(w, 800.0 * USABLE_FRACTION_WIDTH);
+        assert_eq!(h, 600.0 * USABLE_FRACTION_HEIGHT);
+        // And it is therefore below the floor, which is the wish. Asserted
+        // separately rather than joined with `&&`: on this screen the second
+        // follows from the first, and writing it as one condition says the
+        // floor was tested when it was not.
+        assert!(w < MIN_WINDOW_WIDTH);
+        assert!(h < MIN_WINDOW_HEIGHT);
+    }
+
+    /// A screen with room for the side panels opens with room for them, so
+    /// folding stays something a small screen forces rather than something a
+    /// large one chooses.
+    #[test]
+    fn a_roomy_screen_opens_wide_enough_for_the_side_panels() {
+        for (screen_w, screen_h) in [(1600.0, 900.0), (1920.0, 1080.0), (2560.0, 1440.0)] {
+            let (w, _) = startup_size(screen_w, screen_h);
+            assert!(
+                w >= PANELS_THRESHOLD,
+                "{screen_w}x{screen_h}: {w} would start with the panels folded"
+            );
+        }
+    }
+
+    /// And a screen without that room does not pretend to have it.
+    #[test]
+    fn a_cramped_screen_opens_folded_rather_than_overflowing() {
+        for (screen_w, screen_h) in [(1280.0, 720.0), (1366.0, 768.0)] {
+            let (w, _) = startup_size(screen_w, screen_h);
+            assert!(
+                w < PANELS_THRESHOLD,
+                "{screen_w}x{screen_h}: {w} claims room the screen has not got"
+            );
+        }
+    }
 }

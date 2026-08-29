@@ -92,7 +92,20 @@ The Linux floor is not an architectural decision: it is the glibc of the machine
 
 # 5. Display and graphics card
 
-Studio declares `min-width: 1024px` and `min-height: 700px`; its window opens by default at two thirds of the detected screen, never below those bounds. A 1024 × 768 display works, a 1280 × 800 is comfortable.
+Studio declares `min-width: 900px` and `min-height: 600px`, and its window opens at two thirds of the detected screen — **raised** to those bounds when two thirds would be smaller, then **lowered** to what the screen can actually show, which is the clamp that decides. A window is therefore never larger than the display it opens on.
+
+Below 1340 logical pixels of width the side panels fold away on their own, and the interface stays complete without them; above it they are shown, and the window opens wide enough for them whenever the screen can afford it. Measured, on 2026-08-29:
+
+| Screen | Window | Side panels |
+|---|---|---|
+| 1024 × 768 | 900 × 600 | folded |
+| 1280 × 720 | 900 × 600 | folded |
+| 1366 × 768 | 911 × 600 | folded |
+| 1600 × 900 | 1340 × 600 | shown |
+| 1920 × 1080 | 1340 × 720 | shown |
+| 2560 × 1440 | 1707 × 960 | shown |
+
+The previous text on this line claimed a floor of 1024 × 700 and that "a 1024 × 768 display works". Neither was true: at 1024 the right-hand panel was pushed clean off the window — in English before French, whose longer labels only widened the band where it happened — and the floor could make the window *taller* than a 720-pixel screen has left once the desktop's own furniture is out.
 
 The interface is rendered through Slint and its femtovg renderer, which requires **OpenGL ES 2.0**. Without a hardware GPU, the correct path is Mesa's software OpenGL driver:
 
