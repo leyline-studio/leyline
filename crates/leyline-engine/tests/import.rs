@@ -211,14 +211,16 @@ fn referencing_requires_files_inside_the_library_root() {
     assert_eq!(report.imported[0].relative_path, "Originals/heron.png");
     assert!(!root.join("Photos").exists());
 
-    // Outside the root: refused, §2.3 forbids non-relative references.
+    // Outside every root: refused. A root is created by an explicit gesture,
+    // never by importing (ADR 0085 §6), so this stays a skip rather than
+    // silently adopting whatever folder the user pointed at.
     let outside = dir.path().join("elsewhere.png");
     write(&outside, b"outside");
     let refused = import(&mut catalog, &root, &outside, &reference, |_, _| {}).unwrap();
     assert!(
-        refused.skipped[0]
-            .reason
-            .contains("outside the library root")
+        refused.skipped[0].reason.contains("outside every root"),
+        "unexpected reason: {}",
+        refused.skipped[0].reason
     );
 }
 

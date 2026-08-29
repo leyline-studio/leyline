@@ -110,9 +110,21 @@ impl Catalog {
     /// all live in subfolders never has one — carries no parent, and is the
     /// only path allowed to have no segment.
     pub fn ensure_folder(&mut self, relative_path: &str) -> Result<FolderId> {
+        self.ensure_folder_in(crate::LIBRARY_ROOT, relative_path)
+    }
+
+    /// Same, for a path relative to `root` rather than to the library
+    /// (ADR 0085 §3).
+    ///
+    /// A path is relative to **its own root**, so the same `"2019/Iceland"`
+    /// may exist under two roots and mean two folders — which is why the
+    /// lookup below is keyed by both, matching `UNIQUE(root_id,
+    /// relative_path)`. Reading `relative_path` alone was correct only for
+    /// as long as a library had one root, and stops being correct silently.
+    pub fn ensure_folder_in(&mut self, root: i64, relative_path: &str) -> Result<FolderId> {
         self.ensure_writable()?;
         if relative_path.is_empty() {
-            return self.ensure_single_folder(None, "");
+            return self.ensure_single_folder(root, None, "");
         }
         validate_relative_path(relative_path)?;
 
@@ -123,22 +135,24 @@ impl Catalog {
                 current.push('/');
             }
             current.push_str(segment);
-            parent = Some(self.ensure_single_folder(parent, &current)?);
+            parent = Some(self.ensure_single_folder(root, parent, &current)?);
         }
         Ok(parent.expect("path has at least one segment"))
     }
 
-    /// Finds or inserts one folder row whose full path is `relative_path`.
+    /// Finds or inserts one folder row whose full path is `relative_path`
+    /// within `root`.
     fn ensure_single_folder(
         &self,
+        root: i64,
         parent: Option<FolderId>,
         relative_path: &str,
     ) -> Result<FolderId> {
         let existing = self
             .conn
             .query_row(
-                "SELECT id FROM folders WHERE relative_path = ?1",
-                [relative_path],
+                "SELECT id FROM folders WHERE root_id = ?1 AND relative_path = ?2",
+                rusqlite::params![root, relative_path],
                 |row| row.get::<_, i64>(0),
             )
             .map(FolderId::new);
@@ -147,9 +161,9 @@ impl Catalog {
             Err(rusqlite::Error::QueryReturnedNoRows) => {
                 self.conn
                     .execute(
-                        "INSERT INTO folders (parent_id, relative_path, created_at)
-                         VALUES (?1, ?2, ?3)",
-                        rusqlite::params![parent.map(FolderId::get), relative_path, now_ms()],
+                        "INSERT INTO folders (parent_id, root_id, relative_path, created_at)
+                         VALUES (?1, ?2, ?3, ?4)",
+                        rusqlite::params![parent.map(FolderId::get), root, relative_path, now_ms()],
                     )
                     .map_err(db_err)?;
                 Ok(FolderId::new(self.conn.last_insert_rowid()))

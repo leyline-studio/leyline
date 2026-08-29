@@ -134,8 +134,7 @@ pub(crate) fn plan_preview(
     let settings_json = catalog.revision(head)?.settings_json;
     let settings = Settings::parse(&settings_json)?;
 
-    let relative = catalog.asset_relative_path(asset)?;
-    let source_path = library_root.join(relative.replace('/', std::path::MAIN_SEPARATOR_STR));
+    let source_path = crate::roots::locate(catalog, library_root, asset)?;
 
     let meta = catalog.metadata(asset)?;
     let shot = meta.as_ref().and_then(render::lens_shot);
@@ -292,8 +291,7 @@ pub(crate) fn plan_settings_render(
     asset: AssetId,
     kind: PreviewKind,
 ) -> Result<SettingsRenderPlan> {
-    let relative = catalog.asset_relative_path(asset)?;
-    let source_path = library_root.join(relative.replace('/', std::path::MAIN_SEPARATOR_STR));
+    let source_path = crate::roots::locate(catalog, library_root, asset)?;
     let meta = catalog.metadata(asset)?;
     let shot = meta.as_ref().and_then(render::lens_shot);
     let sensor = meta.as_ref().and_then(render::sensor_shot);

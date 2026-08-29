@@ -94,7 +94,7 @@ pub(crate) fn plan_print(
     let develop = Settings::parse(&catalog.revision(head)?.settings_json)?;
 
     let relative = catalog.asset_relative_path(asset)?;
-    let source = library_root.join(relative.replace('/', std::path::MAIN_SEPARATOR_STR));
+    let source = crate::roots::locate(catalog, library_root, asset)?;
     let meta = catalog.metadata(asset)?;
     let shot = meta.as_ref().and_then(render::lens_shot);
     let sensor = meta.as_ref().and_then(render::sensor_shot);

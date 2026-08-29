@@ -22,6 +22,7 @@ mod presets;
 mod previews;
 mod prints;
 mod revisions;
+mod roots;
 mod search;
 mod versions;
 
@@ -39,6 +40,7 @@ pub use presets::{Preset, PresetFolder};
 pub use previews::{NewPreview, PreviewRow};
 pub use prints::PrintPreset;
 pub use revisions::{Amendment, RevisionRow};
+pub use roots::{LIBRARY_ROOT, Root};
 pub use versions::VersionInfo;
 
 use std::path::Path;
@@ -86,11 +88,24 @@ impl Catalog {
         migrations::migrate(&mut conn)?;
 
         let now = now_ms();
-        conn.execute(
+        // The library row and root 1 are one fact written twice, so they are
+        // written together and share a uuid (ADR 0085 §3). A migrated catalog
+        // gets the same invariant from SCHEMA_V9, which reads the uuid the
+        // library already had; a fresh one cannot, because the migration runs
+        // before this insert and finds `library` empty.
+        let uuid = uuid::Uuid::new_v4().to_string();
+        let tx = conn.transaction().map_err(db_err)?;
+        tx.execute(
             "INSERT INTO library (uuid, name, created_at, updated_at) VALUES (?1, ?2, ?3, ?3)",
-            rusqlite::params![uuid::Uuid::new_v4().to_string(), name, now],
+            rusqlite::params![uuid, name, now],
         )
         .map_err(db_err)?;
+        tx.execute(
+            "INSERT INTO roots (id, uuid, name, created_at) VALUES (1, ?1, ?2, ?3)",
+            rusqlite::params![uuid, name, now],
+        )
+        .map_err(db_err)?;
+        tx.commit().map_err(db_err)?;
 
         Ok(Catalog {
             conn,

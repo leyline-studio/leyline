@@ -280,8 +280,36 @@ impl Catalog {
             .map_err(db_err)
     }
 
-    /// Returns the library-relative path of an asset's file, always derived
-    /// from its folder (`docs/catalog.md` §9: no stored asset path).
+    /// Which root holds this asset, and its path within that root
+    /// (ADR 0085 §4).
+    ///
+    /// The pair is what [`Library::locate`] needs and what
+    /// [`Self::asset_relative_path`] cannot give: a path alone stopped being
+    /// enough to find a file the moment a catalog could span more than one
+    /// root.
+    pub fn asset_location(&self, asset: AssetId) -> Result<(i64, String)> {
+        self.conn
+            .query_row(
+                &format!(
+                    "SELECT f.root_id, {ASSET_PATH}
+                     FROM assets a JOIN folders f ON f.id = a.folder_id
+                     WHERE a.id = ?1"
+                ),
+                [asset.get()],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(|e| match e {
+                rusqlite::Error::QueryReturnedNoRows => LeylineError::AssetMissing(asset),
+                other => db_err(other),
+            })
+    }
+
+    /// Returns an asset's path **within its own root**, always derived from
+    /// its folder (`docs/catalog.md` §9: no stored asset path).
+    ///
+    /// Enough to *name* a file — a stem for an export, a sidecar's
+    /// neighbour — and not enough to *open* one once a catalog may span
+    /// several roots: for that, use [`Self::asset_location`].
     pub fn asset_relative_path(&self, asset: AssetId) -> Result<String> {
         self.conn
             .query_row(

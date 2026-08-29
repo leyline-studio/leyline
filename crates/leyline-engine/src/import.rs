@@ -100,6 +100,10 @@ pub fn import_files(
 ) -> Result<ImportReport> {
     let total = files.len() as u64;
     let mut report = ImportReport::default();
+    // Resolved once for the whole import rather than per file: canonicalising
+    // every root for every one of 52 099 files is a syscall storm for an
+    // answer that cannot change mid-import.
+    let roots = referenceable_roots(catalog, library_root);
     for (done, file) in files.iter().enumerate() {
         let outside = source.is_dir() && !file.starts_with(source);
         let outcome = if outside {
@@ -108,7 +112,7 @@ pub fn import_files(
                 source.display()
             )))
         } else {
-            import_one(catalog, library_root, source, file, options)
+            import_one(catalog, library_root, &roots, source, file, options)
         };
         match outcome {
             Ok(imported) => report.imported.push(imported),
@@ -141,6 +145,7 @@ impl From<std::io::Error> for Skip {
 fn import_one(
     catalog: &mut Catalog,
     library_root: &Path,
+    roots: &[(i64, PathBuf)],
     source: &Path,
     file: &Path,
     options: &ImportOptions,
@@ -195,10 +200,15 @@ fn import_one(
         _ => None,
     };
 
-    let relative_path = if options.copy_files {
-        copy_into_photos(library_root, source, file, &filename)?
+    // Copy mode always lands inside the library, which is root 1 by
+    // definition (ADR 0085 §4): `Photos/` is library-local like `Cache/`.
+    let (root_id, relative_path) = if options.copy_files {
+        (
+            leyline_catalog::LIBRARY_ROOT,
+            copy_into_photos(library_root, source, file, &filename)?,
+        )
     } else {
-        reference_in_place(library_root, file)?
+        reference_in_place(roots, file)?
     };
     // A file directly under the library root has no parent segment, and the
     // empty path is exactly how the catalog names the root's own folder row
@@ -209,7 +219,7 @@ fn import_one(
     let folder_path = relative_path
         .rsplit_once('/')
         .map_or("", |(folder, _)| folder);
-    let folder = catalog.ensure_folder(folder_path)?;
+    let folder = catalog.ensure_folder_in(root_id, folder_path)?;
 
     let registered = catalog.add_asset(
         &NewAsset {
@@ -395,13 +405,54 @@ fn copy_into_photos(
     Ok(relative)
 }
 
-/// Resolves the root-relative path of a file referenced in place.
-fn reference_in_place(library_root: &Path, file: &Path) -> std::result::Result<String, Skip> {
-    let canonical_root = library_root.canonicalize()?;
+/// The roots an in-place reference may land in: every online root, the
+/// library's own included, canonicalised once (ADR 0085 §6).
+///
+/// Longest path first, so a root nested inside another — an archive folder
+/// that also sits under the library root — claims its own files rather than
+/// having the outer root claim them.
+fn referenceable_roots(catalog: &Catalog, library_root: &Path) -> Vec<(i64, PathBuf)> {
+    let hints = crate::roots::read_hints(library_root);
+    let mut roots: Vec<(i64, PathBuf)> = catalog
+        .roots()
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|root| {
+            let folder = if root.id == leyline_catalog::LIBRARY_ROOT {
+                library_root.to_owned()
+            } else {
+                let hint = hints.get(&root.uuid)?;
+                crate::roots::verifies(hint, &root.uuid).then(|| hint.clone())?
+            };
+            Some((root.id, folder.canonicalize().ok()?))
+        })
+        .collect();
+    roots.sort_by_key(|(_, path)| std::cmp::Reverse(path.as_os_str().len()));
+    roots
+}
+
+/// Resolves which root holds a file referenced in place, and its path within
+/// that root (ADR 0085 §6).
+///
+/// A source outside every known root keeps the behaviour it has always had —
+/// skipped, with a message — because **a root is created by an explicit
+/// gesture, never by importing** (§6). Copy mode remains the answer for a
+/// card offload.
+fn reference_in_place(
+    roots: &[(i64, PathBuf)],
+    file: &Path,
+) -> std::result::Result<(i64, String), Skip> {
     let canonical = file.canonicalize()?;
-    let inside = canonical.strip_prefix(&canonical_root).map_err(|_| {
-        Skip("file is outside the library root; referencing needs root-relative paths".to_owned())
-    })?;
+    let (root_id, inside) = roots
+        .iter()
+        .find_map(|(id, root)| Some((*id, canonical.strip_prefix(root).ok()?)))
+        .ok_or_else(|| {
+            Skip(
+                "file is outside every root of this library; add its folder as a root, \
+                 or import by copy"
+                    .to_owned(),
+            )
+        })?;
     let mut relative = String::new();
     for component in inside.components() {
         let part = component
@@ -413,7 +464,7 @@ fn reference_in_place(library_root: &Path, file: &Path) -> std::result::Result<S
         }
         relative.push_str(part);
     }
-    Ok(relative)
+    Ok((root_id, relative))
 }
 
 /// Maps a lowercase extension to its media type (`docs/catalog.md` §10).

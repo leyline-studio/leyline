@@ -85,6 +85,16 @@ C:\Users\...
 
 That rule guarantees portability between Windows, Linux and macOS.
 
+### Roots: relative to *which* root
+
+A path is relative to **its own root**, and a library may reference more than one ([ADR 0085](adr/0085-named-roots.md)). A **root** is a folder a library may reference photographs inside, identified by a UUID and by **nothing else** — never by a path, never by a volume label. Every library has at least one: the library folder itself, which is always root 1 and carries the library's own UUID.
+
+The identity is what the catalog stores, in `roots` (§8). Where that identity currently sits on **this** machine is not in the catalog at all: it is a hint in `roots.json` beside `catalog.db`, and it is **verified against a `.leyline-root` marker inside the folder before anything trusts it**. A hint that does not verify is discarded, and the file may be deleted at any time at the cost of one re-location — it is rebuildable state, like `Cache/`.
+
+That split is what keeps the rule above literally true: `catalog.db` still contains no absolute path, so a library folder copied to another OS still opens and still shows every photograph it has a preview for. It simply asks, once per external root, where that root went. Resolution is **hint → the library's own root → ask the user**, and there is no fourth step: mounted volumes are never scanned looking for markers.
+
+The honest price, stated where roots are managed: with external roots, backup-by-folder-copy covers the catalog and the work — every setting, revision, rating, collection and keyword — and no longer the originals, which are on other volumes by construction.
+
 ---
 
 ## 2.4 Source of Truth
@@ -103,6 +113,11 @@ Library/
 │
 
 ├── catalog.db
+
+├── roots.json            (where each root was last seen on this machine,
+│                          advisory and rebuildable, ADR 0085 §2)
+
+├── .leyline-root         (this folder's identity as root 1, ADR 0085 §1)
 
 ├── Photos/
 
@@ -245,7 +260,37 @@ The one exception: `capture_date`, whose semantics are given in §9 — EXIF doe
 
 ---
 
-# 8. Folders
+# 8. Roots and Folders
+
+A **root** is a folder a library may reference photographs inside
+([ADR 0085](adr/0085-named-roots.md) §1). It is an identity, not a location:
+the row below records what a root *is*, and nothing here records where it is —
+that lives in `roots.json` and is verified against a `.leyline-root` marker
+(§2.3).
+
+```sql
+CREATE TABLE roots (
+
+    id INTEGER PRIMARY KEY,
+
+    uuid TEXT NOT NULL UNIQUE,
+
+    name TEXT NOT NULL,
+
+    created_at INTEGER NOT NULL
+
+);
+```
+
+**Root 1 is the library itself**, always present, carrying the library's own
+`library.uuid` — so a library that never adds a second root is byte-for-byte
+the library §2.3 described before roots existed, and pays nothing for them.
+Reusing that uuid also means root 1's marker is derivable from the catalog and
+is rewritten on open if it is ever lost.
+
+A root is created by an **explicit gesture** and never implicitly: an import
+whose source sits outside every known root is skipped, exactly as it was
+before. A root that still holds folders cannot be forgotten.
 
 ```sql
 CREATE TABLE folders (
@@ -254,13 +299,23 @@ CREATE TABLE folders (
 
     parent_id INTEGER NULL,
 
-    relative_path TEXT NOT NULL UNIQUE,
+    root_id INTEGER NOT NULL DEFAULT 1,
+
+    relative_path TEXT NOT NULL,
 
     created_at INTEGER NOT NULL,
+
+    UNIQUE(root_id, relative_path),
 
     FOREIGN KEY(parent_id)
 
         REFERENCES folders(id)
+
+        ON DELETE RESTRICT,
+
+    FOREIGN KEY(root_id)
+
+        REFERENCES roots(id)
 
         ON DELETE RESTRICT
 
@@ -270,6 +325,12 @@ CREATE TABLE folders (
 Folders represent the physical tree and nothing else.
 
 They hold no business information.
+
+`relative_path` is **unique within a root**, not globally: two roots may each
+hold a `2019/Iceland`, and they are two folders. Every query that resolves a
+folder by path must therefore carry its `root_id` — reading the path alone was
+correct only for as long as a library had one root, and stops being correct
+silently.
 
 **The library root has a row of its own**, and its `relative_path` is the
 **empty string** — the one path with no segment. It is created on demand, the

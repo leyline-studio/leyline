@@ -1,7 +1,9 @@
 # ADR 0085 — Named roots: one catalog, several volumes
 
-**Status:** Accepted — 2026-08. The decision only: nothing here is implemented,
-and §9 says in what order it would be.
+**Status:** Accepted — 2026-08. **Implemented 2026-08-29** through step 3 of
+§9: schema (migration 9), marker, `roots.json`, one resolution point, the
+offline state and its typed error, and the CLI. Studio's roots dialog and its
+offline badge are the remainder.
 
 ## Context
 
@@ -167,15 +169,33 @@ that keeps its photos inside itself keeps the old promise whole.
 * **Studio**: the roots list in a dialog, an offline badge on the grid, and
   one "locate…" gesture. Nothing else in the interface changes.
 
-### 9. Order of work, if it is taken up
+### 9. Order of work
 
-1. `roots` + `root_id` + marker + `roots.json` + `Library::locate`, with the
+1. ✅ `roots` + `root_id` + marker + `roots.json` + `Library::locate`, with the
    library as root 1 and no way yet to add a second: the migration lands and
    changes no behaviour.
-2. The offline state, its typed error, and the guarantee of §5 on `is_missing`.
-3. Adding, locating and forgetting a root — CLI first, Studio after.
-4. `catalog.md` §2.3, §3 and §8 change with step 1, not before: until the
+2. ✅ The offline state, its typed error, and the guarantee of §5 on
+   `is_missing`.
+3. Adding, locating and forgetting a root — ✅ CLI (`roots`, `root-add`,
+   `root-locate`, `root-forget`), Studio after.
+4. ✅ `catalog.md` §2.3, §3 and §8 change with step 1, not before: until the
    migration exists, the specification describes the schema that exists.
+
+Two things the implementation settled that the decision above left open, both
+worth recording because neither is obvious from the text:
+
+* **Root 1 takes the library's own `library.uuid`** rather than a fresh one.
+  Nothing needs generating, the identity is already unique and already stable
+  across copies, and the marker becomes *derivable from the catalog* — so a
+  library restored from a backup that dropped the dotfile gets it back on the
+  next open instead of becoming unidentifiable.
+* **Migrations now run with foreign keys off, and `PRAGMA foreign_key_check`
+  after each one.** Changing `UNIQUE(relative_path)` to
+  `UNIQUE(root_id, relative_path)` requires rebuilding `folders`, hence
+  dropping a table `assets` still references; `ON DELETE RESTRICT` fires
+  immediately even inside a transaction and even under `defer_foreign_keys`,
+  so enforcement had to come off. What replaces it is stronger: the check
+  validates *every* key in the database rather than only the rows touched.
 
 ## Consequences
 

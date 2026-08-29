@@ -27,6 +27,7 @@ mod preview;
 mod print;
 mod render;
 mod reprocess;
+mod roots;
 mod scan;
 mod session;
 mod source;
@@ -41,6 +42,7 @@ pub use export::{
     export_version,
 };
 pub use import::{ImportOptions, ImportReport, ImportedFile, SkippedFile, import, import_files};
+pub use leyline_catalog::{LIBRARY_ROOT, Root};
 pub use leyline_preview::Rgb8;
 /// The RAW decoder that produced this process's pixels, e.g. `"0.21.2-Release"`.
 ///
@@ -53,7 +55,7 @@ pub use leyline_preview::Rgb8;
 pub use leyline_raw::decoder_version;
 pub use library::{
     CatalogRead, CatalogWrite, ImportedCameraProfile, ImportedLut, Library, RemovalReport,
-    SoftProof,
+    RootStatus, SoftProof,
 };
 pub use presets::{FailedApply, PresetApplyReport, apply_batch, capture};
 pub use preview::{Preview, PreviewFile, preview};

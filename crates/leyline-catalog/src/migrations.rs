@@ -12,6 +12,7 @@ use leyline_core::Result;
 /// Migration scripts: index `n` migrates the database to `user_version` `n + 1`.
 const MIGRATIONS: &[&str] = &[
     SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8,
+    SCHEMA_V9,
 ];
 
 /// The schema version produced by the newest migration.
@@ -24,6 +25,23 @@ pub(crate) fn user_version(conn: &Connection) -> Result<u32> {
 }
 
 /// Applies every pending migration, one transaction per migration.
+///
+/// Foreign keys are **off** for the duration, and checked afterwards. That is
+/// not a relaxation: a migration that has to change a table's constraints can
+/// only do it by rebuilding the table (SQLite cannot drop the implicit index
+/// behind a `UNIQUE` column), and a rebuild means dropping a table other rows
+/// still reference. `ON DELETE RESTRICT` fires *immediately* even inside a
+/// transaction and even with `defer_foreign_keys`, so leaving enforcement on
+/// makes such a migration impossible to express — SCHEMA_V9 is the first that
+/// needs it.
+///
+/// What replaces the per-statement enforcement is stronger than it: after each
+/// migration commits, `PRAGMA foreign_key_check` validates **every** foreign
+/// key in the database rather than only the rows the migration touched, and a
+/// violation fails the open rather than leaving a catalog that looks fine.
+///
+/// `PRAGMA foreign_keys` is a no-op inside a transaction, hence the toggle
+/// outside it.
 pub(crate) fn migrate(conn: &mut Connection) -> Result<()> {
     loop {
         let version = user_version(conn)?;
@@ -31,12 +49,42 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<()> {
             return Ok(());
         }
         let script = MIGRATIONS[version as usize];
-        let tx = conn.transaction().map_err(db_err)?;
-        tx.execute_batch(script).map_err(db_err)?;
-        tx.pragma_update(None, "user_version", version + 1)
+
+        conn.pragma_update(None, "foreign_keys", false)
             .map_err(db_err)?;
-        tx.commit().map_err(db_err)?;
+        let outcome = apply(conn, script, version);
+        // Restore the pragma whatever happened: this connection goes on being
+        // used, and a failed migration must not leave it unenforced.
+        conn.pragma_update(None, "foreign_keys", true)
+            .map_err(db_err)?;
+        outcome?;
+
+        check_foreign_keys(conn, version + 1)?;
     }
+}
+
+/// One migration, in one transaction that also bumps `user_version`.
+fn apply(conn: &mut Connection, script: &str, version: u32) -> Result<()> {
+    let tx = conn.transaction().map_err(db_err)?;
+    tx.execute_batch(script).map_err(db_err)?;
+    tx.pragma_update(None, "user_version", version + 1)
+        .map_err(db_err)?;
+    tx.commit().map_err(db_err)
+}
+
+/// Fails when a migration left a dangling reference behind.
+fn check_foreign_keys(conn: &Connection, version: u32) -> Result<()> {
+    let mut statement = conn.prepare("PRAGMA foreign_key_check").map_err(db_err)?;
+    let mut rows = statement.query([]).map_err(db_err)?;
+    if let Some(row) = rows.next().map_err(db_err)? {
+        let table: String = row.get(0).map_err(db_err)?;
+        let parent: String = row.get(2).map_err(db_err)?;
+        return Err(leyline_core::LeylineError::Db(format!(
+            "migration to schema version {version} left {table} referencing \
+             a missing row in {parent}"
+        )));
+    }
+    Ok(())
 }
 
 /// Version 1: the complete initial schema of `docs/catalog.md` (v2.3).
@@ -497,4 +545,68 @@ const SCHEMA_V8: &str = "
 -- §32 The pair criterion (ADR 0079 §2): capture wall clock, in epoch ms.
 CREATE INDEX idx_assets_capture_wall
 ON assets(capture_date + COALESCE(capture_offset_minutes, 0) * 60000);
+";
+
+/// Version 9: a catalog can span several volumes ([ADR 0085](../../../docs/adr/0085-named-roots.md) §1).
+///
+/// A **root** is a folder a library may reference photos inside, identified by
+/// a UUID and by nothing else — never by a path, which is the property
+/// [ADR 0010](../../../docs/adr/0010-relative-paths.md) exists to protect. The
+/// location a root currently sits at is advisory, lives outside the catalog in
+/// `roots.json`, and is verified against a `.leyline-root` marker before use.
+///
+/// **The library is root 1, and it takes the library's own UUID.** Nothing has
+/// to be generated: `library.uuid` already identifies this library uniquely,
+/// it is already stable across copies and machines, and reusing it means the
+/// marker for root 1 can be rewritten from the catalog alone if it is ever
+/// lost.
+///
+/// `folders` is **rebuilt** rather than altered. `UNIQUE(relative_path)` has to
+/// become `UNIQUE(root_id, relative_path)` — two roots may each hold a `2019/`
+/// — and the old constraint is an implicit index SQLite cannot drop. The
+/// rebuild is why `migrate` runs with foreign keys off: `assets.folder_id` is
+/// `ON DELETE RESTRICT`, which fires immediately and would refuse the
+/// `DROP TABLE` regardless of the transaction.
+///
+/// Behaviour is unchanged by construction: every existing folder lands in root
+/// 1, and with one root `UNIQUE(root_id, relative_path)` accepts and refuses
+/// exactly what `UNIQUE(relative_path)` did.
+const SCHEMA_V9: &str = "
+-- §2.3 A root is an identity, not a location (ADR 0085 §1).
+CREATE TABLE roots (
+    id INTEGER PRIMARY KEY,
+    uuid TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+);
+
+-- The library is root 1, under the identity it already had.
+INSERT INTO roots (id, uuid, name, created_at)
+SELECT 1, uuid, name, created_at FROM library;
+
+-- §8 Folders are relative to *their own* root.
+CREATE TABLE folders_new (
+    id INTEGER PRIMARY KEY,
+    parent_id INTEGER NULL,
+    root_id INTEGER NOT NULL DEFAULT 1,
+    relative_path TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    UNIQUE(root_id, relative_path),
+    FOREIGN KEY(parent_id)
+        REFERENCES folders(id)
+        ON DELETE RESTRICT,
+    FOREIGN KEY(root_id)
+        REFERENCES roots(id)
+        ON DELETE RESTRICT
+);
+
+INSERT INTO folders_new (id, parent_id, root_id, relative_path, created_at)
+SELECT id, parent_id, 1, relative_path, created_at FROM folders;
+
+DROP TABLE folders;
+ALTER TABLE folders_new RENAME TO folders;
+
+-- The RESTRICT above is a lookup on delete, and `root-forget` asks the same
+-- question directly (ADR 0085 §8).
+CREATE INDEX idx_folders_root ON folders(root_id);
 ";

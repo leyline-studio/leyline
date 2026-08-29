@@ -21,7 +21,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use leyline_catalog::{
     Catalog, CollectionNode, ExportPreset, FolderNode, KeywordNode, LibraryInfo, Preset,
-    PresetFolder, PrintPreset, SmartRules,
+    PresetFolder, PrintPreset, Root, SmartRules,
 };
 use leyline_core::{
     AssetId, CollectionId, ColorLabel, ExportPresetId, JobId, KeywordId, LeylineError, PickState,
@@ -243,6 +243,58 @@ pub struct SoftProof {
     pub gamut_warning: bool,
 }
 
+/// A root, plus where it is on this machine right now (ADR 0085 §5).
+///
+/// `location` absent means **offline, not missing**: the photographs are
+/// still catalogued, still browsable from the preview cache, still
+/// searchable — what cannot happen is anything needing their pixels.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RootStatus {
+    /// Identity and name, as the catalog holds them.
+    pub root: Root,
+    /// Where it verified, or `None` when it is offline.
+    pub location: Option<PathBuf>,
+}
+
+impl RootStatus {
+    /// Whether the root can be read right now.
+    pub fn is_online(&self) -> bool {
+        self.location.is_some()
+    }
+}
+
+/// Writes the library's own `.leyline-root` marker if it is not already
+/// there (ADR 0085 §3).
+///
+/// Root 1 carries the library's own UUID, so the marker is **derivable from
+/// the catalog** and can be rewritten at any time: a library restored from a
+/// backup that lost the dotfile, or migrated from before ADR 0085, gets it
+/// back on the next open rather than becoming unidentifiable.
+///
+/// A read-only library is left alone. Root 1 is the one root that resolves
+/// without a marker — it is the folder the caller already opened — so a
+/// catalog that cannot be written to loses nothing by not having one.
+fn ensure_library_marker(root: &Path, catalog: &Catalog) -> Result<()> {
+    let Some(library) = catalog
+        .roots()?
+        .into_iter()
+        .find(|r| r.id == leyline_catalog::LIBRARY_ROOT)
+    else {
+        return Ok(());
+    };
+    if crate::roots::verifies(root, &library.uuid) {
+        return Ok(());
+    }
+    match crate::roots::write_marker(root, &library.uuid) {
+        Ok(()) => Ok(()),
+        // A library on read-only media still opens; it simply cannot be
+        // referenced as an external root from elsewhere until it can be
+        // written to.
+        Err(LeylineError::Io(e)) if e.kind() == std::io::ErrorKind::PermissionDenied => Ok(()),
+        Err(e) => Err(e),
+    }
+}
+
 impl Library {
     /// Creates a new library: the §3 directory skeleton and its catalog.
     /// The root may exist (empty or not); the catalog must not.
@@ -251,12 +303,14 @@ impl Library {
             std::fs::create_dir_all(root.join(dir))?;
         }
         let catalog = Catalog::create(&root.join("catalog.db"), name)?;
+        ensure_library_marker(root, &catalog)?;
         Ok(Library::assemble(root, catalog))
     }
 
     /// Opens an existing library, applying pending catalog migrations.
     pub fn open(root: &Path) -> Result<Library> {
         let catalog = Catalog::open(&root.join("catalog.db"))?;
+        ensure_library_marker(root, &catalog)?;
         Ok(Library::assemble(root, catalog))
     }
 
@@ -326,6 +380,128 @@ impl Library {
     /// The library root directory.
     pub fn root(&self) -> &Path {
         &self.inner.root
+    }
+
+    /// Every root this library references, and whether it is reachable now
+    /// (ADR 0085 §8).
+    pub fn roots(&self) -> Result<Vec<RootStatus>> {
+        let catalog = lock(&self.inner.catalog);
+        let hints = crate::roots::read_hints(&self.inner.root);
+        Ok(catalog
+            .roots()?
+            .into_iter()
+            .map(|root| {
+                let location = if root.id == leyline_catalog::LIBRARY_ROOT {
+                    Some(self.inner.root.clone())
+                } else {
+                    hints
+                        .get(&root.uuid)
+                        .filter(|path| crate::roots::verifies(path, &root.uuid))
+                        .cloned()
+                };
+                RootStatus { root, location }
+            })
+            .collect())
+    }
+
+    /// Adds a folder as a root this library may reference photos inside
+    /// (ADR 0085 §6).
+    ///
+    /// An **explicit gesture**, never implicit: an import whose source sits
+    /// outside every known root keeps today's behaviour and is skipped, and
+    /// nothing about browsing or importing creates a root behind the user's
+    /// back.
+    ///
+    /// Writes the marker before the catalog row. If the process dies between
+    /// the two, what is left on disk is a folder claiming an identity no
+    /// catalog knows — inert, and overwritten by the next attempt — rather
+    /// than a catalog row pointing at a folder that can never be verified.
+    ///
+    /// A folder that already carries a marker keeps its identity: adding the
+    /// same archive to a second library must reference the same root, which
+    /// is exactly what makes a root belong to the folder rather than to a
+    /// library.
+    pub fn add_root(&self, folder: &Path, name: &str) -> Result<Root> {
+        let folder = folder.canonicalize()?;
+        if !folder.is_dir() {
+            return Err(LeylineError::Io(std::io::Error::new(
+                std::io::ErrorKind::NotADirectory,
+                format!("{} is not a folder", folder.display()),
+            )));
+        }
+
+        let uuid = match crate::roots::read_marker(&folder) {
+            Some(existing) => existing,
+            None => {
+                let fresh = uuid::Uuid::new_v4().to_string();
+                crate::roots::write_marker(&folder, &fresh)?;
+                fresh
+            }
+        };
+
+        let mut catalog = lock(&self.inner.catalog);
+        let root = match catalog.root_by_uuid(&uuid)? {
+            Some(known) => known,
+            None => catalog.insert_root(&uuid, name)?,
+        };
+        drop(catalog);
+
+        crate::roots::remember(&self.inner.root, &uuid, &folder)?;
+        Ok(root)
+    }
+
+    /// Tells the library where a root went (ADR 0085 §2, step 3).
+    ///
+    /// The hint is written only if the folder's marker agrees: a wrong
+    /// answer is refused rather than remembered, because a remembered wrong
+    /// answer resolves silently to somebody else's photographs.
+    pub fn locate_root(&self, uuid: &str, folder: &Path) -> Result<()> {
+        let folder = folder.canonicalize()?;
+        if !crate::roots::verifies(&folder, uuid) {
+            return Err(LeylineError::Io(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!(
+                    "{} is not that root: its marker says {}",
+                    folder.display(),
+                    crate::roots::read_marker(&folder).unwrap_or_else(|| "nothing".into())
+                ),
+            )));
+        }
+        crate::roots::remember(&self.inner.root, uuid, &folder)
+    }
+
+    /// Stops referencing a root (ADR 0085 §8).
+    ///
+    /// Refused while any folder still sits in it. The marker on disk is left
+    /// alone: it belongs to the folder, and another library may be using it.
+    pub fn forget_root(&self, uuid: &str) -> Result<()> {
+        let mut catalog = lock(&self.inner.catalog);
+        let root = catalog
+            .root_by_uuid(uuid)?
+            .ok_or_else(|| LeylineError::Db(format!("no root {uuid} in this library")))?;
+        catalog.delete_root(root.id)?;
+        drop(catalog);
+        crate::roots::forget(&self.inner.root, uuid)
+    }
+
+    /// Where an asset's file is, right now, on this machine (ADR 0085 §4).
+    ///
+    /// **The one place a stored path becomes a real one.** Every caller that
+    /// opens a photograph goes through here, and that is not tidiness: it is
+    /// what lets the offline case of ADR 0085 §5 be handled once instead of
+    /// at each of the dozen sites that used to join the library root
+    /// themselves.
+    ///
+    /// `Cache/`, `Masks/`, `Profiles/`, `Exports/` and `Backups/` keep
+    /// joining the library root directly — they are library-local by
+    /// definition, and no root but the library's own ever holds them.
+    ///
+    /// Fails with [`LeylineError::RootOffline`] when the root holding the
+    /// asset cannot be found, never with a file-not-found: an unplugged disk
+    /// and a deleted photograph are different accidents and deserve
+    /// different words.
+    pub fn locate(&self, asset: AssetId) -> Result<PathBuf> {
+        crate::roots::locate(&lock(&self.inner.catalog), &self.inner.root, asset)
     }
 
     /// Subscribes to the event stream (`docs/engine-api.md` §3.2).

@@ -171,6 +171,26 @@ pub enum LeylineError {
         reason: String,
     },
 
+    /// The root holding this photograph is not reachable right now
+    /// (`docs/adr/0085-named-roots.md` §5).
+    ///
+    /// **Offline is not missing.** An unplugged disk is not an edit: nothing
+    /// about the assets in this root is rewritten, `assets.is_missing` is not
+    /// set, and browsing, filtering, rating, keywording and searching go on
+    /// working from the library's own preview cache. What cannot be done is
+    /// anything that needs the original pixels — develop, export, print,
+    /// reprocess, a new preview kind — and that is what this error reports.
+    ///
+    /// It names the root rather than the file on purpose: the actionable fact
+    /// is "plug in Archive 2019", not "this path does not exist".
+    #[error("the root {name:?} is offline: reconnect it, or point the library at it again")]
+    RootOffline {
+        /// What the user calls the root.
+        name: String,
+        /// Its identity, as its `.leyline-root` marker states it.
+        uuid: String,
+    },
+
     /// An underlying I/O operation failed.
     #[error("i/o error: {0}")]
     Io(#[from] std::io::Error),

@@ -22,6 +22,15 @@ Leyline — open-source RAW photo development
 Usage:
   leyline new <library> [--name <name>]
   leyline info <library>
+  leyline roots <library>           the roots it references, and which are online
+  leyline root-add <library> <folder> [--name <name>]
+                                    lets the library reference photos inside
+                                    that folder, wherever the folder later moves
+  leyline root-locate <library> <uuid> <folder>
+                                    says where a root went; refused unless the
+                                    folder's marker agrees
+  leyline root-forget <library> <uuid>
+                                    refused while it still holds photographs
   leyline import <library> <source> [--reference] [--flat] [--no-pair]
                                     [--thumbnails] [--only <name>]...
                                     --only, répétable, n'importe que ces
@@ -220,6 +229,10 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("export") => export(&args[1..]),
         Some("preset") => preset(&args[1..]),
         Some("presets") => presets(&args[1..]),
+        Some("roots") => roots(&args[1..]),
+        Some("root-add") => root_add(&args[1..]),
+        Some("root-locate") => root_locate(&args[1..]),
+        Some("root-forget") => root_forget(&args[1..]),
         Some("exports") => exports(&args[1..]),
         Some("print") => print_cmd(&args[1..]),
         Some("print-preset") => print_preset(&args[1..]),
@@ -1925,6 +1938,73 @@ fn preset(args: &[String]) -> Result<(), String> {
         .create_export_preset(name, &settings)
         .map_err(|e| e.to_string())?;
     println!("created preset {name:?} (p{id})");
+    Ok(())
+}
+
+/// Lists the roots a library references, and whether each is reachable now
+/// (ADR 0085 §8).
+fn roots(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root] = positional.as_slice() else {
+        return Err("usage: leyline roots <library>".to_owned());
+    };
+    let statuses = open(root)?.roots().map_err(|e| e.to_string())?;
+    for status in &statuses {
+        // "offline" rather than "missing", and the distinction is the point:
+        // an unplugged disk is not a deleted photograph (ADR 0085 §5).
+        let where_ = match &status.location {
+            Some(path) => path.display().to_string(),
+            None => "offline".to_owned(),
+        };
+        println!(
+            "r{:<4} {:24} {:38} {}",
+            status.root.id, status.root.name, status.root.uuid, where_
+        );
+    }
+    println!("{} root(s)", statuses.len());
+    Ok(())
+}
+
+/// Adds a folder as a root this library may reference photos inside.
+fn root_add(args: &[String]) -> Result<(), String> {
+    let (positional, options) = parse(args, &["name"])?;
+    let [root, folder] = positional.as_slice() else {
+        return Err("usage: leyline root-add <library> <folder> [--name <name>]".to_owned());
+    };
+    let path = std::path::Path::new(folder);
+    let name = options.value("name").map(str::to_owned).unwrap_or_else(|| {
+        path.file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| folder.clone())
+    });
+    let added = open(root)?
+        .add_root(path, &name)
+        .map_err(|e| e.to_string())?;
+    println!("r{} {} {}", added.id, added.name, added.uuid);
+    Ok(())
+}
+
+/// Tells the library where a root went.
+fn root_locate(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root, uuid, folder] = positional.as_slice() else {
+        return Err("usage: leyline root-locate <library> <uuid> <folder>".to_owned());
+    };
+    open(root)?
+        .locate_root(uuid, std::path::Path::new(folder))
+        .map_err(|e| e.to_string())?;
+    println!("located {uuid}");
+    Ok(())
+}
+
+/// Stops referencing a root. Refused while it still holds photographs.
+fn root_forget(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root, uuid] = positional.as_slice() else {
+        return Err("usage: leyline root-forget <library> <uuid>".to_owned());
+    };
+    open(root)?.forget_root(uuid).map_err(|e| e.to_string())?;
+    println!("forgot {uuid}");
     Ok(())
 }
 
