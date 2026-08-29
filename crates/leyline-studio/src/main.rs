@@ -330,7 +330,7 @@ fn run() -> Result<(), String> {
     // render a user cannot otherwise discover — and the first one worth having
     // in a report that says the pixels changed.
     LibraryState::get(&window).set_build_details(SharedString::from(format!(
-        "Version {}\nCommit {}\nCible {}\n{}\nLibRaw {}",
+        "Version {}\nCommit {}\nTarget {}\n{}\nLibRaw {}",
         env!("CARGO_PKG_VERSION"),
         env!("LEYLINE_COMMIT"),
         env!("LEYLINE_TARGET"),
