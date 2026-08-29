@@ -199,7 +199,7 @@ impl Default for GridQuery {
 /// [`Catalog::grid_columns`] is how a test compares it with the one SQLite
 /// actually prepares. Reordering the select list without reordering this
 /// array fails that test rather than swapping two integer columns in silence.
-pub const GRID_COLUMNS: [&str; 11] = [
+pub const GRID_COLUMNS: [&str; 12] = [
     "version_id",
     "asset_id",
     "filename",
@@ -211,6 +211,7 @@ pub const GRID_COLUMNS: [&str; 11] = [
     "height",
     "edited",
     "paired",
+    "root_id",
 ];
 
 /// One grid cell.
@@ -241,6 +242,12 @@ pub struct GridItem {
     /// Whether a camera rendering of the same shot is attached to this
     /// asset — what a cell's `RAW+J` badge shows (ADR 0079 §6).
     pub paired: bool,
+    /// Which root holds the asset (ADR 0085 §5).
+    ///
+    /// Carried by the grid rather than looked up per cell because the client
+    /// needs it on every visible thumbnail — to mark the ones whose volume is
+    /// unplugged — and a query per cell is a query per scroll step.
+    pub root_id: i64,
 }
 
 impl Catalog {
@@ -355,10 +362,12 @@ impl Catalog {
                     v.rating, v.color_label, v.pick_state, a.width, a.height,
                     (SELECT r.parent_revision_id IS NOT NULL FROM develop_revisions r
                       WHERE r.id = v.head_revision_id) AS edited,
-                    EXISTS (SELECT 1 FROM assets p WHERE p.companion_of = a.id) AS paired
+                    EXISTS (SELECT 1 FROM assets p WHERE p.companion_of = a.id) AS paired,
+                    f.root_id
              FROM page
              JOIN develop_versions v ON v.id = page.vid
-             JOIN assets a ON a.id = page.aid{outer_order}"
+             JOIN assets a ON a.id = page.aid
+             JOIN folders f ON f.id = a.folder_id{outer_order}"
         );
 
         Ok((sql, params))
@@ -394,6 +403,7 @@ impl Catalog {
                     // wrote: the photo is still exactly as it came in.
                     edited: row.get::<_, Option<bool>>(9)?.unwrap_or(false),
                     paired: row.get(10)?,
+                    root_id: row.get(11)?,
                 })
             })
             .map_err(db_err)?;

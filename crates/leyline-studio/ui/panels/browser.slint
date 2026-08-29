@@ -652,6 +652,24 @@ export component BrowserPanel inherits HorizontalLayout {
                             color: #7a7a7a;
                             font-size: 9px;
                         }
+                        // The volume is unplugged (ADR 0085 §5). The badge
+                        // says the *original* is out of reach, not that the
+                        // photograph is gone — the thumbnail beneath it is
+                        // still there and still correct.
+                        //
+                        // Top-left, after the number and the flag, and not in
+                        // the bottom-left corner it was first put in: that
+                        // corner is the filename row, and `parent` here is
+                        // the whole card rather than the thumbnail, so the
+                        // badge landed on top of the name. Which is what the
+                        // comment above already warned about.
+                        if cell.offline: Text {
+                            x: 54px;
+                            y: 4px;
+                            text: @tr("offline");
+                            color: #d08a5a;
+                            font-size: 9px;
+                        }
                     }
 
                     TouchArea {

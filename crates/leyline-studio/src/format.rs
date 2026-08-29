@@ -123,6 +123,15 @@ fn trim(value: f64) -> String {
     }
 }
 
+/// What a root's location line says when there is no location to say.
+///
+/// A sentence rather than a dash: the row is the one place a user learns that
+/// an unplugged volume costs them their originals and nothing else, and a
+/// dash teaches nothing.
+pub(crate) fn root_offline_location() -> String {
+    "not plugged in — the photographs stay catalogued".to_owned()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

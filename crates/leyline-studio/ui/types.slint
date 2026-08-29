@@ -31,6 +31,10 @@ export struct Cell {
     // A camera rendering of the same shot is attached to this photo
     // (ADR 0079 §6).
     paired: bool,
+    // The volume holding this photograph is not plugged in (ADR 0085 §5).
+    // **Offline, not missing**: the cell keeps its thumbnail, its rating and
+    // its place — what it cannot do is give up its pixels.
+    offline: bool,
 }
 
 // One row of the collections sidebar, already flattened by Rust.
@@ -63,6 +67,22 @@ export struct CandidateRow {
     // default, never hidden.
     already: bool,
     selected: bool,
+}
+
+// One root the library references (ADR 0085 §8). Rust formats `location`,
+// including the word shown when there is nowhere to show: the panel displays
+// (ADR 0045 §2).
+export struct RootRow {
+    name: string,
+    // The identity. Shown because it is what `root-locate` needs, and what a
+    // user has to be able to read off the screen to type back.
+    uuid: string,
+    location: string,
+    // Reachable right now. False means **offline, not missing**: the photos
+    // are still catalogued and still browsable.
+    online: bool,
+    // The library's own root, which cannot be forgotten.
+    is-library: bool,
 }
 
 // One row of the folder tree in the sidebar (ADR 0055 §2). Rust sends the

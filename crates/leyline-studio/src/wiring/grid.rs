@@ -128,6 +128,10 @@ pub(crate) fn load_window(app: &mut App, window: &StudioWindow) -> Result<(), St
     // instantly; the rest are queued and rendered by the thumbnail timer,
     // visible cells before the overscan rows above them.
     let first_visible = app.viewport.0.saturating_sub(range.start);
+    // Asked once per page, not once per cell. Almost always empty — a library
+    // with every volume plugged in is the normal case — and when it is, no
+    // cell is tested at all.
+    let offline = crate::wiring::dialogs::roots::offline_root_ids(app);
     let mut cells = Vec::with_capacity(items.len());
     let mut missing = Vec::new();
     for (index, item) in items.iter().enumerate() {
@@ -151,6 +155,7 @@ pub(crate) fn load_window(app: &mut App, window: &StudioWindow) -> Result<(), St
             rejected: item.pick == PickState::Reject,
             edited: item.edited,
             paired: item.paired,
+            offline: !offline.is_empty() && offline.contains(&item.root_id),
         });
     }
     let (visible, above): (VecDeque<usize>, VecDeque<usize>) = missing

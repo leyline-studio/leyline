@@ -1,9 +1,10 @@
 # ADR 0085 — Named roots: one catalog, several volumes
 
-**Status:** Accepted — 2026-08. **Implemented 2026-08-29** through step 3 of
+**Status:** Accepted — 2026-08. **Implemented 2026-08-29**, all four steps of
 §9: schema (migration 9), marker, `roots.json`, one resolution point, the
-offline state and its typed error, and the CLI. Studio's roots dialog and its
-offline badge are the remainder.
+offline state and its typed error, the CLI (`roots`, `root-add`,
+`root-locate`, `root-forget`) and Studio's roots dialog with its offline
+badge.
 
 ## Context
 
@@ -176,8 +177,8 @@ that keeps its photos inside itself keeps the old promise whole.
    changes no behaviour.
 2. ✅ The offline state, its typed error, and the guarantee of §5 on
    `is_missing`.
-3. Adding, locating and forgetting a root — ✅ CLI (`roots`, `root-add`,
-   `root-locate`, `root-forget`), Studio after.
+3. ✅ Adding, locating and forgetting a root — CLI (`roots`, `root-add`,
+   `root-locate`, `root-forget`), then Studio's dialog.
 4. ✅ `catalog.md` §2.3, §3 and §8 change with step 1, not before: until the
    migration exists, the specification describes the schema that exists.
 

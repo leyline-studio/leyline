@@ -1,0 +1,128 @@
+// The roots this library may reference photographs inside (ADR 0085 §8).
+//
+// One of the dialogs hosted by `panels/dialogs.slint` (ADR 0045 §3).
+//
+// The screen has one job the others do not: making **offline** legible as a
+// state of the *volume* rather than of the photographs. A root that is not
+// reachable is shown in full, with its name and identity, and marked — never
+// hidden, never greyed to the point of looking broken, because the photos it
+// holds are still catalogued, still browsable and still searchable.
+
+import { DialogState } from "../state/dialog.slint";
+import { FilterChip } from "../widgets/controls.slint";
+
+export component RootsDialog inherits VerticalLayout {
+    spacing: 12px;
+    Text {
+        text: @tr("Roots");
+        color: #f0f0f0;
+        font-size: 15px;
+        font-weight: 600;
+    }
+    Text {
+        text: @tr("Folders this library may reference photographs inside. A root is found by a marker in the folder, so it keeps working when the folder moves.");
+        color: #9a9a9a;
+        font-size: 12px;
+        wrap: word-wrap;
+    }
+    if DialogState.roots-status != "": Text {
+        text: DialogState.roots-status;
+        color: #d08a5a;
+        font-size: 12px;
+        wrap: word-wrap;
+    }
+    Rectangle {
+        background: #1c1c1c;
+        border-radius: 4px;
+        min-height: 120px;
+        max-height: 260px;
+        VerticalLayout {
+            padding: 6px;
+            spacing: 4px;
+            for entry in DialogState.roots: Rectangle {
+                background: #232323;
+                border-radius: 3px;
+                HorizontalLayout {
+                    padding: 8px;
+                    spacing: 8px;
+                    VerticalLayout {
+                        spacing: 2px;
+                        HorizontalLayout {
+                            spacing: 6px;
+                            Text {
+                                text: entry.name;
+                                color: #f0f0f0;
+                                font-size: 12px;
+                                font-weight: 600;
+                            }
+                            // The badge states the volume's state, not the
+                            // photographs': "offline", never "missing".
+                            if !entry.online: Text {
+                                text: @tr("offline");
+                                color: #d08a5a;
+                                font-size: 11px;
+                            }
+                            if entry.is-library: Text {
+                                text: @tr("this library");
+                                color: #7a7a7a;
+                                font-size: 11px;
+                            }
+                        }
+                        Text {
+                            text: entry.location;
+                            color: #9a9a9a;
+                            font-size: 11px;
+                            wrap: word-wrap;
+                        }
+                        Text {
+                            text: entry.uuid;
+                            color: #6a6a6a;
+                            font-size: 10px;
+                        }
+                    }
+                    Rectangle { horizontal-stretch: 1; }
+                    if !entry.is-library: FilterChip {
+                        text: entry.online ? @tr("Move…") : @tr("Locate…");
+                        active: false;
+                        clicked => {
+                            DialogState.run-root-locate(entry.uuid);
+                        }
+                    }
+                    if !entry.is-library: FilterChip {
+                        text: @tr("Forget");
+                        active: false;
+                        clicked => {
+                            DialogState.run-root-forget(entry.uuid);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // The honest price of external roots, stated where roots are managed
+    // (ADR 0085 §7) rather than buried in the documentation.
+    Text {
+        text: @tr("Backing up the library folder covers the catalog and every edit. Photographs in other roots are not in it — they live on their own volumes.");
+        color: #7a7a7a;
+        font-size: 11px;
+        wrap: word-wrap;
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: end;
+        FilterChip {
+            text: @tr("Add a root…");
+            active: false;
+            clicked => {
+                DialogState.run-root-add();
+            }
+        }
+        FilterChip {
+            text: @tr("Close");
+            active: false;
+            clicked => {
+                DialogState.dialog = "";
+            }
+        }
+    }
+}

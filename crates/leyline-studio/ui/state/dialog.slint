@@ -9,7 +9,7 @@
 // types into them, and the native pickers (`browse-*`) fill them in from
 // Rust. The two input paths stay in sync because they bind the same
 // property.
-import { CandidateRow } from "../types.slint";
+import { CandidateRow, RootRow } from "../types.slint";
 
 export global DialogState {
     // Modal dialog state: "" (none), "import", "export", "print", "tether",
@@ -133,4 +133,17 @@ export global DialogState {
     in-out property <string> watch-folder-text: "";
     in-out property <string> watch-last-imported: "";
     in-out property <int> watch-imported-count: 0;
+    // Opens the roots panel (ADR 0085 §8): which folders this library may
+    // reference photographs inside, and which are reachable right now.
+    callback open-roots();
+    // Pick a folder and add it as a root, or tell the library where a root
+    // it already knows has moved to. Both open a native folder picker, so
+    // neither takes a typed path: a root is identified by the marker inside
+    // the folder, and typing a path only makes it easier to point at the
+    // wrong one.
+    callback run-root-add();
+    callback run-root-locate(string);
+    callback run-root-forget(string);
+    in-out property <[RootRow]> roots: [];
+    in-out property <string> roots-status: "";
 }

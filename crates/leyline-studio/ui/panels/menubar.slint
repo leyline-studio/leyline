@@ -127,6 +127,13 @@ export component MenuBar inherits Rectangle {
                 }
             }
             MenuRow {
+                title: @tr("Roots…");
+                activated => {
+                    DialogState.open-roots();
+                    root.open-menu = "";
+                }
+            }
+            MenuRow {
                 title: @tr("Map…    M");
                 activated => {
                     MapState.enter-map();

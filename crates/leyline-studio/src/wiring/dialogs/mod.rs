@@ -1,5 +1,5 @@
-//! Wires `DialogState`: import, export, print, tethering and watched
-//! folders (ADR 0045 §4).
+//! Wires `DialogState`: import, export, print, tethering, watched folders
+//! and roots (ADR 0045 §4).
 //!
 //! One submodule per dialog, mirroring `ui/dialogs/` one for one. This file
 //! only registers them all.
@@ -8,6 +8,7 @@ pub(crate) mod export;
 pub(crate) mod import;
 pub(crate) mod preferences;
 pub(crate) mod print;
+pub(crate) mod roots;
 pub(crate) mod tether;
 pub(crate) mod watch;
 
@@ -24,4 +25,5 @@ pub(crate) fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     print::wire_print(app, window);
     tether::wire_tether(app, window);
     watch::wire_watch(app, window);
+    roots::wire_roots(app, window);
 }
