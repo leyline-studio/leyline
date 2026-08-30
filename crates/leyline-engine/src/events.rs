@@ -77,6 +77,23 @@ pub enum Event {
         /// Human-readable cause, absent for a caller-initiated stop.
         reason: Option<String>,
     },
+    /// The connected body's settings changed — set from here, or turned on
+    /// the body itself (ADR 0087 §2). A notification and nothing more: the
+    /// values are read back with `Library::tether_settings`.
+    TetherSettingsChanged,
+    /// A newer live-view frame is available from
+    /// `Library::tether_live_frame` (ADR 0087 §2). Safe to miss: a client
+    /// that skipped ten of these reads the newest frame once and is right,
+    /// which is what a viewfinder wants and what a frame carried as event
+    /// data would get wrong.
+    TetherLiveFrame,
+    /// A tether command failed without ending the session — a body
+    /// refusing a shutter speed its current mode does not allow, say. The
+    /// session is still running: this is never a disconnect.
+    TetherCommandFailed {
+        /// What the camera layer said, to be shown as-is.
+        message: String,
+    },
     /// A watched-folder session (`docs/adr/0039`) started on `folder`.
     /// Settled files arrive as ordinary `AssetsAdded` — a watched-folder
     /// import is not a distinct kind of event, just a distinct source.

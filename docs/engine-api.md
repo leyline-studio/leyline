@@ -60,6 +60,9 @@ pub enum Event {
     LibraryClosed,
     TetherConnected,
     TetherDisconnected { reason: Option<String> },
+    TetherSettingsChanged,
+    TetherLiveFrame,
+    TetherCommandFailed { message: String },
     WatchStarted { folder: PathBuf },
     WatchStopped { reason: Option<String> },
 }
@@ -78,6 +81,8 @@ pub enum JobResult {
 * Events are **notifications**, never complete data: the client re-queries what it needs. That avoids any coherence problem between the stream and the database.
 * `PreviewReady` carries the asset (not the version): the preview surface is asset-based (§11), and the rendered preview is always that of the asset's current version.
 * `TetherConnected`/`TetherDisconnected` bound the life cycle of a `tether_connect`/`tether_disconnect` session (§6bis) — each photo captured during the session notifies through `AssetsAdded`, exactly like an import: it is not a distinct event, only a different source for the same import.
+* `TetherSettingsChanged`/`TetherLiveFrame` say that the session's own state moved: the camera's settings, or the live view's newest frame (ADR 0087 §2). Notifications like every other event — the values are read back through `tether_settings()`/`tether_live_frame()`, never carried here. A client that misses ten `TetherLiveFrame` and then reads the frame once is right, which is what a viewfinder wants.
+* `TetherCommandFailed` reports a command the body refused — a shutter speed its current mode does not allow — **without** ending the session. It is not a disconnect: the next frame still has to be firable.
 * `WatchStarted`/`WatchStopped` follow the same principle for `watch_start`/`watch_stop` (§6ter, `docs/adr/0039-watched-folder-import.md`): each file that stabilises in the watched folder notifies through `AssetsAdded`.
 * **Delivered state**: `subscribe` and the `import_async`, `preview_async`, `export_async` jobs emit `JobProgress`, `AssetsAdded`, `PreviewReady` and `JobFinished`. The façade's writes notify: classification (§8) → one `VersionChanged` per version in the batch; keywords (§8) → `AssetsChanged` with the batch; removing assets (ADR 0060, `remove_assets`/`delete_assets`) → `AssetsRemoved` with the ones that actually existed; every history write of an edit session (§10.1 — commit, amendment, undo, redo) → `VersionChanged`. Applying a preset (§10.3) notifies nothing more: it is one session commit per targeted version, hence the same `VersionChanged` as §10.1, carried by the `apply_preset_async` job. A client that writes through `catalog_mut()` directly bypasses the notifications: go through the façade. `close()` (§5) emits `LibraryClosed` to every subscriber of the shared stream; the other clones of the `Library` stay usable — only the catalog connection closes, and only when the last clone is dropped.
 
@@ -259,27 +264,69 @@ An **XMP sidecar** placed next to the source file seeds the asset just created �
 
 ---
 
-# 6bis. Tethered capture (`docs/adr/0038-tethered-capture.md`)
+# 6bis. Tethered capture (`docs/adr/0038-tethered-capture.md`, `docs/adr/0087-tethered-capture-bar.md`)
 
 ```rust
+pub struct TetherOptions {
+    /// Folder under `Photos/` the session files its shots in.
+    /// Blank means `DEFAULT_SESSION` ("Tethered").
+    pub session: String,
+    /// Develop preset applied to every shot as it arrives.
+    pub preset: Option<PresetId>,
+}
+
+/// Validates a session name and returns the folder name to use —
+/// what a client calls as the photographer types it.
+pub fn session_folder(name: &str) -> Result<String>;
+
 impl Library {
     /// Connects to the first USB camera detected (libgphoto2) and
     /// starts a session: every photo taken from then on is
     /// downloaded and imported automatically, like an ordinary import.
     /// Refuses a second session while one is already open.
-    pub fn tether_connect(&self) -> Result<()>;
+    pub fn tether_connect(&self, options: &TetherOptions) -> Result<()>;
 
     /// Ends the current session; does nothing if none is open.
     pub fn tether_disconnect(&self);
+
+    /// What the body last reported: model, capabilities, and the four
+    /// exposure settings with the values it will accept. A read of the
+    /// session's own slot, never a trip over USB.
+    pub fn tether_settings(&self) -> CameraSettings;
+
+    /// The newest live-view frame, as the JPEG bytes the camera
+    /// produced. `None` when live view is off.
+    pub fn tether_live_frame(&self) -> Option<Arc<Vec<u8>>>;
+
+    /// Fires the shutter. Enqueues and returns.
+    pub fn tether_capture(&self);
+
+    /// Sets one exposure setting to one of the values the body offers.
+    /// Enqueues and returns.
+    pub fn tether_set(&self, setting: TetherSetting, value: &str);
+
+    /// Starts or stops the live view. Enqueues and returns.
+    pub fn tether_live_view(&self, on: bool);
+
+    /// Re-aims the preset arriving shots are developed with.
+    pub fn tether_set_preset(&self, preset: Option<PresetId>);
 }
 ```
 
 A tethered capture is not a separate data path: the file received from
 the camera goes through the same import core as `Library::import`
 (checksum, EXIF, initial revision, thumbnail), and therefore emits the same
-`Event::AssetsAdded` (§3.2). Only `TetherConnected`/`TetherDisconnected`
-are new, to signal the connection itself — one camera at a
-time per `Library` in V1.
+`Event::AssetsAdded` (§3.2). It is filed at `Photos/<session>/<name>`, and
+the session's preset is applied *before* that event fires, so a client never
+shows the neutral render of a shot it is about to develop.
+
+Every call above is non-blocking except `tether_connect`/`tether_disconnect`:
+the camera is owned by one thread, and the rest of the API posts orders to it
+(ADR 0087 §1). One camera at a time per `Library` in V1.
+
+The `tether` feature removes the libgphoto2 **backend**, never this API: in a
+build without it, `tether_connect` reports that this build has no backend and
+every other call answers as if nothing were connected.
 
 ---
 

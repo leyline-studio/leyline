@@ -113,15 +113,21 @@ export global DialogState {
     in-out property <string> print-profile-text: "";
     callback browse-print-destination();
     callback browse-print-profile();
-    // Opens the tethered-capture panel (ADR 0038), connects to / disconnects
+    // Opens the tethered-capture dialog (ADR 0038, ADR 0087 §7) and connects
     // from the first USB camera libgphoto2 finds.
     callback open-tether();
     callback run-tether-connect();
-    callback run-tether-disconnect();
     in-out property <bool> tether-connected: false;
     in-out property <string> tether-status: "";
-    in-out property <string> tether-last-captured: "";
-    in-out property <int> tether-captured-count: 0;
+    // What is decided *before* a session opens (ADR 0087 §4): the folder
+    // under `Photos/` its shots are filed in, and the develop preset each
+    // arriving shot is developed with. Everything about a session already
+    // running lives in `TetherState` instead — that is the bar's business,
+    // not this dialog's.
+    in-out property <string> tether-session: "";
+    // Index into `tether-presets`, -1 for "no preset".
+    in-out property <int> tether-preset: -1;
+    in property <[string]> tether-presets: [];
     // Opens the watched-folder auto-import panel (ADR 0039): starts/stops
     // watching a folder, importing every file that settles there.
     callback open-watch();

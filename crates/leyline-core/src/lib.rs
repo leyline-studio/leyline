@@ -9,6 +9,7 @@ mod error;
 mod id;
 mod path;
 mod settings;
+mod tether;
 mod types;
 
 pub use error::{LeylineError, Result};
@@ -24,4 +25,5 @@ pub use settings::{
     PresetSettings, RangeMask, Settings, SettingsGroup, Sharpening, SpotRemoval, StageVersions,
     ToneCurve, WhiteBalance,
 };
+pub use tether::{CameraSetting, CameraSettings, TetherSetting};
 pub use types::{CollectionType, ColorLabel, MediaType, PickState, PreviewKind, PreviewOrigin};

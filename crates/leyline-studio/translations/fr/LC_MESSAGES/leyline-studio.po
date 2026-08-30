@@ -559,45 +559,97 @@ msgctxt "ShortcutsDialog"
 msgid "Close"
 msgstr "Fermer"
 
-#: crates/leyline-studio/ui/dialogs/tether.slint:12
+#: crates/leyline-studio/ui/dialogs/tether.slint:17
 msgctxt "TetherDialog"
 msgid "Tethered capture"
-msgstr "Prise de vue connectée"
+msgstr "Prise de vue connectÃ©e"
 
-#: crates/leyline-studio/ui/dialogs/tether.slint:18
+#: crates/leyline-studio/ui/dialogs/tether.slint:23
 msgctxt "TetherDialog"
-msgid "Connected — waiting for shots"
-msgstr "Connecté — en attente de prises de vue"
-
-#: crates/leyline-studio/ui/dialogs/tether.slint:18
-msgctxt "TetherDialog"
-msgid "Not connected. Plug in a camera over USB and click Connect."
-msgstr "Non connecté. Branchez un appareil photo en USB puis cliquez sur Connecter."
-
-#: crates/leyline-studio/ui/dialogs/tether.slint:24
-msgctxt "TetherDialog"
-msgid "{} captured this session"
-msgstr "{} capturée(s) durant cette session"
+msgid "Plug in a camera over USB, name the session, and click Connect."
+msgstr "Branchez un appareil photo en USB, nommez la sÃ©ance, puis cliquez sur Connecter."
 
 #: crates/leyline-studio/ui/dialogs/tether.slint:30
 msgctxt "TetherDialog"
-msgid "Last: {}"
-msgstr "Dernière : {}"
+msgid "Session name"
+msgstr "Nom de la sÃ©ance"
 
-#: crates/leyline-studio/ui/dialogs/tether.slint:39
+#: crates/leyline-studio/ui/dialogs/tether.slint:55
 msgctxt "TetherDialog"
-msgid "Close"
-msgstr "Fermer"
+msgid "Shots land in Photos/ under this name. Leave it empty for “Tethered”."
+msgstr "Les prises de vue arrivent dans Photos/ sous ce nom. Laissez vide pour « Tethered »."
 
-#: crates/leyline-studio/ui/dialogs/tether.slint:46
+#: crates/leyline-studio/ui/dialogs/tether.slint:62
+msgctxt "TetherDialog"
+msgid "Develop settings"
+msgstr "RÃ©glages de dÃ©veloppement"
+
+#: crates/leyline-studio/ui/dialogs/tether.slint:67
+msgctxt "TetherDialog"
+msgid "Applied to every shot as it arrives, before it is shown."
+msgstr "AppliquÃ©s Ã  chaque prise de vue dÃ¨s son arrivÃ©e, avant son affichage."
+
+#: crates/leyline-studio/ui/dialogs/tether.slint:85
+msgctxt "TetherDialog"
+msgid "None â the camera's own neutral render"
+msgstr "Aucun â le rendu neutre du boÃ®tier"
+
+#: crates/leyline-studio/ui/dialogs/tether.slint:123
+msgctxt "TetherDialog"
+msgid "Cancel"
+msgstr "Annuler"
+
+#: crates/leyline-studio/ui/dialogs/tether.slint:130
 msgctxt "TetherDialog"
 msgid "Connect"
 msgstr "Connecter"
 
-#: crates/leyline-studio/ui/dialogs/tether.slint:53
-msgctxt "TetherDialog"
-msgid "Disconnect"
-msgstr "Déconnecter"
+#: crates/leyline-studio/ui/panels/tether.slint:164
+msgctxt "TetherBar"
+msgid "Camera"
+msgstr "Appareil photo"
+
+#: crates/leyline-studio/ui/panels/tether.slint:193
+msgctxt "TetherBar"
+msgid "Live"
+msgstr "Live"
+
+#: crates/leyline-studio/ui/panels/tether.slint:224
+msgctxt "TetherBar"
+msgid "Develop Settings"
+msgstr "DÃ©veloppement"
+
+#: crates/leyline-studio/ui/panels/tether.slint:225
+msgctxt "TetherBar"
+msgid "None"
+msgstr "Aucun"
+
+#: crates/leyline-studio/ui/types.slint:285
+msgctxt "Tr"
+msgid "Shutter"
+msgstr "Vitesse"
+
+#: crates/leyline-studio/ui/types.slint:288
+msgctxt "Tr"
+msgid "Aperture"
+msgstr "Ouverture"
+
+#: crates/leyline-studio/ui/types.slint:291
+msgctxt "Tr"
+msgid "ISO"
+msgstr "ISO"
+
+#: crates/leyline-studio/ui/types.slint:294
+msgctxt "Tr"
+msgid "WB"
+msgstr "BB"
+
+#: crates/leyline-studio/ui/types.slint:299
+msgctxt "Tr"
+msgid "{} shot"
+msgid_plural "{} shots"
+msgstr[0] "{} vue"
+msgstr[1] "{} vues"
 
 #: crates/leyline-studio/ui/dialogs/update.slint:20
 msgctxt "UpdateConsentDialog"

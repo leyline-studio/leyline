@@ -92,7 +92,11 @@ process version is concerned.
   calls `tether_connect`/`tether_disconnect`, shows the connection's state,
   the session's shot count and the name of the last file received — just one
   more client of the API above, with no further architectural decision needed
-  to add it.
+  to add it. **Superseded in shape, not in principle, by
+  [ADR 0087](0087-tethered-capture-bar.md)**: the dialog now decides only what
+  precedes a session (its folder and its preset), and a floating bar drives
+  the camera once one is open. The receiver this ADR describes is still the
+  whole of the import path.
 * With no USB camera plugged in (CI, an ordinary development machine),
   `TetherSession::connect` fails cleanly with `TetherError::NoCamera` rather
   than blocking or panicking — that is the only behaviour testable without

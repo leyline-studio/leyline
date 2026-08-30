@@ -12,8 +12,8 @@ use crate::map_view;
 use crate::ui::{Cell, LibraryState, StudioWindow, Tr};
 use leyline_sdk::{
     AssetId, CollectionId, Event, ExportPreset, FolderId, GridItem, GridQuery, ImportCandidate,
-    JobId, KeywordId, Library, MapPin, Preset, PresetSettings, PrintPreset, RevisionRow, Sort,
-    VersionId,
+    JobId, KeywordId, Library, MapPin, Preset, PresetId, PresetSettings, PrintPreset, RevisionRow,
+    Sort, VersionId,
 };
 use slint::{Global, SharedString, VecModel};
 
@@ -180,8 +180,14 @@ pub(crate) struct App {
     pub(crate) preview_jobs: HashSet<JobId>,
     /// Whether a tether session (`docs/adr/0038`) is currently open.
     pub(crate) tether_connected: bool,
-    /// Shots captured by the current tether session, for the panel's counter.
+    /// Shots captured by the current tether session, for the bar's counter.
     pub(crate) tether_captured: u32,
+    /// The develop presets offered as "Develop Settings" (ADR 0087 §5),
+    /// re-read whenever the connect dialog or the bar's picker opens: a
+    /// list cached across a session would offer a preset since deleted.
+    pub(crate) tether_presets: Vec<(PresetId, String)>,
+    /// The preset the running session applies to arriving shots.
+    pub(crate) tether_preset: Option<PresetId>,
     /// Whether a watched-folder session (`docs/adr/0039`) is currently
     /// active.
     pub(crate) watch_active: bool,

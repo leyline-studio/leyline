@@ -358,3 +358,44 @@ fn the_decoder_version_is_reachable_through_the_sdk_surface() {
         "a LibRaw version starts with a digit, got {version:?}"
     );
 }
+
+/// The whole tethered-capture bar is drivable through the façade alone
+/// (ADR 0087): a client that can only see `leyline-sdk` must be able to open
+/// a session, read what the camera reports, and act on it.
+///
+/// Every call here also has to exist in a build with no libgphoto2 backend —
+/// the `tether` feature removes the backend, never the API (ADR 0038) — so
+/// this exercises the surface without a camera: connecting fails, and
+/// everything else answers "nothing is connected" instead of panicking.
+#[test]
+fn the_tethered_capture_bar_is_drivable_through_the_sdk_surface() {
+    use leyline_sdk::{CameraSettings, Library, TetherOptions, TetherSetting, session_folder};
+
+    // The one piece of the session that is decided before any camera is
+    // touched, and the one a client validates as the user types.
+    assert_eq!(session_folder("  Studio  ").unwrap(), "Studio");
+    assert!(session_folder("2026/Studio").is_err());
+
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::create(&dir.path().join("library"), "Tether").unwrap();
+
+    // No camera is plugged into a test machine, so connecting must fail —
+    // cleanly, and with a message, never a panic or a hang.
+    assert!(
+        library
+            .tether_connect(&TetherOptions {
+                session: "Studio".to_owned(),
+                preset: None,
+            })
+            .is_err()
+    );
+
+    // With nothing connected, the rest of the surface still answers.
+    assert_eq!(library.tether_settings(), CameraSettings::default());
+    assert!(library.tether_live_frame().is_none());
+    library.tether_capture();
+    library.tether_set(TetherSetting::Shutter, "1/160");
+    library.tether_live_view(true);
+    library.tether_set_preset(None);
+    library.tether_disconnect();
+}

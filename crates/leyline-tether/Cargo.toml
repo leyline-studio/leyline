@@ -9,6 +9,7 @@ rust-version.workspace = true
 
 [dependencies]
 gphoto2.workspace = true
+leyline-core.workspace = true
 thiserror.workspace = true
 
 [lints]

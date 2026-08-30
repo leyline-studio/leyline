@@ -3542,6 +3542,7 @@ name = "leyline-tether"
 version = "0.1.0-alpha.3"
 dependencies = [
  "gphoto2",
+ "leyline-core",
  "thiserror 2.0.18",
 ]
 

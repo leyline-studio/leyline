@@ -1,5 +1,10 @@
-// Tethered capture (ADR 0038): connect to the first USB camera libgphoto2
-// finds, then every shutter release imports like any other file.
+// Tethered capture (ADR 0038, ADR 0087 §7): what is decided *before* the
+// session opens — the folder its shots are filed in, and the preset each
+// one arrives developed with — and the Connect that opens it.
+//
+// Everything about a session already running is the bar's business
+// (`panels/tether.slint`), not this dialog's: once connected, this closes
+// and the bar takes over.
 //
 // One of the dialogs hosted by `panels/dialogs.slint` (ADR 0045 §3).
 
@@ -15,45 +20,118 @@ export component TetherDialog inherits VerticalLayout {
         font-weight: 600;
     }
     Text {
-        text: DialogState.tether-connected ? @tr("Connected — waiting for shots") : (DialogState.tether-status == "" ? @tr("Not connected. Plug in a camera over USB and click Connect.") : DialogState.tether-status);
-        color: DialogState.tether-connected ? #7fc97f : #9a9a9a;
+        text: DialogState.tether-status == "" ? @tr("Plug in a camera over USB, name the session, and click Connect.") : DialogState.tether-status;
+        color: DialogState.tether-status == "" ? #9a9a9a : #d98a8a;
         font-size: 12px;
         wrap: word-wrap;
     }
-    if DialogState.tether-connected: Text {
-        text: @tr("{} captured this session", DialogState.tether-captured-count);
+
+    Text {
+        text: @tr("Session name");
         color: #9a9a9a;
         font-size: 12px;
+    }
+    Rectangle {
+        height: 28px;
+        background: #1b1b1b;
+        border-radius: 4px;
+        border-width: 1px;
+        border-color: #3a3a3a;
+        session-name := TextInput {
+            x: 8px;
+            width: parent.width - 16px;
+            height: 100%;
+            text: DialogState.tether-session;
+            color: #e6e6e6;
+            font-size: 12px;
+            vertical-alignment: center;
+            single-line: true;
+            edited => {
+                DialogState.tether-session = self.text;
+            }
+        }
+    }
+    Text {
+        text: @tr("Shots land in Photos/ under this name. Leave it empty for “Tethered”.");
+        color: #7a7a7a;
+        font-size: 11px;
         wrap: word-wrap;
     }
-    if DialogState.tether-connected && DialogState.tether-last-captured != "": Text {
-        text: @tr("Last: {}", DialogState.tether-last-captured);
+
+    Text {
+        text: @tr("Develop settings");
         color: #9a9a9a;
         font-size: 12px;
+    }
+    Text {
+        text: @tr("Applied to every shot as it arrives, before it is shown.");
+        color: #7a7a7a;
+        font-size: 11px;
         wrap: word-wrap;
     }
+    Flickable {
+        height: min(120px, presets.preferred-height);
+        viewport-height: presets.preferred-height;
+        presets := VerticalLayout {
+            width: parent.width;
+            spacing: 2px;
+            Rectangle {
+                height: 24px;
+                background: DialogState.tether-preset == -1 ? #2f4f6f : (none-touch.has-hover ? #ffffff10 : transparent);
+                border-radius: 3px;
+                Text {
+                    x: 8px;
+                    height: 100%;
+                    text: @tr("None — the camera's own neutral render");
+                    color: #e6e6e6;
+                    font-size: 12px;
+                    vertical-alignment: center;
+                }
+                none-touch := TouchArea {
+                    clicked => {
+                        DialogState.tether-preset = -1;
+                    }
+                }
+            }
+            for name[index] in DialogState.tether-presets: Rectangle {
+                height: 24px;
+                background: DialogState.tether-preset == index ? #2f4f6f : (preset-touch.has-hover ? #ffffff10 : transparent);
+                border-radius: 3px;
+                Text {
+                    x: 8px;
+                    width: parent.width - 16px;
+                    height: 100%;
+                    text: name;
+                    color: #e6e6e6;
+                    font-size: 12px;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+                preset-touch := TouchArea {
+                    clicked => {
+                        DialogState.tether-preset = index;
+                    }
+                }
+            }
+        }
+    }
+
     HorizontalLayout {
         spacing: 8px;
         alignment: end;
         FilterChip {
-            text: @tr("Close");
+            text: @tr("Cancel");
             active: false;
             clicked => {
                 DialogState.dialog = "";
             }
         }
-        if !DialogState.tether-connected: FilterChip {
+        FilterChip {
             text: @tr("Connect");
             active: true;
             clicked => {
+                DialogState.tether-session = session-name.text;
                 DialogState.run-tether-connect();
-            }
-        }
-        if DialogState.tether-connected: FilterChip {
-            text: @tr("Disconnect");
-            active: true;
-            clicked => {
-                DialogState.run-tether-disconnect();
             }
         }
     }

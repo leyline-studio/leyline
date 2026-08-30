@@ -7,7 +7,7 @@
 // its attributes, the keyboard `FocusScope`, and the order the pieces are
 // mounted in.
 
-import { Cell, CollectionRow, ColorGradingZoneValues, CurveMarker, DevSettings, FolderRow, HslBandValues, MapPinMarker, MaskDab, MaskRow, SurveyCell, Tr } from "types.slint";
+import { Cell, CollectionRow, ColorGradingZoneValues, CurveMarker, DevSettings, FolderRow, HslBandValues, MapPinMarker, MaskDab, MaskRow, SurveyCell, TetherControl, Tr } from "types.slint";
 import { CollectionState } from "state/collection.slint";
 import { FolderState } from "state/folder.slint";
 import { DetailState } from "state/detail.slint";
@@ -19,6 +19,7 @@ import { LibraryState } from "state/library.slint";
 import { MapState } from "state/map.slint";
 import { MaskState } from "state/mask.slint";
 import { PreferencesState } from "state/preferences.slint";
+import { TetherState } from "state/tether.slint";
 import { BrowserPanel } from "panels/browser.slint";
 import { DevelopPanel } from "panels/develop.slint";
 import { DialogOverlay } from "panels/dialogs.slint";
@@ -27,6 +28,7 @@ import { LoupePanel } from "panels/loupe.slint";
 import { SurveyPanel } from "panels/survey.slint";
 import { MapPanel } from "panels/map.slint";
 import { MenuBar } from "panels/menubar.slint";
+import { TetherBar } from "panels/tether.slint";
 
 // The generated Rust only sees what the root file re-exports: the structs it
 // builds models from, and the globals it reads and writes through
@@ -54,6 +56,8 @@ export {
     MaskState,
     PreferencesState,
     SurveyCell,
+    TetherControl,
+    TetherState,
     Tr,
 }
 
@@ -425,6 +429,12 @@ export component StudioWindow inherits Window {
         SurveyPanel {
             chrome-hidden: root.chrome-hidden;
         }
+
+        // The tethered-capture bar (ADR 0087 §7), over every module and
+        // under the modal overlay: a session is not a mode, so the bar
+        // outlives every view switch — but a dialog the user just opened
+        // still has to be the thing in front of them.
+        TetherBar { }
 
         // Modal overlay: whichever dialog is open, over the view above.
         DialogOverlay { }

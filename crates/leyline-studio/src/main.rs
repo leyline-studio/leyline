@@ -74,6 +74,7 @@ use wiring::map::wire_map;
 use wiring::pairs::wire_pairs;
 use wiring::presets::{refresh_presets, wire_presets};
 use wiring::removal::wire_removal;
+use wiring::tether::wire_tether;
 use wiring::views::wire_views;
 
 /// The bundled-translation language to try at startup (ADR 0019): the
@@ -290,6 +291,8 @@ fn run() -> Result<(), String> {
         print_job: None,
         preview_jobs: HashSet::new(),
         tether_connected: false,
+        tether_presets: Vec::new(),
+        tether_preset: None,
         tether_captured: 0,
         watch_active: false,
         watch_imported: 0,
@@ -373,6 +376,7 @@ fn run() -> Result<(), String> {
     wire_keywords(&app, &window);
     wire_presets(&app, &window);
     wire_map(&app, &window);
+    wire_tether(&app, &window);
     wire_views(&app, &window);
     {
         // Scrolling or resizing moves the visible window: fetch the matching

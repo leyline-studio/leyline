@@ -10,11 +10,12 @@ use std::time::Duration;
 
 use crate::app::{App, MAX_PREVIEW_JOBS, item_at, report_error};
 use crate::models::{export_summary, import_summary, print_summary};
-use crate::ui::{DialogState, GridState, StudioWindow, Tr};
+use crate::ui::{DialogState, GridState, StudioWindow, TetherState, Tr};
 use crate::wiring::filters::refresh_shot_facets;
 use crate::wiring::folders::refresh_folders;
 use crate::wiring::grid::{reload, show_details};
 use crate::wiring::map::refresh_map_pins;
+use crate::wiring::tether::{refresh_live_frame, refresh_tether};
 use leyline_sdk::{AssetId, Event, JobResult, PreviewKind};
 use slint::{ComponentHandle, Global, Model, SharedString, Timer, TimerMode};
 
@@ -207,10 +208,10 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
                 && let Ok(details) = app.library.catalog().asset_details(asset)
             {
                 app.tether_captured += 1;
-                DialogState::get(window)
-                    .set_tether_captured_count(i32::try_from(app.tether_captured).unwrap_or(0));
-                DialogState::get(window)
-                    .set_tether_last_captured(SharedString::from(details.filename.as_str()));
+                TetherState::get(window)
+                    .set_captured_count(i32::try_from(app.tether_captured).unwrap_or(0));
+                TetherState::get(window)
+                    .set_last_captured(SharedString::from(details.filename.as_str()));
             }
             if app.watch_active
                 && let Some(&asset) = asset_ids.last()
@@ -260,17 +261,55 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
         Event::TetherConnected => {
             app.tether_connected = true;
             app.tether_captured = 0;
+            let preset = app
+                .tether_preset
+                .and_then(|wanted| {
+                    app.tether_presets
+                        .iter()
+                        .find(|(id, _)| *id == wanted)
+                        .map(|(_, name)| SharedString::from(name.as_str()))
+                })
+                .unwrap_or_default();
+            let state = TetherState::get(window);
+            state.set_connected(true);
+            state.set_captured_count(0);
+            state.set_last_captured(SharedString::default());
+            state.set_status(SharedString::default());
+            state.set_live(false);
+            state.set_preset_name(preset);
+            state.set_session(DialogState::get(window).get_tether_session());
             DialogState::get(window).set_tether_connected(true);
-            DialogState::get(window).set_tether_captured_count(0);
-            DialogState::get(window).set_tether_last_captured(SharedString::default());
+            // The first settings read happens on the session's own thread
+            // and has usually already landed by now; asking for it here
+            // rather than waiting for the next change is what stops the bar
+            // appearing empty for its first two seconds.
+            refresh_tether(app, window);
         }
         Event::TetherDisconnected { reason } => {
             app.tether_connected = false;
+            let state = TetherState::get(window);
+            state.set_connected(false);
+            state.set_live(false);
+            state.set_picker(SharedString::default());
             DialogState::get(window).set_tether_connected(false);
+            // An unplug says so in the dialog, where the next Connect is:
+            // the bar it would otherwise report into has just gone away.
             DialogState::get(window).set_tether_status(match reason {
                 Some(reason) => SharedString::from(reason),
                 None => SharedString::default(),
             });
+        }
+        // The body changed — set from the bar, or turned on the camera
+        // itself (ADR 0087 §2).
+        Event::TetherSettingsChanged => {
+            TetherState::get(window).set_status(SharedString::default());
+            refresh_tether(app, window);
+        }
+        Event::TetherLiveFrame => refresh_live_frame(app, window),
+        // Never a modal, and never a disconnect: the session is still
+        // running and the next frame still has to be firable.
+        Event::TetherCommandFailed { message } => {
+            TetherState::get(window).set_status(SharedString::from(message));
         }
         Event::WatchStarted { .. } => {
             app.watch_active = true;

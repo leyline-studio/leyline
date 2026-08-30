@@ -37,6 +37,21 @@ export struct Cell {
     offline: bool,
 }
 
+// One exposure control of the tethered-capture bar (ADR 0087 §3).
+//
+// `id` is the stable identifier Rust round-trips (`shutter`, `aperture`,
+// `iso`, `wb`) — the label is derived from it by `Tr.tether-setting` so the
+// four names live where `slint-tr-extractor` can see them. `value` is the
+// camera's own spelling ("1/160", "5.6", "2000"), never reformatted here.
+export struct TetherControl {
+    id: string,
+    value: string,
+    // The body will accept a new value here. False for a setting it reports
+    // but refuses to have set — a mode dial on M, an aperture on a manual
+    // lens: shown, not offered.
+    settable: bool,
+}
+
 // One row of the collections sidebar, already flattened by Rust.
 export struct CollectionRow {
     name: string,
@@ -261,6 +276,28 @@ export struct DevSettings {
 // instead of formatting the sentence itself; `slint-tr-extractor` picks up
 // the `@tr(...)` calls below exactly like any other UI string.
 export global Tr {
+    // The four labels of the tethered-capture bar (ADR 0087 §3). Written
+    // here rather than carried in `TetherControl` so the extractor sees
+    // them: Rust builds that model, and a string built in Rust is a string
+    // no `.pot` ever learns about.
+    public pure function tether-setting(id: string) -> string {
+        if (id == "shutter") {
+            return @tr("Shutter");
+        }
+        if (id == "aperture") {
+            return @tr("Aperture");
+        }
+        if (id == "iso") {
+            return @tr("ISO");
+        }
+        if (id == "wb") {
+            return @tr("WB");
+        }
+        return id;
+    }
+    public pure function tether-captured(n: int) -> string {
+        return @tr("{} shot" | "{} shots" % n, n);
+    }
     public pure function photo-count(n: int) -> string {
         return @tr("{} photo" | "{} photos" % n, n);
     }

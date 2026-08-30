@@ -16,7 +16,7 @@ Every feature listed as delivered is delivered on all **three clients**: Studio,
 * Cached thumbnails and previews
 * EXIF reading, full-text search
 * XMP sidecars: written on demand, and read as a starting point at import — the migration path from another piece of software ([ADR 0047](adr/0047-xmp-sidecar-read.md))
-* USB tethered capture — every photo imported as it is shot ([ADR 0038](adr/0038-tethered-capture.md))
+* USB tethered capture — every photo imported as it is shot, with live view, the body's exposure settings, a remote release and a develop preset applied on arrival ([ADR 0038](adr/0038-tethered-capture.md), [ADR 0087](adr/0087-tethered-capture-bar.md))
 * Automatic import from a watched folder ([ADR 0039](adr/0039-watched-folder-import.md))
 * GPS map view: an embedded world basemap ([ADR 0059](adr/0059-bundled-world-basemap.md)), refined by an offline MBTiles pack the user brings if they want detail; no network call whatsoever ([ADR 0040](adr/0040-gps-map-view.md))
 

@@ -6,23 +6,25 @@
 //! V1). The core types (ids, errors, [`Settings`]) are part of it.
 
 pub use leyline_core::{
-    AssetId, BrushStroke, CURRENT_SCHEMA, CameraProfile, CollectionId, CollectionType,
-    ColorGrading, ColorGradingZone, ColorLabel, ColorRange, Crop, CurvePoint, Demosaic,
-    ExportPresetId, FolderId, HighlightReconstruction, HslBand, JobId, KeywordId, LensCorrection,
-    LeylineError, LocalAdjustment, LocalAdjustmentValues, LuminanceRange, Lut, Mask, MediaType,
-    NoiseReduction, Perspective, PickState, Point, PresetFolderId, PresetId, PresetSettings,
-    PreviewKind, PrintPresetId, RangeMask, Result, RevisionId, Settings, SettingsGroup, Sharpening,
-    SpotRemoval, StageVersions, ToneCurve, VersionId, WhiteBalance,
+    AssetId, BrushStroke, CURRENT_SCHEMA, CameraProfile, CameraSetting, CameraSettings,
+    CollectionId, CollectionType, ColorGrading, ColorGradingZone, ColorLabel, ColorRange, Crop,
+    CurvePoint, Demosaic, ExportPresetId, FolderId, HighlightReconstruction, HslBand, JobId,
+    KeywordId, LensCorrection, LeylineError, LocalAdjustment, LocalAdjustmentValues,
+    LuminanceRange, Lut, Mask, MediaType, NoiseReduction, Perspective, PickState, Point,
+    PresetFolderId, PresetId, PresetSettings, PreviewKind, PrintPresetId, RangeMask, Result,
+    RevisionId, Settings, SettingsGroup, Sharpening, SpotRemoval, StageVersions, TetherSetting,
+    ToneCurve, VersionId, WhiteBalance,
 };
 
 pub use leyline_engine::{
-    CatalogRead, CatalogWrite, DEFAULT_AMEND_WINDOW, EditSession, Event, ExportRecipe,
-    ExportReport, ExportRequest, ExportedVersion, FailedApply, FailedExport, FailedPrint,
-    FailedReprocess, ImportCandidate, ImportOptions, ImportReport, ImportedCameraProfile,
-    ImportedFile, ImportedLut, JobResult, Library, Param, PresetApplyReport, Preview, PreviewFile,
-    PrintRecipe, PrintReport, PrintRequest, PrintedVersion, RemovalReport, ReprocessReport, Rgb8,
-    RootStatus, ScanOptions, SkippedFile, SoftProof, SourceColor, Value, WatchError,
-    WatchSessionEvent, WatchedFile, decoder_version, neutral_settings,
+    CatalogRead, CatalogWrite, DEFAULT_AMEND_WINDOW, DEFAULT_SESSION, EditSession, Event,
+    ExportRecipe, ExportReport, ExportRequest, ExportedVersion, FailedApply, FailedExport,
+    FailedPrint, FailedReprocess, ImportCandidate, ImportOptions, ImportReport,
+    ImportedCameraProfile, ImportedFile, ImportedLut, JobResult, Library, Param, PresetApplyReport,
+    Preview, PreviewFile, PrintRecipe, PrintReport, PrintRequest, PrintedVersion, RemovalReport,
+    ReprocessReport, Rgb8, RootStatus, ScanOptions, SkippedFile, SoftProof, SourceColor,
+    TetherOptions, Value, WatchError, WatchSessionEvent, WatchedFile, decoder_version,
+    neutral_settings, session_folder,
 };
 
 pub use leyline_catalog::{

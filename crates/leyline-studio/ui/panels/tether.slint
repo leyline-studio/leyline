@@ -1,0 +1,313 @@
+// The tethered-capture bar (ADR 0087 §7): the floating strip that drives
+// the camera, and the live view it can put behind itself.
+//
+// Mounted over every module rather than inside one (`studio.slint`): the
+// photographer switches to Develop to judge the frame just taken while the
+// next one is being set up, and the release button has to still be there.
+//
+// The pickers are hand-rolled the same way the menu bar's dropdowns are
+// (ADR 0020, `widgets/menu.slint`): a full-window catcher that closes on a
+// click outside, and a list positioned on its control. Slint's native menus
+// are what broke repaint scheduling here in the first place.
+
+import { Tr } from "../types.slint";
+import { TetherState } from "../state/tether.slint";
+
+// One "label over value, click to open the list" cell of the bar — the
+// shape Lightroom's bar uses, and the only one that fits four settings and
+// their names in the width of a photo.
+component TetherField inherits Rectangle {
+    in property <string> label;
+    in property <string> value;
+    in property <bool> settable: true;
+    // Carries where the field sits in the window, so the picker opens on
+    // the control that asked for it rather than at a guessed offset.
+    callback clicked(length);
+
+    width: content.preferred-width + 16px;
+    height: 40px;
+    background: touch.has-hover && root.settable ? #ffffff14 : transparent;
+    border-radius: 4px;
+
+    content := VerticalLayout {
+        x: 8px;
+        padding-top: 4px;
+        padding-bottom: 4px;
+        spacing: 1px;
+        Text {
+            text: root.label;
+            color: #8a8a8a;
+            font-size: 9px;
+        }
+        HorizontalLayout {
+            spacing: 4px;
+            Text {
+                text: root.value;
+                color: root.settable ? #f0f0f0 : #9a9a9a;
+                font-size: 13px;
+                vertical-alignment: center;
+            }
+            // The affordance, and nothing more: a read-only setting shows
+            // its value without one, which is how the bar says "this one is
+            // set on the body".
+            if root.settable: Text {
+                text: "⌄";
+                color: #8a8a8a;
+                font-size: 11px;
+                vertical-alignment: center;
+            }
+        }
+    }
+    touch := TouchArea {
+        enabled: root.settable;
+        clicked => {
+            root.clicked(root.absolute-position.x);
+        }
+    }
+}
+
+// The scrolling list one field opens. Sized to the longest run of shutter
+// speeds a body offers rather than to its content: a list that changed
+// width with the camera would move under the cursor between two bodies.
+component TetherPicker inherits Rectangle {
+    in property <[string]> choices;
+    in property <string> current;
+    callback chose(string);
+
+    width: 130px;
+    height: min(260px, list.preferred-height + 8px);
+    background: #262626;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: #3a3a3a;
+
+    Flickable {
+        x: 4px;
+        y: 4px;
+        width: parent.width - 8px;
+        height: parent.height - 8px;
+        viewport-height: list.preferred-height;
+        list := VerticalLayout {
+            width: parent.width;
+            for choice in root.choices: Rectangle {
+                height: 24px;
+                background: row.has-hover ? #2f4f6f : (choice == root.current ? #ffffff10 : transparent);
+                border-radius: 3px;
+                Text {
+                    x: 8px;
+                    width: parent.width - 16px;
+                    height: 100%;
+                    text: choice;
+                    color: #e6e6e6;
+                    font-size: 12px;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+                row := TouchArea {
+                    clicked => {
+                        root.chose(choice);
+                    }
+                }
+            }
+        }
+    }
+}
+
+export component TetherBar inherits Rectangle {
+    // No geometry of its own and no input of its own when nothing is
+    // connected: the bar must not eat clicks meant for the module under it.
+    visible: TetherState.connected;
+
+    // The live view, behind the bar and over the module (ADR 0087 §6). A
+    // frame with no width is a live view that was just switched on and has
+    // not delivered yet — showing the black ground for it, rather than
+    // nothing, is what makes the toggle feel answered.
+    if TetherState.live: Rectangle {
+        background: #000000e0;
+        // Swallows clicks so a stray one during live view does not land in
+        // the grid underneath.
+        TouchArea { }
+        Image {
+            width: parent.width;
+            height: parent.height - 96px;
+            y: 0;
+            source: TetherState.live-frame;
+            image-fit: contain;
+        }
+    }
+
+    bar := Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: parent.height - self.height - 24px;
+        width: row.preferred-width;
+        height: 56px;
+        background: #1c1c1cf0;
+        border-radius: 8px;
+        border-width: 1px;
+        border-color: #3a3a3a;
+
+        row := HorizontalLayout {
+            padding-left: 14px;
+            padding-right: 10px;
+            padding-top: 8px;
+            padding-bottom: 8px;
+            spacing: 6px;
+            alignment: start;
+
+            // Which body, and which session it is filing into — the two
+            // facts that tell the photographer the shot will land where
+            // they think it will.
+            VerticalLayout {
+                spacing: 1px;
+                padding-right: 6px;
+                Text {
+                    text: TetherState.model == "" ? @tr("Camera") : TetherState.model;
+                    color: #f0f0f0;
+                    font-size: 13px;
+                }
+                Text {
+                    text: TetherState.session;
+                    color: #8a8a8a;
+                    font-size: 10px;
+                    width: 160px;
+                    overflow: elide;
+                }
+            }
+
+            // Connection tell-tale: green while the session is open.
+            Rectangle {
+                width: 8px;
+                height: 8px;
+                y: (parent.height - self.height) / 2;
+                border-radius: 4px;
+                background: #7fc97f;
+            }
+
+            if TetherState.can-live-view: Rectangle {
+                y: (parent.height - self.height) / 2;
+                width: live-label.preferred-width + 18px;
+                height: 24px;
+                border-radius: 4px;
+                background: TetherState.live ? #2f6f4f : (live-touch.has-hover ? #ffffff14 : #ffffff08);
+                live-label := Text {
+                    text: @tr("Live");
+                    color: #f0f0f0;
+                    font-size: 12px;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    width: 100%;
+                    height: 100%;
+                }
+                live-touch := TouchArea {
+                    clicked => {
+                        TetherState.live = !TetherState.live;
+                        TetherState.set-live(TetherState.live);
+                    }
+                }
+            }
+
+            for control in TetherState.controls: TetherField {
+                label: Tr.tether-setting(control.id);
+                value: control.value;
+                settable: control.settable;
+                clicked(at) => {
+                    TetherState.picker-x = at;
+                    TetherState.picker = control.id;
+                    TetherState.open-picker(control.id);
+                }
+            }
+
+            // "Develop Settings" in Lightroom: the preset every arriving
+            // shot is developed with (ADR 0087 §5). Changeable mid-session,
+            // because the setup changes mid-session.
+            TetherField {
+                label: @tr("Develop Settings");
+                value: TetherState.preset-name == "" ? @tr("None") : TetherState.preset-name;
+                clicked(at) => {
+                    TetherState.picker-x = at;
+                    TetherState.picker = "preset";
+                    TetherState.open-picker("preset");
+                }
+            }
+
+            // The release. Round, large, and last — the one control that is
+            // found without looking.
+            if TetherState.can-capture: Rectangle {
+                y: (parent.height - self.height) / 2;
+                width: 38px;
+                height: 38px;
+                border-radius: 19px;
+                background: shutter-touch.pressed ? #b0b0b0 : (shutter-touch.has-hover ? #f0f0f0 : #d8d8d8);
+                shutter-touch := TouchArea {
+                    clicked => {
+                        TetherState.capture();
+                    }
+                }
+            }
+
+            VerticalLayout {
+                spacing: 2px;
+                padding-left: 4px;
+                // Closes the session — the small × Lightroom puts in the
+                // same corner.
+                Rectangle {
+                    width: 16px;
+                    height: 16px;
+                    Text {
+                        text: "✕";
+                        color: close-touch.has-hover ? #f0f0f0 : #8a8a8a;
+                        font-size: 11px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        width: 100%;
+                        height: 100%;
+                    }
+                    close-touch := TouchArea {
+                        clicked => {
+                            TetherState.disconnect();
+                        }
+                    }
+                }
+                Text {
+                    text: Tr.tether-captured(TetherState.captured-count);
+                    color: #8a8a8a;
+                    font-size: 9px;
+                }
+            }
+        }
+    }
+
+    // A refusal from the body ("this shutter speed is not available in Av"):
+    // shown above the bar and cleared by the next successful command, never as
+    // a modal — the session is still running and the next frame still has to
+    // be firable.
+    if TetherState.status != "": Text {
+        x: (parent.width - self.width) / 2;
+        y: bar.y - 20px;
+        text: TetherState.status;
+        color: #d98a8a;
+        font-size: 11px;
+    }
+
+    // Open picker: the catcher first, the list over it.
+    if TetherState.picker != "": Rectangle {
+        TouchArea {
+            clicked => {
+                TetherState.picker = "";
+            }
+        }
+        TetherPicker {
+            // Anchored on the field that opened it, then kept inside the
+            // window: a picker half off-screen is a picker whose last
+            // choices cannot be read.
+            x: min(parent.width - self.width - 8px, max(8px, TetherState.picker-x));
+            y: bar.y - self.height - 6px;
+            choices: TetherState.picker-choices;
+            current: TetherState.picker == "preset" ? TetherState.preset-name : "";
+            chose(value) => {
+                TetherState.choose(TetherState.picker, value);
+                TetherState.picker = "";
+            }
+        }
+    }
+}

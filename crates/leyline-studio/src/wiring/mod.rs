@@ -17,4 +17,5 @@ pub(crate) mod map;
 pub(crate) mod pairs;
 pub(crate) mod presets;
 pub(crate) mod removal;
+pub(crate) mod tether;
 pub(crate) mod views;

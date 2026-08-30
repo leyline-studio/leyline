@@ -1,0 +1,65 @@
+// The tethered-capture bar (ADR 0087 §7): what the connected body is doing,
+// and the four controls the photographer changes between frames.
+//
+// Its own global rather than more fields on `DialogState`: the bar is not a
+// dialog. It stays up across every module, over the browser and over
+// Develop alike, because a studio session is not a mode one enters — the
+// next frame has to be firable while the last one is being judged.
+//
+// The choices of a picker are **not** carried in `TetherControl`. A nested
+// model inside a struct is a Slint sharp edge, and the list is needed only
+// while one picker is open: `open-picker` asks Rust for it, and Rust fills
+// `picker-choices` before showing it.
+
+import { TetherControl } from "../types.slint";
+
+export global TetherState {
+    // A session is open on a camera.
+    in property <bool> connected: false;
+    // The body, as libgphoto2's driver names it ("Canon EOS R6m2").
+    in property <string> model: "";
+    // The session's name, which is also its folder under `Photos/`.
+    in property <string> session: "";
+    // The develop preset every arriving shot is developed with, empty for
+    // none — the bar's "Develop Settings".
+    in property <string> preset-name: "";
+    // The last thing that went wrong without ending the session: a body
+    // refusing a setting. Cleared by the next successful command.
+    in-out property <string> status: "";
+    in property <int> captured-count: 0;
+    in property <string> last-captured: "";
+
+    // What the body can be told to do. A webcam that libgphoto2 drives
+    // exposes neither, and the bar then shows neither control rather than
+    // offering a button that cannot work.
+    in property <bool> can-capture: false;
+    in property <bool> can-live-view: false;
+    // Live view is running. `in-out` because the bar's own toggle writes
+    // it optimistically and Rust confirms it.
+    in-out property <bool> live: false;
+    // The newest live-view frame. Never stored, never exported (ADR 0087 §6).
+    in property <image> live-frame;
+
+    // The exposure settings this body actually exposes, in bar order.
+    in property <[TetherControl]> controls: [];
+
+    // Which picker is open: "" or a control's id, plus "preset" for the
+    // develop-settings picker. The choices Rust filled in for it.
+    in-out property <string> picker: "";
+    in property <[string]> picker-choices: [];
+    // Where in the window the field that opened the picker sits, so the
+    // list appears on its control (written by the bar, read by the bar —
+    // it lives here only because the two are different components).
+    in-out property <length> picker-x: 0;
+
+    // Asks Rust for `picker-choices` and opens that picker.
+    callback open-picker(string);
+    // A choice was made in the open picker: control id (or "preset"), value.
+    callback choose(string, string);
+    // Fire the shutter.
+    callback capture();
+    // Start or stop the live view.
+    callback set-live(bool);
+    // End the session.
+    callback disconnect();
+}
