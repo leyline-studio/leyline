@@ -50,8 +50,12 @@ component TetherField inherits Rectangle {
             // The affordance, and nothing more: a read-only setting shows
             // its value without one, which is how the bar says "this one is
             // set on the body".
+            //
+            // `▾` and not `⌄`: the font Slint's software renderer falls
+            // back to has the first and not the second, and a missing glyph
+            // draws an empty box.
             if root.settable: Text {
-                text: "⌄";
+                text: "▾";
                 color: #8a8a8a;
                 font-size: 11px;
                 vertical-alignment: center;
@@ -254,7 +258,7 @@ export component TetherBar inherits Rectangle {
                     width: 16px;
                     height: 16px;
                     Text {
-                        text: "✕";
+                        text: "×";
                         color: close-touch.has-hover ? #f0f0f0 : #8a8a8a;
                         font-size: 11px;
                         horizontal-alignment: center;

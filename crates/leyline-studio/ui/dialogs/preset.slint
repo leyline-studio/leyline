@@ -1,5 +1,10 @@
-// Save a develop preset (`docs/presets.md` §3.1): a name plus one flag per
-// group of settings to capture.
+// Save a develop preset (`docs/presets.md` §3.1, ADR 0058 §2): a name, the
+// folder to file it under, and one flag per group of settings to capture.
+//
+// The groups are chips rather than Lightroom's column of checkboxes because
+// there are six of them and not forty: ours are atomic by design
+// (`docs/presets.md` §3.1 — a group is captured whole or not at all), so
+// there is no sub-tree to draw and nothing to half-tick.
 //
 // One of the dialogs hosted by `panels/dialogs.slint` (ADR 0045 §3).
 
@@ -15,6 +20,22 @@ export component PresetDialog inherits VerticalLayout {
     property <bool> g-lens-correction: false;
     property <bool> g-detail: false;
     property <bool> g-geometry: false;
+    // The folder to file it under: an index into `DevelopState.preset-folders`,
+    // -1 for the root.
+    property <int> folder: -1;
+
+    public function check-all(on: bool) {
+        root.g-white-balance = on;
+        root.g-tone = on;
+        root.g-presence = on;
+        root.g-lens-correction = on;
+        root.g-detail = on;
+        // Geometry stays out of "all" on purpose: `docs/presets.md` §3.1
+        // calls it a per-photo judgment, not a reproducible style, and a
+        // Check All that silently packed the crop into every preset would
+        // make that rule a lie.
+        root.g-geometry = on ? root.g-geometry : false;
+    }
 
     Text {
         text: @tr("Save as preset");
@@ -98,6 +119,104 @@ export component PresetDialog inherits VerticalLayout {
     }
     HorizontalLayout {
         spacing: 8px;
+        FilterChip {
+            text: @tr("Check all");
+            active: false;
+            clicked => {
+                root.check-all(true);
+            }
+        }
+        FilterChip {
+            text: @tr("Check none");
+            active: false;
+            clicked => {
+                root.check-all(false);
+            }
+        }
+    }
+
+    Text {
+        text: @tr("Folder");
+        color: #9a9a9a;
+        font-size: 12px;
+    }
+    Flickable {
+        height: min(96px, folders.preferred-height);
+        viewport-height: folders.preferred-height;
+        folders := VerticalLayout {
+            width: parent.width;
+            spacing: 2px;
+            Rectangle {
+                height: 22px;
+                background: root.folder == -1 ? #2f4f6f : (root-touch.has-hover ? #ffffff10 : transparent);
+                border-radius: 3px;
+                Text {
+                    x: 8px;
+                    height: 100%;
+                    text: @tr("No folder");
+                    color: #e6e6e6;
+                    font-size: 11px;
+                    vertical-alignment: center;
+                }
+                root-touch := TouchArea {
+                    clicked => {
+                        root.folder = -1;
+                    }
+                }
+            }
+            for name[index] in DevelopState.preset-folders: Rectangle {
+                height: 22px;
+                background: root.folder == index ? #2f4f6f : (folder-touch.has-hover ? #ffffff10 : transparent);
+                border-radius: 3px;
+                Text {
+                    x: 8px;
+                    width: parent.width - 16px;
+                    height: 100%;
+                    text: name;
+                    color: #e6e6e6;
+                    font-size: 11px;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+                folder-touch := TouchArea {
+                    clicked => {
+                        root.folder = index;
+                    }
+                }
+            }
+        }
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        Rectangle {
+            height: 24px;
+            horizontal-stretch: 1;
+            background: #1b1b1b;
+            border-radius: 4px;
+            border-width: 1px;
+            border-color: #3a3a3a;
+            new-folder := TextInput {
+                x: 8px;
+                width: parent.width - 16px;
+                height: 100%;
+                color: #e6e6e6;
+                font-size: 11px;
+                vertical-alignment: center;
+                single-line: true;
+            }
+        }
+        FilterChip {
+            text: @tr("New folder");
+            active: false;
+            clicked => {
+                DevelopState.new-preset-folder(new-folder.text);
+                new-folder.text = "";
+            }
+        }
+    }
+
+    HorizontalLayout {
+        spacing: 8px;
         alignment: end;
         FilterChip {
             text: @tr("Cancel");
@@ -117,7 +236,8 @@ export component PresetDialog inherits VerticalLayout {
                     root.g-presence,
                     root.g-lens-correction,
                     root.g-detail,
-                    root.g-geometry);
+                    root.g-geometry,
+                    root.folder);
             }
         }
     }

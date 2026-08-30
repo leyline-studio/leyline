@@ -9,6 +9,7 @@
 
 import { DevSettings, MaskRow } from "../types.slint";
 import { DevelopState } from "../state/develop.slint";
+import { PresetsPanel } from "presets.slint";
 import { GridState } from "../state/grid.slint";
 import { MaskState } from "../state/mask.slint";
 import { EditSlider, Filmstrip, FilterChip, GroupHeader, SubHeading } from "../widgets/controls.slint";
@@ -96,6 +97,13 @@ export component DevelopPanel inherits HorizontalLayout {
     }
 
         visible: DevelopState.develop-mode;
+
+        // The library of modifications, on the left (ADR 0058 §1) — folded
+        // by the same manual `Tab` as the settings panel opposite, and by
+        // nothing else: on a narrow window Develop keeps both panels,
+        // because there the panels *are* the module.
+        if !root.side-panels-hidden: PresetsPanel { }
+
         VerticalLayout {
             horizontal-stretch: 1;
             // `horizontal-stretch` asks for the slack; it cannot take more
@@ -247,7 +255,7 @@ export component DevelopPanel inherits HorizontalLayout {
                 property <length> pad-y: (self.height - self.image-h * self.fit) / 2;
 
                 if !root.dev-zoomed: Image {
-                    source: DevelopState.dev-compare ? DevelopState.develop-image-before : DevelopState.develop-image;
+                    source: DevelopState.viewer-image;
                     image-fit: contain;
                     width: 100%;
                     height: 100%;
@@ -263,7 +271,7 @@ export component DevelopPanel inherits HorizontalLayout {
                     viewport-width: DevelopState.develop-image.width * 1px;
                     viewport-height: DevelopState.develop-image.height * 1px;
                     Image {
-                        source: DevelopState.dev-compare ? DevelopState.develop-image-before : DevelopState.develop-image;
+                        source: DevelopState.viewer-image;
                         width: DevelopState.develop-image.width * 1px;
                         height: DevelopState.develop-image.height * 1px;
                     }

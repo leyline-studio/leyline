@@ -58,7 +58,7 @@ pub use library::{
     CatalogRead, CatalogWrite, ImportedCameraProfile, ImportedLut, Library, RemovalReport,
     RootStatus, SoftProof,
 };
-pub use presets::{FailedApply, PresetApplyReport, apply_batch, capture};
+pub use presets::{FailedApply, PresetApplyReport, apply_batch, capture, overlay};
 pub use preview::{Preview, PreviewFile, preview};
 pub use print::{FailedPrint, PrintRecipe, PrintReport, PrintRequest, PrintedVersion};
 pub use render::{LensShot, Rendered, SensorShot, lens_shot, render, render_scaled, sensor_shot};

@@ -1,0 +1,301 @@
+// The develop presets panel (ADR 0058 §1–§4): the left column of Develop.
+//
+// Its place is the left because ADR 0058 §1 settled it — the right panel is
+// *the modification in progress*, this is *the library of modifications* —
+// and because ADR 0055 §2 already put what one **chooses** on the left of
+// the browser. Same side, same job.
+//
+// Rows arrive flat from Rust (`PresetRow`), like the collections sidebar:
+// one level of folders, favourites first, filtered by the search box above.
+// Nothing here decides an order or a filter.
+
+import { PresetRow } from "../types.slint";
+import { DevelopState } from "../state/develop.slint";
+
+// One preset. Two lines: its name, and what it actually changes — the whole
+// point of ADR 0058 §3, and the thing Lightroom cannot show because its
+// presets are closed boxes.
+component PresetItem inherits Rectangle {
+    // Named `entry` and not `row`: `row` is a built-in layout property on
+    // every element, and shadowing one is refused.
+    in property <PresetRow> entry;
+    callback apply;
+    callback star;
+    callback update;
+    callback remove;
+    callback hovered(bool);
+
+    height: root.entry.summary == "" ? 26px : 38px;
+    background: touch.has-hover ? #ffffff10 : transparent;
+    border-radius: 3px;
+
+    HorizontalLayout {
+        x: 16px;
+        width: parent.width - 24px;
+        height: 100%;
+        spacing: 6px;
+        // The favourite mark sits before the name, where it can be read
+        // down the column without scanning each row's right edge.
+        //
+        // Drawn, not written: `★`/`☆` are not in the font Slint's software
+        // renderer falls back to, and came out as an empty box. A filled
+        // disc against a ring says the same thing in every renderer.
+        Rectangle {
+            width: 12px;
+            y: 5px;
+            height: 16px;
+            Rectangle {
+                width: 9px;
+                height: 9px;
+                y: (parent.height - self.height) / 2;
+                x: (parent.width - self.width) / 2;
+                border-radius: 5px;
+                border-width: 1px;
+                border-color: root.entry.favourite ? #d8b45a : (star-touch.has-hover ? #9a9a9a : #4a4a4a);
+                background: root.entry.favourite ? #d8b45a : transparent;
+            }
+            star-touch := TouchArea {
+                clicked => {
+                    root.star();
+                }
+            }
+        }
+        VerticalLayout {
+            horizontal-stretch: 1;
+            padding-top: 4px;
+            spacing: 0px;
+            Text {
+                text: root.entry.name;
+                color: #e6e6e6;
+                font-size: 12px;
+                overflow: elide;
+            }
+            if root.entry.summary != "": Text {
+                text: root.entry.summary;
+                color: #7a7a7a;
+                font-size: 10px;
+                overflow: elide;
+            }
+        }
+    }
+
+    // Everything that is not "apply it" (ADR 0021): rarely wanted, and each
+    // of them destructive or near enough to deserve being asked for.
+    //
+    // Every `title` is a literal: a `MenuItem` whose title is an expression
+    // makes the Slint 1.13 Rust generator panic outright
+    // ("StructFieldAccess's base expression is not an Object type"). Which
+    // is why starring is not in here — its one entry would have had to read
+    // both ways, and the star in the row already toggles.
+    ContextMenuArea {
+        Menu {
+            MenuItem {
+                title: @tr("Apply");
+                activated => {
+                    root.apply();
+                }
+            }
+            MenuSeparator { }
+            MenuItem {
+                title: @tr("Update with the current settings");
+                activated => {
+                    root.update();
+                }
+            }
+            MenuItem {
+                title: @tr("Delete preset");
+                activated => {
+                    root.remove();
+                }
+            }
+        }
+    }
+
+    touch := TouchArea {
+        // Applying is a click on the row, not on a menu entry: it is the
+        // one thing a preset is for.
+        clicked => {
+            root.apply();
+        }
+        // The trial (ADR 0058 §4). The quarter-second wait and the
+        // one-render-at-a-time rule live in Rust; this only reports where
+        // the pointer is.
+        changed has-hover => {
+            root.hovered(self.has-hover);
+        }
+    }
+
+    // Everything that is not "apply it" (ADR 0021): rarely wanted, and each
+    // of them destructive or near enough to deserve being asked for.
+}
+
+export component PresetsPanel inherits Rectangle {
+    width: 260px;
+    background: #212121;
+
+    VerticalLayout {
+        padding: 16px;
+        spacing: 8px;
+        alignment: start;
+
+        // Clears the window's title bar, like the settings panel opposite.
+        Rectangle {
+            height: 28px;
+        }
+
+        HorizontalLayout {
+            Text {
+                text: @tr("Presets");
+                color: #f0f0f0;
+                font-size: 13px;
+                font-weight: 600;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+            }
+            Rectangle {
+                width: 18px;
+                height: 18px;
+                border-radius: 3px;
+                background: add-touch.has-hover ? #ffffff14 : transparent;
+                Text {
+                    text: "+";
+                    color: #b0b0b0;
+                    font-size: 14px;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    width: 100%;
+                    height: 100%;
+                }
+                add-touch := TouchArea {
+                    clicked => {
+                        DevelopState.open-preset-dialog();
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            height: 24px;
+            background: #1b1b1b;
+            border-radius: 4px;
+            border-width: 1px;
+            border-color: #3a3a3a;
+            HorizontalLayout {
+                x: 8px;
+                width: parent.width - 16px;
+                height: 100%;
+                if DevelopState.preset-filter == "": Text {
+                    text: @tr("Search presets");
+                    color: #6a6a6a;
+                    font-size: 11px;
+                    vertical-alignment: center;
+                }
+                TextInput {
+                    width: parent.width;
+                    height: 100%;
+                    text: DevelopState.preset-filter;
+                    color: #e6e6e6;
+                    font-size: 11px;
+                    vertical-alignment: center;
+                    single-line: true;
+                    edited => {
+                        DevelopState.filter-presets(self.text);
+                    }
+                }
+            }
+        }
+
+        if DevelopState.dev-preset-rows.length == 0: Text {
+            text: DevelopState.preset-filter == "" ? @tr("No presets yet. Develop a photo, then press S to keep the look.") : @tr("No preset matches.");
+            color: #7a7a7a;
+            font-size: 11px;
+            wrap: word-wrap;
+        }
+
+        Flickable {
+            viewport-height: rows.preferred-height;
+            rows := VerticalLayout {
+                width: parent.width;
+                spacing: 1px;
+                for row[i] in DevelopState.dev-preset-rows: line := Rectangle {
+                    height: row.is-folder ? 24px : (row.summary == "" ? 26px : 38px);
+                    // Hoisted out of the model. A `Menu` subtree that reads
+                    // a struct field of the `for` element directly makes the
+                    // Slint 1.13 Rust generator panic; reading a plain `int`
+                    // property of an enclosing element does not.
+                    property <int> index: row.index;
+
+                    if row.is-folder: Rectangle {
+                        background: folder-touch.has-hover ? #ffffff10 : transparent;
+                        border-radius: 3px;
+                        HorizontalLayout {
+                            x: 4px;
+                            width: parent.width - 8px;
+                            height: 100%;
+                            spacing: 4px;
+                            Text {
+                                text: row.expanded ? "▾" : "▸";
+                                color: #8a8a8a;
+                                font-size: 9px;
+                                vertical-alignment: center;
+                            }
+                            Text {
+                                text: row.name;
+                                color: #c8c8c8;
+                                font-size: 11px;
+                                font-weight: 600;
+                                vertical-alignment: center;
+                                horizontal-stretch: 1;
+                                overflow: elide;
+                            }
+                            Text {
+                                text: row.count;
+                                color: #6a6a6a;
+                                font-size: 10px;
+                                vertical-alignment: center;
+                            }
+                        }
+                        folder-touch := TouchArea {
+                            clicked => {
+                                DevelopState.toggle-preset-folder(i);
+                            }
+                        }
+                        // The root row has no folder to delete, and an
+                        // `index` below zero is how it says so.
+                        if line.index >= 0: ContextMenuArea {
+                            Menu {
+                                MenuItem {
+                                    title: @tr("Delete folder (its presets move to the root)");
+                                    activated => {
+                                        DevelopState.delete-preset-folder(line.index);
+                                    }
+                                }
+                            }
+                        }
+                        // The root row carries no folder to delete, and
+                        // `index < 0` is how a row says so.
+                    }
+
+                    if !row.is-folder: PresetItem {
+                        entry: row;
+                        apply => {
+                            DevelopState.apply-preset(row.index);
+                        }
+                        star => {
+                            DevelopState.favourite-preset(row.index, !row.favourite);
+                        }
+                        update => {
+                            DevelopState.update-preset(row.index);
+                        }
+                        remove => {
+                            DevelopState.delete-preset(row.index);
+                        }
+                        hovered(on) => {
+                            DevelopState.trial-preset(on ? row.index : -1);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

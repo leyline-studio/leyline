@@ -10,7 +10,7 @@
 // click. None of those cross to Rust, so they stay private to the develop
 // panel.
 
-import { CurveMarker, DevSettings } from "../types.slint";
+import { CurveMarker, DevSettings, PresetRow } from "../types.slint";
 export global DevelopState {
     // Develop view state, mirrored from Rust.
     in property <bool> develop-mode;
@@ -20,6 +20,20 @@ export global DevelopState {
     // develop session — the "before" half of Compare Before/After.
     in property <image> develop-image-before;
     in-out property <bool> dev-compare: false;
+
+    // What the develop viewer shows, in one place rather than in the two
+    // `Image` elements that need it (fit-to-window and 100%-with-pan).
+    //
+    // The trial wins over Compare Before/After: hovering a preset is a
+    // deliberate, momentary question — "what would this one do?" — and it
+    // is asked about the photo as it is, not about the photo as it was.
+    //
+    // A **property** and not a `pure function`: a binding tracks the
+    // properties it reads and re-runs when they change, which is exactly
+    // what a viewer that has to follow `dev-trial-active` needs.
+    out property <image> viewer-image: root.dev-trial-active
+        ? root.dev-trial-image
+        : (root.dev-compare ? root.develop-image-before : root.develop-image);
     callback toggle-compare();
     in property <DevSettings> dev;
     // Filled-area SVG paths, one per channel, in a 256x90 viewbox — see
@@ -133,15 +147,48 @@ export global DevelopState {
     // always being the top row.
     in property <int> dev-history-current: 0;
     callback checkout-history-row(int);
-    // Stored develop preset names, already ordered by Rust.
+    // Stored develop preset names, already ordered by Rust. Flat, and the
+    // menu bar's Apply/Delete submenus are what it is for; the panel reads
+    // `dev-preset-rows` instead, whose `index` points back into this same
+    // list so both drive the same two callbacks.
     in property <[string]> dev-presets;
+    // The presets panel's rows: folders and the presets filed under them,
+    // already flattened, filtered and ordered by Rust (ADR 0058 §1–§2).
+    in property <[PresetRow]> dev-preset-rows;
+    // The panel's search box. Filtering is Rust's, like every other filter.
+    in-out property <string> preset-filter: "";
+    callback filter-presets(string);
+    // Expand or collapse the folder row at an index of `dev-preset-rows`.
+    callback toggle-preset-folder(int);
     // Apply / delete the develop preset at an index of `dev-presets`.
     callback apply-preset(int);
     callback delete-preset(int);
     callback open-preset-dialog();
+    // Star a preset, so it sorts to the top of its folder (ADR 0058 §2).
+    callback favourite-preset(int, bool);
+    // Replace a preset's settings with the photo currently open in develop,
+    // bumping its version counter (ADR 0058 §6).
+    callback update-preset(int);
+    // Delete a preset folder; the presets it held move back to the root
+    // (ADR 0058 §2). Takes an index into the folder list, not the rows.
+    callback delete-preset-folder(int);
+    // Show the open photo *with* the preset at this index of `dev-presets`,
+    // writing nothing (ADR 0058 §4). `-1` stops the trial.
+    callback trial-preset(int);
+    // The trial render, and whether it is what the viewer should show.
+    // Rust sets both; leaving the hover clears the flag and the real photo
+    // is back, because it never went anywhere.
+    in property <image> dev-trial-image;
+    in property <bool> dev-trial-active: false;
     // Name, then one flag per group: white-balance, tone, presence,
-    // lens-correction, detail, geometry (`docs/presets.md` §3.1).
-    callback run-save-preset(string, bool, bool, bool, bool, bool, bool);
+    // lens-correction, detail, geometry (`docs/presets.md` §3.1), then the
+    // folder to file it under — an index into the folder list, `-1` for the
+    // root (ADR 0058 §2).
+    callback run-save-preset(string, bool, bool, bool, bool, bool, bool, int);
+    // The preset folders that already exist, for the save dialog's picker.
+    in property <[string]> preset-folders;
+    // Create a folder from the save dialog and file the preset in it.
+    callback new-preset-folder(string);
     // Copy/paste develop settings between photos (distinct from named
     // presets): captures White Balance/Tone/Presence/Lens/Detail from one
     // photo, pastes onto the current grid selection.

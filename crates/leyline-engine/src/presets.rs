@@ -96,6 +96,22 @@ pub fn apply_batch_from(
     report
 }
 
+/// The settings `preset` would produce on top of `base`, computed in memory
+/// and written nowhere (ADR 0058 §4).
+///
+/// What a client renders to show a preset **before** applying it. It goes
+/// through [`param_values`] and `session::apply`, the same two steps
+/// [`apply_one`] takes, precisely so the trial cannot show something the
+/// application would not produce: the only difference is that nothing is
+/// committed.
+pub fn overlay(base: &Settings, preset: &PresetSettings) -> Result<Settings> {
+    let mut settings = base.clone();
+    for (param, value) in param_values(preset) {
+        crate::session::apply(&mut settings, param, value)?;
+    }
+    Ok(settings)
+}
+
 /// Opens a fresh session on `version`, sets every captured field, and
 /// commits once — never an amendment (`docs/presets.md` §5.1): a session
 /// that has never committed has no amendment chain to extend.

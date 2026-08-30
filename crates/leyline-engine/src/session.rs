@@ -430,7 +430,12 @@ impl<C: DerefMut<Target = Catalog>> Drop for EditSession<C> {
 }
 
 /// Applies one typed value to the matching settings field.
-fn apply(settings: &mut Settings, param: Param, value: Value) -> Result<()> {
+///
+/// `pub(crate)` so a preset can be laid over a [`Settings`] **without** a
+/// session and therefore without a revision (ADR 0058 §4, `presets::overlay`):
+/// showing a preset before applying it must go through exactly this mapping,
+/// or the trial would render something the application would not produce.
+pub(crate) fn apply(settings: &mut Settings, param: Param, value: Value) -> Result<()> {
     match (param, value) {
         (Param::Exposure, Value::Float(v)) => settings.exposure = v,
         (Param::Rotation, Value::Float(v)) => settings.rotation = v,

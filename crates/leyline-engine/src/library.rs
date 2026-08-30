@@ -1186,6 +1186,36 @@ impl Library {
         })
     }
 
+    /// Renders `asset` as it would look **with** `preset` applied, without
+    /// applying it (ADR 0058 §4): the trial a client shows while a preset is
+    /// merely hovered.
+    ///
+    /// A *view*, like [`Library::preview_before`] and the soft proof: no
+    /// revision, no preset provenance, no cache entry — nothing that could
+    /// later be mistaken for a development the photographer asked for.
+    /// Leaving the hover shows the photo as it really is because nothing
+    /// ever changed.
+    ///
+    /// It goes through the same `param_values` mapping the real application
+    /// uses (`presets::overlay`), so what is shown is what would be written.
+    pub fn preset_preview(
+        &self,
+        asset: AssetId,
+        kind: PreviewKind,
+        preset: PresetId,
+    ) -> Result<leyline_preview::Rgb8> {
+        let settings = {
+            let catalog = lock(&self.inner.catalog);
+            let stored = catalog.preset(preset)?;
+            let fields = PresetSettings::parse(&stored.preset_json)?;
+            let version = catalog.current_version(asset)?;
+            let head = catalog.version_head(version)?;
+            let base = Settings::parse(&catalog.revision(head)?.settings_json)?;
+            crate::presets::overlay(&base, &fields)?
+        };
+        self.preview_live(asset, kind, &settings)
+    }
+
     /// Renders the coverage of one of the head revision's local adjustments,
     /// scaled like `kind` — the mask overlay of ADR 0071.
     ///

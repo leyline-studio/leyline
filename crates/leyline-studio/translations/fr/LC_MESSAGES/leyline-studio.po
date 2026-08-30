@@ -562,17 +562,17 @@ msgstr "Fermer"
 #: crates/leyline-studio/ui/dialogs/tether.slint:17
 msgctxt "TetherDialog"
 msgid "Tethered capture"
-msgstr "Prise de vue connectÃ©e"
+msgstr "Prise de vue connectée"
 
 #: crates/leyline-studio/ui/dialogs/tether.slint:23
 msgctxt "TetherDialog"
 msgid "Plug in a camera over USB, name the session, and click Connect."
-msgstr "Branchez un appareil photo en USB, nommez la sÃ©ance, puis cliquez sur Connecter."
+msgstr "Branchez un appareil photo en USB, nommez la séance, puis cliquez sur Connecter."
 
 #: crates/leyline-studio/ui/dialogs/tether.slint:30
 msgctxt "TetherDialog"
 msgid "Session name"
-msgstr "Nom de la sÃ©ance"
+msgstr "Nom de la séance"
 
 #: crates/leyline-studio/ui/dialogs/tether.slint:55
 msgctxt "TetherDialog"
@@ -582,17 +582,17 @@ msgstr "Les prises de vue arrivent dans Photos/ sous ce nom. Laissez vide pour �
 #: crates/leyline-studio/ui/dialogs/tether.slint:62
 msgctxt "TetherDialog"
 msgid "Develop settings"
-msgstr "RÃ©glages de dÃ©veloppement"
+msgstr "Réglages de développement"
 
 #: crates/leyline-studio/ui/dialogs/tether.slint:67
 msgctxt "TetherDialog"
 msgid "Applied to every shot as it arrives, before it is shown."
-msgstr "AppliquÃ©s Ã  chaque prise de vue dÃ¨s son arrivÃ©e, avant son affichage."
+msgstr "Appliqués à chaque prise de vue dès son arrivée, avant son affichage."
 
 #: crates/leyline-studio/ui/dialogs/tether.slint:85
 msgctxt "TetherDialog"
-msgid "None â the camera's own neutral render"
-msgstr "Aucun â le rendu neutre du boÃ®tier"
+msgid "None — the camera's own neutral render"
+msgstr "Aucun — le rendu neutre du boîtier"
 
 #: crates/leyline-studio/ui/dialogs/tether.slint:123
 msgctxt "TetherDialog"
@@ -617,7 +617,7 @@ msgstr "Live"
 #: crates/leyline-studio/ui/panels/tether.slint:224
 msgctxt "TetherBar"
 msgid "Develop Settings"
-msgstr "DÃ©veloppement"
+msgstr "Développement"
 
 #: crates/leyline-studio/ui/panels/tether.slint:225
 msgctxt "TetherBar"
@@ -2333,3 +2333,153 @@ msgstr "hors ligne"
 msgctxt "MenuBar"
 msgid "Roots…"
 msgstr "Racines…"
+
+#: crates/leyline-studio/ui/dialogs/preset.slint:123
+msgctxt "PresetDialog"
+msgid "Check all"
+msgstr "Tout cocher"
+
+#: crates/leyline-studio/ui/dialogs/preset.slint:130
+msgctxt "PresetDialog"
+msgid "Check none"
+msgstr "Tout décocher"
+
+#: crates/leyline-studio/ui/dialogs/preset.slint:139
+msgctxt "PresetDialog"
+msgid "Folder"
+msgstr "Dossier"
+
+#: crates/leyline-studio/ui/dialogs/preset.slint:156
+msgctxt "PresetDialog"
+msgid "No folder"
+msgstr "Aucun dossier"
+
+#: crates/leyline-studio/ui/dialogs/preset.slint:209
+msgctxt "PresetDialog"
+msgid "New folder"
+msgstr "Nouveau dossier"
+
+#: crates/leyline-studio/ui/panels/presets.slint:93
+msgctxt "PresetItem"
+msgid "Apply"
+msgstr "Appliquer"
+
+#: crates/leyline-studio/ui/panels/presets.slint:100
+msgctxt "PresetItem"
+msgid "Update with the current settings"
+msgstr "Mettre à jour avec les réglages actuels"
+
+#: crates/leyline-studio/ui/panels/presets.slint:106
+msgctxt "PresetItem"
+msgid "Delete preset"
+msgstr "Supprimer le préréglage"
+
+#: crates/leyline-studio/ui/panels/presets.slint:148
+msgctxt "PresetsPanel"
+msgid "Presets"
+msgstr "Préréglages"
+
+#: crates/leyline-studio/ui/panels/presets.slint:188
+msgctxt "PresetsPanel"
+msgid "Search presets"
+msgstr "Rechercher un préréglage"
+
+#: crates/leyline-studio/ui/panels/presets.slint:209
+msgctxt "PresetsPanel"
+msgid "No presets yet. Develop a photo, then press S to keep the look."
+msgstr "Aucun préréglage. Développez une photo, puis pressez S pour en garder le rendu."
+
+#: crates/leyline-studio/ui/panels/presets.slint:209
+msgctxt "PresetsPanel"
+msgid "No preset matches."
+msgstr "Aucun préréglage ne correspond."
+
+#: crates/leyline-studio/ui/panels/presets.slint:268
+msgctxt "PresetsPanel"
+msgid "Delete folder (its presets move to the root)"
+msgstr "Supprimer le dossier (ses préréglages remontent à la racine)"
+
+#: crates/leyline-studio/ui/types.slint:305
+msgctxt "Tr"
+msgid "White balance"
+msgstr "Balance des blancs"
+
+#: crates/leyline-studio/ui/types.slint:308
+msgctxt "Tr"
+msgid "Temperature"
+msgstr "Température"
+
+#: crates/leyline-studio/ui/types.slint:311
+msgctxt "Tr"
+msgid "Exposure"
+msgstr "Exposition"
+
+#: crates/leyline-studio/ui/types.slint:314
+msgctxt "Tr"
+msgid "Contrast"
+msgstr "Contraste"
+
+#: crates/leyline-studio/ui/types.slint:317
+msgctxt "Tr"
+msgid "Highlights"
+msgstr "Hautes lumières"
+
+#: crates/leyline-studio/ui/types.slint:320
+msgctxt "Tr"
+msgid "Shadows"
+msgstr "Ombres"
+
+#: crates/leyline-studio/ui/types.slint:323
+msgctxt "Tr"
+msgid "Whites"
+msgstr "Blancs"
+
+#: crates/leyline-studio/ui/types.slint:326
+msgctxt "Tr"
+msgid "Blacks"
+msgstr "Noirs"
+
+#: crates/leyline-studio/ui/types.slint:329
+msgctxt "Tr"
+msgid "Vibrance"
+msgstr "Vibrance"
+
+#: crates/leyline-studio/ui/types.slint:332
+msgctxt "Tr"
+msgid "Saturation"
+msgstr "Saturation"
+
+#: crates/leyline-studio/ui/types.slint:335
+msgctxt "Tr"
+msgid "Lens correction"
+msgstr "Correction optique"
+
+#: crates/leyline-studio/ui/types.slint:338
+msgctxt "Tr"
+msgid "Noise reduction"
+msgstr "Réduction du bruit"
+
+#: crates/leyline-studio/ui/types.slint:341
+msgctxt "Tr"
+msgid "Sharpening"
+msgstr "Netteté"
+
+#: crates/leyline-studio/ui/types.slint:344
+msgctxt "Tr"
+msgid "Rotation"
+msgstr "Rotation"
+
+#: crates/leyline-studio/ui/types.slint:347
+msgctxt "Tr"
+msgid "Crop"
+msgstr "Recadrage"
+
+#: crates/leyline-studio/ui/types.slint:350
+msgctxt "Tr"
+msgid "as shot"
+msgstr "telle que prise"
+
+#: crates/leyline-studio/ui/types.slint:356
+msgctxt "Tr"
+msgid "My presets"
+msgstr "Mes préréglages"

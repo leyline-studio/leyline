@@ -127,6 +127,23 @@ sensible to migrate. Here an existing library opens and carries on.
 
 ## Consequences
 
+* **Implemented in Studio on 2026-08-31**, the panel last of all: the catalog
+  half (`preset_folders`, favourites, versions, provenance) had shipped with
+  the decision, and §1–§4 — the left column itself, folders and favourites,
+  the summary line, the hover trial — had not. §4's three safeguards needed
+  less machinery than the decision anticipated: the trial renders
+  synchronously through `Library::preset_preview`, so "one render in flight"
+  and "throw away a result for a preset no longer hovered" hold by
+  construction, and only the quarter-second wait is code. Two Slint 1.13
+  traps were paid for on the way: a `MenuItem` whose `title` is an
+  expression, or a `Menu` subtree that reads a struct field of the enclosing
+  `for` element, makes the Rust code generator panic outright; and the
+  viewer's image has to be a *property* binding, since that is the form that
+  re-runs when the trial flag flips.
+* **A preset's amount is still out of scope**, as this decision's "Out of
+  scope" says. Nothing about implementing the panel changed the argument:
+  interpolating a map of partial settings has no meaning for a boolean, a
+  file path or a mask.
 * **The catalog moves to schema 2**: `preset_folders`, three columns on
   `develop_presets` (folder, favourite, version) and two on `develop_revisions`
   (the originating preset, that preset's version). `docs/catalog.md` is

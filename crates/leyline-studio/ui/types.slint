@@ -37,6 +37,27 @@ export struct Cell {
     offline: bool,
 }
 
+// One row of the develop presets panel (ADR 0058 §1–§3), already flattened
+// by Rust the way `CollectionRow` is — one level of folders, so `is-folder`
+// and nothing deeper.
+export struct PresetRow {
+    name: string,
+    // What the preset changes, in plain terms — "Exposure +0.35 · Contrast
+    // +12" (ADR 0058 §3). Empty on a folder row, and empty on a preset whose
+    // groups have nothing worth naming.
+    summary: string,
+    is-folder: bool,
+    // Folder rows only.
+    expanded: bool,
+    count: int,
+    // Preset rows only. Favourites are listed first (ADR 0058 §2).
+    favourite: bool,
+    // Index into the library's preset list — what `apply-preset` and
+    // `delete-preset` already take. `-1` on a folder row, where it is the
+    // folder's own index into the folder list instead.
+    index: int,
+}
+
 // One exposure control of the tethered-capture bar (ADR 0087 §3).
 //
 // `id` is the stable identifier Rust round-trips (`shutter`, `aperture`,
@@ -276,6 +297,65 @@ export struct DevSettings {
 // instead of formatting the sentence itself; `slint-tr-extractor` picks up
 // the `@tr(...)` calls below exactly like any other UI string.
 export global Tr {
+    // The field names of a preset's summary line (ADR 0058 §3). Same
+    // reason as `tether-setting` below: Rust assembles the sentence, and a
+    // string built in Rust is a string no `.pot` ever learns about.
+    public pure function preset-field(id: string) -> string {
+        if (id == "wb") {
+            return @tr("White balance");
+        }
+        if (id == "temperature") {
+            return @tr("Temperature");
+        }
+        if (id == "exposure") {
+            return @tr("Exposure");
+        }
+        if (id == "contrast") {
+            return @tr("Contrast");
+        }
+        if (id == "highlights") {
+            return @tr("Highlights");
+        }
+        if (id == "shadows") {
+            return @tr("Shadows");
+        }
+        if (id == "whites") {
+            return @tr("Whites");
+        }
+        if (id == "blacks") {
+            return @tr("Blacks");
+        }
+        if (id == "vibrance") {
+            return @tr("Vibrance");
+        }
+        if (id == "saturation") {
+            return @tr("Saturation");
+        }
+        if (id == "lens") {
+            return @tr("Lens correction");
+        }
+        if (id == "noise") {
+            return @tr("Noise reduction");
+        }
+        if (id == "sharpening") {
+            return @tr("Sharpening");
+        }
+        if (id == "rotation") {
+            return @tr("Rotation");
+        }
+        if (id == "crop") {
+            return @tr("Crop");
+        }
+        if (id == "as-shot") {
+            return @tr("as shot");
+        }
+        return id;
+    }
+    // The root of the presets panel, where an unfiled preset sits.
+    public pure function preset-root-folder() -> string {
+        return @tr("My presets");
+    }
+
     // The four labels of the tethered-capture bar (ADR 0087 §3). Written
     // here rather than carried in `TetherControl` so the extractor sees
     // them: Rust builds that model, and a string built in Rust is a string

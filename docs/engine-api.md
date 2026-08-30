@@ -575,8 +575,25 @@ impl Library {
     /// The job: `JobProgress` per version, then `JobFinished` with the report
     /// (per-version failures in the report, batch failure as `Failed`).
     pub fn apply_preset_async(&self, preset: PresetId, versions: Vec<VersionId>) -> JobId;
+
+    /// Filing and provenance (ADR 0058 §2, §6).
+    pub fn file_preset(&self, preset: PresetId, folder: Option<PresetFolderId>) -> Result<()>;
+    pub fn favourite_preset(&self, preset: PresetId, favourite: bool) -> Result<()>;
+    pub fn update_preset(&self, preset: PresetId, version: VersionId,
+                         groups: &[SettingsGroup]) -> Result<u32>;
+    pub fn preset_folders(&self) -> Result<Vec<PresetFolder>>;
+    pub fn create_preset_folder(&self, name: &str) -> Result<PresetFolderId>;
+    pub fn rename_preset_folder(&self, folder: PresetFolderId, name: &str) -> Result<()>;
+    pub fn delete_preset_folder(&self, folder: PresetFolderId) -> Result<()>;
+
+    /// `asset` rendered as it would look **with** `preset`, without
+    /// applying it (ADR 0058 §4) — the trial a client shows on hover.
+    pub fn preset_preview(&self, asset: AssetId, kind: PreviewKind,
+                          preset: PresetId) -> Result<Rgb8>;
 }
 ```
+
+* `preset_preview` is a **view**, like `preview_before` and the soft proof: no revision, no provenance, no cache entry — nothing that could later be mistaken for a development anyone asked for. It goes through the same `param_values` mapping the real application uses (`presets::overlay`), so what is shown is what would be written.
 
 * `SettingsGroup` groups the `Param` of §10.1 at the granularity of the preset's checkboxes (`docs/presets.md` §3.1): `Tone` = Exposure + Contrast + Highlights + Shadows + Whites + Blacks, `Presence` = Vibrance + Saturation, `Detail` = NoiseReduction + Sharpening, `Geometry` = Rotation + Crop; the other groups each correspond to a single `Param`.
 * `apply_preset_async` is a **job** (§3.1) even for a single version: a selection can go as far as the entire library (`docs/presets.md` §5.2), and a single call category avoids making query-vs-job depend on the size of the selection at call time.

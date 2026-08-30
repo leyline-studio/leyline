@@ -12,10 +12,10 @@ use crate::map_view;
 use crate::ui::{Cell, LibraryState, StudioWindow, Tr};
 use leyline_sdk::{
     AssetId, CollectionId, Event, ExportPreset, FolderId, GridItem, GridQuery, ImportCandidate,
-    JobId, KeywordId, Library, MapPin, Preset, PresetId, PresetSettings, PrintPreset, RevisionRow,
-    Sort, VersionId,
+    JobId, KeywordId, Library, MapPin, Preset, PresetFolder, PresetFolderId, PresetId,
+    PresetSettings, PrintPreset, RevisionRow, Sort, VersionId,
 };
-use slint::{Global, SharedString, VecModel};
+use slint::{Global, SharedString, Timer, VecModel};
 
 /// Sort orders the header button cycles through, with their labels.
 pub(crate) const SORTS: [(Sort, &str); 8] = [
@@ -115,8 +115,33 @@ pub(crate) struct App {
     /// Stored print presets (ADR 0036), parallel to the print dialog's
     /// preset chips.
     pub(crate) print_presets: Vec<PrintPreset>,
-    /// Stored develop presets, parallel to the develop sidebar's rows.
+    /// Stored develop presets, in the order the menu bar's submenus and the
+    /// panel's `index` both address them.
     pub(crate) dev_presets: Vec<Preset>,
+    /// The preset folders (ADR 0058 §2), in the order the panel and the
+    /// save dialog both address them.
+    pub(crate) preset_folders: Vec<PresetFolder>,
+    /// Which folders of the panel are open. A folder, not a row: the rows
+    /// are rebuilt on every filter keystroke, and an expansion keyed on a
+    /// row index would jump to another folder as the list shortened.
+    /// `None` is the root row, which has no folder to key on.
+    pub(crate) preset_expanded: HashSet<Option<PresetFolderId>>,
+    /// The folder each panel row belongs to, parallel to the rows — the
+    /// root's rows carry `None`. Kept because a row's own `index` names its
+    /// *preset*, and a folder toggle needs the folder.
+    pub(crate) preset_rows: Vec<Option<PresetFolderId>>,
+    /// What the panel's search box holds. Filtering is Rust's, so the rows
+    /// it produces are already the answer.
+    pub(crate) preset_filter: String,
+    /// The quarter-second wait before a hovered preset is rendered
+    /// (ADR 0058 §4): restarted on entering a row, stopped on leaving it,
+    /// so running down the list triggers nothing.
+    ///
+    /// The decision's other two safeguards need no machinery here: the
+    /// render is synchronous on this thread, so there is never a second one
+    /// in flight, and a result can never arrive for a preset no longer
+    /// hovered because it arrives before anything else can happen.
+    pub(crate) preset_trial: Timer,
     /// Flattened collection ids, parallel to the sidebar rows.
     pub(crate) collections: Vec<CollectionId>,
     /// Depth of each sidebar row, parallel to `collections` — kept because

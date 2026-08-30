@@ -24,7 +24,7 @@ pub use leyline_engine::{
     Preview, PreviewFile, PrintRecipe, PrintReport, PrintRequest, PrintedVersion, RemovalReport,
     ReprocessReport, Rgb8, RootStatus, ScanOptions, SkippedFile, SoftProof, SourceColor,
     TetherOptions, Value, WatchError, WatchSessionEvent, WatchedFile, decoder_version,
-    neutral_settings, session_folder,
+    neutral_settings, overlay, session_folder,
 };
 
 pub use leyline_catalog::{
