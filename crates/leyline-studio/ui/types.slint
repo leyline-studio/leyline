@@ -37,6 +37,21 @@ export struct Cell {
     offline: bool,
 }
 
+// One entry of the camera-profile browser (ADR 0089 §1): the open photo as
+// that profile renders it, and its name.
+//
+// The first entry is always "no profile", which is a real choice and not an
+// empty state — its `path` is empty, and that is how Rust tells it apart.
+export struct ProfileRow {
+    name: string,
+    // Library-relative path, empty for "no profile".
+    path: string,
+    // The open photo rendered through this profile. Nothing was committed
+    // to obtain it.
+    thumbnail: image,
+    selected: bool,
+}
+
 // One row of the develop presets panel (ADR 0058 §1–§3), already flattened
 // by Rust the way `CollectionRow` is — one level of folders, so `is-folder`
 // and nothing deeper.
@@ -353,6 +368,11 @@ export global Tr {
             return @tr("as shot");
         }
         return id;
+    }
+    // The first row of the camera-profile browser (ADR 0089 §2): a real
+    // choice, not an empty state.
+    public pure function no-camera-profile() -> string {
+        return @tr("No profile — the decoder's own colors");
     }
     // The root of the presets panel, where an unfiled preset sits.
     public pure function preset-root-folder() -> string {

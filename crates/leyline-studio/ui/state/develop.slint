@@ -10,7 +10,7 @@
 // click. None of those cross to Rust, so they stay private to the develop
 // panel.
 
-import { CurveMarker, DevSettings, PresetRow } from "../types.slint";
+import { CurveMarker, DevSettings, PresetRow, ProfileRow } from "../types.slint";
 export global DevelopState {
     // Develop view state, mirrored from Rust.
     in property <bool> develop-mode;
@@ -147,6 +147,17 @@ export global DevelopState {
     // always being the top row.
     in property <int> dev-history-current: 0;
     callback checkout-history-row(int);
+    // The camera-profile browser (ADR 0089): what the library holds, each
+    // showing the open photo as that profile renders it. Filled by Rust when
+    // the group is opened; empty until then, because every row costs a
+    // render.
+    in property <[ProfileRow]> profile-rows;
+    // Ask Rust to fill `profile-rows` for the photo currently open.
+    callback load-profiles();
+    // Reference the profile at this index of `profile-rows`; index 0 is
+    // "no profile" and clears the reference.
+    callback choose-profile(int);
+
     // Automatic tone (ADR 0088 §1): asks the engine what it would set, then
     // writes it through the ordinary edit session — one revision, undoable
     // like any other. No argument: it always answers for the photo open in

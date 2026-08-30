@@ -7,7 +7,7 @@ use crate::app::{App, MapSession, report_error};
 use crate::map_view;
 use crate::ui::{DevelopState, MapState, StudioWindow};
 use crate::wiring::develop::{enter_develop_for, refresh_develop};
-use leyline_sdk::{CameraProfile, Library, MapPin, Param, Value};
+use leyline_sdk::{Library, MapPin, Param, Value};
 use slint::{ComponentHandle, Global, ModelRc, SharedString, VecModel};
 
 /// Wires the GPS map view (`docs/adr/0040-gps-map-view.md`): enter/exit,
@@ -77,47 +77,6 @@ pub(crate) fn wire_map(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             };
             app.borrow_mut().map = None;
             MapState::get(&window).set_map_mode(false);
-        });
-    }
-    {
-        let app = Rc::clone(app);
-        let handle = window.as_weak();
-        DevelopState::get(window).on_browse_camera_profile(move || {
-            let Some(window) = handle.upgrade() else {
-                return;
-            };
-            let mut app = app.borrow_mut();
-            let Some((_, version)) = app.develop else {
-                return;
-            };
-            let Some(path) = rfd::FileDialog::new()
-                .add_filter("DCP camera profile", &["dcp"])
-                .pick_file()
-            else {
-                return;
-            };
-            let referenced = (|| {
-                // Importing copies the file into `Profiles/Camera/` and
-                // hands back the checksum of the bytes it copied — the
-                // reference is never built from a path the user typed.
-                let imported = app.library.import_camera_profile(&path)?;
-                let mut session = app.library.edit(version)?;
-                session.set(
-                    Param::CameraProfile,
-                    Value::CameraProfile(Some(CameraProfile {
-                        enabled: true,
-                        path: imported.relative_path,
-                        checksum: imported.checksum,
-                    })),
-                )?;
-                session.commit().map(|_| ())
-            })();
-            if let Err(error) = referenced
-                .map_err(|e| e.to_string())
-                .and_then(|()| refresh_develop(&mut app, &window))
-            {
-                report_error(&window, &error);
-            }
         });
     }
     {

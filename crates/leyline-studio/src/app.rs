@@ -207,6 +207,15 @@ pub(crate) struct App {
     pub(crate) tether_connected: bool,
     /// Shots captured by the current tether session, for the bar's counter.
     pub(crate) tether_captured: u32,
+    /// The photo the camera-profile browser's thumbnails were rendered for
+    /// (ADR 0089 §1), `None` when none have been. Every entry costs a
+    /// render, so they are built once per photo and kept while it stays
+    /// open — a profile library is a handful of files, not a catalog.
+    pub(crate) profile_thumbs_for: Option<AssetId>,
+    /// The library-relative path of each browser row, parallel to the rows.
+    /// The first is empty: "no profile" is a real choice and sits in the
+    /// grid rather than being a state reached by removing something.
+    pub(crate) profile_paths: Vec<String>,
     /// The develop presets offered as "Develop Settings" (ADR 0087 §5),
     /// re-read whenever the connect dialog or the bar's picker opens: a
     /// list cached across a session would offer a preset since deleted.

@@ -296,6 +296,8 @@ fn run() -> Result<(), String> {
         print_job: None,
         preview_jobs: HashSet::new(),
         tether_connected: false,
+        profile_thumbs_for: None,
+        profile_paths: Vec::new(),
         tether_presets: Vec::new(),
         tether_preset: None,
         tether_captured: 0,

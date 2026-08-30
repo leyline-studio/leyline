@@ -64,6 +64,17 @@ export component DevelopPanel inherits HorizontalLayout {
     // fit rather than making every drag tool zoom-aware. `in-out` for the
     // same reason as `active-tool`.
     in-out property <bool> dev-zoomed: false;
+
+    // Every entry of the profile browser costs a render, so the grid is
+    // built when the group is opened and not before (ADR 0089 §1). A
+    // `changed` handler rather than a callback on `GroupHeader`: the flag is
+    // this panel's own, and giving the shared widget an event for one of its
+    // fifteen users would be the wrong place to put it.
+    changed expand-camera-profile => {
+        if (self.expand-camera-profile) {
+            DevelopState.load-profiles();
+        }
+    }
     // Spot tool's two-click gesture: true between the first (source) click
     // and the second (target) one, with the first click's viewport position
     // held here so a pending-source marker can be drawn.
@@ -1003,19 +1014,78 @@ export component DevelopPanel inherits HorizontalLayout {
                             font-size: 11px;
                             wrap: word-wrap;
                         }
-                        Text {
-                            text: DevelopState.camera-profile-name == ""
-                                ? @tr("No profile — the decoder's own colors")
-                                : DevelopState.camera-profile-name;
-                            color: #9a9a9a;
-                            font-size: 12px;
-                            wrap: word-wrap;
+                        // The browser (ADR 0089 §1): each entry is the open
+                        // photo as that profile renders it, not a stock
+                        // swatch — what a profile does depends on the sensor
+                        // that shot the file.
+                        //
+                        // Two per row, because a colour decision is made by
+                        // comparing two renderings and a single column would
+                        // put them a scroll apart.
+                        Flickable {
+                            height: min(260px, grid.preferred-height);
+                            viewport-height: grid.preferred-height;
+                            grid := VerticalLayout {
+                                width: parent.width;
+                                spacing: 6px;
+                                for row[i] in DevelopState.profile-rows: Rectangle {
+                                    height: 74px;
+                                    background: row.selected ? #2f4f6f : (entry.has-hover ? #ffffff10 : transparent);
+                                    border-radius: 4px;
+                                    HorizontalLayout {
+                                        x: 4px;
+                                        width: parent.width - 8px;
+                                        height: 100%;
+                                        spacing: 8px;
+                                        Rectangle {
+                                            width: 66px;
+                                            background: #151515;
+                                            border-radius: 3px;
+                                            Image {
+                                                source: row.thumbnail;
+                                                image-fit: contain;
+                                                width: 100%;
+                                                height: 100%;
+                                            }
+                                        }
+                                        VerticalLayout {
+                                            spacing: 2px;
+                                            horizontal-stretch: 1;
+                                            padding-top: 8px;
+                                            Text {
+                                                text: row.name;
+                                                color: #e6e6e6;
+                                                font-size: 11px;
+                                                wrap: word-wrap;
+                                            }
+                                            // A profile that produced no
+                                            // picture says so rather than
+                                            // showing an unexplained black
+                                            // square: it is in the list
+                                            // because the file is in the
+                                            // library, and refusing it is
+                                            // the useful thing to be able
+                                            // to do.
+                                            if row.thumbnail.width == 0 && row.path != "": Text {
+                                                text: @tr("Could not be read");
+                                                color: #d98a8a;
+                                                font-size: 10px;
+                                            }
+                                        }
+                                    }
+                                    entry := TouchArea {
+                                        clicked => {
+                                            DevelopState.choose-profile(i);
+                                        }
+                                    }
+                                }
+                            }
                         }
                         HorizontalLayout {
                             spacing: 8px;
                             alignment: start;
                             FilterChip {
-                                text: @tr("Choose .dcp…");
+                                text: @tr("Import .dcp…");
                                 active: false;
                                 clicked => {
                                     DevelopState.browse-camera-profile();
