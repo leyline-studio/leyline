@@ -40,6 +40,9 @@ Usage:
                                     ce qu'un import prendrait, sans rien écrire
                                     (ADR 0065) ; « = » marque un fichier que la
                                     bibliothèque contient déjà
+  leyline auto-tone <library> <version-id> [--dry-run]
+                                    propose une tonalité et l'écrit (ADR 0088) ;
+                                    --dry-run affiche sans committer
   leyline tether <library> [--session <name>] [--preset <name>]
                [--set <setting>=<value>] [--capture-every <seconds>]
                                     capture connectée (ADR 0038, ADR 0087) :
@@ -229,6 +232,7 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("info") => info(&args[1..]),
         Some("import") => import(&args[1..]),
         Some("scan") => scan(&args[1..]),
+        Some("auto-tone") => auto_tone(&args[1..]),
         Some("tether") => tether(&args[1..]),
         Some("watch") => watch(&args[1..]),
         Some("ls") => ls(&args[1..]),
@@ -969,6 +973,14 @@ fn develop(args: &[String]) -> Result<(), String> {
         }
         "vibrance" => (Param::Vibrance, Value::Int(int_at(0)?)),
         "saturation" => (Param::Saturation, Value::Int(int_at(0)?)),
+        "monochrome" => (
+            Param::Monochrome,
+            Value::Bool(match at(0)? {
+                "on" | "true" | "1" => true,
+                "off" | "false" | "0" => false,
+                other => return Err(format!("monochrome takes on or off, got {other:?}")),
+            }),
+        ),
         "white-balance" => {
             let wb = match at(0)? {
                 "none" => None,
@@ -1537,6 +1549,45 @@ fn preset_rm(args: &[String]) -> Result<(), String> {
     let preset = find_preset(&library, name)?;
     library.delete_preset(preset).map_err(|e| e.to_string())?;
     println!("deleted preset {name:?}");
+    Ok(())
+}
+
+/// Proposes a tone for a photo and commits it (ADR 0088 §1).
+///
+/// Prints what it chose before writing it: a command line is where one
+/// checks what Auto decided, and five numbers on stdout are a better answer
+/// than a photo that changed.
+fn auto_tone(args: &[String]) -> Result<(), String> {
+    let (positional, options) = parse(args, &[])?;
+    let [root, version] = positional.as_slice() else {
+        return Err("usage: leyline auto-tone <library> <version-id> [--dry-run]".to_owned());
+    };
+    let library = open(root)?;
+    let version = VersionId::new(version.parse().map_err(|_| "version id must be a number")?);
+    let asset = library
+        .catalog()
+        .version_asset(version)
+        .map_err(|e| e.to_string())?;
+    let tone = library.auto_tone(asset).map_err(|e| e.to_string())?;
+    println!(
+        "exposure {:+.2}  highlights {:+}  shadows {:+}  whites {:+}  blacks {:+}",
+        tone.exposure, tone.highlights, tone.shadows, tone.whites, tone.blacks
+    );
+    if options.switch("dry-run") {
+        return Ok(());
+    }
+    let mut session = library.edit(version).map_err(|e| e.to_string())?;
+    for (param, value) in [
+        (Param::Exposure, Value::Float(tone.exposure)),
+        (Param::Highlights, Value::Int(tone.highlights)),
+        (Param::Shadows, Value::Int(tone.shadows)),
+        (Param::Whites, Value::Int(tone.whites)),
+        (Param::Blacks, Value::Int(tone.blacks)),
+    ] {
+        session.set(param, value).map_err(|e| e.to_string())?;
+    }
+    let revision = session.commit().map_err(|e| e.to_string())?;
+    println!("committed revision {revision}");
     Ok(())
 }
 

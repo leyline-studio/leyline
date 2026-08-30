@@ -9,6 +9,7 @@
 //! Editing goes through [`EditSession`], which owns the coalescence policy
 //! of `docs/engine-api.md` §10.1 on top of the catalog's revision mechanics.
 
+mod auto_tone;
 mod camera_profile;
 mod decode_cache;
 mod downscale;
@@ -36,6 +37,7 @@ mod tether;
 mod watch;
 mod xmp;
 
+pub use auto_tone::AutoTone;
 pub use decode_cache::DecodeCache;
 pub use events::{Event, JobResult};
 pub use export::{

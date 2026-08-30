@@ -62,6 +62,8 @@ pub enum Param {
     Vibrance,
     /// Saturation slider.
     Saturation,
+    /// Black and white (ADR 0088 §3): one flag, and nothing else moves.
+    Monochrome,
     /// Tone curve step.
     ToneCurve,
     /// Spot removal clones (the whole list, replaced atomically).
@@ -109,6 +111,8 @@ pub enum Value {
     Float(f64),
     /// For the unitless [-100, +100] sliders.
     Int(i32),
+    /// For [`Param::Monochrome`].
+    Bool(bool),
     /// For [`Param::WhiteBalance`]; `None` returns to as-shot.
     WhiteBalance(Option<WhiteBalance>),
     /// For [`Param::ToneCurve`].
@@ -458,6 +462,7 @@ pub(crate) fn apply(settings: &mut Settings, param: Param, value: Value) -> Resu
         (Param::Demosaic, Value::Demosaic(v)) => settings.demosaic = v,
         (Param::Vibrance, Value::Int(v)) => settings.vibrance = v,
         (Param::Saturation, Value::Int(v)) => settings.saturation = v,
+        (Param::Monochrome, Value::Bool(v)) => settings.monochrome = v,
         (Param::ToneCurve, Value::ToneCurve(v)) => settings.tone_curve = v,
         (Param::SpotRemoval, Value::SpotRemoval(v)) => settings.spot_removal = v,
         (Param::LocalAdjustment(index), Value::LocalAdjustment(v)) => match v {

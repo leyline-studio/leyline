@@ -147,6 +147,11 @@ export global DevelopState {
     // always being the top row.
     in property <int> dev-history-current: 0;
     callback checkout-history-row(int);
+    // Automatic tone (ADR 0088 §1): asks the engine what it would set, then
+    // writes it through the ordinary edit session — one revision, undoable
+    // like any other. No argument: it always answers for the photo open in
+    // develop, at its current settings.
+    callback run-auto-tone();
     // Stored develop preset names, already ordered by Rust. Flat, and the
     // menu bar's Apply/Delete submenus are what it is for; the panel reads
     // `dev-preset-rows` instead, whose `index` points back into this same

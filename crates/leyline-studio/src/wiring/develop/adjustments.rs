@@ -10,6 +10,7 @@ use super::refresh_develop;
 use crate::app::{App, report_error};
 use crate::develop;
 use crate::ui::{DevelopState, StudioWindow};
+use leyline_sdk::{Param, Value};
 use slint::{ComponentHandle, Global};
 
 pub(super) fn wire_adjustments(app: &Rc<RefCell<App>>, window: &StudioWindow) {
@@ -32,6 +33,44 @@ pub(super) fn wire_adjustments(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                     return Ok(());
                 };
                 session.set(param, value)?;
+                session.commit().map(|_| ())
+            })();
+            if let Err(error) = committed
+                .map_err(|e| e.to_string())
+                .and_then(|()| refresh_develop(&mut app, &window))
+            {
+                report_error(&window, &error);
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        DevelopState::get(window).on_run_auto_tone(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let Some((asset, version)) = app.develop else {
+                return;
+            };
+            let committed = (|| {
+                // The engine only *proposes* (ADR 0088 §1). Writing the five
+                // values through the ordinary session is what makes Auto one
+                // undoable revision rather than a second way of developing a
+                // photo — and it is why a second press, on a photo Auto
+                // already answered for, is just another edit.
+                let tone = app.library.auto_tone(asset)?;
+                let mut session = app.library.edit(version)?;
+                for (param, value) in [
+                    (Param::Exposure, Value::Float(tone.exposure)),
+                    (Param::Highlights, Value::Int(tone.highlights)),
+                    (Param::Shadows, Value::Int(tone.shadows)),
+                    (Param::Whites, Value::Int(tone.whites)),
+                    (Param::Blacks, Value::Int(tone.blacks)),
+                ] {
+                    session.set(param, value)?;
+                }
                 session.commit().map(|_| ())
             })();
             if let Err(error) = committed

@@ -265,6 +265,9 @@ export struct DevSettings {
     nr-color: float,
     sharpen-amount: float,
     sharpen-radius: float,
+    // Black and white (ADR 0088 §3): one flag, and turning it off gives
+    // the photo back exactly as it was — nothing else moved.
+    monochrome: bool,
     lens-correction: bool,
     // Whether the referenced camera profile is applied (ADR 0035); its
     // name lives in `camera-profile-name`, empty when none is referenced.

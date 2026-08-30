@@ -115,6 +115,9 @@ pub(crate) mod dehaze {
 pub(crate) mod hsl {
     pub(crate) mod v1;
 }
+pub(crate) mod monochrome {
+    pub(crate) mod v1;
+}
 pub(crate) mod color_grading {
     pub(crate) mod v1;
 }
@@ -644,6 +647,22 @@ pub(crate) static STAGES: &[Stage] = &[
             rank: 140,
             space: Space::LinearRec2020,
             apply: |px, ctx| hsl::v1::hsl_mixer(px, &ctx.settings.hsl),
+        }],
+    },
+    // Black and white (ADR 0088 §3). Ranked between `hsl` and
+    // `color_grading` on purpose, and the rank is the design: after the
+    // mixer, so its eight luminance sliders are the black-and-white mix;
+    // before colour grading, so split-toning a black and white works with
+    // no code of its own.
+    Stage {
+        name: "monochrome",
+        active: |settings| settings.monochrome,
+        reads: &["monochrome"],
+        versions: &[Version {
+            version: 1,
+            rank: 145,
+            space: Space::LinearRec2020,
+            apply: |px, _ctx| monochrome::v1::monochrome(px),
         }],
     },
     Stage {

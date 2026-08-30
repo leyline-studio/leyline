@@ -397,6 +397,19 @@ fn locals(settings: Settings) -> Settings {
     }
 }
 
+/// Black and white (ADR 0088 §3), laid over the HSL mixer on purpose: what
+/// this case freezes is not "the image went grey" — that is one line — but
+/// the fact that the collapse happens **after** the mixer, so the mixer's
+/// eight luminance sliders are what decides which colour becomes which
+/// grey. A `monochrome` that ever moved before `hsl` would change these
+/// pixels and be caught here.
+fn monochrome(settings: Settings) -> Settings {
+    Settings {
+        monochrome: true,
+        ..hsl_grading(settings)
+    }
+}
+
 fn hsl_grading(settings: Settings) -> Settings {
     Settings {
         hsl: [
@@ -574,6 +587,7 @@ fn cases() -> Vec<(String, Case)> {
         ("locals", locals(base.clone())),
         ("locals_range", locals_range(base.clone())),
         ("hsl_grading", hsl_grading(base.clone())),
+        ("monochrome", monochrome(base.clone())),
         ("presence", presence(base.clone())),
         (
             "highlight_reconstruction",

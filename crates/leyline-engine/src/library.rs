@@ -31,6 +31,7 @@ use leyline_core::{
 use leyline_export::{ExportSettings, PrintSettings};
 use leyline_preview::PreviewCache;
 
+use crate::auto_tone::AutoTone;
 use crate::decode_cache::DecodeCache;
 use crate::events::{Event, JobResult};
 use crate::export::{ExportReport, ExportRequest};
@@ -1184,6 +1185,78 @@ impl Library {
             Some(edge) => image.scaled_to_fit(edge),
             None => image,
         })
+    }
+
+    /// The tone Auto proposes for `asset` (ADR 0088 §1–§2).
+    ///
+    /// **Writes nothing.** It returns five numbers; feeding them through an
+    /// `EditSession` is the caller's business, which is what makes an
+    /// automatic tone one ordinary, undoable revision rather than a
+    /// second way of developing a photo. No stage, no stage version,
+    /// nothing new in `settings_json`: `docs/pipeline.md` §5.1 is untouched
+    /// by construction.
+    ///
+    /// Measured on the photo at its **current** settings, not at neutral:
+    /// pressing Auto after moving the white balance should answer for the
+    /// photo as it now is. Costs a handful of proxy renders — the exposure
+    /// is a logarithm, the recovery a pair of percentiles, and the two ends
+    /// a short search against the real pipeline rather than a transfer
+    /// function nobody wrote down.
+    pub fn auto_tone(&self, asset: AssetId) -> Result<AutoTone> {
+        let base = {
+            let catalog = lock(&self.inner.catalog);
+            let version = catalog.current_version(asset)?;
+            let head = catalog.version_head(version)?;
+            Settings::parse(&catalog.revision(head)?.settings_json)?
+        };
+        let mut tone = AutoTone {
+            exposure: base.exposure,
+            highlights: base.highlights,
+            shadows: base.shadows,
+            whites: base.whites,
+            blacks: base.blacks,
+        };
+
+        // 1. Exposure, from the photo as it stands.
+        let bins = self.tone_histogram(asset, &base)?;
+        tone.exposure = crate::auto_tone::exposure_for(&bins, base.exposure);
+
+        // 2. Recovery, measured *after* that correction: whether the
+        //    highlights are crowded depends on where the exposure put them.
+        let bins = self.tone_histogram(asset, &crate::auto_tone::with(&base, &tone))?;
+        let (highlights, shadows) = crate::auto_tone::recovery_for(&bins);
+        tone.highlights = highlights;
+        tone.shadows = shadows;
+
+        // 3. The two ends, searched. They are the two sliders whose effect
+        //    is exactly "where does this end land", so they are measured
+        //    against the real pipeline instead of guessed.
+        for _ in 0..crate::auto_tone::SEARCH_STEPS {
+            let bins = self.tone_histogram(asset, &crate::auto_tone::with(&base, &tone))?;
+            let (white, black) = crate::auto_tone::ends_error(&bins);
+            if white.abs() < crate::auto_tone::SEARCH_TOLERANCE
+                && black.abs() < crate::auto_tone::SEARCH_TOLERANCE
+            {
+                break;
+            }
+            let stepped_whites = crate::auto_tone::stepped(tone.whites, white);
+            let stepped_blacks = crate::auto_tone::stepped(tone.blacks, black);
+            // Both ends already at the edge of their range: the photo asks
+            // for more than a slider can give, and another render would
+            // measure the same thing again.
+            if stepped_whites == tone.whites && stepped_blacks == tone.blacks {
+                break;
+            }
+            tone.whites = stepped_whites;
+            tone.blacks = stepped_blacks;
+        }
+        Ok(tone)
+    }
+
+    /// The luma histogram of one proxy render of `asset` under `settings`.
+    fn tone_histogram(&self, asset: AssetId, settings: &Settings) -> Result<[u64; 256]> {
+        let image = self.preview_live(asset, PreviewKind::Small, settings)?;
+        Ok(crate::auto_tone::histogram_of(&image))
     }
 
     /// Renders `asset` as it would look **with** `preset` applied, without

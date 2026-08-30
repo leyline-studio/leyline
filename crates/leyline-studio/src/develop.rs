@@ -73,6 +73,10 @@ pub fn action(slider: &str, value: f64, current: &Settings) -> Option<(Param, Va
             lut.strength = value.round() as i32;
             (Param::Lut, Value::Lut(Some(lut)))
         }
+        // A toggle and nothing else (ADR 0088 §5): it does not zero the
+        // saturation, does not touch the mixer, does not "apply a look".
+        // Pressing it twice gives the photo back exactly as it was.
+        "monochrome" => (Param::Monochrome, Value::Bool(value != 0.0)),
         "lens-correction" => (
             Param::LensCorrection,
             Value::LensCorrection(LensCorrection {

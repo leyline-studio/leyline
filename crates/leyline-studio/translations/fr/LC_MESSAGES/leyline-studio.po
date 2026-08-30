@@ -2483,3 +2483,18 @@ msgstr "telle que prise"
 msgctxt "Tr"
 msgid "My presets"
 msgstr "Mes préréglages"
+
+#: crates/leyline-studio/ui/panels/develop.slint:684
+msgctxt "DevelopPanel"
+msgid "Auto"
+msgstr "Auto"
+
+#: crates/leyline-studio/ui/panels/develop.slint:691
+msgctxt "DevelopPanel"
+msgid "B&W"
+msgstr "N&B"
+
+#: crates/leyline-studio/ui/panels/develop.slint:1238
+msgctxt "DevelopPanel"
+msgid "In black and white, only Luminance acts: it is the B&W mix."
+msgstr "En noir et blanc, seule la Luminance agit : c'est le mixeur N&B."

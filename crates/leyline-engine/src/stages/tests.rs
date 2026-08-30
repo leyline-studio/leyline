@@ -1406,6 +1406,7 @@ fn everything() -> Settings {
         dehaze: 10,
         vibrance: 10,
         saturation: 10,
+        monochrome: true,
         rotation: 5.0,
         perspective: Some(leyline_core::Perspective {
             vertical: 20,

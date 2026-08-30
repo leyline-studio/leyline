@@ -657,6 +657,14 @@ pub struct Settings {
     pub vibrance: i32,
     /// Saturation, slider in [-100, +100]. Neutral: 0.
     pub saturation: i32,
+    /// Black and white (ADR 0088 §3): the photo is collapsed to its luma
+    /// **after** the HSL mixer, so the mixer's eight luminance sliders are
+    /// the black-and-white mix. Neutral: `false`.
+    ///
+    /// A flag and nothing else — turning it on moves no other setting, so
+    /// turning it off gives the photo back exactly as it was (§5).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub monochrome: bool,
 
     /// Tone curve step. Neutral: no points.
     pub tone_curve: ToneCurve,
@@ -734,6 +742,7 @@ impl Default for Settings {
             dehaze: 0,
             vibrance: 0,
             saturation: 0,
+            monochrome: false,
             tone_curve: ToneCurve::default(),
             hsl: [HslBand::default(); 8],
             color_grading: ColorGrading::default(),
@@ -1318,6 +1327,11 @@ pub struct PresetSettings {
     /// Present when `groups` includes [`SettingsGroup::Presence`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub saturation: Option<i32>,
+    /// Present when `groups` includes [`SettingsGroup::Presence`]: black
+    /// and white is a presence decision, so a preset that captures presence
+    /// carries it (ADR 0088 §Consequences).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub monochrome: Option<bool>,
 
     /// Present when `groups` includes [`SettingsGroup::LensCorrection`].
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1363,6 +1377,7 @@ impl PresetSettings {
                 SettingsGroup::Presence => {
                     preset.vibrance = Some(settings.vibrance);
                     preset.saturation = Some(settings.saturation);
+                    preset.monochrome = Some(settings.monochrome);
                 }
                 SettingsGroup::LensCorrection => {
                     preset.lens_correction = Some(settings.lens_correction.clone());

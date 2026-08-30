@@ -292,6 +292,7 @@ Neutral values of schema 1:
 | `contrast`, `highlights`, `shadows`, `whites`, `blacks`, `vibrance`, `saturation` | 0 |
 | `clarity`, `texture`, `dehaze` | 0 |
 | `hsl` | absent — 8 bands at `{ "hue": 0, "saturation": 0, "luminance": 0 }` |
+| `monochrome` | absent — `false` |
 | `color_grading` | absent — each zone at `{ "hue": 0, "saturation": 0, "luminance": 0 }`, `balance`/`blending` at 0 |
 | `lens_correction` | `{ "enabled": false, "profile": "auto" }` |
 | `noise_reduction` | `{ "luminance": 0, "color": 0 }` |
@@ -375,6 +376,7 @@ The code of every stage version is kept in the engine forever: that is the price
 | 120 | `vibrance` | 1 | Saturation weighted by the existing chroma |
 | 130 | `saturation` | 1 | Uniform saturation |
 | 140 | `hsl` | 1 | An HSL mixer over 8 hue bands, blended between adjacent bands (ADR 0032) |
+| 145 | `monochrome` | 1 | Collapses each pixel to its luma. Ranked here on purpose (ADR 0088 §3): after `hsl`, so that mixer's eight luminance sliders *are* the black-and-white mix; before `color_grading`, so a black and white can still be toned |
 | 150 | `color_grading` | 1 | Three zones — shadows/midtones/highlights — weighted by luminance (ADR 0032) |
 | 160 | `local_adjustments` | 1 | Masked local adjustments (brush/radial/gradient), reusing the global operators restricted to a coverage (ADR 0029) |
 | 160 | `local_adjustments` | 2 | The same, plus range masks: the geometric coverage can be tightened by a luminance band and a hue band (ADR 0048) |

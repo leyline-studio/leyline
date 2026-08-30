@@ -17,7 +17,7 @@ pub use leyline_core::{
 };
 
 pub use leyline_engine::{
-    CatalogRead, CatalogWrite, DEFAULT_AMEND_WINDOW, DEFAULT_SESSION, EditSession, Event,
+    AutoTone, CatalogRead, CatalogWrite, DEFAULT_AMEND_WINDOW, DEFAULT_SESSION, EditSession, Event,
     ExportRecipe, ExportReport, ExportRequest, ExportedVersion, FailedApply, FailedExport,
     FailedPrint, FailedReprocess, ImportCandidate, ImportOptions, ImportReport,
     ImportedCameraProfile, ImportedFile, ImportedLut, JobResult, Library, Param, PresetApplyReport,

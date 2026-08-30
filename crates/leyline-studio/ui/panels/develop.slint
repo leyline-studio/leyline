@@ -673,6 +673,29 @@ export component DevelopPanel inherits HorizontalLayout {
                         }
                     }
 
+                    // The two buttons Lightroom puts above the Basic
+                    // sliders (ADR 0088). `HDR`, its third, is a V1
+                    // exclusion and is deliberately absent rather than
+                    // present and disabled.
+                    HorizontalLayout {
+                        spacing: 8px;
+                        alignment: start;
+                        FilterChip {
+                            text: @tr("Auto");
+                            active: false;
+                            clicked => {
+                                DevelopState.run-auto-tone();
+                            }
+                        }
+                        FilterChip {
+                            text: @tr("B&W");
+                            active: DevelopState.dev.monochrome;
+                            clicked => {
+                                DevelopState.develop-edit("monochrome", DevelopState.dev.monochrome ? 0 : 1);
+                            }
+                        }
+                    }
+
                     // One panel, three sub-headings: the light first, the
                     // matter next, the colour last — the order the Basic panel
                     // is taught in, and the reason it is one group rather than
@@ -1206,6 +1229,16 @@ export component DevelopPanel inherits HorizontalLayout {
                     if !root.basic-mode: GroupHeader {
                         label: @tr("HSL Mixer");
                         expanded <=> root.expand-hsl;
+                    }
+                    if !root.basic-mode && root.expand-hsl && DevelopState.dev.monochrome: Text {
+                        // ADR 0088 §3: in black and white the luminance
+                        // sliders *are* the mix, and hue and saturation have
+                        // nothing left to act on. Said rather than hidden —
+                        // greying them out would suggest they were broken.
+                        text: @tr("In black and white, only Luminance acts: it is the B&W mix.");
+                        color: #8a8a8a;
+                        font-size: 10px;
+                        wrap: word-wrap;
                     }
                     if !root.basic-mode && root.expand-hsl: VerticalLayout {
                         spacing: 14px;

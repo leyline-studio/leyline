@@ -92,6 +92,7 @@ pub(crate) fn dev_model(settings: &Settings) -> crate::ui::DevSettings {
         nr_color: settings.noise_reduction.color as f32,
         sharpen_amount: settings.sharpening.amount as f32,
         sharpen_radius: settings.sharpening.radius as f32,
+        monochrome: settings.monochrome,
         lens_correction: settings.lens_correction.enabled,
         camera_profile: settings
             .camera_profile
