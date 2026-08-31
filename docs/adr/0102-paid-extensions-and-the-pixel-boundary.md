@@ -112,6 +112,10 @@ toward exactly the things this project refuses — obfuscation, phoning
 home, hardware binding. The licence marks the honest customer, and that
 is enough.
 
+> **Settled in [ADR 0107](0107-licensing-a-paid-extension.md)** (2026-09):
+> the shop (a merchant of record), the issuing (a local tool, the private key
+> never on a server) and the document's exact format.
+
 ### 6. `specification.md` §4 is corrected, not worked around
 
 ADR 0069 §5's third named point. The subscription row today says the
