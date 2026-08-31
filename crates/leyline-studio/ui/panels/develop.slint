@@ -649,6 +649,48 @@ export component DevelopPanel inherits HorizontalLayout {
                             fill: #4444ff55;
                             commands: DevelopState.dev-histogram-b;
                         }
+
+                        // The two clipping indicators (ADR 0092): lit when
+                        // their end of the histogram is occupied, filled
+                        // while their overlay paints the image. Squares
+                        // rather than glyph triangles — the software
+                        // renderer's fallback font drops most triangle
+                        // glyphs (a lesson already paid for by the star
+                        // ratings).
+                        shadows-clip := Rectangle {
+                            x: 4px;
+                            y: 4px;
+                            width: 10px;
+                            height: 10px;
+                            border-radius: 2px;
+                            border-width: 1px;
+                            border-color: DevelopState.dev-shadows-clipped ? #6fa8dc : #444444;
+                            background: DevelopState.dev-clip-shadows
+                                ? #0a84ff
+                                : (DevelopState.dev-shadows-clipped ? #0a84ff40 : transparent);
+                            TouchArea {
+                                clicked => {
+                                    DevelopState.toggle-clipping("shadows");
+                                }
+                            }
+                        }
+                        highlights-clip := Rectangle {
+                            x: parent.width - 14px;
+                            y: 4px;
+                            width: 10px;
+                            height: 10px;
+                            border-radius: 2px;
+                            border-width: 1px;
+                            border-color: DevelopState.dev-highlights-clipped ? #e08080 : #444444;
+                            background: DevelopState.dev-clip-highlights
+                                ? #ff3b30
+                                : (DevelopState.dev-highlights-clipped ? #ff3b3040 : transparent);
+                            TouchArea {
+                                clicked => {
+                                    DevelopState.toggle-clipping("highlights");
+                                }
+                            }
+                        }
                     }
 
                     // How the photo was taken, right under the histogram that

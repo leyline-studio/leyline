@@ -87,6 +87,11 @@ pub(crate) struct App {
     /// Whether the selected mask's coverage is painted over the develop
     /// preview (ADR 0071). Interface state, never written to a revision.
     pub(crate) show_mask_overlay: bool,
+    /// Whether clipped highlights (channel at 255) are painted red over the
+    /// develop preview (ADR 0092). Interface state, like the mask overlay.
+    pub(crate) clip_highlights: bool,
+    /// Whether crushed shadows (all channels at 0) are painted blue.
+    pub(crate) clip_shadows: bool,
     /// When the last live render of a slider drag started (ADR 0074 §3).
     /// The renders are synchronous, so this is all the throttling needed:
     /// a move arriving too soon is dropped, never queued — what matters is

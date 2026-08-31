@@ -39,6 +39,12 @@ export global DevelopState {
     // Filled-area SVG paths, one per channel, in a 256x90 viewbox — see
     // `develop::histogram_layout` in main.rs.
     in property <string> dev-histogram-r;
+    // Clipping (ADR 0092): whether each end of the histogram is occupied
+    // (the triangles light from it), and whether each overlay is on.
+    in property <bool> dev-highlights-clipped;
+    in property <bool> dev-shadows-clipped;
+    in property <bool> dev-clip-highlights;
+    in property <bool> dev-clip-shadows;
     in property <string> dev-histogram-g;
     in property <string> dev-histogram-b;
     // How the photo was taken, under the histogram: four values kept apart
@@ -163,6 +169,9 @@ export global DevelopState {
     // like any other. No argument: it always answers for the photo open in
     // develop, at its current settings.
     callback run-auto-tone();
+    // Clipping toggles (ADR 0092 §2): "highlights", "shadows", or "both"
+    // (the J key). The flags live in Rust with the other overlay state.
+    callback toggle-clipping(string);
     // The white-balance picker (ADR 0091 §1): a click on a neutral grey,
     // view x/y, viewport w/h, preview w/h (px) — same letterbox convention
     // as `develop-spot-click`. The engine solves temperature and tint and

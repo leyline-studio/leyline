@@ -385,6 +385,32 @@ pub fn curve_layout(points: &[CurvePoint], size: f64) -> (String, Vec<(f64, f64)
     (path, markers)
 }
 
+/// Paints display-referred clipping over an 8-bit sRGB render, in place
+/// (ADR 0092 §1): a clipped highlight is a channel at 255, painted red when
+/// `paint_highlights`; a crushed shadow is all three at 0, painted blue
+/// when `paint_shadows`. Returns whether each end is occupied at all — the
+/// histogram's two triangles light from that, overlay on or off.
+pub fn paint_clipping(
+    data: &mut [u8],
+    paint_highlights: bool,
+    paint_shadows: bool,
+) -> (bool, bool) {
+    let mut any_high = false;
+    let mut any_low = false;
+    for rgb in data.chunks_exact_mut(3) {
+        let high = rgb.iter().any(|&v| v == 255);
+        let low = rgb.iter().all(|&v| v == 0);
+        any_high |= high;
+        any_low |= low;
+        if high && paint_highlights {
+            (rgb[0], rgb[1], rgb[2]) = (255, 59, 48);
+        } else if low && paint_shadows {
+            (rgb[0], rgb[1], rgb[2]) = (10, 132, 255);
+        }
+    }
+    (any_high, any_low)
+}
+
 /// Builds one channel's filled-area histogram path in a `width` x `height`
 /// viewbox, `sqrt`-scaled against `scale_max` (the tallest bin *across all
 /// three channels*, so R/G/B stay on the same vertical scale — passing each
@@ -1198,5 +1224,34 @@ mod tests {
             color_grading_zone_action("shadows", "bogus", 10.0, &current),
             None
         );
+    }
+
+    /// ADR 0092: the scan reports both ends whether or not it paints, the
+    /// painting only touches the asked-for end, and a clean image reports
+    /// nothing and stays untouched.
+    #[test]
+    fn clipping_is_scanned_always_and_painted_on_request() {
+        // One blown pixel, one crushed, one clean.
+        let source = [255u8, 200, 100, 0, 0, 0, 128, 128, 128];
+
+        let mut data = source;
+        assert_eq!(paint_clipping(&mut data, false, false), (true, true));
+        assert_eq!(data, source, "scan alone must not paint");
+
+        let mut data = source;
+        assert_eq!(paint_clipping(&mut data, true, false), (true, true));
+        assert_eq!(&data[0..3], &[255, 59, 48], "blown pixel painted red");
+        assert_eq!(&data[3..6], &[0, 0, 0], "shadows untouched when not asked");
+
+        let mut data = source;
+        paint_clipping(&mut data, false, true);
+        assert_eq!(&data[3..6], &[10, 132, 255], "crushed pixel painted blue");
+        assert_eq!(&data[0..3], &[255, 200, 100], "highlights untouched");
+
+        // All-zero on one channel only is not a crushed shadow, and 254 is
+        // not a blown highlight.
+        let mut clean = [254u8, 0, 128];
+        assert_eq!(paint_clipping(&mut clean, true, true), (false, false));
+        assert_eq!(clean, [254, 0, 128]);
     }
 }

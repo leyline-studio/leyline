@@ -219,6 +219,12 @@ export component StudioWindow inherits Window {
                     DevelopState.develop-undo();
                     return accept;
                 }
+                // Clipping overlays (ADR 0092 §2): J toggles the pair, the
+                // Lightroom muscle memory.
+                if (event.text == "j" || event.text == "J") {
+                    DevelopState.toggle-clipping("both");
+                    return accept;
+                }
                 if (event.modifiers.control && (event.text == "y" || event.text == "Y")) {
                     DevelopState.develop-redo();
                     return accept;

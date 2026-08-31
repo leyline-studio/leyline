@@ -286,4 +286,30 @@ pub(super) fn wire_adjustments(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             }
         });
     }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        // Clipping toggles (ADR 0092 §2): "highlights" and "shadows" from
+        // the histogram's triangles, "both" from J — which turns the pair
+        // on together and off together, from either mixed state.
+        DevelopState::get(window).on_toggle_clipping(move |which| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            match which.as_str() {
+                "highlights" => app.clip_highlights = !app.clip_highlights,
+                "shadows" => app.clip_shadows = !app.clip_shadows,
+                "both" => {
+                    let on = !(app.clip_highlights || app.clip_shadows);
+                    app.clip_highlights = on;
+                    app.clip_shadows = on;
+                }
+                _ => return,
+            }
+            if let Err(error) = refresh_develop(&mut app, &window) {
+                report_error(&window, &error);
+            }
+        });
+    }
 }

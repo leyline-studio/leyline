@@ -197,30 +197,40 @@ pub(crate) fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<()
     // profile (ADR 0034): the same preview, transformed in memory, never
     // cached — so leaving the proof shows the real render again with nothing
     // to invalidate.
-    let image = match &app.soft_proof {
-        Some(proof) => {
-            let proofed = app
-                .library
-                .preview_soft_proofed(asset, PreviewKind::Small, proof)
-                .map_err(|e| e.to_string())?;
-            crate::models::rgb8_to_slint_image(&proofed)
-        }
+    let mut rgb = match &app.soft_proof {
+        Some(proof) => app
+            .library
+            .preview_soft_proofed(asset, PreviewKind::Small, proof)
+            .map_err(|e| e.to_string())?,
         None => {
             let file = app
                 .library
                 .preview(asset, PreviewKind::Small)
                 .map_err(|e| e.to_string())?;
-            slint::Image::load_from_path(&file.path)
+            leyline_sdk::Rgb8::load_png(&file.path)
                 .map_err(|_| format!("cannot load preview {}", file.path.display()))?
         }
     };
-    // The mask overlay (ADR 0071): the selected entry's coverage, painted
-    // red over the preview. Off when nothing is selected — there is no "the
-    // mask" then — and silently skipped if the engine cannot render it, since
-    // a diagnostic view must never take the develop panel down with it.
-    let image = match overlay_for(app, asset, selected) {
+    // Clipping (ADR 0092): the scan always runs — the histogram's triangles
+    // light from it whether the overlays are on or not — and the painting
+    // only when asked. Over the soft proof deliberately (what the
+    // destination loses is what a proof asks); under the mask overlay,
+    // which replaces the image below and must not stack with a second
+    // diagnosis.
+    let overlay = overlay_for(app, asset, selected);
+    let (high, low) = develop::paint_clipping(
+        rgb.data_mut(),
+        app.clip_highlights && overlay.is_none(),
+        app.clip_shadows && overlay.is_none(),
+    );
+    let state = DevelopState::get(window);
+    state.set_dev_highlights_clipped(high);
+    state.set_dev_shadows_clipped(low);
+    state.set_dev_clip_highlights(app.clip_highlights);
+    state.set_dev_clip_shadows(app.clip_shadows);
+    let image = match overlay {
         Some(painted) => painted,
-        None => image,
+        None => crate::models::rgb8_to_slint_image(&rgb),
     };
     DevelopState::get(window).set_develop_image(image);
     if let Ok(bins) = app.library.histogram(asset, PreviewKind::Small) {
