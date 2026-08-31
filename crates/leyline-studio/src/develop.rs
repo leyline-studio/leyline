@@ -115,6 +115,13 @@ pub fn action(slider: &str, value: f64, current: &Settings) -> Option<(Param, Va
                 ..current.sharpening.clone()
             }),
         ),
+        "sharpen-masking" => (
+            Param::Sharpening,
+            Value::Sharpening(Sharpening {
+                masking: value.round() as i32,
+                ..current.sharpening.clone()
+            }),
+        ),
         "sharpen-radius" => (
             Param::Sharpening,
             Value::Sharpening(Sharpening {

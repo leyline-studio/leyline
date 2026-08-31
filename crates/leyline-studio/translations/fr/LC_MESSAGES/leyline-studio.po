@@ -2623,3 +2623,7 @@ msgstr "Nouvelle version"
 msgctxt "ImportDialog"
 msgid "Exact (reads every file)"
 msgstr "Exact (lit chaque fichier)"
+
+msgctxt "DevelopPanel"
+msgid "Sharpen masking"
+msgstr "Masquage de netteté"

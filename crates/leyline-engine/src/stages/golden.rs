@@ -227,6 +227,20 @@ fn detail(settings: Settings) -> Settings {
         sharpening: Sharpening {
             amount: 60,
             radius: 1.2,
+            masking: 0,
+        },
+        ..settings
+    }
+}
+
+/// The edge mask of ADR 0096 — a **new** case rather than an edit of
+/// `detail`, whose fragment is frozen with the entry that cites it.
+fn detail_masking(settings: Settings) -> Settings {
+    Settings {
+        sharpening: Sharpening {
+            amount: 60,
+            radius: 1.2,
+            masking: 55,
         },
         ..settings
     }
@@ -611,6 +625,7 @@ fn cases() -> Vec<(String, Case)> {
         ("tone", tone(base.clone())),
         ("color", color(base.clone())),
         ("detail", detail(base.clone())),
+        ("detail_masking", detail_masking(base.clone())),
         ("geometry", geometry(base.clone())),
         ("lens", lens(base.clone())),
         ("camera_profile", camera_profile(base.clone())),

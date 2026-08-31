@@ -287,6 +287,16 @@ pub struct Sharpening {
     pub amount: i32,
     /// Radius in pixels, strictly positive.
     pub radius: f64,
+    /// Edge mask, unitless slider in [0, 100] (ADR 0096 §2). 0 sharpens
+    /// every pixel — an unsharp mask amplifies noise and skin as readily as
+    /// eyelashes; raising it confines the effect to what actually has an
+    /// edge.
+    ///
+    /// Requires `sharpen` at version 2 or later: a revision pinned at v1
+    /// cannot express it, and [`Settings::validate`] refuses the
+    /// combination rather than let the slider do nothing (ADR 0096 §3).
+    #[serde(default)]
+    pub masking: i32,
 }
 
 impl Default for Sharpening {
@@ -294,6 +304,7 @@ impl Default for Sharpening {
         Self {
             amount: 0,
             radius: 1.0,
+            masking: 0,
         }
     }
 }
@@ -1349,6 +1360,18 @@ impl Settings {
                 self.sharpening.radius
             )));
         }
+        slider("sharpening.masking", self.sharpening.masking, 0, 100)?;
+        // The capability rule (ADR 0096 §3): v1 has no edge mask, and the
+        // pinning rule (ADR 0042 §2) keeps a pinned stage at its version.
+        // Refusing is the only honest outcome — the alternative is a slider
+        // that does nothing, which nobody sees.
+        if self.sharpening.masking != 0 && self.stages.get("sharpen") == Some(&1) {
+            return Err(LeylineError::InvalidSettings(
+                "sharpening.masking needs stage sharpen version 2, but this revision pins \
+                 version 1; reprocess the photo to the current stage versions first"
+                    .to_owned(),
+            ));
+        }
         if let Some(profile) = &self.camera_profile {
             validate_library_relative_path("camera_profile.path", &profile.path)?;
             let hex = profile.checksum.strip_prefix("blake3:").ok_or_else(|| {
@@ -2219,6 +2242,57 @@ mod tests {
             ..Settings::default()
         };
         unpinned.validate().unwrap();
+    }
+
+    /// ADR 0096 §3: the capability rule, applied to sharpening's edge mask.
+    #[test]
+    fn masking_on_a_revision_pinned_at_sharpen_v1_is_refused() {
+        let masked = Sharpening {
+            amount: 50,
+            radius: 1.0,
+            masking: 40,
+        };
+        let refused = Settings {
+            sharpening: masked.clone(),
+            stages: StageVersions::from([("sharpen".to_owned(), 1)]),
+            ..Settings::default()
+        };
+        let message = match refused.validate() {
+            Err(LeylineError::InvalidSettings(message)) => message,
+            other => panic!("expected a refusal, got {other:?}"),
+        };
+        assert!(message.contains("sharpen version 2"), "{message}");
+        // The message names the remedy, since the user cannot guess it.
+        assert!(message.contains("reprocess"), "{message}");
+
+        // Accepted at v2, and on settings nothing has pinned yet.
+        Settings {
+            sharpening: masked.clone(),
+            stages: StageVersions::from([("sharpen".to_owned(), 2)]),
+            ..Settings::default()
+        }
+        .validate()
+        .unwrap();
+        Settings {
+            sharpening: masked,
+            ..Settings::default()
+        }
+        .validate()
+        .unwrap();
+
+        // A revision pinned at v1 that never asks for masking stays valid:
+        // the rule refuses an inexpressible setting, not an old version.
+        Settings {
+            sharpening: Sharpening {
+                amount: 50,
+                radius: 1.0,
+                masking: 0,
+            },
+            stages: StageVersions::from([("sharpen".to_owned(), 1)]),
+            ..Settings::default()
+        }
+        .validate()
+        .unwrap();
     }
 
     #[test]

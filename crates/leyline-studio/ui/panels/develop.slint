@@ -1378,6 +1378,23 @@ export component DevelopPanel inherits HorizontalLayout {
                                 DevelopState.develop-preview("sharpen-radius", v);
                             }
                         }
+                        // The edge mask (ADR 0096): an unsharp mask
+                        // amplifies skin grain and sky noise as readily as
+                        // eyelashes and branches; this is what tells them
+                        // apart. Full mode only, beside the two sliders it
+                        // modulates.
+                        if !root.basic-mode: EditSlider {
+                            label: @tr("Sharpen masking");
+                            minimum: 0;
+                            maximum: 100;
+                            value: DevelopState.dev.sharpen-masking;
+                            edited(v) => {
+                                DevelopState.develop-edit("sharpen-masking", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("sharpen-masking", v);
+                            }
+                        }
                     }
 
                     // Effects (ADR 0090): the vignette a photographer adds —

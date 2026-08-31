@@ -1688,6 +1688,7 @@ fn everything() -> Settings {
     settings.sharpening = Sharpening {
         amount: 30,
         radius: 1.0,
+        masking: 0,
     };
     settings
         .extra

@@ -407,6 +407,7 @@ mod tests {
             sharpening: Sharpening {
                 amount: 40,
                 radius: 1.0,
+                masking: 0,
             },
             rotation: 12.5,
             crop: Some(Crop {
@@ -733,6 +734,7 @@ mod tests {
                 sharpening: Sharpening {
                     amount: 100,
                     radius: 1.0,
+                    masking: 0,
                 },
                 ..Settings::default()
             },
@@ -840,6 +842,7 @@ mod tests {
             sharpening: Sharpening {
                 amount: 40,
                 radius: 1.0,
+                masking: 0,
             },
             ..Settings::default()
         };

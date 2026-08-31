@@ -250,6 +250,7 @@ mod tests {
             sharpening: Sharpening {
                 amount: 50,
                 radius: 1.5,
+                masking: 0,
             },
             ..Settings::default()
         };

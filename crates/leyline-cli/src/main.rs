@@ -177,7 +177,9 @@ Develop params (docs/pipeline.md §3.2, schema 1):
   grain <amount> [size] [roughness] film grain, each in [0, 100] (ADR 0090);
                                     size and roughness default to 25 and 50
   noise-reduction <luminance> <color>
-  sharpening <amount> <radius>
+  sharpening <amount> <radius> [masking]
+                                    masking confine la netteté aux contours
+                                    (ADR 0096) ; absent = 0, comme avant
   crop <x> <y> <width> <height>     percent 0-100, or `crop reset`
   perspective <vertical> <horizontal>
                                     keystone correction, integers in [-100, 100]
@@ -1182,6 +1184,12 @@ fn develop(args: &[String]) -> Result<(), String> {
             Value::Sharpening(Sharpening {
                 amount: int_at(0)?,
                 radius: float_at(1)?,
+                // Optional (ADR 0096): every script written against two
+                // arguments keeps working and keeps meaning what it meant.
+                masking: match rest.get(2) {
+                    Some(_) => int_at(2)?,
+                    None => 0,
+                },
             }),
         ),
         "perspective" => {

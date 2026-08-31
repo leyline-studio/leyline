@@ -252,7 +252,7 @@ Never a delta.
 
     "lens_correction": { "enabled": true, "profile": "auto" },
     "noise_reduction": { "luminance": 15, "color": 25 },
-    "sharpening": { "amount": 40, "radius": 1.0 },
+    "sharpening": { "amount": 40, "radius": 1.0, "masking": 0 },
     "output_rendering": { "highlight_rolloff": 50 },
     "highlight_reconstruction": "rebuild",
     "demosaic": "dcb",
@@ -296,7 +296,7 @@ Neutral values of schema 1:
 | `color_grading` | absent — each zone at `{ "hue": 0, "saturation": 0, "luminance": 0 }`, `balance`/`blending` at 0 |
 | `lens_correction` | `{ "enabled": false, "profile": "auto" }` |
 | `noise_reduction` | `{ "luminance": 0, "color": 0 }` |
-| `sharpening` | `{ "amount": 0, "radius": 1.0 }` |
+| `sharpening` | `{ "amount": 0, "radius": 1.0, "masking": 0 }` |
 | `output_rendering` | `{ "highlight_rolloff": 50 }` — the only field whose default value is not "do nothing": there is no render without an output, so it is a rendering choice, frozen with the stage version that reads it (ADR 0044 §3). Importing a JPEG/PNG/TIFF opens it at 0, there being no headroom to recover |
 | `highlight_reconstruction` | absent — `"clip"`, clipping at white; the other two values (`"blend"`, `"rebuild"`) require `input` at version 2 ([ADR 0050](adr/0050-highlight-reconstruction.md)) |
 | `demosaic` | absent — `"ahd"`, LibRaw's default and ours; `"vng"`, `"dcb"` and `"dht"` require `input` at version 3 ([ADR 0061](adr/0061-demosaic-algorithm.md)) |
@@ -387,6 +387,7 @@ The code of every stage version is kept in the engine forever: that is the price
 | 180 | `noise_color` | 1 | Chroma noise reduction: a blend towards a Gaussian blur of the deviations from luma |
 | 180 | `noise_color` | 2 | The same, edge-preserving, with a more aggressive threshold than luminance (ADR 0046) |
 | 190 | `sharpen` | 1 | Unsharp mask on the luminance plane |
+| 190 | `sharpen` | 2 | The same, confined to edges by `masking` (ADR 0096). At `masking = 0`, bit-identical to v1 |
 | 200 | `rotate` | 1 | Rotation by an arbitrary angle, bilinear sampling |
 | 205 | `perspective` | 1 | A two-slider homography straightening converging lines; the output is the bounding box of the transformed quadrilateral (ADR 0052) |
 | 210 | `crop` | 1 | Cropping |

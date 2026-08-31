@@ -283,6 +283,9 @@ export struct DevSettings {
     nr-color: float,
     sharpen-amount: float,
     sharpen-radius: float,
+    // Confines sharpening to edges (ADR 0096). 0 sharpens everything,
+    // which is what v1 always did.
+    sharpen-masking: float,
     // The vignette drawn on the composed frame, and film grain (ADR 0090).
     // Four values and three: a shape and a strength are one tool, so the
     // engine commits each group whole.

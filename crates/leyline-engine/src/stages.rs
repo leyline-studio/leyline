@@ -141,6 +141,7 @@ pub(crate) mod noise_color {
 }
 pub(crate) mod sharpen {
     pub(crate) mod v1;
+    pub(crate) mod v2;
 }
 pub(crate) mod rotate {
     pub(crate) mod v1;
@@ -863,18 +864,35 @@ pub(crate) static STAGES: &[Stage] = &[
         name: "sharpen",
         active: |settings| settings.sharpening.amount != 0,
         reads: &["sharpening"],
-        versions: &[Version {
-            version: 1,
-            rank: 190,
-            space: Space::LinearRec2020,
-            apply: |px, ctx| {
-                sharpen::v1::sharpen(
-                    px,
-                    ctx.settings.sharpening.amount,
-                    ctx.settings.sharpening.radius * f64::from(ctx.scale),
-                );
+        versions: &[
+            Version {
+                version: 1,
+                rank: 190,
+                space: Space::LinearRec2020,
+                apply: |px, ctx| {
+                    sharpen::v1::sharpen(
+                        px,
+                        ctx.settings.sharpening.amount,
+                        ctx.settings.sharpening.radius * f64::from(ctx.scale),
+                    );
+                },
             },
-        }],
+            // The edge mask (ADR 0096): at `masking = 0` this renders
+            // exactly what v1 renders, which is what makes the bump safe.
+            Version {
+                version: 2,
+                rank: 190,
+                space: Space::LinearRec2020,
+                apply: |px, ctx| {
+                    sharpen::v2::sharpen(
+                        px,
+                        ctx.settings.sharpening.amount,
+                        ctx.settings.sharpening.radius * f64::from(ctx.scale),
+                        ctx.settings.sharpening.masking,
+                    );
+                },
+            },
+        ],
     },
     Stage {
         name: "rotate",
