@@ -71,6 +71,7 @@ fn develop_covers_every_param_kind() {
         vec!["develop", &root, "1", "exposure", "0.5"],
         vec!["develop", &root, "1", "white-balance", "5000", "10"],
         vec!["develop", &root, "1", "white-balance", "none"],
+        vec!["develop", &root, "1", "white-balance", "daylight"],
         vec!["develop", &root, "1", "lens-correction", "on"],
         vec!["develop", &root, "1", "noise-reduction", "20", "30"],
         vec!["develop", &root, "1", "sharpening", "40", "1.5"],
@@ -89,8 +90,28 @@ fn develop_covers_every_param_kind() {
     let out = run(&["history", &root, "1"]);
     assert!(out.status.success(), "{}", stderr(&out));
     // The initial revision plus one commit per develop call above.
-    assert_eq!(stdout(&out).lines().count(), 13);
+    assert_eq!(stdout(&out).lines().count(), 14);
     assert!(stdout(&out).lines().next().unwrap().starts_with("HEAD"));
+}
+
+/// The measured white balance (ADR 0091): grey-world on the frame, or the
+/// picker on one point; --dry-run proposes without committing.
+#[test]
+fn auto_wb_proposes_and_writes() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = library_with_a_photo(&dir);
+
+    let out = run(&["auto-wb", &root, "1", "--dry-run"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(stdout(&out).contains("temperature"));
+    assert!(!stdout(&out).contains("committed"));
+
+    let out = run(&["auto-wb", &root, "1", "--sample", "0.5,0.5"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(stdout(&out).contains("committed revision"));
+
+    let out = run(&["auto-wb", &root, "1", "--sample", "nonsense"]);
+    assert!(!out.status.success());
 }
 
 /// Local adjustments take a stored `LocalAdjustment` verbatim (ADR 0049 §4).

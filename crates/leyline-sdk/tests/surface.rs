@@ -22,8 +22,9 @@ use leyline_sdk::{
     LuminanceRange, Margins, Mask, NoiseReduction, Orientation, PaperSize, PickState, Point,
     Preview, PreviewKind, PrintRecipe, PrintRequest, PrintSettings, RangeMask, RegisteredAsset,
     RenderingIntent, RevisionId, Settings, Sharpening, ShotFacets, ShotRange, SkippedFile,
-    SpotRemoval, StageVersions, ToneCurve, VersionId, Vignette, WatchSessionEvent, WatchedFile,
-    Watermark, WatermarkAnchor, WatermarkFont,
+    SpotRemoval, StageVersions, ToneCurve, VersionId, Vignette, WHITE_BALANCE_PRESETS,
+    WatchSessionEvent, WatchedFile, Watermark, WatermarkAnchor, WatermarkFont, WhiteBalance,
+    WhiteBalancePreset,
 };
 
 /// A `Settings` built field by field, every nested type named through the
@@ -174,6 +175,10 @@ fn every_returned_type_is_nameable(library: &Library, version: VersionId, asset:
     let _: [[u32; 256]; 3] = library.histogram(asset, PreviewKind::Medium).unwrap();
     let _: Result<(), LeylineError> = library.set_pick(&[version], PickState::Pick);
     let _: Result<(), LeylineError> = library.set_color_label(&[version], Some(ColorLabel::Yellow));
+    // The white-balance pickers (ADR 0091) and the fixed table.
+    let _: Result<WhiteBalance, LeylineError> = library.neutralize_wb(asset, 0.5, 0.5);
+    let _: Result<WhiteBalance, LeylineError> = library.auto_wb(asset);
+    let _: &WhiteBalancePreset = &WHITE_BALANCE_PRESETS[0];
 }
 
 /// An import report, destructured down to the ids it carries. Reaching

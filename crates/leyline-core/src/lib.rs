@@ -23,7 +23,7 @@ pub use settings::{
     CurvePoint, Demosaic, Grain, HighlightReconstruction, HslBand, LensCorrection, LocalAdjustment,
     LocalAdjustmentValues, LuminanceRange, Lut, Mask, NoiseReduction, Perspective, Point,
     PresetSettings, RangeMask, Settings, SettingsGroup, Sharpening, SpotRemoval, StageVersions,
-    ToneCurve, Vignette, WhiteBalance,
+    ToneCurve, Vignette, WHITE_BALANCE_PRESETS, WhiteBalance, WhiteBalancePreset,
 };
 pub use tether::{CameraSetting, CameraSettings, TetherSetting};
 pub use types::{CollectionType, ColorLabel, MediaType, PickState, PreviewKind, PreviewOrigin};

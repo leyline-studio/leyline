@@ -53,6 +53,59 @@ impl Default for WhiteBalance {
     }
 }
 
+/// One fixed white-balance preset (ADR 0091 §4).
+///
+/// `name` is a stable machine key — clients translate their own labels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WhiteBalancePreset {
+    /// Stable identifier, lowercase, never shown untranslated.
+    pub name: &'static str,
+    /// Color temperature in Kelvin.
+    pub temperature: u32,
+    /// Green–magenta tint, same unit as [`WhiteBalance::tint`].
+    pub tint: i32,
+}
+
+/// The conventional fixed white balances (ADR 0091 §4).
+///
+/// The slider being a correction dial referenced at 6500 K — the decode
+/// already applied the as-shot multipliers — these values are exact only
+/// for a shot the camera balanced to daylight; on anything else they are a
+/// stated approximation, not a reading of the scene. "As shot" is not in
+/// the table: it is the *absence* of an override (`None` in [`Settings`]).
+pub const WHITE_BALANCE_PRESETS: &[WhiteBalancePreset] = &[
+    WhiteBalancePreset {
+        name: "daylight",
+        temperature: 5500,
+        tint: 10,
+    },
+    WhiteBalancePreset {
+        name: "cloudy",
+        temperature: 6500,
+        tint: 10,
+    },
+    WhiteBalancePreset {
+        name: "shade",
+        temperature: 7500,
+        tint: 10,
+    },
+    WhiteBalancePreset {
+        name: "tungsten",
+        temperature: 2850,
+        tint: 0,
+    },
+    WhiteBalancePreset {
+        name: "fluorescent",
+        temperature: 3800,
+        tint: 21,
+    },
+    WhiteBalancePreset {
+        name: "flash",
+        temperature: 5500,
+        tint: 0,
+    },
+];
+
 /// Lens correction step. Neutral: disabled.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]

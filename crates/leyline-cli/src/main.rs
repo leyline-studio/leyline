@@ -43,6 +43,10 @@ Usage:
   leyline auto-tone <library> <version-id> [--dry-run]
                                     propose une tonalité et l'écrit (ADR 0088) ;
                                     --dry-run affiche sans committer
+  leyline auto-wb <library> <version-id> [--sample x,y] [--dry-run]
+                                    balance des blancs mesurée (ADR 0091) :
+                                    gris-monde sans --sample, pipette sur le
+                                    point [0,1]² avec ; --dry-run n'écrit rien
   leyline tether <library> [--session <name>] [--preset <name>]
                [--set <setting>=<value>] [--capture-every <seconds>]
                                     capture connectée (ADR 0038, ADR 0087) :
@@ -240,6 +244,7 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("import") => import(&args[1..]),
         Some("scan") => scan(&args[1..]),
         Some("auto-tone") => auto_tone(&args[1..]),
+        Some("auto-wb") => auto_wb(&args[1..]),
         Some("tether") => tether(&args[1..]),
         Some("watch") => watch(&args[1..]),
         Some("ls") => ls(&args[1..]),
@@ -1011,6 +1016,21 @@ fn develop(args: &[String]) -> Result<(), String> {
         "white-balance" => {
             let wb = match at(0)? {
                 "none" => None,
+                // A fixed preset by name (ADR 0091 §4): the same table
+                // Studio shows as chips.
+                name if leyline_sdk::WHITE_BALANCE_PRESETS
+                    .iter()
+                    .any(|p| p.name == name) =>
+                {
+                    let preset = leyline_sdk::WHITE_BALANCE_PRESETS
+                        .iter()
+                        .find(|p| p.name == name)
+                        .expect("just matched");
+                    Some(WhiteBalance {
+                        temperature: preset.temperature,
+                        tint: preset.tint,
+                    })
+                }
                 _ => Some(WhiteBalance {
                     temperature: int_at(0)?
                         .try_into()
@@ -1614,6 +1634,49 @@ fn auto_tone(args: &[String]) -> Result<(), String> {
     ] {
         session.set(param, value).map_err(|e| e.to_string())?;
     }
+    let revision = session.commit().map_err(|e| e.to_string())?;
+    println!("committed revision {revision}");
+    Ok(())
+}
+
+/// Proposes a white balance and writes it (`docs/adr/0091`): grey-world
+/// over the frame, or the picker on one point with `--sample x,y` in unit
+/// coordinates of the rendered image.
+fn auto_wb(args: &[String]) -> Result<(), String> {
+    let (positional, options) = parse(args, &["sample"])?;
+    let [root, version] = positional.as_slice() else {
+        return Err(
+            "usage: leyline auto-wb <library> <version-id> [--sample x,y] [--dry-run]".to_owned(),
+        );
+    };
+    let library = open(root)?;
+    let version = VersionId::new(version.parse().map_err(|_| "version id must be a number")?);
+    let asset = library
+        .catalog()
+        .version_asset(version)
+        .map_err(|e| e.to_string())?;
+    let wb = match options.value("sample") {
+        Some(sample) => {
+            let (x, y) = sample
+                .split_once(',')
+                .and_then(|(x, y)| {
+                    Some((x.trim().parse::<f64>().ok()?, y.trim().parse::<f64>().ok()?))
+                })
+                .ok_or_else(|| format!("--sample expects x,y in [0,1], got {sample:?}"))?;
+            library
+                .neutralize_wb(asset, x, y)
+                .map_err(|e| e.to_string())?
+        }
+        None => library.auto_wb(asset).map_err(|e| e.to_string())?,
+    };
+    println!("temperature {} K  tint {:+}", wb.temperature, wb.tint);
+    if options.switch("dry-run") {
+        return Ok(());
+    }
+    let mut session = library.edit(version).map_err(|e| e.to_string())?;
+    session
+        .set(Param::WhiteBalance, Value::WhiteBalance(Some(wb)))
+        .map_err(|e| e.to_string())?;
     let revision = session.commit().map_err(|e| e.to_string())?;
     println!("committed revision {revision}");
     Ok(())

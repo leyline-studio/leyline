@@ -26,7 +26,7 @@ use leyline_catalog::{
 use leyline_core::{
     AssetId, CameraSettings, CollectionId, ColorLabel, ExportPresetId, JobId, KeywordId,
     LeylineError, PickState, PresetFolderId, PresetId, PresetSettings, PreviewKind, PrintPresetId,
-    Result, Settings, SettingsGroup, TetherSetting, VersionId,
+    Result, Settings, SettingsGroup, TetherSetting, VersionId, WhiteBalance,
 };
 use leyline_export::{ExportSettings, PrintSettings};
 use leyline_preview::PreviewCache;
@@ -1257,6 +1257,65 @@ impl Library {
     fn tone_histogram(&self, asset: AssetId, settings: &Settings) -> Result<[u64; 256]> {
         let image = self.preview_live(asset, PreviewKind::Small, settings)?;
         Ok(crate::auto_tone::histogram_of(&image))
+    }
+
+    /// The white balance that makes the 5×5 neighbourhood around `(x, y)`
+    /// — unit coordinates of the rendered image — neutral (ADR 0091 §1).
+    ///
+    /// A proposal, exactly like [`Library::auto_tone`]: it writes nothing,
+    /// the client feeds the answer through an ordinary session, and
+    /// `docs/pipeline.md` §5.1 is untouched by construction. Solved against
+    /// the real pipeline (ADR 0091 §2): render at the candidate, sample,
+    /// divide out the candidate's own gains, re-solve, until neutral. A
+    /// clipped or near-black sample is refused, never guessed.
+    pub fn neutralize_wb(&self, asset: AssetId, x: f64, y: f64) -> Result<WhiteBalance> {
+        self.solve_wb(asset, |image| crate::wb::sample_mean(image, x, y), true)
+    }
+
+    /// The white balance that makes the frame's mean color neutral —
+    /// grey-world, clipped pixels excluded (ADR 0091 §3). The same solver
+    /// as [`Library::neutralize_wb`], fed the whole frame.
+    pub fn auto_wb(&self, asset: AssetId) -> Result<WhiteBalance> {
+        self.solve_wb(asset, crate::wb::frame_mean, false)
+    }
+
+    /// The shared render/sample/solve loop of the two pickers. `strict`
+    /// refuses a sample that cannot answer (the pointed picker); the
+    /// whole-frame mean is always readable.
+    fn solve_wb(
+        &self,
+        asset: AssetId,
+        sample: impl Fn(&leyline_preview::Rgb8) -> [f64; 3],
+        strict: bool,
+    ) -> Result<WhiteBalance> {
+        let base = {
+            let catalog = lock(&self.inner.catalog);
+            let version = catalog.current_version(asset)?;
+            let head = catalog.version_head(version)?;
+            Settings::parse(&catalog.revision(head)?.settings_json)?
+        };
+        let mut wb = base.white_balance.clone().unwrap_or_default();
+        for step in 0..crate::wb::SEARCH_STEPS {
+            let mut settings = base.clone();
+            settings.white_balance = Some(wb.clone());
+            let image = self.preview_live(asset, PreviewKind::Small, &settings)?;
+            let sampled = sample(&image);
+            if step == 0 && strict {
+                if let Some(reason) = crate::wb::refuse(sampled) {
+                    return Err(LeylineError::InvalidImage(reason.to_owned()));
+                }
+            }
+            if crate::wb::neutral_enough(sampled) {
+                break;
+            }
+            let gains = crate::wb::wb_gains(&wb);
+            wb = crate::wb::solve([
+                sampled[0] / gains[0],
+                sampled[1] / gains[1],
+                sampled[2] / gains[2],
+            ]);
+        }
+        Ok(wb)
     }
 
     /// Renders `asset` as it would look **with** `preset` applied, without

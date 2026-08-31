@@ -20,6 +20,7 @@ pub(crate) mod profiles;
 pub(crate) mod proof;
 pub(crate) mod session;
 pub(crate) mod spot;
+pub(crate) mod wb;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -38,6 +39,7 @@ pub(crate) fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     adjustments::wire_adjustments(app, window);
     curve::wire_curve(app, window);
     spot::wire_spot(app, window);
+    wb::wire_wb(app, window);
     masks::wire_masks(app, window);
     profiles::wire_profiles(app, window);
     proof::wire_proof(app, window);

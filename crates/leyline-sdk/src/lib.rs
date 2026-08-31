@@ -13,7 +13,7 @@ pub use leyline_core::{
     LuminanceRange, Lut, Mask, MediaType, NoiseReduction, Perspective, PickState, Point,
     PresetFolderId, PresetId, PresetSettings, PreviewKind, PrintPresetId, RangeMask, Result,
     RevisionId, Settings, SettingsGroup, Sharpening, SpotRemoval, StageVersions, TetherSetting,
-    ToneCurve, VersionId, Vignette, WhiteBalance,
+    ToneCurve, VersionId, Vignette, WHITE_BALANCE_PRESETS, WhiteBalance, WhiteBalancePreset,
 };
 
 pub use leyline_engine::{

@@ -196,6 +196,17 @@ export component DevelopPanel inherits HorizontalLayout {
                         root.dev-zoomed = false;
                     }
                 }
+                FilterChip {
+                    // The white-balance picker (ADR 0091): W, like the
+                    // sliders it drives, lives in Basic.
+                    text: @tr("WB Picker");
+                    active: root.active-tool == "wb";
+                    clicked => {
+                        root.active-tool = "wb";
+                        root.spot-pending = false;
+                        root.dev-zoomed = false;
+                    }
+                }
                 if !root.basic-mode: FilterChip {
                     text: @tr("Spot Removal");
                     active: root.active-tool == "spot";
@@ -357,6 +368,23 @@ export component DevelopPanel inherits HorizontalLayout {
                                     DevelopState.develop-image.width, DevelopState.develop-image.height);
                                 root.spot-pending = false;
                             }
+                        }
+                    }
+                }
+
+                // White-balance picker (ADR 0091): one click on a neutral
+                // grey resolves temperature and tint, then the tool hands
+                // back to Select — the gesture answers one question.
+                wb-click := TouchArea {
+                    enabled: root.active-tool == "wb";
+                    mouse-cursor: crosshair;
+                    pointer-event(event) => {
+                        if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
+                            DevelopState.develop-wb-click(
+                                self.mouse-x / 1px, self.mouse-y / 1px,
+                                self.width / 1px, self.height / 1px,
+                                DevelopState.develop-image.width, DevelopState.develop-image.height);
+                            root.active-tool = "select";
                         }
                     }
                 }
@@ -718,6 +746,67 @@ export component DevelopPanel inherits HorizontalLayout {
                     }
                     if root.expand-basic: VerticalLayout {
                         spacing: 6px;
+                        // The fixed white balances (ADR 0091 §4), momentary
+                        // like Auto: each writes both sliders in one
+                        // revision. "As Shot" clears the override — the
+                        // true neutral of the model; "Auto WB" measures.
+                        HorizontalLayout {
+                            spacing: 4px;
+                            FilterChip {
+                                text: @tr("As Shot");
+                                clicked => {
+                                    DevelopState.apply-wb-preset("as-shot");
+                                }
+                            }
+                            FilterChip {
+                                text: @tr("Auto WB");
+                                clicked => {
+                                    DevelopState.run-auto-wb();
+                                }
+                            }
+                            FilterChip {
+                                text: @tr("Daylight");
+                                clicked => {
+                                    DevelopState.apply-wb-preset("daylight");
+                                }
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: 4px;
+                            FilterChip {
+                                text: @tr("Cloudy");
+                                clicked => {
+                                    DevelopState.apply-wb-preset("cloudy");
+                                }
+                            }
+                            FilterChip {
+                                text: @tr("Shade");
+                                clicked => {
+                                    DevelopState.apply-wb-preset("shade");
+                                }
+                            }
+                            FilterChip {
+                                text: @tr("Tungsten");
+                                clicked => {
+                                    DevelopState.apply-wb-preset("tungsten");
+                                }
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: 4px;
+                            FilterChip {
+                                text: @tr("Fluorescent");
+                                clicked => {
+                                    DevelopState.apply-wb-preset("fluorescent");
+                                }
+                            }
+                            FilterChip {
+                                text: @tr("Flash");
+                                clicked => {
+                                    DevelopState.apply-wb-preset("flash");
+                                }
+                            }
+                        }
                         EditSlider {
                             label: @tr("Temperature");
                             minimum: 2000;

@@ -163,6 +163,17 @@ export global DevelopState {
     // like any other. No argument: it always answers for the photo open in
     // develop, at its current settings.
     callback run-auto-tone();
+    // The white-balance picker (ADR 0091 §1): a click on a neutral grey,
+    // view x/y, viewport w/h, preview w/h (px) — same letterbox convention
+    // as `develop-spot-click`. The engine solves temperature and tint and
+    // the answer lands as one ordinary revision.
+    callback develop-wb-click(float, float, float, float, float, float);
+    // Grey-world white balance (ADR 0091 §3): the same solver as the
+    // picker, fed the whole frame.
+    callback run-auto-wb();
+    // One fixed white balance by its stable key ("daylight", …), or
+    // "as-shot" to clear the override (ADR 0091 §4).
+    callback apply-wb-preset(string);
     // Stored develop preset names, already ordered by Rust. Flat, and the
     // menu bar's Apply/Delete submenus are what it is for; the panel reads
     // `dev-preset-rows` instead, whose `index` points back into this same

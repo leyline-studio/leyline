@@ -35,6 +35,7 @@ mod source;
 mod stages;
 mod tether;
 mod watch;
+mod wb;
 mod xmp;
 
 pub use auto_tone::AutoTone;

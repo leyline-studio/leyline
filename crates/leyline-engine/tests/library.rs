@@ -751,3 +751,90 @@ fn live_preview_keeps_up_with_a_finger() {
         );
     }
 }
+
+/// The white-balance picker (ADR 0091): pointing at a warm grey proposes a
+/// balance that renders it neutral, Auto agrees on a uniform frame, and a
+/// clipped sample is refused rather than guessed.
+#[test]
+fn white_balance_picker_neutralizes_a_cast() {
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::create(&dir.path().join("Library"), "WB").unwrap();
+
+    // A uniform warm grey: every pixel the same cast, so the click point
+    // does not matter and grey-world sees the same sample as the picker.
+    let source = dir.path().join("cast.png");
+    let mut data = vec![0u8; 64 * 64 * 3];
+    for rgb in data.chunks_exact_mut(3) {
+        (rgb[0], rgb[1], rgb[2]) = (180, 160, 140);
+    }
+    image::save_buffer(&source, &data, 64, 64, image::ExtendedColorType::Rgb8).unwrap();
+    let report = library
+        .import(
+            &source,
+            &ImportOptions {
+                copy_files: true,
+                recursive: false,
+                pair_companions: true,
+                thumbnails: false,
+            },
+            |_, _| {},
+        )
+        .unwrap();
+    let registered = report.imported[0].registered;
+
+    // Red-heavy sample: the correction pulls the temperature down.
+    let wb = library.neutralize_wb(registered.asset, 0.5, 0.5).unwrap();
+    assert!(
+        wb.temperature < 6500,
+        "a warm cast should lower the temperature, got {wb:?}"
+    );
+
+    // Auto is the same solver fed the whole frame; on a uniform frame the
+    // two must agree.
+    let auto = library.auto_wb(registered.asset).unwrap();
+    assert!(
+        (f64::from(auto.temperature) - f64::from(wb.temperature)).abs() <= 100.0
+            && (auto.tint - wb.tint).abs() <= 5,
+        "auto {auto:?} vs picked {wb:?}"
+    );
+
+    // Applied through an ordinary session, like any other edit.
+    let mut session = library.edit(registered.version).unwrap();
+    session
+        .set(Param::WhiteBalance, Value::WhiteBalance(Some(wb)))
+        .unwrap();
+    session.commit().unwrap();
+}
+
+/// A clipped sample has no color left to read: refused, never guessed.
+#[test]
+fn white_balance_picker_refuses_a_clipped_sample() {
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::create(&dir.path().join("Library"), "WB").unwrap();
+    let source = dir.path().join("blown.png");
+    image::save_buffer(
+        &source,
+        &vec![255u8; 32 * 32 * 3],
+        32,
+        32,
+        image::ExtendedColorType::Rgb8,
+    )
+    .unwrap();
+    let report = library
+        .import(
+            &source,
+            &ImportOptions {
+                copy_files: true,
+                recursive: false,
+                pair_companions: true,
+                thumbnails: false,
+            },
+            |_, _| {},
+        )
+        .unwrap();
+    let asset = report.imported[0].registered.asset;
+    assert!(matches!(
+        library.neutralize_wb(asset, 0.5, 0.5),
+        Err(LeylineError::InvalidImage(_))
+    ));
+}

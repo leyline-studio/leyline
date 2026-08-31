@@ -2563,3 +2563,39 @@ msgstr "Taille"
 msgctxt "DevelopPanel"
 msgid "Roughness"
 msgstr "Rugosité"
+
+msgctxt "DevelopPanel"
+msgid "WB Picker"
+msgstr "Pipette BdB"
+
+msgctxt "DevelopPanel"
+msgid "As Shot"
+msgstr "Telle quelle"
+
+msgctxt "DevelopPanel"
+msgid "Auto WB"
+msgstr "BdB auto"
+
+msgctxt "DevelopPanel"
+msgid "Daylight"
+msgstr "Ensoleillé"
+
+msgctxt "DevelopPanel"
+msgid "Cloudy"
+msgstr "Nuageux"
+
+msgctxt "DevelopPanel"
+msgid "Shade"
+msgstr "Ombre"
+
+msgctxt "DevelopPanel"
+msgid "Tungsten"
+msgstr "Tungstène"
+
+msgctxt "DevelopPanel"
+msgid "Fluorescent"
+msgstr "Fluorescent"
+
+msgctxt "DevelopPanel"
+msgid "Flash"
+msgstr "Flash"
