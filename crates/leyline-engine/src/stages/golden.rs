@@ -59,9 +59,9 @@ use std::io::Cursor;
 use leyline_color::DcpProfile;
 use leyline_core::{
     BrushStroke, CameraProfile, ColorGrading, ColorGradingZone, ColorRange, Crop, CurvePoint,
-    HslBand, LensCorrection, LocalAdjustment, LocalAdjustmentValues, LuminanceRange, Mask,
+    Grain, HslBand, LensCorrection, LocalAdjustment, LocalAdjustmentValues, LuminanceRange, Mask,
     NoiseReduction, Point, RangeMask, Settings, Sharpening, SpotRemoval, StageVersions, ToneCurve,
-    WhiteBalance,
+    Vignette, WhiteBalance,
 };
 use leyline_raw::RawImage;
 use serde::{Deserialize, Serialize};
@@ -477,6 +477,38 @@ fn hsl_grading(settings: Settings) -> Settings {
     }
 }
 
+/// The vignette (ADR 0090 §2), captured **over a crop** on purpose: what
+/// this case freezes is not "the corners went dark" but the §1 claim — the
+/// vignette is centred on the *cropped* frame. A `vignette` that ever ran
+/// before `crop::v1` would draw on another rectangle and move these pixels.
+fn vignette(settings: Settings) -> Settings {
+    Settings {
+        vignette: Vignette {
+            amount: -60,
+            midpoint: 40,
+            roundness: 20,
+            feather: 60,
+        },
+        ..geometry(settings)
+    }
+}
+
+/// Grain (ADR 0090 §3). This digest *is* the determinism assertion: the
+/// field is a pure function of the pixel's full-resolution coordinates, so
+/// it must come back identical on every platform, at every thread count,
+/// forever. The day anything seeds it — a clock, a row id, a generator —
+/// this case is what fails.
+fn grain(settings: Settings) -> Settings {
+    Settings {
+        grain: Grain {
+            amount: 70,
+            size: 30,
+            roughness: 60,
+        },
+        ..settings
+    }
+}
+
 fn presence(settings: Settings) -> Settings {
     Settings {
         clarity: 40,
@@ -589,6 +621,8 @@ fn cases() -> Vec<(String, Case)> {
         ("hsl_grading", hsl_grading(base.clone())),
         ("monochrome", monochrome(base.clone())),
         ("presence", presence(base.clone())),
+        ("vignette", vignette(base.clone())),
+        ("grain", grain(base.clone())),
         (
             "highlight_reconstruction",
             highlight_reconstruction(base.clone()),

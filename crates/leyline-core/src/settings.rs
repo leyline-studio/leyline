@@ -245,6 +245,85 @@ impl Default for Sharpening {
     }
 }
 
+/// The vignette a photographer *wants* (ADR 0090 §2) — not the one the lens
+/// made, which [`LensCorrection`] removes at the other end of the pipeline.
+///
+/// Drawn **after the crop**, so it is centred on the composed frame and
+/// follows a re-framing: that rank is the whole of ADR 0090 §1. Neutral:
+/// `amount` at 0.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Vignette {
+    /// Strength, slider in [-100, 100]. Negative darkens the corners,
+    /// positive brightens them — Lightroom's sign. 0 = no vignette, and the
+    /// stage does not run.
+    pub amount: i32,
+    /// Where the falloff starts, in [0, 100]: 0 at the frame's centre, 100
+    /// at its corners.
+    pub midpoint: i32,
+    /// Shape, in [-100, 100]: 0 is an ellipse fitted to the frame, positive
+    /// squares it off, negative makes it pointier.
+    pub roundness: i32,
+    /// Width of the transition, in [0, 100]. 0 is a hard edge.
+    pub feather: i32,
+}
+
+impl Default for Vignette {
+    fn default() -> Self {
+        Self {
+            amount: 0,
+            midpoint: 50,
+            roundness: 0,
+            feather: 50,
+        }
+    }
+}
+
+impl Vignette {
+    /// Whether this vignette is away from its neutral value.
+    ///
+    /// Only `amount` decides: the other three describe a shape, and a shape
+    /// at zero strength is not a rendering (ADR 0090 §2).
+    pub fn is_neutral(&self) -> bool {
+        self.amount == 0
+    }
+}
+
+/// Film grain (ADR 0090 §3): value noise recomputed from the pixel's own
+/// coordinates, so it is deterministic without storing a seed. Neutral:
+/// `amount` at 0.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Grain {
+    /// Strength, slider in [0, 100]. 0 = no grain, and the stage does not
+    /// run.
+    pub amount: i32,
+    /// Lattice spacing, slider in [0, 100], mapped to 1..16
+    /// **full-resolution** pixels — so a preview samples the same field as
+    /// the export rather than a coarser one of its own (ADR 0090 §3).
+    pub size: i32,
+    /// Weight of a second octave at half the spacing, in [0, 100].
+    pub roughness: i32,
+}
+
+impl Default for Grain {
+    fn default() -> Self {
+        Self {
+            amount: 0,
+            size: 25,
+            roughness: 50,
+        }
+    }
+}
+
+impl Grain {
+    /// Whether this grain is away from its neutral value — `amount` alone,
+    /// for the same reason as [`Vignette::is_neutral`].
+    pub fn is_neutral(&self) -> bool {
+        self.amount == 0
+    }
+}
+
 /// One control point of a [`ToneCurve`], normalized coordinates in [0, 1].
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct CurvePoint {
@@ -717,6 +796,13 @@ pub struct Settings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub crop: Option<Crop>,
 
+    /// The vignette the photographer adds (ADR 0090 §2), drawn on the
+    /// cropped frame. Neutral: default.
+    pub vignette: Vignette,
+    /// Film grain (ADR 0090 §3), the last operator before the buffer
+    /// becomes a display signal. Neutral: default.
+    pub grain: Grain,
+
     /// Fields from schema versions this engine does not know, preserved
     /// verbatim for lossless round-tripping.
     #[serde(flatten)]
@@ -757,6 +843,8 @@ impl Default for Settings {
             rotation: 0.0,
             perspective: None,
             crop: None,
+            vignette: Vignette::default(),
+            grain: Grain::default(),
             extra: serde_json::Map::new(),
         }
     }
@@ -896,6 +984,13 @@ impl Settings {
         slider("dehaze", self.dehaze, -100, 100)?;
         slider("vibrance", self.vibrance, -100, 100)?;
         slider("saturation", self.saturation, -100, 100)?;
+        slider("vignette.amount", self.vignette.amount, -100, 100)?;
+        slider("vignette.midpoint", self.vignette.midpoint, 0, 100)?;
+        slider("vignette.roundness", self.vignette.roundness, -100, 100)?;
+        slider("vignette.feather", self.vignette.feather, 0, 100)?;
+        slider("grain.amount", self.grain.amount, 0, 100)?;
+        slider("grain.size", self.grain.size, 0, 100)?;
+        slider("grain.roughness", self.grain.roughness, 0, 100)?;
         if !self.tone_curve.points.is_empty() {
             if self.tone_curve.points.len() < 2 {
                 return Err(LeylineError::InvalidSettings(
@@ -1269,8 +1364,11 @@ pub enum SettingsGroup {
     WhiteBalance,
     /// [`Settings::exposure`], `contrast`, `highlights`, `shadows`, `whites`, `blacks`.
     Tone,
-    /// [`Settings::vibrance`], `saturation`.
+    /// [`Settings::vibrance`], `saturation`, `monochrome`.
     Presence,
+    /// [`Settings::vignette`], `grain` (ADR 0090 §5) — the two halves of a
+    /// look a "film" preset would be missing without them.
+    Effects,
     /// [`Settings::lens_correction`].
     LensCorrection,
     /// [`Settings::noise_reduction`], `sharpening`.
@@ -1333,6 +1431,13 @@ pub struct PresetSettings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub monochrome: Option<bool>,
 
+    /// Present when `groups` includes [`SettingsGroup::Effects`] (ADR 0090 §5).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vignette: Option<Vignette>,
+    /// Present when `groups` includes [`SettingsGroup::Effects`] (ADR 0090 §5).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub grain: Option<Grain>,
+
     /// Present when `groups` includes [`SettingsGroup::LensCorrection`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lens_correction: Option<LensCorrection>,
@@ -1378,6 +1483,10 @@ impl PresetSettings {
                     preset.vibrance = Some(settings.vibrance);
                     preset.saturation = Some(settings.saturation);
                     preset.monochrome = Some(settings.monochrome);
+                }
+                SettingsGroup::Effects => {
+                    preset.vignette = Some(settings.vignette);
+                    preset.grain = Some(settings.grain);
                 }
                 SettingsGroup::LensCorrection => {
                     preset.lens_correction = Some(settings.lens_correction.clone());

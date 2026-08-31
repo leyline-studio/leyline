@@ -359,6 +359,11 @@ msgctxt "PresetDialog"
 msgid "Presence"
 msgstr "Présence"
 
+#: crates/leyline-studio/ui/dialogs/preset.slint:98
+msgctxt "PresetDialog"
+msgid "Effects"
+msgstr "Effets"
+
 #: crates/leyline-studio/ui/dialogs/preset.slint:78
 msgctxt "PresetDialog"
 msgid "Lens correction"
@@ -2513,3 +2518,48 @@ msgstr "Importer un .dcp…"
 msgctxt "Tr"
 msgid "No profile — the decoder's own colors"
 msgstr "Aucun profil — les couleurs du décodeur"
+
+#: crates/leyline-studio/ui/panels/develop.slint:1233
+msgctxt "DevelopPanel"
+msgid "Effects"
+msgstr "Effets"
+
+#: crates/leyline-studio/ui/panels/develop.slint:1245
+msgctxt "DevelopPanel"
+msgid "Vignette"
+msgstr "Vignettage"
+
+#: crates/leyline-studio/ui/panels/develop.slint:1252
+msgctxt "DevelopPanel"
+msgid "Amount"
+msgstr "Intensité"
+
+#: crates/leyline-studio/ui/panels/develop.slint:1264
+msgctxt "DevelopPanel"
+msgid "Midpoint"
+msgstr "Milieu"
+
+#: crates/leyline-studio/ui/panels/develop.slint:1276
+msgctxt "DevelopPanel"
+msgid "Roundness"
+msgstr "Rondeur"
+
+#: crates/leyline-studio/ui/panels/develop.slint:1288
+msgctxt "DevelopPanel"
+msgid "Feather"
+msgstr "Contour"
+
+#: crates/leyline-studio/ui/panels/develop.slint:1300
+msgctxt "DevelopPanel"
+msgid "Grain"
+msgstr "Grain"
+
+#: crates/leyline-studio/ui/panels/develop.slint:1315
+msgctxt "DevelopPanel"
+msgid "Size"
+msgstr "Taille"
+
+#: crates/leyline-studio/ui/panels/develop.slint:1327
+msgctxt "DevelopPanel"
+msgid "Roughness"
+msgstr "Rugosité"

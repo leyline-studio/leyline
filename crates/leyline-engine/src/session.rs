@@ -15,9 +15,10 @@ use std::time::{Duration, Instant};
 
 use leyline_catalog::{Catalog, RevisionRow};
 use leyline_core::{
-    CURRENT_SCHEMA, CameraProfile, ColorGrading, Crop, Demosaic, HighlightReconstruction, HslBand,
-    LensCorrection, LeylineError, LocalAdjustment, Lut, NoiseReduction, Perspective, PresetId,
-    Result, RevisionId, Settings, Sharpening, SpotRemoval, ToneCurve, VersionId, WhiteBalance,
+    CURRENT_SCHEMA, CameraProfile, ColorGrading, Crop, Demosaic, Grain, HighlightReconstruction,
+    HslBand, LensCorrection, LeylineError, LocalAdjustment, Lut, NoiseReduction, Perspective,
+    PresetId, Result, RevisionId, Settings, Sharpening, SpotRemoval, ToneCurve, VersionId,
+    Vignette, WhiteBalance,
 };
 
 /// Default amendment window of `docs/catalog.md` §17.
@@ -97,6 +98,12 @@ pub enum Param {
     Lut,
     /// Crop rectangle; `None` clears it.
     Crop,
+    /// The vignette drawn on the composed frame (ADR 0090 §2): the four
+    /// fields as one commit unit, the same whole-struct grouping
+    /// [`Param::Sharpening`] applies — a shape and a strength are one tool.
+    Vignette,
+    /// Film grain (ADR 0090 §3), likewise as one commit unit.
+    Grain,
     /// Camera profile (ADR 0035): the referenced `.dcp` file, its
     /// checksum, and whether it's enabled, all as one commit unit — the
     /// same whole-struct grouping [`Param::LensCorrection`] applies.
@@ -132,6 +139,10 @@ pub enum Value {
     ColorGrading(ColorGrading),
     /// For [`Param::NoiseReduction`].
     NoiseReduction(NoiseReduction),
+    /// For [`Param::Vignette`].
+    Vignette(Vignette),
+    /// For [`Param::Grain`].
+    Grain(Grain),
     /// For [`Param::Sharpening`].
     Sharpening(Sharpening),
     /// For [`Param::Crop`]; `None` returns to the full frame.
@@ -495,6 +506,8 @@ pub(crate) fn apply(settings: &mut Settings, param: Param, value: Value) -> Resu
         (Param::NoiseReduction, Value::NoiseReduction(v)) => settings.noise_reduction = v,
         (Param::Sharpening, Value::Sharpening(v)) => settings.sharpening = v,
         (Param::Crop, Value::Crop(v)) => settings.crop = v,
+        (Param::Vignette, Value::Vignette(v)) => settings.vignette = v,
+        (Param::Grain, Value::Grain(v)) => settings.grain = v,
         (Param::CameraProfile, Value::CameraProfile(v)) => settings.camera_profile = v,
         (param, value) => {
             return Err(LeylineError::InvalidSettings(format!(

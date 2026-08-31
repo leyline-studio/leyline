@@ -161,6 +161,18 @@ fn param_values(preset: &PresetSettings) -> Vec<(Param, Value)> {
     if let Some(v) = preset.saturation {
         values.push((Param::Saturation, Value::Int(v)));
     }
+    // Captured by `PresetSettings::capture` since ADR 0088, and until
+    // ADR 0090 not applied here: a "presence" preset stored the black and
+    // white it had been shown and then dropped it on the way back.
+    if let Some(v) = preset.monochrome {
+        values.push((Param::Monochrome, Value::Bool(v)));
+    }
+    if let Some(v) = preset.vignette {
+        values.push((Param::Vignette, Value::Vignette(v)));
+    }
+    if let Some(v) = preset.grain {
+        values.push((Param::Grain, Value::Grain(v)));
+    }
     if let Some(v) = &preset.lens_correction {
         values.push((Param::LensCorrection, Value::LensCorrection(v.clone())));
     }

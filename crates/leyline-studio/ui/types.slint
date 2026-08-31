@@ -280,6 +280,16 @@ export struct DevSettings {
     nr-color: float,
     sharpen-amount: float,
     sharpen-radius: float,
+    // The vignette drawn on the composed frame, and film grain (ADR 0090).
+    // Four values and three: a shape and a strength are one tool, so the
+    // engine commits each group whole.
+    vignette-amount: float,
+    vignette-midpoint: float,
+    vignette-roundness: float,
+    vignette-feather: float,
+    grain-amount: float,
+    grain-size: float,
+    grain-roughness: float,
     // Black and white (ADR 0088 §3): one flag, and turning it off gives
     // the photo back exactly as it was — nothing else moved.
     monochrome: bool,

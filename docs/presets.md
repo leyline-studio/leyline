@@ -39,6 +39,7 @@ The settings of schema 1 (`pipeline.md` §3.2) fall into **categories**, at chec
 | `white_balance` | `white_balance` (temperature, tint) |
 | `tone` | `exposure`, `contrast`, `highlights`, `shadows`, `whites`, `blacks` |
 | `presence` | `vibrance`, `saturation`, `monochrome` |
+| `effects` | `vignette`, `grain` (ADR 0090 §5) |
 | `lens_correction` | `lens_correction` |
 | `detail` | `noise_reduction`, `sharpening` |
 | `geometry` | `rotation`, `crop` |

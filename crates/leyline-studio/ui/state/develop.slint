@@ -197,16 +197,16 @@ export global DevelopState {
     in property <image> dev-trial-image;
     in property <bool> dev-trial-active: false;
     // Name, then one flag per group: white-balance, tone, presence,
-    // lens-correction, detail, geometry (`docs/presets.md` §3.1), then the
-    // folder to file it under — an index into the folder list, `-1` for the
-    // root (ADR 0058 §2).
-    callback run-save-preset(string, bool, bool, bool, bool, bool, bool, int);
+    // effects, lens-correction, detail, geometry (`docs/presets.md` §3.1),
+    // then the folder to file it under — an index into the folder list,
+    // `-1` for the root (ADR 0058 §2).
+    callback run-save-preset(string, bool, bool, bool, bool, bool, bool, bool, int);
     // The preset folders that already exist, for the save dialog's picker.
     in property <[string]> preset-folders;
     // Create a folder from the save dialog and file the preset in it.
     callback new-preset-folder(string);
     // Copy/paste develop settings between photos (distinct from named
-    // presets): captures White Balance/Tone/Presence/Lens/Detail from one
+    // presets): captures White Balance/Tone/Presence/Effects/Lens/Detail from one
     // photo, pastes onto the current grid selection.
     callback copy-settings();
     callback paste-settings();

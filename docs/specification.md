@@ -63,6 +63,9 @@ These features were scoped as post-V1 candidates in [`v2-scope.md`](v2-scope.md)
 | Clipped highlight reconstruction (`clip`/`blend`/`rebuild`, before demosaicing) | [ADR 0050](adr/0050-highlight-reconstruction.md) |
 | Text watermark on export and soft proofing (view only) | [ADR 0034](adr/0034-softproofing-watermark-print.md), [ADR 0051](adr/0051-watermark-rasterization-and-soft-proof-surface.md) |
 | RAW+JPEG pairing: the JPEG written by the camera becomes the companion of the RAW from the same shot, one photo in the grid instead of two | [ADR 0079](adr/0079-raw-jpeg-pairing.md) |
+| Automatic tone (`Auto`) and black and white, the two buttons Lightroom's Basic panel has above its sliders | [ADR 0088](adr/0088-auto-tone-and-black-and-white.md) |
+| A profile browser: choosing a camera rendering by looking at the open photo through each one | [ADR 0089](adr/0089-camera-profile-browser.md) |
+| Effects: the vignette a photographer *adds*, drawn on the cropped frame, and film grain — both deterministic, neither seeded | [ADR 0090](adr/0090-effects-vignette-grain.md) |
 
 Masked local adjustments and their range masks have been exposed in all three clients since [ADR 0049](adr/0049-local-adjustments-clients.md): drawing tools and an editor in Studio, the stored `LocalAdjustment` JSON payload in the CLI. What ADR 0049 left out of scope: the overlay of the coverage the engine computes (the "red mask") is **delivered** ([ADR 0071](adr/0071-mask-overlay.md)); what remains is the range eyedropper and drag handles on a geometry already drawn.
 
@@ -75,7 +78,6 @@ The word *experimental* is literal: the colorimetric accuracy of the DCP matrix 
 | Subject | Decision |
 |---|---|
 | Image watermark (a logo) | Cut by [ADR 0034](adr/0034-softproofing-watermark-print.md): the asset-reference problem is not settled |
-| A catalog spanning several volumes | Decided by [ADR 0085](adr/0085-named-roots.md): named roots, identified by a marker file inside the folder and located by an advisory hint outside the catalog. Until it is implemented, a library covers one tree, and photographs are catalogued where they already live by putting the library root above them |
 
 ---
 

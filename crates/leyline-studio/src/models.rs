@@ -92,6 +92,13 @@ pub(crate) fn dev_model(settings: &Settings) -> crate::ui::DevSettings {
         nr_color: settings.noise_reduction.color as f32,
         sharpen_amount: settings.sharpening.amount as f32,
         sharpen_radius: settings.sharpening.radius as f32,
+        vignette_amount: settings.vignette.amount as f32,
+        vignette_midpoint: settings.vignette.midpoint as f32,
+        vignette_roundness: settings.vignette.roundness as f32,
+        vignette_feather: settings.vignette.feather as f32,
+        grain_amount: settings.grain.amount as f32,
+        grain_size: settings.grain.size as f32,
+        grain_roughness: settings.grain.roughness as f32,
         monochrome: settings.monochrome,
         lens_correction: settings.lens_correction.enabled,
         camera_profile: settings

@@ -1377,6 +1377,230 @@ fn lookup_matches_the_exact_functions_at_the_domain_endpoints() {
     assert_eq!(lookup(to_srgb, 1.5), lookup(to_srgb, 1.0));
 }
 
+// ---------------------------------------------------------------------
+// Effects: the vignette a photographer adds, and grain (ADR 0090)
+// ---------------------------------------------------------------------
+
+/// A flat mid-grey card: the only background on which a vignette's own
+/// falloff is the *whole* of the difference between two pixels.
+fn flat_card(width: u32, height: u32, level: u8) -> RawImage {
+    RawImage {
+        width,
+        height,
+        bits: 8,
+        data: vec![level; width as usize * height as usize * 3],
+    }
+}
+
+#[test]
+fn a_negative_vignette_darkens_the_corners_and_leaves_the_centre() {
+    let image = flat_card(64, 64, 160);
+    let settings = Settings {
+        vignette: leyline_core::Vignette {
+            amount: -80,
+            ..Default::default()
+        },
+        ..Settings::default()
+    };
+    let plain = neutral(&image);
+    let vignetted = develop(&image, &settings, None, None).unwrap();
+
+    let at = |x: usize, y: usize| (y * 64 + x) * 3;
+    assert_eq!(
+        vignetted.data[at(32, 32)],
+        plain.data[at(32, 32)],
+        "the centre sits inside the midpoint and must not move"
+    );
+    assert!(
+        vignetted.data[at(0, 0)] < plain.data[at(0, 0)] / 2,
+        "the corner must be visibly darker: {} vs {}",
+        vignetted.data[at(0, 0)],
+        plain.data[at(0, 0)]
+    );
+    // Monotone from centre to corner along the diagonal.
+    let diagonal: Vec<u8> = (0..32).map(|i| vignetted.data[at(i, i)]).collect();
+    assert!(
+        diagonal.windows(2).all(|w| w[0] <= w[1]),
+        "the falloff must be monotone: {diagonal:?}"
+    );
+}
+
+#[test]
+fn a_positive_vignette_brightens_the_corners() {
+    let image = flat_card(64, 64, 100);
+    let settings = Settings {
+        vignette: leyline_core::Vignette {
+            amount: 80,
+            ..Default::default()
+        },
+        ..Settings::default()
+    };
+    let plain = neutral(&image);
+    let brightened = develop(&image, &settings, None, None).unwrap();
+    let at = |x: usize, y: usize| (y * 64 + x) * 3;
+    assert!(brightened.data[at(0, 0)] > plain.data[at(0, 0)]);
+}
+
+/// The shape moves, the corner's brightness does not — the reason the
+/// superellipse distance is divided by its own corner value (ADR 0090 §2).
+/// Without that division, dragging `roundness` would silently drag the
+/// strength with it.
+#[test]
+fn roundness_moves_the_shape_not_the_corner_gain() {
+    let image = flat_card(64, 64, 160);
+    let corner = |roundness: i32| {
+        let settings = Settings {
+            vignette: leyline_core::Vignette {
+                amount: -80,
+                roundness,
+                ..Default::default()
+            },
+            ..Settings::default()
+        };
+        develop(&image, &settings, None, None).unwrap().data[0]
+    };
+    assert_eq!(corner(-100), corner(0));
+    assert_eq!(corner(0), corner(100));
+}
+
+/// The whole of ADR 0090 §1: the vignette is centred on the frame the
+/// photographer composed, so an off-centre crop takes its vignette with it.
+#[test]
+fn the_vignette_follows_the_crop() {
+    let image = flat_card(64, 64, 160);
+    let vignette = leyline_core::Vignette {
+        amount: -80,
+        ..Default::default()
+    };
+    let cropped = Settings {
+        vignette,
+        crop: Some(leyline_core::Crop {
+            x: 0.0,
+            y: 0.0,
+            width: 0.5,
+            height: 0.5,
+        }),
+        ..Settings::default()
+    };
+    let rendered = develop(&image, &cropped, None, None).unwrap();
+    assert_eq!((rendered.width, rendered.height), (32, 32));
+
+    let at = |x: usize, y: usize| (y * 32 + x) * 3;
+    // The centre of the *cropped* frame — a corner of the original one — is
+    // the brightest point. A vignette drawn before the crop would have made
+    // it the darkest.
+    let centre = rendered.data[at(16, 16)];
+    assert!(
+        centre > rendered.data[at(0, 0)] && centre > rendered.data[at(31, 31)],
+        "centre {centre}, corners {} and {}",
+        rendered.data[at(0, 0)],
+        rendered.data[at(31, 31)]
+    );
+}
+
+#[test]
+fn a_vignette_shape_at_zero_strength_renders_nothing() {
+    let image = test_image(48, 32);
+    let settings = Settings {
+        vignette: leyline_core::Vignette {
+            amount: 0,
+            midpoint: 10,
+            roundness: 80,
+            feather: 90,
+        },
+        ..Settings::default()
+    };
+    let rendered = develop(&image, &settings, None, None).unwrap();
+    assert_eq!(rendered.data, neutral(&image).data);
+    let mut pinned = settings.clone();
+    pin(&mut pinned);
+    assert_eq!(
+        pinned.stages.get("vignette"),
+        None,
+        "a neutral stage records nothing"
+    );
+}
+
+/// The determinism §5.1 needs, asserted directly rather than only through a
+/// digest: two renders of the same revision, in the same process, on
+/// whatever threads rayon chose, are the same bytes.
+#[test]
+fn grain_is_the_same_field_every_time() {
+    let image = flat_card(64, 64, 128);
+    let settings = Settings {
+        grain: leyline_core::Grain {
+            amount: 80,
+            ..Default::default()
+        },
+        ..Settings::default()
+    };
+    let first = develop(&image, &settings, None, None).unwrap();
+    let second = develop(&image, &settings, None, None).unwrap();
+    assert_eq!(first.data, second.data);
+    assert_ne!(
+        first.data,
+        neutral(&image).data,
+        "grain at 80 has to actually do something"
+    );
+}
+
+/// Grain fades out into black and into white (ADR 0090 §3): a flat black
+/// card comes back flat and black, where a uniform noise field would have
+/// dusted it.
+#[test]
+fn grain_leaves_black_and_white_alone() {
+    let settings = Settings {
+        grain: leyline_core::Grain {
+            amount: 100,
+            ..Default::default()
+        },
+        ..Settings::default()
+    };
+    for level in [0u8, 255] {
+        let image = flat_card(32, 32, level);
+        let rendered = develop(&image, &settings, None, None).unwrap();
+        assert_eq!(
+            rendered.data,
+            neutral(&image).data,
+            "grain must vanish at level {level}"
+        );
+    }
+}
+
+#[test]
+fn grain_at_zero_renders_nothing() {
+    let image = test_image(48, 32);
+    let settings = Settings {
+        grain: leyline_core::Grain {
+            amount: 0,
+            size: 90,
+            roughness: 10,
+        },
+        ..Settings::default()
+    };
+    assert_eq!(
+        develop(&image, &settings, None, None).unwrap().data,
+        neutral(&image).data
+    );
+}
+
+/// Both effects run *after* the crop, which is what makes their rank the
+/// decision rather than a detail (ADR 0090 §1).
+#[test]
+fn the_effects_rank_after_the_crop() {
+    let rank = |name: &str| {
+        STAGES
+            .iter()
+            .find(|stage| stage.name == name)
+            .expect("registered")
+            .current()
+            .rank
+    };
+    assert!(rank("vignette") > rank("crop"));
+    assert!(rank("grain") > rank("vignette"));
+    assert!(rank("grain") < rank("output_rendering"));
+}
+
 /// Settings that take every stage of the registry away from its neutral
 /// value, so a plan built from them exercises the whole pipeline.
 fn everything() -> Settings {
@@ -1407,6 +1631,17 @@ fn everything() -> Settings {
         vibrance: 10,
         saturation: 10,
         monochrome: true,
+        vignette: leyline_core::Vignette {
+            amount: -40,
+            midpoint: 45,
+            roundness: 15,
+            feather: 55,
+        },
+        grain: leyline_core::Grain {
+            amount: 30,
+            size: 20,
+            roughness: 40,
+        },
         rotation: 5.0,
         perspective: Some(leyline_core::Perspective {
             vertical: 20,

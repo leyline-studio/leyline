@@ -17,13 +17,13 @@ use std::path::PathBuf;
 use leyline_sdk::{
     AssetId, BrushStroke, CameraProfile, ColorGrading, ColorGradingZone, ColorLabel, ColorRange,
     Crop, CurvePoint, EditSession, Event, ExportFormat, ExportRecipe, ExportRequest,
-    ExportSettings, GridItem, GridQuery, HslBand, ImportOptions, ImportReport, ImportedFile, JobId,
-    LensCorrection, LeylineError, Library, LocalAdjustment, LocalAdjustmentValues, LuminanceRange,
-    Margins, Mask, NoiseReduction, Orientation, PaperSize, PickState, Point, Preview, PreviewKind,
-    PrintRecipe, PrintRequest, PrintSettings, RangeMask, RegisteredAsset, RenderingIntent,
-    RevisionId, Settings, Sharpening, ShotFacets, ShotRange, SkippedFile, SpotRemoval,
-    StageVersions, ToneCurve, VersionId, WatchSessionEvent, WatchedFile, Watermark,
-    WatermarkAnchor, WatermarkFont,
+    ExportSettings, Grain, GridItem, GridQuery, HslBand, ImportOptions, ImportReport, ImportedFile,
+    JobId, LensCorrection, LeylineError, Library, LocalAdjustment, LocalAdjustmentValues,
+    LuminanceRange, Margins, Mask, NoiseReduction, Orientation, PaperSize, PickState, Point,
+    Preview, PreviewKind, PrintRecipe, PrintRequest, PrintSettings, RangeMask, RegisteredAsset,
+    RenderingIntent, RevisionId, Settings, Sharpening, ShotFacets, ShotRange, SkippedFile,
+    SpotRemoval, StageVersions, ToneCurve, VersionId, Vignette, WatchSessionEvent, WatchedFile,
+    Watermark, WatermarkAnchor, WatermarkFont,
 };
 
 /// A `Settings` built field by field, every nested type named through the
@@ -55,6 +55,17 @@ fn fully_specified_settings() -> Settings {
         sharpening: Sharpening {
             amount: 40,
             radius: 1.0,
+        },
+        vignette: Vignette {
+            amount: -35,
+            midpoint: 45,
+            roundness: 10,
+            feather: 60,
+        },
+        grain: Grain {
+            amount: 25,
+            size: 30,
+            roughness: 50,
         },
         tone_curve: ToneCurve {
             points: vec![CurvePoint { x: 0.0, y: 0.0 }, CurvePoint { x: 1.0, y: 1.0 }],

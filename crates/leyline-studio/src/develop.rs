@@ -122,6 +122,31 @@ pub fn action(slider: &str, value: f64, current: &Settings) -> Option<(Param, Va
                 ..current.sharpening.clone()
             }),
         ),
+        // Each slider merges into the other three, the pattern white
+        // balance and noise reduction already follow: the engine commits a
+        // vignette whole because a shape and a strength are one tool
+        // (ADR 0090 §2).
+        "vignette-amount" | "vignette-midpoint" | "vignette-roundness" | "vignette-feather" => {
+            let mut vignette = current.vignette;
+            let v = value.round() as i32;
+            match slider {
+                "vignette-amount" => vignette.amount = v,
+                "vignette-midpoint" => vignette.midpoint = v,
+                "vignette-roundness" => vignette.roundness = v,
+                _ => vignette.feather = v,
+            }
+            (Param::Vignette, Value::Vignette(vignette))
+        }
+        "grain-amount" | "grain-size" | "grain-roughness" => {
+            let mut grain = current.grain;
+            let v = value.round() as i32;
+            match slider {
+                "grain-amount" => grain.amount = v,
+                "grain-size" => grain.size = v,
+                _ => grain.roughness = v,
+            }
+            (Param::Grain, Value::Grain(grain))
+        }
         "color-grading-balance" => (
             Param::ColorGrading,
             Value::ColorGrading(ColorGrading {

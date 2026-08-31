@@ -68,6 +68,8 @@ Since then, the work has been about what a **first publication** still lacks:
 * a catalog can span several volumes ([ADR 0085](adr/0085-named-roots.md)) — a root is an identity carried by a marker inside the folder rather than a remembered path, so `catalog.db` still holds no absolute path; an unplugged volume makes its photographs **offline, not missing**, with the grid, the filters and the search still working while anything needing pixels fails with an error naming the root;
 * the RAW decoder became a term of the reproducibility promise instead of an unstated assumption ([ADR 0086](adr/0086-decoder-in-the-promise.md)) — `pipeline.md` §5.1 lists it, `make check` refuses a decoder nobody has accepted, and the limits of that guard are written down rather than implied.
 
+Then a run of five slices read straight off Lightroom Classic, each closing a gap a photographer coming from it would hit on the first afternoon: the tethered-capture **bar** rather than a receiver ([ADR 0087](adr/0087-tethered-capture-bar.md)), the presets panel beside develop ([ADR 0058](adr/0058-preset-provenance-and-shelf.md) §1–§4), `Auto` and black and white ([ADR 0088](adr/0088-auto-tone-and-black-and-white.md)), the profile browser ([ADR 0089](adr/0089-camera-profile-browser.md)), and the `Effects` panel — the vignette a photographer *adds*, and grain ([ADR 0090](adr/0090-effects-vignette-grain.md)).
+
 What [`readme.md`](readme.md) lists as still open remains the reference: DCP colorimetry not validated against the profile vendor's own render, and two finishing touches to local-adjustment tooling left out of scope by [ADR 0049](adr/0049-local-adjustments-clients.md).
 
 ---

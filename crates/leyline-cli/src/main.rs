@@ -150,6 +150,13 @@ Develop params (docs/pipeline.md §3.2, schema 1):
                                     on/off toggles the LUT already referenced, none removes it
   lut-strength <0-100>              how much of the look to apply (ADR 0053)
   lens-correction <on|off>
+  vignette <amount> [midpoint] [roundness] [feather]
+                                    the vignette you *add*, drawn on the cropped frame
+                                    (ADR 0090): amount/roundness in [-100, 100] (negative
+                                    amount darkens the corners), midpoint/feather in
+                                    [0, 100]; the three shape values default to 50/0/50
+  grain <amount> [size] [roughness] film grain, each in [0, 100] (ADR 0090);
+                                    size and roughness default to 25 and 50
   noise-reduction <luminance> <color>
   sharpening <amount> <radius>
   crop <x> <y> <width> <height>     percent 0-100, or `crop reset`
@@ -186,7 +193,7 @@ Develop params (docs/pipeline.md §3.2, schema 1):
                                     against reference renders
 
 Preset groups (docs/presets.md §3.1, comma-separated, no spaces):
-  white_balance tone presence lens_correction detail geometry
+  white_balance tone presence effects lens_correction detail geometry
                                     geometry is never included unless named
 
   leyline --version                 this build, and the RAW decoder it links
@@ -971,6 +978,26 @@ fn develop(args: &[String]) -> Result<(), String> {
             };
             (Param::Demosaic, Value::Demosaic(algorithm))
         }
+        // Four values in one word, like `white-balance`: a shape and a
+        // strength are one tool (ADR 0090 §2), and the three shape values
+        // mean nothing without the amount they modulate.
+        "vignette" => (
+            Param::Vignette,
+            Value::Vignette(leyline_sdk::Vignette {
+                amount: int_at(0)?,
+                midpoint: rest.get(1).map_or(Ok(50), |_| int_at(1))?,
+                roundness: rest.get(2).map_or(Ok(0), |_| int_at(2))?,
+                feather: rest.get(3).map_or(Ok(50), |_| int_at(3))?,
+            }),
+        ),
+        "grain" => (
+            Param::Grain,
+            Value::Grain(leyline_sdk::Grain {
+                amount: int_at(0)?,
+                size: rest.get(1).map_or(Ok(25), |_| int_at(1))?,
+                roughness: rest.get(2).map_or(Ok(50), |_| int_at(2))?,
+            }),
+        ),
         "vibrance" => (Param::Vibrance, Value::Int(int_at(0)?)),
         "saturation" => (Param::Saturation, Value::Int(int_at(0)?)),
         "monochrome" => (
@@ -1375,6 +1402,7 @@ fn groups(value: &str) -> Result<Vec<SettingsGroup>, String> {
             "white_balance" => Ok(SettingsGroup::WhiteBalance),
             "tone" => Ok(SettingsGroup::Tone),
             "presence" => Ok(SettingsGroup::Presence),
+            "effects" => Ok(SettingsGroup::Effects),
             "lens_correction" => Ok(SettingsGroup::LensCorrection),
             "detail" => Ok(SettingsGroup::Detail),
             "geometry" => Ok(SettingsGroup::Geometry),

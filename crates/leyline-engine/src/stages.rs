@@ -151,6 +151,12 @@ pub(crate) mod perspective {
 pub(crate) mod crop {
     pub(crate) mod v1;
 }
+pub(crate) mod vignette {
+    pub(crate) mod v1;
+}
+pub(crate) mod grain {
+    pub(crate) mod v1;
+}
 pub(crate) mod output_rendering {
     pub(crate) mod v1;
 }
@@ -916,6 +922,36 @@ pub(crate) static STAGES: &[Stage] = &[
                     *px = crop::v1::crop(px, rect);
                 }
             },
+        }],
+    },
+    // The two effects of ADR 0090, and their rank *is* the decision: after
+    // `crop` (210), so both are drawn on the frame the photographer
+    // composed rather than on the one the sensor delivered. The distance
+    // from `lens` (20), which *removes* the vignetting a lens produced, is
+    // the whole difference between a correction and an effect.
+    Stage {
+        name: "vignette",
+        active: |settings| !settings.vignette.is_neutral(),
+        reads: &["vignette"],
+        versions: &[Version {
+            version: 1,
+            rank: 220,
+            space: Space::LinearRec2020,
+            apply: |px, ctx| vignette::v1::vignette(px, &ctx.settings.vignette),
+        }],
+    },
+    Stage {
+        name: "grain",
+        active: |settings| !settings.grain.is_neutral(),
+        reads: &["grain"],
+        versions: &[Version {
+            version: 1,
+            rank: 230,
+            space: Space::LinearRec2020,
+            // The only stage reading `ctx.scale` for anything but a radius:
+            // its lattice is in full-resolution pixels, so a preview
+            // samples the same field as the export (ADR 0090 §3).
+            apply: |px, ctx| grain::v1::grain(px, &ctx.settings.grain, ctx.scale),
         }],
     },
     Stage {

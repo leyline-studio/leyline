@@ -37,6 +37,7 @@ export component DevelopPanel inherits HorizontalLayout {
     property <bool> expand-lut: false;
     property <bool> expand-lens: false;
     property <bool> expand-detail: false;
+    property <bool> expand-effects: false;
     property <bool> expand-tone-curve: false;
     property <bool> expand-hsl: false;
     property <bool> expand-color-grading: false;
@@ -1225,6 +1226,113 @@ export component DevelopPanel inherits HorizontalLayout {
                             }
                             previewing(v) => {
                                 DevelopState.develop-preview("sharpen-radius", v);
+                            }
+                        }
+                    }
+
+                    // Effects (ADR 0090): the vignette a photographer adds —
+                    // not the one `Lens correction` above removes — and film
+                    // grain. Advanced mode only, like the tone curve: they
+                    // are finishing tools, not the first six sliders anyone
+                    // reaches for (ADR 0054 §2).
+                    if !root.basic-mode: GroupHeader {
+                        label: @tr("Effects");
+                        expanded <=> root.expand-effects;
+                    }
+                    if !root.basic-mode && root.expand-effects: VerticalLayout {
+                        spacing: 12px;
+                        // Two sub-headings rather than seven long labels:
+                        // the label column truncates anything past about
+                        // fifteen characters, and "Vignette roundness" was
+                        // reaching the panel as "Vignette rou…".
+                        SubHeading {
+                            label: @tr("Vignette");
+                        }
+                        EditSlider {
+                            label: @tr("Amount");
+                            minimum: -100;
+                            maximum: 100;
+                            value: DevelopState.dev.vignette-amount;
+                            edited(v) => {
+                                DevelopState.develop-edit("vignette-amount", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("vignette-amount", v);
+                            }
+                        }
+                        EditSlider {
+                            label: @tr("Midpoint");
+                            minimum: 0;
+                            maximum: 100;
+                            value: DevelopState.dev.vignette-midpoint;
+                            edited(v) => {
+                                DevelopState.develop-edit("vignette-midpoint", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("vignette-midpoint", v);
+                            }
+                        }
+                        EditSlider {
+                            label: @tr("Roundness");
+                            minimum: -100;
+                            maximum: 100;
+                            value: DevelopState.dev.vignette-roundness;
+                            edited(v) => {
+                                DevelopState.develop-edit("vignette-roundness", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("vignette-roundness", v);
+                            }
+                        }
+                        EditSlider {
+                            label: @tr("Feather");
+                            minimum: 0;
+                            maximum: 100;
+                            value: DevelopState.dev.vignette-feather;
+                            edited(v) => {
+                                DevelopState.develop-edit("vignette-feather", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("vignette-feather", v);
+                            }
+                        }
+                        SubHeading {
+                            label: @tr("Grain");
+                        }
+                        EditSlider {
+                            label: @tr("Amount");
+                            minimum: 0;
+                            maximum: 100;
+                            value: DevelopState.dev.grain-amount;
+                            edited(v) => {
+                                DevelopState.develop-edit("grain-amount", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("grain-amount", v);
+                            }
+                        }
+                        EditSlider {
+                            label: @tr("Size");
+                            minimum: 0;
+                            maximum: 100;
+                            value: DevelopState.dev.grain-size;
+                            edited(v) => {
+                                DevelopState.develop-edit("grain-size", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("grain-size", v);
+                            }
+                        }
+                        EditSlider {
+                            label: @tr("Roughness");
+                            minimum: 0;
+                            maximum: 100;
+                            value: DevelopState.dev.grain-roughness;
+                            edited(v) => {
+                                DevelopState.develop-edit("grain-roughness", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("grain-roughness", v);
                             }
                         }
                     }

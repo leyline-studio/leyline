@@ -21,6 +21,7 @@ pub(crate) const CLIPBOARD_GROUPS: &[SettingsGroup] = &[
     SettingsGroup::WhiteBalance,
     SettingsGroup::Tone,
     SettingsGroup::Presence,
+    SettingsGroup::Effects,
     SettingsGroup::LensCorrection,
     SettingsGroup::Detail,
 ];

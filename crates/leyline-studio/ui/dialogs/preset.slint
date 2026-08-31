@@ -2,7 +2,7 @@
 // folder to file it under, and one flag per group of settings to capture.
 //
 // The groups are chips rather than Lightroom's column of checkboxes because
-// there are six of them and not forty: ours are atomic by design
+// there are seven of them and not forty: ours are atomic by design
 // (`docs/presets.md` §3.1 — a group is captured whole or not at all), so
 // there is no sub-tree to draw and nothing to half-tick.
 //
@@ -17,6 +17,7 @@ export component PresetDialog inherits VerticalLayout {
     property <bool> g-white-balance: true;
     property <bool> g-tone: true;
     property <bool> g-presence: true;
+    property <bool> g-effects: false;
     property <bool> g-lens-correction: false;
     property <bool> g-detail: false;
     property <bool> g-geometry: false;
@@ -28,6 +29,7 @@ export component PresetDialog inherits VerticalLayout {
         root.g-white-balance = on;
         root.g-tone = on;
         root.g-presence = on;
+        root.g-effects = on;
         root.g-lens-correction = on;
         root.g-detail = on;
         // Geometry stays out of "all" on purpose: `docs/presets.md` §3.1
@@ -90,6 +92,13 @@ export component PresetDialog inherits VerticalLayout {
             active: root.g-presence;
             clicked => {
                 root.g-presence = !root.g-presence;
+            }
+        }
+        FilterChip {
+            text: @tr("Effects");
+            active: root.g-effects;
+            clicked => {
+                root.g-effects = !root.g-effects;
             }
         }
     }
@@ -234,6 +243,7 @@ export component PresetDialog inherits VerticalLayout {
                     root.g-white-balance,
                     root.g-tone,
                     root.g-presence,
+                    root.g-effects,
                     root.g-lens-correction,
                     root.g-detail,
                     root.g-geometry,
