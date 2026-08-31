@@ -14,7 +14,7 @@ use leyline_sdk::{
     Margins, NoiseReduction, Orientation, PaperSize, Param, Perspective, PickState, Point,
     PresetId, PreviewKind, PrintRecipe, PrintRequest, PrintSettings, RenderingIntent, ScanOptions,
     Settings, SettingsGroup, Sharpening, ShotRange, SpotRemoval, TetherOptions, TetherSetting,
-    ToneCurve, Value, VersionId, Watermark, WatermarkAnchor, WhiteBalance,
+    Value, VersionId, Watermark, WatermarkAnchor, WhiteBalance,
 };
 
 const USAGE: &str = "\
@@ -184,7 +184,10 @@ Develop params (docs/pipeline.md §3.2, schema 1):
   perspective <vertical> <horizontal>
                                     keystone correction, integers in [-100, 100]
                                     (ADR 0052), or `perspective reset`
-  tone-curve <x,y> <x,y>...         points in [0,1], strictly increasing x, or `tone-curve reset`
+  tone-curve [canal] <x,y> <x,y>... points in [0,1], strictly increasing x, or
+                                    `tone-curve reset` ; canal parmi
+                                    master/red/green/blue (ADR 0098), absent =
+                                    la courbe maîtresse
   spot-removal <tx> <ty> <sx> <sy> <radius> <feather> <opacity>
                                     positions/radius percent 0-100, feather/opacity 0-1;
                                     appends one spot, or `spot-removal reset` to clear all
@@ -1215,10 +1218,20 @@ fn develop(args: &[String]) -> Result<(), String> {
             (Param::Crop, Value::Crop(crop))
         }
         "tone-curve" => {
-            let points = if at(0)? == "reset" {
+            // An optional channel name comes first (ADR 0098 §4); absent,
+            // the points are the master curve, so every invocation written
+            // before this keeps meaning what it meant.
+            let channel = match at(0)? {
+                name @ ("master" | "red" | "green" | "blue") => Some(name.to_owned()),
+                _ => None,
+            };
+            let points_from = usize::from(channel.is_some());
+            let reset = at(points_from)? == "reset";
+            let points = if reset {
                 Vec::new()
             } else {
-                rest.iter()
+                rest[points_from..]
+                    .iter()
                     .map(|p| {
                         let (x, y) = p
                             .split_once(',')
@@ -1230,7 +1243,16 @@ fn develop(args: &[String]) -> Result<(), String> {
                     })
                     .collect::<Result<Vec<_>, String>>()?
             };
-            (Param::ToneCurve, Value::ToneCurve(ToneCurve { points }))
+            // A channel curve is written onto the curve already stored, so
+            // setting the red one does not clear the master or the blue.
+            let mut curve = session.settings().tone_curve.clone();
+            match channel.as_deref() {
+                Some("red") => curve.red = points,
+                Some("green") => curve.green = points,
+                Some("blue") => curve.blue = points,
+                _ => curve.points = points,
+            }
+            (Param::ToneCurve, Value::ToneCurve(curve))
         }
         "spot-removal" => {
             let spots = if at(0)? == "reset" {

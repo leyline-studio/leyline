@@ -246,6 +246,34 @@ fn detail_masking(settings: Settings) -> Settings {
     }
 }
 
+/// Per-channel curves (ADR 0098) — a **new** case, never an edit of
+/// `tone_curve`, whose fragment is frozen with the entry citing it.
+fn tone_curve_channels(settings: Settings) -> Settings {
+    Settings {
+        tone_curve: ToneCurve {
+            points: vec![
+                CurvePoint { x: 0.0, y: 0.02 },
+                CurvePoint { x: 0.5, y: 0.52 },
+                CurvePoint { x: 1.0, y: 0.98 },
+            ],
+            // A split tone: blue lifted in the shadows, red in the
+            // highlights — the gesture the decision was written for.
+            red: vec![
+                CurvePoint { x: 0.0, y: 0.0 },
+                CurvePoint { x: 0.6, y: 0.66 },
+                CurvePoint { x: 1.0, y: 1.0 },
+            ],
+            blue: vec![
+                CurvePoint { x: 0.0, y: 0.09 },
+                CurvePoint { x: 0.5, y: 0.5 },
+                CurvePoint { x: 1.0, y: 0.94 },
+            ],
+            green: Vec::new(),
+        },
+        ..settings
+    }
+}
+
 fn geometry(settings: Settings) -> Settings {
     Settings {
         rotation: 2.0,
@@ -293,6 +321,7 @@ fn tone_curve(settings: Settings) -> Settings {
                 CurvePoint { x: 0.7, y: 0.79 },
                 CurvePoint { x: 1.0, y: 0.97 },
             ],
+            ..ToneCurve::default()
         },
         ..settings
     }
@@ -630,6 +659,7 @@ fn cases() -> Vec<(String, Case)> {
         ("lens", lens(base.clone())),
         ("camera_profile", camera_profile(base.clone())),
         ("tone_curve", tone_curve(base.clone())),
+        ("tone_curve_channels", tone_curve_channels(base.clone())),
         ("spots", spots(base.clone())),
         ("locals", locals(base.clone())),
         ("locals_range", locals_range(base.clone())),

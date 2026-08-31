@@ -370,6 +370,7 @@ The code of every stage version is kept in the engine forever: that is the price
 | 60 | `highlights_shadows` | 1 | Highlights and shadows, masked by luminance |
 | 70 | `whites_blacks` | 1 | Remapping of the extremes |
 | 80 | `tone_curve` | 1 | A point curve, a monotone cubic spline precomputed into a table (ADR 0030) |
+| 80 | `tone_curve` | 2 | The same, plus one curve per channel (ADR 0098). With none set, bit-identical to v1 |
 | 90 | `clarity` | 1 | Local contrast at a large radius (ADR 0033) |
 | 100 | `texture` | 1 | The same operator at a small radius (ADR 0033) |
 | 110 | `dehaze` | 1 | Haze removal by *dark channel prior* (ADR 0033) |

@@ -404,7 +404,34 @@ pub struct CurvePoint {
 #[serde(default)]
 pub struct ToneCurve {
     /// Control points, ordered by strictly increasing `x`. Empty = identity.
+    ///
+    /// The *master* curve: applied to every channel, and applied before the
+    /// three below (ADR 0098 §2).
     pub points: Vec<CurvePoint>,
+    /// Red channel's own curve, applied after [`ToneCurve::points`]
+    /// (ADR 0098). Empty = identity, the same convention as the master.
+    ///
+    /// Requires `tone_curve` at version 2 or later: a revision pinned at v1
+    /// cannot express it, and [`Settings::validate`] refuses the
+    /// combination rather than let the curve be silently dropped
+    /// (ADR 0098 §3).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub red: Vec<CurvePoint>,
+    /// Green channel's own curve. See [`ToneCurve::red`].
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub green: Vec<CurvePoint>,
+    /// Blue channel's own curve. See [`ToneCurve::red`].
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub blue: Vec<CurvePoint>,
+}
+
+impl ToneCurve {
+    /// Whether any per-channel curve is set — what decides between the two
+    /// code paths of `tone_curve::v2` (ADR 0098 §1).
+    #[must_use]
+    pub fn has_channel_curves(&self) -> bool {
+        !self.red.is_empty() || !self.green.is_empty() || !self.blue.is_empty()
+    }
 }
 
 /// One band of the 8-band HSL mixer (ADR 0031): hue/saturation/luminance
@@ -1055,17 +1082,28 @@ impl Settings {
         slider("grain.amount", self.grain.amount, 0, 100)?;
         slider("grain.size", self.grain.size, 0, 100)?;
         slider("grain.roughness", self.grain.roughness, 0, 100)?;
-        if !self.tone_curve.points.is_empty() {
-            if self.tone_curve.points.len() < 2 {
-                return Err(LeylineError::InvalidSettings(
-                    "tone_curve.points must have at least 2 points, or be empty".to_owned(),
-                ));
+        // The master curve and the three channel curves are validated by
+        // the same rules (ADR 0098 §1), so they are validated by the same
+        // code: a curve that is legal as the master is legal as a channel.
+        for (field, points) in [
+            ("tone_curve.points", &self.tone_curve.points),
+            ("tone_curve.red", &self.tone_curve.red),
+            ("tone_curve.green", &self.tone_curve.green),
+            ("tone_curve.blue", &self.tone_curve.blue),
+        ] {
+            if points.is_empty() {
+                continue;
+            }
+            if points.len() < 2 {
+                return Err(LeylineError::InvalidSettings(format!(
+                    "{field} must have at least 2 points, or be empty"
+                )));
             }
             let mut previous_x = None;
-            for point in &self.tone_curve.points {
+            for point in points {
                 for (name, value) in [
-                    ("tone_curve.points.x", point.x),
-                    ("tone_curve.points.y", point.y),
+                    (format!("{field}.x"), point.x),
+                    (format!("{field}.y"), point.y),
                 ] {
                     if !(0.0..=1.0).contains(&value) {
                         return Err(LeylineError::InvalidSettings(format!(
@@ -1075,13 +1113,22 @@ impl Settings {
                 }
                 if let Some(previous_x) = previous_x {
                     if point.x <= previous_x {
-                        return Err(LeylineError::InvalidSettings(
-                            "tone_curve.points must have strictly increasing x".to_owned(),
-                        ));
+                        return Err(LeylineError::InvalidSettings(format!(
+                            "{field} must have strictly increasing x"
+                        )));
                     }
                 }
                 previous_x = Some(point.x);
             }
+        }
+        // The capability rule (ADR 0098 §3): v1 applies one curve to every
+        // channel and has no code that reads the three below.
+        if self.tone_curve.has_channel_curves() && self.stages.get("tone_curve") == Some(&1) {
+            return Err(LeylineError::InvalidSettings(
+                "tone_curve.red/green/blue need stage tone_curve version 2, but this revision \
+                 pins version 1; reprocess the photo to the current stage versions first"
+                    .to_owned(),
+            ));
         }
         for (i, spot) in self.spot_removal.iter().enumerate() {
             for (name, value) in [
@@ -1874,6 +1921,7 @@ mod tests {
                 CurvePoint { x: 0.5, y: 0.6 },
                 CurvePoint { x: 1.0, y: 1.0 },
             ],
+            ..ToneCurve::default()
         };
         s.validate().unwrap();
     }
@@ -1883,6 +1931,7 @@ mod tests {
         let s = Settings {
             tone_curve: ToneCurve {
                 points: vec![CurvePoint { x: 0.5, y: 0.5 }],
+                ..ToneCurve::default()
             },
             ..Settings::default()
         };
@@ -1897,6 +1946,7 @@ mod tests {
         let s = Settings {
             tone_curve: ToneCurve {
                 points: vec![CurvePoint { x: 0.0, y: 0.0 }, CurvePoint { x: 1.5, y: 1.0 }],
+                ..ToneCurve::default()
             },
             ..Settings::default()
         };
@@ -1911,6 +1961,7 @@ mod tests {
         let s = Settings {
             tone_curve: ToneCurve {
                 points: vec![CurvePoint { x: 0.5, y: 0.0 }, CurvePoint { x: 0.5, y: 1.0 }],
+                ..ToneCurve::default()
             },
             ..Settings::default()
         };
@@ -2553,6 +2604,7 @@ mod specification {
             }),
             tone_curve: ToneCurve {
                 points: vec![CurvePoint { x: 0.0, y: 0.0 }],
+                ..ToneCurve::default()
             },
             perspective: Some(Perspective::default()),
             crop: Some(Crop {

@@ -29,8 +29,9 @@ pub(super) fn wire_curve(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                     f64::from(mx) / f64::from(w),
                     1.0 - f64::from(my) / f64::from(h),
                 );
+                let channel = DevelopState::get(&window).get_dev_curve_channel();
                 let Some((param, value)) =
-                    develop::curve_point(click, &session.settings().tone_curve.points)
+                    develop::curve_point(click, channel.as_str(), &session.settings().tone_curve)
                 else {
                     return Ok(());
                 };
@@ -56,9 +57,11 @@ pub(super) fn wire_curve(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             let Some((_, version)) = app.develop else {
                 return;
             };
-            let (param, value) = develop::reset_curve();
+            let channel = DevelopState::get(&window).get_dev_curve_channel();
             let committed = (|| {
                 let mut session = app.library.edit(version)?;
+                let (param, value) =
+                    develop::reset_curve(channel.as_str(), &session.settings().tone_curve);
                 session.set(param, value)?;
                 session.commit().map(|_| ())
             })();

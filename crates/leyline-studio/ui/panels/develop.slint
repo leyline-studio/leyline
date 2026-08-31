@@ -1621,6 +1621,41 @@ export component DevelopPanel inherits HorizontalLayout {
                     }
                     if !root.basic-mode && root.expand-tone-curve: VerticalLayout {
                         spacing: 8px;
+                        // Which of the four curves is being edited
+                        // (ADR 0098 §4). The canvas below tints itself from
+                        // the same property, so the state is visible without
+                        // reading the chips.
+                        HorizontalLayout {
+                            spacing: 4px;
+                            FilterChip {
+                                text: @tr("Master");
+                                active: DevelopState.dev-curve-channel == "master";
+                                clicked => {
+                                    DevelopState.dev-curve-channel = "master";
+                                }
+                            }
+                            FilterChip {
+                                text: @tr("Red");
+                                active: DevelopState.dev-curve-channel == "red";
+                                clicked => {
+                                    DevelopState.dev-curve-channel = "red";
+                                }
+                            }
+                            FilterChip {
+                                text: @tr("Green");
+                                active: DevelopState.dev-curve-channel == "green";
+                                clicked => {
+                                    DevelopState.dev-curve-channel = "green";
+                                }
+                            }
+                            FilterChip {
+                                text: @tr("Blue");
+                                active: DevelopState.dev-curve-channel == "blue";
+                                clicked => {
+                                    DevelopState.dev-curve-channel = "blue";
+                                }
+                            }
+                        }
                         Text {
                             text: @tr("Click to add a point, click a point to remove it.");
                             color: #666666;
@@ -1653,7 +1688,16 @@ export component DevelopPanel inherits HorizontalLayout {
                                 viewbox-width: 220;
                                 viewbox-height: 220;
                                 commands: DevelopState.dev-curve-path;
-                                stroke: #6fa8dc;
+                                // Tinted by the channel being edited
+                                // (ADR 0098 §4), so which curve is on
+                                // screen is read from the drawing itself.
+                                stroke: DevelopState.dev-curve-channel == "red"
+                                    ? #e06c6c
+                                    : (DevelopState.dev-curve-channel == "green"
+                                        ? #6cc86c
+                                        : (DevelopState.dev-curve-channel == "blue"
+                                            ? #6c8ce0
+                                            : #6fa8dc));
                                 stroke-width: 2px;
                             }
                             for point in DevelopState.dev-curve-points: Rectangle {

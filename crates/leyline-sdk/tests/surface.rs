@@ -71,6 +71,7 @@ fn fully_specified_settings() -> Settings {
         },
         tone_curve: ToneCurve {
             points: vec![CurvePoint { x: 0.0, y: 0.0 }, CurvePoint { x: 1.0, y: 1.0 }],
+            ..ToneCurve::default()
         },
         spot_removal: vec![SpotRemoval {
             target: Point { x: 0.3, y: 0.3 },

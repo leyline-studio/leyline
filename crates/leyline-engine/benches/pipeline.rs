@@ -470,6 +470,7 @@ fn stage_cases() -> Vec<(&'static str, Settings)> {
                         CurvePoint { x: 0.75, y: 0.82 },
                         CurvePoint { x: 1.0, y: 0.98 },
                     ],
+                    ..ToneCurve::default()
                 },
                 ..base.clone()
             },

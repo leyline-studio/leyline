@@ -102,6 +102,7 @@ pub(crate) mod whites_blacks {
 }
 pub(crate) mod tone_curve {
     pub(crate) mod v1;
+    pub(crate) mod v2;
 }
 pub(crate) mod clarity {
     pub(crate) mod v1;
@@ -567,14 +568,26 @@ pub(crate) static STAGES: &[Stage] = &[
     },
     Stage {
         name: "tone_curve",
-        active: |settings| !settings.tone_curve.points.is_empty(),
+        active: |settings| {
+            !settings.tone_curve.points.is_empty() || settings.tone_curve.has_channel_curves()
+        },
         reads: &["tone_curve"],
-        versions: &[Version {
-            version: 1,
-            rank: 80,
-            space: Space::LinearRec2020,
-            apply: |px, ctx| tone_curve::v1::tone_curve(px, &ctx.settings.tone_curve.points),
-        }],
+        versions: &[
+            Version {
+                version: 1,
+                rank: 80,
+                space: Space::LinearRec2020,
+                apply: |px, ctx| tone_curve::v1::tone_curve(px, &ctx.settings.tone_curve.points),
+            },
+            // Per-channel curves (ADR 0098): with none set, this delegates
+            // to v1 and renders exactly what v1 renders.
+            Version {
+                version: 2,
+                rank: 80,
+                space: Space::LinearRec2020,
+                apply: |px, ctx| tone_curve::v2::tone_curve(px, &ctx.settings.tone_curve),
+            },
+        ],
     },
     Stage {
         name: "clarity",

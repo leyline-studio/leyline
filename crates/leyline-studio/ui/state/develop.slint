@@ -128,6 +128,10 @@ export global DevelopState {
     callback develop-crop-drag(float, float, float, float, float, float, float, float);
     // Tone curve graph (ADR 0030): click position in the curve canvas'
     // own pixel space (0..width, 0..height, y already screen-down).
+    // Which of the four curves the canvas edits (ADR 0098 §4): "master",
+    // "red", "green" or "blue". `in-out` because the chips set it and Rust
+    // reads it on every click and every refresh.
+    in-out property <string> dev-curve-channel: "master";
     callback develop-curve-click(float, float, float, float);
     callback develop-curve-reset();
     // Spot removal (ADR 0032): source click x/y, target click x/y,

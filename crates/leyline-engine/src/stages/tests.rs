@@ -216,6 +216,7 @@ fn identity_curve_matches_no_points_bit_for_bit() {
     let with_points = Settings {
         tone_curve: leyline_core::ToneCurve {
             points: vec![CurvePoint { x: 0.0, y: 0.0 }, CurvePoint { x: 1.0, y: 1.0 }],
+            ..leyline_core::ToneCurve::default()
         },
         ..Settings::default()
     };
@@ -238,6 +239,7 @@ fn s_curve_raises_shadows_and_lowers_highlights() {
                 CurvePoint { x: 0.75, y: 0.70 },
                 CurvePoint { x: 1.0, y: 1.0 },
             ],
+            ..leyline_core::ToneCurve::default()
         },
         ..Settings::default()
     };

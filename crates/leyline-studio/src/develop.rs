@@ -333,9 +333,13 @@ const CURVE_POINT_RADIUS: f64 = 0.05;
 /// `(0, 0)`/`(1, 1)` identity endpoints alongside it (three points total),
 /// and removing a point back down to one clears the curve entirely rather
 /// than leaving that invalid single-point state.
-pub fn curve_point(click: (f64, f64), current: &[CurvePoint]) -> Option<(Param, Value)> {
+pub fn curve_point(
+    click: (f64, f64),
+    channel: &str,
+    current: &ToneCurve,
+) -> Option<(Param, Value)> {
     let (x, y) = (click.0.clamp(0.0, 1.0), click.1.clamp(0.0, 1.0));
-    let mut points = current.to_vec();
+    let mut points = channel_points(current, channel).to_vec();
     if let Some(i) = points
         .iter()
         .position(|p| (p.x - x).powi(2) + (p.y - y).powi(2) < CURVE_POINT_RADIUS.powi(2))
@@ -344,7 +348,7 @@ pub fn curve_point(click: (f64, f64), current: &[CurvePoint]) -> Option<(Param, 
         if points.len() < 2 {
             points.clear();
         }
-        return Some((Param::ToneCurve, Value::ToneCurve(ToneCurve { points })));
+        return Some(written(current, channel, points));
     }
     // The identity endpoints always end up in the list once it holds any
     // point at all, so a too-close-to-them click is rejected up front even
@@ -364,12 +368,38 @@ pub fn curve_point(click: (f64, f64), current: &[CurvePoint]) -> Option<(Param, 
     }
     points.push(CurvePoint { x, y });
     points.sort_by(|a, b| a.x.partial_cmp(&b.x).expect("curve x is never NaN"));
-    Some((Param::ToneCurve, Value::ToneCurve(ToneCurve { points })))
+    Some(written(current, channel, points))
 }
 
-/// Clears every tone-curve point back to the identity curve.
-pub fn reset_curve() -> (Param, Value) {
-    (Param::ToneCurve, Value::ToneCurve(ToneCurve::default()))
+/// The points of one of the four curves (ADR 0098): `red`, `green`, `blue`,
+/// or the master for anything else — the panel's own selector is the only
+/// caller, and an unknown name meaning "master" keeps it total.
+pub fn channel_points<'a>(curve: &'a ToneCurve, channel: &str) -> &'a [CurvePoint] {
+    match channel {
+        "red" => &curve.red,
+        "green" => &curve.green,
+        "blue" => &curve.blue,
+        _ => &curve.points,
+    }
+}
+
+/// `curve` with one of its four curves replaced — the other three are
+/// carried over untouched, so editing the red curve never clears the master.
+fn written(curve: &ToneCurve, channel: &str, points: Vec<CurvePoint>) -> (Param, Value) {
+    let mut curve = curve.clone();
+    match channel {
+        "red" => curve.red = points,
+        "green" => curve.green = points,
+        "blue" => curve.blue = points,
+        _ => curve.points = points,
+    }
+    (Param::ToneCurve, Value::ToneCurve(curve))
+}
+
+/// Clears the selected channel's curve back to the identity, leaving the
+/// other three where they are (ADR 0098 §4).
+pub fn reset_curve(channel: &str, current: &ToneCurve) -> (Param, Value) {
+    written(current, channel, Vec::new())
 }
 
 /// Builds the tone-curve graph's SVG-style line commands and marker
@@ -964,7 +994,7 @@ mod tests {
         // ToneCurve requires >= 2 points, or 0 (`leyline-core::settings`):
         // the first point ever placed brings the fixed (0,0)/(1,1)
         // endpoints along with it.
-        let points = curved(curve_point((0.5, 0.75), &[]));
+        let points = curved(curve_point((0.5, 0.75), "master", &ToneCurve::default()));
         assert_eq!(
             points,
             vec![
@@ -982,7 +1012,7 @@ mod tests {
             CurvePoint { x: 0.5, y: 0.75 },
             CurvePoint { x: 1.0, y: 1.0 },
         ];
-        let points = curved(curve_point((0.2, 0.1), &current));
+        let points = curved(curve_point((0.2, 0.1), "master", &master(&current)));
         assert_eq!(
             points,
             vec![
@@ -1002,7 +1032,7 @@ mod tests {
             CurvePoint { x: 1.0, y: 1.0 },
         ];
         assert_eq!(
-            curved(curve_point((0.51, 0.49), &points)),
+            curved(curve_point((0.51, 0.49), "master", &master(&points))),
             vec![CurvePoint { x: 0.0, y: 0.0 }, CurvePoint { x: 1.0, y: 1.0 }]
         );
     }
@@ -1010,7 +1040,10 @@ mod tests {
     #[test]
     fn removing_a_point_down_to_one_clears_the_whole_curve() {
         let points = vec![CurvePoint { x: 0.0, y: 0.0 }, CurvePoint { x: 1.0, y: 1.0 }];
-        assert_eq!(curved(curve_point((0.01, 0.01), &points)), vec![]);
+        assert_eq!(
+            curved(curve_point((0.01, 0.01), "master", &master(&points))),
+            vec![]
+        );
     }
 
     #[test]
@@ -1020,21 +1053,61 @@ mod tests {
             CurvePoint { x: 0.5, y: 0.5 },
             CurvePoint { x: 1.0, y: 1.0 },
         ];
-        assert_eq!(curve_point((0.52, 0.9), &points), None);
+        assert_eq!(curve_point((0.52, 0.9), "master", &master(&points)), None);
     }
 
     #[test]
     fn a_first_click_too_close_to_an_endpoint_is_ignored() {
-        assert_eq!(curve_point((0.02, 0.5), &[]), None);
-        assert_eq!(curve_point((0.98, 0.5), &[]), None);
+        assert_eq!(
+            curve_point((0.02, 0.5), "master", &ToneCurve::default()),
+            None
+        );
+        assert_eq!(
+            curve_point((0.98, 0.5), "master", &ToneCurve::default()),
+            None
+        );
     }
 
     #[test]
     fn reset_curve_clears_every_point() {
         assert_eq!(
-            reset_curve(),
+            reset_curve("master", &ToneCurve::default()),
             (Param::ToneCurve, Value::ToneCurve(ToneCurve::default()))
         );
+    }
+
+    /// A `ToneCurve` carrying `points` as its master curve.
+    fn master(points: &[CurvePoint]) -> ToneCurve {
+        ToneCurve {
+            points: points.to_vec(),
+            ..ToneCurve::default()
+        }
+    }
+
+    /// ADR 0098 §4: editing one channel leaves the other three alone —
+    /// the reason the panel can offer four curves over one canvas.
+    #[test]
+    fn editing_one_curve_leaves_the_other_three_alone() {
+        let start = ToneCurve {
+            points: vec![CurvePoint { x: 0.0, y: 0.0 }, CurvePoint { x: 1.0, y: 1.0 }],
+            blue: vec![CurvePoint { x: 0.0, y: 0.1 }, CurvePoint { x: 1.0, y: 0.9 }],
+            ..ToneCurve::default()
+        };
+        let Some((_, Value::ToneCurve(after))) = curve_point((0.4, 0.6), "red", &start) else {
+            panic!("a click on an empty channel curve must seed it");
+        };
+        assert_eq!(after.red.len(), 3, "the red curve gained its point");
+        assert_eq!(after.points, start.points, "the master is untouched");
+        assert_eq!(after.blue, start.blue, "the blue curve is untouched");
+        assert!(after.green.is_empty());
+
+        // Resetting one channel clears only that one.
+        let (_, Value::ToneCurve(cleared)) = reset_curve("blue", &after) else {
+            panic!()
+        };
+        assert!(cleared.blue.is_empty());
+        assert_eq!(cleared.red, after.red, "the red curve survives");
+        assert_eq!(cleared.points, start.points, "so does the master");
     }
 
     #[test]

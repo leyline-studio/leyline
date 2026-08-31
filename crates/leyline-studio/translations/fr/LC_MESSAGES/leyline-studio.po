@@ -2627,3 +2627,19 @@ msgstr "Exact (lit chaque fichier)"
 msgctxt "DevelopPanel"
 msgid "Sharpen masking"
 msgstr "Masquage de netteté"
+
+msgctxt "DevelopPanel"
+msgid "Master"
+msgstr "Maîtresse"
+
+msgctxt "DevelopPanel"
+msgid "Red"
+msgstr "Rouge"
+
+msgctxt "DevelopPanel"
+msgid "Green"
+msgstr "Vert"
+
+msgctxt "DevelopPanel"
+msgid "Blue"
+msgstr "Bleu"

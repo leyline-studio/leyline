@@ -190,7 +190,12 @@ pub(crate) fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<()
         )
         .unwrap_or(0),
     );
-    let (path, markers) = develop::curve_layout(&settings.tone_curve.points, CURVE_CANVAS_SIZE);
+    // The canvas shows whichever of the four curves is selected (ADR 0098 §4).
+    let channel = DevelopState::get(window).get_dev_curve_channel();
+    let (path, markers) = develop::curve_layout(
+        develop::channel_points(&settings.tone_curve, channel.as_str()),
+        CURVE_CANVAS_SIZE,
+    );
     DevelopState::get(window).set_dev_curve_path(SharedString::from(path));
     DevelopState::get(window).set_dev_curve_points(ModelRc::from(Rc::new(VecModel::from(
         markers
