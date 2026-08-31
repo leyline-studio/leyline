@@ -6,7 +6,7 @@
 
 use leyline_sdk::{
     ColorGrading, Crop, CurvePoint, Demosaic, HighlightReconstruction, HslBand, LensCorrection,
-    NoiseReduction, Param, Point, Settings, Sharpening, SpotRemoval, ToneCurve, Value,
+    NoiseReduction, Param, Point, RedEye, Settings, Sharpening, SpotRemoval, ToneCurve, Value,
 };
 
 /// Decodes a slider release into an engine parameter update.
@@ -446,6 +446,37 @@ pub fn paint_clipping(
         }
     }
     (any_high, any_low)
+}
+
+/// Decodes a red-eye click over the develop preview (ADR 0103): one click
+/// places one disk, unlike spot removal's two.
+///
+/// `radius_feather_darken` comes from the panel's own fields, already in
+/// the units [`RedEye`] stores. A non-positive radius yields `None`,
+/// matching `Settings::validate`.
+pub fn place_red_eye(
+    click: (f64, f64),
+    view: (f64, f64),
+    image: (f64, f64),
+    radius_feather_darken: (f64, f64, f64),
+    current: &[RedEye],
+) -> Option<(Param, Value)> {
+    let (radius, feather, darken) = radius_feather_darken;
+    let center = letterbox_unit(click, view, image)?;
+    if radius <= 0.0 {
+        return None;
+    }
+    let mut eyes = current.to_vec();
+    eyes.push(RedEye {
+        center: Point {
+            x: center.0,
+            y: center.1,
+        },
+        radius,
+        feather,
+        darken,
+    });
+    Some((Param::RedEye, Value::RedEye(eyes)))
 }
 
 /// Builds one channel's filled-area histogram path in a `width` x `height`
@@ -1335,5 +1366,32 @@ mod tests {
         let mut clean = [254u8, 0, 128];
         assert_eq!(paint_clipping(&mut clean, true, true), (false, false));
         assert_eq!(clean, [254, 0, 128]);
+    }
+
+    /// ADR 0103: one click, one disk, appended to what is there — a face
+    /// has two eyes, so the second click must not replace the first.
+    #[test]
+    fn a_red_eye_click_appends_a_disk() {
+        let view = (100.0, 100.0);
+        let image = (100.0, 100.0);
+        let Some((Param::RedEye, Value::RedEye(first))) =
+            place_red_eye((30.0, 40.0), view, image, (0.02, 0.5, 0.6), &[])
+        else {
+            panic!("a click must place a disk");
+        };
+        assert_eq!(first.len(), 1);
+        assert!((first[0].center.x - 0.3).abs() < 1e-9);
+        assert!((first[0].center.y - 0.4).abs() < 1e-9);
+
+        let Some((_, Value::RedEye(both))) =
+            place_red_eye((70.0, 40.0), view, image, (0.02, 0.5, 0.6), &first)
+        else {
+            panic!()
+        };
+        assert_eq!(both.len(), 2, "the first eye must survive the second");
+        assert!((both[1].center.x - 0.7).abs() < 1e-9);
+
+        // A degenerate radius proposes nothing, matching `validate`.
+        assert!(place_red_eye((50.0, 50.0), view, image, (0.0, 0.5, 0.6), &[]).is_none());
     }
 }

@@ -60,8 +60,8 @@ use leyline_color::DcpProfile;
 use leyline_core::{
     BrushStroke, CameraProfile, ColorGrading, ColorGradingZone, ColorRange, Crop, CurvePoint,
     Grain, HslBand, LensCorrection, LocalAdjustment, LocalAdjustmentValues, LuminanceRange, Mask,
-    NoiseReduction, Point, RangeMask, Settings, Sharpening, SpotRemoval, StageVersions, ToneCurve,
-    Vignette, WhiteBalance,
+    NoiseReduction, Point, RangeMask, RedEye, Settings, Sharpening, SpotRemoval, StageVersions,
+    ToneCurve, Vignette, WhiteBalance,
 };
 use leyline_raw::RawImage;
 use serde::{Deserialize, Serialize};
@@ -270,6 +270,20 @@ fn tone_curve_channels(settings: Settings) -> Settings {
             ],
             green: Vec::new(),
         },
+        ..settings
+    }
+}
+
+/// Red-eye correction (ADR 0103) — a new case, and the synthetic image's
+/// gradient gives the red-dominance test something to discriminate.
+fn red_eye(settings: Settings) -> Settings {
+    Settings {
+        red_eye: vec![RedEye {
+            center: Point { x: 0.45, y: 0.4 },
+            radius: 0.08,
+            feather: 0.4,
+            darken: 0.55,
+        }],
         ..settings
     }
 }
@@ -661,6 +675,7 @@ fn cases() -> Vec<(String, Case)> {
         ("tone_curve", tone_curve(base.clone())),
         ("tone_curve_channels", tone_curve_channels(base.clone())),
         ("spots", spots(base.clone())),
+        ("red_eye", red_eye(base.clone())),
         ("locals", locals(base.clone())),
         ("locals_range", locals_range(base.clone())),
         ("hsl_grading", hsl_grading(base.clone())),

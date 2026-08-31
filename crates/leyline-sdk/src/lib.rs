@@ -11,9 +11,10 @@ pub use leyline_core::{
     CurvePoint, Demosaic, ExportPresetId, FolderId, Grain, HighlightReconstruction, HslBand, JobId,
     KeywordId, LensCorrection, LeylineError, LocalAdjustment, LocalAdjustmentValues,
     LuminanceRange, Lut, Mask, MediaType, NoiseReduction, Perspective, PickState, Point,
-    PresetFolderId, PresetId, PresetSettings, PreviewKind, PrintPresetId, RangeMask, Result,
-    RevisionId, Settings, SettingsGroup, Sharpening, SpotRemoval, StageVersions, TetherSetting,
-    ToneCurve, VersionId, Vignette, WHITE_BALANCE_PRESETS, WhiteBalance, WhiteBalancePreset,
+    PresetFolderId, PresetId, PresetSettings, PreviewKind, PrintPresetId, RangeMask, RedEye,
+    Result, RevisionId, Settings, SettingsGroup, Sharpening, SpotRemoval, StageVersions,
+    TetherSetting, ToneCurve, VersionId, Vignette, WHITE_BALANCE_PRESETS, WhiteBalance,
+    WhiteBalancePreset,
 };
 
 pub use leyline_engine::{

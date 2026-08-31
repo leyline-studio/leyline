@@ -365,6 +365,7 @@ The code of every stage version is kept in the engine forever: that is the price
 | 10 | `camera_profile` | 3 | The same, plus the profile's tables — `HueSatMap`, `LookTable`, `ProfileToneCurve` — in the order and the ProPhoto space of the DNG specification ([ADR 0063](adr/0063-dcp-tables.md)) |
 | 20 | `lens` | 1 | Distortion, transverse chromatic aberration and vignetting through a Lensfun profile (ADR 0016–0018) |
 | 30 | `spot_removal` | 1 | Deterministic cloning by a softened bilinear copy, with no *heal* mode (ADR 0031) |
+| 35 | `red_eye` | 1 | Red-eye correction: a hand-placed disk, corrected by red dominance (ADR 0103) |
 | 40 | `gains` | 1 | White balance and exposure: a per-channel multiplication, the buffer being already in linear light (ADR 0044) |
 | 50 | `contrast` | 1 | An S-curve around middle grey |
 | 60 | `highlights_shadows` | 1 | Highlights and shadows, masked by luminance |

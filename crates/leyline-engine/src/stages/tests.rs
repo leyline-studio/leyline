@@ -1623,6 +1623,12 @@ fn everything() -> Settings {
             feather: 0.5,
             opacity: 1.0,
         }],
+        red_eye: vec![leyline_core::RedEye {
+            center: Point { x: 0.4, y: 0.4 },
+            radius: 0.03,
+            feather: 0.5,
+            darken: 0.6,
+        }],
         exposure: 0.2,
         contrast: 10,
         highlights: -10,

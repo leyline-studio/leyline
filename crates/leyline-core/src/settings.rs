@@ -521,6 +521,41 @@ pub struct SpotRemoval {
     pub opacity: f64,
 }
 
+/// One red-eye correction (ADR 0103): a disk placed over a pupil, inside
+/// which red is desaturated and darkened *in proportion to how red each
+/// pixel is*.
+///
+/// Same post-rotation, pre-crop referential as [`SpotRemoval`] (ADR 0026),
+/// and the same "an empty list is the neutral" convention — there is no
+/// neutral entry.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RedEye {
+    /// Center of the disk covering the pupil.
+    pub center: Point,
+    /// Radius, normalized against the buffer's larger dimension. Strictly
+    /// positive.
+    pub radius: f64,
+    /// Radial falloff at the disk's edge, in [0, 1], like
+    /// [`SpotRemoval::feather`].
+    pub feather: f64,
+    /// How much the corrected pixels are darkened, in [0, 1]: 0 removes the
+    /// cast and leaves the brightness, 1 takes the pupil to black. A pupil
+    /// is not merely grey, so the useful values are not near 0.
+    pub darken: f64,
+}
+
+impl Default for RedEye {
+    fn default() -> Self {
+        Self {
+            center: Point { x: 0.5, y: 0.5 },
+            radius: 0.02,
+            feather: 0.5,
+            darken: 0.6,
+        }
+    }
+}
+
 /// One point of a [`Mask::Brush`] stroke (ADR 0029): a single dab in the
 /// brush's path, in the same post-rotation, pre-crop referential as
 /// [`Point`].
@@ -849,6 +884,9 @@ pub struct Settings {
     /// Spot removal clones, applied in list order. Neutral: empty (ADR 0032).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub spot_removal: Vec<SpotRemoval>,
+    /// Red-eye corrections (ADR 0103). Empty = none, the neutral state.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub red_eye: Vec<RedEye>,
 
     /// Masked local adjustments, applied in list order. Neutral: empty (ADR
     /// 0029).
@@ -924,6 +962,7 @@ impl Default for Settings {
             hsl: [HslBand::default(); 8],
             color_grading: ColorGrading::default(),
             spot_removal: Vec::new(),
+            red_eye: Vec::new(),
             local_adjustments: Vec::new(),
             lens_correction: LensCorrection::default(),
             noise_reduction: NoiseReduction::default(),
@@ -1129,6 +1168,28 @@ impl Settings {
                  pins version 1; reprocess the photo to the current stage versions first"
                     .to_owned(),
             ));
+        }
+        // Validated exactly like `spot_removal` below, which shares its
+        // geometry (ADR 0103 §1).
+        for (i, eye) in self.red_eye.iter().enumerate() {
+            for (name, value) in [
+                (format!("red_eye[{i}].center.x"), eye.center.x),
+                (format!("red_eye[{i}].center.y"), eye.center.y),
+                (format!("red_eye[{i}].feather"), eye.feather),
+                (format!("red_eye[{i}].darken"), eye.darken),
+            ] {
+                if !(0.0..=1.0).contains(&value) {
+                    return Err(LeylineError::InvalidSettings(format!(
+                        "{name} must be in [0, 1], got {value}"
+                    )));
+                }
+            }
+            if !(eye.radius > 0.0 && eye.radius <= 1.0) {
+                return Err(LeylineError::InvalidSettings(format!(
+                    "red_eye[{i}].radius must be in (0, 1], got {}",
+                    eye.radius
+                )));
+            }
         }
         for (i, spot) in self.spot_removal.iter().enumerate() {
             for (name, value) in [

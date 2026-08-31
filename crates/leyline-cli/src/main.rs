@@ -13,8 +13,9 @@ use leyline_sdk::{
     ExportSettings, GridQuery, HighlightReconstruction, HslBand, ImportOptions, LensCorrection,
     Library, LocalAdjustment, Lut, Margins, NoiseReduction, Orientation, PaperSize, Param,
     Perspective, PickState, Point, PresetId, PreviewKind, PrintRecipe, PrintRequest, PrintSettings,
-    RenderingIntent, ScanOptions, Settings, SettingsGroup, Sharpening, ShotRange, SpotRemoval,
-    TetherOptions, TetherSetting, Value, VersionId, Watermark, WatermarkAnchor, WhiteBalance,
+    RedEye, RenderingIntent, ScanOptions, Settings, SettingsGroup, Sharpening, ShotRange,
+    SpotRemoval, TetherOptions, TetherSetting, Value, VersionId, Watermark, WatermarkAnchor,
+    WhiteBalance,
 };
 
 const USAGE: &str = "\
@@ -201,6 +202,10 @@ Develop params (docs/pipeline.md §3.2, schema 1):
                                     `tone-curve reset` ; canal parmi
                                     master/red/green/blue (ADR 0098), absent =
                                     la courbe maîtresse
+  red-eye <x> <y> <radius> <feather> <darken>
+                                    position/rayon en pourcents 0-100,
+                                    feather/darken dans [0, 1] ; ajoute une
+                                    correction (ADR 0103), ou `red-eye reset`
   spot-removal <tx> <ty> <sx> <sy> <radius> <feather> <opacity>
                                     positions/radius percent 0-100, feather/opacity 0-1;
                                     appends one spot, or `spot-removal reset` to clear all
@@ -1268,6 +1273,26 @@ fn develop(args: &[String]) -> Result<(), String> {
                 _ => curve.points = points,
             }
             (Param::ToneCurve, Value::ToneCurve(curve))
+        }
+        "red-eye" => {
+            // Same shape as `spot-removal` below, one entry appended per
+            // call, or `red-eye reset` to clear the list (ADR 0103).
+            let eyes = if at(0)? == "reset" {
+                Vec::new()
+            } else {
+                let mut eyes = session.settings().red_eye.clone();
+                eyes.push(RedEye {
+                    center: Point {
+                        x: float_at(0)? / 100.0,
+                        y: float_at(1)? / 100.0,
+                    },
+                    radius: float_at(2)? / 100.0,
+                    feather: float_at(3)?,
+                    darken: float_at(4)?,
+                });
+                eyes
+            };
+            (Param::RedEye, Value::RedEye(eyes))
         }
         "spot-removal" => {
             let spots = if at(0)? == "reset" {

@@ -85,6 +85,9 @@ pub(crate) mod camera_profile {
 pub(crate) mod lens {
     pub(crate) mod v1;
 }
+pub(crate) mod red_eye {
+    pub(crate) mod v1;
+}
 pub(crate) mod spot_removal {
     pub(crate) mod v1;
 }
@@ -488,6 +491,23 @@ pub(crate) static STAGES: &[Stage] = &[
                         lens::v1::devignette(px, &profile, shot.focal_mm, aperture_f);
                     }
                 }
+            },
+        }],
+    },
+    Stage {
+        // Right after `spot_removal` and before every tonal stage
+        // (ADR 0103 §1): a red pupil is a defect of the capture, and
+        // correcting it once the tone sliders have stretched it would be
+        // correcting a different red.
+        name: "red_eye",
+        active: |settings| !settings.red_eye.is_empty(),
+        reads: &["red_eye", "rotation"],
+        versions: &[Version {
+            version: 1,
+            rank: 35,
+            space: Space::LinearRec2020,
+            apply: |px, ctx| {
+                red_eye::v1::red_eye(px, &ctx.settings.red_eye, ctx.settings.rotation);
             },
         }],
     },

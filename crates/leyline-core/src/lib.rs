@@ -22,8 +22,8 @@ pub use settings::{
     BrushStroke, CURRENT_SCHEMA, CameraProfile, ColorGrading, ColorGradingZone, ColorRange, Crop,
     CurvePoint, Demosaic, Grain, HighlightReconstruction, HslBand, LensCorrection, LocalAdjustment,
     LocalAdjustmentValues, LuminanceRange, Lut, Mask, NoiseReduction, Perspective, Point,
-    PresetSettings, RangeMask, Settings, SettingsGroup, Sharpening, SpotRemoval, StageVersions,
-    ToneCurve, Vignette, WHITE_BALANCE_PRESETS, WhiteBalance, WhiteBalancePreset,
+    PresetSettings, RangeMask, RedEye, Settings, SettingsGroup, Sharpening, SpotRemoval,
+    StageVersions, ToneCurve, Vignette, WHITE_BALANCE_PRESETS, WhiteBalance, WhiteBalancePreset,
 };
 pub use tether::{CameraSetting, CameraSettings, TetherSetting};
 pub use types::{CollectionType, ColorLabel, MediaType, PickState, PreviewKind, PreviewOrigin};

@@ -2687,3 +2687,19 @@ msgstr "Renommer"
 msgctxt "RenameDialog"
 msgid "Cancel"
 msgstr "Annuler"
+
+msgctxt "DevelopPanel"
+msgid "Red Eye"
+msgstr "Yeux rouges"
+
+msgctxt "DevelopPanel"
+msgid "Pick the Red Eye tool above, then click each pupil. Only red pixels inside the circle are corrected, so the circle need not be precise."
+msgstr "Choisissez l'outil Yeux rouges ci-dessus, puis cliquez chaque pupille. Seuls les pixels rouges du cercle sont corrigés : le cercle n'a pas besoin d'être précis."
+
+msgctxt "DevelopPanel"
+msgid "Darken"
+msgstr "Assombrir"
+
+msgctxt "DevelopPanel"
+msgid "{} placed"
+msgstr "{} posé(s)"

@@ -138,6 +138,15 @@ export global DevelopState {
     // viewport w/h, preview w/h (px) — same letterbox convention as
     // `develop-crop-drag`.
     callback develop-spot-click(float, float, float, float, float, float, float, float);
+    // Red-eye (ADR 0103): one click places one disk — view x/y, viewport
+    // w/h, preview w/h, the same letterbox convention as the others.
+    callback develop-red-eye-click(float, float, float, float, float, float);
+    callback develop-red-eye-reset();
+    in property <int> dev-red-eye-count;
+    // The three red-eye fields, typed like the spot ones.
+    in-out property <string> red-eye-radius-text: "2";
+    in-out property <string> red-eye-feather-text: "0.5";
+    in-out property <string> red-eye-darken-text: "0.6";
     callback develop-spot-undo();
     callback develop-spot-reset();
     callback develop-undo();
