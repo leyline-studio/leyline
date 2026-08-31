@@ -114,6 +114,43 @@ fn auto_wb_proposes_and_writes() {
     assert!(!out.status.success());
 }
 
+/// ADR 0100: renaming moves the file and the catalog together, and refuses
+/// to overwrite.
+#[test]
+fn rename_moves_the_file_and_refuses_to_overwrite() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = library_with_a_photo(&dir);
+
+    let out = run(&["rename", &root, "Heron-{seq}", "1"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(stdout(&out).contains("Heron-0001.png"), "{}", stdout(&out));
+    assert!(stdout(&out).contains("1 renamed"), "{}", stdout(&out));
+
+    // A second photo, then a template that would collide with the first.
+    let second = dir.path().join("second.png");
+    image::save_buffer(
+        &second,
+        &[200u8; 4 * 4 * 3],
+        4,
+        4,
+        image::ExtendedColorType::Rgb8,
+    )
+    .unwrap();
+    assert!(
+        run(&["import", &root, second.to_str().unwrap()])
+            .status
+            .success()
+    );
+    let out = run(&["rename", &root, "Heron-0001", "2"]);
+    assert!(!out.status.success(), "overwriting must be refused");
+    assert!(stderr(&out).contains("already exists"), "{}", stderr(&out));
+
+    // An unknown placeholder is refused, and names the right one.
+    let out = run(&["rename", &root, "{sequence}", "2"]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("{seq}"), "{}", stderr(&out));
+}
+
 /// ADR 0099: what is written about a photo is kept apart from what its
 /// file says, and shown back.
 #[test]

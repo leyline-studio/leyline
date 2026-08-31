@@ -873,6 +873,15 @@ export component BrowserPanel inherits HorizontalLayout {
                             }
                             MenuSeparator { }
                             MenuItem {
+                                // Renaming files on disk (ADR 0100): acts
+                                // on the whole selection, so it does not
+                                // collapse it to this one cell.
+                                title: @tr("Rename Files…");
+                                activated => {
+                                    DialogState.open-rename();
+                                }
+                            }
+                            MenuItem {
                                 // A second development of this photo
                                 // (ADR 0094 §2). Static, never a list of the
                                 // existing versions: a `MenuItem` title that

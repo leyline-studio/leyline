@@ -304,6 +304,40 @@ impl Catalog {
             })
     }
 
+    /// Renames an asset's file in the catalog (ADR 0100 §2).
+    ///
+    /// The catalog half only: the caller has already moved the file, and
+    /// calls this to record what it did. That order is the decision —
+    /// updating first would leave the catalog naming a file that is not
+    /// there. `UNIQUE(folder_id, filename)` refuses a collision, which is
+    /// the second guard behind the caller's own check.
+    pub fn rename_asset(&mut self, asset: AssetId, filename: &str) -> Result<()> {
+        self.ensure_writable()?;
+        let extension = std::path::Path::new(filename)
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        let changed = self
+            .conn
+            .execute(
+                "UPDATE assets SET filename = ?2, extension = ?3 WHERE id = ?1",
+                rusqlite::params![asset.get(), filename, extension],
+            )
+            .map_err(db_err)?;
+        if changed == 0 {
+            return Err(LeylineError::AssetMissing(asset));
+        }
+        // The filename is indexed for search (§30), so it follows.
+        self.conn
+            .execute(
+                "UPDATE search_index SET filename = ?2 WHERE asset_id = ?1",
+                rusqlite::params![asset.get(), filename],
+            )
+            .map_err(db_err)?;
+        Ok(())
+    }
+
     /// Returns an asset's path **within its own root**, always derived from
     /// its folder (`docs/catalog.md` §9: no stored asset path).
     ///

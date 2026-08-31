@@ -26,6 +26,7 @@ mod pixels;
 mod presets;
 mod preview;
 mod print;
+mod rename;
 mod render;
 mod reprocess;
 mod roots;
@@ -64,6 +65,7 @@ pub use library::{
 pub use presets::{FailedApply, PresetApplyReport, apply_batch, capture, overlay};
 pub use preview::{Preview, PreviewFile, preview};
 pub use print::{FailedPrint, PrintRecipe, PrintReport, PrintRequest, PrintedVersion};
+pub use rename::{FailedRename, RenameReport, RenamedAsset};
 pub use render::{LensShot, Rendered, SensorShot, lens_shot, render, render_scaled, sensor_shot};
 pub use reprocess::{FailedReprocess, ReprocessReport, reprocess_batch};
 pub use scan::{ImportCandidate, ScanOptions, scan};

@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2026-08-31 17:48+0000\n"
+"POT-Creation-Date: 2026-08-31 18:09+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -504,6 +504,35 @@ msgctxt "PrintDialog"
 msgid "Print"
 msgstr ""
 
+#: crates/leyline-studio/ui/dialogs/rename.slint:16
+msgctxt "RenameDialog"
+msgid "Rename files"
+msgstr ""
+
+#. rename template have to be doubled to survive it.
+#: crates/leyline-studio/ui/dialogs/rename.slint:24
+msgctxt "RenameDialog"
+msgid "Template — {{name}} {{date}} {{time}} {{seq}}. The extension is kept."
+msgstr ""
+
+#. counterpart of ADR 0100's refusal to offer an undo.
+#: crates/leyline-studio/ui/dialogs/rename.slint:49
+msgctxt "RenameDialog"
+msgid ""
+"This renames the files themselves. A name already taken is refused, never "
+"overwritten, and RAW+JPEG pairs are renamed together."
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/rename.slint:64
+msgctxt "RenameDialog"
+msgid "Cancel"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/rename.slint:71
+msgctxt "RenameDialog"
+msgid "Rename"
+msgstr ""
+
 #: crates/leyline-studio/ui/dialogs/roots.slint:17
 msgctxt "RootsDialog"
 msgid "Roots"
@@ -908,7 +937,7 @@ msgctxt "BrowserPanel"
 msgid "Body"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:429 crates/leyline-studio/ui/panels/browser.slint:998
+#: crates/leyline-studio/ui/panels/browser.slint:429 crates/leyline-studio/ui/panels/browser.slint:1007
 msgctxt "BrowserPanel"
 msgid "Lens"
 msgstr ""
@@ -1049,100 +1078,106 @@ msgctxt "BrowserPanel"
 msgid "Reprocess"
 msgstr ""
 
+#. collapse it to this one cell.
+#: crates/leyline-studio/ui/panels/browser.slint:879
+msgctxt "BrowserPanel"
+msgid "Rename Files…"
+msgstr ""
+
 #. (ADR 0089).
-#: crates/leyline-studio/ui/panels/browser.slint:881
+#: crates/leyline-studio/ui/panels/browser.slint:890
 msgctxt "BrowserPanel"
 msgid "New Version"
 msgstr ""
 
 #. source of a copy is always singular.
-#: crates/leyline-studio/ui/panels/browser.slint:893
+#: crates/leyline-studio/ui/panels/browser.slint:902
 msgctxt "BrowserPanel"
 msgid "Copy Settings"
 msgstr ""
 
 #. collapse it down to this one cell.
-#: crates/leyline-studio/ui/panels/browser.slint:907
+#: crates/leyline-studio/ui/panels/browser.slint:916
 msgctxt "BrowserPanel"
 msgid "Paste Settings"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:939
+#: crates/leyline-studio/ui/panels/browser.slint:948
 msgctxt "BrowserPanel"
 msgid "Thumbnails"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:969
+#: crates/leyline-studio/ui/panels/browser.slint:978
 msgctxt "BrowserPanel"
 msgid "No photo selected"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:978
+#: crates/leyline-studio/ui/panels/browser.slint:987
 msgctxt "BrowserPanel"
 msgid "Path"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:982
+#: crates/leyline-studio/ui/panels/browser.slint:991
 msgctxt "BrowserPanel"
 msgid "Captured"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:986
+#: crates/leyline-studio/ui/panels/browser.slint:995
 msgctxt "BrowserPanel"
 msgid "Size"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:990
+#: crates/leyline-studio/ui/panels/browser.slint:999
 msgctxt "BrowserPanel"
 msgid "File"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:994
+#: crates/leyline-studio/ui/panels/browser.slint:1003
 msgctxt "BrowserPanel"
 msgid "Camera"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:1002
+#: crates/leyline-studio/ui/panels/browser.slint:1011
 msgctxt "BrowserPanel"
 msgid "Exposure"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:1006
+#: crates/leyline-studio/ui/panels/browser.slint:1015
 msgctxt "BrowserPanel"
 msgid "Companion file"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:1017
+#: crates/leyline-studio/ui/panels/browser.slint:1026
 msgctxt "BrowserPanel"
 msgid "Description"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:1023
+#: crates/leyline-studio/ui/panels/browser.slint:1032
 msgctxt "BrowserPanel"
 msgid "Title"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:1024
+#: crates/leyline-studio/ui/panels/browser.slint:1033
 msgctxt "BrowserPanel"
 msgid "Caption"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:1025
+#: crates/leyline-studio/ui/panels/browser.slint:1034
 msgctxt "BrowserPanel"
 msgid "Creator"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:1026
+#: crates/leyline-studio/ui/panels/browser.slint:1035
 msgctxt "BrowserPanel"
 msgid "Copyright"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:1061
+#: crates/leyline-studio/ui/panels/browser.slint:1070
 msgctxt "BrowserPanel"
 msgid "Keywords"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:1122
+#: crates/leyline-studio/ui/panels/browser.slint:1131
 msgctxt "BrowserPanel"
 msgid "Add keyword (Nature/Birds)…"
 msgstr ""

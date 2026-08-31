@@ -1,0 +1,78 @@
+// Renaming files on disk (ADR 0100): one template, applied to the grid
+// selection.
+//
+// The one dialog in Studio whose Confirm button moves the user's own
+// files, so it says so — a rename is not undoable (ADR 0100, Rejected),
+// and the interface owes that sentence rather than hiding it.
+//
+// One of the dialogs hosted by `panels/dialogs.slint` (ADR 0045 §3).
+
+import { DialogState } from "../state/dialog.slint";
+import { FilterChip } from "../widgets/controls.slint";
+
+export component RenameDialog inherits VerticalLayout {
+    spacing: 12px;
+    Text {
+        text: @tr("Rename files");
+        color: #f0f0f0;
+        font-size: 15px;
+        font-weight: 600;
+    }
+    Text {
+        // `@tr` reads `{…}` as a format placeholder, so the braces of a
+        // rename template have to be doubled to survive it.
+        text: @tr("Template — {{name}} {{date}} {{time}} {{seq}}. The extension is kept.");
+        color: #9a9a9a;
+        font-size: 12px;
+        wrap: word-wrap;
+    }
+    Rectangle {
+        height: 28px;
+        background: #1b1b1b;
+        border-radius: 4px;
+        border-width: 1px;
+        border-color: #3a3a3a;
+        rename-template := TextInput {
+            x: 8px;
+            width: parent.width - 16px;
+            height: 100%;
+            text: DialogState.rename-template;
+            color: #e6e6e6;
+            font-size: 12px;
+            vertical-alignment: center;
+            single-line: true;
+        }
+    }
+    Text {
+        // This dialog renames files on disk. Saying so is the honest
+        // counterpart of ADR 0100's refusal to offer an undo.
+        text: @tr("This renames the files themselves. A name already taken is refused, never overwritten, and RAW+JPEG pairs are renamed together.");
+        color: #c8a86a;
+        font-size: 11px;
+        wrap: word-wrap;
+    }
+    if DialogState.dialog-result != "": Text {
+        text: DialogState.dialog-result;
+        color: #9a9a9a;
+        font-size: 12px;
+        wrap: word-wrap;
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: end;
+        FilterChip {
+            text: @tr("Cancel");
+            active: false;
+            clicked => {
+                DialogState.dialog = "";
+            }
+        }
+        FilterChip {
+            text: @tr("Rename");
+            active: true;
+            clicked => {
+                DialogState.run-rename(rename-template.text);
+            }
+        }
+    }
+}

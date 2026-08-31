@@ -10,6 +10,7 @@ import { ProgressBar } from "../widgets/controls.slint";
 import { AboutDialog } from "../dialogs/about.slint";
 import { ConfirmDialog } from "../dialogs/confirm.slint";
 import { CollectionDialog, DeleteCollectionDialog, MoveCollectionDialog, RenameCollectionDialog } from "../dialogs/collection.slint";
+import { RenameDialog } from "../dialogs/rename.slint";
 import { ExportDialog } from "../dialogs/export.slint";
 import { ImportDialog } from "../dialogs/import.slint";
 import { PreferencesDialog } from "../dialogs/preferences.slint";
@@ -83,6 +84,7 @@ export component DialogOverlay inherits Rectangle {
                 if DialogState.dialog == "roots": RootsDialog { }
 
                 if DialogState.dialog == "collection": CollectionDialog { }
+                if DialogState.dialog == "rename": RenameDialog { }
 
                 // Managing the tree itself (`docs/catalog.md` §24): each
                 // opens from the sidebar's context menu, after Rust has

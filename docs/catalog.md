@@ -446,6 +446,22 @@ The `assets` table holds nothing but facts about the file: path, size, checksum,
 
 Classification (rating, label, pick) belongs to the **develop versions** (§18).
 
+## Renaming
+
+A rename changes `assets.filename` (and `extension`), never a folder: a
+template produces a **file name, not a path**
+([ADR 0100](adr/0100-file-renaming.md) §1). `UNIQUE(folder_id, filename)` is
+the catalog's own guard behind the engine's check that the destination does
+not already exist.
+
+The order is fixed and is the decision: **the file moves on disk first**, and
+the catalog records it only if that worked (§2). The reverse would leave a
+catalog naming a file that is not there — the state that makes a library look
+corrupted rather than merely unfinished.
+
+Companions ([§RAW + JPEG](#raw--jpeg-a-companion-file)) are renamed with their
+master onto the same stem, since the shared stem *is* the pair criterion.
+
 ## An authored description is not a fact
 
 `metadata` holds what the *file* said, and `set_metadata` replaces the whole

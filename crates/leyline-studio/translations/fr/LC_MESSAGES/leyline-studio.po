@@ -2663,3 +2663,27 @@ msgstr "Auteur"
 msgctxt "BrowserPanel"
 msgid "Copyright"
 msgstr "Droits"
+
+msgctxt "BrowserPanel"
+msgid "Rename Files…"
+msgstr "Renommer les fichiers…"
+
+msgctxt "RenameDialog"
+msgid "Rename files"
+msgstr "Renommer les fichiers"
+
+msgctxt "RenameDialog"
+msgid "Template — {{name}} {{date}} {{time}} {{seq}}. The extension is kept."
+msgstr "Gabarit — {{name}} {{date}} {{time}} {{seq}}. L'extension est conservée."
+
+msgctxt "RenameDialog"
+msgid "This renames the files themselves. A name already taken is refused, never overwritten, and RAW+JPEG pairs are renamed together."
+msgstr "Ceci renomme les fichiers eux-mêmes. Un nom déjà pris est refusé, jamais écrasé, et les paires RAW+JPEG sont renommées ensemble."
+
+msgctxt "RenameDialog"
+msgid "Rename"
+msgstr "Renommer"
+
+msgctxt "RenameDialog"
+msgid "Cancel"
+msgstr "Annuler"

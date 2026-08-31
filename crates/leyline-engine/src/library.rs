@@ -39,6 +39,7 @@ use crate::import::{ImportOptions, ImportReport, ImportedFile};
 use crate::presets::PresetApplyReport;
 use crate::preview::{Preview, PreviewFile};
 use crate::print::{PrintRecipe, PrintReport, PrintRequest};
+use crate::rename::{RenameReport, move_sidecars};
 use crate::reprocess::ReprocessReport;
 use crate::scan::{ImportCandidate, ScanOptions};
 use crate::session::EditSession;
@@ -1276,6 +1277,133 @@ impl Library {
             asset_ids: vec![asset],
         });
         Ok(())
+    }
+
+    /// Renames files on disk from a template (ADR 0100).
+    ///
+    /// **The only engine operation that moves a user's original file.**
+    /// Per asset, in the order given: the destination name is computed,
+    /// refused if it already exists, the file is moved, its sidecars and
+    /// its companions follow, and only then does the catalog record it
+    /// (ADR 0100 §2). A failure stops that asset and no other — the report
+    /// says which, and why.
+    pub fn rename(&self, assets: &[AssetId], template: &str) -> Result<RenameReport> {
+        let mut report = RenameReport::default();
+        for (index, &asset) in assets.iter().enumerate() {
+            match self.rename_one(asset, template, index + 1) {
+                Ok(Some(renamed)) => report.renamed.push(renamed),
+                // Nothing to do: the name it would take is the name it has.
+                Ok(None) => {}
+                Err(error) => report.failed.push(crate::rename::FailedRename {
+                    asset,
+                    reason: error.to_string(),
+                }),
+            }
+        }
+        if !report.renamed.is_empty() {
+            self.emit(Event::AssetsChanged {
+                asset_ids: report.renamed.iter().map(|r| r.asset).collect(),
+            });
+        }
+        Ok(report)
+    }
+
+    /// One asset's rename, disk first (ADR 0100 §2). `None` when the file
+    /// already carries the name the template gives it.
+    fn rename_one(
+        &self,
+        asset: AssetId,
+        template: &str,
+        index: usize,
+    ) -> Result<Option<crate::rename::RenamedAsset>> {
+        let (current, capture_ms, companions) = {
+            let catalog = lock(&self.inner.catalog);
+            let details = catalog.asset_details(asset)?;
+            (
+                details.filename.clone(),
+                details.capture_date,
+                catalog.companions_of(asset)?,
+            )
+        };
+        let stem = std::path::Path::new(&current)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or(&current);
+        let target = crate::rename::target_name(
+            &current,
+            template,
+            &crate::rename::NameFacts {
+                stem,
+                capture_ms,
+                index,
+            },
+        )?;
+        if target == current {
+            return Ok(None);
+        }
+
+        let file = self.locate(asset)?;
+        let destination = file.with_file_name(&target);
+        if destination.exists() {
+            return Err(LeylineError::Io(std::io::Error::new(
+                std::io::ErrorKind::AlreadyExists,
+                format!(
+                    "{} already exists; renaming refuses to overwrite a file",
+                    destination.display()
+                ),
+            )));
+        }
+        // The disk first: a failure here leaves everything as it was.
+        std::fs::rename(&file, &destination)?;
+        move_sidecars(&file, &destination);
+        lock(&self.inner.catalog).rename_asset(asset, &target)?;
+
+        // A companion is the same shot under another extension, and the
+        // pair criterion is the shared stem (ADR 0079 §2): renaming the
+        // master alone would unmake the pair, silently.
+        let new_stem = std::path::Path::new(&target)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or(&target)
+            .to_owned();
+        for companion in companions {
+            // The master is already renamed and correct; a companion that
+            // could not follow leaves the pair to be remade by `pair`,
+            // rather than rolling back a move that succeeded.
+            let _ = self.rename_companion(companion, &new_stem);
+        }
+        Ok(Some(crate::rename::RenamedAsset {
+            asset,
+            from: current,
+            to: target,
+        }))
+    }
+
+    /// Renames a companion onto its master's new stem, keeping its own
+    /// extension — a JPEG stays a JPEG.
+    fn rename_companion(&self, companion: AssetId, stem: &str) -> Result<()> {
+        let current = lock(&self.inner.catalog).asset_details(companion)?.filename;
+        let target = match std::path::Path::new(&current)
+            .extension()
+            .and_then(|e| e.to_str())
+        {
+            Some(extension) => format!("{stem}.{extension}"),
+            None => stem.to_owned(),
+        };
+        if target == current {
+            return Ok(());
+        }
+        let file = self.locate(companion)?;
+        let destination = file.with_file_name(&target);
+        if destination.exists() {
+            return Err(LeylineError::Io(std::io::Error::new(
+                std::io::ErrorKind::AlreadyExists,
+                format!("{} already exists", destination.display()),
+            )));
+        }
+        std::fs::rename(&file, &destination)?;
+        move_sidecars(&file, &destination);
+        lock(&self.inner.catalog).rename_asset(companion, &target)
     }
 
     /// Overlays one description onto many assets (ADR 0099 §4): a template

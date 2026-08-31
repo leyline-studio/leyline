@@ -145,6 +145,11 @@ export global DialogState {
     // Opens the roots panel (ADR 0085 §8): which folders this library may
     // reference photographs inside, and which are reachable right now.
     callback open-roots();
+    // Renaming files on disk (ADR 0100): the template last used, and the
+    // call that applies it to the grid selection.
+    in-out property <string> rename-template: "{name}";
+    callback open-rename();
+    callback run-rename(string);
     // Pick a folder and add it as a root, or tell the library where a root
     // it already knows has moved to. Both open a native folder picker, so
     // neither takes a typed path: a root is identified by the marker inside

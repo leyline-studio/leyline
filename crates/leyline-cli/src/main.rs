@@ -45,6 +45,12 @@ Usage:
   leyline auto-tone <library> <version-id> [--dry-run]
                                     propose une tonalité et l'écrit (ADR 0088) ;
                                     --dry-run affiche sans committer
+  leyline rename <library> <template> <asset-id>...
+                                    renomme les fichiers sur le disque
+                                    (ADR 0100) : {name} {date} {time} {seq},
+                                    l'extension est conservée ; un nom déjà
+                                    pris est refusé, jamais écrasé, et les
+                                    compagnons RAW+JPEG suivent
   leyline describe <library> <asset-id> [--title <t>] [--caption <c>]
                [--creator <n>] [--copyright <c>] [--credit <c>]
                [--city <c>] [--state <s>] [--country <c>] [--clear]
@@ -274,6 +280,7 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("auto-wb") => auto_wb(&args[1..]),
         Some("sample-range") => sample_range(&args[1..]),
         Some("describe") => describe(&args[1..]),
+        Some("rename") => rename(&args[1..]),
         Some("versions") => versions(&args[1..]),
         Some("version-create") => version_create(&args[1..]),
         Some("version-switch") => version_switch(&args[1..]),
@@ -1747,6 +1754,46 @@ fn auto_wb(args: &[String]) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     let revision = session.commit().map_err(|e| e.to_string())?;
     println!("committed revision {revision}");
+    Ok(())
+}
+
+/// Renames files on disk from a template (`docs/adr/0100`).
+fn rename(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root, template, assets @ ..] = positional.as_slice() else {
+        return Err("usage: leyline rename <library> <template> <asset-id>...".to_owned());
+    };
+    if assets.is_empty() {
+        return Err("usage: leyline rename <library> <template> <asset-id>...".to_owned());
+    }
+    let library = open(root)?;
+    let assets = assets
+        .iter()
+        .map(|id| {
+            id.parse()
+                .map(AssetId::new)
+                .map_err(|_| format!("bad asset id {id:?}"))
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    let report = library
+        .rename(&assets, template)
+        .map_err(|e| e.to_string())?;
+    for renamed in &report.renamed {
+        println!("{} -> {}", renamed.from, renamed.to);
+    }
+    for failed in &report.failed {
+        eprintln!("asset {}: {}", failed.asset, failed.reason);
+    }
+    println!(
+        "{} renamed, {} refused",
+        report.renamed.len(),
+        report.failed.len()
+    );
+    // A batch that renamed nothing because every name was refused is a
+    // failure the shell should see.
+    if report.renamed.is_empty() && !report.failed.is_empty() {
+        return Err("nothing was renamed".to_owned());
+    }
     Ok(())
 }
 
