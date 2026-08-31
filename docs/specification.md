@@ -100,5 +100,10 @@ and what any future optional service would have to satisfy, is fixed by
 | Panorama | Likewise |
 | Face recognition | Likewise, with a privacy dimension that demands its own decision |
 | Automatic synchronisation | Contradicts Local First |
+| Video | Refused by [ADR 0101](adr/0101-refused-modules.md) §1: a second application sharing a catalog — codecs, a timeline, audio — and §5.1's promise means nothing for a frame nobody can address. *Cataloguing* a video file as an opaque asset is a separate, smaller question, left open |
+| Book, Slideshow, Web | Refused ([ADR 0101](adr/0101-refused-modules.md) §2): three layout engines, legacy in Lightroom itself. What a photographer needs from Leyline here is an export folder, which exists |
+| Publish services (Flickr, social networks) | Refused ([ADR 0101](adr/0101-refused-modules.md) §3): credentials, tokens and a background process talking to the network — a publish service is an account by another name. Export plus the tool you already use does the job |
+| DNG in writing, PSD | Refused ([ADR 0101](adr/0101-refused-modules.md) §4). DNG is **read** ([ADR 0004](adr/0004-libraw-decoding.md)) and stays read: writing a *nearly* correct DNG is worse than writing none. 16-bit TIFF carries a developed image into a compositing tool |
+| Quick Develop | Refused ([ADR 0101](adr/0101-refused-modules.md) §5): batch preset application ([ADR 0058](adr/0058-preset-provenance-and-shelf.md)) and copy/paste of settings already do it, with provenance and ordinary history |
 
 The reasoning about what deserves to be built after V1 — and about what was deliberately cut — is in [`v2-scope.md`](v2-scope.md) and [`v2-implementation-plan.md`](v2-implementation-plan.md).
