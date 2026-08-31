@@ -1,6 +1,10 @@
 # ADR 0082 — Import shows the body's embedded preview, it does not render it
 
 **Status:** Accepted — 2026-08
+**Follow-up:** the closing paragraph below leaves the **scaled JPEG decode** as
+a dependency decision "that does not have to be taken in the same move" — it
+has since been taken: [ADR 0083](0083-scaled-jpeg-thumbnail-decode.md) adopts
+`jpeg-decoder` for exactly that path, and measures why 1/8 gives ×1.8, not ×8.
 
 ## Context
 

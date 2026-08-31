@@ -115,7 +115,7 @@ A setting the body does not expose is `None` — the bar hides that control.
 It is never an error: a phone or a webcam that libgphoto2 drives has no
 aperture, and refusing to tether one over that would be absurd.
 
-Only `RadioWidget`/`TextWidget` are read (a list of choices, or a free value).
+Only `Widget::Radio`/`Widget::Text` are read (a list of choices, or a free value).
 A read-only widget is reported `readonly` and shown as a value, not a picker.
 
 ### 4. A capture session is a name, and the name is a folder
