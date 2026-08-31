@@ -18,6 +18,15 @@ use leyline_preview::Rgb8;
 
 use crate::stages::kernel::v1::blackbody_rgb;
 
+/// What the range eyedropper reads at one point (ADR 0093 §1).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RangeSample {
+    /// Display-axis luminance of the 5×5 mean, in [0, 1].
+    pub luminance: f64,
+    /// Hue of the 5×5 mean, in degrees [0, 360).
+    pub hue: f64,
+}
+
 /// The slider's own range, which is also the search interval.
 const TEMP_MIN: f64 = 2000.0;
 const TEMP_MAX: f64 = 12000.0;
@@ -142,6 +151,37 @@ pub(crate) fn sample_mean(image: &Rgb8, x: f64, y: f64) -> [f64; 3] {
             let rgb = &image.data()[offset..offset + 3];
             for c in 0..3 {
                 sum[c] += srgb_to_linear(rgb[c]);
+            }
+            count += 1.0;
+        }
+    }
+    sum.map(|s| s / count)
+}
+
+/// Mean **encoded** color of the 5×5 neighbourhood around `(x, y)` (unit
+/// coordinates), in [0, 1] per channel — the display axis the range masks
+/// of ADR 0048 read, which is what the range eyedropper (ADR 0093) wants.
+/// Averaged in encoded space deliberately: the answer feeds thresholds
+/// stated on that axis.
+pub(crate) fn sample_mean_display(image: &Rgb8, x: f64, y: f64) -> [f64; 3] {
+    let (width, height) = (image.width() as i64, image.height() as i64);
+    #[allow(clippy::cast_possible_truncation)]
+    let cx = ((x.clamp(0.0, 1.0) * (width - 1) as f64).round()) as i64;
+    #[allow(clippy::cast_possible_truncation)]
+    let cy = ((y.clamp(0.0, 1.0) * (height - 1) as f64).round()) as i64;
+    let mut sum = [0.0f64; 3];
+    let mut count = 0.0f64;
+    for dy in -2..=2 {
+        for dx in -2..=2 {
+            let (px, py) = (
+                (cx + dx).clamp(0, width - 1),
+                (cy + dy).clamp(0, height - 1),
+            );
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let offset = ((py * width + px) * 3) as usize;
+            let rgb = &image.data()[offset..offset + 3];
+            for c in 0..3 {
+                sum[c] += f64::from(rgb[c]) / 255.0;
             }
             count += 1.0;
         }

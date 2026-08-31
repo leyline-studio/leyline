@@ -43,6 +43,10 @@ Usage:
   leyline auto-tone <library> <version-id> [--dry-run]
                                     propose une tonalité et l'écrit (ADR 0088) ;
                                     --dry-run affiche sans committer
+  leyline sample-range <library> <version-id> <x,y>
+                                    luminance (axe d'affichage) et teinte sous
+                                    le point [0,1]² (ADR 0093) — pour écrire
+                                    soi-même un payload local-adjustment
   leyline auto-wb <library> <version-id> [--sample x,y] [--dry-run]
                                     balance des blancs mesurée (ADR 0091) :
                                     gris-monde sans --sample, pipette sur le
@@ -245,6 +249,7 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("scan") => scan(&args[1..]),
         Some("auto-tone") => auto_tone(&args[1..]),
         Some("auto-wb") => auto_wb(&args[1..]),
+        Some("sample-range") => sample_range(&args[1..]),
         Some("tether") => tether(&args[1..]),
         Some("watch") => watch(&args[1..]),
         Some("ls") => ls(&args[1..]),
@@ -1679,6 +1684,31 @@ fn auto_wb(args: &[String]) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     let revision = session.commit().map_err(|e| e.to_string())?;
     println!("committed revision {revision}");
+    Ok(())
+}
+
+/// Prints what the range eyedropper reads at one point (`docs/adr/0093`):
+/// display-axis luminance and hue, for scripts that write their own
+/// `LocalAdjustment` payloads.
+fn sample_range(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root, version, point] = positional.as_slice() else {
+        return Err("usage: leyline sample-range <library> <version-id> <x,y>".to_owned());
+    };
+    let library = open(root)?;
+    let version = VersionId::new(version.parse().map_err(|_| "version id must be a number")?);
+    let asset = library
+        .catalog()
+        .version_asset(version)
+        .map_err(|e| e.to_string())?;
+    let (x, y) = point
+        .split_once(',')
+        .and_then(|(x, y)| Some((x.trim().parse::<f64>().ok()?, y.trim().parse::<f64>().ok()?)))
+        .ok_or_else(|| format!("expected x,y in [0,1], got {point:?}"))?;
+    let sample = library
+        .sample_range(asset, x, y)
+        .map_err(|e| e.to_string())?;
+    println!("luminance {:.3}  hue {:.1}", sample.luminance, sample.hue);
     Ok(())
 }
 

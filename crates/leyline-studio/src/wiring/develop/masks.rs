@@ -263,6 +263,44 @@ pub(super) fn wire_masks(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
+        // The range eyedropper (ADR 0093): sample under the click, then one
+        // ordinary commit through the shared gesture path.
+        MaskState::get(window).on_range_sample_click(move |kind, vx, vy, vw, vh, iw, ih| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let Some((asset, _)) = app.develop else {
+                return;
+            };
+            let selected = MaskState::get(&window).get_selected_mask();
+            let Some((x, y)) = crate::develop::letterbox_unit(
+                (f64::from(vx), f64::from(vy)),
+                (f64::from(vw), f64::from(vh)),
+                (f64::from(iw), f64::from(ih)),
+            ) else {
+                return;
+            };
+            let sample = match app.library.sample_range(asset, x, y) {
+                Ok(sample) => sample,
+                Err(error) => {
+                    report_error(&window, &error.to_string());
+                    return;
+                }
+            };
+            commit(&mut app, &window, |entries| {
+                masks::sample_field(
+                    selected,
+                    kind.as_str(),
+                    (sample.luminance, sample.hue),
+                    entries,
+                )
+            });
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
         MaskState::get(window).on_edit_mask(move |index, field, value| {
             let Some(window) = handle.upgrade() else {
                 return;

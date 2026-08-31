@@ -71,6 +71,7 @@ pub use session::{DEFAULT_AMEND_WINDOW, EditSession, Param, Value};
 pub use stages::{SourceColor, neutral_settings};
 pub use tether::{DEFAULT_SESSION, TetherOptions, session_folder};
 pub use watch::{WatchError, WatchSessionEvent, WatchedFile};
+pub use wb::RangeSample;
 pub use xmp::{
     XmpSidecar, apply_xmp_sidecar, read_xmp_sidecar, sidecar_candidates, sidecar_path,
     write_xmp_sidecar,

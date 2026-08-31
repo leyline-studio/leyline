@@ -41,6 +41,11 @@ export global MaskState {
     // `develop-edit-hsl-band`, and the same rule: Rust decides what the field
     // means, including whether a zero clears it (ADR 0049 §3).
     callback edit-mask(int, string, float);
+    // The range eyedropper (ADR 0093): tool kind ("range-lum" or
+    // "range-color"), then view x/y, viewport w/h, preview w/h — the same
+    // letterbox convention as the develop clicks. Applies to the selected
+    // mask row.
+    callback range-sample-click(string, float, float, float, float, float, float);
     // Shown while dragging, never written (ADR 0074) — the twin of the
     // callback above, same arguments.
     callback preview-mask(int, string, float);

@@ -42,6 +42,7 @@ use crate::print::{PrintRecipe, PrintReport, PrintRequest};
 use crate::reprocess::ReprocessReport;
 use crate::scan::{ImportCandidate, ScanOptions};
 use crate::session::EditSession;
+use crate::wb::RangeSample;
 
 /// Decoded images kept in memory for preview renders. Two covers the
 /// develop loop (the edited asset, at worst in two size classes) while
@@ -1257,6 +1258,35 @@ impl Library {
     fn tone_histogram(&self, asset: AssetId, settings: &Settings) -> Result<[u64; 256]> {
         let image = self.preview_live(asset, PreviewKind::Small, settings)?;
         Ok(crate::auto_tone::histogram_of(&image))
+    }
+
+    /// What one click reads for a range mask (ADR 0093): the display-axis
+    /// luminance and the hue of the 5×5 mean around `(x, y)` — unit
+    /// coordinates of the rendered image.
+    ///
+    /// A measurement, never a write: the client decides what band to make
+    /// of it. Read from the same proxy render the white-balance picker
+    /// reads, which is the image the user is pointing at; the frozen
+    /// `local_adjustments` modules read their terms at rank 160, and the
+    /// gap is accepted and stated (ADR 0093 §1) — the eyedropper proposes
+    /// a starting point, the sliders own the truth.
+    pub fn sample_range(&self, asset: AssetId, x: f64, y: f64) -> Result<RangeSample> {
+        let base = {
+            let catalog = lock(&self.inner.catalog);
+            let version = catalog.current_version(asset)?;
+            let head = catalog.version_head(version)?;
+            Settings::parse(&catalog.revision(head)?.settings_json)?
+        };
+        let image = self.preview_live(asset, PreviewKind::Small, &base)?;
+        let rgb = crate::wb::sample_mean_display(&image, x, y);
+        let luminance = 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+        #[allow(clippy::cast_possible_truncation)]
+        let (hue, _, _) =
+            crate::stages::kernel::v1::rgb_to_hsl(&[rgb[0] as f32, rgb[1] as f32, rgb[2] as f32]);
+        Ok(RangeSample {
+            luminance,
+            hue: f64::from(hue),
+        })
     }
 
     /// The white balance that makes the 5×5 neighbourhood around `(x, y)`

@@ -370,6 +370,48 @@ pub fn edit_field(
     ))
 }
 
+/// Decodes one eyedropper click into the band it proposes (ADR 0093 §2).
+///
+/// `kind` is `"range-lum"` or `"range-color"`. A luminance click writes
+/// full coverage at the sample ±0.1, clamped; a hue click moves the band's
+/// center only. Width and softness are kept when present, defaults when
+/// the term was off — turning it on is implicit, pointing at a luminance
+/// *is* asking for a luminance band.
+pub fn sample_field(
+    index: i32,
+    kind: &str,
+    sample: (f64, f64),
+    entries: &[LocalAdjustment],
+) -> Option<(Param, Value)> {
+    let (luminance, hue) = sample;
+    let index = usize::try_from(index).ok()?;
+    let mut entry = entries.get(index)?.clone();
+    let mut range = entry.range.clone().unwrap_or_default();
+    match kind {
+        "range-lum" => {
+            let softness = range.luminance.map_or(0.1, |l| l.softness);
+            range.luminance = Some(LuminanceRange {
+                min: (luminance - 0.1).clamp(0.0, 1.0),
+                max: (luminance + 0.1).clamp(0.0, 1.0),
+                softness,
+            });
+        }
+        "range-color" => {
+            let kept = range.color.unwrap_or_default();
+            range.color = Some(ColorRange {
+                center: hue.rem_euclid(360.0),
+                ..kept
+            });
+        }
+        _ => return None,
+    }
+    entry.range = keep_range(range);
+    Some((
+        Param::LocalAdjustment(index),
+        Value::LocalAdjustment(Some(entry)),
+    ))
+}
+
 /// A range with neither term is the absence of a range, not a stored struct
 /// full of `None` — the shape ADR 0048 §2 chose for the field.
 fn keep_range(range: RangeMask) -> Option<RangeMask> {
@@ -779,5 +821,58 @@ mod tests {
         let coverage = vec![255u8; 3];
         assert!(!paint_overlay(&mut base, (2, 1), &coverage, (1, 1)));
         assert_eq!(base, vec![100u8; 6]);
+    }
+
+    /// ADR 0093 §2: a luminance click writes the band around the sample and
+    /// turns the term on; a hue click moves the center and keeps the width;
+    /// a click with no selected row proposes nothing.
+    #[test]
+    fn eyedropper_click_writes_the_band_it_names() {
+        let entry = LocalAdjustment {
+            mask: Mask::Everything,
+            range: None,
+            opacity: 1.0,
+            adjustments: LocalAdjustmentValues::default(),
+        };
+        let entries = vec![entry];
+
+        let Some((_, Value::LocalAdjustment(Some(written)))) =
+            sample_field(0, "range-lum", (0.62, 200.0), &entries)
+        else {
+            panic!("luminance click must propose an entry");
+        };
+        let lum = written.range.unwrap().luminance.unwrap();
+        assert!((lum.min - 0.52).abs() < 1e-9 && (lum.max - 0.72).abs() < 1e-9);
+        assert!((lum.softness - 0.1).abs() < 1e-9, "default softness kept");
+
+        // Near white the band clamps instead of leaving the axis.
+        let Some((_, Value::LocalAdjustment(Some(written)))) =
+            sample_field(0, "range-lum", (0.97, 0.0), &entries)
+        else {
+            panic!()
+        };
+        assert!((written.range.unwrap().luminance.unwrap().max - 1.0).abs() < 1e-9);
+
+        // A hue click moves the center only; a chosen width survives.
+        let mut colored = entries.clone();
+        colored[0].range = Some(RangeMask {
+            luminance: None,
+            color: Some(ColorRange {
+                center: 10.0,
+                width: 55.0,
+                softness: 5.0,
+            }),
+        });
+        let Some((_, Value::LocalAdjustment(Some(written)))) =
+            sample_field(0, "range-color", (0.5, 200.0), &colored)
+        else {
+            panic!()
+        };
+        let color = written.range.unwrap().color.unwrap();
+        assert!((color.center - 200.0).abs() < 1e-9);
+        assert!((color.width - 55.0).abs() < 1e-9 && (color.softness - 5.0).abs() < 1e-9);
+
+        assert!(sample_field(3, "range-lum", (0.5, 0.0), &entries).is_none());
+        assert!(sample_field(0, "bogus", (0.5, 0.0), &entries).is_none());
     }
 }

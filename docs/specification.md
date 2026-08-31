@@ -67,7 +67,7 @@ These features were scoped as post-V1 candidates in [`v2-scope.md`](v2-scope.md)
 | A profile browser: choosing a camera rendering by looking at the open photo through each one | [ADR 0089](adr/0089-camera-profile-browser.md) |
 | Effects: the vignette a photographer *adds*, drawn on the cropped frame, and film grain — both deterministic, neither seeded | [ADR 0090](adr/0090-effects-vignette-grain.md) |
 
-Masked local adjustments and their range masks have been exposed in all three clients since [ADR 0049](adr/0049-local-adjustments-clients.md): drawing tools and an editor in Studio, the stored `LocalAdjustment` JSON payload in the CLI. What ADR 0049 left out of scope: the overlay of the coverage the engine computes (the "red mask") is **delivered** ([ADR 0071](adr/0071-mask-overlay.md)); what remains is the range eyedropper and drag handles on a geometry already drawn.
+Masked local adjustments and their range masks have been exposed in all three clients since [ADR 0049](adr/0049-local-adjustments-clients.md): drawing tools and an editor in Studio, the stored `LocalAdjustment` JSON payload in the CLI. What ADR 0049 left out of scope: the overlay of the coverage the engine computes (the "red mask") is **delivered** ([ADR 0071](adr/0071-mask-overlay.md)); the range eyedropper is **delivered** too ([ADR 0093](adr/0093-range-mask-eyedropper.md)); what remains is drag handles on a geometry already drawn.
 
 The word *experimental* is literal: the colorimetric accuracy of the DCP matrix path has not been validated against real Adobe `.dcp` files and their reference renders, and the `ProfileHueSatMapData` / `ProfileLookTableData` / `ProfileToneCurve` tables are not applied. Studio and the CLI say so to the user.
 

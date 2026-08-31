@@ -21,9 +21,9 @@ pub use leyline_engine::{
     ExportRecipe, ExportReport, ExportRequest, ExportedVersion, FailedApply, FailedExport,
     FailedPrint, FailedReprocess, ImportCandidate, ImportOptions, ImportReport,
     ImportedCameraProfile, ImportedFile, ImportedLut, JobResult, Library, Param, PresetApplyReport,
-    Preview, PreviewFile, PrintRecipe, PrintReport, PrintRequest, PrintedVersion, RemovalReport,
-    ReprocessReport, Rgb8, RootStatus, ScanOptions, SkippedFile, SoftProof, SourceColor,
-    TetherOptions, Value, WatchError, WatchSessionEvent, WatchedFile, decoder_version,
+    Preview, PreviewFile, PrintRecipe, PrintReport, PrintRequest, PrintedVersion, RangeSample,
+    RemovalReport, ReprocessReport, Rgb8, RootStatus, ScanOptions, SkippedFile, SoftProof,
+    SourceColor, TetherOptions, Value, WatchError, WatchSessionEvent, WatchedFile, decoder_version,
     neutral_settings, overlay, session_folder,
 };
 

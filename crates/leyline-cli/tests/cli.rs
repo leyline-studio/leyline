@@ -114,6 +114,19 @@ fn auto_wb_proposes_and_writes() {
     assert!(!out.status.success());
 }
 
+/// The range eyedropper's measurement (ADR 0093 §3): two numbers, no write.
+#[test]
+fn sample_range_prints_luminance_and_hue() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = library_with_a_photo(&dir);
+    let out = run(&["sample-range", &root, "1", "0.5,0.5"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(stdout(&out).contains("luminance"));
+    assert!(stdout(&out).contains("hue"));
+    let out = run(&["sample-range", &root, "1", "bad"]);
+    assert!(!out.status.success());
+}
+
 /// Local adjustments take a stored `LocalAdjustment` verbatim (ADR 0049 §4).
 /// What proves one landed is that the engine can then address it by index:
 /// `rm 0` succeeds while it is there and is refused once it is gone.

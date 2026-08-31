@@ -2599,3 +2599,11 @@ msgstr "Fluorescent"
 msgctxt "DevelopPanel"
 msgid "Flash"
 msgstr "Flash"
+
+msgctxt "DevelopPanel"
+msgid "Sample luminance"
+msgstr "Pipette luminance"
+
+msgctxt "DevelopPanel"
+msgid "Sample hue"
+msgstr "Pipette teinte"

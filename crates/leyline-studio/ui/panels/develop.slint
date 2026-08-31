@@ -389,6 +389,24 @@ export component DevelopPanel inherits HorizontalLayout {
                     }
                 }
 
+                // The range eyedropper (ADR 0093): one click writes the
+                // band onto the selected mask row, then hands back to
+                // Select — same one-question shape as the WB picker.
+                range-click := TouchArea {
+                    enabled: root.active-tool == "range-lum" || root.active-tool == "range-color";
+                    mouse-cursor: crosshair;
+                    pointer-event(event) => {
+                        if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
+                            MaskState.range-sample-click(
+                                root.active-tool,
+                                self.mouse-x / 1px, self.mouse-y / 1px,
+                                self.width / 1px, self.height / 1px,
+                                DevelopState.develop-image.width, DevelopState.develop-image.height);
+                            root.active-tool = "select";
+                        }
+                    }
+                }
+
                 // Pending source pin, shown between the two spot clicks.
                 Rectangle {
                     visible: root.spot-pending;
@@ -2266,6 +2284,16 @@ export component DevelopPanel inherits HorizontalLayout {
                                     MaskState.edit-mask(MaskState.selected-mask, "range-luminance", editor.sel.range-luminance-on ? 0 : 1);
                                 }
                             }
+                            if editor.sel.range-luminance-on: FilterChip {
+                                // The eyedropper (ADR 0093): arm, click the
+                                // image, the band lands on what was clicked.
+                                text: @tr("Sample luminance");
+                                active: root.active-tool == "range-lum";
+                                clicked => {
+                                    root.active-tool = "range-lum";
+                                    root.dev-zoomed = false;
+                                }
+                            }
                             if editor.sel.range-luminance-on: EditSlider {
                                 label: @tr("Range from");
                                 minimum: 0;
@@ -2307,6 +2335,14 @@ export component DevelopPanel inherits HorizontalLayout {
                                 active: editor.sel.range-color-on;
                                 clicked => {
                                     MaskState.edit-mask(MaskState.selected-mask, "range-color", editor.sel.range-color-on ? 0 : 1);
+                                }
+                            }
+                            if editor.sel.range-color-on: FilterChip {
+                                text: @tr("Sample hue");
+                                active: root.active-tool == "range-color";
+                                clicked => {
+                                    root.active-tool = "range-color";
+                                    root.dev-zoomed = false;
                                 }
                             }
                             if editor.sel.range-color-on: EditSlider {

@@ -20,9 +20,9 @@ use leyline_sdk::{
     ExportSettings, Grain, GridItem, GridQuery, HslBand, ImportOptions, ImportReport, ImportedFile,
     JobId, LensCorrection, LeylineError, Library, LocalAdjustment, LocalAdjustmentValues,
     LuminanceRange, Margins, Mask, NoiseReduction, Orientation, PaperSize, PickState, Point,
-    Preview, PreviewKind, PrintRecipe, PrintRequest, PrintSettings, RangeMask, RegisteredAsset,
-    RenderingIntent, RevisionId, Settings, Sharpening, ShotFacets, ShotRange, SkippedFile,
-    SpotRemoval, StageVersions, ToneCurve, VersionId, Vignette, WHITE_BALANCE_PRESETS,
+    Preview, PreviewKind, PrintRecipe, PrintRequest, PrintSettings, RangeMask, RangeSample,
+    RegisteredAsset, RenderingIntent, RevisionId, Settings, Sharpening, ShotFacets, ShotRange,
+    SkippedFile, SpotRemoval, StageVersions, ToneCurve, VersionId, Vignette, WHITE_BALANCE_PRESETS,
     WatchSessionEvent, WatchedFile, Watermark, WatermarkAnchor, WatermarkFont, WhiteBalance,
     WhiteBalancePreset,
 };
@@ -179,6 +179,8 @@ fn every_returned_type_is_nameable(library: &Library, version: VersionId, asset:
     let _: Result<WhiteBalance, LeylineError> = library.neutralize_wb(asset, 0.5, 0.5);
     let _: Result<WhiteBalance, LeylineError> = library.auto_wb(asset);
     let _: &WhiteBalancePreset = &WHITE_BALANCE_PRESETS[0];
+    // The range eyedropper (ADR 0093).
+    let _: Result<RangeSample, LeylineError> = library.sample_range(asset, 0.5, 0.5);
 }
 
 /// An import report, destructured down to the ids it carries. Reaching
