@@ -405,7 +405,7 @@ pub fn paint_clipping(
     let mut any_high = false;
     let mut any_low = false;
     for rgb in data.chunks_exact_mut(3) {
-        let high = rgb.iter().any(|&v| v == 255);
+        let high = rgb.contains(&255);
         let low = rgb.iter().all(|&v| v == 0);
         any_high |= high;
         any_low |= low;
@@ -633,6 +633,7 @@ mod tests {
                 Value::Sharpening(Sharpening {
                     amount: 55,
                     radius: 2.0,
+                    masking: 0,
                 })
             ))
         );
@@ -643,6 +644,7 @@ mod tests {
                 Value::Sharpening(Sharpening {
                     amount: 0,
                     radius: 0.1,
+                    masking: 0,
                 })
             ))
         );

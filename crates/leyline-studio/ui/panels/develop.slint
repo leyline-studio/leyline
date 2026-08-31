@@ -542,6 +542,117 @@ export component DevelopPanel inherits HorizontalLayout {
                         border-radius: 4px;
                         background: #ffcc00;
                     }
+
+                    // Drag handles (ADR 0097). Squares with a `TouchArea`,
+                    // never a `Path`: the software renderer drops most
+                    // `Path` marks (ADR 0049 §5). Live under the Select
+                    // tool only — a tracing tool is armed to draw, and a
+                    // handle under its first click would cost a mask.
+                    if root.active-tool == "select" && outline.shape.kind == "radial": handle-center := Rectangle {
+                        x: outline.shape.cx * parent.width - 6px;
+                        y: outline.shape.cy * parent.height - 6px;
+                        width: 12px;
+                        height: 12px;
+                        border-radius: 6px;
+                        background: #ffcc00cc;
+                        border-width: 1px;
+                        border-color: #332600;
+                        TouchArea {
+                            mouse-cursor: move;
+                            pointer-event(event) => {
+                                if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
+                                    MaskState.drag-mask-handle("center",
+                                        (parent.x + self.mouse-x) / 1px, (parent.y + self.mouse-y) / 1px,
+                                        outline.w, outline.h,
+                                        DevelopState.develop-image.width, DevelopState.develop-image.height);
+                                }
+                            }
+                        }
+                    }
+                    if root.active-tool == "select" && outline.shape.kind == "radial": handle-rx := Rectangle {
+                        x: (outline.shape.cx + outline.shape.rx) * parent.width - 5px;
+                        y: outline.shape.cy * parent.height - 5px;
+                        width: 10px;
+                        height: 10px;
+                        border-radius: 2px;
+                        background: #ffcc00cc;
+                        border-width: 1px;
+                        border-color: #332600;
+                        TouchArea {
+                            mouse-cursor: ew-resize;
+                            pointer-event(event) => {
+                                if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
+                                    MaskState.drag-mask-handle("rx",
+                                        (parent.x + self.mouse-x) / 1px, (parent.y + self.mouse-y) / 1px,
+                                        outline.w, outline.h,
+                                        DevelopState.develop-image.width, DevelopState.develop-image.height);
+                                }
+                            }
+                        }
+                    }
+                    if root.active-tool == "select" && outline.shape.kind == "radial": handle-ry := Rectangle {
+                        x: outline.shape.cx * parent.width - 5px;
+                        y: (outline.shape.cy + outline.shape.ry) * parent.height - 5px;
+                        width: 10px;
+                        height: 10px;
+                        border-radius: 2px;
+                        background: #ffcc00cc;
+                        border-width: 1px;
+                        border-color: #332600;
+                        TouchArea {
+                            mouse-cursor: ns-resize;
+                            pointer-event(event) => {
+                                if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
+                                    MaskState.drag-mask-handle("ry",
+                                        (parent.x + self.mouse-x) / 1px, (parent.y + self.mouse-y) / 1px,
+                                        outline.w, outline.h,
+                                        DevelopState.develop-image.width, DevelopState.develop-image.height);
+                                }
+                            }
+                        }
+                    }
+                    if root.active-tool == "select" && outline.shape.kind == "gradient": handle-from := Rectangle {
+                        x: outline.shape.x0 * parent.width - 6px;
+                        y: outline.shape.y0 * parent.height - 6px;
+                        width: 12px;
+                        height: 12px;
+                        border-radius: 6px;
+                        background: #ffcc00cc;
+                        border-width: 1px;
+                        border-color: #332600;
+                        TouchArea {
+                            mouse-cursor: move;
+                            pointer-event(event) => {
+                                if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
+                                    MaskState.drag-mask-handle("from",
+                                        (parent.x + self.mouse-x) / 1px, (parent.y + self.mouse-y) / 1px,
+                                        outline.w, outline.h,
+                                        DevelopState.develop-image.width, DevelopState.develop-image.height);
+                                }
+                            }
+                        }
+                    }
+                    if root.active-tool == "select" && outline.shape.kind == "gradient": handle-to := Rectangle {
+                        x: outline.shape.x1 * parent.width - 6px;
+                        y: outline.shape.y1 * parent.height - 6px;
+                        width: 12px;
+                        height: 12px;
+                        border-radius: 6px;
+                        background: #ffcc0088;
+                        border-width: 1px;
+                        border-color: #332600;
+                        TouchArea {
+                            mouse-cursor: move;
+                            pointer-event(event) => {
+                                if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
+                                    MaskState.drag-mask-handle("to",
+                                        (parent.x + self.mouse-x) / 1px, (parent.y + self.mouse-y) / 1px,
+                                        outline.w, outline.h,
+                                        DevelopState.develop-image.width, DevelopState.develop-image.height);
+                                }
+                            }
+                        }
+                    }
                     // Dab radii are normalized against the larger dimension,
                     // so a dab is a circle on screen and not an ellipse.
                     if outline.shape.kind == "brush": Rectangle {

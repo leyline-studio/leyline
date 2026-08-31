@@ -33,7 +33,7 @@ pub fn drag_geometry(
     match kind {
         "radial" => {
             let (rx, ry) = ((a.0 - b.0).abs() / 2.0, (a.1 - b.1).abs() / 2.0);
-            if rx < 0.005 || ry < 0.005 {
+            if rx < MIN_EXTENT || ry < MIN_EXTENT {
                 return None;
             }
             Some(Mask::Radial {
@@ -50,7 +50,7 @@ pub fn drag_geometry(
             })
         }
         "gradient" => {
-            if (a.0 - b.0).abs() < 0.005 && (a.1 - b.1).abs() < 0.005 {
+            if (a.0 - b.0).abs() < MIN_EXTENT && (a.1 - b.1).abs() < MIN_EXTENT {
                 return None;
             }
             Some(Mask::Gradient {
@@ -63,6 +63,80 @@ pub fn drag_geometry(
         _ => None,
     }
 }
+
+/// Moves one handle of an already-drawn geometry (ADR 0097 §1).
+///
+/// `handle` names which one was grabbed — `center`, `rx`, `ry` for a
+/// radial, `from`, `to` for a gradient — and `release` is where it was let
+/// go, in view pixels. Returns the new geometry, or `None` when the entry
+/// is not of the handle's kind or the result would be degenerate
+/// (ADR 0097 §3): the gesture is then ignored and the geometry stands.
+///
+/// Only the geometry moves: the feather, the inversion, the range band and
+/// the values of the entry are the caller's to preserve, and it does so by
+/// rewriting nothing but `mask`.
+pub fn drag_handle(
+    handle: &str,
+    release: (f64, f64),
+    view: (f64, f64),
+    image: (f64, f64),
+    current: &Mask,
+) -> Option<Mask> {
+    let (x, y) = crate::develop::letterbox_unit(release, view, image)?;
+    match (current, handle) {
+        (
+            Mask::Radial {
+                cx,
+                cy,
+                rx,
+                ry,
+                angle,
+                feather,
+                inverted,
+            },
+            _,
+        ) => {
+            let (cx, cy, rx, ry) = match handle {
+                "center" => (x, y, *rx, *ry),
+                // Resized from the centre outward, so the opposite rim
+                // moves with it — the ellipse stays centred where it is.
+                "rx" => (*cx, *cy, (x - cx).abs(), *ry),
+                "ry" => (*cx, *cy, *rx, (y - cy).abs()),
+                _ => return None,
+            };
+            if rx < MIN_EXTENT || ry < MIN_EXTENT {
+                return None;
+            }
+            Some(Mask::Radial {
+                cx,
+                cy,
+                rx,
+                ry,
+                angle: *angle,
+                feather: *feather,
+                inverted: *inverted,
+            })
+        }
+        (Mask::Gradient { x0, y0, x1, y1 }, _) => {
+            let (x0, y0, x1, y1) = match handle {
+                "from" => (x, y, *x1, *y1),
+                "to" => (*x0, *y0, x, y),
+                _ => return None,
+            };
+            if (x0 - x1).abs() < MIN_EXTENT && (y0 - y1).abs() < MIN_EXTENT {
+                return None;
+            }
+            Some(Mask::Gradient { x0, y0, x1, y1 })
+        }
+        _ => None,
+    }
+}
+
+/// The smallest extent a gesture may leave behind: below it the geometry
+/// covers nothing, which `Settings::validate` refuses anyway. Shared by
+/// [`drag_geometry`] and [`drag_handle`] so the two cannot disagree about
+/// what "degenerate" means.
+const MIN_EXTENT: f64 = 0.005;
 
 /// The feather a freshly traced radial starts with: half its radius, the
 /// midpoint of the parameter's range — a hard-edged local adjustment is
@@ -874,5 +948,122 @@ mod tests {
 
         assert!(sample_field(3, "range-lum", (0.5, 0.0), &entries).is_none());
         assert!(sample_field(0, "bogus", (0.5, 0.0), &entries).is_none());
+    }
+
+    /// ADR 0097: a handle drag edits the geometry and nothing else — the
+    /// feather, the inversion and the angle the entry accumulated survive,
+    /// which is the whole reason handles beat retracing.
+    #[test]
+    fn a_handle_drag_moves_the_geometry_and_keeps_everything_else() {
+        let radial = Mask::Radial {
+            cx: 0.5,
+            cy: 0.5,
+            rx: 0.2,
+            ry: 0.1,
+            angle: 30.0,
+            feather: 0.8,
+            inverted: true,
+        };
+        // A 100x100 preview filling a 100x100 viewport: view pixels are
+        // percentages, so the arithmetic below is readable.
+        let view = (100.0, 100.0);
+        let image = (100.0, 100.0);
+
+        let Some(Mask::Radial {
+            cx,
+            cy,
+            rx,
+            ry,
+            angle,
+            feather,
+            inverted,
+        }) = drag_handle("center", (25.0, 75.0), view, image, &radial)
+        else {
+            panic!("the centre handle must move the ellipse");
+        };
+        assert!((cx - 0.25).abs() < 1e-9 && (cy - 0.75).abs() < 1e-9);
+        // Everything that is not the position is preserved verbatim.
+        assert!((rx - 0.2).abs() < 1e-9 && (ry - 0.1).abs() < 1e-9);
+        assert!((angle - 30.0).abs() < 1e-9);
+        assert!((feather - 0.8).abs() < 1e-9);
+        assert!(inverted, "the inversion must survive a move");
+
+        // Resizing works from the centre outward: the ellipse stays put.
+        let Some(Mask::Radial { cx, rx, ry, .. }) =
+            drag_handle("rx", (80.0, 50.0), view, image, &radial)
+        else {
+            panic!()
+        };
+        assert!((cx - 0.5).abs() < 1e-9, "the centre must not move");
+        assert!((rx - 0.3).abs() < 1e-9, "rx follows the handle");
+        assert!((ry - 0.1).abs() < 1e-9, "the other axis is untouched");
+
+        let Some(Mask::Radial { ry, .. }) = drag_handle("ry", (50.0, 20.0), view, image, &radial)
+        else {
+            panic!()
+        };
+        assert!(
+            (ry - 0.3).abs() < 1e-9,
+            "dragging above the centre resizes by distance, got {ry}"
+        );
+    }
+
+    /// Both ends of a gradient move, and only the one grabbed.
+    #[test]
+    fn a_gradient_handle_moves_the_end_it_names() {
+        let gradient = Mask::Gradient {
+            x0: 0.2,
+            y0: 0.2,
+            x1: 0.8,
+            y1: 0.8,
+        };
+        let (view, image) = ((100.0, 100.0), (100.0, 100.0));
+
+        let Some(Mask::Gradient { x0, y0, x1, y1 }) =
+            drag_handle("from", (10.0, 30.0), view, image, &gradient)
+        else {
+            panic!()
+        };
+        assert!((x0 - 0.1).abs() < 1e-9 && (y0 - 0.3).abs() < 1e-9);
+        assert!((x1 - 0.8).abs() < 1e-9 && (y1 - 0.8).abs() < 1e-9);
+
+        let Some(Mask::Gradient { x0, x1, y1, .. }) =
+            drag_handle("to", (90.0, 10.0), view, image, &gradient)
+        else {
+            panic!()
+        };
+        assert!((x0 - 0.2).abs() < 1e-9, "the other end stays");
+        assert!((x1 - 0.9).abs() < 1e-9 && (y1 - 0.1).abs() < 1e-9);
+    }
+
+    /// ADR 0097 §3: a degenerate result is refused, so the geometry stands.
+    #[test]
+    fn a_degenerate_handle_drag_is_refused() {
+        let radial = Mask::Radial {
+            cx: 0.5,
+            cy: 0.5,
+            rx: 0.2,
+            ry: 0.1,
+            angle: 0.0,
+            feather: 0.5,
+            inverted: false,
+        };
+        let (view, image) = ((100.0, 100.0), (100.0, 100.0));
+        // Dropped onto the centre: a zero-radius ellipse covers nothing.
+        assert!(drag_handle("rx", (50.0, 50.0), view, image, &radial).is_none());
+
+        let gradient = Mask::Gradient {
+            x0: 0.2,
+            y0: 0.2,
+            x1: 0.8,
+            y1: 0.8,
+        };
+        // Both ends in the same place: no axis, no gradient.
+        assert!(drag_handle("to", (20.0, 20.0), view, image, &gradient).is_none());
+
+        // A handle that does not belong to the geometry proposes nothing,
+        // and neither does an unknown name.
+        assert!(drag_handle("from", (10.0, 10.0), view, image, &radial).is_none());
+        assert!(drag_handle("bogus", (10.0, 10.0), view, image, &gradient).is_none());
     }
 }

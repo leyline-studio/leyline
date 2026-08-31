@@ -56,6 +56,7 @@ fn fully_specified_settings() -> Settings {
         sharpening: Sharpening {
             amount: 40,
             radius: 1.0,
+            masking: 0,
         },
         vignette: Vignette {
             amount: -35,

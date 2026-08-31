@@ -756,6 +756,7 @@ fn a_scan_job_reports_what_is_there_and_announces_nothing_else() {
         &ScanOptions {
             recursive: false,
             thumbnails: true,
+            exact: false,
         },
     );
     let received = drain_until_finished(&events, job);

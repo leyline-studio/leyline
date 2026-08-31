@@ -263,6 +263,35 @@ pub(super) fn wire_masks(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
+        // A handle of the selected geometry moved (ADR 0097): only the
+        // geometry is rewritten, so the entry keeps its feather, its
+        // inversion, its range band and its values.
+        MaskState::get(window).on_drag_mask_handle(move |which, vx, vy, vw, vh, iw, ih| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let selected = MaskState::get(&window).get_selected_mask();
+            commit(&mut app, &window, |entries| {
+                let index = usize::try_from(selected).ok()?;
+                let mut entry = entries.get(index)?.clone();
+                entry.mask = masks::drag_handle(
+                    which.as_str(),
+                    (f64::from(vx), f64::from(vy)),
+                    (f64::from(vw), f64::from(vh)),
+                    (f64::from(iw), f64::from(ih)),
+                    &entry.mask,
+                )?;
+                Some((
+                    Param::LocalAdjustment(index),
+                    Value::LocalAdjustment(Some(entry)),
+                ))
+            });
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
         // The range eyedropper (ADR 0093): sample under the click, then one
         // ordinary commit through the shared gesture path.
         MaskState::get(window).on_range_sample_click(move |kind, vx, vy, vw, vh, iw, ih| {

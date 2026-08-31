@@ -46,6 +46,11 @@ export global MaskState {
     // letterbox convention as the develop clicks. Applies to the selected
     // mask row.
     callback range-sample-click(string, float, float, float, float, float, float);
+    // A handle of the selected geometry was dragged (ADR 0097): which
+    // handle, then the release point in view pixels, the viewport size and
+    // the preview size — the same letterbox convention as every other
+    // gesture over the develop image.
+    callback drag-mask-handle(string, float, float, float, float, float, float);
     // Shown while dragging, never written (ADR 0074) — the twin of the
     // callback above, same arguments.
     callback preview-mask(int, string, float);

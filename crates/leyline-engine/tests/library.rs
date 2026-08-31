@@ -627,6 +627,7 @@ fn a_warm_proxy_cache_renders_exactly_what_a_cold_one_does() {
         sharpening: leyline_core::Sharpening {
             amount: 60,
             radius: 1.5,
+            masking: 0,
         },
         ..leyline_core::Settings::default()
     };
@@ -734,6 +735,7 @@ fn live_preview_keeps_up_with_a_finger() {
                 sharpening: leyline_core::Sharpening {
                     amount: i,
                     radius: 1.0,
+                    masking: 0,
                 },
                 ..leyline_core::Settings::default()
             }

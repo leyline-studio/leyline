@@ -85,6 +85,7 @@ fn full_settings() -> Settings {
         sharpening: Sharpening {
             amount: 50,
             radius: 1.0,
+            masking: 0,
         },
         rotation: 1.5,
         crop: Some(Crop {

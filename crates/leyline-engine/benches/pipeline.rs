@@ -116,6 +116,7 @@ fn full_settings() -> Settings {
         sharpening: Sharpening {
             amount: 50,
             radius: 1.0,
+            masking: 0,
         },
         rotation: 1.5,
         crop: Some(Crop {
@@ -199,6 +200,7 @@ fn benches(c: &mut Criterion) {
             sharpening: Sharpening {
                 amount: 60,
                 radius: 1.2,
+                masking: 0,
             },
             ..Settings::default()
         };
@@ -641,6 +643,7 @@ fn stage_cases() -> Vec<(&'static str, Settings)> {
                 sharpening: Sharpening {
                     amount: 60,
                     radius: 1.2,
+                    masking: 0,
                 },
                 ..base.clone()
             },
