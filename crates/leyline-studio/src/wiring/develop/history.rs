@@ -46,6 +46,91 @@ pub(super) fn wire_history(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
+        // Switching branch (ADR 0094 §2): the pointer moves, the graph is
+        // untouched — and the grid cell now shows the other development,
+        // so it reloads too.
+        DevelopState::get(window).on_switch_version(move |index| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let Some((asset, _)) = app.develop else {
+                return;
+            };
+            let Some(&target) = usize::try_from(index)
+                .ok()
+                .and_then(|i| app.dev_versions.get(i))
+            else {
+                return;
+            };
+            let switched = app
+                .library
+                .catalog_mut()
+                .set_current_version(asset, target)
+                .map_err(|e| e.to_string());
+            if let Err(error) = switched {
+                report_error(&window, &error);
+                return;
+            }
+            app.develop = Some((asset, target));
+            if let Err(error) = crate::wiring::grid::reload(&mut app, &window)
+                .and_then(|()| refresh_develop(&mut app, &window))
+            {
+                report_error(&window, &error);
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        // A second development of the photo (ADR 0094 §2), branched from
+        // what is being looked at and made current: a version nobody can
+        // see is a version nobody asked for.
+        DevelopState::get(window).on_create_version(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            // From develop when open, from the selected cell otherwise —
+            // the context menu raises this from the grid.
+            let Some((asset, version)) = app.develop.or_else(|| {
+                item_at(&app, GridState::get(&window).get_selected())
+                    .map(|item| (item.asset_id, item.version_id))
+            }) else {
+                return;
+            };
+            let created = (|| {
+                let existing = app.library.catalog().versions(asset)?.len();
+                let name = format!("Version {}", existing + 1);
+                let created = app
+                    .library
+                    .catalog_mut()
+                    .create_version(version, &name, None)?;
+                app.library
+                    .catalog_mut()
+                    .set_current_version(asset, created)?;
+                Ok::<_, leyline_sdk::LeylineError>(created)
+            })();
+            let created = match created {
+                Ok(created) => created,
+                Err(error) => {
+                    report_error(&window, &error.to_string());
+                    return;
+                }
+            };
+            if app.develop.is_some() {
+                app.develop = Some((asset, created));
+            }
+            if let Err(error) = crate::wiring::grid::reload(&mut app, &window)
+                .and_then(|()| refresh_develop(&mut app, &window))
+            {
+                report_error(&window, &error);
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
         DevelopState::get(window).on_develop_reprocess(move || {
             if let Some(window) = handle.upgrade() {
                 reprocess_current(&mut app.borrow_mut(), &window);

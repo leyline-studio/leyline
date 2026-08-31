@@ -31,6 +31,9 @@ export struct Cell {
     // A camera rendering of the same shot is attached to this photo
     // (ADR 0079 §6).
     paired: bool,
+    // How many develop versions the asset carries (ADR 0094 §1). Above one,
+    // the cell says so — the grid still shows one cell per photo.
+    version-count: int,
     // The volume holding this photograph is not plugged in (ADR 0085 §5).
     // **Offline, not missing**: the cell keeps its thumbnail, its rating and
     // its place — what it cannot do is give up its pixels.

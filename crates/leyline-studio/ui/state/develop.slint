@@ -146,6 +146,16 @@ export global DevelopState {
     callback reprocess-selected();
     // Revision history, head first, formatted timestamps — a browsable
     // history panel beyond linear undo/redo.
+    // Branches of the open photo (ADR 0094 §2): one chip per version, in
+    // catalog order, with `dev-version-current` pointing at the one being
+    // developed. The chips are the selector the context menu is not.
+    in property <[string]> dev-versions;
+    in property <int> dev-version-current: 0;
+    // Switch to the version at that index; create a branch from what is
+    // being looked at. Neither rewrites the graph — a switch moves a
+    // pointer (ADR 0008).
+    callback switch-version(int);
+    callback create-version();
     in property <[string]> dev-history;
     // Index within `dev-history` of the currently-checked-out revision —
     // not always 0: the list is stable across a jump (see the Rust-side

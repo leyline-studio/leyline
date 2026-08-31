@@ -141,6 +141,25 @@ pub(crate) fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<()
             .map_or("", |lut| lut.path.rsplit('/').next().unwrap_or(&lut.path))
             .to_owned(),
     ));
+    // The branches of this photo (ADR 0094 §2). Read at every refresh
+    // rather than cached: creating one, or switching, is exactly a refresh.
+    if let Ok(versions) = app.library.catalog().versions(asset) {
+        let names: Vec<SharedString> = versions
+            .iter()
+            .map(|info| SharedString::from(info.name.as_str()))
+            .collect();
+        DevelopState::get(window).set_dev_version_current(
+            i32::try_from(
+                versions
+                    .iter()
+                    .position(|info| info.version == version)
+                    .unwrap_or(0),
+            )
+            .unwrap_or(0),
+        );
+        DevelopState::get(window).set_dev_versions(ModelRc::from(Rc::new(VecModel::from(names))));
+        app.dev_versions = versions.iter().map(|info| info.version).collect();
+    }
     if app.dev_history_version != Some(version) {
         app.dev_history.clear();
         app.dev_history_version = Some(version);

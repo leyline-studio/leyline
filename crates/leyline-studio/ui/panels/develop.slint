@@ -42,6 +42,7 @@ export component DevelopPanel inherits HorizontalLayout {
     property <bool> expand-hsl: false;
     property <bool> expand-color-grading: false;
     property <bool> expand-spot-removal: false;
+    property <bool> expand-versions: false;
     property <bool> expand-local: false;
     property <bool> expand-proof: false;
     property <bool> expand-geometry: false;
@@ -2566,6 +2567,34 @@ export component DevelopPanel inherits HorizontalLayout {
                                 active: false;
                                 clicked => {
                                     DevelopState.develop-edit("crop-reset", 0);
+                                }
+                            }
+                        }
+                    }
+
+                    // Versions (ADR 0094 §2): the branches of this photo,
+                    // above the history because a history is *of* a version
+                    // — picking the branch comes first, then walking it.
+                    GroupHeader {
+                        label: @tr("Versions");
+                        expanded <=> root.expand-versions;
+                    }
+                    if root.expand-versions: VerticalLayout {
+                        spacing: 4px;
+                        for name[index] in DevelopState.dev-versions: FilterChip {
+                            text: name;
+                            active: index == DevelopState.dev-version-current;
+                            clicked => {
+                                DevelopState.switch-version(index);
+                            }
+                        }
+                        HorizontalLayout {
+                            alignment: start;
+                            FilterChip {
+                                text: @tr("New Version");
+                                active: false;
+                                clicked => {
+                                    DevelopState.create-version();
                                 }
                             }
                         }

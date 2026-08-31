@@ -114,6 +114,58 @@ fn auto_wb_proposes_and_writes() {
     assert!(!out.status.success());
 }
 
+/// Versions in the CLI (ADR 0094 §3): list, branch, switch — and a branch
+/// carries the development its parent had at the moment it was made.
+#[test]
+fn versions_are_listable_branchable_and_switchable() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = library_with_a_photo(&dir);
+
+    // One version to start with, and it is the current one.
+    let out = run(&["versions", &root, "1"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out).lines().count(), 1);
+    assert!(stdout(&out).starts_with('*'));
+
+    // Develop, then branch: the branch is created and becomes current.
+    assert!(
+        run(&["develop", &root, "1", "exposure", "0.5"])
+            .status
+            .success()
+    );
+    let out = run(&["version-create", &root, "1", "Cool"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(stdout(&out).contains("now current"));
+
+    let out = run(&["versions", &root, "1"]);
+    let listing = stdout(&out);
+    assert_eq!(listing.lines().count(), 2, "{listing}");
+    assert!(listing.contains("Cool"));
+    // The starred line is the new one, not the original.
+    let starred = listing
+        .lines()
+        .find(|line| line.starts_with('*'))
+        .expect("one version must be current");
+    assert!(starred.contains("Cool"), "{listing}");
+
+    // Switching back moves the pointer, and nothing else.
+    let out = run(&["version-switch", &root, "1"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    let listing = stdout(&run(&["versions", &root, "1"]));
+    assert!(
+        listing
+            .lines()
+            .find(|line| line.starts_with('*'))
+            .is_some_and(|line| !line.contains("Cool")),
+        "{listing}"
+    );
+
+    // An auto-named branch does not need a name argument.
+    let out = run(&["version-create", &root, "1"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(stdout(&out).contains("Version 3"));
+}
+
 /// The range eyedropper's measurement (ADR 0093 §3): two numbers, no write.
 #[test]
 fn sample_range_prints_luminance_and_hue() {

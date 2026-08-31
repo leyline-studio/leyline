@@ -658,6 +658,18 @@ export component BrowserPanel inherits HorizontalLayout {
                             color: #7a7a7a;
                             font-size: 9px;
                         }
+                        // More than one development of this photo exists
+                        // (ADR 0094 §1). The grid still shows one cell per
+                        // photo; the badge is how a branch announces itself,
+                        // and the develop panel's chips are where one
+                        // switches.
+                        if cell.version-count > 1: Text {
+                            x: parent.width - 20px;
+                            y: 18px;
+                            text: "×\{cell.version-count}";
+                            color: #c8a86a;
+                            font-size: 10px;
+                        }
                         // The volume is unplugged (ADR 0085 §5). The badge
                         // says the *original* is out of reach, not that the
                         // photograph is gone — the thumbnail beneath it is
@@ -857,6 +869,20 @@ export component BrowserPanel inherits HorizontalLayout {
                                     GridState.selected = GridState.window-start + i;
                                     GridState.select(GridState.window-start + i);
                                     DevelopState.reprocess-selected();
+                                }
+                            }
+                            MenuSeparator { }
+                            MenuItem {
+                                // A second development of this photo
+                                // (ADR 0094 §2). Static, never a list of the
+                                // existing versions: a `MenuItem` title that
+                                // is an expression panics Slint's generator
+                                // (ADR 0089).
+                                title: @tr("New Version");
+                                activated => {
+                                    GridState.selected = GridState.window-start + i;
+                                    GridState.select(GridState.window-start + i);
+                                    DevelopState.create-version();
                                 }
                             }
                             MenuSeparator { }

@@ -155,6 +155,7 @@ pub(crate) fn load_window(app: &mut App, window: &StudioWindow) -> Result<(), St
             rejected: item.pick == PickState::Reject,
             edited: item.edited,
             paired: item.paired,
+            version_count: i32::try_from(item.version_count).unwrap_or(1),
             offline: !offline.is_empty() && offline.contains(&item.root_id),
         });
     }

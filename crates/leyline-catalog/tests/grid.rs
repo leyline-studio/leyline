@@ -294,6 +294,43 @@ fn grid_shows_the_current_version_not_all_versions() {
     assert!(!versions(&items).contains(&heron.version));
 }
 
+/// ADR 0094 §1: the grid still shows one cell per asset, and that cell says
+/// how many developments the photo carries.
+#[test]
+fn a_cell_counts_the_developments_of_its_photo() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+    let [heron, ..] = seeded(&mut catalog);
+
+    let count_of = |catalog: &Catalog, asset| {
+        catalog
+            .grid(&GridQuery::default())
+            .unwrap()
+            .iter()
+            .find(|item| item.asset_id == asset)
+            .map(|item| item.version_count)
+    };
+    assert_eq!(count_of(&catalog, heron.asset), Some(1));
+
+    let branch = catalog
+        .create_version(heron.version, "Noir & Blanc", None)
+        .unwrap();
+    // One cell still, now saying there are two developments — whichever of
+    // the two is current.
+    assert_eq!(count_of(&catalog, heron.asset), Some(2));
+    catalog.set_current_version(heron.asset, branch).unwrap();
+    assert_eq!(count_of(&catalog, heron.asset), Some(2));
+
+    // The other photos are untouched by a neighbour's branch.
+    let items = catalog.grid(&GridQuery::default()).unwrap();
+    assert!(
+        items
+            .iter()
+            .filter(|item| item.asset_id != heron.asset)
+            .all(|item| item.version_count == 1)
+    );
+}
+
 #[test]
 fn a_cell_says_whether_its_version_has_been_developed() {
     let dir = tempfile::tempdir().unwrap();

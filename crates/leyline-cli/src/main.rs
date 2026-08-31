@@ -43,6 +43,15 @@ Usage:
   leyline auto-tone <library> <version-id> [--dry-run]
                                     propose une tonalité et l'écrit (ADR 0088) ;
                                     --dry-run affiche sans committer
+  leyline versions <library> <version-id>
+                                    les développements de cette photo (ADR 0094),
+                                    l'actuel marqué d'une étoile
+  leyline version-create <library> <version-id> [nom]
+                                    branche un second développement et le rend
+                                    actuel ; le nom est auto si absent
+  leyline version-switch <library> <version-id>
+                                    rend ce développement l'actuel — le graphe
+                                    n'est jamais réécrit
   leyline sample-range <library> <version-id> <x,y>
                                     luminance (axe d'affichage) et teinte sous
                                     le point [0,1]² (ADR 0093) — pour écrire
@@ -250,6 +259,9 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("auto-tone") => auto_tone(&args[1..]),
         Some("auto-wb") => auto_wb(&args[1..]),
         Some("sample-range") => sample_range(&args[1..]),
+        Some("versions") => versions(&args[1..]),
+        Some("version-create") => version_create(&args[1..]),
+        Some("version-switch") => version_switch(&args[1..]),
         Some("tether") => tether(&args[1..]),
         Some("watch") => watch(&args[1..]),
         Some("ls") => ls(&args[1..]),
@@ -1684,6 +1696,85 @@ fn auto_wb(args: &[String]) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     let revision = session.commit().map_err(|e| e.to_string())?;
     println!("committed revision {revision}");
+    Ok(())
+}
+
+/// Lists the develop versions of a version's asset (`docs/adr/0094` §3).
+fn versions(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root, version] = positional.as_slice() else {
+        return Err("usage: leyline versions <library> <version-id>".to_owned());
+    };
+    let library = open(root)?;
+    let version = VersionId::new(version.parse().map_err(|_| "version id must be a number")?);
+    let catalog = library.catalog();
+    let asset = catalog.version_asset(version).map_err(|e| e.to_string())?;
+    let current = catalog.current_version(asset).map_err(|e| e.to_string())?;
+    for info in catalog.versions(asset).map_err(|e| e.to_string())? {
+        let marker = if info.version == current { "*" } else { " " };
+        println!("{marker} {:<8} {}", info.version.get(), info.name);
+    }
+    Ok(())
+}
+
+/// Branches a second development and makes it current (§3).
+fn version_create(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let (root, version, name) = match positional.as_slice() {
+        [root, version] => (root, version, None),
+        [root, version, name] => (root, version, Some(name.clone())),
+        _ => {
+            return Err("usage: leyline version-create <library> <version-id> [name]".to_owned());
+        }
+    };
+    let library = open(root)?;
+    let version = VersionId::new(version.parse().map_err(|_| "version id must be a number")?);
+    let asset = library
+        .catalog()
+        .version_asset(version)
+        .map_err(|e| e.to_string())?;
+    let name = match name {
+        Some(name) => name,
+        None => format!(
+            "Version {}",
+            library
+                .catalog()
+                .versions(asset)
+                .map_err(|e| e.to_string())?
+                .len()
+                + 1
+        ),
+    };
+    let created = library
+        .catalog_mut()
+        .create_version(version, &name, None)
+        .map_err(|e| e.to_string())?;
+    library
+        .catalog_mut()
+        .set_current_version(asset, created)
+        .map_err(|e| e.to_string())?;
+    println!("created version {created} ({name}), now current");
+    Ok(())
+}
+
+/// Points the asset at another of its developments (§3). The graph is not
+/// rewritten: a switch moves a pointer (ADR 0008).
+fn version_switch(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root, version] = positional.as_slice() else {
+        return Err("usage: leyline version-switch <library> <version-id>".to_owned());
+    };
+    let library = open(root)?;
+    let version = VersionId::new(version.parse().map_err(|_| "version id must be a number")?);
+    let asset = library
+        .catalog()
+        .version_asset(version)
+        .map_err(|e| e.to_string())?;
+    library
+        .catalog_mut()
+        .set_current_version(asset, version)
+        .map_err(|e| e.to_string())?;
+    println!("version {version} is now current");
     Ok(())
 }
 

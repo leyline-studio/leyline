@@ -901,7 +901,15 @@ CREATE TABLE develop_current (
 );
 ```
 
-Switching version simply amounts to updating that reference.
+Switching version simply amounts to updating that reference. That is the
+whole of what a client's version switch does ([ADR 0094](adr/0094-versions-in-the-clients.md)):
+the revision graph is never rewritten, so a branch left behind is exactly
+where it was when the pointer moved off it.
+
+The grid stays one cell per asset and carries a `version_count` column —
+one correlated `COUNT` over `develop_versions.asset_id` — so a cell can say
+that a photo carries more than one development without the page query
+listing them.
 
 ## Initial revision
 

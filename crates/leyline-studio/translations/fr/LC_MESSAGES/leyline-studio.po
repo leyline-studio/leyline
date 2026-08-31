@@ -2607,3 +2607,15 @@ msgstr "Pipette luminance"
 msgctxt "DevelopPanel"
 msgid "Sample hue"
 msgstr "Pipette teinte"
+
+msgctxt "DevelopPanel"
+msgid "Versions"
+msgstr "Versions"
+
+msgctxt "DevelopPanel"
+msgid "New Version"
+msgstr "Nouvelle version"
+
+msgctxt "BrowserPanel"
+msgid "New Version"
+msgstr "Nouvelle version"

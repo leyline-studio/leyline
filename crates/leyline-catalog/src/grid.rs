@@ -199,7 +199,7 @@ impl Default for GridQuery {
 /// [`Catalog::grid_columns`] is how a test compares it with the one SQLite
 /// actually prepares. Reordering the select list without reordering this
 /// array fails that test rather than swapping two integer columns in silence.
-pub const GRID_COLUMNS: [&str; 12] = [
+pub const GRID_COLUMNS: [&str; 13] = [
     "version_id",
     "asset_id",
     "filename",
@@ -212,6 +212,7 @@ pub const GRID_COLUMNS: [&str; 12] = [
     "edited",
     "paired",
     "root_id",
+    "version_count",
 ];
 
 /// One grid cell.
@@ -242,6 +243,9 @@ pub struct GridItem {
     /// Whether a camera rendering of the same shot is attached to this
     /// asset — what a cell's `RAW+J` badge shows (ADR 0079 §6).
     pub paired: bool,
+    /// How many develop versions the asset carries (ADR 0094 §1) — the
+    /// grid's `×N` badge shows it when above one.
+    pub version_count: u32,
     /// Which root holds the asset (ADR 0085 §5).
     ///
     /// Carried by the grid rather than looked up per cell because the client
@@ -363,7 +367,9 @@ impl Catalog {
                     (SELECT r.parent_revision_id IS NOT NULL FROM develop_revisions r
                       WHERE r.id = v.head_revision_id) AS edited,
                     EXISTS (SELECT 1 FROM assets p WHERE p.companion_of = a.id) AS paired,
-                    f.root_id
+                    f.root_id,
+                    (SELECT COUNT(*) FROM develop_versions dv
+                      WHERE dv.asset_id = a.id) AS version_count
              FROM page
              JOIN develop_versions v ON v.id = page.vid
              JOIN assets a ON a.id = page.aid
@@ -404,6 +410,7 @@ impl Catalog {
                     edited: row.get::<_, Option<bool>>(9)?.unwrap_or(false),
                     paired: row.get(10)?,
                     root_id: row.get(11)?,
+                    version_count: row.get(12)?,
                 })
             })
             .map_err(db_err)?;

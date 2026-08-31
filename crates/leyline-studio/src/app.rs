@@ -102,6 +102,9 @@ pub(crate) struct App {
     /// captures, Geometry excluded), waiting to be pasted onto the current
     /// grid selection.
     pub(crate) dev_clipboard: Option<PresetSettings>,
+    /// The open photo's versions, parallel to the `dev-versions` chip row
+    /// (ADR 0094 §2): the chips carry names, a switch needs the id.
+    pub(crate) dev_versions: Vec<leyline_sdk::VersionId>,
     /// Rows of the develop history panel, parallel to the `dev-history`
     /// display model, sorted by `created_at` ascending — merged across
     /// refreshes rather than replaced by each one, since
