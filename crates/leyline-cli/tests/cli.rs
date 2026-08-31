@@ -114,6 +114,85 @@ fn auto_wb_proposes_and_writes() {
     assert!(!out.status.success());
 }
 
+/// ADR 0105 §2–§3: the CLI half of the detector socket, exercised end to
+/// end against a fake detector — no model, no weights, just a script that
+/// speaks the protocol. `--from` is what makes this testable, and it is the
+/// same flag a detector author uses before installing anything.
+#[cfg(unix)]
+#[test]
+fn the_cli_runs_and_checks_a_detector() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().unwrap();
+    let root = library_with_a_photo(&dir);
+
+    // A detector that answers by copying the image it was handed: the right
+    // size, and a range of values, which is all the protocol asks.
+    let script = dir.path().join("fake.sh");
+    std::fs::write(
+        &script,
+        "#!/bin/sh\nimage=\"\"; out=\"\"\nwhile [ $# -gt 0 ]; do\n\
+         case \"$1\" in\n --image) image=\"$2\"; shift 2;;\n \
+         --out) out=\"$2\"; shift 2;;\n *) shift;;\n esac\ndone\ncp \"$image\" \"$out\"\n",
+    )
+    .unwrap();
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+    let manifests = dir.path().join("detectors");
+    std::fs::create_dir_all(&manifests).unwrap();
+    std::fs::write(
+        manifests.join("fake.json"),
+        format!(
+            r#"{{"id":"fake","label":"Fake","command":{:?},
+                "detections":[{{"id":"sky","label":"Sky"}}]}}"#,
+            script.to_str().unwrap()
+        ),
+    )
+    .unwrap();
+    let from = manifests.to_str().unwrap().to_owned();
+
+    // It is listed, with its detection's key.
+    let listing = stdout(&run(&["detectors", "--from", &from]));
+    assert!(listing.contains("fake:sky"), "{listing}");
+
+    // It speaks the protocol, and the pass says what it does not check.
+    let out = run(&["detect-check", "fake:sky", "--from", &from]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(
+        stdout(&out).contains("quality of the segmentation is not checked"),
+        "a pass must not read as an endorsement: {}",
+        stdout(&out)
+    );
+
+    // And a detection lands as a local adjustment carrying the coverage.
+    let out = run(&["detect", &root, "1", "fake:sky", "--from", &from]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(
+        stdout(&out).contains("committed revision"),
+        "{}",
+        stdout(&out)
+    );
+    assert!(
+        stdout(&out).contains("local adjustment 0"),
+        "{}",
+        stdout(&out)
+    );
+
+    // An unknown detector is named, not swallowed.
+    let out = run(&["detect", &root, "1", "nosuch:sky", "--from", &from]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("nosuch"), "{}", stderr(&out));
+
+    // A malformed key says what shape it wanted.
+    let out = run(&["detect-check", "missing-colon", "--from", &from]);
+    assert!(!out.status.success());
+    assert!(
+        stderr(&out).contains("<detector>:<detection>"),
+        "{}",
+        stderr(&out)
+    );
+}
+
 /// ADR 0100: renaming moves the file and the catalog together, and refuses
 /// to overwrite.
 #[test]

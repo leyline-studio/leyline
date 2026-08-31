@@ -261,43 +261,6 @@ pub fn add_mask(kind: &str, current: &[LocalAdjustment]) -> Option<(Param, Value
     ))
 }
 
-/// Converts an image file into the coverage samples
-/// `Library::store_mask_coverage` takes (ADR 0070 §7).
-///
-/// Which channel becomes the coverage is the whole decision, and getting it
-/// wrong would silently invert or flatten someone's work:
-///
-/// 1. **alpha**, when the image has one and it is not uniformly opaque — a
-///    selection exported with its transparency, whose alpha *is* the mask;
-/// 2. **luminance** otherwise — a black-and-white mask, white = covered.
-///
-/// The order matters: a selection exported as PNG often carries black pixels
-/// *and* an alpha channel, and reading its luminance would import an empty
-/// mask. A fully opaque image says nothing through its alpha, hence the
-/// fallback.
-///
-/// No resampling: the file's own resolution is what gets stored (§2).
-pub fn coverage_from_image(image: &image::DynamicImage) -> (u32, u32, Vec<u16>) {
-    let rgba = image.to_rgba16();
-    let (width, height) = (rgba.width(), rgba.height());
-    let opaque = rgba.pixels().all(|p| p.0[3] == u16::MAX);
-    let samples = rgba
-        .pixels()
-        .map(|p| {
-            let [r, g, b, a] = p.0;
-            if opaque {
-                // Rec. 709 luma, the same axis the develop panel's histogram
-                // uses — a mask's grey is a *display* grey, not linear light.
-                let luma = 0.2126 * f64::from(r) + 0.7152 * f64::from(g) + 0.0722 * f64::from(b);
-                luma.round().clamp(0.0, f64::from(u16::MAX)) as u16
-            } else {
-                a
-            }
-        })
-        .collect();
-    (width, height, samples)
-}
-
 /// Paints the mask overlay over a preview, in place (ADR 0071 §5).
 ///
 /// `coverage` is the engine's grey coverage at the same size as `base`: red at
@@ -831,49 +794,6 @@ mod tests {
                 .validate()
                 .unwrap_or_else(|e| panic!("{field} at {value} produced invalid settings: {e}"));
         }
-    }
-
-    /// ADR 0070 §7: a transparent selection is read through its alpha, an
-    /// opaque grey image through its luminance. Reading the wrong one is a
-    /// silently empty — or silently full — mask.
-    #[test]
-    fn a_transparent_selection_is_read_through_its_alpha() {
-        // Black pixels, half of them transparent: luminance would say "no
-        // coverage anywhere", alpha says "the opaque half".
-        let mut selection = image::RgbaImage::new(2, 1);
-        selection.put_pixel(0, 0, image::Rgba([0, 0, 0, 255]));
-        selection.put_pixel(1, 0, image::Rgba([0, 0, 0, 0]));
-        let (width, height, samples) =
-            coverage_from_image(&image::DynamicImage::ImageRgba8(selection));
-        assert_eq!((width, height), (2, 1));
-        assert_eq!(samples, vec![u16::MAX, 0]);
-    }
-
-    #[test]
-    fn an_opaque_grey_mask_is_read_through_its_luminance() {
-        let mut painted = image::RgbaImage::new(3, 1);
-        painted.put_pixel(0, 0, image::Rgba([0, 0, 0, 255]));
-        painted.put_pixel(1, 0, image::Rgba([255, 255, 255, 255]));
-        painted.put_pixel(2, 0, image::Rgba([128, 128, 128, 255]));
-        let (_, _, samples) = coverage_from_image(&image::DynamicImage::ImageRgba8(painted));
-        assert_eq!(samples[0], 0);
-        assert_eq!(samples[1], u16::MAX);
-        // Mid grey lands mid range, whatever the 8->16 bit expansion does.
-        assert!(
-            (samples[2] as i32 - (u16::MAX / 2) as i32).abs() < 600,
-            "got {}",
-            samples[2]
-        );
-    }
-
-    /// A file with no alpha channel at all still imports, through luminance.
-    #[test]
-    fn an_image_without_alpha_imports_through_luminance() {
-        let mut rgb = image::RgbImage::new(2, 1);
-        rgb.put_pixel(0, 0, image::Rgb([255, 255, 255]));
-        rgb.put_pixel(1, 0, image::Rgb([0, 0, 0]));
-        let (_, _, samples) = coverage_from_image(&image::DynamicImage::ImageRgb8(rgb));
-        assert_eq!(samples, vec![u16::MAX, 0]);
     }
 
     /// ADR 0071 §5: red at half strength where covered, untouched where not,

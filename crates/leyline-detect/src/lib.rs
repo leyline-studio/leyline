@@ -77,6 +77,14 @@ pub enum DetectError {
         /// Where the coverage was expected.
         out: PathBuf,
     },
+    /// It wrote a file that is not a readable image.
+    #[error("{command} wrote a coverage that is not a readable image: {reason}")]
+    Unreadable {
+        /// The command as the manifest spelled it.
+        command: String,
+        /// What the image decoder said.
+        reason: String,
+    },
 }
 
 /// Appends a detector's own error message, when it left one.
@@ -183,6 +191,72 @@ pub fn discover_in(dir: &Path) -> Vec<DetectorSource> {
     sources
 }
 
+/// Runs one detection and returns the coverage it produced, as samples
+/// ready for `Library::store_mask_coverage` (ADR 0105 §1).
+///
+/// The whole gesture in one call: a temporary file is made here, the
+/// detector fills it, the answer is read through [`coverage_from_image`]
+/// and the file is dropped. Clients get the samples and never handle the
+/// protocol's plumbing — which is what keeps two clients from disagreeing
+/// about it, and what keeps `image` out of a command-line binary that has
+/// no other use for it.
+pub fn detect_coverage(
+    source: &DetectorSource,
+    detection: &str,
+    image_path: &Path,
+) -> Result<(u32, u32, Vec<u16>)> {
+    let command = source.command.display().to_string();
+    let out = tempfile::Builder::new()
+        .prefix("leyline-detected-")
+        .suffix(".png")
+        .tempfile()
+        .map_err(|source| DetectError::Spawn {
+            command: command.clone(),
+            source,
+        })?;
+    detect(source, detection, image_path, out.path())?;
+    let answer = image::open(out.path()).map_err(|error| DetectError::Unreadable {
+        command,
+        reason: error.to_string(),
+    })?;
+    Ok(coverage_from_image(&answer))
+}
+
+/// Reads a detector's answer as coverage samples (ADR 0105 §1).
+///
+/// **The second half of the protocol.** The first half says how a detector
+/// is called; this says how what it wrote is understood, and it lives here
+/// rather than in a client so that two clients cannot quietly disagree
+/// about what a detector's output means.
+///
+/// An **opaque** image is read as grey, through Rec. 709 luma — the same
+/// axis the develop panel's histogram uses, because a mask's grey is a
+/// *display* grey and not linear light. An image carrying transparency is
+/// read from its **alpha** channel instead, which is what a detector
+/// writing an RGBA cut-out produces.
+#[must_use]
+pub fn coverage_from_image(image: &image::DynamicImage) -> (u32, u32, Vec<u16>) {
+    let rgba = image.to_rgba16();
+    let (width, height) = (rgba.width(), rgba.height());
+    let opaque = rgba.pixels().all(|p| p.0[3] == u16::MAX);
+    let samples = rgba
+        .pixels()
+        .map(|p| {
+            let [r, g, b, a] = p.0;
+            if opaque {
+                let luma = 0.2126 * f64::from(r) + 0.7152 * f64::from(g) + 0.0722 * f64::from(b);
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                {
+                    luma.round().clamp(0.0, f64::from(u16::MAX)) as u16
+                }
+            } else {
+                a
+            }
+        })
+        .collect();
+    (width, height, samples)
+}
+
 /// Runs one detection: `image` in, a coverage at `out`.
 ///
 /// Returns once the file is there. The caller owns `out` — a temporary path
@@ -252,8 +326,242 @@ pub fn detect(source: &DetectorSource, detection: &str, image: &Path, out: &Path
     Ok(())
 }
 
+/// What a conformance run found (ADR 0105 §3).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Conformance {
+    /// Failures: the detector does not speak the protocol. Empty means it
+    /// does.
+    pub failures: Vec<String>,
+    /// Things that are legal and probably not what the author meant — a
+    /// uniform coverage above all, which is what a detector returns when
+    /// its model did not load.
+    pub warnings: Vec<String>,
+}
+
+impl Conformance {
+    /// Whether the detector speaks the protocol. Warnings do not make it
+    /// false: they are legal answers (ADR 0105 §3.5).
+    #[must_use]
+    pub fn passed(&self) -> bool {
+        self.failures.is_empty()
+    }
+}
+
+/// The image a conformance run feeds a detector: a synthetic scene with a
+/// bright top and a darker textured bottom, so a sky detector has something
+/// to answer and no photograph of the user's is involved.
+fn conformance_image(width: u32, height: u32) -> image::RgbImage {
+    image::RgbImage::from_fn(width, height, |x, y| {
+        if y < height / 2 {
+            // A gradient "sky", light and blue-ish.
+            let t = f32::from(u8::try_from(y.min(255)).unwrap_or(255)) / 255.0;
+            image::Rgb([
+                (150.0 + 60.0 * t) as u8,
+                (180.0 + 50.0 * t) as u8,
+                (230.0 - 20.0 * t) as u8,
+            ])
+        } else {
+            // A darker, textured "ground".
+            let n = ((x * 7 + y * 13) % 40) as u8;
+            image::Rgb([60 + n, 70 + n, 50 + n])
+        }
+    })
+}
+
+/// Runs `detection` against a synthetic image and checks the **protocol**,
+/// never the quality of the segmentation (ADR 0105 §3).
+///
+/// The checks, in order: it ran and wrote its file (both enforced by
+/// [`detect`] itself, whose error is passed through), the file reads as an
+/// image, its dimensions match the input, and its samples span something.
+/// Only the last is a warning — a uniform coverage is legal
+/// output, and a harness that refuses legal output teaches people to
+/// ignore it.
+pub fn check_conformance(source: &DetectorSource, detection: &str) -> Conformance {
+    let mut failures = Vec::new();
+    let mut warnings = Vec::new();
+    let (width, height) = (256u32, 256u32);
+
+    let Ok(dir) = tempfile::tempdir() else {
+        failures.push("cannot create a temporary directory to run the check in".to_owned());
+        return Conformance { failures, warnings };
+    };
+    let input = dir.path().join("conformance-in.png");
+    if let Err(error) = conformance_image(width, height).save(&input) {
+        failures.push(format!("cannot write the test image: {error}"));
+        return Conformance { failures, warnings };
+    }
+
+    // 1. It ran, wrote its file, and the file reads — all three enforced
+    // by `detect_coverage`, whose error is passed through: it names the
+    // path it gave the detector, which a second check here could only say
+    // worse.
+    //
+    // 2. The file reads as an image — `detect_coverage` says so.
+    let (out_width, out_height, samples) = match detect_coverage(source, detection, &input) {
+        Ok(coverage) => coverage,
+        Err(error) => {
+            failures.push(error.to_string());
+            return Conformance { failures, warnings };
+        }
+    };
+    if (out_width, out_height) != (width, height) {
+        failures.push(format!(
+            "the coverage is {out_width}x{out_height} but the image it was given is \
+             {width}x{height}; a coverage is per-pixel and cannot be applied at another size"
+        ));
+        return Conformance { failures, warnings };
+    }
+    // 4. It says something. Legal if it does not, and worth saying aloud.
+    let (min, max) = samples
+        .iter()
+        .fold((u16::MAX, 0u16), |(lo, hi), &v| (lo.min(v), hi.max(v)));
+    if min == max {
+        warnings.push(format!(
+            "the coverage is uniformly {min}: legal, but it is also what a detector returns \
+             when its model did not load"
+        ));
+    }
+    Conformance { failures, warnings }
+}
+
 #[cfg(test)]
 mod tests {
+    /// A detector under test, running `body`.
+    #[cfg(unix)]
+    fn fake(dir: &Path, name: &str, body: &str) -> DetectorSource {
+        DetectorSource {
+            id: name.to_owned(),
+            label: name.to_owned(),
+            command: script(dir, &format!("{name}.sh"), body),
+            args: Vec::new(),
+            detections: vec![Detection {
+                id: "sky".to_owned(),
+                label: "Sky".to_owned(),
+            }],
+        }
+    }
+
+    /// ADR 0105 §3: the harness passes a detector that copies the image
+    /// back — the answer is then the right size and spans a range, which
+    /// is all the protocol asks.
+    #[cfg(unix)]
+    #[test]
+    fn conformance_passes_a_detector_that_answers_properly() {
+        let dir = tempfile::tempdir().unwrap();
+        let report = check_conformance(&fake(dir.path(), "copy", COPY_IMAGE_TO_OUT), "sky");
+        assert!(report.passed(), "{report:?}");
+        assert!(report.warnings.is_empty(), "{report:?}");
+    }
+
+    /// The four failures, each caught and each named.
+    #[cfg(unix)]
+    #[test]
+    fn conformance_names_what_a_detector_got_wrong() {
+        let dir = tempfile::tempdir().unwrap();
+
+        // Exits non-zero.
+        let report = check_conformance(&fake(dir.path(), "angry", "echo nope >&2; exit 3"), "sky");
+        assert!(!report.passed(), "{report:?}");
+
+        // Exits zero and writes nothing: caught by `detect` itself, which
+        // names the path it handed over.
+        let report = check_conformance(&fake(dir.path(), "silent", "exit 0"), "sky");
+        assert!(!report.passed());
+        assert!(
+            report.failures[0].contains("no coverage"),
+            "{:?}",
+            report.failures
+        );
+
+        // Writes something that is not an image.
+        let report = check_conformance(
+            &fake(
+                dir.path(),
+                "garbage",
+                r#"out=""
+while [ $# -gt 0 ]; do case "$1" in --out) out="$2"; shift 2;; *) shift;; esac; done
+printf 'not a png' > "$out""#,
+            ),
+            "sky",
+        );
+        assert!(!report.passed());
+        assert!(
+            report.failures[0].contains("readable image"),
+            "{:?}",
+            report.failures
+        );
+    }
+
+    /// ADR 0105 §3.4: a uniform coverage is legal, so it warns rather than
+    /// fails — and it warns, because it is what a model that did not load
+    /// returns.
+    #[cfg(unix)]
+    #[test]
+    fn a_uniform_coverage_warns_instead_of_failing() {
+        let dir = tempfile::tempdir().unwrap();
+        // Answers with a black image of the right size: valid, and empty.
+        let black = dir.path().join("black.png");
+        image::RgbImage::new(256, 256).save(&black).unwrap();
+        let body = format!(
+            r#"out=""
+while [ $# -gt 0 ]; do case "$1" in --out) out="$2"; shift 2;; *) shift;; esac; done
+cp {} "$out""#,
+            black.display()
+        );
+        let report = check_conformance(&fake(dir.path(), "empty", &body), "sky");
+        assert!(report.passed(), "a uniform coverage is legal: {report:?}");
+        assert_eq!(report.warnings.len(), 1, "{report:?}");
+        assert!(
+            report.warnings[0].contains("did not load"),
+            "the warning must say what it usually means: {:?}",
+            report.warnings
+        );
+    }
+
+    /// ADR 0070 §7: a transparent selection is read through its alpha, an
+    /// opaque grey image through its luminance. Reading the wrong one is a
+    /// silently empty — or silently full — mask.
+    #[test]
+    fn a_transparent_selection_is_read_through_its_alpha() {
+        // Black pixels, half of them transparent: luminance would say "no
+        // coverage anywhere", alpha says "the opaque half".
+        let mut selection = image::RgbaImage::new(2, 1);
+        selection.put_pixel(0, 0, image::Rgba([0, 0, 0, 255]));
+        selection.put_pixel(1, 0, image::Rgba([0, 0, 0, 0]));
+        let (width, height, samples) =
+            coverage_from_image(&image::DynamicImage::ImageRgba8(selection));
+        assert_eq!((width, height), (2, 1));
+        assert_eq!(samples, vec![u16::MAX, 0]);
+    }
+
+    #[test]
+    fn an_opaque_grey_mask_is_read_through_its_luminance() {
+        let mut painted = image::RgbaImage::new(3, 1);
+        painted.put_pixel(0, 0, image::Rgba([0, 0, 0, 255]));
+        painted.put_pixel(1, 0, image::Rgba([255, 255, 255, 255]));
+        painted.put_pixel(2, 0, image::Rgba([128, 128, 128, 255]));
+        let (_, _, samples) = coverage_from_image(&image::DynamicImage::ImageRgba8(painted));
+        assert_eq!(samples[0], 0);
+        assert_eq!(samples[1], u16::MAX);
+        // Mid grey lands mid range, whatever the 8->16 bit expansion does.
+        assert!(
+            (samples[2] as i32 - (u16::MAX / 2) as i32).abs() < 600,
+            "got {}",
+            samples[2]
+        );
+    }
+
+    /// A file with no alpha channel at all still imports, through luminance.
+    #[test]
+    fn an_image_without_alpha_imports_through_luminance() {
+        let mut rgb = image::RgbImage::new(2, 1);
+        rgb.put_pixel(0, 0, image::Rgb([255, 255, 255]));
+        rgb.put_pixel(1, 0, image::Rgb([0, 0, 0]));
+        let (_, _, samples) = coverage_from_image(&image::DynamicImage::ImageRgb8(rgb));
+        assert_eq!(samples, vec![u16::MAX, 0]);
+    }
+
     use super::*;
 
     /// Writes a manifest and, unless `command` names something else, a shell

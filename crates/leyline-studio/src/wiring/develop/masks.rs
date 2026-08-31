@@ -37,7 +37,9 @@ fn import_coverage(
     file: &std::path::Path,
 ) -> Result<leyline_sdk::Mask, String> {
     let image = image::open(file).map_err(|e| format!("{}: {e}", file.display()))?;
-    let (width, height, samples) = masks::coverage_from_image(&image);
+    // The protocol's own reader (ADR 0105 §1): a second client must not
+    // reimplement what a detector's output means.
+    let (width, height, samples) = leyline_sdk::coverage_from_image(&image);
     library
         .store_mask_coverage(width, height, &samples)
         .map_err(|e| e.to_string())
@@ -67,16 +69,14 @@ fn run_detection(app: &App, key: &str) -> Result<leyline_sdk::Mask, String> {
         .library
         .preview(asset, leyline_sdk::PreviewKind::Medium)
         .map_err(|e| e.to_string())?;
-    // Its own file, dropped when the guard is: the coverage is read back
-    // immediately and only its samples are kept.
-    let out = tempfile::Builder::new()
-        .prefix("leyline-detected-")
-        .suffix(".png")
-        .tempfile()
+    // The protocol's own call (ADR 0105 §1): it makes the temporary file,
+    // runs the detector and reads the answer, so this client handles none
+    // of that plumbing and cannot disagree with the other one about it.
+    let (width, height, samples) = leyline_sdk::detect_coverage(&source, detection, &preview.path)
         .map_err(|e| e.to_string())?;
-    leyline_sdk::detect(&source, detection, &preview.path, out.path())
-        .map_err(|e| e.to_string())?;
-    import_coverage(&app.library, out.path())
+    app.library
+        .store_mask_coverage(width, height, &samples)
+        .map_err(|e| e.to_string())
 }
 
 pub(super) fn wire_masks(app: &Rc<RefCell<App>>, window: &StudioWindow) {

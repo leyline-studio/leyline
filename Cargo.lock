@@ -3406,6 +3406,7 @@ name = "leyline-detect"
 version = "0.1.0-alpha.3"
 dependencies = [
  "directories",
+ "image",
  "serde",
  "serde_json",
  "tempfile",

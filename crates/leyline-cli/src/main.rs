@@ -11,11 +11,11 @@ use leyline_sdk::{
     AssetDescription, AssetId, CameraProfile, CameraSettings, ColorGrading, ColorGradingZone,
     ColorLabel, Crop, CurvePoint, Demosaic, ExportFormat, ExportRecipe, ExportRequest,
     ExportSettings, GridQuery, HighlightReconstruction, HslBand, ImportOptions, LensCorrection,
-    Library, LocalAdjustment, Lut, Margins, NoiseReduction, Orientation, PaperSize, Param,
-    Perspective, PickState, Point, PresetId, PreviewKind, PrintRecipe, PrintRequest, PrintSettings,
-    RedEye, RenderingIntent, ScanOptions, Settings, SettingsGroup, Sharpening, ShotRange,
-    SpotRemoval, TetherOptions, TetherSetting, Value, VersionId, Watermark, WatermarkAnchor,
-    WhiteBalance,
+    Library, LocalAdjustment, LocalAdjustmentValues, Lut, Margins, NoiseReduction, Orientation,
+    PaperSize, Param, Perspective, PickState, Point, PresetId, PreviewKind, PrintRecipe,
+    PrintRequest, PrintSettings, RedEye, RenderingIntent, ScanOptions, Settings, SettingsGroup,
+    Sharpening, ShotRange, SpotRemoval, TetherOptions, TetherSetting, Value, VersionId, Watermark,
+    WatermarkAnchor, WhiteBalance,
 };
 
 const USAGE: &str = "\
@@ -52,6 +52,19 @@ Usage:
                                     l'extension est conservée ; un nom déjà
                                     pris est refusé, jamais écrasé, et les
                                     compagnons RAW+JPEG suivent
+  leyline detectors [--from <dir>]  les détecteurs de masque installés pour
+                                    cet utilisateur (ADR 0073) ; aucun n'est
+                                    livré avec Leyline. --from lit les
+                                    manifestes ailleurs : ce qu'utilise un
+                                    auteur de détecteur avant d'installer
+  leyline detect <library> <version-id> <détecteur:détection>
+                                    lance la détection sur l'aperçu et ajoute
+                                    un réglage local portant la couverture
+                                    obtenue (ADR 0105)
+  leyline detect-check <détecteur:détection>
+                                    vérifie qu'un détecteur parle le protocole,
+                                    sur une image de synthèse (ADR 0105 §3) ;
+                                    ne juge jamais la qualité d'une découpe
   leyline describe <library> <asset-id> [--title <t>] [--caption <c>]
                [--creator <n>] [--copyright <c>] [--credit <c>]
                [--city <c>] [--state <s>] [--country <c>] [--clear]
@@ -285,6 +298,9 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("auto-wb") => auto_wb(&args[1..]),
         Some("sample-range") => sample_range(&args[1..]),
         Some("describe") => describe(&args[1..]),
+        Some("detectors") => detectors(&args[1..]),
+        Some("detect") => detect_cmd(&args[1..]),
+        Some("detect-check") => detect_check(&args[1..]),
         Some("rename") => rename(&args[1..]),
         Some("versions") => versions(&args[1..]),
         Some("version-create") => version_create(&args[1..]),
@@ -1780,6 +1796,129 @@ fn auto_wb(args: &[String]) -> Result<(), String> {
     let revision = session.commit().map_err(|e| e.to_string())?;
     println!("committed revision {revision}");
     Ok(())
+}
+
+/// Lists the detectors installed for this user (`docs/adr/0073`).
+fn detectors(args: &[String]) -> Result<(), String> {
+    let (positional, options) = parse(args, &["from"])?;
+    if !positional.is_empty() {
+        return Err("usage: leyline detectors [--from <dir>]".to_owned());
+    }
+    let sources = installed(&options);
+    if sources.is_empty() {
+        // Not an error: no detector is shipped with Leyline, so this is
+        // the normal state of a fresh installation (ADR 0073).
+        println!("no detector installed");
+        if let Some(dir) = leyline_sdk::manifests_dir() {
+            println!("manifests are read from {}", dir.display());
+        }
+        return Ok(());
+    }
+    for source in sources {
+        for detection in &source.detections {
+            println!(
+                "{}:{:<16} {} · {}",
+                source.id, detection.id, source.label, detection.label
+            );
+        }
+    }
+    Ok(())
+}
+
+/// The detectors to consider: those installed for this user, or those in
+/// `--from <dir>`. The flag is what lets a detector author try an
+/// executable before installing it (ADR 0105 §2).
+fn installed(options: &Options) -> Vec<leyline_sdk::DetectorSource> {
+    match options.value("from") {
+        Some(dir) => leyline_sdk::discover_in(Path::new(dir)),
+        None => leyline_sdk::discover(),
+    }
+}
+
+/// Splits `detector:detection`, the key both detector commands take.
+fn detector_key(
+    key: &str,
+    options: &Options,
+) -> Result<(leyline_sdk::DetectorSource, String), String> {
+    let (source_id, detection) = key
+        .split_once(':')
+        .ok_or_else(|| format!("expected <detector>:<detection>, got {key:?}"))?;
+    let source = installed(options)
+        .into_iter()
+        .find(|source| source.id == source_id)
+        .ok_or_else(|| format!("no detector named {source_id} is installed"))?;
+    Ok((source, detection.to_owned()))
+}
+
+/// Runs a detection and appends the coverage it returns as a local
+/// adjustment (`docs/adr/0105` §2).
+fn detect_cmd(args: &[String]) -> Result<(), String> {
+    let (positional, options) = parse(args, &["from"])?;
+    let [root, version, key] = positional.as_slice() else {
+        return Err(
+            "usage: leyline detect <library> <version-id> <detector>:<detection> [--from <dir>]"
+                .to_owned(),
+        );
+    };
+    let (source, detection) = detector_key(key, &options)?;
+    let library = open(root)?;
+    let version = VersionId::new(version.parse().map_err(|_| "version id must be a number")?);
+    let asset = library
+        .catalog()
+        .version_asset(version)
+        .map_err(|e| e.to_string())?;
+    let preview = library
+        .preview(asset, PreviewKind::Medium)
+        .map_err(|e| e.to_string())?;
+    let (width, height, samples) = leyline_sdk::detect_coverage(&source, &detection, &preview.path)
+        .map_err(|e| e.to_string())?;
+    let mask = library
+        .store_mask_coverage(width, height, &samples)
+        .map_err(|e| e.to_string())?;
+
+    // Neutral values, like Studio's: the detection chose *where*, the
+    // photographer still chooses *what* (ADR 0105 §2).
+    let mut session = library.edit(version).map_err(|e| e.to_string())?;
+    let index = session.settings().local_adjustments.len();
+    let entry = LocalAdjustment {
+        mask,
+        range: None,
+        opacity: 1.0,
+        adjustments: LocalAdjustmentValues::default(),
+    };
+    session
+        .set(
+            Param::LocalAdjustment(index),
+            Value::LocalAdjustment(Some(entry)),
+        )
+        .map_err(|e| e.to_string())?;
+    let revision = session.commit().map_err(|e| e.to_string())?;
+    println!("local adjustment {index} carries the detected coverage");
+    println!("committed revision {revision}");
+    Ok(())
+}
+
+/// Checks that a detector speaks the protocol (`docs/adr/0105` §3).
+fn detect_check(args: &[String]) -> Result<(), String> {
+    let (positional, options) = parse(args, &["from"])?;
+    let [key] = positional.as_slice() else {
+        return Err("usage: leyline detect-check <detector>:<detection> [--from <dir>]".to_owned());
+    };
+    let (source, detection) = detector_key(key, &options)?;
+    let report = leyline_sdk::check_conformance(&source, &detection);
+    for failure in &report.failures {
+        eprintln!("fail: {failure}");
+    }
+    for warning in &report.warnings {
+        eprintln!("warn: {warning}");
+    }
+    if report.passed() {
+        println!("{key} speaks the protocol");
+        // Said every time, so nobody reads a pass as an endorsement.
+        println!("(the protocol only — the quality of the segmentation is not checked)");
+        return Ok(());
+    }
+    Err(format!("{key} does not speak the protocol"))
 }
 
 /// Renames files on disk from a template (`docs/adr/0100`).
