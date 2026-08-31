@@ -8,13 +8,13 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use leyline_sdk::{
-    AssetId, CameraProfile, CameraSettings, ColorGrading, ColorGradingZone, ColorLabel, Crop,
-    CurvePoint, Demosaic, ExportFormat, ExportRecipe, ExportRequest, ExportSettings, GridQuery,
-    HighlightReconstruction, HslBand, ImportOptions, LensCorrection, Library, LocalAdjustment, Lut,
-    Margins, NoiseReduction, Orientation, PaperSize, Param, Perspective, PickState, Point,
-    PresetId, PreviewKind, PrintRecipe, PrintRequest, PrintSettings, RenderingIntent, ScanOptions,
-    Settings, SettingsGroup, Sharpening, ShotRange, SpotRemoval, TetherOptions, TetherSetting,
-    Value, VersionId, Watermark, WatermarkAnchor, WhiteBalance,
+    AssetDescription, AssetId, CameraProfile, CameraSettings, ColorGrading, ColorGradingZone,
+    ColorLabel, Crop, CurvePoint, Demosaic, ExportFormat, ExportRecipe, ExportRequest,
+    ExportSettings, GridQuery, HighlightReconstruction, HslBand, ImportOptions, LensCorrection,
+    Library, LocalAdjustment, Lut, Margins, NoiseReduction, Orientation, PaperSize, Param,
+    Perspective, PickState, Point, PresetId, PreviewKind, PrintRecipe, PrintRequest, PrintSettings,
+    RenderingIntent, ScanOptions, Settings, SettingsGroup, Sharpening, ShotRange, SpotRemoval,
+    TetherOptions, TetherSetting, Value, VersionId, Watermark, WatermarkAnchor, WhiteBalance,
 };
 
 const USAGE: &str = "\
@@ -45,6 +45,13 @@ Usage:
   leyline auto-tone <library> <version-id> [--dry-run]
                                     propose une tonalité et l'écrit (ADR 0088) ;
                                     --dry-run affiche sans committer
+  leyline describe <library> <asset-id> [--title <t>] [--caption <c>]
+               [--creator <n>] [--copyright <c>] [--credit <c>]
+               [--city <c>] [--state <s>] [--country <c>] [--clear]
+                                    ce qu'on écrit sur une photo (ADR 0099) :
+                                    conservé quoi qu'il arrive au fichier, et
+                                    porté dans le sidecar XMP ; sans option,
+                                    affiche ce qui est écrit
   leyline versions <library> <version-id>
                                     les développements de cette photo (ADR 0094),
                                     l'actuel marqué d'une étoile
@@ -266,6 +273,7 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("auto-tone") => auto_tone(&args[1..]),
         Some("auto-wb") => auto_wb(&args[1..]),
         Some("sample-range") => sample_range(&args[1..]),
+        Some("describe") => describe(&args[1..]),
         Some("versions") => versions(&args[1..]),
         Some("version-create") => version_create(&args[1..]),
         Some("version-switch") => version_switch(&args[1..]),
@@ -1739,6 +1747,80 @@ fn auto_wb(args: &[String]) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     let revision = session.commit().map_err(|e| e.to_string())?;
     println!("committed revision {revision}");
+    Ok(())
+}
+
+/// Reads or writes what someone wrote about a photograph
+/// (`docs/adr/0099`). Each flag is optional; `--clear` empties the row.
+fn describe(args: &[String]) -> Result<(), String> {
+    let fields = [
+        "title",
+        "caption",
+        "creator",
+        "copyright",
+        "credit",
+        "city",
+        "state",
+        "country",
+    ];
+    let (positional, options) = parse(args, &fields)?;
+    let [root, asset] = positional.as_slice() else {
+        return Err("usage: leyline describe <library> <asset-id> [--title <t>] ...".to_owned());
+    };
+    let library = open(root)?;
+    let asset = AssetId::new(asset.parse().map_err(|_| "asset id must be a number")?);
+
+    let existing = library
+        .catalog()
+        .description(asset)
+        .map_err(|e| e.to_string())?
+        .unwrap_or_default();
+    let given: Vec<(&str, &str)> = fields
+        .iter()
+        .filter_map(|name| options.value(name).map(|value| (*name, value)))
+        .collect();
+
+    if given.is_empty() && !options.switch("clear") {
+        // Nothing to write: show what is written.
+        for (name, value) in [
+            ("title", &existing.title),
+            ("caption", &existing.caption),
+            ("creator", &existing.creator),
+            ("copyright", &existing.copyright),
+            ("credit", &existing.credit),
+            ("city", &existing.city),
+            ("state", &existing.state),
+            ("country", &existing.country),
+        ] {
+            if let Some(value) = value {
+                println!("{name:<10} {value}");
+            }
+        }
+        return Ok(());
+    }
+
+    let mut written = if options.switch("clear") {
+        AssetDescription::default()
+    } else {
+        existing
+    };
+    for (name, value) in given {
+        let value = (!value.is_empty()).then(|| value.to_owned());
+        match name {
+            "title" => written.title = value,
+            "caption" => written.caption = value,
+            "creator" => written.creator = value,
+            "copyright" => written.copyright = value,
+            "credit" => written.credit = value,
+            "city" => written.city = value,
+            "state" => written.state = value,
+            _ => written.country = value,
+        }
+    }
+    library
+        .set_description(asset, &written)
+        .map_err(|e| e.to_string())?;
+    println!("described asset {asset}");
     Ok(())
 }
 

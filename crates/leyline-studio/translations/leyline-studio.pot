@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2026-08-31 17:22+0000\n"
+"POT-Creation-Date: 2026-08-31 17:48+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1112,12 +1112,37 @@ msgctxt "BrowserPanel"
 msgid "Companion file"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:1011
+#: crates/leyline-studio/ui/panels/browser.slint:1017
+msgctxt "BrowserPanel"
+msgid "Description"
+msgstr ""
+
+#: crates/leyline-studio/ui/panels/browser.slint:1023
+msgctxt "BrowserPanel"
+msgid "Title"
+msgstr ""
+
+#: crates/leyline-studio/ui/panels/browser.slint:1024
+msgctxt "BrowserPanel"
+msgid "Caption"
+msgstr ""
+
+#: crates/leyline-studio/ui/panels/browser.slint:1025
+msgctxt "BrowserPanel"
+msgid "Creator"
+msgstr ""
+
+#: crates/leyline-studio/ui/panels/browser.slint:1026
+msgctxt "BrowserPanel"
+msgid "Copyright"
+msgstr ""
+
+#: crates/leyline-studio/ui/panels/browser.slint:1061
 msgctxt "BrowserPanel"
 msgid "Keywords"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/browser.slint:1072
+#: crates/leyline-studio/ui/panels/browser.slint:1122
 msgctxt "BrowserPanel"
 msgid "Add keyword (Nature/Birds)…"
 msgstr ""

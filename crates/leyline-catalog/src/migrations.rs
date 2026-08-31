@@ -12,7 +12,7 @@ use leyline_core::Result;
 /// Migration scripts: index `n` migrates the database to `user_version` `n + 1`.
 const MIGRATIONS: &[&str] = &[
     SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8,
-    SCHEMA_V9,
+    SCHEMA_V9, SCHEMA_V10,
 ];
 
 /// The schema version produced by the newest migration.
@@ -609,4 +609,29 @@ ALTER TABLE folders_new RENAME TO folders;
 -- The RESTRICT above is a lookup on delete, and `root-forget` asks the same
 -- question directly (ADR 0085 §8).
 CREATE INDEX idx_folders_root ON folders(root_id);
+";
+
+/// Authored descriptions (ADR 0099 §1): what a photographer *writes* about
+/// a photograph, kept away from `metadata`, which holds what the file said
+/// and is replaced wholesale every time the file is read again.
+///
+/// Purely additive: an existing library gains an empty table, and an asset
+/// without a row is an asset nobody has described.
+const SCHEMA_V10: &str = "
+-- §2.4 An authored description is not a fact (ADR 0099 §1).
+CREATE TABLE asset_descriptions (
+    asset_id INTEGER PRIMARY KEY,
+    title TEXT,
+    caption TEXT,
+    creator TEXT,
+    copyright TEXT,
+    credit TEXT,
+    city TEXT,
+    state TEXT,
+    country TEXT,
+
+    FOREIGN KEY(asset_id)
+        REFERENCES assets(id)
+        ON DELETE CASCADE
+);
 ";

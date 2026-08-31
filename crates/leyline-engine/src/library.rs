@@ -1260,6 +1260,52 @@ impl Library {
         Ok(crate::auto_tone::histogram_of(&image))
     }
 
+    /// Records what someone wrote about a photograph (ADR 0099).
+    ///
+    /// Passes through to the catalog undecorated, like the other authored
+    /// state (classification, keywords): the facade adds orchestration only
+    /// where several stores cooperate. Emits `AssetsChanged` so a client
+    /// showing the description refreshes.
+    pub fn set_description(
+        &self,
+        asset: AssetId,
+        description: &leyline_catalog::AssetDescription,
+    ) -> Result<()> {
+        self.catalog_mut().set_description(asset, description)?;
+        self.emit(Event::AssetsChanged {
+            asset_ids: vec![asset],
+        });
+        Ok(())
+    }
+
+    /// Overlays one description onto many assets (ADR 0099 §4): a template
+    /// typed once and stamped on a whole import.
+    ///
+    /// *Overlays*, never replaces: a template that sets only a copyright
+    /// line leaves a title someone already wrote. Emits one
+    /// `AssetsChanged` for the batch rather than one per asset — a client
+    /// refreshing ten thousand times is a client that stops responding.
+    pub fn describe_batch(
+        &self,
+        assets: &[AssetId],
+        template: &leyline_catalog::AssetDescription,
+    ) -> Result<()> {
+        if assets.is_empty() || template.is_empty() {
+            return Ok(());
+        }
+        {
+            let mut catalog = self.catalog_mut();
+            for &asset in assets {
+                let existing = catalog.description(asset)?.unwrap_or_default();
+                catalog.set_description(asset, &existing.overlaid_with(template))?;
+            }
+        }
+        self.emit(Event::AssetsChanged {
+            asset_ids: assets.to_vec(),
+        });
+        Ok(())
+    }
+
     /// What one click reads for a range mask (ADR 0093): the display-axis
     /// luminance and the hue of the 5×5 mean around `(x, y)` — unit
     /// coordinates of the rendered image.

@@ -1007,6 +1007,56 @@ export component BrowserPanel inherits HorizontalLayout {
                         value: DetailState.detail-companion;
                     }
 
+                    // What someone writes about the photograph (ADR 0099).
+                    // Editable, unlike every row above: those report what
+                    // the file says, these are the photographer's own.
+                    // Committed on Enter, like the keyword field — a field
+                    // saving on every keystroke would write a revision per
+                    // letter.
+                    Text {
+                        text: @tr("Description");
+                        color: #9a9a9a;
+                        font-size: 11px;
+                        font-weight: 600;
+                    }
+                    for field in [
+                        { key: "title", label: @tr("Title"), value: DetailState.written-title },
+                        { key: "caption", label: @tr("Caption"), value: DetailState.written-caption },
+                        { key: "creator", label: @tr("Creator"), value: DetailState.written-creator },
+                        { key: "copyright", label: @tr("Copyright"), value: DetailState.written-copyright },
+                    ]: HorizontalLayout {
+                        spacing: 6px;
+                        Text {
+                            width: 90px;
+                            text: field.label;
+                            color: #9a9a9a;
+                            font-size: 12px;
+                            vertical-alignment: center;
+                        }
+                        Rectangle {
+                            height: 24px;
+                            horizontal-stretch: 1;
+                            background: #1b1b1b;
+                            border-radius: 4px;
+                            border-width: 1px;
+                            border-color: written-input.has-focus ? #6fa8dc : #333333;
+                            written-input := TextInput {
+                                x: 8px;
+                                width: parent.width - 16px;
+                                height: 100%;
+                                text: field.value;
+                                color: #e0e0e0;
+                                font-size: 12px;
+                                vertical-alignment: center;
+                                single-line: true;
+                                accepted => {
+                                    DetailState.write-description(field.key, self.text);
+                                    root.return-focus();
+                                }
+                            }
+                        }
+                    }
+
                     Text {
                         text: @tr("Keywords");
                         color: #9a9a9a;

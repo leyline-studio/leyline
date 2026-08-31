@@ -9,6 +9,7 @@
 mod assets;
 mod collections;
 mod connection;
+mod descriptions;
 mod details;
 mod exports;
 mod folders;
@@ -28,6 +29,7 @@ mod versions;
 
 pub use assets::{CHECKSUM_LEN, DeletedAssets, NewAsset, RegisteredAsset};
 pub use collections::{CollectionNode, RatingRule, SmartRules};
+pub use descriptions::AssetDescription;
 pub use details::AssetDetails;
 pub use exports::{ExportPreset, ExportRecord};
 pub use folders::FolderNode;

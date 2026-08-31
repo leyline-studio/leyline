@@ -446,6 +446,28 @@ The `assets` table holds nothing but facts about the file: path, size, checksum,
 
 Classification (rating, label, pick) belongs to the **develop versions** (§18).
 
+## An authored description is not a fact
+
+`metadata` holds what the *file* said, and `set_metadata` replaces the whole
+row every time the file is read again. What a **photographer writes** about a
+photograph — a title, a caption, a copyright line — therefore cannot live
+there: it would survive until the next re-import and then vanish, silently
+([ADR 0099](adr/0099-authored-descriptions.md) §1).
+
+`asset_descriptions` holds it instead, keyed by asset, every column nullable,
+the row absent until someone writes one. **Nothing that reads a file writes
+this table**, so a re-import, an EXIF re-read or a reprocessing cannot destroy
+authored text — a property of the schema rather than of anyone's care.
+
+It hangs off the **asset**, not the version: a caption describes the
+photograph, while a rating judges a rendering (which is why classification
+went to the version instead).
+
+Where the two overlap — `metadata.artist` / `.copyright` against
+`asset_descriptions.creator` / `.copyright` — both persist and the authored
+one wins for display, for search (§30) and for the XMP sidecar (§29). What the
+camera recorded stays answerable because it is never edited.
+
 ## RAW + JPEG: a companion file
 
 A camera set to RAW+JPEG writes **two files for one shot**. `companion_of` says which one is the rendering of the other: `NULL` — by far the most frequent case — means the asset is itself a photo; a value designates the **master**, always the RAW.

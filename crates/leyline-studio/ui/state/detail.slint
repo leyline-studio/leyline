@@ -20,6 +20,15 @@ export global DetailState {
     in property <[string]> detail-keywords;
     // Tag the selected photo with a slash-separated keyword path, or untag
     // the keyword at an index of `detail-keywords`.
+    // What someone wrote about this photograph (ADR 0099). Editable,
+    // unlike every other row of this panel — which is why they are their
+    // own properties rather than more `detail-*` facts.
+    in-out property <string> written-title;
+    in-out property <string> written-caption;
+    in-out property <string> written-creator;
+    in-out property <string> written-copyright;
+    // Field name ("title", "caption", …) and its new value, on commit.
+    callback write-description(string, string);
     callback add-keyword(string);
     callback remove-keyword(int);
 }

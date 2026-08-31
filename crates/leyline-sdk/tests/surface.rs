@@ -15,14 +15,14 @@
 use std::path::PathBuf;
 
 use leyline_sdk::{
-    AssetId, BrushStroke, CameraProfile, ColorGrading, ColorGradingZone, ColorLabel, ColorRange,
-    Crop, CurvePoint, EditSession, Event, ExportFormat, ExportRecipe, ExportRequest,
-    ExportSettings, Grain, GridItem, GridQuery, HslBand, ImportOptions, ImportReport, ImportedFile,
-    JobId, LensCorrection, LeylineError, Library, LocalAdjustment, LocalAdjustmentValues,
-    LuminanceRange, Margins, Mask, NoiseReduction, Orientation, PaperSize, PickState, Point,
-    Preview, PreviewKind, PrintRecipe, PrintRequest, PrintSettings, RangeMask, RangeSample,
-    RegisteredAsset, RenderingIntent, RevisionId, ScanOptions, Settings, Sharpening, ShotFacets,
-    ShotRange, SkippedFile, SpotRemoval, StageVersions, ToneCurve, VersionId, Vignette,
+    AssetDescription, AssetId, BrushStroke, CameraProfile, ColorGrading, ColorGradingZone,
+    ColorLabel, ColorRange, Crop, CurvePoint, EditSession, Event, ExportFormat, ExportRecipe,
+    ExportRequest, ExportSettings, Grain, GridItem, GridQuery, HslBand, ImportOptions,
+    ImportReport, ImportedFile, JobId, LensCorrection, LeylineError, Library, LocalAdjustment,
+    LocalAdjustmentValues, LuminanceRange, Margins, Mask, NoiseReduction, Orientation, PaperSize,
+    PickState, Point, Preview, PreviewKind, PrintRecipe, PrintRequest, PrintSettings, RangeMask,
+    RangeSample, RegisteredAsset, RenderingIntent, RevisionId, ScanOptions, Settings, Sharpening,
+    ShotFacets, ShotRange, SkippedFile, SpotRemoval, StageVersions, ToneCurve, VersionId, Vignette,
     WHITE_BALANCE_PRESETS, WatchSessionEvent, WatchedFile, Watermark, WatermarkAnchor,
     WatermarkFont, WhiteBalance, WhiteBalancePreset,
 };
@@ -181,6 +181,11 @@ fn every_returned_type_is_nameable(library: &Library, version: VersionId, asset:
     let _: Result<WhiteBalance, LeylineError> = library.neutralize_wb(asset, 0.5, 0.5);
     let _: Result<WhiteBalance, LeylineError> = library.auto_wb(asset);
     let _: &WhiteBalancePreset = &WHITE_BALANCE_PRESETS[0];
+    // Authored descriptions (ADR 0099): the type, the write, the read.
+    let _: Result<(), LeylineError> = library.set_description(asset, &AssetDescription::default());
+    let _: Result<(), LeylineError> =
+        library.describe_batch(&[asset], &AssetDescription::default());
+    let _: Result<Option<AssetDescription>, LeylineError> = library.catalog().description(asset);
     // The exact-duplicate scan (ADR 0095): the option and the answer.
     let _: ScanOptions = ScanOptions {
         recursive: false,

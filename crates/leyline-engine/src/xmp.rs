@@ -82,17 +82,53 @@ pub fn write_xmp_sidecar(
         }
         body.push_str("   </rdf:Bag></lr:hierarchicalSubject>\n");
     }
-    if let Some(metadata) = &details.metadata {
-        if let Some(artist) = &metadata.artist {
+    // Authored description first, what the file said second (ADR 0099 §2):
+    // a creator someone typed is what the sidecar should carry, and the
+    // EXIF artist is the fallback rather than the rival.
+    let written = catalog.description(asset)?.unwrap_or_default();
+    let metadata = details.metadata.as_ref();
+    let creator = written
+        .creator
+        .as_deref()
+        .or_else(|| metadata.and_then(|m| m.artist.as_deref()));
+    let rights = written
+        .copyright
+        .as_deref()
+        .or_else(|| metadata.and_then(|m| m.copyright.as_deref()));
+    if let Some(title) = &written.title {
+        body.push_str(&format!(
+            "   <dc:title><rdf:Alt><rdf:li xml:lang=\"x-default\">{}</rdf:li></rdf:Alt></dc:title>\n",
+            escape(title)
+        ));
+    }
+    if let Some(caption) = &written.caption {
+        body.push_str(&format!(
+            "   <dc:description><rdf:Alt><rdf:li xml:lang=\"x-default\">{}</rdf:li></rdf:Alt></dc:description>\n",
+            escape(caption)
+        ));
+    }
+    if let Some(creator) = creator {
+        body.push_str(&format!(
+            "   <dc:creator><rdf:Seq><rdf:li>{}</rdf:li></rdf:Seq></dc:creator>\n",
+            escape(creator)
+        ));
+    }
+    if let Some(rights) = rights {
+        body.push_str(&format!(
+            "   <dc:rights><rdf:Alt><rdf:li xml:lang=\"x-default\">{}</rdf:li></rdf:Alt></dc:rights>\n",
+            escape(rights)
+        ));
+    }
+    for (tag, value) in [
+        ("Credit", &written.credit),
+        ("City", &written.city),
+        ("State", &written.state),
+        ("Country", &written.country),
+    ] {
+        if let Some(value) = value {
             body.push_str(&format!(
-                "   <dc:creator><rdf:Seq><rdf:li>{}</rdf:li></rdf:Seq></dc:creator>\n",
-                escape(artist)
-            ));
-        }
-        if let Some(rights) = &metadata.copyright {
-            body.push_str(&format!(
-                "   <dc:rights><rdf:Alt><rdf:li xml:lang=\"x-default\">{}</rdf:li></rdf:Alt></dc:rights>\n",
-                escape(rights)
+                "   <photoshop:{tag}>{}</photoshop:{tag}>\n",
+                escape(value)
             ));
         }
     }
@@ -104,7 +140,8 @@ pub fn write_xmp_sidecar(
          \x20 <rdf:Description rdf:about=\"\"\n\
          \x20  xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"\n\
          \x20  xmlns:dc=\"http://purl.org/dc/elements/1.1/\"\n\
-         \x20  xmlns:lr=\"http://ns.adobe.com/lightroom/1.0/\"{description_attrs}>\n\
+         \x20  xmlns:lr=\"http://ns.adobe.com/lightroom/1.0/\"\n\
+         \x20  xmlns:photoshop=\"http://ns.adobe.com/photoshop/1.0/\"{description_attrs}>\n\
          {body}\
          \x20 </rdf:Description>\n\
          \x20</rdf:RDF>\n\

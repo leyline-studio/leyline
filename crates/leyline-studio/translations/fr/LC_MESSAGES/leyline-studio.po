@@ -2643,3 +2643,23 @@ msgstr "Vert"
 msgctxt "DevelopPanel"
 msgid "Blue"
 msgstr "Bleu"
+
+msgctxt "BrowserPanel"
+msgid "Description"
+msgstr "Description"
+
+msgctxt "BrowserPanel"
+msgid "Title"
+msgstr "Titre"
+
+msgctxt "BrowserPanel"
+msgid "Caption"
+msgstr "Légende"
+
+msgctxt "BrowserPanel"
+msgid "Creator"
+msgstr "Auteur"
+
+msgctxt "BrowserPanel"
+msgid "Copyright"
+msgstr "Droits"

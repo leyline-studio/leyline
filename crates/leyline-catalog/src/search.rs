@@ -32,6 +32,24 @@ pub(crate) fn index_new_asset(
     Ok(())
 }
 
+/// Recomputes the authorship columns of one asset, preferring what someone
+/// wrote over what the file said (ADR 0099 §2).
+pub(crate) fn refresh_asset_authorship(conn: &rusqlite::Connection, asset: AssetId) -> Result<()> {
+    conn.execute(
+        "UPDATE search_index SET
+             artist = COALESCE(
+                 (SELECT creator FROM asset_descriptions WHERE asset_id = ?1),
+                 (SELECT artist FROM metadata WHERE asset_id = ?1), ''),
+             copyright = COALESCE(
+                 (SELECT copyright FROM asset_descriptions WHERE asset_id = ?1),
+                 (SELECT copyright FROM metadata WHERE asset_id = ?1), '')
+         WHERE asset_id = ?1",
+        [asset.get()],
+    )
+    .map_err(db_err)?;
+    Ok(())
+}
+
 /// Recomputes the keyword column of one asset.
 pub(crate) fn refresh_asset_keywords(tx: &rusqlite::Transaction<'_>, asset: AssetId) -> Result<()> {
     tx.execute(REFRESH_KEYWORDS, [asset.get()])
@@ -54,8 +72,11 @@ impl Catalog {
                     COALESCE((SELECT group_concat(k.path, ' ')
                               FROM asset_keywords ak JOIN keywords k ON k.id = ak.keyword_id
                               WHERE ak.asset_id = a.id), ''),
-                    COALESCE(m.artist, ''), COALESCE(m.copyright, '')
-             FROM assets a LEFT JOIN metadata m ON m.asset_id = a.id",
+                    COALESCE(d.creator, m.artist, ''),
+                    COALESCE(d.copyright, m.copyright, '')
+             FROM assets a
+             LEFT JOIN metadata m ON m.asset_id = a.id
+             LEFT JOIN asset_descriptions d ON d.asset_id = a.id",
             [],
         )
         .map_err(db_err)?;

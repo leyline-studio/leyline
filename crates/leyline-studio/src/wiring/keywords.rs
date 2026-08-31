@@ -47,6 +47,51 @@ pub(crate) fn wire_keywords(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
+        // What someone writes about the photograph (ADR 0099). Committed
+        // on Enter, one field at a time, onto the description already
+        // stored so editing the title does not clear the caption.
+        DetailState::get(window).on_write_description(move |field, value| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let Some(asset) =
+                item_at(&app, GridState::get(&window).get_selected()).map(|item| item.asset_id)
+            else {
+                return;
+            };
+            let written = (|| {
+                let mut description = app
+                    .library
+                    .catalog()
+                    .description(asset)?
+                    .unwrap_or_default();
+                // An emptied field clears that field, and only it.
+                let value = value.trim();
+                let value = (!value.is_empty()).then(|| value.to_owned());
+                match field.as_str() {
+                    "title" => description.title = value,
+                    "caption" => description.caption = value,
+                    "creator" => description.creator = value,
+                    "copyright" => description.copyright = value,
+                    _ => return Ok(()),
+                }
+                app.library.set_description(asset, &description)
+            })();
+            // Reload rather than refresh the panel alone: an authored
+            // creator feeds the search index (ADR 0099 §2), so a text
+            // search may now match this photo.
+            if let Err(error) = written
+                .map_err(|e| e.to_string())
+                .and_then(|()| reload(&mut app, &window))
+            {
+                report_error(&window, &error);
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
         DetailState::get(window).on_remove_keyword(move |index| {
             let Some(window) = handle.upgrade() else {
                 return;

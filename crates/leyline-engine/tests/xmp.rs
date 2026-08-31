@@ -385,3 +385,60 @@ fn missing_assets_are_reported() {
         Err(LeylineError::AssetMissing(_))
     ));
 }
+
+/// ADR 0099 §2–§3: the sidecar carries what someone wrote, and prefers it
+/// over what the file's EXIF said — while the EXIF value stays readable.
+#[test]
+fn the_sidecar_carries_the_authored_description() {
+    let dir = tempfile::tempdir().unwrap();
+    let (library, asset, _) = library_with_one_photo(dir.path());
+
+    // What the file said about authorship.
+    library
+        .catalog_mut()
+        .set_metadata(
+            asset,
+            &leyline_catalog::Metadata {
+                artist: Some("EXIF Artist".to_owned()),
+                copyright: Some("EXIF rights".to_owned()),
+                ..leyline_catalog::Metadata::default()
+            },
+        )
+        .unwrap();
+
+    // With nothing authored, the sidecar carries the EXIF values.
+    library.write_xmp(asset).unwrap();
+    let document = std::fs::read_to_string(sidecar_beside_the_copy(dir.path())).unwrap();
+    assert!(document.contains("EXIF Artist"), "{document}");
+
+    library
+        .set_description(
+            asset,
+            &leyline_catalog::AssetDescription {
+                title: Some("Héron".to_owned()),
+                caption: Some("Au petit matin".to_owned()),
+                creator: Some("La photographe".to_owned()),
+                city: Some("Saint-Lyphard".to_owned()),
+                ..leyline_catalog::AssetDescription::default()
+            },
+        )
+        .unwrap();
+    library.write_xmp(asset).unwrap();
+    let document = std::fs::read_to_string(sidecar_beside_the_copy(dir.path())).unwrap();
+
+    assert!(document.contains("<dc:title>"), "{document}");
+    assert!(document.contains("Héron"), "{document}");
+    assert!(document.contains("<dc:description>"), "{document}");
+    assert!(
+        document.contains("photoshop:City>Saint-Lyphard"),
+        "{document}"
+    );
+    // The authored creator wins; the EXIF artist is no longer written.
+    assert!(document.contains("La photographe"), "{document}");
+    assert!(!document.contains("EXIF Artist"), "{document}");
+    // Copyright was not authored, so the EXIF one still stands in.
+    assert!(document.contains("EXIF rights"), "{document}");
+    // What the camera recorded is still answerable in the catalog.
+    let facts = library.catalog().metadata(asset).unwrap().unwrap();
+    assert_eq!(facts.artist.as_deref(), Some("EXIF Artist"));
+}

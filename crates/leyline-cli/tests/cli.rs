@@ -114,6 +114,58 @@ fn auto_wb_proposes_and_writes() {
     assert!(!out.status.success());
 }
 
+/// ADR 0099: what is written about a photo is kept apart from what its
+/// file says, and shown back.
+#[test]
+fn describe_writes_reads_and_clears() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = library_with_a_photo(&dir);
+
+    // Nothing written yet: the listing is empty, not an error.
+    let out = run(&["describe", &root, "1"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out).trim(), "");
+
+    let out = run(&[
+        "describe",
+        &root,
+        "1",
+        "--title",
+        "Héron",
+        "--copyright",
+        "© 2026",
+    ]);
+    assert!(out.status.success(), "{}", stderr(&out));
+
+    let listing = stdout(&run(&["describe", &root, "1"]));
+    assert!(listing.contains("Héron"), "{listing}");
+    assert!(listing.contains("© 2026"), "{listing}");
+
+    // A second write touches one field and leaves the other.
+    assert!(
+        run(&["describe", &root, "1", "--caption", "Au petit matin"])
+            .status
+            .success()
+    );
+    let listing = stdout(&run(&["describe", &root, "1"]));
+    assert!(listing.contains("Héron"), "the title survives: {listing}");
+    assert!(listing.contains("Au petit matin"), "{listing}");
+
+    // The written creator is searchable.
+    assert!(
+        run(&["describe", &root, "1", "--creator", "Photographe"])
+            .status
+            .success()
+    );
+    // Text search is `ls --text` (ADR 0064), and it reads the index the
+    // authored creator now feeds (ADR 0099 §2).
+    let found = stdout(&run(&["ls", &root, "--text", "Photographe"]));
+    assert!(!found.trim().is_empty(), "authored creator must be found");
+
+    assert!(run(&["describe", &root, "1", "--clear"]).status.success());
+    assert_eq!(stdout(&run(&["describe", &root, "1"])).trim(), "");
+}
+
 /// ADR 0095 §4: `--exact` marks the renamed copy the default scan misses,
 /// and names the asset it duplicates.
 #[test]

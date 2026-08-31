@@ -148,7 +148,15 @@ impl Catalog {
         .map_err(db_err)?;
 
         tx.execute(
-            "UPDATE search_index SET artist = ?2, copyright = ?3 WHERE asset_id = ?1",
+            // An authored description wins over what the file says
+            // (ADR 0099 §2): reading the file again must not put the EXIF
+            // artist back over a creator someone typed.
+            "UPDATE search_index SET
+                 artist = COALESCE(
+                     (SELECT creator FROM asset_descriptions WHERE asset_id = ?1), ?2),
+                 copyright = COALESCE(
+                     (SELECT copyright FROM asset_descriptions WHERE asset_id = ?1), ?3)
+             WHERE asset_id = ?1",
             rusqlite::params![
                 asset.get(),
                 meta.artist.as_deref().unwrap_or(""),

@@ -28,10 +28,10 @@ pub use leyline_engine::{
 };
 
 pub use leyline_catalog::{
-    CameraInfo, CollectionNode, ExportPreset, ExportRecord, FolderNode, GridItem, GridQuery,
-    KeywordNode, LIBRARY_ROOT, LensInfo, LibraryInfo, MapPin, Metadata, Preset, PresetFolder,
-    PrintPreset, RatingRule, Rational, RegisteredAsset, RevisionRow, Root, ShotFacets, ShotRange,
-    SmartRules, Sort, VersionInfo,
+    AssetDescription, CameraInfo, CollectionNode, ExportPreset, ExportRecord, FolderNode, GridItem,
+    GridQuery, KeywordNode, LIBRARY_ROOT, LensInfo, LibraryInfo, MapPin, Metadata, Preset,
+    PresetFolder, PrintPreset, RatingRule, Rational, RegisteredAsset, RevisionRow, Root,
+    ShotFacets, ShotRange, SmartRules, Sort, VersionInfo,
 };
 
 pub use leyline_color::RenderingIntent;

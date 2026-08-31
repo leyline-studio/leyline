@@ -373,4 +373,17 @@ pub(crate) fn show_details(app: &mut App, window: &StudioWindow, index: i32) {
         .collect::<Vec<_>>()
         .join(", ");
     DetailState::get(window).set_detail_companion(SharedString::from(companion));
+    // What someone wrote (ADR 0099) — absent until someone has.
+    let written = app
+        .library
+        .catalog()
+        .description(asset)
+        .ok()
+        .flatten()
+        .unwrap_or_default();
+    let state = DetailState::get(window);
+    state.set_written_title(SharedString::from(written.title.unwrap_or_default()));
+    state.set_written_caption(SharedString::from(written.caption.unwrap_or_default()));
+    state.set_written_creator(SharedString::from(written.creator.unwrap_or_default()));
+    state.set_written_copyright(SharedString::from(written.copyright.unwrap_or_default()));
 }
