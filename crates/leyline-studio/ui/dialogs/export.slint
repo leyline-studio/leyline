@@ -166,6 +166,144 @@ export component ExportDialog inherits VerticalLayout {
                 }
             }
         }
+        // The watermark's own settings (ADR 0106 §2). Shown only once there
+        // is a line to decorate: four controls above an empty field would be
+        // four questions about nothing.
+        if DialogState.export-watermark-text != "": VerticalLayout {
+            spacing: 8px;
+            Text {
+                text: @tr("Watermark corner");
+                color: #9a9a9a;
+                font-size: 12px;
+            }
+            // Laid out as the frame is, not as the indices are: five chips
+            // in one row overflow the dialog in both languages, and two
+            // rows that mirror the corners read faster than a list anyway.
+            HorizontalLayout {
+                spacing: 8px;
+                alignment: start;
+                FilterChip {
+                    text: @tr("Top left");
+                    active: DialogState.export-watermark-anchor == 3;
+                    clicked => {
+                        DialogState.export-watermark-anchor = 3;
+                    }
+                }
+                FilterChip {
+                    text: @tr("Top right");
+                    active: DialogState.export-watermark-anchor == 2;
+                    clicked => {
+                        DialogState.export-watermark-anchor = 2;
+                    }
+                }
+                FilterChip {
+                    text: @tr("Center");
+                    active: DialogState.export-watermark-anchor == 4;
+                    clicked => {
+                        DialogState.export-watermark-anchor = 4;
+                    }
+                }
+            }
+            HorizontalLayout {
+                spacing: 8px;
+                alignment: start;
+                FilterChip {
+                    text: @tr("Bottom left");
+                    active: DialogState.export-watermark-anchor == 1;
+                    clicked => {
+                        DialogState.export-watermark-anchor = 1;
+                    }
+                }
+                FilterChip {
+                    text: @tr("Bottom right");
+                    active: DialogState.export-watermark-anchor == 0;
+                    clicked => {
+                        DialogState.export-watermark-anchor = 0;
+                    }
+                }
+            }
+            HorizontalLayout {
+                spacing: 12px;
+                VerticalLayout {
+                    spacing: 4px;
+                    horizontal-stretch: 1;
+                    Text {
+                        text: @tr("Size (% of height)");
+                        color: #9a9a9a;
+                        font-size: 12px;
+                    }
+                    Rectangle {
+                        height: 28px;
+                        background: #1b1b1b;
+                        border-radius: 4px;
+                        border-width: 1px;
+                        border-color: #3a3a3a;
+                        TextInput {
+                            x: 8px;
+                            width: parent.width - 16px;
+                            height: 100%;
+                            text <=> DialogState.export-watermark-size-text;
+                            color: #e6e6e6;
+                            font-size: 12px;
+                            vertical-alignment: center;
+                            single-line: true;
+                        }
+                    }
+                }
+                VerticalLayout {
+                    spacing: 4px;
+                    horizontal-stretch: 1;
+                    Text {
+                        text: @tr("Colour (#RRGGBB)");
+                        color: #9a9a9a;
+                        font-size: 12px;
+                    }
+                    Rectangle {
+                        height: 28px;
+                        background: #1b1b1b;
+                        border-radius: 4px;
+                        border-width: 1px;
+                        border-color: #3a3a3a;
+                        TextInput {
+                            x: 8px;
+                            width: parent.width - 16px;
+                            height: 100%;
+                            text <=> DialogState.export-watermark-color-text;
+                            color: #e6e6e6;
+                            font-size: 12px;
+                            vertical-alignment: center;
+                            single-line: true;
+                        }
+                    }
+                }
+                VerticalLayout {
+                    spacing: 4px;
+                    horizontal-stretch: 1;
+                    Text {
+                        text: @tr("Opacity (0-1)");
+                        color: #9a9a9a;
+                        font-size: 12px;
+                    }
+                    Rectangle {
+                        height: 28px;
+                        background: #1b1b1b;
+                        border-radius: 4px;
+                        border-width: 1px;
+                        border-color: #3a3a3a;
+                        TextInput {
+                            x: 8px;
+                            width: parent.width - 16px;
+                            height: 100%;
+                            text <=> DialogState.export-watermark-opacity-text;
+                            color: #e6e6e6;
+                            font-size: 12px;
+                            vertical-alignment: center;
+                            single-line: true;
+                        }
+                    }
+                }
+            }
+        }
         HorizontalLayout {
             spacing: 8px;
             VerticalLayout {
@@ -204,7 +342,6 @@ export component ExportDialog inherits VerticalLayout {
                         DialogState.export-quality-text,
                         DialogState.export-avif-speed-text,
                         DialogState.export-max-edge-text,
-                        DialogState.export-watermark-text,
                     );
                 }
             }
@@ -264,7 +401,6 @@ export component ExportDialog inherits VerticalLayout {
                     DialogState.export-quality-text,
                     DialogState.export-avif-speed-text,
                     DialogState.export-max-edge-text,
-                    DialogState.export-watermark-text,
                 );
             }
         }

@@ -70,13 +70,17 @@ export global DialogState {
     callback select-candidates(bool);
     callback open-export();
     // preset index (-1 = ad-hoc), destination, format index, quality text,
-    // avif-speed text, max-edge text, watermark text. Everything after the
-    // destination is ignored when a stored preset is chosen.
-    callback run-export(int, string, int, string, string, string, string);
-    // Name, format index, quality text, avif-speed text, max-edge text,
-    // watermark text — stores the custom export dialog's current recipe as a
-    // reusable preset (§12).
-    callback run-save-export-preset(string, int, string, string, string, string);
+    // avif-speed text, max-edge text. Everything after the destination is
+    // ignored when a stored preset is chosen.
+    //
+    // The watermark is *not* here: its five fields travel together, so the
+    // wiring reads them from this state rather than being handed them one by
+    // one (ADR 0106 §3).
+    callback run-export(int, string, int, string, string, string);
+    // Name, format index, quality text, avif-speed text, max-edge text —
+    // stores the custom export dialog's current recipe as a reusable preset
+    // (§12). The watermark is read from the state, as above.
+    callback run-save-export-preset(string, int, string, string, string);
     in property <[string]> export-presets;
     in-out property <int> export-preset: -1;
     in-out property <string> export-preset-name: "";
@@ -89,10 +93,20 @@ export global DialogState {
     // when the chosen format is AVIF — no other encoder has the notion.
     in-out property <string> export-avif-speed-text: "9";
     in-out property <string> export-max-edge-text: "";
-    // Text watermark drawn on the export, empty = none (ADR 0034). Only the
-    // line itself is exposed here; its size, color, opacity and corner keep
-    // the recipe defaults, which a preset can then carry other values for.
+    // Text watermark drawn on the export, empty = none (ADR 0034). The line
+    // and its four decorations, all editable (ADR 0106 §2) — before that,
+    // every watermark Leyline could produce was white, 3 %, 70 % opaque, in
+    // the bottom-right corner.
     in-out property <string> export-watermark-text: "";
+    // Corner index, in `WatermarkAnchor`'s own order: bottom-right,
+    // bottom-left, top-right, top-left, center. The dialog draws the chips
+    // in the frame's geometry instead, which is a layout, not a meaning.
+    in-out property <int> export-watermark-anchor: 0;
+    // Cap height as a percentage of the image height, in (0, 50].
+    in-out property <string> export-watermark-size-text: "3";
+    in-out property <string> export-watermark-color-text: "#FFFFFF";
+    // Blend strength in [0, 1].
+    in-out property <string> export-watermark-opacity-text: "0.7";
     in-out property <string> export-destination-text: "";
     callback browse-export-destination();
     callback open-print();

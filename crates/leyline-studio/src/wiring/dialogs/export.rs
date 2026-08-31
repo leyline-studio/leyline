@@ -10,7 +10,9 @@ use std::rc::Rc;
 
 use crate::app::{App, report_error, selected_indices, selected_versions};
 use crate::ui::{DialogState, GridState, StudioWindow, Tr};
-use leyline_sdk::{ExportFormat, ExportRecipe, ExportRequest, ExportSettings, Watermark};
+use leyline_sdk::{
+    ExportFormat, ExportRecipe, ExportRequest, ExportSettings, Watermark, WatermarkAnchor,
+};
 use slint::{ComponentHandle, Global, ModelRc, SharedString, VecModel};
 
 pub(crate) fn wire_export(app: &Rc<RefCell<App>>, window: &StudioWindow) {
@@ -69,7 +71,7 @@ pub(crate) fn wire_export(app: &Rc<RefCell<App>>, window: &StudioWindow) {
         let app = Rc::clone(app);
         let handle = window.as_weak();
         DialogState::get(window).on_run_export(
-            move |preset, destination, format, quality, avif_speed, max_edge, watermark| {
+            move |preset, destination, format, quality, avif_speed, max_edge| {
                 let Some(window) = handle.upgrade() else {
                     return;
                 };
@@ -93,12 +95,20 @@ pub(crate) fn wire_export(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 let recipe = match stored {
                     Some(id) => ExportRecipe::Preset(id),
                     None => {
+                        let watermark = match watermark_from_state(&window) {
+                            Ok(watermark) => watermark,
+                            Err(message) => {
+                                DialogState::get(&window)
+                                    .set_dialog_result(SharedString::from(message));
+                                return;
+                            }
+                        };
                         let settings = match export_settings(
                             format,
                             &quality,
                             &avif_speed,
                             &max_edge,
-                            &watermark,
+                            watermark,
                         ) {
                             Ok(settings) => settings,
                             Err(message) => {
@@ -128,7 +138,7 @@ pub(crate) fn wire_export(app: &Rc<RefCell<App>>, window: &StudioWindow) {
         let app = Rc::clone(app);
         let handle = window.as_weak();
         DialogState::get(window).on_run_save_export_preset(
-            move |name, format, quality, avif_speed, max_edge, watermark| {
+            move |name, format, quality, avif_speed, max_edge| {
                 let Some(window) = handle.upgrade() else {
                     return;
                 };
@@ -137,13 +147,20 @@ pub(crate) fn wire_export(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                         .set_dialog_result(Tr::get(&window).invoke_enter_a_name());
                     return;
                 }
+                let watermark = match watermark_from_state(&window) {
+                    Ok(watermark) => watermark,
+                    Err(message) => {
+                        DialogState::get(&window).set_dialog_result(SharedString::from(message));
+                        return;
+                    }
+                };
                 let (name, settings) = match export_preset_request(
                     &name,
                     format,
                     &quality,
                     &avif_speed,
                     &max_edge,
-                    &watermark,
+                    watermark,
                 ) {
                     Ok(request) => request,
                     Err(message) => {
@@ -194,7 +211,7 @@ pub(crate) fn export_settings(
     quality: &str,
     avif_speed: &str,
     max_edge: &str,
-    watermark_text: &str,
+    watermark: Option<Watermark>,
 ) -> Result<ExportSettings, String> {
     let format = match format {
         0 => ExportFormat::Jpeg,
@@ -226,21 +243,20 @@ pub(crate) fn export_settings(
                 .map_err(|_| format!("bad max edge {max_edge:?}"))?,
         )
     };
-    // Only the line is typed here: its size, color, opacity and corner keep
-    // the recipe's defaults (ADR 0051 §3), which a hand-written preset can
-    // override. An empty line is the absence of a watermark, not an empty one,
-    // which `Watermark::validate` refuses.
-    let watermark = (!watermark_text.trim().is_empty()).then(|| Watermark {
-        text: watermark_text.trim().to_owned(),
-        ..Watermark::default()
-    });
-    Ok(ExportSettings {
+    let settings = ExportSettings {
         format,
         quality,
         avif_speed,
         max_edge,
         watermark,
-    })
+    };
+    // The module's promise, kept: an unusable recipe never reaches the
+    // engine. It parsed here and it validates here, so the dialog can say
+    // what is wrong while the field is still on screen — rather than the
+    // export failing asynchronously, which is where a bad watermark colour
+    // used to surface (ADR 0106 §1).
+    settings.validate().map_err(|e| e.to_string())?;
+    Ok(settings)
 }
 
 /// Builds a `(name, ExportSettings)` request for saving the export dialog's
@@ -252,14 +268,73 @@ pub(crate) fn export_preset_request(
     quality: &str,
     avif_speed: &str,
     max_edge: &str,
-    watermark_text: &str,
+    watermark: Option<Watermark>,
 ) -> Result<(String, ExportSettings), String> {
     let name = name.trim();
     if name.is_empty() {
         return Err("name is empty".to_owned());
     }
-    let settings = export_settings(format, quality, avif_speed, max_edge, watermark_text)?;
+    let settings = export_settings(format, quality, avif_speed, max_edge, watermark)?;
     Ok((name.to_owned(), settings))
+}
+
+/// Builds the watermark from the dialog's five fields, or `None` when there
+/// is no line to draw.
+///
+/// An empty line is the *absence* of a watermark, not an empty one — which
+/// `Watermark::validate` refuses. The decorations are parsed but not
+/// range-checked here: `ExportSettings::validate` owns the ranges, and a
+/// second copy of them in the interface would be a second place to correct
+/// (ADR 0106 §1).
+pub(crate) fn watermark_settings(
+    text: &str,
+    anchor: i32,
+    size: &str,
+    color: &str,
+    opacity: &str,
+) -> Result<Option<Watermark>, String> {
+    let text = text.trim();
+    if text.is_empty() {
+        return Ok(None);
+    }
+    let anchor = match anchor {
+        0 => WatermarkAnchor::BottomRight,
+        1 => WatermarkAnchor::BottomLeft,
+        2 => WatermarkAnchor::TopRight,
+        3 => WatermarkAnchor::TopLeft,
+        4 => WatermarkAnchor::Center,
+        other => return Err(format!("unknown watermark anchor index {other}")),
+    };
+    Ok(Some(Watermark {
+        text: text.to_owned(),
+        anchor,
+        size: size
+            .trim()
+            .parse()
+            .map_err(|_| format!("bad watermark size {size:?}"))?,
+        color: color.trim().to_owned(),
+        opacity: opacity
+            .trim()
+            .parse()
+            .map_err(|_| format!("bad watermark opacity {opacity:?}"))?,
+        ..Watermark::default()
+    }))
+}
+
+/// Reads the watermark's five fields off the dialog's state (ADR 0106 §3).
+///
+/// They travel together, so they are read together rather than threaded one
+/// by one through a callback whose argument order would be the only thing
+/// keeping it correct.
+fn watermark_from_state(window: &StudioWindow) -> Result<Option<Watermark>, String> {
+    let state = DialogState::get(window);
+    watermark_settings(
+        &state.get_export_watermark_text(),
+        state.get_export_watermark_anchor(),
+        &state.get_export_watermark_size_text(),
+        &state.get_export_watermark_color_text(),
+        &state.get_export_watermark_opacity_text(),
+    )
 }
 
 #[cfg(test)]
@@ -278,7 +353,7 @@ mod tests {
         .into_iter()
         .enumerate()
         {
-            let settings = export_settings(index as i32, "80", "9", "", "").unwrap();
+            let settings = export_settings(index as i32, "80", "9", "", None).unwrap();
             assert_eq!(
                 settings,
                 ExportSettings {
@@ -298,55 +373,107 @@ mod tests {
     #[test]
     fn a_blank_avif_speed_falls_back_to_the_default() {
         assert_eq!(
-            export_settings(4, "90", "  ", "", "").unwrap().avif_speed,
+            export_settings(4, "90", "  ", "", None).unwrap().avif_speed,
             leyline_sdk::DEFAULT_AVIF_SPEED
         );
         assert_eq!(
-            export_settings(4, "90", " 10 ", "", "").unwrap().avif_speed,
+            export_settings(4, "90", " 10 ", "", None)
+                .unwrap()
+                .avif_speed,
             10
         );
-        assert!(export_settings(4, "90", "fast", "", "").is_err());
+        assert!(export_settings(4, "90", "fast", "", None).is_err());
     }
 
     #[test]
     fn export_settings_parses_a_max_edge() {
-        let settings = export_settings(0, "90", "9", "2048", "").unwrap();
+        let settings = export_settings(0, "90", "9", "2048", None).unwrap();
         assert_eq!(settings.max_edge, Some(2048));
     }
 
     #[test]
     fn export_settings_rejects_bad_input() {
-        assert!(export_settings(5, "90", "9", "", "").is_err());
-        assert!(export_settings(0, "not a number", "9", "", "").is_err());
-        assert!(export_settings(0, "90", "9", "not a number", "").is_err());
+        assert!(export_settings(5, "90", "9", "", None).is_err());
+        assert!(export_settings(0, "not a number", "9", "", None).is_err());
+        assert!(export_settings(0, "90", "9", "not a number", None).is_err());
     }
 
-    /// An empty line is the absence of a watermark; a typed one is trimmed
-    /// and carries the recipe defaults (ADR 0051 §3).
+    /// An empty line is the absence of a watermark; a typed one is trimmed.
     #[test]
     fn a_typed_watermark_line_becomes_a_decoration_and_a_blank_one_none() {
         assert_eq!(
-            export_settings(0, "90", "9", "", "   ").unwrap().watermark,
+            watermark_settings("   ", 0, "3", "#FFFFFF", "0.7").unwrap(),
             None
         );
-        let watermark = export_settings(0, "90", "9", "", "  © 2026  ")
+        let watermark = watermark_settings("  © 2026  ", 0, "3", "#FFFFFF", "0.7")
             .unwrap()
-            .watermark
             .expect("a typed line is a watermark");
         assert_eq!(watermark.text, "© 2026");
         assert_eq!(
             (watermark.anchor, watermark.size, watermark.opacity),
             (
-                leyline_sdk::WatermarkAnchor::BottomRight,
+                WatermarkAnchor::BottomRight,
                 Watermark::default().size,
                 Watermark::default().opacity
             )
         );
     }
 
+    /// The four decorations reach the recipe, which is the whole point of
+    /// ADR 0106: before it, every watermark Studio could produce was white,
+    /// 3 %, 70 % opaque, bottom-right.
+    #[test]
+    fn the_four_decorations_reach_the_recipe() {
+        let watermark = watermark_settings("©", 4, "7.5", "#101010", "0.25")
+            .unwrap()
+            .expect("a typed line is a watermark");
+        assert_eq!(watermark.anchor, WatermarkAnchor::Center);
+        assert_eq!(watermark.size, 7.5);
+        assert_eq!(watermark.color, "#101010");
+        assert_eq!(watermark.opacity, 0.25);
+    }
+
+    /// Every corner the dialog draws maps to the corner it names, in the
+    /// order the chips are in — an off-by-one here would silently move a
+    /// copyright line to the wrong side of every export.
+    #[test]
+    fn every_corner_chip_maps_to_its_anchor() {
+        for (index, anchor) in [
+            WatermarkAnchor::BottomRight,
+            WatermarkAnchor::BottomLeft,
+            WatermarkAnchor::TopRight,
+            WatermarkAnchor::TopLeft,
+            WatermarkAnchor::Center,
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let watermark = watermark_settings("©", index as i32, "3", "#FFFFFF", "0.7")
+                .unwrap()
+                .unwrap();
+            assert_eq!(watermark.anchor, anchor, "chip {index}");
+        }
+        assert!(watermark_settings("©", 5, "3", "#FFFFFF", "0.7").is_err());
+    }
+
+    /// The dialog parses, the recipe validates. A colour the engine refuses
+    /// must come back as a refusal, not as a silently ignored field.
+    #[test]
+    fn an_unparseable_decoration_is_refused_and_an_invalid_one_too() {
+        assert!(watermark_settings("©", 0, "big", "#FFFFFF", "0.7").is_err());
+        assert!(watermark_settings("©", 0, "3", "#FFFFFF", "opaque").is_err());
+
+        let watermark = watermark_settings("©", 0, "3", "rouge", "0.7").unwrap();
+        assert!(
+            export_settings(0, "90", "9", "", watermark).is_err(),
+            "a colour the engine refuses must not reach an export"
+        );
+    }
+
     #[test]
     fn export_preset_request_trims_the_name_and_reuses_export_settings() {
-        let (name, settings) = export_preset_request("  Web  ", 0, "80", "9", "2048", "").unwrap();
+        let (name, settings) =
+            export_preset_request("  Web  ", 0, "80", "9", "2048", None).unwrap();
         assert_eq!(name, "Web");
         assert_eq!(
             settings,
@@ -362,13 +489,13 @@ mod tests {
 
     #[test]
     fn export_preset_request_rejects_a_blank_or_whitespace_only_name() {
-        assert!(export_preset_request("", 0, "80", "9", "", "").is_err());
-        assert!(export_preset_request("   ", 0, "80", "9", "", "").is_err());
+        assert!(export_preset_request("", 0, "80", "9", "", None).is_err());
+        assert!(export_preset_request("   ", 0, "80", "9", "", None).is_err());
     }
 
     #[test]
     fn export_preset_request_still_validates_the_recipe() {
-        assert!(export_preset_request("Web", 0, "not a number", "9", "", "").is_err());
-        assert!(export_preset_request("Web", 5, "80", "9", "", "").is_err());
+        assert!(export_preset_request("Web", 0, "not a number", "9", "", None).is_err());
+        assert!(export_preset_request("Web", 5, "80", "9", "", None).is_err());
     }
 }

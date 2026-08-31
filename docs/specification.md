@@ -61,7 +61,7 @@ These features were scoped as post-V1 candidates in [`v2-scope.md`](v2-scope.md)
 | Perspective correction (two sliders, a homography) | [ADR 0052](adr/0052-perspective-correction.md) |
 | Creative `.cube` LUT imported into the library, with an amount | [ADR 0053](adr/0053-creative-lut.md) |
 | Clipped highlight reconstruction (`clip`/`blend`/`rebuild`, before demosaicing) | [ADR 0050](adr/0050-highlight-reconstruction.md) |
-| Text watermark on export and soft proofing (view only) | [ADR 0034](adr/0034-softproofing-watermark-print.md), [ADR 0051](adr/0051-watermark-rasterization-and-soft-proof-surface.md) |
+| Text watermark on export and soft proofing (view only) | [ADR 0034](adr/0034-softproofing-watermark-print.md), [ADR 0051](adr/0051-watermark-rasterization-and-soft-proof-surface.md), [ADR 0106](adr/0106-watermark-settings-in-the-clients.md) |
 | RAW+JPEG pairing: the JPEG written by the camera becomes the companion of the RAW from the same shot, one photo in the grid instead of two | [ADR 0079](adr/0079-raw-jpeg-pairing.md) |
 | Automatic tone (`Auto`) and black and white, the two buttons Lightroom's Basic panel has above its sliders | [ADR 0088](adr/0088-auto-tone-and-black-and-white.md) |
 | A profile browser: choosing a camera rendering by looking at the open photo through each one | [ADR 0089](adr/0089-camera-profile-browser.md) |

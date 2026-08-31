@@ -818,3 +818,100 @@ fn import_only_takes_the_named_files_and_says_when_one_is_missing() {
     assert!(!out.status.success());
     assert!(stderr(&out).contains("no such file"), "{}", stderr(&out));
 }
+
+/// ADR 0106: the watermark's decorations reach the CLI. Before it, every
+/// watermark the CLI could produce was white, 3 %, 70 % opaque, bottom-right.
+#[test]
+fn the_watermark_decorations_reach_the_recipe_and_refuse_on_their_own() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = library_with_a_photo(&dir);
+    let dest = dir.path().join("out");
+    std::fs::create_dir_all(&dest).unwrap();
+    let dest = dest.to_str().unwrap().to_owned();
+
+    // The four decorations together, on an export that really runs.
+    let out = run(&[
+        "export",
+        &root,
+        &dest,
+        "1",
+        "--watermark",
+        "© 2026",
+        "--watermark-anchor",
+        "center",
+        "--watermark-size",
+        "8",
+        "--watermark-color",
+        "#101010",
+        "--watermark-opacity",
+        "0.4",
+    ]);
+    assert!(out.status.success(), "{}", stderr(&out));
+
+    // Stored in a preset too, so the two clients can share one recipe.
+    let out = run(&[
+        "preset",
+        &root,
+        "Marked",
+        "--watermark",
+        "© 2026",
+        "--watermark-color",
+        "#101010",
+    ]);
+    assert!(out.status.success(), "{}", stderr(&out));
+
+    // A decoration without a line names the option that has nothing to
+    // decorate, rather than being quietly dropped.
+    let out = run(&["export", &root, &dest, "1", "--watermark-color", "#101010"]);
+    assert!(!out.status.success());
+    assert!(
+        stderr(&out).contains("--watermark-color") && stderr(&out).contains("--watermark"),
+        "{}",
+        stderr(&out)
+    );
+
+    // The ranges live in the engine, and its refusal is what surfaces.
+    let out = run(&[
+        "export",
+        &root,
+        &dest,
+        "1",
+        "--watermark",
+        "©",
+        "--watermark-opacity",
+        "3",
+    ]);
+    assert!(!out.status.success());
+    assert!(
+        stderr(&out).to_lowercase().contains("opacity"),
+        "{}",
+        stderr(&out)
+    );
+
+    let out = run(&[
+        "export",
+        &root,
+        &dest,
+        "1",
+        "--watermark",
+        "©",
+        "--watermark-color",
+        "rouge",
+    ]);
+    assert!(!out.status.success());
+    assert!(!stderr(&out).is_empty());
+
+    // And a value that is not a number is refused by the option itself.
+    let out = run(&[
+        "export",
+        &root,
+        &dest,
+        "1",
+        "--watermark",
+        "©",
+        "--watermark-size",
+        "grand",
+    ]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("watermark size"), "{}", stderr(&out));
+}

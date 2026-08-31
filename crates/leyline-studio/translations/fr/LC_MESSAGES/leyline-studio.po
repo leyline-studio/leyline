@@ -2703,3 +2703,48 @@ msgstr "Assombrir"
 msgctxt "DevelopPanel"
 msgid "{} placed"
 msgstr "{} posé(s)"
+
+#: crates/leyline-studio/ui/dialogs/export.slint:175
+msgctxt "ExportDialog"
+msgid "Watermark corner"
+msgstr "Coin du filigrane"
+
+#: crates/leyline-studio/ui/dialogs/export.slint:183
+msgctxt "ExportDialog"
+msgid "Bottom right"
+msgstr "En bas à droite"
+
+#: crates/leyline-studio/ui/dialogs/export.slint:184
+msgctxt "ExportDialog"
+msgid "Bottom left"
+msgstr "En bas à gauche"
+
+#: crates/leyline-studio/ui/dialogs/export.slint:185
+msgctxt "ExportDialog"
+msgid "Top right"
+msgstr "En haut à droite"
+
+#: crates/leyline-studio/ui/dialogs/export.slint:186
+msgctxt "ExportDialog"
+msgid "Top left"
+msgstr "En haut à gauche"
+
+#: crates/leyline-studio/ui/dialogs/export.slint:187
+msgctxt "ExportDialog"
+msgid "Center"
+msgstr "Au centre"
+
+#: crates/leyline-studio/ui/dialogs/export.slint:202
+msgctxt "ExportDialog"
+msgid "Size (% of height)"
+msgstr "Taille (% de la hauteur)"
+
+#: crates/leyline-studio/ui/dialogs/export.slint:228
+msgctxt "ExportDialog"
+msgid "Colour (#RRGGBB)"
+msgstr "Couleur (#RRGGBB)"
+
+#: crates/leyline-studio/ui/dialogs/export.slint:254
+msgctxt "ExportDialog"
+msgid "Opacity (0-1)"
+msgstr "Opacité (0-1)"

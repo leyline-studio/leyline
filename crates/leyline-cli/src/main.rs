@@ -112,9 +112,13 @@ Usage:
                  [--preset <name>] [--format <f>] [--quality <1-100>] [--max-edge <px>]
                  [--avif-speed <1-10>] [--concurrency <n>]
                  [--watermark <text>] [--watermark-anchor <a>]
+                 [--watermark-size <%>] [--watermark-color <#RRGGBB>]
+                 [--watermark-opacity <0-1>]
   leyline preset <library> <name> [--format <f>] [--quality <1-100>] [--max-edge <px>]
                  [--avif-speed <1-10>] [--concurrency <n>]
                  [--watermark <text>] [--watermark-anchor <a>]
+                 [--watermark-size <%>] [--watermark-color <#RRGGBB>]
+                 [--watermark-opacity <0-1>]
   leyline presets <library>
   leyline exports <library> <asset-id>
   leyline print <library> <dest-dir> <version-id>...
@@ -174,6 +178,12 @@ Options:
                 Text watermark drawn on the export, last thing before encoding (ADR 0034)
   --watermark-anchor <a>
                 bottom-right (default), bottom-left, top-right, top-left, center
+  --watermark-size <%>
+                Cap height as a percentage of the image height, in (0, 50] (default 3)
+  --watermark-color <#RRGGBB>
+                Text colour (default #FFFFFF)
+  --watermark-opacity <0-1>
+                Blend strength (default 0.7)
 
 Develop params (docs/pipeline.md §3.2, schema 1):
   exposure rotation                 decimal
@@ -2332,9 +2342,9 @@ fn recipe(options: &Options) -> Result<ExportSettings, String> {
     if let Some(edge) = options.value("max-edge") {
         settings.max_edge = Some(edge.parse().map_err(|_| format!("bad max edge {edge:?}"))?);
     }
-    // Only the line, like Studio's dialog: the rest of the decoration keeps
-    // the recipe defaults (ADR 0051 §3), and a preset's `settings_json` is
-    // where other values are written.
+    // The line, then its decoration (ADR 0106 §1). The ranges are not
+    // restated here: `validate` below owns them, and a client that copied
+    // them would be a second place to correct them.
     if let Some(text) = options.value("watermark") {
         settings.watermark = Some(Watermark {
             text: text.to_owned(),
@@ -2355,13 +2365,50 @@ fn recipe(options: &Options) -> Result<ExportSettings, String> {
                 ));
             }
         };
-        match &mut settings.watermark {
-            Some(watermark) => watermark.anchor = anchor,
-            None => return Err("--watermark-anchor needs --watermark".to_owned()),
-        }
+        decorate(&mut settings.watermark, "--watermark-anchor", |w| {
+            w.anchor = anchor;
+        })?;
+    }
+    if let Some(size) = options.value("watermark-size") {
+        let size = size
+            .parse()
+            .map_err(|_| format!("bad watermark size {size:?}"))?;
+        decorate(&mut settings.watermark, "--watermark-size", |w| {
+            w.size = size
+        })?;
+    }
+    if let Some(color) = options.value("watermark-color") {
+        let color = color.to_owned();
+        decorate(&mut settings.watermark, "--watermark-color", |w| {
+            w.color = color;
+        })?;
+    }
+    if let Some(opacity) = options.value("watermark-opacity") {
+        let opacity = opacity
+            .parse()
+            .map_err(|_| format!("bad watermark opacity {opacity:?}"))?;
+        decorate(&mut settings.watermark, "--watermark-opacity", |w| {
+            w.opacity = opacity;
+        })?;
     }
     settings.validate().map_err(|e| e.to_string())?;
     Ok(settings)
+}
+
+/// Applies one decoration to the watermark being built, or says which
+/// option was given without a line to decorate (ADR 0106 §1).
+fn decorate(
+    watermark: &mut Option<Watermark>,
+    option: &str,
+    set: impl FnOnce(&mut Watermark),
+) -> Result<(), String> {
+    match watermark {
+        Some(watermark) => {
+            set(watermark);
+            Ok(())
+        }
+        None => Err(format!("{option} needs --watermark")),
+    }
 }
 
 fn export(args: &[String]) -> Result<(), String> {
@@ -2376,6 +2423,9 @@ fn export(args: &[String]) -> Result<(), String> {
             "max-edge",
             "watermark",
             "watermark-anchor",
+            "watermark-size",
+            "watermark-color",
+            "watermark-opacity",
         ],
     )?;
     let [root, destination, ids @ ..] = positional.as_slice() else {
@@ -2633,6 +2683,9 @@ fn preset(args: &[String]) -> Result<(), String> {
             "max-edge",
             "watermark",
             "watermark-anchor",
+            "watermark-size",
+            "watermark-color",
+            "watermark-opacity",
         ],
     )?;
     let [root, name] = positional.as_slice() else {
