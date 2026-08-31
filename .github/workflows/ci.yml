@@ -1,10 +1,16 @@
 name: CI
 
-# Tags only, plus a manual button. `make check` is the gate before every
-# commit (see CLAUDE.md / docs/contributing.md), so running the same three
-# steps again on every push to main bought a second Linux opinion and little
-# else. What CI alone can say is whether macOS and Windows still build — a
-# question that matters at a release, not at a commit.
+# Tags, pull requests, and a manual button — each answering a different
+# question. `make check` is the gate before every commit (see CLAUDE.md /
+# docs/contributing.md), so running the same three steps again on every push
+# to main bought a second Linux opinion and little else. What CI alone can
+# say is whether macOS and Windows still build — a question that matters at
+# a release, not at a commit.
+#
+# A pull request runs the Linux `check` leg alone: an external contributor's
+# `make check` ran on a machine the reviewer cannot see, and Linux is where
+# the gate lives. The full matrix and the deliverables stay a release
+# question — a PR does not wait on a macOS runner to be reviewable.
 #
 # `workflow_dispatch` is the escape hatch: anything touching a system
 # dependency, a build script or the toolchain deserves a manual run before
@@ -22,6 +28,8 @@ name: CI
 on:
   push:
     tags: ["v*"]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 env:
@@ -33,6 +41,8 @@ env:
   # `docs/pipeline.md` §5.1 counts it among the terms of the bit-for-bit
   # promise, so it is built from source here rather than installed.
   LIBRAW_VERSION: 0.21.4
+  # Same logic for the packaging chain: one cargo-packager, every leg.
+  PACKAGER_VERSION: 0.11.8
 
 jobs:
   check:
@@ -40,7 +50,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        # On a pull request, Linux only — see the header.
+        os: ${{ github.event_name == 'pull_request' && fromJSON('["ubuntu-latest"]') || fromJSON('["ubuntu-latest", "macos-latest"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -130,11 +141,13 @@ jobs:
   # `packaging/windows/build-nsis.sh`; keep the two in step.
   windows-cross:
     name: windows (cross-compiled)
+    # A deliverable, not a gate: release question, so not on pull requests.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     env:
-      # LIBRAW_VERSION is inherited from the workflow env: one pin, every leg.
+      # LIBRAW_VERSION and PACKAGER_VERSION are inherited from the workflow
+      # env: one pin, every leg.
       LIBRAW_MINGW_PREFIX: /opt/leyline/libraw-mingw
-      PACKAGER_VERSION: 0.11.8
     steps:
       - uses: actions/checkout@v7
 
@@ -224,4 +237,85 @@ jobs:
         with:
           name: leyline-studio-windows-x64
           path: target/x86_64-pc-windows-gnu/release/*-setup.exe
+          if-no-files-found: error
+
+  # The macOS deliverable, built the way the other two are: the pinned
+  # LibRaw (ADR 0086) and `cargo packager`, through
+  # `packaging/macos/build-dmg.sh`. This job exists because no development
+  # machine runs macOS — the runner is the only macOS host the project has,
+  # which is exactly the situation the windows-cross job answers for
+  # Windows. Same LibRaw recipe and cache key as the macOS `check` leg, so
+  # the two share one prefix.
+  #
+  # What this proves is that the deliverable *builds*; two things are still
+  # owed and written down rather than implied: the .app links the pinned
+  # dylibs by the runner's own paths (nothing yet copies them into the
+  # bundle, so the .dmg is not self-contained), and no one has launched the
+  # result on real hardware. `runs-on: macos-latest` is arm64 — the artifact
+  # name says so.
+  macos-package:
+    name: macos (dmg)
+    if: github.event_name != 'pull_request'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # No `targets:`, same reason as windows-cross: `rust-toolchain.toml`
+      # picks the toolchain.
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2.9.2
+
+      - name: Install system dependencies
+        # Same set, same reasons, and the same libstdc++ shim as the macOS
+        # `check` leg above — LibRaw is C++, its .pc says `-lstdc++`, and
+        # current SDKs only ship libc++.
+        run: |
+          brew install libgphoto2 nasm
+          mkdir -p "$HOME/lib-shim"
+          ln -sf "$(xcrun --show-sdk-path)/usr/lib/libc++.tbd" "$HOME/lib-shim/libstdc++.tbd"
+          echo "LIBRARY_PATH=$HOME/lib-shim:$LIBRARY_PATH" >> "$GITHUB_ENV"
+
+      - name: Cache the pinned LibRaw
+        id: libraw-pin
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/libraw-prefix
+          key: libraw-pin-${{ env.LIBRAW_VERSION }}-${{ runner.os }}
+
+      - name: Build the pinned LibRaw
+        if: steps.libraw-pin.outputs.cache-hit != 'true'
+        run: |
+          curl -sLO https://github.com/LibRaw/LibRaw/archive/refs/tags/${LIBRAW_VERSION}.tar.gz
+          tar xzf ${LIBRAW_VERSION}.tar.gz
+          cd LibRaw-${LIBRAW_VERSION}
+          autoreconf -fiv
+          ./configure --prefix="${{ runner.temp }}/libraw-prefix" \
+                      --disable-examples --disable-static --enable-shared
+          make -j3 && make install
+
+      - name: Cache cargo-packager
+        id: packager-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cargo/bin/cargo-packager
+          key: cargo-packager-${{ env.PACKAGER_VERSION }}-${{ runner.os }}
+
+      - name: Install cargo-packager
+        if: steps.packager-cache.outputs.cache-hit != 'true'
+        run: cargo install cargo-packager --locked --version ${{ env.PACKAGER_VERSION }}
+
+      - name: Build the dmg
+        run: LIBRAW_MACOS_PREFIX="${{ runner.temp }}/libraw-prefix" bash packaging/macos/build-dmg.sh
+
+      - name: Name what was produced
+        run: ls -la target/release/*.dmg
+
+      # Same reasoning as the Windows installer above: without this the dmg
+      # dies with the runner. Nothing here publishes a release.
+      - name: Keep the dmg
+        uses: actions/upload-artifact@v7
+        with:
+          name: leyline-studio-macos-arm64
+          path: target/release/*.dmg
           if-no-files-found: error
