@@ -17,14 +17,15 @@ use std::path::PathBuf;
 use leyline_sdk::{
     AssetDescription, AssetId, BrushStroke, CameraProfile, ColorGrading, ColorGradingZone,
     ColorLabel, ColorRange, Crop, CurvePoint, EditSession, Event, ExportFormat, ExportRecipe,
-    ExportRequest, ExportSettings, Grain, GridItem, GridQuery, HslBand, ImportOptions,
-    ImportReport, ImportedFile, JobId, LensCorrection, LeylineError, Library, LocalAdjustment,
-    LocalAdjustmentValues, LuminanceRange, Margins, Mask, NoiseReduction, Orientation, PaperSize,
-    PickState, Point, Preview, PreviewKind, PrintRecipe, PrintRequest, PrintSettings, RangeMask,
-    RangeSample, RegisteredAsset, RenderingIntent, RevisionId, ScanOptions, Settings, Sharpening,
-    ShotFacets, ShotRange, SkippedFile, SpotRemoval, StageVersions, ToneCurve, VersionId, Vignette,
-    WHITE_BALANCE_PRESETS, WatchSessionEvent, WatchedFile, Watermark, WatermarkAnchor,
-    WatermarkFont, WhiteBalance, WhiteBalancePreset,
+    ExportRequest, ExportSettings, FailedRename, Grain, GridItem, GridQuery, HslBand,
+    ImportOptions, ImportReport, ImportedFile, JobId, LensCorrection, LeylineError, Library,
+    LocalAdjustment, LocalAdjustmentValues, LuminanceRange, Margins, Mask, NoiseReduction,
+    Orientation, PaperSize, PickState, Point, Preview, PreviewKind, PrintRecipe, PrintRequest,
+    PrintSettings, RangeMask, RangeSample, RegisteredAsset, RenameReport, RenamedAsset,
+    RenderingIntent, RevisionId, ScanOptions, Settings, Sharpening, ShotFacets, ShotRange,
+    SkippedFile, SpotRemoval, StageVersions, ToneCurve, VersionId, Vignette, WHITE_BALANCE_PRESETS,
+    WatchSessionEvent, WatchedFile, Watermark, WatermarkAnchor, WatermarkFont, WhiteBalance,
+    WhiteBalancePreset,
 };
 
 /// A `Settings` built field by field, every nested type named through the
@@ -181,6 +182,13 @@ fn every_returned_type_is_nameable(library: &Library, version: VersionId, asset:
     let _: Result<WhiteBalance, LeylineError> = library.neutralize_wb(asset, 0.5, 0.5);
     let _: Result<WhiteBalance, LeylineError> = library.auto_wb(asset);
     let _: &WhiteBalancePreset = &WHITE_BALANCE_PRESETS[0];
+    // Renaming (ADR 0100): the call and the report it returns. Named here
+    // because the audit of 2026-08-31 found `RenameReport` missing from
+    // the façade while `FailedRename` had made it — a hole this test
+    // could not see, since it did not name the type.
+    let report: RenameReport = library.rename(&[], "{name}").unwrap();
+    let _: &[RenamedAsset] = &report.renamed;
+    let _: &[FailedRename] = &report.failed;
     // Authored descriptions (ADR 0099): the type, the write, the read.
     let _: Result<(), LeylineError> = library.set_description(asset, &AssetDescription::default());
     let _: Result<(), LeylineError> =

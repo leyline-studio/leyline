@@ -23,9 +23,9 @@ pub use leyline_engine::{
     FailedPrint, FailedRename, FailedReprocess, ImportCandidate, ImportOptions, ImportReport,
     ImportedCameraProfile, ImportedFile, ImportedLut, JobResult, Library, Param, PresetApplyReport,
     Preview, PreviewFile, PrintRecipe, PrintReport, PrintRequest, PrintedVersion, RangeSample,
-    RemovalReport, ReprocessReport, Rgb8, RootStatus, ScanOptions, SkippedFile, SoftProof,
-    SourceColor, TetherOptions, Value, WatchError, WatchSessionEvent, WatchedFile, decoder_version,
-    neutral_settings, overlay, session_folder,
+    RemovalReport, RenameReport, RenamedAsset, ReprocessReport, Rgb8, RootStatus, ScanOptions,
+    SkippedFile, SoftProof, SourceColor, TetherOptions, Value, WatchError, WatchSessionEvent,
+    WatchedFile, decoder_version, neutral_settings, overlay, session_folder,
 };
 
 pub use leyline_catalog::{
