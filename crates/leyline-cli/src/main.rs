@@ -36,10 +36,12 @@ Usage:
                                     [--thumbnails] [--only <name>]...
                                     --only, répétable, n'importe que ces
                                     fichiers-là parmi ceux que `scan` liste
-  leyline scan <library> <source> [--flat]
+  leyline scan <library> <source> [--flat] [--exact]
                                     ce qu'un import prendrait, sans rien écrire
                                     (ADR 0065) ; « = » marque un fichier que la
-                                    bibliothèque contient déjà
+                                    bibliothèque contient déjà — par nom+taille,
+                                    ou exactement avec --exact, qui lit chaque
+                                    fichier en entier et nomme l'asset (ADR 0095)
   leyline auto-tone <library> <version-id> [--dry-run]
                                     propose une tonalité et l'écrit (ADR 0088) ;
                                     --dry-run affiche sans committer
@@ -488,6 +490,9 @@ fn select(
                 recursive: options.recursive,
                 // Nobody is looking at pictures here.
                 thumbnails: false,
+                // `--only` resolves names against the folder; the import
+                // that follows asks the fingerprint question itself.
+                exact: false,
             },
             |_, _| {},
         )
@@ -507,7 +512,7 @@ fn select(
 fn scan(args: &[String]) -> Result<(), String> {
     let (positional, options) = parse(args, &[])?;
     let [root, source] = positional.as_slice() else {
-        return Err("usage: leyline scan <library> <source> [--flat]".to_owned());
+        return Err("usage: leyline scan <library> <source> [--flat] [--exact]".to_owned());
     };
     let library = open(root)?;
     let candidates = library
@@ -516,6 +521,9 @@ fn scan(args: &[String]) -> Result<(), String> {
             &ScanOptions {
                 recursive: !options.switch("flat"),
                 thumbnails: false,
+                // Reads every file in full, and says so in the help
+                // (ADR 0095 §2): asked for, never a surprise.
+                exact: options.switch("exact"),
             },
             |done, total| eprint!("\rscanning {done}/{total}"),
         )
@@ -534,6 +542,11 @@ fn scan(args: &[String]) -> Result<(), String> {
             candidate.camera.as_deref().unwrap_or("-"),
             candidate.path.display(),
         );
+        // Only the fingerprint can name the asset (ADR 0095 §3), so this
+        // line appears under --exact and nowhere else.
+        if let Some(asset) = candidate.duplicate_of {
+            println!("    ↳ same content as asset {asset}");
+        }
     }
     let already = candidates.iter().filter(|c| c.already_imported).count();
     println!(

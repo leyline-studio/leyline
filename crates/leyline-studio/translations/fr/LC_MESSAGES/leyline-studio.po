@@ -2619,3 +2619,7 @@ msgstr "Nouvelle version"
 msgctxt "BrowserPanel"
 msgid "New Version"
 msgstr "Nouvelle version"
+
+msgctxt "ImportDialog"
+msgid "Exact (reads every file)"
+msgstr "Exact (lit chaque fichier)"

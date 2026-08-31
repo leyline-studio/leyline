@@ -35,7 +35,7 @@ pub(crate) fn wire_import(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        DialogState::get(window).on_scan_import(move |source, recursive| {
+        DialogState::get(window).on_scan_import(move |source, recursive, exact| {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -53,6 +53,7 @@ pub(crate) fn wire_import(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 &ScanOptions {
                     recursive,
                     thumbnails: true,
+                    exact,
                 },
             );
             app.scan_job = Some(job);

@@ -21,10 +21,10 @@ use leyline_sdk::{
     JobId, LensCorrection, LeylineError, Library, LocalAdjustment, LocalAdjustmentValues,
     LuminanceRange, Margins, Mask, NoiseReduction, Orientation, PaperSize, PickState, Point,
     Preview, PreviewKind, PrintRecipe, PrintRequest, PrintSettings, RangeMask, RangeSample,
-    RegisteredAsset, RenderingIntent, RevisionId, Settings, Sharpening, ShotFacets, ShotRange,
-    SkippedFile, SpotRemoval, StageVersions, ToneCurve, VersionId, Vignette, WHITE_BALANCE_PRESETS,
-    WatchSessionEvent, WatchedFile, Watermark, WatermarkAnchor, WatermarkFont, WhiteBalance,
-    WhiteBalancePreset,
+    RegisteredAsset, RenderingIntent, RevisionId, ScanOptions, Settings, Sharpening, ShotFacets,
+    ShotRange, SkippedFile, SpotRemoval, StageVersions, ToneCurve, VersionId, Vignette,
+    WHITE_BALANCE_PRESETS, WatchSessionEvent, WatchedFile, Watermark, WatermarkAnchor,
+    WatermarkFont, WhiteBalance, WhiteBalancePreset,
 };
 
 /// A `Settings` built field by field, every nested type named through the
@@ -179,6 +179,12 @@ fn every_returned_type_is_nameable(library: &Library, version: VersionId, asset:
     let _: Result<WhiteBalance, LeylineError> = library.neutralize_wb(asset, 0.5, 0.5);
     let _: Result<WhiteBalance, LeylineError> = library.auto_wb(asset);
     let _: &WhiteBalancePreset = &WHITE_BALANCE_PRESETS[0];
+    // The exact-duplicate scan (ADR 0095): the option and the answer.
+    let _: ScanOptions = ScanOptions {
+        recursive: false,
+        thumbnails: false,
+        exact: true,
+    };
     // The range eyedropper (ADR 0093).
     let _: Result<RangeSample, LeylineError> = library.sample_range(asset, 0.5, 0.5);
 }

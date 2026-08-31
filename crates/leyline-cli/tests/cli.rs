@@ -114,6 +114,30 @@ fn auto_wb_proposes_and_writes() {
     assert!(!out.status.success());
 }
 
+/// ADR 0095 §4: `--exact` marks the renamed copy the default scan misses,
+/// and names the asset it duplicates.
+#[test]
+fn an_exact_scan_marks_a_renamed_copy() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = library_with_a_photo(&dir);
+
+    let backup = dir.path().join("Backup");
+    std::fs::create_dir_all(&backup).unwrap();
+    std::fs::copy(dir.path().join("photo.png"), backup.join("renamed.png")).unwrap();
+    let backup = backup.to_str().unwrap().to_owned();
+
+    // By name and size: nothing seen.
+    let listing = stdout(&run(&["scan", &root, &backup]));
+    assert!(listing.contains("0 already in the library"), "{listing}");
+
+    // By fingerprint: seen, and named.
+    let out = run(&["scan", &root, &backup, "--exact"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    let listing = stdout(&out);
+    assert!(listing.contains("1 already in the library"), "{listing}");
+    assert!(listing.contains("same content as asset"), "{listing}");
+}
+
 /// Versions in the CLI (ADR 0094 §3): list, branch, switch — and a branch
 /// carries the development its parent had at the moment it was made.
 #[test]

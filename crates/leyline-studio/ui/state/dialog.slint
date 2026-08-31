@@ -42,6 +42,9 @@ export global DialogState {
     callback run-import(string, bool, bool, bool);
     in-out property <bool> import-copy: true;
     in-out property <bool> import-recursive: true;
+    // Answer the duplicate question exactly (ADR 0095): reads every file
+    // in the folder, so it is off unless asked for.
+    in-out property <bool> import-exact: false;
     in-out property <bool> import-pair: true;
     in-out property <string> import-source-text: "";
     // Opens a native OS folder picker; on a non-cancelled pick, Rust sets
@@ -54,7 +57,7 @@ export global DialogState {
     // `import-candidates` with what the source holds, each line ticked or
     // not. Rust owns the ticks — the panel reports clicks and displays what
     // comes back (ADR 0045 §1).
-    callback scan-import(string, bool);
+    callback scan-import(string, bool, bool);
     in-out property <[CandidateRow]> import-candidates;
     // A scan has run, even if it found nothing: it is what turns the
     // dialog from "import this folder" into "import these photos".

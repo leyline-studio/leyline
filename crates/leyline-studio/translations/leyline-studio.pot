@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2026-08-31 16:19+0000\n"
+"POT-Creation-Date: 2026-08-31 16:32+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -233,60 +233,65 @@ msgctxt "ImportDialog"
 msgid "Pair RAW+JPEG"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/import.slint:83
+#: crates/leyline-studio/ui/dialogs/import.slint:85
+msgctxt "ImportDialog"
+msgid "Exact (reads every file)"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/import.slint:92
 msgctxt "ImportDialog"
 msgid "Rescan"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/import.slint:83
+#: crates/leyline-studio/ui/dialogs/import.slint:92
 msgctxt "ImportDialog"
 msgid "Look first"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/import.slint:100
+#: crates/leyline-studio/ui/dialogs/import.slint:109
 msgctxt "ImportDialog"
 msgid "Nothing importable here."
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/import.slint:101
+#: crates/leyline-studio/ui/dialogs/import.slint:110
 msgctxt "ImportDialog"
 msgid "{} of {} chosen"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/import.slint:110
+#: crates/leyline-studio/ui/dialogs/import.slint:119
 msgctxt "ImportDialog"
 msgid "All"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/import.slint:117
+#: crates/leyline-studio/ui/dialogs/import.slint:126
 msgctxt "ImportDialog"
 msgid "None"
 msgstr ""
 
 #. already in the library (ADR 0065 §3).
-#: crates/leyline-studio/ui/dialogs/import.slint:162
+#: crates/leyline-studio/ui/dialogs/import.slint:171
 msgctxt "ImportDialog"
 msgid "already imported · {}"
 msgstr ""
 
 #. thing left to do.
-#: crates/leyline-studio/ui/dialogs/import.slint:194
+#: crates/leyline-studio/ui/dialogs/import.slint:203
 msgctxt "ImportDialog"
 msgid "Close"
 msgstr ""
 
 #. thing left to do.
-#: crates/leyline-studio/ui/dialogs/import.slint:194
+#: crates/leyline-studio/ui/dialogs/import.slint:203
 msgctxt "ImportDialog"
 msgid "Cancel"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/import.slint:208
+#: crates/leyline-studio/ui/dialogs/import.slint:217
 msgctxt "ImportDialog"
 msgid "Import {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/import.slint:209
+#: crates/leyline-studio/ui/dialogs/import.slint:218
 msgctxt "ImportDialog"
 msgid "Import"
 msgstr ""

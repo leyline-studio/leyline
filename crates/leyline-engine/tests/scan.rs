@@ -30,6 +30,7 @@ const COPY: ImportOptions = ImportOptions {
 const LOOK: ScanOptions = ScanOptions {
     recursive: true,
     thumbnails: true,
+    exact: false,
 };
 
 #[test]
@@ -84,6 +85,7 @@ fn a_scan_can_be_asked_for_nothing_but_the_facts() {
     let flat = ScanOptions {
         recursive: false,
         thumbnails: false,
+        exact: false,
     };
     let candidates = scan(&catalog, &shoot, &flat, |_, _| {}).unwrap();
     assert_eq!(candidates.len(), 1);
@@ -129,6 +131,79 @@ fn an_already_imported_file_is_marked_but_still_offered() {
     assert_eq!(report.imported, vec![]);
     assert_eq!(report.skipped.len(), 1);
     assert!(report.skipped[0].reason.contains("duplicate"));
+}
+
+/// ADR 0095: the defect that prompted the decision, and its fix. A copy
+/// under another name is invisible to the name-and-size hint and refused by
+/// the import — the exact scan is what makes the preview agree with the
+/// import, and it names the asset the hint cannot.
+#[test]
+fn an_exact_scan_sees_the_renamed_copy_the_hint_misses() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut catalog, root) = library(&dir);
+    let shoot = dir.path().join("Shoot");
+    png(&shoot.join("original.png"), 8, 4);
+
+    let registered = import(
+        &mut catalog,
+        &root,
+        &shoot.join("original.png"),
+        &COPY,
+        |_, _| {},
+    )
+    .unwrap()
+    .imported[0]
+        .registered;
+
+    // The same bytes, another name, another folder.
+    let elsewhere = dir.path().join("Backup");
+    std::fs::create_dir_all(&elsewhere).unwrap();
+    std::fs::copy(
+        shoot.join("original.png"),
+        elsewhere.join("holiday-final-2.png"),
+    )
+    .unwrap();
+
+    // The default hint compares names and sizes, so it sees nothing —
+    // and the import would nevertheless refuse the file.
+    let hinted = scan(&catalog, &elsewhere, &LOOK, |_, _| {}).unwrap();
+    assert_eq!(hinted.len(), 1);
+    assert!(!hinted[0].already_imported, "the hint cannot see a rename");
+    assert_eq!(hinted[0].duplicate_of, None, "and never names an asset");
+
+    let exact = ScanOptions {
+        exact: true,
+        ..LOOK
+    };
+    let seen = scan(&catalog, &elsewhere, &exact, |_, _| {}).unwrap();
+    assert!(seen[0].already_imported, "the fingerprint sees it");
+    assert_eq!(
+        seen[0].duplicate_of,
+        Some(registered.asset),
+        "and says which asset it duplicates"
+    );
+
+    // The exact answer agrees with what the import actually does.
+    let report = import_files(
+        &mut catalog,
+        &root,
+        &elsewhere,
+        &[elsewhere.join("holiday-final-2.png")],
+        &COPY,
+        |_, _| {},
+    )
+    .unwrap();
+    assert_eq!(report.imported, vec![]);
+    assert!(report.skipped[0].reason.contains("duplicate"));
+
+    // A genuinely new file is still offered under --exact.
+    png(&elsewhere.join("other.png"), 5, 5);
+    let seen = scan(&catalog, &elsewhere, &exact, |_, _| {}).unwrap();
+    let other = seen
+        .iter()
+        .find(|c| c.filename == "other.png")
+        .expect("the new file is listed");
+    assert!(!other.already_imported && other.duplicate_of.is_none());
 }
 
 #[test]

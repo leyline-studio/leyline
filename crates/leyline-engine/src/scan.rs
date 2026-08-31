@@ -14,7 +14,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use leyline_catalog::Catalog;
-use leyline_core::{MediaType, Result};
+use leyline_core::{AssetId, MediaType, Result};
 use leyline_raw::{RawImage, ThumbnailKind};
 
 /// Longest edge of a candidate's thumbnail, in pixels. Enough for a contact
@@ -34,6 +34,15 @@ pub struct ScanOptions {
     /// Extract each candidate's embedded preview. Off for a caller that
     /// displays nothing: the scan is then pure metadata.
     pub thumbnails: bool,
+    /// Answer the duplicate question by **content fingerprint** rather than
+    /// by name and size (ADR 0095 §2).
+    ///
+    /// Exact, and it reads every scanned file in full — which is why it is
+    /// off by default and asked for on purpose: a card preview that reads
+    /// 20 GB is not a preview (ADR 0065 §3). Turn it on for the other
+    /// question, the deliberate one about an archive already on disk:
+    /// *which of these do I already hold?*
+    pub exact: bool,
 }
 
 impl Default for ScanOptions {
@@ -43,6 +52,7 @@ impl Default for ScanOptions {
         ScanOptions {
             recursive: true,
             thumbnails: true,
+            exact: false,
         }
     }
 }
@@ -62,10 +72,18 @@ pub struct ImportCandidate {
     pub capture_date: Option<i64>,
     /// Body that took it, `manufacturer model`, when the file says.
     pub camera: Option<String>,
-    /// A file of this name and size is already in the library — a reliable
-    /// hint, never the verdict (ADR 0065 §3). The import's own checksum
-    /// comparison is the only exact answer, and it is the one that refuses.
+    /// The library already holds this file — answered by whichever method
+    /// the scan was asked for: names and sizes by default (a reliable hint,
+    /// never the verdict, ADR 0065 §3), the content fingerprint under
+    /// [`ScanOptions::exact`], where it *is* the verdict the import will
+    /// give (ADR 0095 §3).
     pub already_imported: bool,
+    /// Which asset this file duplicates, when the fingerprint said so.
+    ///
+    /// `None` outside [`ScanOptions::exact`]: only the fingerprint can name
+    /// an asset, and the name-and-size hint deliberately reads nothing
+    /// (ADR 0095 §3). Naming it is what turns a refusal into an answer.
+    pub duplicate_of: Option<AssetId>,
     /// The embedded preview, as JPEG, oriented and reduced. `None` when the
     /// file carries none, when it cannot be read, or when the scan was asked
     /// not to extract any.
@@ -92,7 +110,16 @@ pub fn scan(
     let total = files.len() as u64;
     let mut candidates = Vec::new();
     for (done, path) in files.iter().enumerate() {
-        if let Some(candidate) = describe(path, options.thumbnails, &known) {
+        if let Some(mut candidate) = describe(path, options.thumbnails, &known) {
+            // The fingerprint, when it was asked for: the same question the
+            // import will ask, answered before anything is written — and the
+            // only one that can name the asset (ADR 0095 §3).
+            if options.exact {
+                if let Ok((checksum, _)) = crate::import::checksum(path) {
+                    candidate.duplicate_of = catalog.find_asset_by_checksum(&checksum)?;
+                    candidate.already_imported = candidate.duplicate_of.is_some();
+                }
+            }
             candidates.push(candidate);
         }
         progress(done as u64 + 1, total);
@@ -131,6 +158,8 @@ fn describe(
 
     Some(ImportCandidate {
         already_imported: known.contains(&(filename.clone(), file_size)),
+        // Only the exact pass can fill this, and it does so on the way out.
+        duplicate_of: None,
         filename,
         media_type,
         file_size,

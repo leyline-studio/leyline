@@ -79,11 +79,20 @@ export component ImportDialog inherits VerticalLayout {
         // Looking before taking (ADR 0065): fills the list below without
         // writing anything, so the choice is made on what is there rather
         // than on a folder name.
+        // Exactness costs a full read of every file, so it is asked for
+        // (ADR 0095 §2) — and it is what marks a copy that was renamed.
+        if !DialogState.job-done && DialogState.job-progress < 0: FilterChip {
+            text: @tr("Exact (reads every file)");
+            active: DialogState.import-exact;
+            clicked => {
+                DialogState.import-exact = !DialogState.import-exact;
+            }
+        }
         if !DialogState.job-done && DialogState.job-progress < 0: FilterChip {
             text: DialogState.import-scanned ? @tr("Rescan") : @tr("Look first");
             active: false;
             clicked => {
-                DialogState.scan-import(import-source.text, DialogState.import-recursive);
+                DialogState.scan-import(import-source.text, DialogState.import-recursive, DialogState.import-exact);
             }
         }
     }

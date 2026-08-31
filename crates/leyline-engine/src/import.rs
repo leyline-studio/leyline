@@ -127,7 +127,7 @@ pub fn import_files(
 }
 
 /// Why one file was left aside. Every per-file error becomes a skip.
-struct Skip(String);
+pub(crate) struct Skip(String);
 
 impl From<LeylineError> for Skip {
     fn from(error: LeylineError) -> Skip {
@@ -350,7 +350,7 @@ fn collect(source: &Path, recursive: bool, files: &mut Vec<PathBuf>) -> Result<(
 }
 
 /// Streams the file through BLAKE3.
-fn checksum(file: &Path) -> std::result::Result<([u8; CHECKSUM_LEN], u64), Skip> {
+pub(crate) fn checksum(file: &Path) -> std::result::Result<([u8; CHECKSUM_LEN], u64), Skip> {
     let mut reader = std::fs::File::open(file)?;
     let mut hasher = blake3::Hasher::new();
     let mut buffer = [0u8; 64 * 1024];
