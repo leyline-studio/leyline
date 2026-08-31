@@ -183,6 +183,23 @@ fn the_cli_runs_and_checks_a_detector() {
     assert!(!out.status.success());
     assert!(stderr(&out).contains("nosuch"), "{}", stderr(&out));
 
+    // A manifest that was read and thrown away is named, with the reason
+    // (ADR 0105 §4). Written the way ADR 0073 §3 described it until
+    // 2026-08-31 — the wrong field is exactly the mistake an author makes.
+    std::fs::write(
+        manifests.join("wrong-field.json"),
+        r#"{"id":"wrong","label":"Wrong","command":"/bin/sh",
+            "detectors":[{"id":"sky","label":"Sky"}]}"#,
+    )
+    .unwrap();
+    let out = run(&["detectors", "--from", &from]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(stdout(&out).contains("fake:sky"), "{}", stdout(&out));
+    let complaint = stderr(&out);
+    assert!(complaint.contains("wrong-field.json"), "{complaint}");
+    assert!(complaint.contains("detections"), "{complaint}");
+    std::fs::remove_file(manifests.join("wrong-field.json")).unwrap();
+
     // A malformed key says what shape it wanted.
     let out = run(&["detect-check", "missing-colon", "--from", &from]);
     assert!(!out.status.success());

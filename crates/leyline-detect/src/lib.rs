@@ -126,25 +126,33 @@ pub struct DetectorSource {
 }
 
 impl DetectorSource {
-    /// Whether the manifest describes something that could actually run.
+    /// Why the manifest cannot be offered, or `None` when it can.
+    ///
+    /// Each condition says its own name: a manifest is set aside silently
+    /// at a launch, but an author asking why deserves the reason
+    /// (ADR 0105 §4).
     ///
     /// A command holding a path separator must exist on disk — that is the
     /// usual case, an installer writing an absolute path, and an uninstalled
     /// detector should stop appearing in menus the moment its files are
     /// gone. A bare name is left alone: resolving `PATH` here would
     /// second-guess the operating system.
-    fn is_usable(&self) -> bool {
-        if self.id.is_empty() || self.detections.is_empty() {
-            return false;
+    fn unusable_reason(&self) -> Option<String> {
+        if self.id.is_empty() {
+            return Some("\"id\" is empty".to_owned());
         }
-        let command = self.command.as_os_str();
-        if command.is_empty() {
-            return false;
+        if self.detections.is_empty() {
+            return Some(
+                "\"detections\" is empty — a source offering none is not a source".to_owned(),
+            );
         }
-        if self.command.components().count() > 1 {
-            return self.command.is_file();
+        if self.command.as_os_str().is_empty() {
+            return Some("\"command\" is empty".to_owned());
         }
-        true
+        if self.command.components().count() > 1 && !self.command.is_file() {
+            return Some(format!("command {} does not exist", self.command.display()));
+        }
+        None
     }
 }
 
@@ -175,20 +183,67 @@ pub fn discover() -> Vec<DetectorSource> {
 /// [`discover`] over an explicit directory — what the tests use, and what a
 /// packager would use to look somewhere else.
 pub fn discover_in(dir: &Path) -> Vec<DetectorSource> {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return Vec::new();
-    };
-    let mut sources: Vec<DetectorSource> = entries
-        .filter_map(std::result::Result::ok)
-        .map(|entry| entry.path())
-        .filter(|path| path.extension().is_some_and(|ext| ext == "json"))
-        .filter_map(|path| std::fs::read_to_string(&path).ok())
-        .filter_map(|text| serde_json::from_str::<DetectorSource>(&text).ok())
-        .filter(DetectorSource::is_usable)
+    let mut sources: Vec<DetectorSource> = manifests_in(dir)
+        .iter()
+        .filter_map(|path| read_manifest(path).ok())
         .collect();
     sources.sort_by(|a, b| a.id.cmp(&b.id));
     sources.dedup_by(|a, b| a.id == b.id);
     sources
+}
+
+/// A manifest that was read and set aside, and why (ADR 0105 §4).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Rejection {
+    /// The file that was declined.
+    pub path: PathBuf,
+    /// What is wrong with it, in one sentence.
+    pub reason: String,
+}
+
+/// The manifests in `dir` that [`discover_in`] declined, with the reason.
+///
+/// A second pass over the same directory rather than a second return value:
+/// discovery runs at every launch and on a path where nobody is listening,
+/// while this runs when somebody asks. Keeping them apart leaves the launch
+/// exactly as cheap as it was.
+pub fn rejected_in(dir: &Path) -> Vec<Rejection> {
+    let mut rejections: Vec<Rejection> = manifests_in(dir)
+        .into_iter()
+        .filter_map(|path| {
+            read_manifest(&path)
+                .err()
+                .map(|reason| Rejection { path, reason })
+        })
+        .collect();
+    rejections.sort_by(|a, b| a.path.cmp(&b.path));
+    rejections
+}
+
+/// Every `.json` file in `dir`, sorted; empty when the directory is not
+/// there, which is the ordinary case.
+fn manifests_in(dir: &Path) -> Vec<PathBuf> {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut paths: Vec<PathBuf> = entries
+        .filter_map(std::result::Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().is_some_and(|ext| ext == "json"))
+        .collect();
+    paths.sort();
+    paths
+}
+
+/// Reads one manifest, or says what is wrong with it.
+fn read_manifest(path: &Path) -> std::result::Result<DetectorSource, String> {
+    let text = std::fs::read_to_string(path).map_err(|e| format!("cannot be read: {e}"))?;
+    let source: DetectorSource =
+        serde_json::from_str(&text).map_err(|e| format!("is not a valid manifest: {e}"))?;
+    match source.unusable_reason() {
+        Some(reason) => Err(reason),
+        None => Ok(source),
+    }
 }
 
 /// Runs one detection and returns the coverage it produced, as samples
@@ -640,6 +695,70 @@ cp "$image" "$out"
         let found = discover_in(dir.path());
         assert_eq!(found.len(), 1, "{found:?}");
         assert_eq!(found[0].id, "good");
+    }
+
+    /// The same directory, asked the other question: what was thrown away,
+    /// and why (ADR 0105 §4). The silence is right at a launch and wrong
+    /// when an author is the one asking.
+    #[test]
+    fn what_discovery_declined_can_be_asked_for_by_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let real = dir.path().join("detector");
+        std::fs::write(&real, "").unwrap();
+
+        std::fs::write(dir.path().join("broken.json"), "{ not json").unwrap();
+        std::fs::write(dir.path().join("ignored.txt"), "{}").unwrap();
+        manifest(dir.path(), "no-detections", &real, &[]);
+        manifest(
+            dir.path(),
+            "missing-command",
+            Path::new("/no/such/binary"),
+            &["sky"],
+        );
+        manifest(dir.path(), "good", &real, &["sky"]);
+
+        let rejected = rejected_in(dir.path());
+        assert_eq!(rejected.len(), 3, "{rejected:?}");
+
+        let reason = |stem: &str| {
+            rejected
+                .iter()
+                .find(|r| r.path.file_name().unwrap() == format!("{stem}.json").as_str())
+                .unwrap_or_else(|| panic!("{stem} not among {rejected:?}"))
+                .reason
+                .clone()
+        };
+        assert!(reason("broken").contains("not a valid manifest"));
+        assert!(reason("no-detections").contains("detections"));
+        assert!(reason("missing-command").contains("/no/such/binary"));
+
+        // The one that works is not among them, and the non-JSON file is
+        // not a rejected manifest — it was never a manifest.
+        assert!(!rejected.iter().any(|r| r.reason.contains("good")));
+    }
+
+    /// The field the first detector outside this repository got wrong,
+    /// because ADR 0073 §3 named it `detectors` until 2026-08-31. The
+    /// point of the test is the *message*: a missing-field complaint
+    /// naming `detections` is what turns an hour into a second.
+    #[test]
+    fn a_manifest_naming_the_list_detectors_is_told_which_field_is_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("assist.json"),
+            r#"{"id":"a","label":"A","command":"a","detectors":[{"id":"sky","label":"Sky"}]}"#,
+        )
+        .unwrap();
+
+        assert!(discover_in(dir.path()).is_empty());
+        let rejected = rejected_in(dir.path());
+        assert_eq!(rejected.len(), 1);
+        assert!(rejected[0].reason.contains("detections"), "{rejected:?}");
+    }
+
+    #[test]
+    fn a_directory_that_does_not_exist_declines_nothing() {
+        assert!(rejected_in(Path::new("/nowhere/at/all")).is_empty());
     }
 
     /// A bare command is left to `PATH`, since resolving it here would

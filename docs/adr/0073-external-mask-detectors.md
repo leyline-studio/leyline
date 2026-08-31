@@ -112,12 +112,19 @@ installed on *this* machine.
   "label": "Leyline Assist",
   "command": "/opt/leyline-assist/leyline-assist",
   "args": ["detect"],
-  "detectors": [
+  "detections": [
     { "id": "sky",     "label": "Sky" },
     { "id": "subject", "label": "Subject" }
   ]
 }
 ```
+
+The list is named `detections`, not `detectors`: a manifest describes one
+detector, and what it enumerates is what that detector can find. This ADR
+wrote `detectors` here until 2026-08-31, when the first real detector was
+built against the document rather than against the code and its manifest
+was silently ignored — see [ADR 0105](0105-detector-conformance-and-cli.md)
+§4, which also decided what to do about the silence.
 
 A manifest that is unreadable, incomplete, or whose command does not exist is
 **ignored** — not an error at startup: a detector is an accessory, and Studio

@@ -1809,18 +1809,30 @@ fn detectors(args: &[String]) -> Result<(), String> {
         // Not an error: no detector is shipped with Leyline, so this is
         // the normal state of a fresh installation (ADR 0073).
         println!("no detector installed");
-        if let Some(dir) = leyline_sdk::manifests_dir() {
-            println!("manifests are read from {}", dir.display());
+        if options.value("from").is_none() {
+            if let Some(dir) = leyline_sdk::manifests_dir() {
+                println!("manifests are read from {}", dir.display());
+            }
         }
-        return Ok(());
+    } else {
+        for source in sources {
+            for detection in &source.detections {
+                println!(
+                    "{}:{:<16} {} · {}",
+                    source.id, detection.id, source.label, detection.label
+                );
+            }
+        }
     }
-    for source in sources {
-        for detection in &source.detections {
-            println!(
-                "{}:{:<16} {} · {}",
-                source.id, detection.id, source.label, detection.label
-            );
-        }
+    // A manifest that was read and thrown away is invisible at a launch
+    // by design, and the whole defect here: this command is the one an
+    // author runs to ask why nothing appears (ADR 0105 §4).
+    for rejection in rejected(&options) {
+        eprintln!(
+            "ignored: {} — {}",
+            rejection.path.display(),
+            rejection.reason
+        );
     }
     Ok(())
 }
@@ -1832,6 +1844,16 @@ fn installed(options: &Options) -> Vec<leyline_sdk::DetectorSource> {
     match options.value("from") {
         Some(dir) => leyline_sdk::discover_in(Path::new(dir)),
         None => leyline_sdk::discover(),
+    }
+}
+
+/// The manifests the same directory holds and discovery declined.
+fn rejected(options: &Options) -> Vec<leyline_sdk::Rejection> {
+    match options.value("from") {
+        Some(dir) => leyline_sdk::rejected_in(Path::new(dir)),
+        None => leyline_sdk::manifests_dir()
+            .map(|dir| leyline_sdk::rejected_in(&dir))
+            .unwrap_or_default(),
     }
 }
 

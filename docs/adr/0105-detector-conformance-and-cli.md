@@ -88,13 +88,37 @@ The harness checks the **protocol**, never the quality of a segmentation:
 whether the sky it found is the sky is between the detector and its
 author, and no fixture in this repository could referee it.
 
+### 4. A rejected manifest says so — to the author, not to Studio
+
+Added 2026-08-31, after the first detector outside this repository was
+written. It followed ADR 0073 §3's manifest verbatim, and that document
+named the list `detectors` where the code has always read `detections`.
+The result was not an error: `discover_in` drops anything `serde` cannot
+parse, so `leyline detectors` answered **"no detector installed"** about
+a directory holding a manifest it had just read and thrown away.
+
+ADR 0073's silence was decided for *Studio's launch*, and that decision
+stands: an accessory does not get to break a launch, and no manifest
+still means no menu. But `leyline detectors` is not a launch — it is the
+command an author runs precisely to ask why nothing appears, and there
+the silence is the whole defect. `leyline-detect` therefore gains
+`rejected_in`, a second pass over the same directory that reports what
+it declined and why, and the CLI prints it under the list.
+
+The rule the repository already applies to stage capabilities is the
+same one: something inexpressible is a refusal that names itself, never
+a silence. It had simply never been applied to a manifest.
+
 ## Consequences
 
 * No engine change, no stage, no schema: `docs/pipeline.md` §5.1 is not
   in play, as ADR 0073's own consequences already established.
 * A detector author can now write, run and validate an executable
   without opening Studio — which is what makes `leyline-assist`
-  buildable by someone who is not sitting at this repository.
+  buildable by someone who is not sitting at this repository. Building
+  it is what found §4, and what found the wrong field name in ADR 0073
+  §3, now corrected there: a socket is only as written-against as the
+  document describing it.
 
 ## Rejected
 

@@ -345,7 +345,9 @@ fn settings_round_trip_through_the_sdk_surface() {
 /// — a hole in this re-export would be found in the interface, not in a test.
 #[test]
 fn mask_detectors_are_reachable_through_the_sdk_surface() {
-    use leyline_sdk::{DetectError, Detection, DetectorSource, detect, discover_in};
+    use leyline_sdk::{
+        DetectError, Detection, DetectorSource, Rejection, detect, discover_in, rejected_in,
+    };
 
     let dir = tempfile::tempdir().unwrap();
     // Nothing installed is the normal state, and it must be an empty list
@@ -370,6 +372,12 @@ fn mask_detectors_are_reachable_through_the_sdk_surface() {
     // Declared but not installed: discovery drops it, so the menu never
     // offers a detection that cannot run.
     assert!(discover_in(dir.path()).is_empty());
+
+    // And the other half of that answer, which a detector author needs
+    // and Studio does not (ADR 0105 §4).
+    let rejected: Vec<Rejection> = rejected_in(dir.path());
+    assert_eq!(rejected.len(), 1, "{rejected:?}");
+    assert!(rejected[0].reason.contains("/no/such/detector"));
 
     let error = detect(
         &source,

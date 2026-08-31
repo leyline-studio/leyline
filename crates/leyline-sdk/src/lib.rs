@@ -48,6 +48,7 @@ pub use leyline_map::TilePackInfo;
 /// Re-exported here because Studio declares one Leyline dependency and one
 /// only (`docs/architecture.md` §À l'intérieur de Studio).
 pub use leyline_detect::{
-    Conformance, DetectError, Detection, DetectorSource, check_conformance, coverage_from_image,
-    detect, detect_coverage, discover, discover_in, manifests_dir,
+    Conformance, DetectError, Detection, DetectorSource, Rejection, check_conformance,
+    coverage_from_image, detect, detect_coverage, discover, discover_in, manifests_dir,
+    rejected_in,
 };
