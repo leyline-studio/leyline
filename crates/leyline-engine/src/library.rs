@@ -2790,6 +2790,43 @@ impl Library {
         Ok(asset)
     }
 
+    /// [`Library::derive`] as a job (`docs/engine-api.md` §3.1).
+    ///
+    /// The reason this exists and the detector's equivalent does not is
+    /// **measured**: a detection runs a model on a 1024 px preview and
+    /// comes back in a second or three, where a derivation runs one on
+    /// every pixel of the original — 162 s for a 10 Mpx frame on sixteen
+    /// cores, and minutes more on a smaller machine. A client that called
+    /// the synchronous form from its interface thread would freeze for
+    /// that long, which on Windows is the point at which the window is
+    /// declared unresponsive.
+    ///
+    /// No `JobProgress`: the socket hands a processor one file and gets one
+    /// back, so there is nothing to count until it is finished. Saying "1
+    /// of 1" for three minutes would be a progress bar that lies.
+    pub fn derive_async(
+        &self,
+        version: VersionId,
+        processor: &leyline_derive::ProcessorSource,
+        operation: &str,
+    ) -> JobId {
+        let job = self.new_job();
+        let library = self.clone();
+        let processor = processor.clone();
+        let operation = operation.to_owned();
+        self.spawn_job(move || {
+            let result = match library.derive(version, &processor, &operation) {
+                Ok(asset) => JobResult::Derive(asset),
+                Err(error) => JobResult::Failed(error.to_string()),
+            };
+            library.emit(Event::JobFinished {
+                job_id: job,
+                result,
+            });
+        });
+        job
+    }
+
     /// Stores a mask coverage in the library and returns the
     /// [`leyline_core::Mask`] that references it (ADR 0070 §5).
     ///

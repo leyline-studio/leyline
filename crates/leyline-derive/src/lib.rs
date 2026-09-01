@@ -34,11 +34,18 @@ use serde::{Deserialize, Serialize};
 
 /// How long one operation may take before it is killed (ADR 0107 §2).
 ///
-/// Five times the detector's budget, because the work is not the same: a
-/// segmentation runs on a 1024 px preview, a denoise runs on all thirty
-/// million pixels of the original. Generous on purpose: this is a safety
-/// net against a wedged process, not a performance target.
-const TIMEOUT: Duration = Duration::from_secs(600);
+/// An hour, and the number is **measured** rather than chosen. A neural
+/// denoise of a 10 Mpx frame takes 162 s on sixteen cores; the same work on
+/// the two-core floor `docs/system-requirements.md` documents is around ten
+/// minutes, and a 45 Mpx frame there is most of an hour. The first version
+/// of this constant said 600 s, which would have killed legitimate work on
+/// any machine smaller than the one it was written on.
+///
+/// A guard against a wedged process is only useful if it never fires on
+/// work that would have finished. What protects the *user* from a long run
+/// is that nothing blocks on it — `Library::derive_async` — not a short
+/// deadline.
+const TIMEOUT: Duration = Duration::from_secs(3600);
 
 /// How often the wait loop looks at the child.
 const POLL: Duration = Duration::from_millis(50);

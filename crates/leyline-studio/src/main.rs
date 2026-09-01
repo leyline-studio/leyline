@@ -297,6 +297,7 @@ fn run() -> Result<(), String> {
         candidate_source: std::path::PathBuf::new(),
         export_job: None,
         print_job: None,
+        derive_job: None,
         preview_jobs: HashSet::new(),
         tether_connected: false,
         profile_thumbs_for: None,

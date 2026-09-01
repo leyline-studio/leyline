@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use crate::app::{App, MAX_PREVIEW_JOBS, item_at, report_error};
 use crate::models::{export_summary, import_summary, print_summary};
-use crate::ui::{DialogState, GridState, StudioWindow, TetherState, Tr};
+use crate::ui::{DialogState, GridState, LibraryState, StudioWindow, TetherState, Tr};
 use crate::wiring::filters::refresh_shot_facets;
 use crate::wiring::folders::refresh_folders;
 use crate::wiring::grid::{reload, show_details};
@@ -160,6 +160,33 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
                     }
                     _ => return,
                 });
+            } else if app.derive_job == Some(job_id) {
+                app.derive_job = None;
+                match result {
+                    JobResult::Derive(asset) => {
+                        let name = app
+                            .library
+                            .catalog()
+                            .asset_details(asset)
+                            .map(|details| details.filename)
+                            .unwrap_or_default();
+                        // The new row first, the sentence about it second:
+                        // `reload` writes the photo count into the same
+                        // status line, so saying it before would say
+                        // nothing.
+                        if let Err(error) = crate::wiring::grid::reload(app, window) {
+                            report_error(window, &error);
+                            return;
+                        }
+                        LibraryState::get(window)
+                            .set_status_line(Tr::get(window).invoke_derived(name.into()));
+                    }
+                    JobResult::Failed(reason) => {
+                        LibraryState::get(window).set_status_line(SharedString::new());
+                        report_error(window, &reason);
+                    }
+                    _ => {}
+                }
             } else if app.preview_jobs.remove(&job_id)
                 && let JobResult::Failed(reason) = result
             {

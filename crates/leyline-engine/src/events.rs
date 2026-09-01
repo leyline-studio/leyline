@@ -127,6 +127,9 @@ pub enum JobResult {
     /// An import scan completed: what the source holds, nothing written
     /// (ADR 0065 §1).
     Scan(Vec<ImportCandidate>),
+    /// A derivation completed: the asset an external processor's answer
+    /// was filed as (ADR 0107).
+    Derive(AssetId),
     /// The job failed before producing anything.
     Failed(String),
 }

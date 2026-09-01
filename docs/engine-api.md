@@ -709,6 +709,13 @@ impl Library {
     /// as a NEW asset carrying this version's development.
     pub fn derive(&self, version: VersionId, processor: &ProcessorSource,
                   operation: &str) -> Result<AssetId>;
+
+    /// The same as a job — the form a client with an interface uses.
+    /// Finishes with `JobResult::Derive(asset)`, and emits no
+    /// `JobProgress`: one file goes out and one comes back, so there is
+    /// nothing to count until it is done.
+    pub fn derive_async(&self, version: VersionId, processor: &ProcessorSource,
+                        operation: &str) -> JobId;
 }
 ```
 
@@ -720,7 +727,9 @@ The call contract, again on one line:
 
 Both files are **16-bit RGB TIFFs holding linear Rec. 2020, white at 1.0** — the develop buffer as it stood before rank 20, the first place in the pipeline where it has a single meaning whatever the revision says. The answer must have the **same dimensions**: what comes back inherits a development, and a development cannot move to another geometry.
 
-`Library::derive` locks the catalog twice, briefly, with the slow half between (the split of ADR 0024), fires the ordinary `AssetsAdded`, and refuses a destination name already taken. A 600 s guard terminates a stuck executable — five times the detector's budget, because a denoise runs on all thirty million pixels of the original where a segmentation runs on a preview.
+`Library::derive` locks the catalog twice, briefly, with the slow half between (the split of ADR 0024), fires the ordinary `AssetsAdded`, and refuses a destination name already taken.
+
+A one-hour guard terminates a stuck executable, and the number is measured: the first real processor denoises a 10 Mpx frame in 162 s on sixteen cores, so the same work on the documented two-core floor is around ten minutes and a 45 Mpx frame there is most of an hour. **Use `derive_async` from an interface.** A detection can be synchronous — it runs on a preview and returns in seconds — and a derivation cannot.
 
 ---
 

@@ -209,6 +209,10 @@ pub(crate) struct App {
     pub(crate) export_job: Option<JobId>,
     /// The print job the dialog is waiting on, when one runs (ADR 0036).
     pub(crate) print_job: Option<JobId>,
+    /// The derivation running, when one is (ADR 0107). Not a dialog's job:
+    /// it takes minutes and the window stays usable throughout, so what it
+    /// owns is the status line and nothing else.
+    pub(crate) derive_job: Option<JobId>,
     /// Thumbnail render jobs currently in flight.
     pub(crate) preview_jobs: HashSet<JobId>,
     /// Whether a tether session (`docs/adr/0038`) is currently open.

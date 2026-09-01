@@ -80,10 +80,31 @@ not link `leyline-sdk` (two processes exchanging two TIFF files are not a
 combined work, and the licence boundary is crossed by an `execve`),
 anyone can write one, and one that crashes does not take Studio with it.
 
-The timeout is **ten minutes**, not the detector's two: a neural denoise
-of a 30 Mpx frame on a CPU is minutes of honest work, where a
-segmentation on a 1024 px preview is seconds. It is still a safety net
-against a wedged process, not a performance target.
+The timeout is **an hour**, not the detector's two minutes, and the
+number is measured rather than chosen. The first real processor denoises
+a 10 Mpx frame in 162 s on sixteen cores; the same work on the two-core
+floor of [`system-requirements.md`](../system-requirements.md) is around
+ten minutes, and a 45 Mpx frame there is most of an hour. This constant
+said ten minutes until that was measured, which would have killed
+legitimate work on any machine smaller than the one it was written on.
+
+A guard against a wedged process is only worth having if it never fires
+on work that would have finished. What protects the *user* from a long
+run is §2.1 — nothing blocks on it — not a short deadline.
+
+### 2.1 A derivation is a job, and the detector's gesture is not
+
+`Library::derive_async` returns a `JobId` and finishes with
+`JobResult::Derive(asset)`, the shape `docs/engine-api.md` §3.1 already
+gives every long call. ADR 0073 needed no equivalent and this does, for
+the reason the paragraph above measures: seconds against minutes. A
+client calling the synchronous form from its interface thread freezes for
+the whole run, which on Windows is the point at which the window is
+declared unresponsive.
+
+No `JobProgress`. The socket hands a processor one file and gets one
+back; there is nothing to count until it is finished, and "1 of 1" held
+for three minutes is a progress bar that lies.
 
 ### 3. The exchange space: linear, and the price of sixteen bits
 

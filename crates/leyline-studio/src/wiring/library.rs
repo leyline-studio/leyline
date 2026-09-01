@@ -93,29 +93,12 @@ pub(crate) fn wire_processors(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             LibraryState::get(&window).set_status_line(tr.invoke_select_photo_first());
             return;
         };
+        // A job, not a call: a derivation runs a model over every pixel of
+        // the original and takes minutes (ADR 0107 §2.1). Doing it here
+        // would freeze the window for the whole run — the detector next
+        // door can be synchronous because it works on a preview and comes
+        // back in seconds; this one cannot.
         LibraryState::get(&window).set_status_line(tr.invoke_deriving_ellipsis());
-        match app.library.derive(version, &source, operation) {
-            Ok(asset) => {
-                let name = app
-                    .library
-                    .catalog()
-                    .asset_details(asset)
-                    .map(|details| details.filename)
-                    .unwrap_or_default();
-                // The new row first, the sentence about it second: `reload`
-                // writes the photo count into the same status line, so
-                // saying it before would say nothing.
-                if let Err(error) = crate::wiring::grid::reload(&mut app, &window) {
-                    report_error(&window, &error);
-                    return;
-                }
-                LibraryState::get(&window)
-                    .set_status_line(tr.invoke_derived(slint::SharedString::from(name)));
-            }
-            Err(error) => {
-                LibraryState::get(&window).set_status_line(slint::SharedString::new());
-                report_error(&window, &error.to_string());
-            }
-        }
+        app.derive_job = Some(app.library.derive_async(version, &source, operation));
     });
 }

@@ -443,6 +443,12 @@ fn pixel_processors_are_reachable_through_the_sdk_surface() {
         leyline_sdk::Library::create(&library_dir.path().join("Library"), "Derive").unwrap();
     let missing = leyline_sdk::VersionId::new(1);
     assert!(library.derive(missing, &source, "denoise").is_err());
+
+    // And the form a client with an interface actually uses: a derivation
+    // takes minutes, so it is a job (ADR 0107 §2.1). Naming it here is what
+    // keeps the façade from having the synchronous half only.
+    let job = library.derive_async(missing, &source, "denoise");
+    assert!(job.get() > 0);
 }
 
 /// The decoder version is reachable without reaching past the façade.
