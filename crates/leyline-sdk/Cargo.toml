@@ -11,6 +11,7 @@ rust-version.workspace = true
 leyline-catalog.workspace = true
 leyline-color.workspace = true
 leyline-derive.workspace = true
+leyline-cull.workspace = true
 leyline-detect.workspace = true
 leyline-core.workspace = true
 leyline-engine.workspace = true

@@ -102,3 +102,80 @@ pub(crate) fn wire_processors(app: &Rc<RefCell<App>>, window: &StudioWindow) {
         app.derive_job = Some(app.library.derive_async(version, &source, operation));
     });
 }
+
+/// Wires Library ▸ Assisted Culling… and its way out (ADR 0084).
+///
+/// The run covers **what the grid currently holds** rather than the whole
+/// library: the photographer has already said what they are looking at, and
+/// culling a folder they are not in is work nobody asked for.
+///
+/// What comes back is shown, never applied. The grid is narrowed to exactly
+/// the proposed frames — the one filter that names rows rather than
+/// describing them — so the verdicts can be looked at, and the keystroke
+/// that applies them is the reject key the photographer already uses. That
+/// is §2 word for word: a wrongly rejected photograph does not look wrong,
+/// it looks absent, so it has to be seen before it goes.
+pub(crate) fn wire_culling(app: &Rc<RefCell<App>>, window: &StudioWindow) {
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        LibraryState::get(window).on_cull_library(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let assets: Vec<leyline_sdk::AssetId> = match app.library.catalog().grid(&app.query) {
+                Ok(items) => items.into_iter().map(|item| item.asset_id).collect(),
+                Err(error) => {
+                    report_error(&window, &error.to_string());
+                    return;
+                }
+            };
+            if assets.is_empty() {
+                return;
+            }
+            LibraryState::get(&window).set_status_line(Tr::get(&window).invoke_culling_ellipsis());
+            app.cull_job = Some(
+                app.library
+                    .cull_async(assets, leyline_sdk::CullOptions::default()),
+            );
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        LibraryState::get(window).on_discard_proposal(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            discard_proposal(&mut app.borrow_mut(), &window);
+        });
+    }
+}
+
+/// Puts the grid back to what it was showing and drops the proposal.
+///
+/// The menu's way out: it reloads, because the user asked for the grid
+/// back and nothing else is going to fetch it.
+pub(crate) fn discard_proposal(app: &mut App, window: &StudioWindow) {
+    if !forget_proposal(app, window) {
+        return;
+    }
+    if let Err(error) = crate::wiring::grid::reload(app, window) {
+        report_error(window, &error);
+    }
+}
+
+/// Drops the proposal **without** reloading — for a caller about to reload
+/// anyway, which is every filter change.
+///
+/// Returns whether there was one, so the menu's version knows whether it
+/// has anything to reload for.
+pub(crate) fn forget_proposal(app: &mut App, window: &StudioWindow) -> bool {
+    if app.proposal.take().is_none() {
+        return false;
+    }
+    app.query.assets.clear();
+    LibraryState::get(window).set_reviewing_proposal(false);
+    true
+}

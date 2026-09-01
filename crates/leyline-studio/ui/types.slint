@@ -490,6 +490,22 @@ export global Tr {
         return @tr("{} added — a new photo carrying this one's development.", name);
     }
 
+    // ADR 0084 §2: the sentence has to say that nothing was written, and
+    // how to apply it — a proposal that reads like a result is the one way
+    // this feature could quietly throw a shoot away.
+    public pure function culling-ellipsis() -> string {
+        return @tr("Looking through the photos…");
+    }
+    public pure function culling-progress(done: int, total: int) -> string {
+        return @tr("Looking through the photos… {} / {}", done, total);
+    }
+    public pure function culling-proposal(rejects: int, bursts: int) -> string {
+        return @tr("{} photo proposed for rejection, in {} burst — nothing written yet: reject them with X, or Library ▸ Discard Proposal." | "{} photos proposed for rejection, in {} bursts — nothing written yet: reject them with X, or Library ▸ Discard Proposal." % rejects, rejects, bursts);
+    }
+    public pure function culling-found-nothing() -> string {
+        return @tr("Nothing to propose: no burst, and nothing technically wrong.");
+    }
+
     public pure function paired(n: int) -> string {
         return @tr("Paired {} shot." | "Paired {} shots." % n, n);
     }

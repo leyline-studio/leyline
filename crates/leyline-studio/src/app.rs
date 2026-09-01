@@ -213,6 +213,14 @@ pub(crate) struct App {
     /// it takes minutes and the window stays usable throughout, so what it
     /// owns is the status line and nothing else.
     pub(crate) derive_job: Option<JobId>,
+    /// The culling run in flight, when one is (ADR 0084).
+    pub(crate) cull_job: Option<JobId>,
+    /// The proposal currently under review, and **nowhere else**: it lives
+    /// here and dies with the window. ADR 0084 §2 refuses to persist it —
+    /// a second, unversioned source of truth about a photo's status is
+    /// exactly what `catalog.md` §18 exists to prevent, and a re-run is
+    /// cheap.
+    pub(crate) proposal: Option<leyline_sdk::CullProposal>,
     /// Thumbnail render jobs currently in flight.
     pub(crate) preview_jobs: HashSet<JobId>,
     /// Whether a tether session (`docs/adr/0038`) is currently open.

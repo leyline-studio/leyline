@@ -681,3 +681,44 @@ fn grid_columns_match_the_declared_order() {
         );
     }
 }
+
+/// The one filter that names rows instead of describing them (ADR 0084 §2):
+/// a client holding a culling proposal shows it by asking the grid for
+/// exactly those photographs.
+#[test]
+fn a_query_can_name_the_photographs_it_wants() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+    let assets: Vec<AssetId> = (0..5)
+        .map(|i| {
+            add(
+                &mut catalog,
+                "Shoot",
+                &format!("IMG_000{i}.CR3"),
+                Some(1_000 + i64::from(i)),
+            )
+            .asset
+        })
+        .collect();
+
+    let chosen = vec![assets[1], assets[3]];
+    let query = GridQuery {
+        assets: chosen.clone(),
+        ..GridQuery::default()
+    };
+    let listed: Vec<AssetId> = catalog
+        .grid(&query)
+        .unwrap()
+        .into_iter()
+        .map(|item| item.asset_id)
+        .collect();
+    assert_eq!(listed.len(), 2, "{listed:?}");
+    assert!(chosen.iter().all(|a| listed.contains(a)));
+
+    // The count follows the same clause, or the scrollbar would size the
+    // grid for a set nobody is looking at.
+    assert_eq!(catalog.count(&query).unwrap(), 2);
+
+    // Empty restricts nothing — the ordinary case, and the default.
+    assert_eq!(catalog.count(&GridQuery::default()).unwrap(), 5);
+}

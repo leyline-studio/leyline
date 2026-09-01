@@ -677,6 +677,61 @@ Four failures are named separately (`DetectError`), because they call for four d
 
 ---
 
+# 10bis-a. Assisted culling (`docs/adr/0084-assisted-culling.md`)
+
+The engine turns `leyline-cull`'s measures into a **proposal**, and writes
+nothing.
+
+```rust
+pub struct CullOptions { pub burst_distance: u32 }   // default 10 of 64 bits
+
+pub enum RejectReason { Softer { sharper: AssetId }, Blown, Black }
+pub enum Verdict { Keep, Pick, Reject(RejectReason) }
+
+pub struct CullEntry {
+    pub asset: AssetId, pub version: VersionId,
+    pub burst: usize, pub quality: cull::Quality, pub verdict: Verdict,
+}
+
+pub struct CullProposal {
+    pub entries: Vec<CullEntry>,
+    pub skipped: Vec<(AssetId, String)>,
+}
+impl CullProposal {
+    pub fn rejects(&self) -> Vec<VersionId>;
+    pub fn picks(&self) -> Vec<VersionId>;
+    pub fn bursts(&self) -> usize;
+}
+
+impl Library {
+    pub fn cull(&self, assets: &[AssetId], options: &CullOptions,
+                progress: impl FnMut(u64, u64)) -> Result<CullProposal>;
+    /// Finishes with `JobResult::Cull(Box<CullProposal>)`.
+    pub fn cull_async(&self, assets: Vec<AssetId>, options: CullOptions) -> JobId;
+}
+```
+
+**Nothing here writes.** Applying a proposal is `set_pick` — the call
+`leyline pick` makes — on the versions `rejects()` names, and that is the
+whole of ADR 0084 §1: the assistant proposes the keystrokes the
+photographer would have typed. §2 forbids applying them without showing
+them first, and the reason is worth carrying to any client author: a
+wrongly rejected photograph does not look wrong, it looks absent.
+
+Measured on the **cached thumbnail** the import pass already filled from
+the preview the body embedded (ADR 0082), so a run over an imported shoot
+costs no decode: 60 frames in 5.6 s wall, a quarter of a second of CPU.
+Sharpness ranks frames **inside one burst** and is never a threshold —
+gradient energy rises with detail as much as with sharpness, so a sharp
+wall scores below a blurred hedge. Companions (ADR 0079) and derived
+assets (ADR 0107) are left out of a run.
+
+To *show* a proposal, `GridQuery::assets` narrows the grid to exactly the
+photographs it names — the one filter that names rows rather than
+describing them.
+
+---
+
 # 10ter. External pixel processors (`docs/adr/0107-derived-assets-and-the-pixel-socket.md`)
 
 The second socket, and the one difference from the first: the SDK re-exports `leyline-derive` **as a module** (`leyline_sdk::derive`, since the two sockets use the same words for the same ideas), and the **engine** consumes it — because a processor's answer has to be rendered before and imported after, and both are the engine's work.

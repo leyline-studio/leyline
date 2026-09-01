@@ -81,6 +81,13 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
                 state.set_job_caption(SharedString::from(format!("{done} / {total}")));
                 state.set_job_done(false);
             }
+            if app.cull_job == Some(job_id) {
+                // The status line, not the dialog: culling has no dialog,
+                // because the window stays usable while it runs and what
+                // it produces is a change of what the grid shows.
+                LibraryState::get(window)
+                    .set_status_line(Tr::get(window).invoke_culling_progress(done, total));
+            }
             if app.import_job == Some(job_id) {
                 DialogState::get(window)
                     .set_dialog_result(Tr::get(window).invoke_importing_progress(done, total));
@@ -160,6 +167,62 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
                     }
                     _ => return,
                 });
+            } else if app.cull_job == Some(job_id) {
+                app.cull_job = None;
+                match result {
+                    JobResult::Cull(proposal) => {
+                        let rejects = proposal.rejects();
+                        let bursts = proposal.bursts();
+                        if rejects.is_empty() {
+                            LibraryState::get(window)
+                                .set_status_line(Tr::get(window).invoke_culling_found_nothing());
+                            return;
+                        }
+                        // The grid is narrowed to exactly what is proposed,
+                        // so the verdicts are looked at before any of them
+                        // is applied (ADR 0084 §2).
+                        app.query.assets = proposal
+                            .entries
+                            .iter()
+                            .filter(|entry| !matches!(entry.verdict, leyline_sdk::Verdict::Keep))
+                            .map(|entry| entry.asset)
+                            .collect();
+                        app.proposal = Some(*proposal);
+                        LibraryState::get(window).set_reviewing_proposal(true);
+                        if let Err(error) = crate::wiring::grid::reload(app, window) {
+                            report_error(window, &error);
+                            return;
+                        }
+                        // The grid now holds the keeper *and* the frame
+                        // proposed against it, side by side — which is the
+                        // comparison the photographer has to make — and the
+                        // proposed ones are selected. So the sentence below
+                        // is literally true: X rejects exactly those, and
+                        // deselecting one takes it out of the verdict.
+                        // ADR 0084 §1's "the keystrokes the photographer
+                        // would have typed", arriving as keystrokes.
+                        let rejected: std::collections::BTreeSet<usize> = app
+                            .items
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, item)| rejects.contains(&item.version_id))
+                            .map(|(index, _)| app.window_start + index)
+                            .collect();
+                        app.multi_selected = rejected;
+                        crate::wiring::grid::refresh_multi_selected_cells(app);
+                        LibraryState::get(window).set_status_line(
+                            Tr::get(window).invoke_culling_proposal(
+                                i32::try_from(rejects.len()).unwrap_or(i32::MAX),
+                                i32::try_from(bursts).unwrap_or(i32::MAX),
+                            ),
+                        );
+                    }
+                    JobResult::Failed(reason) => {
+                        LibraryState::get(window).set_status_line(SharedString::new());
+                        report_error(window, &reason);
+                    }
+                    _ => {}
+                }
             } else if app.derive_job == Some(job_id) {
                 app.derive_job = None;
                 match result {

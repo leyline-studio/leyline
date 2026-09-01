@@ -32,7 +32,7 @@ Thirteen crates, each with a single responsibility.
 | `leyline-export` | Output encoding: JPEG, TIFF, PNG, WebP, AVIF, and print-to-PDF. |
 | `leyline-detect` | The contract, discovery and invocation of **external mask detectors** — executables that turn an image into a coverage ([ADR 0073](adr/0073-external-mask-detectors.md)). Detects nothing itself. |
 | `leyline-derive` | The contract, discovery and invocation of **external pixel processors** — executables that turn the develop buffer into another image ([ADR 0107](adr/0107-derived-assets-and-the-pixel-socket.md)). Processes nothing itself. |
-| `leyline-cull` | Technical quality measures and burst fingerprints for **assisted culling** ([ADR 0084](adr/0084-assisted-culling.md) §4): focus, clipping, perceptual fingerprint. No model, no weights, no I/O — it computes numbers and decides no verdict. |
+| `leyline-cull` | Technical quality measures and burst fingerprints for **assisted culling** ([ADR 0084](adr/0084-assisted-culling.md) §4): focus, clipping, perceptual fingerprint. No model, no weights, no I/O — it computes numbers and decides no verdict. The engine turns them into a proposal. |
 | `leyline-sdk` | The engine's stable public surface. The semver contract. |
 | `leyline-cli` | The command-line client. |
 | `leyline-studio` | The desktop application (Slint). |
@@ -45,7 +45,7 @@ Thirteen crates, each with a single responsibility.
 Studio  →  SDK  →  Engine  →  Core
 ```
 
-`Catalog`, `RAW`, `Color`, `Lens`, `Tether`, `Map`, `Preview`, `Export` and `Derive` are consumed by `Engine`.
+`Catalog`, `RAW`, `Color`, `Lens`, `Tether`, `Map`, `Preview`, `Export`, `Derive` and `Cull` are consumed by `Engine`.
 
 `leyline-detect` stands apart: it depends only on `leyline-core`, the engine does not know it exists, and it is the SDK that re-exports it to clients. A mask detector has no business on a render path (ADR 0073 §2).
 

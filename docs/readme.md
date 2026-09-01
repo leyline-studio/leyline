@@ -34,6 +34,7 @@ What remains open:
 | Local adjustments: range eyedropper, drag handles | Left out of scope by [ADR 0049](adr/0049-local-adjustments-clients.md); the mask overlay itself is delivered ([ADR 0071](adr/0071-mask-overlay.md)) |
 | Detected masks | The **socket** is delivered ([ADR 0073](adr/0073-external-mask-detectors.md)): Studio knows how to call an external detector. No detector ships with Leyline, and no model is embedded |
 | Pixel processing (AI denoise, upscaling) | The **socket** is delivered ([ADR 0107](adr/0107-derived-assets-and-the-pixel-socket.md)): Studio hands an external processor the develop buffer and files what comes back as a **new photograph** carrying the original's development. No processor ships with Leyline, and none is needed to open, render or export what one produced |
+| Assisted culling | The half that needs no model is delivered ([ADR 0084](adr/0084-assisted-culling.md) §4): bursts grouped, the sharpest kept, black and blown frames named. It **proposes** — the grid narrows to what it proposes and nothing is written until the photographer applies it. Faces and learned judgement are the model half, and are not built |
 | First publication | No binary published, no version cut |
 | One decoder across the three deliverables | Windows cross-builds a pinned LibRaw, Linux and macOS install what their package manager offers. Each is now *accepted* explicitly and an unknown one fails `make check` ([ADR 0086](adr/0086-decoder-in-the-promise.md)), but they are not yet the same build — converging them needs a macOS machine |
 

@@ -44,6 +44,17 @@ export global LibraryState {
     // (ADR 0107). Never an edit of the photo it was made from.
     callback derive-selected(string);
 
+    // Library ▸ Assisted Culling… (ADR 0084). Goes through what the grid
+    // currently holds and proposes which frames to reject; the grid then
+    // shows exactly those, and NOTHING is written until the photographer
+    // says so.
+    callback cull-library();
+    // True while a proposal is on screen — the grid is showing a subset
+    // that no filter describes, so the way out has to be its own control.
+    in property <bool> reviewing-proposal;
+    // Puts the grid back to what it was showing, proposal discarded.
+    callback discard-proposal();
+
     // Library ▸ Pair RAW+JPEG… (ADR 0079 §7). Announces before it acts:
     // Rust counts, fills the confirmation dialog, and only the accept pairs.
     callback pair-library();

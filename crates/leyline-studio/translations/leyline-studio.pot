@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2026-09-01 10:16+0000\n"
+"POT-Creation-Date: 2026-09-01 14:09+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -2202,219 +2202,229 @@ msgctxt "MenuBar"
 msgid "Pair RAW+JPEG…"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:216
+#: crates/leyline-studio/ui/panels/menubar.slint:215
+msgctxt "MenuBar"
+msgid "Assisted Culling…"
+msgstr ""
+
+#: crates/leyline-studio/ui/panels/menubar.slint:223
+msgctxt "MenuBar"
+msgid "Discard Proposal"
+msgstr ""
+
+#: crates/leyline-studio/ui/panels/menubar.slint:236
 msgctxt "MenuBar"
 msgid "Rate"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:221
+#: crates/leyline-studio/ui/panels/menubar.slint:241
 msgctxt "MenuBar"
 msgid "1 star    1"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:230
+#: crates/leyline-studio/ui/panels/menubar.slint:250
 msgctxt "MenuBar"
 msgid "2 stars    2"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:239
+#: crates/leyline-studio/ui/panels/menubar.slint:259
 msgctxt "MenuBar"
 msgid "3 stars    3"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:248
+#: crates/leyline-studio/ui/panels/menubar.slint:268
 msgctxt "MenuBar"
 msgid "4 stars    4"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:257
+#: crates/leyline-studio/ui/panels/menubar.slint:277
 msgctxt "MenuBar"
 msgid "5 stars    5"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:267
+#: crates/leyline-studio/ui/panels/menubar.slint:287
 msgctxt "MenuBar"
 msgid "Clear Rating    0"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:277
+#: crates/leyline-studio/ui/panels/menubar.slint:297
 msgctxt "MenuBar"
 msgid "Label"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:282
+#: crates/leyline-studio/ui/panels/menubar.slint:302
 msgctxt "MenuBar"
 msgid "Red    6"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:291
+#: crates/leyline-studio/ui/panels/menubar.slint:311
 msgctxt "MenuBar"
 msgid "Yellow    7"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:300
+#: crates/leyline-studio/ui/panels/menubar.slint:320
 msgctxt "MenuBar"
 msgid "Green    8"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:309
+#: crates/leyline-studio/ui/panels/menubar.slint:329
 msgctxt "MenuBar"
 msgid "Blue    9"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:319
+#: crates/leyline-studio/ui/panels/menubar.slint:339
 msgctxt "MenuBar"
 msgid "Flag"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:324
+#: crates/leyline-studio/ui/panels/menubar.slint:344
 msgctxt "MenuBar"
 msgid "Pick    P"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:333
+#: crates/leyline-studio/ui/panels/menubar.slint:353
 msgctxt "MenuBar"
 msgid "Reject    X"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:342
+#: crates/leyline-studio/ui/panels/menubar.slint:362
 msgctxt "MenuBar"
 msgid "Clear    U"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:353 crates/leyline-studio/ui/panels/menubar.slint:544
+#: crates/leyline-studio/ui/panels/menubar.slint:373 crates/leyline-studio/ui/panels/menubar.slint:564
 msgctxt "MenuBar"
 msgid "Develop    D"
 msgstr ""
 
 #. something else.
-#: crates/leyline-studio/ui/panels/menubar.slint:365
+#: crates/leyline-studio/ui/panels/menubar.slint:385
 msgctxt "MenuBar"
 msgid "Reprocess    R"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:378
+#: crates/leyline-studio/ui/panels/menubar.slint:398
 msgctxt "MenuBar"
 msgid "Process"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:398
+#: crates/leyline-studio/ui/panels/menubar.slint:418
 msgctxt "MenuBar"
 msgid "Remove from Catalog…"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:406
+#: crates/leyline-studio/ui/panels/menubar.slint:426
 msgctxt "MenuBar"
 msgid "Delete from Disk…"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:419
+#: crates/leyline-studio/ui/panels/menubar.slint:439
 msgctxt "MenuBar"
 msgid "Undo    Ctrl+Z"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:426
+#: crates/leyline-studio/ui/panels/menubar.slint:446
 msgctxt "MenuBar"
 msgid "Redo    Ctrl+Y"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:434
+#: crates/leyline-studio/ui/panels/menubar.slint:454
 msgctxt "MenuBar"
 msgid "Save Preset…    S"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:441
+#: crates/leyline-studio/ui/panels/menubar.slint:461
 msgctxt "MenuBar"
 msgid "Apply Preset"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:460
+#: crates/leyline-studio/ui/panels/menubar.slint:480
 msgctxt "MenuBar"
 msgid "Delete Preset"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:476
+#: crates/leyline-studio/ui/panels/menubar.slint:496
 msgctxt "MenuBar"
 msgid "Back to Library    G"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:488
+#: crates/leyline-studio/ui/panels/menubar.slint:508
 msgctxt "MenuBar"
 msgid "Library    G"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:507
+#: crates/leyline-studio/ui/panels/menubar.slint:527
 msgctxt "MenuBar"
 msgid "Loupe    E"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:520
+#: crates/leyline-studio/ui/panels/menubar.slint:540
 msgctxt "MenuBar"
 msgid "Compare    C"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:532
+#: crates/leyline-studio/ui/panels/menubar.slint:552
 msgctxt "MenuBar"
 msgid "Survey    N"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:553
+#: crates/leyline-studio/ui/panels/menubar.slint:573
 msgctxt "MenuBar"
 msgid "Map    M"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:575
+#: crates/leyline-studio/ui/panels/menubar.slint:595
 msgctxt "MenuBar"
 msgid "Update to {}…"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:576
+#: crates/leyline-studio/ui/panels/menubar.slint:596
 msgctxt "MenuBar"
 msgid "Check for Updates…"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:584
+#: crates/leyline-studio/ui/panels/menubar.slint:604
 msgctxt "MenuBar"
 msgid "Keyboard Shortcuts…"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:592
+#: crates/leyline-studio/ui/panels/menubar.slint:612
 msgctxt "MenuBar"
 msgid "About Leyline"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:649
+#: crates/leyline-studio/ui/panels/menubar.slint:669
 msgctxt "MenuBar"
 msgid "File"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:657 crates/leyline-studio/ui/panels/menubar.slint:714
+#: crates/leyline-studio/ui/panels/menubar.slint:677 crates/leyline-studio/ui/panels/menubar.slint:734
 msgctxt "MenuBar"
 msgid "Library"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:665
+#: crates/leyline-studio/ui/panels/menubar.slint:685
 msgctxt "MenuBar"
 msgid "Photo"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:673 crates/leyline-studio/ui/panels/menubar.slint:733
+#: crates/leyline-studio/ui/panels/menubar.slint:693 crates/leyline-studio/ui/panels/menubar.slint:753
 msgctxt "MenuBar"
 msgid "Develop"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:682
+#: crates/leyline-studio/ui/panels/menubar.slint:702
 msgctxt "MenuBar"
 msgid "View"
 msgstr ""
 
 #. `@tr(...)` so no translation has to carry the mark.
-#: crates/leyline-studio/ui/panels/menubar.slint:695
+#: crates/leyline-studio/ui/panels/menubar.slint:715
 msgctxt "MenuBar"
 msgid "Help"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/menubar.slint:754
+#: crates/leyline-studio/ui/panels/menubar.slint:774
 msgctxt "MenuBar"
 msgid "Map"
 msgstr ""
@@ -2731,91 +2741,117 @@ msgctxt "Tr"
 msgid "{} added — a new photo carrying this one's development."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:494
+#: crates/leyline-studio/ui/types.slint:497
+msgctxt "Tr"
+msgid "Looking through the photos…"
+msgstr ""
+
+#: crates/leyline-studio/ui/types.slint:500
+msgctxt "Tr"
+msgid "Looking through the photos… {} / {}"
+msgstr ""
+
+#: crates/leyline-studio/ui/types.slint:503
+msgctxt "Tr"
+msgid ""
+"{} photo proposed for rejection, in {} burst — nothing written yet: reject "
+"them with X, or Library ▸ Discard Proposal."
+msgid_plural ""
+"{} photos proposed for rejection, in {} bursts — nothing written yet: reject "
+"them with X, or Library ▸ Discard Proposal."
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/leyline-studio/ui/types.slint:506
+msgctxt "Tr"
+msgid "Nothing to propose: no burst, and nothing technically wrong."
+msgstr ""
+
+#: crates/leyline-studio/ui/types.slint:510
 msgctxt "Tr"
 msgid "Paired {} shot."
 msgid_plural "Paired {} shots."
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/leyline-studio/ui/types.slint:497
+#: crates/leyline-studio/ui/types.slint:513
 msgctxt "Tr"
 msgid "Enter a source folder."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:500
+#: crates/leyline-studio/ui/types.slint:516
 msgctxt "Tr"
 msgid "Importing…"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:503
+#: crates/leyline-studio/ui/types.slint:519
 msgctxt "Tr"
 msgid "Looking at what is there…"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:506
+#: crates/leyline-studio/ui/types.slint:522
 msgctxt "Tr"
 msgid "{} photo found."
 msgid_plural "{} photos found."
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/leyline-studio/ui/types.slint:509
+#: crates/leyline-studio/ui/types.slint:525
 msgctxt "Tr"
 msgid "Select a photo first."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:512
+#: crates/leyline-studio/ui/types.slint:528
 msgctxt "Tr"
 msgid "Enter a destination folder."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:515
+#: crates/leyline-studio/ui/types.slint:531
 msgctxt "Tr"
 msgid "Exporting…"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:518
+#: crates/leyline-studio/ui/types.slint:534
 msgctxt "Tr"
 msgid "Enter a name."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:522
+#: crates/leyline-studio/ui/types.slint:538
 msgctxt "Tr"
 msgid "Top level"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:525
+#: crates/leyline-studio/ui/types.slint:541
 msgctxt "Tr"
 msgid "Creation failed: {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:528
+#: crates/leyline-studio/ui/types.slint:544
 msgctxt "Tr"
 msgid "Open a photo in develop first."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:531
+#: crates/leyline-studio/ui/types.slint:547
 msgctxt "Tr"
 msgid "Pick at least one group."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:534
+#: crates/leyline-studio/ui/types.slint:550
 msgctxt "Tr"
 msgid "Save failed: {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:537
+#: crates/leyline-studio/ui/types.slint:553
 msgctxt "Tr"
 msgid "Error: {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:540
+#: crates/leyline-studio/ui/types.slint:556
 msgctxt "Tr"
 msgid "Select a collection in the sidebar first."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:543
+#: crates/leyline-studio/ui/types.slint:559
 msgctxt "Tr"
 msgid "Preset saved."
 msgstr ""

@@ -210,6 +210,47 @@ fn the_cli_runs_and_checks_a_detector() {
     );
 }
 
+/// ADR 0084 §2 at a shell prompt: `cull` prints a proposal and writes
+/// nothing without `--apply`.
+///
+/// Two photographs of one flat scene, which is deliberately a burst with
+/// nothing to choose between: what is under test is the contract, not the
+/// judgement.
+#[test]
+fn cull_proposes_and_writes_nothing_without_apply() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("Lib");
+    let root_s = root.to_str().unwrap().to_owned();
+    assert!(run(&["new", &root_s]).status.success());
+
+    // Big enough to fingerprint: the 9×8 grid of a difference hash is the
+    // floor, and a frame under it is skipped rather than judged.
+    let shoot = dir.path().join("shoot");
+    std::fs::create_dir_all(&shoot).unwrap();
+    for (index, name) in ["a.png", "b.png"].iter().enumerate() {
+        let image = image::RgbImage::from_fn(64, 48, |x, y| {
+            let base = ((x * 3 + y * 2) % 200) as u8;
+            image::Rgb([base, base, base.saturating_add(index as u8 * 3)])
+        });
+        image.save(shoot.join(name)).unwrap();
+    }
+    let out = run(&["import", &root_s, shoot.to_str().unwrap()]);
+    assert!(out.status.success(), "{}", stderr(&out));
+
+    let out = run(&["cull", &root_s]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    let said = stdout(&out);
+    assert!(said.contains("2 photo(s)"), "{said}");
+    // The sentence that keeps a proposal from reading as a result.
+    assert!(said.contains("nothing was written"), "{said}");
+
+    // And it really wrote nothing: nothing is flagged, which `--apply`
+    // would have changed.
+    assert!(stdout(&run(&["ls", &root_s])).contains("2 version(s)"));
+    let applied = run(&["cull", &root_s, "--apply"]);
+    assert!(applied.status.success(), "{}", stderr(&applied));
+}
+
 /// ADR 0107 §2 and §8: the CLI half of the pixel socket, against a fake
 /// processor — no model, no weights, a script that copies its input. The
 /// derived asset is a **new row** in the library, which is the decision of

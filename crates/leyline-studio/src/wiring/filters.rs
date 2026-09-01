@@ -68,6 +68,11 @@ pub(crate) fn wire_filters(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 return;
             };
             let mut app = app.borrow_mut();
+            // A proposal narrows the grid by *naming* photographs; every
+            // filter narrows it by describing them. Leaving both in place
+            // would show the intersection of a set the user chose and one
+            // they had forgotten about (ADR 0084 §2).
+            crate::wiring::library::forget_proposal(&mut app, &window);
             app.query.rating_at_least =
                 classify::toggle_rating_filter(app.query.rating_at_least, stars as u8);
             FilterState::get(&window)
@@ -86,6 +91,11 @@ pub(crate) fn wire_filters(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 return;
             };
             let mut app = app.borrow_mut();
+            // A proposal narrows the grid by *naming* photographs; every
+            // filter narrows it by describing them. Leaving both in place
+            // would show the intersection of a set the user chose and one
+            // they had forgotten about (ADR 0084 §2).
+            crate::wiring::library::forget_proposal(&mut app, &window);
             app.query.color_label = classify::toggle_label_filter(app.query.color_label, clicked);
             FilterState::get(&window)
                 .set_filter_label(app.query.color_label.map_or(-1, |l| l.as_i64() as i32));
@@ -103,6 +113,11 @@ pub(crate) fn wire_filters(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 return;
             };
             let mut app = app.borrow_mut();
+            // A proposal narrows the grid by *naming* photographs; every
+            // filter narrows it by describing them. Leaving both in place
+            // would show the intersection of a set the user chose and one
+            // they had forgotten about (ADR 0084 §2).
+            crate::wiring::library::forget_proposal(&mut app, &window);
             app.query.pick = classify::toggle_pick_filter(app.query.pick, clicked);
             FilterState::get(&window)
                 .set_filter_pick(app.query.pick.map_or(-1, |p| p.as_i64() as i32));

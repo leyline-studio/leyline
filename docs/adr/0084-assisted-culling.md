@@ -1,7 +1,8 @@
 # ADR 0084 — Assisted culling: the assistant types, it does not develop
 
 **Status:** Accepted — 2026-08 (the shape; the model is deferred, as in
-[ADR 0073](0073-external-mask-detectors.md))
+[ADR 0073](0073-external-mask-detectors.md)). §4 **built** 2026-09; §9
+records what building it corrected.
 
 ## Context
 
@@ -226,6 +227,48 @@ audit that asks the artefact itself found half of what a careful reader had
 missed by hand. A licence policy that lives only in an ADR is a policy that
 holds until the first hurried dependency bump.
 
+### 9. What building it corrected
+
+§4 was written in August and built in September. Four things the design
+said turned out to need saying differently, and they are here rather than
+edited into the text above so that the difference between what was
+reasoned and what was measured stays visible.
+
+**The reason is typed, not free text.** §1 said "a free-text reason for
+display". A sentence built in the engine arrives in English in a French
+window, so a proposal carries a `RejectReason` — softer than a named
+frame of the same burst, blown, black — and each client says it in its own
+words. What §1 wanted, that a proposal say *why*, is unchanged.
+
+**It measures the thumbnail, not the eighth-scale decode.** §4 costed the
+feature on ADR 0083's scaled decode at an eighth. The engine reads the
+**cached thumbnail** instead ([ADR 0082](0082-embedded-preview-at-import.md)),
+which the import pass has already filled from the preview the body
+embedded — so culling an imported shoot costs *no decode at all*, against
+the 66–73 ms per photograph §4 budgeted for one. The measured pass over
+60 real frames is 5.6 s wall and a quarter of a second of CPU. It is a
+smaller image than §4 measured its agreement on, which the table's own
+conclusion covers: this proxy is worth proposing with and nowhere near
+good enough to reject with, which is §2.
+
+**A derived asset is not a frame of the shoot.** Found the first time the
+pass ran over a real library rather than a fixture. A denoised photograph
+([ADR 0107](0107-derived-assets-and-the-pixel-socket.md)) is pixel for
+pixel its parent's scene, so it fingerprints as a burst with it — and the
+assistant duly proposed throwing away the original in favour of the copy
+made *from* it. That is not a near-duplicate to be asked about: it is a
+decision the photographer took ten minutes earlier. Derived assets are
+left out of a run, as companions already were.
+
+**Showing a proposal needed one thing the catalog did not have.** §2
+requires that a proposal be seen before it is applied, and the grid is
+where photographs are seen — but every filter the grid had *describes*
+photographs, and a proposal *names* them. `GridQuery` gains an `assets`
+list: the one filter that names rows. It is what lets Studio narrow the
+grid to exactly the proposed frames and lets the photographer apply the
+verdicts with the reject key they already use, which is §1's "the
+keystrokes the photographer would have typed" arriving literally.
+
 ## Consequences
 
 * **The feature degrades honestly.** Without any model, the technical-reject
@@ -239,7 +282,9 @@ holds until the first hurried dependency bump.
   [`catalog.md`](../catalog.md) §18 already versions.
 * **A new socket to specify**: set-in/set-out, with progress, cancellation and
   a memory budget over a shoot of thousands. That specification is the next
-  step, and it is real work.
+  step, and it is real work. §4's half needs none of it: it is a job in the
+  engine, `leyline cull` at a prompt, and Library ▸ Assisted Culling… in
+  Studio.
 * **`specification.md` §4 will need correcting** the day a model ships, not
   working around — the same requirement ADR 0069 §5 set for the paid edition.
   Today's text ("no model is shipped, no inference takes place") stays exactly

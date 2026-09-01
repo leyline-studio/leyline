@@ -142,6 +142,16 @@ pub struct GridQuery {
     pub color_label: Option<ColorLabel>,
     /// Only versions with this pick state.
     pub pick: Option<PickState>,
+    /// Only these photographs, in the order the rest of the query decides.
+    /// Empty — the ordinary case — restricts nothing.
+    ///
+    /// The one filter that names rows instead of describing them. It exists
+    /// for a set a *client* holds and the catalog does not: an assisted
+    /// culling proposal (ADR 0084 §2) is held in memory, must be looked at
+    /// before it is applied, and the grid is where photographs are looked
+    /// at. Bounded by SQLite's parameter limit, which is far above any
+    /// proposal a shoot produces.
+    pub assets: Vec<AssetId>,
     /// Only assets tagged with all of these keywords or their descendants.
     pub keywords: Vec<KeywordId>,
     /// Free-text filter (FTS5, §30); blank text filters nothing.
@@ -176,6 +186,7 @@ impl Default for GridQuery {
             rating_at_least: None,
             color_label: None,
             pick: None,
+            assets: Vec::new(),
             keywords: Vec::new(),
             text: None,
             capture_range: None,
@@ -488,6 +499,18 @@ fn core(query: &GridQuery, filter: &CollectionFilter) -> Result<(String, Vec<Sql
     // knowing pairs exist: the count, the shot filters, the full-text
     // search and the smart collections all read this same statement.
     sql.push_str(" AND a.companion_of IS NULL");
+
+    if !query.assets.is_empty() {
+        sql.push_str(" AND a.id IN (");
+        for (index, asset) in query.assets.iter().enumerate() {
+            if index > 0 {
+                sql.push(',');
+            }
+            sql.push('?');
+            params.push(SqlValue::Integer(asset.get()));
+        }
+        sql.push(')');
+    }
 
     if let CollectionFilter::Smart(rules) = filter {
         if let Some(rating) = rules.rating {

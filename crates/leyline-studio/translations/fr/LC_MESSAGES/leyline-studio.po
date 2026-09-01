@@ -2763,3 +2763,43 @@ msgstr "Traitement…"
 msgctxt "Tr"
 msgid "{} added — a new photo carrying this one's development."
 msgstr "{} ajoutée — une nouvelle photo qui porte le développement de celle-ci."
+
+#: crates/leyline-studio/ui/panels/menubar.slint:215
+msgctxt "MenuBar"
+msgid "Assisted Culling…"
+msgstr "Tri assisté…"
+
+#: crates/leyline-studio/ui/panels/menubar.slint:223
+msgctxt "MenuBar"
+msgid "Discard Proposal"
+msgstr "Abandonner la proposition"
+
+#: crates/leyline-studio/ui/types.slint:497
+msgctxt "Tr"
+msgid "Looking through the photos…"
+msgstr "Examen des photos…"
+
+#: crates/leyline-studio/ui/types.slint:500
+msgctxt "Tr"
+msgid "Looking through the photos… {} / {}"
+msgstr "Examen des photos… {} / {}"
+
+#: crates/leyline-studio/ui/types.slint:503
+msgctxt "Tr"
+msgid ""
+"{} photo proposed for rejection, in {} burst — nothing written yet: reject "
+"them with X, or Library ▸ Discard Proposal."
+msgid_plural ""
+"{} photos proposed for rejection, in {} bursts — nothing written yet: reject "
+"them with X, or Library ▸ Discard Proposal."
+msgstr[0] ""
+"{} photo proposée au rejet, dans {} rafale — rien n'est encore écrit : "
+"rejetez-les avec X, ou Bibliothèque ▸ Abandonner la proposition."
+msgstr[1] ""
+"{} photos proposées au rejet, dans {} rafales — rien n'est encore écrit : "
+"rejetez-les avec X, ou Bibliothèque ▸ Abandonner la proposition."
+
+#: crates/leyline-studio/ui/types.slint:506
+msgctxt "Tr"
+msgid "Nothing to propose: no burst, and nothing technically wrong."
+msgstr "Rien à proposer : aucune rafale, et rien de techniquement raté."

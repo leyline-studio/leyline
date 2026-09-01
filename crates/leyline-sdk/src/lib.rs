@@ -18,15 +18,26 @@ pub use leyline_core::{
 };
 
 pub use leyline_engine::{
-    AutoTone, CatalogRead, CatalogWrite, DEFAULT_AMEND_WINDOW, DEFAULT_SESSION, EditSession, Event,
+    AutoTone, CatalogRead, CatalogWrite, CullEntry, CullOptions, CullProposal,
+    DEFAULT_AMEND_WINDOW, DEFAULT_BURST_DISTANCE, DEFAULT_SESSION, EditSession, Event,
     ExportRecipe, ExportReport, ExportRequest, ExportedVersion, FailedApply, FailedExport,
     FailedPrint, FailedRename, FailedReprocess, ImportCandidate, ImportOptions, ImportReport,
     ImportedCameraProfile, ImportedFile, ImportedLut, JobResult, Library, Param, PresetApplyReport,
     Preview, PreviewFile, PrintRecipe, PrintReport, PrintRequest, PrintedVersion, RangeSample,
-    RemovalReport, RenameReport, RenamedAsset, ReprocessReport, Rgb8, RootStatus, ScanOptions,
-    SkippedFile, SoftProof, SourceColor, TetherOptions, Value, WatchError, WatchSessionEvent,
-    WatchedFile, decoder_version, neutral_settings, overlay, session_folder,
+    RejectReason, RemovalReport, RenameReport, RenamedAsset, ReprocessReport, Rgb8, RootStatus,
+    ScanOptions, SkippedFile, SoftProof, SourceColor, TetherOptions, Value, Verdict, WatchError,
+    WatchSessionEvent, WatchedFile, decoder_version, neutral_settings, overlay, session_folder,
 };
+
+/// The measures assisted culling is built on (ADR 0084 §4) — focus,
+/// clipping, and the burst fingerprint. Re-exported as a module because a
+/// [`CullEntry`] carries a `Quality`, and a client that cannot name that
+/// type cannot show what a verdict was based on.
+///
+/// Nothing here decides anything: `leyline-cull` computes numbers, the
+/// engine turns them into a proposal, and the photographer turns the
+/// proposal into keystrokes.
+pub use leyline_cull as cull;
 
 pub use leyline_catalog::{
     AssetDescription, CameraInfo, CollectionNode, ExportPreset, ExportRecord, FolderNode, GridItem,

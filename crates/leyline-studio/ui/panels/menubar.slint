@@ -207,6 +207,26 @@ export component MenuBar inherits Rectangle {
                     root.open-menu = "";
                 }
             }
+            MenuSep { }
+            // The assistant proposes; the photographer applies (ADR 0084
+            // §2). This entry only ever *shows* — what applies a verdict
+            // is the reject key the photographer already uses.
+            MenuRow {
+                title: @tr("Assisted Culling…");
+                enabled: !LibraryState.reviewing-proposal;
+                activated => {
+                    LibraryState.cull-library();
+                    root.open-menu = "";
+                }
+            }
+            MenuRow {
+                title: @tr("Discard Proposal");
+                enabled: LibraryState.reviewing-proposal;
+                activated => {
+                    LibraryState.discard-proposal();
+                    root.open-menu = "";
+                }
+            }
         }
 
         if root.open-menu == "photo": MenuDropdown {

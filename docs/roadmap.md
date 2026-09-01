@@ -72,6 +72,8 @@ Then a run of five slices read straight off Lightroom Classic, each closing a ga
 
 Then the second socket. [ADR 0073](adr/0073-external-mask-detectors.md) had built one for the half of the AI axis that produces *settings*; [ADR 0102](adr/0102-paid-extensions-and-the-pixel-boundary.md) settled the shape of the other half — an extension that must produce **pixels** produces a new asset, never a stage — and [ADR 0107](adr/0107-derived-assets-and-the-pixel-socket.md) builds it: `leyline-derive`, a processor called with two 16-bit TIFFs, and a derived file that replaces the **decode** rather than the development, so white balance, exposure, tone, masks and crop are all still settings on what comes back. No processor ships with Leyline, and a library that has never seen one opens, renders and exports what one produced.
 
+Assisted culling was decided in August ([ADR 0084](adr/0084-assisted-culling.md)), built as a crate that nothing used, and left there deliberately; it is now wired end to end — `Library::cull` measures the cached thumbnails of a shoot and returns a **proposal**, `leyline cull` prints it, Studio's Library ▸ Assisted Culling… narrows the grid to exactly what it proposes. Nothing is written until the photographer presses the reject key themselves, which is §2 and is not negotiable: a wrongly rejected photograph does not look wrong, it looks absent.
+
 What [`readme.md`](readme.md) lists as still open remains the reference: DCP colorimetry not validated against the profile vendor's own render, and two finishing touches to local-adjustment tooling left out of scope by [ADR 0049](adr/0049-local-adjustments-clients.md).
 
 ---

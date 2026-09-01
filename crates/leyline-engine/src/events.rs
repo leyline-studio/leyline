@@ -9,6 +9,7 @@ use std::path::PathBuf;
 
 use leyline_core::{AssetId, JobId, PreviewKind, VersionId};
 
+use crate::cull::CullProposal;
 use crate::export::ExportReport;
 use crate::import::ImportReport;
 use crate::presets::PresetApplyReport;
@@ -130,6 +131,11 @@ pub enum JobResult {
     /// A derivation completed: the asset an external processor's answer
     /// was filed as (ADR 0107).
     Derive(AssetId),
+    /// A culling run completed. **Boxed**: a proposal over a shoot is
+    /// thousands of entries, and every other variant of this enum is a
+    /// handful of words — an unboxed one would make every event in the
+    /// stream as large as the largest.
+    Cull(Box<CullProposal>),
     /// The job failed before producing anything.
     Failed(String),
 }

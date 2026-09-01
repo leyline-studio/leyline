@@ -22,6 +22,7 @@ leyline-tether = { workspace = true, optional = true }
 leyline-map.workspace = true
 leyline-export.workspace = true
 leyline-derive.workspace = true
+leyline-cull.workspace = true
 notify.workspace = true
 png.workspace = true
 rayon.workspace = true

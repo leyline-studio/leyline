@@ -11,6 +11,7 @@
 
 mod auto_tone;
 mod camera_profile;
+mod cull;
 mod decode_cache;
 mod derive;
 mod downscale;
@@ -41,6 +42,9 @@ mod wb;
 mod xmp;
 
 pub use auto_tone::AutoTone;
+pub use cull::{
+    CullEntry, CullOptions, CullProposal, DEFAULT_BURST_DISTANCE, RejectReason, Verdict,
+};
 pub use decode_cache::DecodeCache;
 pub use events::{Event, JobResult};
 pub use export::{

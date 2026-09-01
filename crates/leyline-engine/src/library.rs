@@ -32,6 +32,7 @@ use leyline_export::{ExportSettings, PrintSettings};
 use leyline_preview::PreviewCache;
 
 use crate::auto_tone::AutoTone;
+use crate::cull::{CullOptions, CullProposal};
 use crate::decode_cache::DecodeCache;
 use crate::events::{Event, JobResult};
 use crate::export::{ExportReport, ExportRequest};
@@ -2788,6 +2789,93 @@ impl Library {
             asset_ids: vec![asset],
         });
         Ok(asset)
+    }
+
+    /// Goes through `assets` and **proposes** which to reject (ADR 0084).
+    ///
+    /// Writes nothing. What comes back is a [`CullProposal`] the caller
+    /// shows to the photographer; accepting it is an ordinary
+    /// `set_pick` — the same call `leyline pick` makes — and that is the
+    /// whole of §1's "the assistant proposes the keystrokes the
+    /// photographer would have typed".
+    ///
+    /// Measured on the **thumbnail** the import pass already filled from
+    /// the preview the body embedded (ADR 0082), so a shoot that has been
+    /// imported costs no decode here. A photograph whose thumbnail cannot
+    /// be produced or read lands in [`CullProposal::skipped`] rather than
+    /// receiving an invented verdict.
+    ///
+    /// `progress` is called after each photograph with `(done, total)`.
+    pub fn cull(
+        &self,
+        assets: &[AssetId],
+        options: &CullOptions,
+        mut progress: impl FnMut(u64, u64),
+    ) -> Result<CullProposal> {
+        let plan = {
+            let catalog = lock(&self.inner.catalog);
+            crate::cull::plan_cull(&catalog, assets)?
+        };
+        let total = plan.frames.len() as u64;
+        let mut measures = Vec::with_capacity(plan.frames.len());
+        let mut kept = Vec::with_capacity(plan.frames.len());
+        let mut skipped = Vec::new();
+        for (done, &(asset, version)) in plan.frames.iter().enumerate() {
+            // Deliberately sequential where the import pass is parallel:
+            // this reads a cached file per photograph and spends its time
+            // in a gradient, not in LibRaw, and a run that is already
+            // milliseconds per frame gains little from sixteen threads
+            // while losing the simple cancellation a caller gets from a
+            // job it can drop.
+            match self
+                .preview(asset, crate::cull::MEASURED_AT)
+                .map_err(|error| crate::cull::missing_preview(asset, &error))
+                .and_then(|file| crate::cull::measure(&file.path).map_err(|reason| (asset, reason)))
+            {
+                Ok(measure) => {
+                    kept.push((asset, version));
+                    measures.push(measure);
+                }
+                Err(skip) => skipped.push(skip),
+            }
+            progress(done as u64 + 1, total);
+        }
+        Ok(CullProposal {
+            entries: crate::cull::decide(&kept, &measures, options),
+            skipped,
+        })
+    }
+
+    /// [`Library::cull`] as a job (§3.1): `JobProgress` per photograph,
+    /// then `JobFinished` with the proposal.
+    ///
+    /// A run over a shoot is thousands of files, so an interface uses this
+    /// one. Like every other job, nothing it produces is written: the
+    /// proposal arrives in `JobResult::Cull` and waits for the
+    /// photographer.
+    pub fn cull_async(&self, assets: Vec<AssetId>, options: CullOptions) -> JobId {
+        let job = self.new_job();
+        let library = self.clone();
+        self.spawn_job(move || {
+            let result = match library.cull(&assets, &options, {
+                let library = library.clone();
+                move |done, total| {
+                    library.emit(Event::JobProgress {
+                        job_id: job,
+                        done,
+                        total,
+                    });
+                }
+            }) {
+                Ok(proposal) => JobResult::Cull(Box::new(proposal)),
+                Err(error) => JobResult::Failed(error.to_string()),
+            };
+            library.emit(Event::JobFinished {
+                job_id: job,
+                result,
+            });
+        });
+        job
     }
 
     /// [`Library::derive`] as a job (`docs/engine-api.md` §3.1).

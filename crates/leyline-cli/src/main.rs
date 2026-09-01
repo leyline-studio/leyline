@@ -65,6 +65,11 @@ Usage:
                                     vérifie qu'un détecteur parle le protocole,
                                     sur une image de synthèse (ADR 0105 §3) ;
                                     ne juge jamais la qualité d'une découpe
+  leyline cull <library> [asset-id...] [--burst-distance <bits>] [--apply]
+                                    parcourt les photos et PROPOSE lesquelles
+                                    rejeter (ADR 0084) : rafales groupées, la
+                                    plus nette gardée, images noires ou brûlées
+                                    nommées. N'écrit rien sans --apply
   leyline processors [--from <dir>] les traitements à pixels installés pour
                                     cet utilisateur (ADR 0107) ; aucun n'est
                                     livré avec Leyline. --from lit les
@@ -324,6 +329,7 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("detectors") => detectors(&args[1..]),
         Some("detect") => detect_cmd(&args[1..]),
         Some("detect-check") => detect_check(&args[1..]),
+        Some("cull") => cull(&args[1..]),
         Some("processors") => processors(&args[1..]),
         Some("derive") => derive_cmd(&args[1..]),
         Some("derive-check") => derive_check(&args[1..]),
@@ -1967,6 +1973,115 @@ fn detect_check(args: &[String]) -> Result<(), String> {
         return Ok(());
     }
     Err(format!("{key} does not speak the protocol"))
+}
+
+/// Goes through a library and proposes what to reject (`docs/adr/0084`).
+///
+/// Prints the proposal and writes nothing, unless `--apply` is given: the
+/// product rule of ADR 0084 §2 is that a photographer sees a culling
+/// verdict before it is applied, and a shell is where "sees it" means
+/// "reads it". `--apply` is the deliberate second step, not a default.
+fn cull(args: &[String]) -> Result<(), String> {
+    let (positional, options) = parse(args, &["burst-distance"])?;
+    let [root, ids @ ..] = positional.as_slice() else {
+        return Err(
+            "usage: leyline cull <library> [asset-id...] [--burst-distance <bits>] [--apply]"
+                .to_owned(),
+        );
+    };
+    let library = open(root)?;
+    let burst_distance = match options.value("burst-distance") {
+        Some(value) => value
+            .parse()
+            .map_err(|_| format!("--burst-distance wants a number of bits, got {value:?}"))?,
+        None => leyline_sdk::DEFAULT_BURST_DISTANCE,
+    };
+
+    // No ids means the whole library: culling is a pass over a shoot, and
+    // making the common case type out fifteen thousand numbers would be a
+    // joke at the user's expense.
+    let assets = if ids.is_empty() {
+        library
+            .catalog()
+            .grid(&GridQuery::default())
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .map(|item| item.asset_id)
+            .collect()
+    } else {
+        ids.iter()
+            .map(|id| {
+                id.parse()
+                    .map(AssetId::new)
+                    .map_err(|_| format!("bad asset id {id:?}"))
+            })
+            .collect::<Result<Vec<_>, String>>()?
+    };
+
+    let proposal = library
+        .cull(
+            &assets,
+            &leyline_sdk::CullOptions { burst_distance },
+            |done, total| {
+                if done == total {
+                    println!("measured {done}/{total}");
+                }
+            },
+        )
+        .map_err(|e| e.to_string())?;
+
+    for entry in &proposal.entries {
+        let verdict = match entry.verdict {
+            leyline_sdk::Verdict::Keep => continue,
+            leyline_sdk::Verdict::Pick => "keep    (sharpest of its burst)".to_owned(),
+            leyline_sdk::Verdict::Reject(reason) => format!("reject  ({})", cull_reason(reason)),
+        };
+        println!(
+            "asset {:<6} version {:<6} burst {:<4} focus {:>7.3}  {verdict}",
+            entry.asset.get(),
+            entry.version.get(),
+            entry.burst,
+            entry.quality.focus
+        );
+    }
+    for (asset, reason) in &proposal.skipped {
+        eprintln!("skipped asset {}: {reason}", asset.get());
+    }
+
+    let rejects = proposal.rejects();
+    println!(
+        "{} photo(s) in {} burst(s); {} proposed for rejection",
+        proposal.entries.len(),
+        proposal.bursts(),
+        rejects.len()
+    );
+
+    if !options.switch("apply") {
+        // Said every time: a proposal that looks like a result is the one
+        // way this feature could quietly throw a shoot away.
+        println!("nothing was written — pass --apply to flag them, or `leyline pick` a subset");
+        return Ok(());
+    }
+    if rejects.is_empty() {
+        return Ok(());
+    }
+    library
+        .catalog_mut()
+        .set_pick(&rejects, PickState::Reject)
+        .map_err(|e| e.to_string())?;
+    println!("flagged {} version(s) as rejected", rejects.len());
+    Ok(())
+}
+
+/// One reason, in the words a shell should print.
+fn cull_reason(reason: leyline_sdk::RejectReason) -> String {
+    match reason {
+        leyline_sdk::RejectReason::Softer { sharper } => {
+            format!("asset {} of the same burst is sharper", sharper.get())
+        }
+        leyline_sdk::RejectReason::Blown => "blown highlights over most of the frame".to_owned(),
+        leyline_sdk::RejectReason::Black => "nothing in it — black frame".to_owned(),
+    }
 }
 
 /// Lists the pixel processors installed for this user (`docs/adr/0107` §7).
