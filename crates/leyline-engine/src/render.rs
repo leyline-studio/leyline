@@ -8,7 +8,7 @@
 //! cached preview.
 
 use leyline_catalog::Metadata;
-use leyline_core::{CURRENT_SCHEMA, Settings};
+use leyline_core::{CURRENT_SCHEMA, Settings, SourceEncoding};
 use leyline_core::{LeylineError, Result};
 use leyline_raw::RawImage;
 
@@ -174,6 +174,7 @@ pub fn render_scaled(
         });
     }
     settings.validate()?;
+    check_source_encoding(settings, source)?;
     stages::develop_scaled(
         image,
         settings,
@@ -185,6 +186,27 @@ pub fn render_scaled(
         source,
         scale,
     )
+}
+
+/// Refuses a revision that claims its file is already in the working space
+/// when the decoder says it is a camera's (ADR 0107 §6).
+///
+/// `Settings::validate` cannot see this: it holds the revision, and this is
+/// a disagreement between the revision and the *file*. Left unchecked, the
+/// `input` stage would pass camera-native samples through untouched and the
+/// photograph would render in the wrong space — wrong pixels, silently,
+/// which is the one outcome this pipeline never accepts.
+fn check_source_encoding(settings: &Settings, source: SourceColor) -> Result<()> {
+    if settings.source_encoding == SourceEncoding::LinearWorkspace
+        && matches!(source, SourceColor::Camera { .. })
+    {
+        return Err(LeylineError::InvalidSettings(
+            "source_encoding says this file is already in the working space, but it decodes \
+             as camera-native; only a derived asset (ADR 0107) may claim it"
+                .to_owned(),
+        ));
+    }
+    Ok(())
 }
 
 /// [`render_scaled`] with the preview pipeline's stage cache (ADR 0041 §3).
@@ -212,6 +234,7 @@ pub(crate) fn render_scaled_cached(
         });
     }
     settings.validate()?;
+    check_source_encoding(settings, source)?;
     stages::develop_scaled_cached(
         image,
         settings,

@@ -176,6 +176,36 @@ pub(crate) fn split_detection_key(key: &str) -> Option<(&str, &str)> {
     (!source.is_empty() && !detection.is_empty()).then_some((source, detection))
 }
 
+/// The same mapping for pixel processors (ADR 0107 §7): one row per
+/// operation, prefixed by the processor's name only when more than one is
+/// installed.
+///
+/// Deliberately a second function rather than a generic one over the two
+/// sockets: they share a shape today and nothing says they will tomorrow,
+/// and the abstraction would cost more to read than the twelve lines it
+/// saves.
+pub(crate) fn operation_rows(
+    sources: &[leyline_sdk::derive::ProcessorSource],
+) -> Vec<crate::ui::DetectionRow> {
+    let several = sources.len() > 1;
+    sources
+        .iter()
+        .flat_map(|source| {
+            source.operations.iter().map(move |operation| {
+                let label = if several {
+                    format!("{} · {}", source.label, operation.label)
+                } else {
+                    operation.label.clone()
+                };
+                crate::ui::DetectionRow {
+                    key: SharedString::from(format!("{}/{}", source.id, operation.id)),
+                    label: SharedString::from(label),
+                }
+            })
+        })
+        .collect()
+}
+
 /// Mirrors every stored local adjustment into the mask panel's model
 /// (ADR 0049): one row per entry of `Settings::local_adjustments`, in list
 /// order, since that order *is* the identity of an entry

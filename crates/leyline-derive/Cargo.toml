@@ -1,0 +1,19 @@
+[package]
+name = "leyline-derive"
+description = "Contract, discovery and invocation of external pixel processors."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+directories.workspace = true
+image.workspace = true
+tempfile.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

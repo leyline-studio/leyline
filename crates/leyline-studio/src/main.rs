@@ -69,7 +69,7 @@ use wiring::filters::{refresh_shot_facets, wire_classify, wire_filters};
 use wiring::folders::{refresh_folders, wire_folders};
 use wiring::grid::{load_window, reload, wire_select};
 use wiring::keywords::wire_keywords;
-use wiring::library::wire_library;
+use wiring::library::{wire_library, wire_processors};
 use wiring::map::wire_map;
 use wiring::pairs::wire_pairs;
 use wiring::presets::{refresh_presets, wire_presets};
@@ -378,6 +378,7 @@ fn run() -> Result<(), String> {
     wire_filters(&app, &window);
     wire_develop(&app, &window);
     wire_library(&window, other_recent_libraries);
+    wire_processors(&app, &window);
     wire_dialogs(&app, &window);
     wire_preferences(&window, &preferences);
     wire_collections(&app, &window);

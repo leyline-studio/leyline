@@ -76,6 +76,7 @@ pub(crate) mod input {
     pub(crate) mod v2;
     pub(crate) mod v3;
     pub(crate) mod v4;
+    pub(crate) mod v5;
 }
 pub(crate) mod camera_profile {
     pub(crate) mod v1;
@@ -346,7 +347,12 @@ pub(crate) static STAGES: &[Stage] = &[
         // the rendering that no revision recorded.
         name: "input",
         active: |_| true,
-        reads: &["highlight_reconstruction", "camera_profile", "demosaic"],
+        reads: &[
+            "highlight_reconstruction",
+            "camera_profile",
+            "demosaic",
+            "source_encoding",
+        ],
         versions: &[
             Version {
                 version: 1,
@@ -409,6 +415,23 @@ pub(crate) static STAGES: &[Stage] = &[
                         ctx.source,
                         ctx.camera_profile.is_some(),
                         ctx.settings.highlight_reconstruction,
+                    );
+                },
+            },
+            // A decoder that stops truncating a non-RAW source to eight
+            // bits, and a stage that understands a buffer already in the
+            // working space (ADR 0107 §6). On every source the earlier
+            // versions could decode, it renders bit for bit like `v4`.
+            Version {
+                version: 5,
+                rank: 0,
+                space: Space::LinearRec2020,
+                apply: |px, ctx| {
+                    input::v5::to_working_space(
+                        px,
+                        ctx.source,
+                        ctx.camera_profile.is_some(),
+                        ctx.settings,
                     );
                 },
             },
@@ -1037,7 +1060,19 @@ static INPUT_DECODE: &[(u16, DecodeConfig)] = &[
     (2, input::v2::decode_params),
     (3, input::v3::decode_params),
     (4, input::v4::decode_params),
+    (5, input::v5::decode_params),
 ];
+
+/// Whether one `input` version decodes a non-RAW source at its own bit depth
+/// (ADR 0107 §6), rather than normalizing it to eight bits.
+///
+/// The other half of [`INPUT_DECODE`], and frozen for the same reason: it
+/// changes pixels, so it belongs to the version a revision cites and not to
+/// whatever the decoder happens to do this year. A table rather than a
+/// `version >= 5` test, so that adding a version is a line here and a
+/// decision, never an inherited default.
+static INPUT_NATIVE_DEPTH: &[(u16, bool)] =
+    &[(1, false), (2, false), (3, false), (4, false), (5, true)];
 
 /// What one `input` version asks the decoder for.
 ///
@@ -1063,6 +1098,18 @@ pub(crate) fn decode_params(settings: &Settings, half_size: bool) -> DecodeParam
         .map(|(_, decode)| decode)
         .expect("every published input version has a decoder configuration");
     decode(settings, half_size)
+}
+
+/// Whether the non-RAW decoder keeps the file's own bit depth for this
+/// revision (ADR 0107 §6). Ignored by RAW and DNG sources, which LibRaw
+/// always hands over at sixteen bits.
+pub(crate) fn native_bit_depth(settings: &Settings) -> bool {
+    let version = version_of("input", settings);
+    INPUT_NATIVE_DEPTH
+        .iter()
+        .find(|(v, _)| *v == version.version)
+        .map(|(_, native)| *native)
+        .expect("every published input version says what bit depth it decodes at")
 }
 
 /// The version of `stage_name` this render uses: the one `settings` records,
@@ -1512,6 +1559,57 @@ pub(crate) fn develop_scaled(
 
 /// Rank of the local adjustments stage — where a mask's coverage is decided.
 const LOCAL_ADJUSTMENTS_RANK: u16 = 160;
+
+/// Rank the exchange image of a derivation is taken at (ADR 0107 §4): after
+/// `input` (0) and `camera_profile` (10), before everything else.
+///
+/// The first rank at which the buffer has a **single** meaning. Below it,
+/// `input` leaves the samples camera-native when a DCP is set and rotates
+/// them into Rec. 2020 when there is none, so a file handed over at rank 0
+/// would be in one of two spaces depending on a setting — which no protocol
+/// document can paper over.
+pub(crate) const DERIVE_RANK: u16 = 20;
+
+/// Develops `image` up to — and not including — `max_rank`, and returns the
+/// working buffer as it stands there.
+///
+/// The prefix of [`develop_scaled`], stopping early and skipping the
+/// quantization to eight bits at the end: what a derivation hands to a
+/// processor is light, not a picture (ADR 0107 §3). Same plan, same
+/// versions, same order — a derivation renders through exactly what an
+/// ordinary render would have run first.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn develop_until_rank(
+    image: &RawImage,
+    settings: &Settings,
+    shot: Option<&LensShot>,
+    sensor: Option<&SensorShot>,
+    camera_profile: Option<&DcpProfile>,
+    lut: Option<&leyline_color::CubeLut>,
+    coverages: &crate::mask_coverage::MaskCoverages,
+    source: SourceColor,
+    max_rank: u16,
+) -> Result<(u32, u32, Vec<f32>)> {
+    let plan = plan(settings)?;
+    let ctx = Context {
+        settings,
+        shot,
+        sensor,
+        camera_profile,
+        lut,
+        coverages,
+        source,
+        scale: 1.0,
+    };
+    let mut px = Pixels::from_raw(image)?;
+    for (_, version) in &plan {
+        if version.rank >= max_rank {
+            break;
+        }
+        (version.apply)(&mut px, &ctx);
+    }
+    Ok((px.width, px.height, px.data))
+}
 
 /// Renders the effective coverage of one local adjustment, in the geometry of
 /// the finished image (ADR 0071 §2).

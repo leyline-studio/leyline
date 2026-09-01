@@ -677,6 +677,53 @@ Four failures are named separately (`DetectError`), because they call for four d
 
 ---
 
+# 10ter. External pixel processors (`docs/adr/0107-derived-assets-and-the-pixel-socket.md`)
+
+The second socket, and the one difference from the first: the SDK re-exports `leyline-derive` **as a module** (`leyline_sdk::derive`, since the two sockets use the same words for the same ideas), and the **engine** consumes it — because a processor's answer has to be rendered before and imported after, and both are the engine's work.
+
+```rust
+pub struct Operation { pub id: String, pub label: String }
+
+pub struct ProcessorSource {
+    pub id: String,
+    pub label: String,
+    pub command: PathBuf,     // absolute, or a name to look for in PATH
+    pub args: Vec<String>,
+    pub operations: Vec<Operation>,
+}
+
+/// `<user config>/Leyline/processors` — never inside a library.
+pub fn manifests_dir() -> Option<PathBuf>;
+pub fn discover() -> Vec<ProcessorSource>;
+pub fn discover_in(dir: &Path) -> Vec<ProcessorSource>;
+
+/// Linear Rec. 2020, white at 1.0, interleaved RGB.
+pub struct Exchange { pub width: u32, pub height: u32, pub samples: Vec<f32> }
+
+/// Writes the input, runs the processor, reads and checks the answer.
+pub fn process(source: &ProcessorSource, operation: &str,
+               image: &Exchange) -> Result<Exchange, DeriveError>;
+
+impl Library {
+    /// Develops up to rank 20, runs the processor, and files the answer
+    /// as a NEW asset carrying this version's development.
+    pub fn derive(&self, version: VersionId, processor: &ProcessorSource,
+                  operation: &str) -> Result<AssetId>;
+}
+```
+
+The call contract, again on one line:
+
+```
+<command> <args…> --image <in.tif> --operation <id> --out <out.tif>
+```
+
+Both files are **16-bit RGB TIFFs holding linear Rec. 2020, white at 1.0** — the develop buffer as it stood before rank 20, the first place in the pipeline where it has a single meaning whatever the revision says. The answer must have the **same dimensions**: what comes back inherits a development, and a development cannot move to another geometry.
+
+`Library::derive` locks the catalog twice, briefly, with the slow half between (the split of ADR 0024), fires the ordinary `AssetsAdded`, and refuses a destination name already taken. A 600 s guard terminates a stuck executable — five times the detector's budget, because a denoise runs on all thirty million pixels of the original where a segmentation runs on a preview.
+
+---
+
 # 11. Previews
 
 ```rust

@@ -232,9 +232,10 @@ pub(crate) fn render_preview(
         &plan.source_path,
     )?;
     let params = crate::stages::decode_params(&plan.settings, plan.half_size);
+    let native_depth = crate::stages::native_bit_depth(&plan.settings);
     let (decoded, scale) = decodes
-        .get_or_insert_proxy(asset, &params, plan.max_edge, || {
-            crate::source::decode(&plan.source_path, &params)
+        .get_or_insert_proxy(asset, &params, native_depth, plan.max_edge, || {
+            crate::source::decode(&plan.source_path, &params, native_depth)
         })
         .map_err(|e| LeylineError::DecodeFailed {
             asset,
@@ -323,9 +324,10 @@ pub(crate) fn render_mask_coverage(
         &plan.source_path,
     )?;
     let params = crate::stages::decode_params(settings, plan.half_size);
+    let native_depth = crate::stages::native_bit_depth(settings);
     let (decoded, scale) = decodes
-        .get_or_insert_proxy(asset, &params, plan.max_edge, || {
-            crate::source::decode(&plan.source_path, &params)
+        .get_or_insert_proxy(asset, &params, native_depth, plan.max_edge, || {
+            crate::source::decode(&plan.source_path, &params, native_depth)
         })
         .map_err(|e| LeylineError::DecodeFailed {
             asset,
@@ -381,9 +383,10 @@ pub(crate) fn render_with_settings(
         &plan.source_path,
     )?;
     let params = crate::stages::decode_params(settings, plan.half_size);
+    let native_depth = crate::stages::native_bit_depth(settings);
     let (decoded, scale) = decodes
-        .get_or_insert_proxy(asset, &params, plan.max_edge, || {
-            crate::source::decode(&plan.source_path, &params)
+        .get_or_insert_proxy(asset, &params, native_depth, plan.max_edge, || {
+            crate::source::decode(&plan.source_path, &params, native_depth)
         })
         .map_err(|e| LeylineError::DecodeFailed {
             asset,

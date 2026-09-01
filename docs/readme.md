@@ -33,6 +33,7 @@ What remains open:
 | Colorimetric accuracy of DCP profiles | Not validated against real Adobe `.dcp` files — the feature is flagged as experimental ([ADR 0035](adr/0035-camera-profile-dcp.md)) |
 | Local adjustments: range eyedropper, drag handles | Left out of scope by [ADR 0049](adr/0049-local-adjustments-clients.md); the mask overlay itself is delivered ([ADR 0071](adr/0071-mask-overlay.md)) |
 | Detected masks | The **socket** is delivered ([ADR 0073](adr/0073-external-mask-detectors.md)): Studio knows how to call an external detector. No detector ships with Leyline, and no model is embedded |
+| Pixel processing (AI denoise, upscaling) | The **socket** is delivered ([ADR 0107](adr/0107-derived-assets-and-the-pixel-socket.md)): Studio hands an external processor the develop buffer and files what comes back as a **new photograph** carrying the original's development. No processor ships with Leyline, and none is needed to open, render or export what one produced |
 | First publication | No binary published, no version cut |
 | One decoder across the three deliverables | Windows cross-builds a pinned LibRaw, Linux and macOS install what their package manager offers. Each is now *accepted* explicitly and an unknown one fails `make check` ([ADR 0086](adr/0086-decoder-in-the-promise.md)), but they are not yet the same build — converging them needs a macOS machine |
 
@@ -52,7 +53,7 @@ The rest of the work is robustness, performance and polish, not missing features
 
 4. [`contributing.md`](contributing.md) — style, commits, licence, CLA, and the procedure for adding or fixing a render stage.
 5. [`pipeline.md`](pipeline.md) — the render contract. To be read **before** touching the engine: it defines what a stage version is and what the project promises about the reproducibility of a render (§5).
-6. [`adr/`](adr/README.md) — 106 structural decisions, each with its context, its rejected alternatives and its consequences. That is where the *why* of almost everything surprising in the code lives.
+6. [`adr/`](adr/README.md) — 107 structural decisions, each with its context, its rejected alternatives and its consequences. That is where the *why* of almost everything surprising in the code lives.
 
 **To integrate the engine** — [`engine-api.md`](engine-api.md), then the `leyline-sdk` crate, which is the stable public surface.
 

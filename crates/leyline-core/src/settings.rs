@@ -219,6 +219,43 @@ impl HighlightReconstruction {
     }
 }
 
+/// What the samples handed to the `input` stage already are (ADR 0107 §6).
+///
+/// Every source this program decodes itself — a RAW through LibRaw, a JPEG,
+/// a PNG, an ordinary TIFF — arrives in a space `input` still has to convert:
+/// that is [`SourceEncoding::Srgb`], the neutral value and the only one
+/// versions 1 to 4 of the stage knew about.
+///
+/// [`SourceEncoding::LinearWorkspace`] says the file is **already** linear
+/// Rec. 2020 with white at 1.0, so `input` has nothing to convert. It is
+/// written by one thing only — the derivation of ADR 0107, whose exchange
+/// file is the develop buffer as it stood before rank 20 — and it is what
+/// lets a derived asset carry its parent's development instead of starting
+/// from neutral.
+///
+/// Requires `input` at version 5 or later, and refused by
+/// [`Settings::validate`] below it: the same capability rule ADR 0048 §5 set
+/// and ADR 0050, ADR 0061, ADR 0096 and ADR 0098 applied since.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SourceEncoding {
+    /// The decoder's own space: `input` decodes the transfer function and
+    /// rotates the primaries into the working space.
+    #[default]
+    Srgb,
+    /// Linear Rec. 2020, white at 1.0 — the working space itself. `input`
+    /// passes the buffer through untouched.
+    LinearWorkspace,
+}
+
+impl SourceEncoding {
+    /// Whether this is the neutral value — the predicate that keeps it out of
+    /// a stored `settings_json` when nothing was asked for.
+    pub fn is_srgb(&self) -> bool {
+        *self == SourceEncoding::Srgb
+    }
+}
+
 /// Which interpolation reconstructs the two missing channels of every sensor
 /// site (ADR 0061) — the very first rendering decision, taken by the decoder.
 ///
@@ -916,6 +953,13 @@ pub struct Settings {
     #[serde(default, skip_serializing_if = "Demosaic::is_ahd")]
     pub demosaic: Demosaic,
 
+    /// What the file's samples already are (ADR 0107 §6). Neutral:
+    /// [`SourceEncoding::Srgb`] — every file this engine decodes itself —
+    /// which is why it is absent from every stored document but a derived
+    /// asset's.
+    #[serde(default, skip_serializing_if = "SourceEncoding::is_srgb")]
+    pub source_encoding: SourceEncoding,
+
     /// Rotation in degrees, clockwise. Neutral: 0.
     pub rotation: f64,
     /// Perspective correction (ADR 0052); `None` = neutral.
@@ -969,6 +1013,7 @@ impl Default for Settings {
             output_rendering: OutputRendering::default(),
             highlight_reconstruction: HighlightReconstruction::default(),
             demosaic: Demosaic::default(),
+            source_encoding: SourceEncoding::default(),
             sharpening: Sharpening::default(),
             rotation: 0.0,
             perspective: None,
@@ -1075,6 +1120,18 @@ impl Settings {
             return Err(LeylineError::InvalidSettings(
                 "highlight_reconstruction needs stage input version 2, but this revision \
                  pins version 1; reprocess the photo to the current stage versions first"
+                    .to_owned(),
+            ));
+        }
+        // The capability rule once more, and here it guards more than a
+        // control doing nothing: an earlier `input` would convert a buffer
+        // that is already in the working space, so the photograph would come
+        // back visibly wrong rather than merely unchanged (ADR 0107 §6).
+        if !self.source_encoding.is_srgb() && matches!(self.stages.get("input"), Some(&v) if v < 5)
+        {
+            return Err(LeylineError::InvalidSettings(
+                "source_encoding needs stage input version 5, but this revision \
+                 pins an earlier one; reprocess it first"
                     .to_owned(),
             ));
         }

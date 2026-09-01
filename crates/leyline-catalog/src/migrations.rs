@@ -12,7 +12,7 @@ use leyline_core::Result;
 /// Migration scripts: index `n` migrates the database to `user_version` `n + 1`.
 const MIGRATIONS: &[&str] = &[
     SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8,
-    SCHEMA_V9, SCHEMA_V10,
+    SCHEMA_V9, SCHEMA_V10, SCHEMA_V11,
 ];
 
 /// The schema version produced by the newest migration.
@@ -634,4 +634,26 @@ CREATE TABLE asset_descriptions (
         REFERENCES assets(id)
         ON DELETE CASCADE
 );
+";
+
+/// Version 11: where a derived asset came from (ADR 0107 §5).
+///
+/// A pixel extension produces a **new asset**, never a stage (ADR 0102), and
+/// this column is the only thing that remembers which photograph it was made
+/// from. `ON DELETE SET NULL`, not `CASCADE`: deleting the original must not
+/// take the denoised frame the user kept with it — unlike `companion_of`,
+/// which is a file *of* another and dies with it.
+///
+/// The index is not optional. A foreign key with no index makes every delete
+/// of a parent row scan this table whole (`catalog.md` §Cascading foreign
+/// keys), and half of them were missing the last time that was audited.
+///
+/// Purely additive: an existing library gains a NULL column, and NULL is what
+/// every photograph anyone has ever imported is.
+const SCHEMA_V11: &str = "
+-- §9 A derived asset names the photograph it was made from (ADR 0107 §5).
+ALTER TABLE assets ADD COLUMN derived_from INTEGER
+    REFERENCES assets(id) ON DELETE SET NULL;
+
+CREATE INDEX idx_assets_derived ON assets(derived_from);
 ";

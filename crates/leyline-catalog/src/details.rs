@@ -44,6 +44,10 @@ pub struct AssetDetails {
     pub companions: Vec<AssetId>,
     /// The master this asset is a companion of, when it is one.
     pub companion_of: Option<AssetId>,
+    /// The photograph this asset was derived from, when a pixel processor
+    /// made it (ADR 0107 §5). Unlike [`AssetDetails::companion_of`] this
+    /// hides nothing: it is lineage, not subordination.
+    pub derived_from: Option<AssetId>,
 }
 
 impl Catalog {
@@ -89,6 +93,7 @@ impl Catalog {
             current_version: self.current_version(asset)?,
             companions: self.companions_of(asset)?,
             companion_of: self.master_of(asset)?,
+            derived_from: self.derived_from(asset)?,
         })
     }
 }

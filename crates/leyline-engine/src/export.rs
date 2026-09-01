@@ -164,12 +164,14 @@ pub(crate) fn render_export_to(
         &plan.source,
     )?;
     let decode_params = crate::stages::decode_params(&plan.develop, false);
-    let decoded = crate::source::decode(&plan.source, &decode_params).map_err(|e| {
-        LeylineError::DecodeFailed {
-            asset: plan.asset,
-            reason: e.to_string(),
-        }
-    })?;
+    let native_depth = crate::stages::native_bit_depth(&plan.develop);
+    let decoded =
+        crate::source::decode(&plan.source, &decode_params, native_depth).map_err(|e| {
+            LeylineError::DecodeFailed {
+                asset: plan.asset,
+                reason: e.to_string(),
+            }
+        })?;
     let lut = crate::lut::resolve_from_settings(&plan.library_root, &plan.develop)?;
     let coverages = crate::mask_coverage::resolve_from_settings(&plan.library_root, &plan.develop)?;
     let rendered = render(

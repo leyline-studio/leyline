@@ -389,6 +389,62 @@ fn mask_detectors_are_reachable_through_the_sdk_surface() {
     assert!(matches!(error, DetectError::UnknownDetection(_)));
 }
 
+/// The same walk for the pixel socket (ADR 0107): discovered, named, run,
+/// and its refusal read back — plus `Library::derive`, which is the call the
+/// whole crate exists to serve. The lesson of ADR 0100's missing
+/// `RenameReport` is that a surface test catches only the names it spells,
+/// so this one spells every type a client touches.
+#[test]
+fn pixel_processors_are_reachable_through_the_sdk_surface() {
+    use leyline_sdk::derive::{
+        DeriveError, Exchange, Operation, ProcessorSource, discover_in, process, rejected_in,
+    };
+
+    let dir = tempfile::tempdir().unwrap();
+    assert!(discover_in(dir.path()).is_empty());
+
+    let source = ProcessorSource {
+        id: "sample".to_owned(),
+        label: "Sample".to_owned(),
+        command: std::path::PathBuf::from("/no/such/processor"),
+        args: Vec::new(),
+        operations: vec![Operation {
+            id: "denoise".to_owned(),
+            label: "Denoise".to_owned(),
+        }],
+    };
+    std::fs::write(
+        dir.path().join("sample.json"),
+        serde_json::to_string(&source).unwrap(),
+    )
+    .unwrap();
+    assert!(discover_in(dir.path()).is_empty());
+
+    let rejected = rejected_in(dir.path());
+    assert_eq!(rejected.len(), 1, "{rejected:?}");
+    assert!(rejected[0].reason.contains("/no/such/processor"));
+
+    let error = process(
+        &source,
+        "upscale",
+        &Exchange {
+            width: 1,
+            height: 1,
+            samples: vec![0.0, 0.0, 0.0],
+        },
+    )
+    .unwrap_err();
+    assert!(matches!(error, DeriveError::UnknownOperation(_)));
+
+    // And the engine half, named from the façade: a processor that cannot
+    // run fails the derivation rather than half-registering an asset.
+    let library_dir = tempfile::tempdir().unwrap();
+    let library =
+        leyline_sdk::Library::create(&library_dir.path().join("Library"), "Derive").unwrap();
+    let missing = leyline_sdk::VersionId::new(1);
+    assert!(library.derive(missing, &source, "denoise").is_err());
+}
+
 /// The decoder version is reachable without reaching past the façade.
 ///
 /// It is not a convenience: `docs/pipeline.md` §5.1 counts the decoder among

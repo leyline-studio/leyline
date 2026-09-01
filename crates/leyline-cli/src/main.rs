@@ -65,6 +65,19 @@ Usage:
                                     vérifie qu'un détecteur parle le protocole,
                                     sur une image de synthèse (ADR 0105 §3) ;
                                     ne juge jamais la qualité d'une découpe
+  leyline processors [--from <dir>] les traitements à pixels installés pour
+                                    cet utilisateur (ADR 0107) ; aucun n'est
+                                    livré avec Leyline. --from lit les
+                                    manifestes ailleurs
+  leyline derive <library> <version-id> <traitement:opération>
+                                    développe la photo jusqu'au rang 20, la
+                                    donne au traitement, et classe la réponse
+                                    comme un NOUVEL ASSET portant le
+                                    développement de l'original (ADR 0107)
+  leyline derive-check <traitement:opération>
+                                    vérifie qu'un traitement parle le protocole,
+                                    sur une image de synthèse (ADR 0107 §8) ;
+                                    ne juge jamais la qualité d'un débruitage
   leyline describe <library> <asset-id> [--title <t>] [--caption <c>]
                [--creator <n>] [--copyright <c>] [--credit <c>]
                [--city <c>] [--state <s>] [--country <c>] [--clear]
@@ -311,6 +324,9 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("detectors") => detectors(&args[1..]),
         Some("detect") => detect_cmd(&args[1..]),
         Some("detect-check") => detect_check(&args[1..]),
+        Some("processors") => processors(&args[1..]),
+        Some("derive") => derive_cmd(&args[1..]),
+        Some("derive-check") => derive_check(&args[1..]),
         Some("rename") => rename(&args[1..]),
         Some("versions") => versions(&args[1..]),
         Some("version-create") => version_create(&args[1..]),
@@ -1948,6 +1964,134 @@ fn detect_check(args: &[String]) -> Result<(), String> {
         println!("{key} speaks the protocol");
         // Said every time, so nobody reads a pass as an endorsement.
         println!("(the protocol only — the quality of the segmentation is not checked)");
+        return Ok(());
+    }
+    Err(format!("{key} does not speak the protocol"))
+}
+
+/// Lists the pixel processors installed for this user (`docs/adr/0107` §7).
+fn processors(args: &[String]) -> Result<(), String> {
+    let (positional, options) = parse(args, &["from"])?;
+    if !positional.is_empty() {
+        return Err("usage: leyline processors [--from <dir>]".to_owned());
+    }
+    let sources = processors_installed(&options);
+    if sources.is_empty() {
+        // The normal state of a fresh installation: no processor ships
+        // with Leyline, and the free application is complete without one.
+        println!("no pixel processor installed");
+        if options.value("from").is_none() {
+            if let Some(dir) = leyline_sdk::derive::manifests_dir() {
+                println!("manifests are read from {}", dir.display());
+            }
+        }
+    } else {
+        for source in sources {
+            for operation in &source.operations {
+                println!(
+                    "{}:{:<16} {} · {}",
+                    source.id, operation.id, source.label, operation.label
+                );
+            }
+        }
+    }
+    // Same reason as `detectors`: a manifest read and thrown away is
+    // invisible by design, and this is the command an author runs to ask
+    // why nothing appears (ADR 0105 §4, applied before it could happen
+    // twice).
+    for rejection in processors_rejected(&options) {
+        eprintln!(
+            "ignored: {} — {}",
+            rejection.path.display(),
+            rejection.reason
+        );
+    }
+    Ok(())
+}
+
+/// The processors to consider: those installed for this user, or those in
+/// `--from <dir>` — what lets an author try an executable before installing
+/// it.
+fn processors_installed(options: &Options) -> Vec<leyline_sdk::derive::ProcessorSource> {
+    match options.value("from") {
+        Some(dir) => leyline_sdk::derive::discover_in(Path::new(dir)),
+        None => leyline_sdk::derive::discover(),
+    }
+}
+
+/// The manifests the same directory holds and discovery declined.
+fn processors_rejected(options: &Options) -> Vec<leyline_sdk::derive::Rejection> {
+    match options.value("from") {
+        Some(dir) => leyline_sdk::derive::rejected_in(Path::new(dir)),
+        None => leyline_sdk::derive::manifests_dir()
+            .map(|dir| leyline_sdk::derive::rejected_in(&dir))
+            .unwrap_or_default(),
+    }
+}
+
+/// Splits `processor:operation`, the key both processor commands take.
+fn processor_key(
+    key: &str,
+    options: &Options,
+) -> Result<(leyline_sdk::derive::ProcessorSource, String), String> {
+    let (source_id, operation) = key
+        .split_once(':')
+        .ok_or_else(|| format!("expected <processor>:<operation>, got {key:?}"))?;
+    let source = processors_installed(options)
+        .into_iter()
+        .find(|source| source.id == source_id)
+        .ok_or_else(|| format!("no processor named {source_id} is installed"))?;
+    Ok((source, operation.to_owned()))
+}
+
+/// Runs a pixel processor and files what it returns as a new asset
+/// (`docs/adr/0107`).
+fn derive_cmd(args: &[String]) -> Result<(), String> {
+    let (positional, options) = parse(args, &["from"])?;
+    let [root, version, key] = positional.as_slice() else {
+        return Err(
+            "usage: leyline derive <library> <version-id> <processor>:<operation> [--from <dir>]"
+                .to_owned(),
+        );
+    };
+    let (source, operation) = processor_key(key, &options)?;
+    let library = open(root)?;
+    let version = VersionId::new(version.parse().map_err(|_| "version id must be a number")?);
+    let derived = library
+        .derive(version, &source, &operation)
+        .map_err(|e| e.to_string())?;
+    let details = library
+        .catalog()
+        .asset_details(derived)
+        .map_err(|e| e.to_string())?;
+    println!("asset {derived}: {}", details.relative_path);
+    // Said plainly, because it is the decision of ADR 0102 and the thing a
+    // user is most likely to misread: this is a new photograph, not a
+    // slider that can be dialled back.
+    println!("a new asset, carrying the development of the one it was made from");
+    Ok(())
+}
+
+/// Checks that a pixel processor speaks the protocol (`docs/adr/0107` §8).
+fn derive_check(args: &[String]) -> Result<(), String> {
+    let (positional, options) = parse(args, &["from"])?;
+    let [key] = positional.as_slice() else {
+        return Err(
+            "usage: leyline derive-check <processor>:<operation> [--from <dir>]".to_owned(),
+        );
+    };
+    let (source, operation) = processor_key(key, &options)?;
+    let report = leyline_sdk::derive::check_conformance(&source, &operation);
+    for failure in &report.failures {
+        eprintln!("fail: {failure}");
+    }
+    for warning in &report.warnings {
+        eprintln!("warn: {warning}");
+    }
+    if report.passed() {
+        println!("{key} speaks the protocol");
+        // Said every time, so nobody reads a pass as an endorsement.
+        println!("(the protocol only — the quality of the processing is not checked)");
         return Ok(());
     }
     Err(format!("{key} does not speak the protocol"))

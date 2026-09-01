@@ -2748,3 +2748,18 @@ msgstr "Couleur (#RRGGBB)"
 msgctxt "ExportDialog"
 msgid "Opacity (0-1)"
 msgstr "Opacité (0-1)"
+
+#: crates/leyline-studio/ui/panels/menubar.slint:378
+msgctxt "MenuBar"
+msgid "Process"
+msgstr "Traiter"
+
+#: crates/leyline-studio/ui/types.slint:487
+msgctxt "Tr"
+msgid "Processing…"
+msgstr "Traitement…"
+
+#: crates/leyline-studio/ui/types.slint:490
+msgctxt "Tr"
+msgid "{} added — a new photo carrying this one's development."
+msgstr "{} ajoutée — une nouvelle photo qui porte le développement de celle-ci."

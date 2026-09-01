@@ -280,6 +280,27 @@ impl Catalog {
             .map_err(db_err)
     }
 
+    /// The UTC offset the file recorded with its capture instant, when it
+    /// recorded one (`docs/catalog.md` §9).
+    ///
+    /// Read on its own rather than through [`Catalog::asset_details`]
+    /// because one caller needs exactly it and nothing else: a derivation
+    /// copies the parent's capture facts onto the file it produces
+    /// (ADR 0107 §5), and re-reading them from a TIFF this program wrote
+    /// would answer worse.
+    pub fn capture_offset_minutes(&self, asset: AssetId) -> Result<Option<i32>> {
+        self.conn
+            .query_row(
+                "SELECT capture_offset_minutes FROM assets WHERE id = ?1",
+                [asset.get()],
+                |row| row.get(0),
+            )
+            .map_err(|e| match e {
+                rusqlite::Error::QueryReturnedNoRows => LeylineError::AssetMissing(asset),
+                other => db_err(other),
+            })
+    }
+
     /// Which root holds this asset, and its path within that root
     /// (ADR 0085 §4).
     ///

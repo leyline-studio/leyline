@@ -31,6 +31,7 @@ Thirteen crates, each with a single responsibility.
 | `leyline-map` | Reading offline MBTiles tiles for the map view. |
 | `leyline-export` | Output encoding: JPEG, TIFF, PNG, WebP, AVIF, and print-to-PDF. |
 | `leyline-detect` | The contract, discovery and invocation of **external mask detectors** — executables that turn an image into a coverage ([ADR 0073](adr/0073-external-mask-detectors.md)). Detects nothing itself. |
+| `leyline-derive` | The contract, discovery and invocation of **external pixel processors** — executables that turn the develop buffer into another image ([ADR 0107](adr/0107-derived-assets-and-the-pixel-socket.md)). Processes nothing itself. |
 | `leyline-cull` | Technical quality measures and burst fingerprints for **assisted culling** ([ADR 0084](adr/0084-assisted-culling.md) §4): focus, clipping, perceptual fingerprint. No model, no weights, no I/O — it computes numbers and decides no verdict. |
 | `leyline-sdk` | The engine's stable public surface. The semver contract. |
 | `leyline-cli` | The command-line client. |
@@ -44,9 +45,11 @@ Thirteen crates, each with a single responsibility.
 Studio  →  SDK  →  Engine  →  Core
 ```
 
-`Catalog`, `RAW`, `Color`, `Lens`, `Tether`, `Map`, `Preview` and `Export` are consumed by `Engine`.
+`Catalog`, `RAW`, `Color`, `Lens`, `Tether`, `Map`, `Preview`, `Export` and `Derive` are consumed by `Engine`.
 
 `leyline-detect` stands apart: it depends only on `leyline-core`, the engine does not know it exists, and it is the SDK that re-exports it to clients. A mask detector has no business on a render path (ADR 0073 §2).
+
+`leyline-derive` depends only on `leyline-core` too, and the engine *does* consume it — the one difference between the two sockets, and it is not an inconsistency. A detector's answer becomes a setting the client writes; a processor's answer has to be **rendered before** and **imported after**, and both of those are the engine's own work ([ADR 0107](adr/0107-derived-assets-and-the-pixel-socket.md) §1). Nothing of the processor reaches a render path either way: what it produces is a file in the library.
 
 **No circular dependency is admitted.** The rule is mechanically verifiable: `cargo tree` must stay a tree.
 

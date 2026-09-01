@@ -219,10 +219,12 @@ pub(crate) fn file_image(path: &Path, media_type: MediaType) -> Option<RawImage>
             .ok()
             .and_then(|bytes| decode_jpeg(&bytes, THUMBNAIL_EDGE))
             .map(|(image, _)| image)
-            .or_else(|| crate::source::decode(path, &leyline_raw::DecodeParams::default()).ok()),
+            .or_else(|| {
+                crate::source::decode(path, &leyline_raw::DecodeParams::default(), false).ok()
+            }),
         // Decoded whole, then reduced: no DCT to ask anything of.
         MediaType::Png | MediaType::Tiff => {
-            crate::source::decode(path, &leyline_raw::DecodeParams::default()).ok()
+            crate::source::decode(path, &leyline_raw::DecodeParams::default(), false).ok()
         }
         MediaType::Heif | MediaType::Psd | MediaType::Other => None,
     }

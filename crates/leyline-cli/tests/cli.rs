@@ -210,6 +210,82 @@ fn the_cli_runs_and_checks_a_detector() {
     );
 }
 
+/// ADR 0107 §2 and §8: the CLI half of the pixel socket, against a fake
+/// processor — no model, no weights, a script that copies its input. The
+/// derived asset is a **new row** in the library, which is the decision of
+/// ADR 0102 made visible at a shell prompt.
+#[cfg(unix)]
+#[test]
+fn the_cli_runs_and_checks_a_pixel_processor() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().unwrap();
+    let root = library_with_a_photo(&dir);
+
+    let script = dir.path().join("fake-processor.sh");
+    std::fs::write(
+        &script,
+        "#!/bin/sh\nimage=\"\"; out=\"\"\nwhile [ $# -gt 0 ]; do\n\
+         case \"$1\" in\n --image) image=\"$2\"; shift 2;;\n \
+         --out) out=\"$2\"; shift 2;;\n *) shift;;\n esac\ndone\ncp \"$image\" \"$out\"\n",
+    )
+    .unwrap();
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+    let manifests = dir.path().join("processors");
+    std::fs::create_dir_all(&manifests).unwrap();
+    std::fs::write(
+        manifests.join("fake.json"),
+        format!(
+            r#"{{"id":"fake","label":"Fake","command":{:?},
+                "operations":[{{"id":"denoise","label":"Denoise"}}]}}"#,
+            script.to_str().unwrap()
+        ),
+    )
+    .unwrap();
+    let from = manifests.to_str().unwrap().to_owned();
+
+    let listing = stdout(&run(&["processors", "--from", &from]));
+    assert!(listing.contains("fake:denoise"), "{listing}");
+
+    // It speaks the protocol — and the identity answer is the case §8 warns
+    // about, so the warning is on stderr and the command still passes.
+    let out = run(&["derive-check", "fake:denoise", "--from", &from]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(
+        stdout(&out).contains("quality of the processing is not checked"),
+        "a pass must not read as an endorsement: {}",
+        stdout(&out)
+    );
+    assert!(stderr(&out).contains("did not load"), "{}", stderr(&out));
+
+    // And a derivation lands as a new asset beside the original.
+    let before = stdout(&run(&["info", &root]));
+    let out = run(&["derive", &root, "1", "fake:denoise", "--from", &from]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(
+        stdout(&out).contains("photo-denoise.tif"),
+        "{}",
+        stdout(&out)
+    );
+    assert!(
+        stdout(&out).contains("a new asset"),
+        "the shape of the answer is the decision, and it is said: {}",
+        stdout(&out)
+    );
+    assert_ne!(before, stdout(&run(&["info", &root])));
+
+    // Twice under the same name is refused, never overwritten.
+    let out = run(&["derive", &root, "1", "fake:denoise", "--from", &from]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("already exists"), "{}", stderr(&out));
+
+    // An unknown processor is named, not swallowed.
+    let out = run(&["derive", &root, "1", "nosuch:denoise", "--from", &from]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("nosuch"), "{}", stderr(&out));
+}
+
 /// ADR 0100: renaming moves the file and the catalog together, and refuses
 /// to overwrite.
 #[test]

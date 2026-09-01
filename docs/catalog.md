@@ -385,6 +385,10 @@ CREATE TABLE assets (
         REFERENCES assets(id)
         ON DELETE CASCADE,
 
+    derived_from INTEGER NULL
+        REFERENCES assets(id)
+        ON DELETE SET NULL,
+
     UNIQUE(folder_id, filename),
 
     FOREIGN KEY(folder_id)
@@ -499,6 +503,35 @@ Three invariants:
 The grid displays only masters — one `AND a.companion_of IS NULL` clause, in a single place, from which counting, filters, search and collections all derive. A companion keeps its row, its versions, its revisions and its classification: it leaves the grid, it does not leave the catalog, and `unpair` brings it back intact.
 
 Migration v3 **adds the column without pairing anything**: an existing library goes on displaying everything until the retroactive pass is explicitly asked for (§7 of the ADR).
+
+## A derived asset names what it was made from
+
+An external pixel processor — an AI denoiser, an upscaler — produces a **new
+photograph**, never a pipeline stage
+([ADR 0102](adr/0102-paid-extensions-and-the-pixel-boundary.md),
+[ADR 0107](adr/0107-derived-assets-and-the-pixel-socket.md)). `derived_from`
+is the only thing that remembers which photograph it was made from: `NULL`
+for every file anyone has ever imported, a value for the frame a processor
+wrote.
+
+It is deliberately the opposite of `companion_of` in both directions:
+
+* **it hides nothing.** A derived asset is a cell in the grid like any
+  other, because it is a picture the user will look at and choose between —
+  where a companion is a file *of* another photo and stands behind it;
+* **it outlives its parent.** `ON DELETE SET NULL`, not `CASCADE`: deleting
+  the original must not delete the denoised frame that was kept instead of
+  it. The lineage is lost, the photograph is not.
+
+The derived file inherits the parent's **metadata** row — same shot, same
+body, same second, and re-reading EXIF from a file this program just wrote
+would answer worse — and the parent's **development**, minus what its pixels
+already hold (ADR 0107 §5). It does not inherit rating, flags, keywords or
+collections: it is judged on its own.
+
+Migration v11 adds the column and its index, and nothing else: a foreign key
+with no index makes every delete of a parent row scan the child table whole
+(§Cascading foreign keys).
 
 ## Virtual versions
 
@@ -1537,6 +1570,9 @@ ON assets(checksum);
 
 CREATE INDEX idx_assets_companion
 ON assets(companion_of);
+
+CREATE INDEX idx_assets_derived
+ON assets(derived_from);
 
 CREATE INDEX idx_assets_grid
 ON assets(companion_of, capture_date, id);

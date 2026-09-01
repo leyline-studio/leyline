@@ -40,18 +40,31 @@ impl fmt::Display for SourceError {
 
 /// Decodes a source file to an interleaved RGB image.
 ///
-/// `params` drives LibRaw for RAW and DNG files. Non-RAW sources ignore
-/// it: they always come back full size, 8 bits per channel, with their
-/// EXIF orientation applied — decoding them is cheap enough that size
-/// classes are the scaler's business, not the decoder's.
-pub(crate) fn decode(path: &Path, params: &DecodeParams) -> Result<RawImage, SourceError> {
+/// `params` drives LibRaw for RAW and DNG files. Non-RAW sources read only
+/// `native_depth` of it: they always come back full size, with their EXIF
+/// orientation applied — decoding them is cheap enough that size classes
+/// are the scaler's business, not the decoder's — at eight bits per
+/// channel, or at their own depth when `native_depth` is set.
+///
+/// `native_depth` is not a caller's preference: it is what the revision's
+/// `input` version says (`stages::native_bit_depth`, ADR 0107 §6). Passing
+/// `false` is what every revision written before that version renders
+/// through, and passing it by hand belongs only to the paths that render no
+/// revision at all — the import thumbnailer's, which has none to read.
+pub(crate) fn decode(
+    path: &Path,
+    params: &DecodeParams,
+    native_depth: bool,
+) -> Result<RawImage, SourceError> {
     let media_type = path
         .extension()
         .and_then(|e| e.to_str())
         .map(|e| e.to_ascii_lowercase())
         .and_then(|e| crate::import::media_type(&e));
     match media_type {
-        Some(MediaType::Jpeg | MediaType::Png | MediaType::Tiff) => decode_native(path),
+        Some(MediaType::Jpeg | MediaType::Png | MediaType::Tiff) => {
+            decode_native(path, native_depth)
+        }
         Some(kind @ (MediaType::Heif | MediaType::Psd | MediaType::Other)) => {
             Err(SourceError::Undecodable(kind))
         }
@@ -112,8 +125,15 @@ pub(crate) fn probe_dimensions(path: &Path) -> Result<(u32, u32), SourceError> {
 }
 
 /// Decodes through the `image` crate: format sniffed from content, EXIF
-/// orientation applied, samples normalized to 8-bit RGB.
-fn decode_native(path: &Path) -> Result<RawImage, SourceError> {
+/// orientation applied, samples normalized to 8-bit RGB — or to 16-bit RGB
+/// when `native_depth` is set and the file carries more than eight bits
+/// (ADR 0107 §6).
+///
+/// A file that holds eight bits comes back as eight bits either way: there
+/// is nothing to keep, and promoting it would make the two paths differ for
+/// no gain. What `native_depth` decides is whether a 16-bit TIFF or PNG is
+/// truncated on the way in.
+fn decode_native(path: &Path, native_depth: bool) -> Result<RawImage, SourceError> {
     let reader = image::ImageReader::open(path)
         .and_then(|reader| reader.with_guessed_format())
         .map_err(|e| SourceError::Image(image::ImageError::IoError(e)))?;
@@ -121,6 +141,23 @@ fn decode_native(path: &Path) -> Result<RawImage, SourceError> {
     let orientation = decoder.orientation().map_err(SourceError::Image)?;
     let mut decoded = image::DynamicImage::from_decoder(decoder).map_err(SourceError::Image)?;
     decoded.apply_orientation(orientation);
+    if native_depth && wider_than_eight_bits(&decoded) {
+        let rgb = decoded.into_rgb16();
+        let (width, height) = (rgb.width(), rgb.height());
+        // Native-endian, because that is how `Pixels::from_raw` reads a
+        // 16-bit buffer — the same convention LibRaw's own output follows.
+        let data = rgb
+            .into_raw()
+            .into_iter()
+            .flat_map(u16::to_ne_bytes)
+            .collect();
+        return Ok(RawImage {
+            width,
+            height,
+            bits: 16,
+            data,
+        });
+    }
     let rgb = decoded.into_rgb8();
     Ok(RawImage {
         width: rgb.width(),
@@ -128,6 +165,21 @@ fn decode_native(path: &Path) -> Result<RawImage, SourceError> {
         bits: 8,
         data: rgb.into_raw(),
     })
+}
+
+/// Whether a decoded image holds more than eight bits per channel — the only
+/// case where keeping the native depth changes anything.
+fn wider_than_eight_bits(image: &image::DynamicImage) -> bool {
+    use image::DynamicImage::*;
+    matches!(
+        image,
+        ImageLuma16(_)
+            | ImageLumaA16(_)
+            | ImageRgb16(_)
+            | ImageRgba16(_)
+            | ImageRgb32F(_)
+            | ImageRgba32F(_)
+    )
 }
 
 #[cfg(test)]
@@ -153,7 +205,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         for name in ["a.png", "a.jpg", "a.tif"] {
             let decoded = sample(dir.path(), name);
-            let image = decode(&decoded, &DecodeParams::default()).unwrap();
+            let image = decode(&decoded, &DecodeParams::default(), false).unwrap();
             assert_eq!((image.width, image.height, image.bits), (2, 1, 8), "{name}");
             assert_eq!(image.data.len(), 6, "{name}");
         }
@@ -171,7 +223,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("broken.png");
         std::fs::write(&path, b"not an image at all").unwrap();
-        let err = decode(&path, &DecodeParams::default()).unwrap_err();
+        let err = decode(&path, &DecodeParams::default(), false).unwrap_err();
         assert!(matches!(err, SourceError::Image(_)), "got {err:?}");
     }
 
@@ -181,7 +233,7 @@ mod tests {
         for name in ["c.heic", "c.psd"] {
             let path = dir.path().join(name);
             std::fs::write(&path, b"whatever").unwrap();
-            let err = decode(&path, &DecodeParams::default()).unwrap_err();
+            let err = decode(&path, &DecodeParams::default(), false).unwrap_err();
             assert!(
                 err.to_string().contains("cannot be developed"),
                 "{name}: {err}"

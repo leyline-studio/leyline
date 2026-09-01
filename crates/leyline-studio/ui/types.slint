@@ -480,6 +480,16 @@ export global Tr {
     public pure function pair-library-none() -> string {
         return @tr("No RAW+JPEG couple left to pair.");
     }
+    // ADR 0107: the word that matters is "new photo" — a derivation is not
+    // an edit of the one it was made from, and a user who reads it as one
+    // will go looking for a slider to undo.
+    public pure function deriving-ellipsis() -> string {
+        return @tr("Processing…");
+    }
+    public pure function derived(name: string) -> string {
+        return @tr("{} added — a new photo carrying this one's development.", name);
+    }
+
     public pure function paired(n: int) -> string {
         return @tr("Paired {} shot." | "Paired {} shots." % n, n);
     }

@@ -36,9 +36,16 @@ use leyline_raw::{DecodeParams, RawImage};
 /// caller is about to use would defeat the cache without saving anything.
 const PROXY_BUDGET_BYTES: usize = 64 * 1024 * 1024;
 
+/// Everything a decode is a function of: the file, what LibRaw was asked
+/// for, and whether a non-RAW source kept its own bit depth — the second
+/// half of what an `input` version pins (ADR 0107 §6). Two revisions that
+/// differ only in that flag decode differently, so they must not share an
+/// entry.
+type DecodeKey = (AssetId, DecodeParams, bool);
+
 /// Everything a proxy is a function of: the decode it derives from, and the
 /// size class it was reduced to (ADR 0076 §1).
-type ProxyKey = (AssetId, DecodeParams, u32);
+type ProxyKey = (AssetId, DecodeParams, bool, u32);
 
 /// A reduced buffer and the scale factor the render must apply to its
 /// pixel-denominated radii because of it (ADR 0041 §2).
@@ -48,7 +55,7 @@ type Proxy = (Arc<RawImage>, f32);
 #[derive(Debug)]
 pub struct DecodeCache {
     /// Most recently used first.
-    entries: VecDeque<((AssetId, DecodeParams), Arc<RawImage>)>,
+    entries: VecDeque<(DecodeKey, Arc<RawImage>)>,
     capacity: usize,
     /// Reductions of `entries`. Most recently used first.
     proxies: VecDeque<(ProxyKey, Proxy)>,
@@ -73,15 +80,17 @@ impl DecodeCache {
         }
     }
 
-    /// Returns the cached image for `(asset, params)`, calling `decode` on
-    /// a miss and evicting the least recently used entry once full.
+    /// Returns the cached image for `(asset, params, native_depth)`, calling
+    /// `decode` on a miss and evicting the least recently used entry once
+    /// full.
     pub fn get_or_insert_with<E>(
         &mut self,
         asset: AssetId,
         params: &DecodeParams,
+        native_depth: bool,
         decode: impl FnOnce() -> Result<RawImage, E>,
     ) -> Result<Arc<RawImage>, E> {
-        let key = (asset, params.clone());
+        let key = (asset, params.clone(), native_depth);
         if let Some(position) = self.entries.iter().position(|(k, _)| *k == key) {
             let entry = self.entries.remove(position).expect("position is valid");
             self.entries.push_front(entry.clone());
@@ -110,19 +119,23 @@ impl DecodeCache {
         &mut self,
         asset: AssetId,
         params: &DecodeParams,
+        native_depth: bool,
         max_edge: Option<u32>,
         decode: impl FnOnce() -> Result<RawImage, E>,
     ) -> Result<Proxy, E> {
         let Some(edge) = max_edge else {
-            return Ok((self.get_or_insert_with(asset, params, decode)?, 1.0));
+            return Ok((
+                self.get_or_insert_with(asset, params, native_depth, decode)?,
+                1.0,
+            ));
         };
-        let key = (asset, params.clone(), edge);
+        let key = (asset, params.clone(), native_depth, edge);
         if let Some(position) = self.proxies.iter().position(|(k, _)| *k == key) {
             let entry = self.proxies.remove(position).expect("position is valid");
             self.proxies.push_front(entry.clone());
             return Ok(entry.1);
         }
-        let decoded = self.get_or_insert_with(asset, params, decode)?;
+        let decoded = self.get_or_insert_with(asset, params, native_depth, decode)?;
         let (scaled, scale) = crate::downscale::downscale_to_fit(&decoded, edge);
         // At scale 1.0 the reduction returned a clone of its input; keep the
         // original instead, so a `Thumbnail` of an already-tiny image costs a
@@ -187,32 +200,35 @@ mod tests {
 
         assert_eq!(
             cache
-                .get_or_insert_with(a, &params, decoded(1))
+                .get_or_insert_with(a, &params, false, decoded(1))
                 .unwrap()
                 .data[0],
             1
         );
         assert_eq!(
             cache
-                .get_or_insert_with(b, &params, decoded(2))
+                .get_or_insert_with(b, &params, false, decoded(2))
                 .unwrap()
                 .data[0],
             2
         );
         assert_eq!(
-            cache.get_or_insert_with(a, &params, never).unwrap().data[0],
+            cache
+                .get_or_insert_with(a, &params, false, never)
+                .unwrap()
+                .data[0],
             1
         );
 
         // `b` is now least recently used: inserting `c` evicts it.
         assert_eq!(
             cache
-                .get_or_insert_with(c, &params, decoded(3))
+                .get_or_insert_with(c, &params, false, decoded(3))
                 .unwrap()
                 .data[0],
             3
         );
-        assert!(cache.get_or_insert_with(b, &params, never).is_err());
+        assert!(cache.get_or_insert_with(b, &params, false, never).is_err());
     }
 
     #[test]
@@ -225,9 +241,13 @@ mod tests {
             ..DecodeParams::default()
         };
         cache
-            .get_or_insert_with(a, &full, || Ok::<_, ()>(pixel(1)))
+            .get_or_insert_with(a, &full, false, || Ok::<_, ()>(pixel(1)))
             .unwrap();
-        assert!(cache.get_or_insert_with(a, &half, || Err(())).is_err());
+        assert!(
+            cache
+                .get_or_insert_with(a, &half, false, || Err(()))
+                .is_err()
+        );
     }
 
     /// The point of ADR 0076: the second frame of a drag pays neither the
@@ -239,14 +259,14 @@ mod tests {
         let a = AssetId::new(1);
 
         let (first, scale) = cache
-            .get_or_insert_proxy(a, &params, Some(16), || Ok::<_, ()>(square(64, 7)))
+            .get_or_insert_proxy(a, &params, false, Some(16), || Ok::<_, ()>(square(64, 7)))
             .unwrap();
         assert_eq!((first.width, first.height), (16, 16));
         assert_eq!(scale, 0.25);
 
         // The decoder is gone; only the cache can answer now.
         let (again, again_scale) = cache
-            .get_or_insert_proxy(a, &params, Some(16), || Err(()))
+            .get_or_insert_proxy(a, &params, false, Some(16), || Err(()))
             .unwrap();
         assert_eq!(again.data, first.data);
         assert_eq!(again_scale, scale);
@@ -262,16 +282,16 @@ mod tests {
         let b = AssetId::new(2);
 
         cache
-            .get_or_insert_proxy(a, &params, Some(16), || Ok::<_, ()>(square(64, 7)))
+            .get_or_insert_proxy(a, &params, false, Some(16), || Ok::<_, ()>(square(64, 7)))
             .unwrap();
         // `b`'s decode evicts `a`'s, the decode list holding exactly one.
         cache
-            .get_or_insert_proxy(b, &params, Some(16), || Ok::<_, ()>(square(64, 9)))
+            .get_or_insert_proxy(b, &params, false, Some(16), || Ok::<_, ()>(square(64, 9)))
             .unwrap();
 
         assert_eq!(
             cache
-                .get_or_insert_proxy(a, &params, Some(16), || Err(()))
+                .get_or_insert_proxy(a, &params, false, Some(16), || Err(()))
                 .unwrap()
                 .0
                 .data[0],
@@ -292,12 +312,12 @@ mod tests {
         };
 
         cache
-            .get_or_insert_proxy(a, &full, Some(16), || Ok::<_, ()>(square(64, 7)))
+            .get_or_insert_proxy(a, &full, false, Some(16), || Ok::<_, ()>(square(64, 7)))
             .unwrap();
         // Another size class re-reduces — from the cached decode, so the
         // decoder is still never called, but never from the 16 px proxy.
         let (wider, scale) = cache
-            .get_or_insert_proxy(a, &full, Some(32), || Err(()))
+            .get_or_insert_proxy(a, &full, false, Some(32), || Err(()))
             .unwrap();
         assert_eq!(
             ((wider.width, wider.height), scale),
@@ -306,7 +326,7 @@ mod tests {
         );
         assert!(
             cache
-                .get_or_insert_proxy(a, &half, Some(16), || Err(()))
+                .get_or_insert_proxy(a, &half, false, Some(16), || Err(()))
                 .is_err(),
             "another decode served the first one's proxy"
         );
@@ -322,19 +342,19 @@ mod tests {
         let b = AssetId::new(2);
 
         let decoded = cache
-            .get_or_insert_with(a, &params, || Ok::<_, ()>(square(64, 7)))
+            .get_or_insert_with(a, &params, false, || Ok::<_, ()>(square(64, 7)))
             .unwrap();
         let (proxy, scale) = cache
-            .get_or_insert_proxy(a, &params, None, || Err(()))
+            .get_or_insert_proxy(a, &params, false, None, || Err(()))
             .unwrap();
         assert!(Arc::ptr_eq(&decoded, &proxy), "Full copied the decode");
         assert_eq!(scale, 1.0);
 
         let small = cache
-            .get_or_insert_with(b, &params, || Ok::<_, ()>(square(8, 9)))
+            .get_or_insert_with(b, &params, false, || Ok::<_, ()>(square(8, 9)))
             .unwrap();
         let (proxy, scale) = cache
-            .get_or_insert_proxy(b, &params, Some(16), || Err(()))
+            .get_or_insert_proxy(b, &params, false, Some(16), || Err(()))
             .unwrap();
         assert!(
             Arc::ptr_eq(&small, &proxy),
@@ -353,7 +373,9 @@ mod tests {
         let (a, b, c) = (AssetId::new(1), AssetId::new(2), AssetId::new(3));
         let proxy = |cache: &mut DecodeCache, asset, value| {
             cache
-                .get_or_insert_proxy(asset, &params, Some(16), || Ok::<_, ()>(square(64, value)))
+                .get_or_insert_proxy(asset, &params, false, Some(16), || {
+                    Ok::<_, ()>(square(64, value))
+                })
                 .unwrap()
         };
 
@@ -376,11 +398,15 @@ mod tests {
         let mut cache = DecodeCache::new(2);
         let a = AssetId::new(1);
         let params = DecodeParams::default();
-        assert!(cache.get_or_insert_with(a, &params, || Err(())).is_err());
+        assert!(
+            cache
+                .get_or_insert_with(a, &params, false, || Err(()))
+                .is_err()
+        );
         // The next call decodes again instead of serving a poisoned entry.
         assert_eq!(
             cache
-                .get_or_insert_with(a, &params, || Ok::<_, ()>(pixel(9)))
+                .get_or_insert_with(a, &params, false, || Ok::<_, ()>(pixel(9)))
                 .unwrap()
                 .data[0],
             9

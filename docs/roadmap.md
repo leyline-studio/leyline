@@ -70,6 +70,8 @@ Since then, the work has been about what a **first publication** still lacks:
 
 Then a run of five slices read straight off Lightroom Classic, each closing a gap a photographer coming from it would hit on the first afternoon: the tethered-capture **bar** rather than a receiver ([ADR 0087](adr/0087-tethered-capture-bar.md)), the presets panel beside develop ([ADR 0058](adr/0058-preset-provenance-and-shelf.md) §1–§4), `Auto` and black and white ([ADR 0088](adr/0088-auto-tone-and-black-and-white.md)), the profile browser ([ADR 0089](adr/0089-camera-profile-browser.md)), and the `Effects` panel — the vignette a photographer *adds*, and grain ([ADR 0090](adr/0090-effects-vignette-grain.md)).
 
+Then the second socket. [ADR 0073](adr/0073-external-mask-detectors.md) had built one for the half of the AI axis that produces *settings*; [ADR 0102](adr/0102-paid-extensions-and-the-pixel-boundary.md) settled the shape of the other half — an extension that must produce **pixels** produces a new asset, never a stage — and [ADR 0107](adr/0107-derived-assets-and-the-pixel-socket.md) builds it: `leyline-derive`, a processor called with two 16-bit TIFFs, and a derived file that replaces the **decode** rather than the development, so white balance, exposure, tone, masks and crop are all still settings on what comes back. No processor ships with Leyline, and a library that has never seen one opens, renders and exports what one produced.
+
 What [`readme.md`](readme.md) lists as still open remains the reference: DCP colorimetry not validated against the profile vendor's own render, and two finishing touches to local-adjustment tooling left out of scope by [ADR 0049](adr/0049-local-adjustments-clients.md).
 
 ---

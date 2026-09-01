@@ -3402,6 +3402,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "leyline-derive"
+version = "0.1.0-alpha.3"
+dependencies = [
+ "directories",
+ "image",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "leyline-detect"
 version = "0.1.0-alpha.3"
 dependencies = [
@@ -3425,6 +3437,7 @@ dependencies = [
  "leyline-catalog",
  "leyline-color",
  "leyline-core",
+ "leyline-derive",
  "leyline-export",
  "leyline-lens",
  "leyline-map",
@@ -3512,6 +3525,7 @@ dependencies = [
  "leyline-catalog",
  "leyline-color",
  "leyline-core",
+ "leyline-derive",
  "leyline-detect",
  "leyline-engine",
  "leyline-export",

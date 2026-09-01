@@ -9,6 +9,7 @@
 mod assets;
 mod collections;
 mod connection;
+mod derived;
 mod descriptions;
 mod details;
 mod exports;

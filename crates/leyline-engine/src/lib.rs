@@ -12,6 +12,7 @@
 mod auto_tone;
 mod camera_profile;
 mod decode_cache;
+mod derive;
 mod downscale;
 mod events;
 mod exif;

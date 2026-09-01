@@ -37,6 +37,7 @@ export component MenuBar inherits Rectangle {
     property <bool> apply-preset-submenu-open: false;
     property <bool> delete-preset-submenu-open: false;
     property <bool> open-recent-submenu-open: false;
+    property <bool> process-submenu-open: false;
 
     // `public` for the same reason `open-menu` is `in-out`: closing a menu
     // from the window's Escape handler has to collapse the submenus too.
@@ -47,6 +48,7 @@ export component MenuBar inherits Rectangle {
         root.apply-preset-submenu-open = false;
         root.delete-preset-submenu-open = false;
         root.open-recent-submenu-open = false;
+        root.process-submenu-open = false;
     }
 
 
@@ -365,6 +367,26 @@ export component MenuBar inherits Rectangle {
                 activated => {
                     DevelopState.develop-reprocess();
                     root.open-menu = "";
+                }
+            }
+            // Photo ▸ Process: an external processor makes a NEW photograph
+            // from this one (ADR 0107). Placed under Photo and not under
+            // Develop on purpose — nothing here edits the open revision.
+            // No processor installed, no submenu: an operation that cannot
+            // run must not appear greyed out either.
+            if LibraryState.processors.length > 0: SubmenuHeader {
+                title: @tr("Process");
+                expanded <=> root.process-submenu-open;
+                enabled: GridState.selected >= 0;
+            }
+            if root.process-submenu-open: VerticalLayout {
+                for row[index] in LibraryState.processors: MenuRow {
+                    title: row.label;
+                    activated => {
+                        LibraryState.derive-selected(row.key);
+                        root.open-menu = "";
+                        root.reset-submenus();
+                    }
                 }
             }
             MenuSep { }

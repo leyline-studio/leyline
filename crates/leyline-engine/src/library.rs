@@ -2738,6 +2738,58 @@ impl Library {
         Ok(())
     }
 
+    /// Runs an external pixel processor over a version and files what comes
+    /// back as a **new asset** (ADR 0107).
+    ///
+    /// The whole gesture: the photograph is developed up to rank 20 — after
+    /// the decode and the camera profile, before everything else — handed to
+    /// `processor` as a 16-bit linear TIFF, and the answer is written beside
+    /// the original, imported, given the parent's metadata and the parent's
+    /// development, and recorded as derived from it.
+    ///
+    /// **The engine renders and imports; the processor is a separate
+    /// process.** It never opens the catalog, takes no lock, and learns no
+    /// identifier — which is why a library that has never seen one still
+    /// opens, renders and exports what one produced. Nothing here is a
+    /// pipeline stage: a purchase can never become the condition of
+    /// rendering a revision the library already holds
+    /// ([ADR 0102](../../../docs/adr/0102-paid-extensions-and-the-pixel-boundary.md)).
+    ///
+    /// The catalog is locked twice, briefly, with the slow half between —
+    /// the split ADR 0024 made for exports, for the same reason: a denoise
+    /// is minutes of work and the library must stay usable throughout.
+    ///
+    /// Refuses when the destination name is taken: a derivation never
+    /// overwrites.
+    pub fn derive(
+        &self,
+        version: VersionId,
+        processor: &leyline_derive::ProcessorSource,
+        operation: &str,
+    ) -> Result<AssetId> {
+        if self.catalog().is_read_only() {
+            return Err(LeylineError::Db(
+                "library opened read-only; writes are refused".to_owned(),
+            ));
+        }
+        let plan = {
+            let catalog = lock(&self.inner.catalog);
+            crate::derive::plan_derive(&catalog, &self.inner.root, version)?
+        };
+        let answer = crate::derive::exchange(&plan, processor, operation)?;
+        let asset = {
+            let mut catalog = lock(&self.inner.catalog);
+            crate::derive::register(&mut catalog, &plan, operation, &answer)?
+        };
+        // The same event an ordinary import fires: a derived asset is a
+        // photograph in the library, and a grid has no reason to learn a
+        // second word for a new row appearing.
+        self.emit(Event::AssetsAdded {
+            asset_ids: vec![asset],
+        });
+        Ok(asset)
+    }
+
     /// Stores a mask coverage in the library and returns the
     /// [`leyline_core::Mask`] that references it (ADR 0070 §5).
     ///

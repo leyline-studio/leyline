@@ -52,3 +52,17 @@ pub use leyline_detect::{
     coverage_from_image, detect, detect_coverage, discover, discover_in, manifests_dir,
     rejected_in,
 };
+
+/// External pixel processors (ADR 0107). Not part of the engine either: a
+/// processor is a separate process turning the develop buffer into another
+/// image, and `Library::derive` files what comes back as a **new asset**,
+/// never a stage.
+///
+/// A module rather than flat re-exports, and the reason is the sentence
+/// above: the two sockets use the same words for the same ideas —
+/// `discover`, `Rejection`, `check_conformance` — so flattening both would
+/// force one of them to rename its own vocabulary in the façade.
+/// `leyline_detect` is aliased beside it for symmetry; its flat re-exports
+/// stay, because clients already use them.
+pub use leyline_derive as derive;
+pub use leyline_detect as detect;
