@@ -2517,6 +2517,70 @@ export component DevelopPanel inherits HorizontalLayout {
                                     MaskState.preview-mask(MaskState.selected-mask, "saturation", v);
                                 }
                             }
+                            // The five that read a neighbourhood (ADR 0108).
+                            // Texture below zero softens — the one thing the
+                            // develop module could not do at any strength
+                            // before, and the reason these five exist.
+                            EditSlider {
+                                label: @tr("Clarity");
+                                minimum: -100;
+                                maximum: 100;
+                                value: editor.sel.clarity;
+                                edited(v) => {
+                                    MaskState.edit-mask(MaskState.selected-mask, "clarity", v);
+                                }
+                                previewing(v) => {
+                                    MaskState.preview-mask(MaskState.selected-mask, "clarity", v);
+                                }
+                            }
+                            EditSlider {
+                                label: @tr("Texture");
+                                minimum: -100;
+                                maximum: 100;
+                                value: editor.sel.texture;
+                                edited(v) => {
+                                    MaskState.edit-mask(MaskState.selected-mask, "texture", v);
+                                }
+                                previewing(v) => {
+                                    MaskState.preview-mask(MaskState.selected-mask, "texture", v);
+                                }
+                            }
+                            EditSlider {
+                                label: @tr("Sharpness");
+                                minimum: -100;
+                                maximum: 100;
+                                value: editor.sel.sharpness;
+                                edited(v) => {
+                                    MaskState.edit-mask(MaskState.selected-mask, "sharpness", v);
+                                }
+                                previewing(v) => {
+                                    MaskState.preview-mask(MaskState.selected-mask, "sharpness", v);
+                                }
+                            }
+                            EditSlider {
+                                label: @tr("Luminance noise");
+                                minimum: 0;
+                                maximum: 100;
+                                value: editor.sel.noise-luminance;
+                                edited(v) => {
+                                    MaskState.edit-mask(MaskState.selected-mask, "noise-luminance", v);
+                                }
+                                previewing(v) => {
+                                    MaskState.preview-mask(MaskState.selected-mask, "noise-luminance", v);
+                                }
+                            }
+                            EditSlider {
+                                label: @tr("Color noise");
+                                minimum: 0;
+                                maximum: 100;
+                                value: editor.sel.noise-color;
+                                edited(v) => {
+                                    MaskState.edit-mask(MaskState.selected-mask, "noise-color", v);
+                                }
+                                previewing(v) => {
+                                    MaskState.preview-mask(MaskState.selected-mask, "noise-color", v);
+                                }
+                            }
                             FilterChip {
                                 text: @tr("Local white balance");
                                 active: editor.sel.wb-on;

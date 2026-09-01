@@ -629,6 +629,29 @@ fn stage_cases() -> Vec<(&'static str, Settings)> {
             },
         ),
         (
+            // The same radial as `local_radial`, with the five neighbourhood
+            // values set: the difference between the two *is* their cost
+            // (ADR 0108, Consequences).
+            "local_radial_neighbourhood",
+            Settings {
+                local_adjustments: vec![LocalAdjustment {
+                    mask: Mask::Radial {
+                        cx: 0.5,
+                        cy: 0.5,
+                        rx: 0.3,
+                        ry: 0.25,
+                        angle: 15.0,
+                        feather: 0.5,
+                        inverted: false,
+                    },
+                    range: None,
+                    opacity: 1.0,
+                    adjustments: local_values_neighbourhood(),
+                }],
+                ..base.clone()
+            },
+        ),
+        (
             "noise_reduction",
             Settings {
                 noise_reduction: NoiseReduction {
@@ -690,6 +713,22 @@ fn local_values() -> LocalAdjustmentValues {
         blacks: Some(-5),
         vibrance: Some(15),
         saturation: Some(10),
+        ..Default::default()
+    }
+}
+
+/// The same entry plus the five operators that read a **neighbourhood**
+/// (ADR 0108). Kept apart from `local_values` so the pair measures exactly
+/// what the five cost: one full-frame pass per set value, on top of the copy
+/// every local adjustment already pays.
+fn local_values_neighbourhood() -> LocalAdjustmentValues {
+    LocalAdjustmentValues {
+        clarity: Some(30),
+        texture: Some(-40),
+        sharpness: Some(25),
+        noise_luminance: Some(20),
+        noise_color: Some(15),
+        ..local_values()
     }
 }
 

@@ -133,6 +133,7 @@ pub(crate) mod local_adjustments {
     pub(crate) mod v1;
     pub(crate) mod v2;
     pub(crate) mod v3;
+    pub(crate) mod v4;
 }
 pub(crate) mod noise_luminance {
     pub(crate) mod v1;
@@ -783,6 +784,28 @@ pub(crate) static STAGES: &[Stage] = &[
                         &ctx.settings.local_adjustments,
                         ctx.settings.rotation,
                         ctx.coverages,
+                    );
+                },
+            },
+            // The five neighbourhood operators (ADR 0108): clarity, texture,
+            // sharpness and the two noise reductions, which existed globally
+            // and nowhere else. An entry that sets none of them renders here
+            // exactly as v3 renders it.
+            //
+            // This is the first version of the stage to read `scale`: every
+            // radius it binds is expressed at full resolution, so a preview
+            // must shrink them or show a different picture than the export.
+            Version {
+                version: 4,
+                rank: 160,
+                space: Space::LinearRec2020,
+                apply: |px, ctx| {
+                    local_adjustments::v4::local_adjustments(
+                        px,
+                        &ctx.settings.local_adjustments,
+                        ctx.settings.rotation,
+                        ctx.coverages,
+                        ctx.scale,
                     );
                 },
             },

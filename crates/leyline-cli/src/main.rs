@@ -257,6 +257,10 @@ Develop params (docs/pipeline.md §3.2, schema 1):
                                     \"rx\":0.3,\"ry\":0.3,\"angle\":0,\"feather\":0.5,
                                     \"inverted\":false},\"opacity\":1,
                                     \"adjustments\":{\"exposure\":-0.5}}';
+                                    adjustments accepte aussi clarity, texture,
+                                    sharpness (chacun dans [-100, 100]) et
+                                    noise_luminance, noise_color (dans [0, 100]),
+                                    les cinq opérateurs à voisinage de l'ADR 0108 ;
                                     @file reads the payload from a file instead
   local-adjustment rm <index>       removes the adjustment at that index
   local-adjustment reset            removes every local adjustment
@@ -3104,6 +3108,26 @@ mod tests {
                 ..LocalAdjustmentValues::default()
             },
         }
+    }
+
+    /// ADR 0108's five keys travel the payload path with no CLI code of
+    /// their own — the payload *is* `settings_json`, so a new value in the
+    /// document is a new key here by construction. This test is what keeps
+    /// that claim honest.
+    #[test]
+    fn a_payload_carries_the_five_neighbourhood_values() {
+        let json = r#"{"mask":{"type":"everything"},"opacity":0.8,
+            "adjustments":{"clarity":30,"texture":-45,"sharpness":20,
+            "noise_luminance":15,"noise_color":10}}"#;
+        let updates = local_adjustment_updates(json, None, &[]).unwrap();
+        let [(_, Value::LocalAdjustment(Some(entry)))] = updates.as_slice() else {
+            panic!("expected one appended entry, got {updates:?}");
+        };
+        assert_eq!(entry.adjustments.clarity, Some(30));
+        assert_eq!(entry.adjustments.texture, Some(-45));
+        assert_eq!(entry.adjustments.sharpness, Some(20));
+        assert_eq!(entry.adjustments.noise_luminance, Some(15));
+        assert_eq!(entry.adjustments.noise_color, Some(10));
     }
 
     #[test]

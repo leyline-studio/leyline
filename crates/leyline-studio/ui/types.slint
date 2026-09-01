@@ -233,6 +233,15 @@ export struct MaskRow {
     blacks: float,
     vibrance: float,
     saturation: float,
+    // The five operators that read a neighbourhood (ADR 0108). Clarity,
+    // texture and sharpness run [-100, 100] — the negative half is the
+    // softening nothing else in the panel can do; the two noise sliders
+    // have no meaningful negative and run [0, 100].
+    clarity: float,
+    texture: float,
+    sharpness: float,
+    noise-luminance: float,
+    noise-color: float,
     range-luminance-on: bool,
     lum-min: float,
     lum-max: float,

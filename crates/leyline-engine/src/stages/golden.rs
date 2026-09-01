@@ -375,6 +375,11 @@ fn local_values() -> LocalAdjustmentValues {
         blacks: Some(-5),
         vibrance: Some(15),
         saturation: Some(10),
+        // The five ADR 0108 added stay `None`: this fixture ships, so it is
+        // never edited to mean something new (see the module docs). What it
+        // freezes is exactly what it froze before — which is also what makes
+        // it the `v3`/`v4` twin of ADR 0108 §6.
+        ..Default::default()
     }
 }
 
@@ -400,6 +405,43 @@ fn locals_range(settings: Settings) -> Settings {
             }),
             opacity: 0.85,
             adjustments: local_values(),
+        }],
+        ..settings
+    }
+}
+
+/// The five neighbourhood operators on a mask (ADR 0108): a new case rather
+/// than a change to `locals`, which ships and is therefore never edited.
+///
+/// A radial rather than `Mask::Everything`, so the coverage varies and what
+/// gets frozen includes the blend across a mask edge — the place where
+/// ADR 0108 §2's semantic is visible, a pixel taking a value its neighbours
+/// outside the mask helped compute.
+///
+/// `texture` is negative on purpose: the softening is the one thing the
+/// develop module could not express at any strength before this version.
+fn locals_neighbourhood(settings: Settings) -> Settings {
+    Settings {
+        local_adjustments: vec![LocalAdjustment {
+            mask: Mask::Radial {
+                cx: 0.5,
+                cy: 0.45,
+                rx: 0.35,
+                ry: 0.3,
+                angle: 0.0,
+                feather: 0.4,
+                inverted: false,
+            },
+            range: None,
+            opacity: 0.8,
+            adjustments: LocalAdjustmentValues {
+                clarity: Some(40),
+                texture: Some(-60),
+                sharpness: Some(50),
+                noise_luminance: Some(30),
+                noise_color: Some(25),
+                ..Default::default()
+            },
         }],
         ..settings
     }
@@ -678,6 +720,7 @@ fn cases() -> Vec<(String, Case)> {
         ("red_eye", red_eye(base.clone())),
         ("locals", locals(base.clone())),
         ("locals_range", locals_range(base.clone())),
+        ("locals_neighbourhood", locals_neighbourhood(base.clone())),
         ("hsl_grading", hsl_grading(base.clone())),
         ("monochrome", monochrome(base.clone())),
         ("presence", presence(base.clone())),

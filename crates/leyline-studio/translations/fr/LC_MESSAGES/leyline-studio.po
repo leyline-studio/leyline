@@ -2803,3 +2803,18 @@ msgstr[1] ""
 msgctxt "Tr"
 msgid "Nothing to propose: no burst, and nothing technically wrong."
 msgstr "Rien à proposer : aucune rafale, et rien de techniquement raté."
+
+#: crates/leyline-studio/ui/panels/develop.slint:2549
+msgctxt "DevelopPanel"
+msgid "Sharpness"
+msgstr "Netteté"
+
+#: crates/leyline-studio/ui/panels/develop.slint:2561
+msgctxt "DevelopPanel"
+msgid "Luminance noise"
+msgstr "Bruit de luminance"
+
+#: crates/leyline-studio/ui/panels/develop.slint:2573
+msgctxt "DevelopPanel"
+msgid "Color noise"
+msgstr "Bruit de couleur"

@@ -330,6 +330,10 @@ pub fn edit_field(
         let rounded = value.round() as i32;
         (rounded != 0).then_some(rounded)
     };
+    let positive_level = || {
+        let rounded = (value.round() as i32).clamp(0, 100);
+        (rounded != 0).then_some(rounded)
+    };
     match field {
         "opacity" => entry.opacity = unit(),
         "feather" => match &mut entry.mask {
@@ -367,6 +371,15 @@ pub fn edit_field(
         "blacks" => entry.adjustments.blacks = level(),
         "vibrance" => entry.adjustments.vibrance = level(),
         "saturation" => entry.adjustments.saturation = level(),
+        // The five of ADR 0108, neutral-is-absent like every level above.
+        "clarity" => entry.adjustments.clarity = level(),
+        "texture" => entry.adjustments.texture = level(),
+        "sharpness" => entry.adjustments.sharpness = level(),
+        // Noise reduction has no meaningful negative, and `Settings::validate`
+        // refuses one: clamp at the panel rather than let a drag build a
+        // document the engine will reject.
+        "noise-luminance" => entry.adjustments.noise_luminance = positive_level(),
+        "noise-color" => entry.adjustments.noise_color = positive_level(),
         "range-luminance" => {
             let mut range = entry.range.clone().unwrap_or_default();
             range.luminance = on.then(LuminanceRange::default);
@@ -750,6 +763,56 @@ mod tests {
         assert_eq!(entry.range.unwrap().color.unwrap().width, 1.0);
     }
 
+    /// ADR 0108's five arrive through the same neutral-is-absent path as
+    /// every level before them, and the two noise sliders clamp instead of
+    /// composing an entry `Settings::validate` would refuse.
+    #[test]
+    fn the_five_neighbourhood_fields_are_written_and_cleared() {
+        let settings = settings_with(vec![radial()]);
+        for (field, value, expected) in [
+            ("clarity", 40.0, Some(40)),
+            ("texture", -60.0, Some(-60)),
+            ("sharpness", 25.0, Some(25)),
+            ("noise-luminance", 30.0, Some(30)),
+            ("noise-color", 20.0, Some(20)),
+        ] {
+            let (_, entry) = written(edit_field(0, field, value, &settings));
+            let values = &entry.adjustments;
+            let got = match field {
+                "clarity" => values.clarity,
+                "texture" => values.texture,
+                "sharpness" => values.sharpness,
+                "noise-luminance" => values.noise_luminance,
+                _ => values.noise_color,
+            };
+            assert_eq!(got, expected, "{field}");
+
+            // Back to neutral clears the value rather than storing a zero:
+            // the entry must not carry a key that means "do nothing".
+            let (_, entry) = written(edit_field(0, field, 0.0, &settings));
+            let values = &entry.adjustments;
+            assert!(
+                !values.uses_neighbourhood_operators(),
+                "{field} kept a zero"
+            );
+        }
+    }
+
+    /// A negative on a slider that has no negative is clamped at the panel,
+    /// not passed on: the engine refuses it, and a drag must not be able to
+    /// compose a document it will reject.
+    #[test]
+    fn a_negative_noise_value_is_clamped_to_neutral() {
+        let settings = settings_with(vec![radial()]);
+        for field in ["noise-luminance", "noise-color"] {
+            let (_, entry) = written(edit_field(0, field, -50.0, &settings));
+            assert!(
+                !entry.adjustments.uses_neighbourhood_operators(),
+                "{field} stored a negative"
+            );
+        }
+    }
+
     #[test]
     fn unknown_fields_and_rows_do_nothing() {
         let settings = settings_with(vec![radial()]);
@@ -779,6 +842,15 @@ mod tests {
             ("blacks", -100.0),
             ("vibrance", 100.0),
             ("saturation", -100.0),
+            ("clarity", 100.0),
+            ("texture", -100.0),
+            ("sharpness", -100.0),
+            // Past both ends of the two sliders that have no negative: the
+            // panel clamps, so the engine never sees the refusal.
+            ("noise-luminance", -100.0),
+            ("noise-luminance", 100.0),
+            ("noise-color", -100.0),
+            ("noise-color", 100.0),
             ("range-luminance", 1.0),
             ("lum-min", 0.0),
             ("lum-max", 100.0),

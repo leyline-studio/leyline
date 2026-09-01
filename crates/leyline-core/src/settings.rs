@@ -786,6 +786,52 @@ pub struct LocalAdjustmentValues {
     /// Same unit and meaning as [`Settings::saturation`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub saturation: Option<i32>,
+    /// Same unit, meaning and radius constant as [`Settings::clarity`]
+    /// (ADR 0108 §3).
+    ///
+    /// Requires `local_adjustments` at version 4 or later: the five
+    /// neighbourhood values below are a capability of that version, and
+    /// [`Settings::validate`] refuses them on an earlier one rather than
+    /// let a slider do nothing (ADR 0108 §5).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub clarity: Option<i32>,
+    /// Same unit, meaning and radius constant as [`Settings::texture`].
+    /// Negative is the softening the develop module has no other way to
+    /// express (ADR 0108 §1). Requires `local_adjustments` at version 4.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub texture: Option<i32>,
+    /// Unsharp mask strength, slider in [-100, +100]. Below zero it
+    /// subtracts its own detail, which softens.
+    ///
+    /// One number, not [`Sharpening`]'s three: the radius and the edge mask
+    /// are bound to the stage version, never read from the revision's global
+    /// sharpening (ADR 0108 §3). Requires `local_adjustments` at version 4.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sharpness: Option<i32>,
+    /// Same unit and meaning as [`NoiseReduction::luminance`], slider in
+    /// [0, 100]. Runs the edge-preserving operator of rank 170, never the
+    /// measured one of rank 5, whose thresholds are meaningless this late
+    /// (ADR 0108 §3). Requires `local_adjustments` at version 4.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub noise_luminance: Option<i32>,
+    /// Same unit and meaning as [`NoiseReduction::color`], slider in
+    /// [0, 100]. Requires `local_adjustments` at version 4.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub noise_color: Option<i32>,
+}
+
+impl LocalAdjustmentValues {
+    /// Whether this entry asks for any of the five neighbourhood operators
+    /// ADR 0108 added — the ones `local_adjustments` versions 1 to 3 have no
+    /// code for.
+    #[must_use]
+    pub fn uses_neighbourhood_operators(&self) -> bool {
+        self.clarity.is_some()
+            || self.texture.is_some()
+            || self.sharpness.is_some()
+            || self.noise_luminance.is_some()
+            || self.noise_color.is_some()
+    }
 }
 
 /// One masked, locally re-parameterized adjustment (ADR 0029): a mask plus
@@ -1436,6 +1482,22 @@ impl Settings {
                     exposure,
                 )?;
             }
+            // The five neighbourhood operators are a *capability* of v4, for
+            // the same reason a range mask is one of v2 and a stored coverage
+            // one of v3: the earlier versions have no code for them, and the
+            // pinning rule (ADR 0042 §2) keeps a pinned stage where it is.
+            // Refusing names the version; dropping them would be a slider
+            // that does nothing (ADR 0048 §5, applied again by ADR 0108 §5).
+            if values.uses_neighbourhood_operators()
+                && matches!(self.stages.get("local_adjustments"), Some(&v) if v < 4)
+            {
+                return Err(LeylineError::InvalidSettings(format!(
+                    "local_adjustments[{i}].adjustments asks for clarity, texture, \
+                     sharpness or noise, which needs stage local_adjustments version 4, \
+                     but this revision pins an earlier one; reprocess the photo to the \
+                     current stage versions first"
+                )));
+            }
             for (name, value) in [
                 ("contrast", values.contrast),
                 ("highlights", values.highlights),
@@ -1444,12 +1506,30 @@ impl Settings {
                 ("blacks", values.blacks),
                 ("vibrance", values.vibrance),
                 ("saturation", values.saturation),
+                ("clarity", values.clarity),
+                ("texture", values.texture),
+                ("sharpness", values.sharpness),
             ] {
                 if let Some(value) = value {
                     slider(
                         &format!("local_adjustments[{i}].adjustments.{name}"),
                         value,
                         -100,
+                        100,
+                    )?;
+                }
+            }
+            // Noise reduction has no meaningful negative, exactly as the
+            // global sliders of `noise_reduction` have none.
+            for (name, value) in [
+                ("noise_luminance", values.noise_luminance),
+                ("noise_color", values.noise_color),
+            ] {
+                if let Some(value) = value {
+                    slider(
+                        &format!("local_adjustments[{i}].adjustments.{name}"),
+                        value,
+                        0,
                         100,
                     )?;
                 }
@@ -2411,6 +2491,160 @@ mod tests {
             ..Settings::default()
         };
         unpinned.validate().unwrap();
+    }
+
+    fn neighbourhood_adjustment() -> LocalAdjustment {
+        LocalAdjustment {
+            adjustments: LocalAdjustmentValues {
+                texture: Some(-40),
+                ..radial_adjustment().adjustments
+            },
+            ..radial_adjustment()
+        }
+    }
+
+    /// ADR 0108 §5: the capability rule for the fourth time. Versions 1 to 3
+    /// have no code for the five neighbourhood operators, so a revision
+    /// pinned at any of them is refused rather than rendered with a slider
+    /// that silently does nothing.
+    #[test]
+    fn a_neighbourhood_value_below_local_adjustments_v4_is_refused() {
+        for pinned in [1, 2, 3] {
+            let s = Settings {
+                local_adjustments: vec![neighbourhood_adjustment()],
+                stages: StageVersions::from([("local_adjustments".to_owned(), pinned)]),
+                ..Settings::default()
+            };
+            let message = match s.validate() {
+                Err(LeylineError::InvalidSettings(message)) => message,
+                other => panic!("expected a refusal at v{pinned}, got {other:?}"),
+            };
+            // The message names the remedy, as ADR 0048 §5's does: the user
+            // cannot guess that reprocessing is what unblocks them.
+            assert!(message.contains("reprocess"), "v{pinned}: {message}");
+            assert!(message.contains("version 4"), "v{pinned}: {message}");
+        }
+    }
+
+    #[test]
+    fn a_neighbourhood_value_is_accepted_at_v4_and_on_unpinned_settings() {
+        let at_v4 = Settings {
+            local_adjustments: vec![neighbourhood_adjustment()],
+            stages: StageVersions::from([("local_adjustments".to_owned(), 4)]),
+            ..Settings::default()
+        };
+        at_v4.validate().unwrap();
+
+        let unpinned = Settings {
+            local_adjustments: vec![neighbourhood_adjustment()],
+            ..Settings::default()
+        };
+        unpinned.validate().unwrap();
+    }
+
+    /// A revision pinned at an older version that never asks for one of the
+    /// five stays valid — the refusal is about the *setting*, not about the
+    /// pinning. The mirror of `masking_zero_...` for ADR 0096.
+    #[test]
+    fn an_old_pin_without_any_neighbourhood_value_stays_valid() {
+        for pinned in [1, 2, 3] {
+            let s = Settings {
+                local_adjustments: vec![radial_adjustment()],
+                stages: StageVersions::from([("local_adjustments".to_owned(), pinned)]),
+                ..Settings::default()
+            };
+            s.validate().unwrap();
+        }
+    }
+
+    /// Noise reduction has no meaningful negative, exactly as its global
+    /// sliders have none — while texture, clarity and sharpness do, and the
+    /// negative half is the point (ADR 0108 §1).
+    #[test]
+    fn local_noise_refuses_a_negative_while_texture_accepts_one() {
+        let with = |values: LocalAdjustmentValues| Settings {
+            local_adjustments: vec![LocalAdjustment {
+                adjustments: values,
+                ..radial_adjustment()
+            }],
+            ..Settings::default()
+        };
+        assert!(
+            with(LocalAdjustmentValues {
+                noise_luminance: Some(-1),
+                ..LocalAdjustmentValues::default()
+            })
+            .validate()
+            .is_err()
+        );
+        assert!(
+            with(LocalAdjustmentValues {
+                noise_color: Some(-1),
+                ..LocalAdjustmentValues::default()
+            })
+            .validate()
+            .is_err()
+        );
+        for values in [
+            LocalAdjustmentValues {
+                texture: Some(-100),
+                ..LocalAdjustmentValues::default()
+            },
+            LocalAdjustmentValues {
+                clarity: Some(-100),
+                ..LocalAdjustmentValues::default()
+            },
+            LocalAdjustmentValues {
+                sharpness: Some(-100),
+                ..LocalAdjustmentValues::default()
+            },
+        ] {
+            with(values).validate().unwrap();
+        }
+    }
+
+    /// The five are omitted from a stored document when neutral, like every
+    /// other optional local value (`docs/pipeline.md` §3.4).
+    #[test]
+    fn the_five_neighbourhood_values_round_trip_and_are_omitted_when_absent() {
+        let plain = Settings {
+            local_adjustments: vec![radial_adjustment()],
+            ..Settings::default()
+        };
+        // Read the entry's own `adjustments` object rather than the whole
+        // document: `clarity` and `texture` are *also* global sliders, always
+        // serialized, so a substring search over the document proves nothing.
+        let json: serde_json::Value = serde_json::from_str(&plain.to_json()).unwrap();
+        let stored = &json["local_adjustments"][0]["adjustments"];
+        for name in [
+            "clarity",
+            "texture",
+            "sharpness",
+            "noise_luminance",
+            "noise_color",
+        ] {
+            assert!(
+                stored.get(name).is_none(),
+                "{name} leaked into a neutral entry: {stored}"
+            );
+        }
+
+        let set = Settings {
+            local_adjustments: vec![LocalAdjustment {
+                adjustments: LocalAdjustmentValues {
+                    clarity: Some(30),
+                    texture: Some(-45),
+                    sharpness: Some(20),
+                    noise_luminance: Some(15),
+                    noise_color: Some(10),
+                    ..LocalAdjustmentValues::default()
+                },
+                ..radial_adjustment()
+            }],
+            ..Settings::default()
+        };
+        let parsed = Settings::parse(&set.to_json()).unwrap();
+        assert_eq!(parsed.local_adjustments, set.local_adjustments);
     }
 
     /// ADR 0096 §3: the capability rule, applied to sharpening's edge mask.
