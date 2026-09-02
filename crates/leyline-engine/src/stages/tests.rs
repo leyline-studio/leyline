@@ -113,6 +113,7 @@ fn enabled_settings() -> Settings {
         lens_correction: LensCorrection {
             enabled: true,
             profile: "auto".to_owned(),
+            ..LensCorrection::default()
         },
         ..Settings::default()
     }
@@ -1615,6 +1616,7 @@ fn everything() -> Settings {
         lens_correction: LensCorrection {
             enabled: true,
             profile: "auto".to_owned(),
+            ..LensCorrection::default()
         },
         spot_removal: vec![SpotRemoval {
             target: Point { x: 0.5, y: 0.5 },

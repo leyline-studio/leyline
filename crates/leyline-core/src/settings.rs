@@ -110,10 +110,30 @@ pub const WHITE_BALANCE_PRESETS: &[WhiteBalancePreset] = &[
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct LensCorrection {
-    /// Whether the correction is applied at all.
+    /// Whether the Lensfun-backed correction (distortion, vignetting, TCA)
+    /// is applied at all.
     pub enabled: bool,
     /// Profile selection; `"auto"` matches the lens from metadata.
     pub profile: String,
+    /// Manual transverse chromatic aberration, red channel: the radial
+    /// magnification error as a **percent of the radius**, in `[-1, 1]`
+    /// (ADR 0111 §1). The output pixel at radius `r` reads red at
+    /// `r × (1 + tca_red / 100)`.
+    ///
+    /// A percentage rather than a pixel displacement because one number is
+    /// stored and applied at every resolution: a proxy, a preview and a
+    /// full export correct the same aberration only if the unit is
+    /// dimensionless.
+    ///
+    /// Measured by `Library::estimate_tca`, never by the render itself —
+    /// and requires `lens` at version 2, which [`Settings::validate`]
+    /// enforces rather than dropping the value in silence.
+    #[serde(default)]
+    pub tca_red: f64,
+    /// Manual transverse chromatic aberration, blue channel. Same unit,
+    /// range and rules as [`LensCorrection::tca_red`].
+    #[serde(default)]
+    pub tca_blue: f64,
 }
 
 impl Default for LensCorrection {
@@ -121,7 +141,21 @@ impl Default for LensCorrection {
         Self {
             enabled: false,
             profile: "auto".to_owned(),
+            tca_red: 0.0,
+            tca_blue: 0.0,
         }
+    }
+}
+
+impl LensCorrection {
+    /// Whether either manual coefficient asks for a resampling (ADR 0111 §5).
+    ///
+    /// The stage runs for these alone, without `enabled`: a lens Lensfun has
+    /// never heard of is exactly the case this correction exists for, and
+    /// switching on a distortion correction that has no data would be a
+    /// strange price to pay for it.
+    pub fn has_manual_tca(&self) -> bool {
+        self.tca_red != 0.0 || self.tca_blue != 0.0
     }
 }
 
@@ -1617,6 +1651,29 @@ impl Settings {
                     .to_owned(),
             ));
         }
+        // Manual transverse chromatic aberration (ADR 0111 §1): a percent of
+        // the radius, and one percent is already far beyond any real lens.
+        for (name, value) in [
+            ("lens_correction.tca_red", self.lens_correction.tca_red),
+            ("lens_correction.tca_blue", self.lens_correction.tca_blue),
+        ] {
+            finite(name, value)?;
+            if !(-1.0..=1.0).contains(&value) {
+                return Err(LeylineError::InvalidSettings(format!(
+                    "{name} must be in [-1, 1] percent of the radius, got {value}"
+                )));
+            }
+        }
+        // The capability rule again (ADR 0111 §5), for the same reason as
+        // `sharpening.masking` above: v1 has no manual map.
+        if self.lens_correction.has_manual_tca() && self.stages.get("lens") == Some(&1) {
+            return Err(LeylineError::InvalidSettings(
+                "lens_correction.tca_red/tca_blue need stage lens version 2, but this \
+                 revision pins version 1; reprocess the photo to the current stage \
+                 versions first"
+                    .to_owned(),
+            ));
+        }
         if let Some(profile) = &self.camera_profile {
             validate_library_relative_path("camera_profile.path", &profile.path)?;
             let hex = profile.checksum.strip_prefix("blake3:").ok_or_else(|| {
@@ -2696,6 +2753,91 @@ mod tests {
         }
         .validate()
         .unwrap();
+    }
+
+    /// The same rule for ADR 0111's manual chromatic aberration, and the
+    /// same three cases: refused at v1, accepted at v2 and unpinned, and a
+    /// v1 revision that never asks for it left alone.
+    #[test]
+    fn manual_tca_on_a_revision_pinned_at_lens_v1_is_refused() {
+        let measured = LensCorrection {
+            enabled: false,
+            tca_red: 0.12,
+            ..LensCorrection::default()
+        };
+        let refused = Settings {
+            lens_correction: measured.clone(),
+            stages: StageVersions::from([("lens".to_owned(), 1)]),
+            ..Settings::default()
+        };
+        let message = match refused.validate() {
+            Err(LeylineError::InvalidSettings(message)) => message,
+            other => panic!("expected a refusal, got {other:?}"),
+        };
+        assert!(message.contains("lens version 2"), "{message}");
+        assert!(message.contains("reprocess"), "{message}");
+
+        Settings {
+            lens_correction: measured.clone(),
+            stages: StageVersions::from([("lens".to_owned(), 2)]),
+            ..Settings::default()
+        }
+        .validate()
+        .unwrap();
+        Settings {
+            lens_correction: measured,
+            ..Settings::default()
+        }
+        .validate()
+        .unwrap();
+
+        // A lens correction pinned at v1 that never asks for the manual map
+        // stays valid — including with the Lensfun half switched on.
+        Settings {
+            lens_correction: LensCorrection {
+                enabled: true,
+                ..LensCorrection::default()
+            },
+            stages: StageVersions::from([("lens".to_owned(), 1)]),
+            ..Settings::default()
+        }
+        .validate()
+        .unwrap();
+    }
+
+    /// A percent of the radius, and one percent is already absurd for a real
+    /// lens — the range is refused by name rather than clamped in silence.
+    #[test]
+    fn a_manual_tca_beyond_one_percent_is_refused() {
+        for (red, blue) in [(1.5, 0.0), (0.0, -2.0), (f64::NAN, 0.0)] {
+            let settings = Settings {
+                lens_correction: LensCorrection {
+                    tca_red: red,
+                    tca_blue: blue,
+                    ..LensCorrection::default()
+                },
+                ..Settings::default()
+            };
+            assert!(
+                matches!(settings.validate(), Err(LeylineError::InvalidSettings(_))),
+                "{red} / {blue} should be refused"
+            );
+        }
+    }
+
+    /// The two coefficients activate the correction on their own — the
+    /// property ADR 0111 §5 turns into the stage's `active` predicate.
+    #[test]
+    fn manual_tca_is_asked_for_without_enabling_the_profile_correction() {
+        let off = LensCorrection::default();
+        assert!(!off.has_manual_tca());
+        assert!(
+            LensCorrection {
+                tca_blue: -0.05,
+                ..LensCorrection::default()
+            }
+            .has_manual_tca()
+        );
     }
 
     #[test]

@@ -372,7 +372,7 @@ export component EditSlider inherits HorizontalLayout {
     property <bool> dragging;
     property <float> drag-value;
     property <float> shown: root.dragging ? root.drag-value : root.value;
-    property <float> factor: root.decimals == 0 ? 1 : 100;
+    property <float> factor: Math.pow(10, root.decimals);
     property <float> rounded: Math.round(root.shown * root.factor) / root.factor;
 
     spacing: 8px;

@@ -31,6 +31,7 @@ use leyline_core::{
 use leyline_export::{ContactSheetSettings, ExportSettings, PrintSettings};
 use leyline_preview::{PreviewCache, Rgb8};
 
+use crate::auto_tca::TcaEstimate;
 use crate::auto_tone::AutoTone;
 use crate::contact_sheet::{ContactSheetRecipe, ContactSheetReport, ContactSheetRequest};
 use crate::cull::{CullOptions, CullProposal};
@@ -2010,6 +2011,43 @@ impl Library {
             crate::print::plan_print(&catalog, &self.inner.root, version)?
         };
         crate::print::render_print(&plan, settings, destination_dir)
+    }
+
+    /// Measures the transverse chromatic aberration of a version's
+    /// photograph (ADR 0111 §3): two numbers, in percent of the radius,
+    /// ready to be written into `LensCorrection::tca_red`/`tca_blue`.
+    ///
+    /// **Nothing is written here.** The measurement is a proposal, like
+    /// [`Library::auto_tone`]'s: the caller decides, and an ordinary
+    /// `EditSession` records the decision (ADR 0111 §2). Below
+    /// [`crate::auto_tca::MIN_SAMPLES`] usable edges the answer is zero,
+    /// with the sample count saying why.
+    ///
+    /// The photograph is decoded **at full size**, not at the half size a
+    /// thumbnail would use: LibRaw's half-size path takes red and blue from
+    /// their own sites in the Bayer cell, which displaces the two channels
+    /// against each other by construction — the very quantity being
+    /// measured here.
+    pub fn estimate_tca(&self, version: VersionId) -> Result<TcaEstimate> {
+        let (asset, source, develop) = {
+            let catalog = lock(&self.inner.catalog);
+            let asset = catalog.version_asset(version)?;
+            let head = catalog.version_head(version)?;
+            let develop = Settings::parse(&catalog.revision(head)?.settings_json)?;
+            let source = crate::roots::locate(&catalog, &self.inner.root, asset)?;
+            (asset, source, develop)
+        };
+        let params = crate::stages::decode_params(&develop, false);
+        let native_depth = crate::stages::native_bit_depth(&develop);
+        let decoded = crate::source::decode(&source, &params, native_depth).map_err(|e| {
+            LeylineError::DecodeFailed {
+                asset,
+                reason: e.to_string(),
+            }
+        })?;
+        Ok(crate::auto_tca::estimate(&crate::pixels::Pixels::from_raw(
+            &decoded,
+        )?))
     }
 
     /// Stores a named print preset (ADR 0036), validating the recipe first.

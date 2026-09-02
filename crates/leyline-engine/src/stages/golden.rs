@@ -306,6 +306,23 @@ fn lens(settings: Settings) -> Settings {
         lens_correction: LensCorrection {
             enabled: true,
             profile: "auto".to_owned(),
+            ..LensCorrection::default()
+        },
+        ..settings
+    }
+}
+
+/// Manual transverse chromatic aberration (ADR 0111): the stage runs on the
+/// two coefficients alone, with `enabled` off and no Lensfun profile in
+/// sight — which is what this case is for, and also what makes it
+/// deterministic on a machine whose lens database differs.
+fn lens_tca(settings: Settings) -> Settings {
+    Settings {
+        lens_correction: LensCorrection {
+            enabled: false,
+            tca_red: 0.2,
+            tca_blue: -0.15,
+            ..LensCorrection::default()
         },
         ..settings
     }
@@ -713,6 +730,7 @@ fn cases() -> Vec<(String, Case)> {
         ("detail_masking", detail_masking(base.clone())),
         ("geometry", geometry(base.clone())),
         ("lens", lens(base.clone())),
+        ("lens_tca", lens_tca(base.clone())),
         ("camera_profile", camera_profile(base.clone())),
         ("tone_curve", tone_curve(base.clone())),
         ("tone_curve_channels", tone_curve_channels(base.clone())),

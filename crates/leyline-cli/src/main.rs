@@ -45,6 +45,10 @@ Usage:
                                     ou exactement avec --exact, qui lit chaque
                                     fichier en entier et nomme l'asset (ADR 0095)
   leyline auto-tone <library> <version-id> [--dry-run]
+  leyline auto-tca <library> <version-id> [--dry-run]
+                                    measures the lens's chromatic aberration on
+                                    this photo and writes it to the revision
+                                    (ADR 0111); --dry-run only prints it
                                     propose une tonalité et l'écrit (ADR 0088) ;
                                     --dry-run affiche sans committer
   leyline rename <library> <template> <asset-id>...
@@ -334,6 +338,7 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("import") => import(&args[1..]),
         Some("scan") => scan(&args[1..]),
         Some("auto-tone") => auto_tone(&args[1..]),
+        Some("auto-tca") => auto_tca(&args[1..]),
         Some("auto-wb") => auto_wb(&args[1..]),
         Some("sample-range") => sample_range(&args[1..]),
         Some("describe") => describe(&args[1..]),
@@ -1249,13 +1254,26 @@ fn develop(args: &[String]) -> Result<(), String> {
                 "off" => false,
                 other => return Err(format!("expected on/off, got {other:?}")),
             };
+            // The measured coefficients survive the switch: they are not
+            // Lensfun's, and turning the profile correction off is not a
+            // reason to lose them (ADR 0111 §5).
             (
                 Param::LensCorrection,
                 Value::LensCorrection(LensCorrection {
                     enabled,
-                    profile: "auto".to_owned(),
+                    ..session.settings().lens_correction.clone()
                 }),
             )
+        }
+        // Manual transverse chromatic aberration (ADR 0111): two percents of
+        // the radius, as `auto-tca` measures them.
+        "lens-tca" => {
+            let lens = LensCorrection {
+                tca_red: float_at(0)?,
+                tca_blue: float_at(1)?,
+                ..session.settings().lens_correction.clone()
+            };
+            (Param::LensCorrection, Value::LensCorrection(lens))
         }
         "noise-reduction" => (
             Param::NoiseReduction,
@@ -1767,6 +1785,46 @@ fn preset_rm(args: &[String]) -> Result<(), String> {
 /// Prints what it chose before writing it: a command line is where one
 /// checks what Auto decided, and five numbers on stdout are a better answer
 /// than a photo that changed.
+/// Measures transverse chromatic aberration and writes it into the revision
+/// (ADR 0111). Same shape as [`auto_tone`]: a measurement, printed, then an
+/// ordinary edit — never an automatic one.
+fn auto_tca(args: &[String]) -> Result<(), String> {
+    let (positional, options) = parse(args, &[])?;
+    let [root, version] = positional.as_slice() else {
+        return Err("usage: leyline auto-tca <library> <version-id> [--dry-run]".to_owned());
+    };
+    let library = open(root)?;
+    let version = VersionId::new(version.parse().map_err(|_| "version id must be a number")?);
+    let estimate = library.estimate_tca(version).map_err(|e| e.to_string())?;
+    println!(
+        "red {:+.3} %  blue {:+.3} %  ({} edge samples)",
+        estimate.red, estimate.blue, estimate.samples
+    );
+    if estimate.samples < leyline_sdk::TCA_MIN_SAMPLES {
+        return Err(format!(
+            "not enough usable edges on this photo ({} < {}): try a frame with \
+             detail away from the centre",
+            estimate.samples,
+            leyline_sdk::TCA_MIN_SAMPLES
+        ));
+    }
+    if options.switch("dry-run") {
+        return Ok(());
+    }
+    let mut session = library.edit(version).map_err(|e| e.to_string())?;
+    let lens = LensCorrection {
+        tca_red: estimate.red,
+        tca_blue: estimate.blue,
+        ..session.settings().lens_correction.clone()
+    };
+    session
+        .set(Param::LensCorrection, Value::LensCorrection(lens))
+        .map_err(|e| e.to_string())?;
+    let revision = session.commit().map_err(|e| e.to_string())?;
+    println!("committed revision {revision}");
+    Ok(())
+}
+
 fn auto_tone(args: &[String]) -> Result<(), String> {
     let (positional, options) = parse(args, &[])?;
     let [root, version] = positional.as_slice() else {

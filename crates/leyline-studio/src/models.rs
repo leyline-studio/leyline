@@ -102,6 +102,8 @@ pub(crate) fn dev_model(settings: &Settings) -> crate::ui::DevSettings {
         grain_roughness: settings.grain.roughness as f32,
         monochrome: settings.monochrome,
         lens_correction: settings.lens_correction.enabled,
+        lens_tca_red: settings.lens_correction.tca_red as f32,
+        lens_tca_blue: settings.lens_correction.tca_blue as f32,
         camera_profile: settings
             .camera_profile
             .as_ref()

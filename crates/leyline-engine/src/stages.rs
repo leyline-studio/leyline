@@ -85,6 +85,7 @@ pub(crate) mod camera_profile {
 }
 pub(crate) mod lens {
     pub(crate) mod v1;
+    pub(crate) mod v2;
 }
 pub(crate) mod red_eye {
     pub(crate) mod v1;
@@ -493,30 +494,78 @@ pub(crate) static STAGES: &[Stage] = &[
     },
     Stage {
         name: "lens",
-        active: |settings| settings.lens_correction.enabled,
+        // The manual coefficients activate the stage on their own
+        // (ADR 0111 §5): an uncalibrated lens is the case they exist for,
+        // and enabling a distortion correction that has no data to work
+        // from would be a strange price to pay for a colour fringe.
+        active: |settings| {
+            settings.lens_correction.enabled || settings.lens_correction.has_manual_tca()
+        },
         reads: &["lens_correction"],
-        versions: &[Version {
-            version: 1,
-            rank: 20,
-            space: Space::LinearRec2020,
-            apply: |px, ctx| {
-                let Some(shot) = ctx.shot else { return };
-                if let Some(profile) = leyline_lens::find_profile(
-                    &shot.camera_make,
-                    &shot.camera_model,
-                    shot.lens_make.as_deref(),
-                    shot.lens_model.as_deref().unwrap_or(""),
-                ) {
-                    let correction =
-                        leyline_lens::Correction::new(&profile, shot.focal_mm, px.width, px.height);
-                    *px = lens::v1::undistort(px, &correction);
-                    *px = lens::v1::correct_tca(px, &correction);
-                    if let Some(aperture_f) = shot.aperture_f {
-                        lens::v1::devignette(px, &profile, shot.focal_mm, aperture_f);
+        versions: &[
+            Version {
+                version: 1,
+                rank: 20,
+                space: Space::LinearRec2020,
+                apply: |px, ctx| {
+                    let Some(shot) = ctx.shot else { return };
+                    if let Some(profile) = leyline_lens::find_profile(
+                        &shot.camera_make,
+                        &shot.camera_model,
+                        shot.lens_make.as_deref(),
+                        shot.lens_model.as_deref().unwrap_or(""),
+                    ) {
+                        let correction = leyline_lens::Correction::new(
+                            &profile,
+                            shot.focal_mm,
+                            px.width,
+                            px.height,
+                        );
+                        *px = lens::v1::undistort(px, &correction);
+                        *px = lens::v1::correct_tca(px, &correction);
+                        if let Some(aperture_f) = shot.aperture_f {
+                            lens::v1::devignette(px, &profile, shot.focal_mm, aperture_f);
+                        }
                     }
-                }
+                },
             },
-        }],
+            // Manual transverse chromatic aberration (ADR 0111): the same
+            // Lensfun corrections, plus two measured coefficients folded
+            // into the one per-channel resample. At zero coefficients this
+            // renders v1's pixels bit for bit.
+            Version {
+                version: 2,
+                rank: 20,
+                space: Space::LinearRec2020,
+                apply: |px, ctx| {
+                    let lens = &ctx.settings.lens_correction;
+                    // The Lensfun half only when the caller asked for it,
+                    // and only when the shot says what it was taken with.
+                    let profile = lens.enabled.then_some(ctx.shot).flatten().and_then(|shot| {
+                        leyline_lens::find_profile(
+                            &shot.camera_make,
+                            &shot.camera_model,
+                            shot.lens_make.as_deref(),
+                            shot.lens_model.as_deref().unwrap_or(""),
+                        )
+                        .map(|profile| (profile, shot))
+                    });
+                    let correction = profile.as_ref().map(|(profile, shot)| {
+                        leyline_lens::Correction::new(profile, shot.focal_mm, px.width, px.height)
+                    });
+                    if let Some(correction) = &correction {
+                        *px = lens::v2::undistort(px, correction);
+                    }
+                    *px =
+                        lens::v2::correct_tca(px, correction.as_ref(), lens.tca_red, lens.tca_blue);
+                    if let Some((profile, shot)) = &profile {
+                        if let Some(aperture_f) = shot.aperture_f {
+                            lens::v2::devignette(px, profile, shot.focal_mm, aperture_f);
+                        }
+                    }
+                },
+            },
+        ],
     },
     Stage {
         // Right after `spot_removal` and before every tonal stage

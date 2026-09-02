@@ -9,6 +9,7 @@
 //! Editing goes through [`EditSession`], which owns the coalescence policy
 //! of `docs/engine-api.md` §10.1 on top of the catalog's revision mechanics.
 
+mod auto_tca;
 mod auto_tone;
 mod camera_profile;
 mod contact_sheet;
@@ -42,6 +43,7 @@ mod watch;
 mod wb;
 mod xmp;
 
+pub use auto_tca::{MIN_SAMPLES as TCA_MIN_SAMPLES, TcaEstimate};
 pub use auto_tone::AutoTone;
 pub use contact_sheet::{ContactSheetRecipe, ContactSheetReport, ContactSheetRequest};
 pub use cull::{

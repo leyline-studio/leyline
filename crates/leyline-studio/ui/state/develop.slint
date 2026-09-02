@@ -106,6 +106,10 @@ export global DevelopState {
     // nothing — no revision, no cached preview. The committing twins above
     // still fire on release.
     callback develop-preview(string, float);
+    // Measures this photo's chromatic aberration and writes both
+    // coefficients (ADR 0111 §2): a press, never an automatic step, and the
+    // result lands in the history as one ordinary edit.
+    callback measure-tca();
     // Highlight reconstruction (ADR 0050): the mode name the decoder is
     // asked for — "clip", "blend" or "rebuild". Its own callback rather than
     // a `develop-edit` with a number, because the three modes are not points

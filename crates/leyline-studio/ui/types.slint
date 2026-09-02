@@ -309,6 +309,10 @@ export struct DevSettings {
     // the photo back exactly as it was — nothing else moved.
     monochrome: bool,
     lens-correction: bool,
+    // Manual transverse chromatic aberration (ADR 0111), percent of the
+    // radius: measured by the button beside them, or dragged by hand.
+    lens-tca-red: float,
+    lens-tca-blue: float,
     // Whether the referenced camera profile is applied (ADR 0035); its
     // name lives in `camera-profile-name`, empty when none is referenced.
     camera-profile: bool,
@@ -461,6 +465,11 @@ export global Tr {
     }
     public pure function sheet-empty-cells(n: int) -> string {
         return @tr("{} photo could not be rendered and left an empty cell." | "{} photos could not be rendered and left empty cells." % n, n);
+    }
+    // Chromatic aberration (ADR 0111 §6): a photograph with nothing to
+    // measure on gets an answer, not a silence.
+    public pure function tca-not-enough-edges(samples: int) -> string {
+        return @tr("Not enough usable edges on this photo ({}) — try a frame with detail away from the centre.", samples);
     }
     public pure function sheet-failed(reason: string) -> string {
         return @tr("Contact sheet failed: {}", reason);

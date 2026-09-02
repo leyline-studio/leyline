@@ -1460,6 +1460,55 @@ export component DevelopPanel inherits HorizontalLayout {
                                 DevelopState.develop-edit("lens-correction", DevelopState.dev.lens-correction ? 0 : 1);
                             }
                         }
+                        // Manual chromatic aberration (ADR 0111): usable on
+                        // its own, which is the point — an uncalibrated lens
+                        // gets nothing from the profile above.
+                        Text {
+                            text: @tr("Chromatic aberration (% of radius)");
+                            color: #9a9a9a;
+                            font-size: 12px;
+                        }
+                        EditSlider {
+                            label: @tr("Red / cyan");
+                            minimum: -0.5;
+                            maximum: 0.5;
+                            decimals: 3;
+                            value: DevelopState.dev.lens-tca-red;
+                            track-from: #cc4444;
+                            track-to: #44cccc;
+                            edited(v) => {
+                                DevelopState.develop-edit("lens-tca-red", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("lens-tca-red", v);
+                            }
+                        }
+                        EditSlider {
+                            label: @tr("Blue / yellow");
+                            minimum: -0.5;
+                            maximum: 0.5;
+                            decimals: 3;
+                            value: DevelopState.dev.lens-tca-blue;
+                            track-from: #4466cc;
+                            track-to: #cccc44;
+                            edited(v) => {
+                                DevelopState.develop-edit("lens-tca-blue", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("lens-tca-blue", v);
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: start;
+                            FilterChip {
+                                text: @tr("Measure from this photo");
+                                active: false;
+                                clicked => {
+                                    DevelopState.measure-tca();
+                                }
+                            }
+                        }
                     }
 
                     GroupHeader {

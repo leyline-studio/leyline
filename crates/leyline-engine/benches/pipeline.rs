@@ -293,6 +293,7 @@ fn benches(c: &mut Criterion) {
             lens_correction: LensCorrection {
                 enabled: true,
                 profile: "auto".to_owned(),
+                ..LensCorrection::default()
             },
             ..tone_settings()
         };
@@ -328,6 +329,7 @@ fn benches(c: &mut Criterion) {
             lens_correction: LensCorrection {
                 enabled: true,
                 profile: "auto".to_owned(),
+                ..LensCorrection::default()
             },
             ..tone_settings()
         };
@@ -691,6 +693,7 @@ fn stage_cases() -> Vec<(&'static str, Settings)> {
                 lens_correction: LensCorrection {
                     enabled: true,
                     profile: "auto".to_owned(),
+                    ..LensCorrection::default()
                 },
                 ..base.clone()
             },

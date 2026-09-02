@@ -250,7 +250,7 @@ Never a delta.
         }
     ],
 
-    "lens_correction": { "enabled": true, "profile": "auto" },
+    "lens_correction": { "enabled": true, "profile": "auto", "tca_red": 0.034, "tca_blue": -0.012 },
     "noise_reduction": { "luminance": 15, "color": 25 },
     "sharpening": { "amount": 40, "radius": 1.0, "masking": 0 },
     "output_rendering": { "highlight_rolloff": 50 },
@@ -294,7 +294,7 @@ Neutral values of schema 1:
 | `hsl` | absent — 8 bands at `{ "hue": 0, "saturation": 0, "luminance": 0 }` |
 | `monochrome` | absent — `false` |
 | `color_grading` | absent — each zone at `{ "hue": 0, "saturation": 0, "luminance": 0 }`, `balance`/`blending` at 0 |
-| `lens_correction` | `{ "enabled": false, "profile": "auto" }` |
+| `lens_correction` | `{ "enabled": false, "profile": "auto", "tca_red": 0.0, "tca_blue": 0.0 }` |
 | `noise_reduction` | `{ "luminance": 0, "color": 0 }` |
 | `sharpening` | `{ "amount": 0, "radius": 1.0, "masking": 0 }` |
 | `output_rendering` | `{ "highlight_rolloff": 50 }` — the only field whose default value is not "do nothing": there is no render without an output, so it is a rendering choice, frozen with the stage version that reads it (ADR 0044 §3). Importing a JPEG/PNG/TIFF opens it at 0, there being no headroom to recover |
@@ -350,7 +350,7 @@ The code of every stage version is kept in the engine forever: that is the price
 
 **Known stages, and the order in which they run.** The pre-publication render history was collapsed ([ADR 0043](adr/0043-collapse-prerelease-render-history.md)), since no revision in the world cited it: every stage therefore started again at version 1. Four have had a second version since: the two noise stages ([ADR 0046](adr/0046-edge-preserving-denoise.md), taken to version 3 by [ADR 0072](adr/0072-measured-noise-profile.md) — the first to change **rank** while changing version), local adjustments ([ADR 0048](adr/0048-range-masks.md), taken to version 3 by [ADR 0070](adr/0070-stored-mask-coverage.md)) and `input` ([ADR 0050](adr/0050-highlight-reconstruction.md)) — `input` having since risen to version 5 ([ADR 0061](adr/0061-demosaic-algorithm.md), then [ADR 0066](adr/0066-sensor-white-level.md), then [ADR 0107](adr/0107-derived-assets-and-the-pixel-socket.md)), and `camera_profile` to version 3 ([ADR 0062](adr/0062-dcp-illuminant-interpolation.md), [ADR 0063](adr/0063-dcp-tables.md)). The current version, the one a new revision pins, is the **last** one listed for each stage.
 
-**A setting that a pinned version cannot express is refused.** ADR 0046 fixed a render; ADR 0048 **extends** an operator, and so brings out a case nothing had tested: a setting whose very existence depends on the stage version. Since a stage already recorded keeps its version, a revision pinned at `local_adjustments: 1` cannot carry a range mask — and `Settings::validate()` **refuses** it, naming the remedy (reprocess, §4.5) instead of letting the setting silently disappear. This is the general rule for any future feature added to an existing stage. ADR 0050 applies it a second time, one notch lower: the highlight reconstruction mode is a **decoder configuration**, which `input::v1` does not read — a revision pinned at `input: 1` therefore refuses it the same way. [ADR 0107](adr/0107-derived-assets-and-the-pixel-socket.md) applies it where the consequence is worst: an `input` below 5 would convert a buffer that is *already* in the working space, so the photograph would come back visibly wrong rather than merely unchanged. [ADR 0108](adr/0108-local-texture-clarity-sharpness-noise.md) applies it to the five neighbourhood values a local adjustment gained: a revision pinned below `local_adjustments: 4` refuses them, naming the version.
+**A setting that a pinned version cannot express is refused.** ADR 0046 fixed a render; ADR 0048 **extends** an operator, and so brings out a case nothing had tested: a setting whose very existence depends on the stage version. Since a stage already recorded keeps its version, a revision pinned at `local_adjustments: 1` cannot carry a range mask — and `Settings::validate()` **refuses** it, naming the remedy (reprocess, §4.5) instead of letting the setting silently disappear. This is the general rule for any future feature added to an existing stage. ADR 0050 applies it a second time, one notch lower: the highlight reconstruction mode is a **decoder configuration**, which `input::v1` does not read — a revision pinned at `input: 1` therefore refuses it the same way. [ADR 0107](adr/0107-derived-assets-and-the-pixel-socket.md) applies it where the consequence is worst: an `input` below 5 would convert a buffer that is *already* in the working space, so the photograph would come back visibly wrong rather than merely unchanged. [ADR 0108](adr/0108-local-texture-clarity-sharpness-noise.md) applies it to the five neighbourhood values a local adjustment gained: a revision pinned below `local_adjustments: 4` refuses them, naming the version. [ADR 0111](adr/0111-adaptive-chromatic-aberration.md) applies it to the two measured chromatic aberration coefficients: a revision pinned at `lens: 1` refuses them, since v1 has no manual map to put them in.
 
 | Rank | Stage | Version | Role |
 |---|---|---|---|
@@ -365,6 +365,7 @@ The code of every stage version is kept in the engine forever: that is the price
 | 10 | `camera_profile` | 2 | The same, **interpolating** the two calibration illuminants in mireds according to the scene temperature, instead of averaging them ([ADR 0062](adr/0062-dcp-illuminant-interpolation.md)) |
 | 10 | `camera_profile` | 3 | The same, plus the profile's tables — `HueSatMap`, `LookTable`, `ProfileToneCurve` — in the order and the ProPhoto space of the DNG specification ([ADR 0063](adr/0063-dcp-tables.md)) |
 | 20 | `lens` | 1 | Distortion, transverse chromatic aberration and vignetting through a Lensfun profile (ADR 0016–0018) |
+| 20 | `lens` | 2 | The same, plus two **measured** chromatic aberration coefficients folded into the same per-channel resample — the correction for a lens Lensfun has never calibrated ([ADR 0111](adr/0111-adaptive-chromatic-aberration.md)). At zero coefficients, bit-identical to v1 |
 | 30 | `spot_removal` | 1 | Deterministic cloning by a softened bilinear copy, with no *heal* mode (ADR 0031) |
 | 35 | `red_eye` | 1 | Red-eye correction: a hand-placed disk, corrected by red dominance (ADR 0103) |
 | 40 | `gains` | 1 | White balance and exposure: a per-channel multiplication, the buffer being already in linear light (ADR 0044) |

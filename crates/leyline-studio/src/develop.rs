@@ -77,11 +77,28 @@ pub fn action(slider: &str, value: f64, current: &Settings) -> Option<(Param, Va
         // saturation, does not touch the mixer, does not "apply a look".
         // Pressing it twice gives the photo back exactly as it was.
         "monochrome" => (Param::Monochrome, Value::Bool(value != 0.0)),
+        // The measured coefficients survive the toggle: they are not
+        // Lensfun's, and switching the profile correction off is not a
+        // reason to lose them (ADR 0111 §5).
         "lens-correction" => (
             Param::LensCorrection,
             Value::LensCorrection(LensCorrection {
                 enabled: value != 0.0,
-                profile: "auto".to_owned(),
+                ..current.lens_correction.clone()
+            }),
+        ),
+        "lens-tca-red" => (
+            Param::LensCorrection,
+            Value::LensCorrection(LensCorrection {
+                tca_red: value,
+                ..current.lens_correction.clone()
+            }),
+        ),
+        "lens-tca-blue" => (
+            Param::LensCorrection,
+            Value::LensCorrection(LensCorrection {
+                tca_blue: value,
+                ..current.lens_correction.clone()
             }),
         ),
         "wb-temp" => {
@@ -745,6 +762,7 @@ mod tests {
                 Value::LensCorrection(LensCorrection {
                     enabled: true,
                     profile: "auto".to_owned(),
+                    ..LensCorrection::default()
                 })
             ))
         );
@@ -755,6 +773,7 @@ mod tests {
                 Value::LensCorrection(LensCorrection {
                     enabled: false,
                     profile: "auto".to_owned(),
+                    ..LensCorrection::default()
                 })
             ))
         );

@@ -1116,3 +1116,40 @@ fn contact_sheet_writes_one_pdf_and_stores_its_recipe() {
         stderr(&out)
     );
 }
+
+/// ADR 0111 at a shell prompt: the two coefficients are ordinary develop
+/// values, they pull the revision to `lens` v2, and a photograph with
+/// nothing to measure on is told so rather than given a number.
+#[test]
+fn chromatic_aberration_is_measured_and_set_by_hand() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = library_with_a_photo(&dir);
+
+    // Set by hand: no Lensfun profile, no `lens-correction on` — the
+    // coefficients activate the correction on their own.
+    let out = run(&["develop", &root, "1", "lens-tca", "0.05", "-0.02"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    let history = stdout(&run(&["history", &root, "1"]));
+    assert!(history.contains("lens:2"), "{history}");
+
+    // And they survive switching the profile correction on and off, which
+    // is a different thing entirely (ADR 0111 §5).
+    assert!(
+        run(&["develop", &root, "1", "lens-correction", "on"])
+            .status
+            .success()
+    );
+    let out = run(&["ls", &root]);
+    assert!(out.status.success(), "{}", stderr(&out));
+
+    // The 4x4 sample has no edges to measure — the answer is the sample
+    // count and a refusal, never a number fitted to noise (ADR 0111 §6).
+    let out = run(&["auto-tca", &root, "1", "--dry-run"]);
+    assert!(!out.status.success());
+    assert!(stdout(&out).contains("edge samples"), "{}", stdout(&out));
+    assert!(
+        stderr(&out).contains("not enough usable edges"),
+        "{}",
+        stderr(&out)
+    );
+}

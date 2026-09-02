@@ -46,6 +46,52 @@ pub(super) fn wire_adjustments(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
+        DevelopState::get(window).on_measure_tca(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let Some((_, version)) = app.develop else {
+                return;
+            };
+            let measured = (|| {
+                // Same shape as Auto tone below, for the same reason
+                // (ADR 0111 §2): the engine measures, an ordinary session
+                // writes, and the photographer can undo it or drag the
+                // sliders afterwards.
+                let estimate = app.library.estimate_tca(version)?;
+                if estimate.samples < leyline_sdk::TCA_MIN_SAMPLES {
+                    return Ok(Some(estimate.samples));
+                }
+                let mut session = app.library.edit(version)?;
+                let lens = leyline_sdk::LensCorrection {
+                    tca_red: estimate.red,
+                    tca_blue: estimate.blue,
+                    ..session.settings().lens_correction.clone()
+                };
+                session.set(Param::LensCorrection, Value::LensCorrection(lens))?;
+                session.commit().map(|_| None)
+            })();
+            match measured.map_err(|e| e.to_string()) {
+                // Not a failure: this photograph has nothing to measure on,
+                // and saying so is the honest answer (ADR 0111 §6).
+                Ok(Some(samples)) => {
+                    let message =
+                        crate::ui::Tr::get(&window).invoke_tca_not_enough_edges(samples as i32);
+                    crate::ui::LibraryState::get(&window).set_status_line(message);
+                }
+                Ok(None) => {
+                    if let Err(error) = refresh_develop(&mut app, &window) {
+                        report_error(&window, &error);
+                    }
+                }
+                Err(error) => report_error(&window, &error),
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
         DevelopState::get(window).on_run_auto_tone(move || {
             let Some(window) = handle.upgrade() else {
                 return;

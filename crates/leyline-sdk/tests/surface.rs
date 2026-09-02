@@ -25,8 +25,9 @@ use leyline_sdk::{
     Preview, PreviewKind, PrintRecipe, PrintRequest, PrintSettings, RangeMask, RangeSample,
     RegisteredAsset, RenameReport, RenamedAsset, RenderingIntent, RevisionId, ScanOptions,
     Settings, Sharpening, ShotFacets, ShotRange, SkippedFile, SpotRemoval, StageVersions,
-    ToneCurve, VersionId, Vignette, WHITE_BALANCE_PRESETS, WatchSessionEvent, WatchedFile,
-    Watermark, WatermarkAnchor, WatermarkFont, WhiteBalance, WhiteBalancePreset,
+    TCA_MIN_SAMPLES, TcaEstimate, ToneCurve, VersionId, Vignette, WHITE_BALANCE_PRESETS,
+    WatchSessionEvent, WatchedFile, Watermark, WatermarkAnchor, WatermarkFont, WhiteBalance,
+    WhiteBalancePreset,
 };
 
 /// A `Settings` built field by field, every nested type named through the
@@ -50,6 +51,8 @@ fn fully_specified_settings() -> Settings {
         lens_correction: LensCorrection {
             enabled: true,
             profile: "auto".to_owned(),
+            tca_red: 0.03,
+            tca_blue: -0.01,
         },
         noise_reduction: NoiseReduction {
             luminance: 20,
@@ -290,6 +293,21 @@ fn every_request_is_constructible(
             destination: PathBuf::from("sheet.pdf"),
         },
     )
+}
+
+/// A measured chromatic aberration reaches a caller as two numbers and a
+/// sample count, and the floor that says whether to trust them (ADR 0111).
+#[expect(dead_code, reason = "naming the types is the test")]
+fn a_measured_aberration_is_readable_through_the_facade(estimate: TcaEstimate) -> Settings {
+    let trustworthy = estimate.samples >= TCA_MIN_SAMPLES;
+    Settings {
+        lens_correction: leyline_sdk::LensCorrection {
+            tca_red: if trustworthy { estimate.red } else { 0.0 },
+            tca_blue: if trustworthy { estimate.blue } else { 0.0 },
+            ..leyline_sdk::LensCorrection::default()
+        },
+        ..Settings::default()
+    }
 }
 
 /// The contact-sheet types a client reads back, spelled out (ADR 0110).

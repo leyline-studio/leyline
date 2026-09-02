@@ -2895,3 +2895,29 @@ msgstr[1] "{} photos n'ont pas pu être rendues et laissent des cases vides."
 msgctxt "Tr"
 msgid "Contact sheet failed: {}"
 msgstr "Échec de la planche contact : {}"
+
+
+#: crates/leyline-studio/ui/panels/develop.slint:1467
+msgctxt "DevelopPanel"
+msgid "Chromatic aberration (% of radius)"
+msgstr "Aberration chromatique (% du rayon)"
+
+#: crates/leyline-studio/ui/panels/develop.slint:1472
+msgctxt "DevelopPanel"
+msgid "Red / cyan"
+msgstr "Rouge / cyan"
+
+#: crates/leyline-studio/ui/panels/develop.slint:1487
+msgctxt "DevelopPanel"
+msgid "Blue / yellow"
+msgstr "Bleu / jaune"
+
+#: crates/leyline-studio/ui/panels/develop.slint:1505
+msgctxt "DevelopPanel"
+msgid "Measure from this photo"
+msgstr "Mesurer sur cette photo"
+
+#: crates/leyline-studio/ui/types.slint:469
+msgctxt "Tr"
+msgid "Not enough usable edges on this photo ({}) — try a frame with detail away from the centre."
+msgstr "Pas assez de contours exploitables sur cette photo ({}) — essayez une image avec du détail loin du centre."
