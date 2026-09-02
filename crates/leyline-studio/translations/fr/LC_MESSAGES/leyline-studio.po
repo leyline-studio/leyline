@@ -2921,3 +2921,8 @@ msgstr "Mesurer sur cette photo"
 msgctxt "Tr"
 msgid "Not enough usable edges on this photo ({}) — try a frame with detail away from the centre."
 msgstr "Pas assez de contours exploitables sur cette photo ({}) — essayez une image avec du détail loin du centre."
+
+#: crates/leyline-studio/ui/panels/develop.slint:1637
+msgctxt "DevelopPanel"
+msgid "Defringe (colour halo at an edge)"
+msgstr "Défrangeage (halo coloré sur un contour)"

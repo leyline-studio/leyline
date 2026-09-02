@@ -15,10 +15,10 @@ use std::time::{Duration, Instant};
 
 use leyline_catalog::{Catalog, RevisionRow};
 use leyline_core::{
-    CURRENT_SCHEMA, CameraProfile, ColorGrading, Crop, Demosaic, Grain, HighlightReconstruction,
-    HslBand, LensCorrection, LeylineError, LocalAdjustment, Lut, NoiseReduction, Perspective,
-    PresetId, RedEye, Result, RevisionId, Settings, Sharpening, SpotRemoval, ToneCurve, VersionId,
-    Vignette, WhiteBalance,
+    CURRENT_SCHEMA, CameraProfile, ColorGrading, Crop, Defringe, Demosaic, Grain,
+    HighlightReconstruction, HslBand, LensCorrection, LeylineError, LocalAdjustment, Lut,
+    NoiseReduction, Perspective, PresetId, RedEye, Result, RevisionId, Settings, Sharpening,
+    SpotRemoval, ToneCurve, VersionId, Vignette, WhiteBalance,
 };
 
 /// Default amendment window of `docs/catalog.md` §17.
@@ -79,6 +79,9 @@ pub enum Param {
     LocalAdjustment(usize),
     /// Lens correction step.
     LensCorrection,
+    /// Defringe (ADR 0113), the whole struct as one commit unit like
+    /// [`Param::LensCorrection`] beside it.
+    Defringe,
     /// One band of the 8-band HSL mixer (ADR 0031), addressed by its index
     /// in `hsl` (always `0..8`) — the same per-index coalescing
     /// [`Param::LocalAdjustment`] applies.
@@ -138,6 +141,8 @@ pub enum Value {
     LocalAdjustment(Option<LocalAdjustment>),
     /// For [`Param::LensCorrection`].
     LensCorrection(LensCorrection),
+    /// For [`Param::Defringe`].
+    Defringe(Defringe),
     /// For [`Param::HslBand`].
     HslBand(HslBand),
     /// For [`Param::ColorGrading`].
@@ -500,6 +505,7 @@ pub(crate) fn apply(settings: &mut Settings, param: Param, value: Value) -> Resu
         },
         (Param::WhiteBalance, Value::WhiteBalance(v)) => settings.white_balance = v,
         (Param::LensCorrection, Value::LensCorrection(v)) => settings.lens_correction = v,
+        (Param::Defringe, Value::Defringe(v)) => settings.defringe = v,
         (Param::HslBand(index), Value::HslBand(band)) => {
             if index >= settings.hsl.len() {
                 return Err(LeylineError::InvalidSettings(format!(

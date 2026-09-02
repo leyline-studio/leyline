@@ -104,6 +104,8 @@ pub(crate) fn dev_model(settings: &Settings) -> crate::ui::DevSettings {
         lens_correction: settings.lens_correction.enabled,
         lens_tca_red: settings.lens_correction.tca_red as f32,
         lens_tca_blue: settings.lens_correction.tca_blue as f32,
+        defringe_purple: settings.defringe.purple as f32,
+        defringe_green: settings.defringe.green as f32,
         camera_profile: settings
             .camera_profile
             .as_ref()

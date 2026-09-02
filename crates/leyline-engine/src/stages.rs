@@ -83,6 +83,9 @@ pub(crate) mod camera_profile {
     pub(crate) mod v2;
     pub(crate) mod v3;
 }
+pub(crate) mod defringe {
+    pub(crate) mod v1;
+}
 pub(crate) mod lens {
     pub(crate) mod v1;
     pub(crate) mod v2;
@@ -566,6 +569,28 @@ pub(crate) static STAGES: &[Stage] = &[
                 },
             },
         ],
+    },
+    Stage {
+        // Right after `lens` (ADR 0113 §1): a fringe is a defect of the
+        // capture, like the lateral aberration corrected two ranks earlier,
+        // and correcting it before `spot_removal` means a clone copies
+        // pixels that are already clean.
+        name: "defringe",
+        active: |settings| !settings.defringe.is_neutral(),
+        reads: &["defringe"],
+        versions: &[Version {
+            version: 1,
+            rank: 22,
+            space: Space::LinearRec2020,
+            apply: |px, ctx| {
+                defringe::v1::defringe(
+                    px,
+                    ctx.settings.defringe.purple,
+                    ctx.settings.defringe.green,
+                    ctx.scale,
+                );
+            },
+        }],
     },
     Stage {
         // Right after `spot_removal` and before every tonal stage

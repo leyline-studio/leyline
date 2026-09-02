@@ -176,6 +176,9 @@ fn param_values(preset: &PresetSettings) -> Vec<(Param, Value)> {
     if let Some(v) = &preset.lens_correction {
         values.push((Param::LensCorrection, Value::LensCorrection(v.clone())));
     }
+    if let Some(v) = preset.defringe {
+        values.push((Param::Defringe, Value::Defringe(v)));
+    }
     if let Some(v) = &preset.noise_reduction {
         values.push((Param::NoiseReduction, Value::NoiseReduction(v.clone())));
     }

@@ -350,6 +350,31 @@ impl Default for OutputRendering {
     }
 }
 
+/// Defringe (ADR 0113): the coloured halo axial chromatic aberration and
+/// blooming leave beside a high-contrast edge — purple in front of the focal
+/// plane, green behind it.
+///
+/// Neutral: both amounts 0, and the stage does not run. Two amounts and no
+/// hue ranges: the bands are fixed (magenta-violet around 285°, green around
+/// 120°), and moving them would be a new version of the stage, never a third
+/// slider (ADR 0113 §2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Defringe {
+    /// How much saturation is taken out of the purple band at an edge,
+    /// unitless slider in [0, 100].
+    pub purple: i32,
+    /// The same for the green band.
+    pub green: i32,
+}
+
+impl Defringe {
+    /// Whether this defringe asks for anything (ADR 0113 §1).
+    pub fn is_neutral(&self) -> bool {
+        self.purple == 0 && self.green == 0
+    }
+}
+
 /// Sharpening step. Neutral: amount 0.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -1016,6 +1041,9 @@ pub struct Settings {
     pub noise_reduction: NoiseReduction,
     /// Sharpening step.
     pub sharpening: Sharpening,
+    /// Defringe (ADR 0113), beside the lens corrections it belongs with.
+    #[serde(default, skip_serializing_if = "Defringe::is_neutral")]
+    pub defringe: Defringe,
 
     /// How the working buffer becomes a display signal (ADR 0044 §3). Has
     /// no neutral value: some rendering always happens.
@@ -1095,6 +1123,7 @@ impl Default for Settings {
             demosaic: Demosaic::default(),
             source_encoding: SourceEncoding::default(),
             sharpening: Sharpening::default(),
+            defringe: Defringe::default(),
             rotation: 0.0,
             perspective: None,
             crop: None,
@@ -1640,6 +1669,8 @@ impl Settings {
             )));
         }
         slider("sharpening.masking", self.sharpening.masking, 0, 100)?;
+        slider("defringe.purple", self.defringe.purple, 0, 100)?;
+        slider("defringe.green", self.defringe.green, 0, 100)?;
         // The capability rule (ADR 0096 §3): v1 has no edge mask, and the
         // pinning rule (ADR 0042 §2) keeps a pinned stage at its version.
         // Refusing is the only honest outcome — the alternative is a slider
@@ -1747,7 +1778,8 @@ pub enum SettingsGroup {
     /// [`Settings::vignette`], `grain` (ADR 0090 §5) — the two halves of a
     /// look a "film" preset would be missing without them.
     Effects,
-    /// [`Settings::lens_correction`].
+    /// [`Settings::lens_correction`] and [`Settings::defringe`] — what the
+    /// lens did to this photograph (ADR 0113 §5).
     LensCorrection,
     /// [`Settings::noise_reduction`], `sharpening`.
     Detail,
@@ -1819,6 +1851,13 @@ pub struct PresetSettings {
     /// Present when `groups` includes [`SettingsGroup::LensCorrection`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lens_correction: Option<LensCorrection>,
+    /// Present when `groups` includes [`SettingsGroup::LensCorrection`]: the
+    /// category is *what the lens did to this photograph*, not the
+    /// `LensCorrection` struct, so defringe travels with it (ADR 0113 §5).
+    /// Absent from a preset written before ADR 0113, which then leaves the
+    /// setting alone — the rule every absent field follows.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub defringe: Option<Defringe>,
     /// Present when `groups` includes [`SettingsGroup::Detail`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub noise_reduction: Option<NoiseReduction>,
@@ -1868,6 +1907,7 @@ impl PresetSettings {
                 }
                 SettingsGroup::LensCorrection => {
                     preset.lens_correction = Some(settings.lens_correction.clone());
+                    preset.defringe = Some(settings.defringe);
                 }
                 SettingsGroup::Detail => {
                     preset.noise_reduction = Some(settings.noise_reduction.clone());
@@ -3071,6 +3111,10 @@ mod specification {
             // nothing to check.
             demosaic: Demosaic::Dcb,
             highlight_reconstruction: HighlightReconstruction::Rebuild,
+            defringe: Defringe {
+                purple: 40,
+                green: 20,
+            },
             spot_removal: vec![SpotRemoval {
                 target: Point { x: 0.5, y: 0.5 },
                 source: Point { x: 0.4, y: 0.4 },

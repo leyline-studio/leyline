@@ -40,7 +40,7 @@ The settings of schema 1 (`pipeline.md` §3.2) fall into **categories**, at chec
 | `tone` | `exposure`, `contrast`, `highlights`, `shadows`, `whites`, `blacks` |
 | `presence` | `vibrance`, `saturation`, `monochrome` |
 | `effects` | `vignette`, `grain` (ADR 0090 §5) |
-| `lens_correction` | `lens_correction` |
+| `lens_correction` | `lens_correction`, `defringe` — the category is *what the lens did to this photograph*, not the `LensCorrection` struct ([ADR 0113](adr/0113-defringe.md) §5) |
 | `detail` | `noise_reduction`, `sharpening` |
 | `geometry` | `rotation`, `crop` |
 

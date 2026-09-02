@@ -1695,6 +1695,10 @@ fn everything() -> Settings {
         luminance: 20,
         color: 20,
     };
+    settings.defringe = leyline_core::Defringe {
+        purple: 60,
+        green: 30,
+    };
     settings.sharpening = Sharpening {
         amount: 30,
         radius: 1.0,

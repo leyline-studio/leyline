@@ -10,12 +10,12 @@ use std::time::Duration;
 use leyline_sdk::{
     AssetDescription, AssetId, CameraProfile, CameraSettings, CaptionSource, ColorGrading,
     ColorGradingZone, ColorLabel, ContactSheetRecipe, ContactSheetRequest, ContactSheetSettings,
-    Crop, CurvePoint, Demosaic, ExportFormat, ExportRecipe, ExportRequest, ExportSettings,
-    GridQuery, HighlightReconstruction, HslBand, ImportOptions, LensCorrection, Library,
-    LocalAdjustment, LocalAdjustmentValues, Lut, Margins, NoiseReduction, Orientation, PaperSize,
-    Param, Perspective, PickState, Point, PresetId, PreviewKind, PrintRecipe, PrintRequest,
-    PrintSettings, RedEye, RenderingIntent, ScanOptions, Settings, SettingsGroup, Sharpening,
-    ShotRange, SpotRemoval, TetherOptions, TetherSetting, Value, VersionId, Watermark,
+    Crop, CurvePoint, Defringe, Demosaic, ExportFormat, ExportRecipe, ExportRequest,
+    ExportSettings, GridQuery, HighlightReconstruction, HslBand, ImportOptions, LensCorrection,
+    Library, LocalAdjustment, LocalAdjustmentValues, Lut, Margins, NoiseReduction, Orientation,
+    PaperSize, Param, Perspective, PickState, Point, PresetId, PreviewKind, PrintRecipe,
+    PrintRequest, PrintSettings, RedEye, RenderingIntent, ScanOptions, Settings, SettingsGroup,
+    Sharpening, ShotRange, SpotRemoval, TetherOptions, TetherSetting, Value, VersionId, Watermark,
     WatermarkAnchor, WhiteBalance,
 };
 
@@ -242,6 +242,9 @@ Develop params (docs/pipeline.md §3.2, schema 1):
                                     [0, 100]; the three shape values default to 50/0/50
   grain <amount> [size] [roughness] film grain, each in [0, 100] (ADR 0090);
                                     size and roughness default to 25 and 50
+  defringe <purple> [green]         takes the saturation out of the coloured halo
+                                    beside a high-contrast edge, each in [0, 100]
+                                    (ADR 0113); green defaults to 0
   noise-reduction <luminance> <color>
   sharpening <amount> <radius> [masking]
                                     masking confine la netteté aux contours
@@ -1275,6 +1278,14 @@ fn develop(args: &[String]) -> Result<(), String> {
             };
             (Param::LensCorrection, Value::LensCorrection(lens))
         }
+        // Defringe (ADR 0113): two amounts, the bands are fixed.
+        "defringe" => (
+            Param::Defringe,
+            Value::Defringe(Defringe {
+                purple: int_at(0)?,
+                green: rest.get(1).map_or(Ok(0), |_| int_at(1))?,
+            }),
+        ),
         "noise-reduction" => (
             Param::NoiseReduction,
             Value::NoiseReduction(NoiseReduction {

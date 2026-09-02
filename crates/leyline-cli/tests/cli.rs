@@ -1153,3 +1153,36 @@ fn chromatic_aberration_is_measured_and_set_by_hand() {
         stderr(&out)
     );
 }
+
+/// ADR 0113 at a shell prompt: two amounts, a new stage in the revision, and
+/// the green amount optional so a script that only fights purple stays short.
+#[test]
+fn defringe_takes_two_amounts_and_pins_its_own_stage() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = library_with_a_photo(&dir);
+
+    let out = run(&["develop", &root, "1", "defringe", "60", "30"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    let history = stdout(&run(&["history", &root, "1"]));
+    assert!(history.contains("defringe:1"), "{history}");
+
+    // Green defaults to 0, and back to neutral drops the stage entirely.
+    assert!(
+        run(&["develop", &root, "1", "defringe", "40"])
+            .status
+            .success()
+    );
+    assert!(
+        run(&["develop", &root, "1", "defringe", "0"])
+            .status
+            .success()
+    );
+    let history = stdout(&run(&["history", &root, "1"]));
+    let head = history.lines().next().unwrap_or_default();
+    assert!(!head.contains("defringe"), "{head}");
+
+    // Out of range is refused by name, not clamped in silence.
+    let out = run(&["develop", &root, "1", "defringe", "140"]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("defringe.purple"), "{}", stderr(&out));
+}

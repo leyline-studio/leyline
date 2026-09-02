@@ -1631,6 +1631,41 @@ export component DevelopPanel inherits HorizontalLayout {
                                 }
                             }
                         }
+                        // Axial aberration, beside the lateral one it is the
+                        // other half of (ADR 0113 §5).
+                        Text {
+                            text: @tr("Defringe (colour halo at an edge)");
+                            color: #9a9a9a;
+                            font-size: 12px;
+                        }
+                        EditSlider {
+                            label: @tr("Purple");
+                            minimum: 0;
+                            maximum: 100;
+                            value: DevelopState.dev.defringe-purple;
+                            track-from: #333333;
+                            track-to: #8a4fd0;
+                            edited(v) => {
+                                DevelopState.develop-edit("defringe-purple", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("defringe-purple", v);
+                            }
+                        }
+                        EditSlider {
+                            label: @tr("Green");
+                            minimum: 0;
+                            maximum: 100;
+                            value: DevelopState.dev.defringe-green;
+                            track-from: #333333;
+                            track-to: #4fd06a;
+                            edited(v) => {
+                                DevelopState.develop-edit("defringe-green", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("defringe-green", v);
+                            }
+                        }
                     }
 
                     GroupHeader {

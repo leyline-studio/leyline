@@ -312,6 +312,18 @@ fn lens(settings: Settings) -> Settings {
     }
 }
 
+/// Defringe (ADR 0113): a new stage, so this case is the only entry the
+/// manifest gains — no existing case activates it.
+fn defringe(settings: Settings) -> Settings {
+    Settings {
+        defringe: leyline_core::Defringe {
+            purple: 60,
+            green: 30,
+        },
+        ..settings
+    }
+}
+
 /// Manual transverse chromatic aberration (ADR 0111): the stage runs on the
 /// two coefficients alone, with `enabled` off and no Lensfun profile in
 /// sight — which is what this case is for, and also what makes it
@@ -731,6 +743,7 @@ fn cases() -> Vec<(String, Case)> {
         ("geometry", geometry(base.clone())),
         ("lens", lens(base.clone())),
         ("lens_tca", lens_tca(base.clone())),
+        ("defringe", defringe(base.clone())),
         ("camera_profile", camera_profile(base.clone())),
         ("tone_curve", tone_curve(base.clone())),
         ("tone_curve_channels", tone_curve_channels(base.clone())),

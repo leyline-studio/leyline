@@ -94,6 +94,20 @@ pub fn action(slider: &str, value: f64, current: &Settings) -> Option<(Param, Va
                 ..current.lens_correction.clone()
             }),
         ),
+        "defringe-purple" => (
+            Param::Defringe,
+            Value::Defringe(leyline_sdk::Defringe {
+                purple: value.round() as i32,
+                ..current.defringe
+            }),
+        ),
+        "defringe-green" => (
+            Param::Defringe,
+            Value::Defringe(leyline_sdk::Defringe {
+                green: value.round() as i32,
+                ..current.defringe
+            }),
+        ),
         "lens-tca-blue" => (
             Param::LensCorrection,
             Value::LensCorrection(LensCorrection {
@@ -397,12 +411,17 @@ pub fn reset_group(group: &str, current: &Settings) -> Vec<(Param, Value)> {
                 set(Param::Lut, Value::Lut(None));
             }
         }
+        // The group is "what the lens did to this photograph", so the reset
+        // takes the defringe pair with the aberration pair (ADR 0113 §5).
         "lens" => {
             if current.lens_correction != neutral.lens_correction {
                 set(
                     Param::LensCorrection,
                     Value::LensCorrection(neutral.lens_correction.clone()),
                 );
+            }
+            if current.defringe != neutral.defringe {
+                set(Param::Defringe, Value::Defringe(neutral.defringe));
             }
         }
         "detail" => {
@@ -1625,6 +1644,10 @@ mod reset_tests {
                 tca_red: 0.05,
                 ..LensCorrection::default()
             },
+            defringe: leyline_sdk::Defringe {
+                purple: 40,
+                green: 20,
+            },
             noise_reduction: NoiseReduction {
                 luminance: 30,
                 color: 40,
@@ -1750,7 +1773,8 @@ mod reset_tests {
             ]
         );
         assert_eq!(touched("effects"), ["Grain", "Vignette"]);
-        assert_eq!(touched("lens"), ["LensCorrection"]);
+        // The lens group owns both aberration pairs (ADR 0113 §5).
+        assert_eq!(touched("lens"), ["Defringe", "LensCorrection"]);
         assert_eq!(touched("tone-curve"), ["ToneCurve"]);
         assert_eq!(touched("color-grading"), ["ColorGrading"]);
         assert_eq!(touched("red-eye"), ["RedEye"]);

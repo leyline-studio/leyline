@@ -68,6 +68,7 @@ These features were scoped as post-V1 candidates in [`v2-scope.md`](v2-scope.md)
 | Effects: the vignette a photographer *adds*, drawn on the cropped frame, and film grain — both deterministic, neither seeded | [ADR 0090](adr/0090-effects-vignette-grain.md) |
 | Contact sheets: a print whose page holds a grid, one multi-page PDF for a whole selection, captions from the file name | [ADR 0110](adr/0110-contact-sheets.md) |
 | Adaptive chromatic aberration: the correction **measured on the photograph**, for the lenses no calibration database has ever heard of | [ADR 0111](adr/0111-adaptive-chromatic-aberration.md) |
+| Defringe: the coloured halo axial aberration leaves beside an edge, taken out by desaturation and nothing else | [ADR 0113](adr/0113-defringe.md) |
 
 Masked local adjustments and their range masks have been exposed in all three clients since [ADR 0049](adr/0049-local-adjustments-clients.md): drawing tools and an editor in Studio, the stored `LocalAdjustment` JSON payload in the CLI. What ADR 0049 left out of scope: the overlay of the coverage the engine computes (the "red mask") is **delivered** ([ADR 0071](adr/0071-mask-overlay.md)); the range eyedropper ([ADR 0093](adr/0093-range-mask-eyedropper.md)) and the drag handles on a geometry already drawn ([ADR 0097](adr/0097-mask-geometry-handles.md)) are **delivered** too: nothing of ADR 0049 remains out of scope.
 
