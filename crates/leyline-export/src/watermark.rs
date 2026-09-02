@@ -16,7 +16,7 @@ use crate::ExportError;
 
 /// The embedded typeface (ADR 0051 §2). Embedded rather than looked up on the
 /// system so the same recipe draws the same watermark on every machine.
-const DEJAVU_SANS: &[u8] = include_bytes!("../assets/DejaVuSans.ttf");
+pub(crate) const DEJAVU_SANS: &[u8] = include_bytes!("../assets/DejaVuSans.ttf");
 
 /// A text watermark composited onto an export (ADR 0034).
 ///

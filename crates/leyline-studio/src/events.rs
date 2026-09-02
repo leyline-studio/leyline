@@ -71,6 +71,7 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
             if app.import_job == Some(job_id)
                 || app.export_job == Some(job_id)
                 || app.print_job == Some(job_id)
+                || app.sheet_job == Some(job_id)
             {
                 let state = DialogState::get(window);
                 state.set_job_progress(if total > 0 {
@@ -97,6 +98,9 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
             } else if app.print_job == Some(job_id) {
                 DialogState::get(window)
                     .set_dialog_result(Tr::get(window).invoke_printing_progress(done, total));
+            } else if app.sheet_job == Some(job_id) {
+                DialogState::get(window)
+                    .set_dialog_result(Tr::get(window).invoke_sheet_progress(done, total));
             }
         }
         Event::JobFinished { job_id, result } => {
@@ -105,6 +109,7 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
             if app.import_job == Some(job_id)
                 || app.export_job == Some(job_id)
                 || app.print_job == Some(job_id)
+                || app.sheet_job == Some(job_id)
             {
                 let state = DialogState::get(window);
                 state.set_job_progress(1.0);
@@ -164,6 +169,31 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
                     JobResult::Print(report) => SharedString::from(print_summary(&report)),
                     JobResult::Failed(reason) => {
                         Tr::get(window).invoke_print_failed(SharedString::from(reason))
+                    }
+                    _ => return,
+                });
+            } else if app.sheet_job == Some(job_id) {
+                app.sheet_job = None;
+                DialogState::get(window).set_dialog_result(match result {
+                    JobResult::ContactSheet(report) => {
+                        let written = Tr::get(window).invoke_sheet_written(
+                            SharedString::from(report.path.display().to_string()),
+                            i32::try_from(report.placed).unwrap_or(i32::MAX),
+                            i32::try_from(report.pages).unwrap_or(i32::MAX),
+                        );
+                        if report.failed.is_empty() {
+                            written
+                        } else {
+                            // An empty cell is not a failed sheet: the file
+                            // exists, and what is missing is named (ADR 0110 §6).
+                            let holes = Tr::get(window).invoke_sheet_empty_cells(
+                                i32::try_from(report.failed.len()).unwrap_or(i32::MAX),
+                            );
+                            SharedString::from(format!("{written} {holes}"))
+                        }
+                    }
+                    JobResult::Failed(reason) => {
+                        Tr::get(window).invoke_sheet_failed(SharedString::from(reason))
                     }
                     _ => return,
                 });

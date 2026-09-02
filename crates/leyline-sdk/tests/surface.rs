@@ -15,17 +15,18 @@
 use std::path::PathBuf;
 
 use leyline_sdk::{
-    AssetDescription, AssetId, BrushStroke, CameraProfile, ColorGrading, ColorGradingZone,
-    ColorLabel, ColorRange, Crop, CurvePoint, EditSession, Event, ExportFormat, ExportRecipe,
-    ExportRequest, ExportSettings, FailedRename, Grain, GridItem, GridQuery, HslBand,
-    ImportOptions, ImportReport, ImportedFile, JobId, LensCorrection, LeylineError, Library,
-    LocalAdjustment, LocalAdjustmentValues, LuminanceRange, Margins, Mask, NoiseReduction,
-    Orientation, PaperSize, PickState, Point, Preview, PreviewKind, PrintRecipe, PrintRequest,
-    PrintSettings, RangeMask, RangeSample, RegisteredAsset, RenameReport, RenamedAsset,
-    RenderingIntent, RevisionId, ScanOptions, Settings, Sharpening, ShotFacets, ShotRange,
-    SkippedFile, SpotRemoval, StageVersions, ToneCurve, VersionId, Vignette, WHITE_BALANCE_PRESETS,
-    WatchSessionEvent, WatchedFile, Watermark, WatermarkAnchor, WatermarkFont, WhiteBalance,
-    WhiteBalancePreset,
+    AssetDescription, AssetId, BrushStroke, CameraProfile, CaptionSource, ColorGrading,
+    ColorGradingZone, ColorLabel, ColorRange, ContactSheetPreset, ContactSheetPresetId,
+    ContactSheetRecipe, ContactSheetReport, ContactSheetRequest, ContactSheetSettings, Crop,
+    CurvePoint, EditSession, Event, ExportFormat, ExportRecipe, ExportRequest, ExportSettings,
+    FailedRename, Grain, GridItem, GridQuery, HslBand, ImportOptions, ImportReport, ImportedFile,
+    JobId, LensCorrection, LeylineError, Library, LocalAdjustment, LocalAdjustmentValues,
+    LuminanceRange, Margins, Mask, NoiseReduction, Orientation, PaperSize, PickState, Point,
+    Preview, PreviewKind, PrintRecipe, PrintRequest, PrintSettings, RangeMask, RangeSample,
+    RegisteredAsset, RenameReport, RenamedAsset, RenderingIntent, RevisionId, ScanOptions,
+    Settings, Sharpening, ShotFacets, ShotRange, SkippedFile, SpotRemoval, StageVersions,
+    ToneCurve, VersionId, Vignette, WHITE_BALANCE_PRESETS, WatchSessionEvent, WatchedFile,
+    Watermark, WatermarkAnchor, WatermarkFont, WhiteBalance, WhiteBalancePreset,
 };
 
 /// A `Settings` built field by field, every nested type named through the
@@ -239,7 +240,9 @@ fn every_enum_is_matchable(preview: Preview, watch: WatchSessionEvent) {
 /// The request structs a caller has to build, spelled out through the façade
 /// including the `leyline-export` and `leyline-color` types they embed.
 #[expect(dead_code, reason = "the constructors are the test")]
-fn every_request_is_constructible(version: VersionId) -> (ExportRequest, PrintRequest) {
+fn every_request_is_constructible(
+    version: VersionId,
+) -> (ExportRequest, PrintRequest, ContactSheetRequest) {
     (
         ExportRequest {
             versions: vec![version],
@@ -272,7 +275,34 @@ fn every_request_is_constructible(version: VersionId) -> (ExportRequest, PrintRe
             destination_dir: PathBuf::from("print"),
             copies: 1,
         },
+        // ADR 0110: the report is named too, not only the request — the
+        // lesson `RenameReport` taught this file.
+        ContactSheetRequest {
+            versions: vec![version],
+            recipe: ContactSheetRecipe::Adhoc(ContactSheetSettings {
+                page: PrintSettings::default(),
+                columns: 4,
+                rows: 5,
+                gutter_mm: 4.0,
+                caption: CaptionSource::Filename,
+                caption_mm: 3.0,
+            }),
+            destination: PathBuf::from("sheet.pdf"),
+        },
     )
+}
+
+/// The contact-sheet types a client reads back, spelled out (ADR 0110).
+#[expect(dead_code, reason = "naming the types is the test")]
+fn a_contact_sheet_is_readable_through_the_facade(
+    report: ContactSheetReport,
+    stored: ContactSheetPreset,
+) -> (usize, ContactSheetPresetId) {
+    let _: &PathBuf = &report.path;
+    let _: usize = report.placed;
+    let _: &str = stored.name.as_str();
+    let _ = ContactSheetSettings::parse(&stored.settings_json);
+    (report.pages, stored.preset)
 }
 
 #[test]

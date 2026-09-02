@@ -7,25 +7,26 @@
 
 pub use leyline_core::{
     AssetId, BrushStroke, CURRENT_SCHEMA, CameraProfile, CameraSetting, CameraSettings,
-    CollectionId, CollectionType, ColorGrading, ColorGradingZone, ColorLabel, ColorRange, Crop,
-    CurvePoint, Demosaic, ExportPresetId, FolderId, Grain, HighlightReconstruction, HslBand, JobId,
-    KeywordId, LensCorrection, LeylineError, LocalAdjustment, LocalAdjustmentValues,
-    LuminanceRange, Lut, Mask, MediaType, NoiseReduction, Perspective, PickState, Point,
-    PresetFolderId, PresetId, PresetSettings, PreviewKind, PrintPresetId, RangeMask, RedEye,
-    Result, RevisionId, Settings, SettingsGroup, Sharpening, SpotRemoval, StageVersions,
-    TetherSetting, ToneCurve, VersionId, Vignette, WHITE_BALANCE_PRESETS, WhiteBalance,
-    WhiteBalancePreset,
+    CollectionId, CollectionType, ColorGrading, ColorGradingZone, ColorLabel, ColorRange,
+    ContactSheetPresetId, Crop, CurvePoint, Demosaic, ExportPresetId, FolderId, Grain,
+    HighlightReconstruction, HslBand, JobId, KeywordId, LensCorrection, LeylineError,
+    LocalAdjustment, LocalAdjustmentValues, LuminanceRange, Lut, Mask, MediaType, NoiseReduction,
+    Perspective, PickState, Point, PresetFolderId, PresetId, PresetSettings, PreviewKind,
+    PrintPresetId, RangeMask, RedEye, Result, RevisionId, Settings, SettingsGroup, Sharpening,
+    SpotRemoval, StageVersions, TetherSetting, ToneCurve, VersionId, Vignette,
+    WHITE_BALANCE_PRESETS, WhiteBalance, WhiteBalancePreset,
 };
 
 pub use leyline_engine::{
-    AutoTone, CatalogRead, CatalogWrite, CullEntry, CullOptions, CullProposal,
-    DEFAULT_AMEND_WINDOW, DEFAULT_BURST_DISTANCE, DEFAULT_SESSION, EditSession, Event,
-    ExportRecipe, ExportReport, ExportRequest, ExportedVersion, FailedApply, FailedExport,
-    FailedPrint, FailedRename, FailedReprocess, ImportCandidate, ImportOptions, ImportReport,
-    ImportedCameraProfile, ImportedFile, ImportedLut, JobResult, Library, Param, PresetApplyReport,
-    Preview, PreviewFile, PrintRecipe, PrintReport, PrintRequest, PrintedVersion, RangeSample,
-    RejectReason, RemovalReport, RenameReport, RenamedAsset, ReprocessReport, Rgb8, RootStatus,
-    ScanOptions, SkippedFile, SoftProof, SourceColor, TetherOptions, Value, Verdict, WatchError,
+    AutoTone, CatalogRead, CatalogWrite, ContactSheetRecipe, ContactSheetReport,
+    ContactSheetRequest, CullEntry, CullOptions, CullProposal, DEFAULT_AMEND_WINDOW,
+    DEFAULT_BURST_DISTANCE, DEFAULT_SESSION, EditSession, Event, ExportRecipe, ExportReport,
+    ExportRequest, ExportedVersion, FailedApply, FailedExport, FailedPrint, FailedRename,
+    FailedReprocess, ImportCandidate, ImportOptions, ImportReport, ImportedCameraProfile,
+    ImportedFile, ImportedLut, JobResult, Library, Param, PresetApplyReport, Preview, PreviewFile,
+    PrintRecipe, PrintReport, PrintRequest, PrintedVersion, RangeSample, RejectReason,
+    RemovalReport, RenameReport, RenamedAsset, ReprocessReport, Rgb8, RootStatus, ScanOptions,
+    SkippedFile, SoftProof, SourceColor, TetherOptions, Value, Verdict, WatchError,
     WatchSessionEvent, WatchedFile, decoder_version, neutral_settings, overlay, session_folder,
 };
 
@@ -40,16 +41,16 @@ pub use leyline_engine::{
 pub use leyline_cull as cull;
 
 pub use leyline_catalog::{
-    AssetDescription, CameraInfo, CollectionNode, ExportPreset, ExportRecord, FolderNode, GridItem,
-    GridQuery, KeywordNode, LIBRARY_ROOT, LensInfo, LibraryInfo, MapPin, Metadata, Preset,
-    PresetFolder, PrintPreset, RatingRule, Rational, RegisteredAsset, RevisionRow, Root,
-    ShotFacets, ShotRange, SmartRules, Sort, VersionInfo,
+    AssetDescription, CameraInfo, CollectionNode, ContactSheetPreset, ExportPreset, ExportRecord,
+    FolderNode, GridItem, GridQuery, KeywordNode, LIBRARY_ROOT, LensInfo, LibraryInfo, MapPin,
+    Metadata, Preset, PresetFolder, PrintPreset, RatingRule, Rational, RegisteredAsset,
+    RevisionRow, Root, ShotFacets, ShotRange, SmartRules, Sort, VersionInfo,
 };
 
 pub use leyline_color::RenderingIntent;
 pub use leyline_export::{
-    DEFAULT_AVIF_SPEED, ExportFormat, ExportSettings, Margins, Orientation, PaperSize,
-    PrintSettings, Watermark, WatermarkAnchor, WatermarkFont,
+    CaptionSource, ContactSheetSettings, DEFAULT_AVIF_SPEED, ExportFormat, ExportSettings, Margins,
+    Orientation, PaperSize, PrintSettings, Watermark, WatermarkAnchor, WatermarkFont,
 };
 pub use leyline_map::TilePackInfo;
 

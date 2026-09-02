@@ -15,6 +15,7 @@ import { ExportDialog } from "../dialogs/export.slint";
 import { ImportDialog } from "../dialogs/import.slint";
 import { PreferencesDialog } from "../dialogs/preferences.slint";
 import { PresetDialog } from "../dialogs/preset.slint";
+import { ContactSheetDialog } from "../dialogs/contact_sheet.slint";
 import { PrintDialog } from "../dialogs/print.slint";
 import { ShortcutsDialog } from "../dialogs/shortcuts.slint";
 import { TetherDialog } from "../dialogs/tether.slint";
@@ -77,6 +78,8 @@ export component DialogOverlay inherits Rectangle {
                 if DialogState.dialog == "export": ExportDialog { }
 
                 if DialogState.dialog == "print": PrintDialog { }
+
+                if DialogState.dialog == "contact-sheet": ContactSheetDialog { }
 
                 if DialogState.dialog == "tether": TetherDialog { }
 

@@ -2065,3 +2065,30 @@ what refuses a duplicate at import.
 
 Returned in bulk rather than queried per candidate: no index starts with
 `filename` (§32), so a per-file search would scan `assets` once per file.
+
+---
+
+# 45. Contact Sheet Presets (ADR 0110)
+
+```sql
+CREATE TABLE contact_sheet_presets (
+
+    id INTEGER PRIMARY KEY,
+
+    uuid TEXT NOT NULL UNIQUE,
+
+    name TEXT NOT NULL,
+
+    settings_json TEXT NOT NULL,
+
+    created_at INTEGER NOT NULL
+
+);
+```
+
+The same shape as `print_presets` (§42), for the same reason and with the same absence of a history table. `settings_json` is `leyline_export::ContactSheetSettings`: a whole `PrintSettings` under a nested `page` key — a contact sheet's page *is* a print's (ADR 0110 §1) — plus `columns`, `rows`, `gutter_mm`, `caption` and `caption_mm`.
+
+A separate table rather than rows among the print presets: a print preset's `settings_json` is read back as `PrintSettings`, which refuses unknown fields, so a single contact-sheet recipe stored there would make every listing of print presets fail (ADR 0110 §8). The mechanism that keeps a preset from being half-applied is the same one that forbids mixing two shapes in one table.
+
+Job data — which versions, and the PDF to write — is never stored, exactly as `ExportRequest.versions` stays separate from `export_presets`.
+

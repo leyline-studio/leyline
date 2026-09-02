@@ -12,7 +12,8 @@
 import { CandidateRow, RootRow } from "../types.slint";
 
 export global DialogState {
-    // Modal dialog state: "" (none), "import", "export", "print", "tether",
+    // Modal dialog state: "" (none), "import", "export", "print",
+    // "contact-sheet", "tether",
     // "watch" or "confirm".
     in-out property <string> dialog;
     in-out property <string> dialog-result;
@@ -130,6 +131,30 @@ export global DialogState {
     in-out property <string> print-profile-text: "";
     callback browse-print-destination();
     callback browse-print-profile();
+
+    // Contact sheet (ADR 0110). The callbacks take no arguments: every field
+    // below is two-way bound, so Rust reads the state rather than a dozen
+    // positional parameters.
+    callback open-contact-sheet();
+    callback run-contact-sheet();
+    callback run-save-sheet-preset();
+    callback browse-sheet-destination();
+    callback browse-sheet-profile();
+    in property <[string]> sheet-presets;
+    in-out property <int> sheet-preset: -1;
+    in-out property <string> sheet-preset-name: "";
+    in-out property <int> sheet-paper: 0;
+    in-out property <int> sheet-orientation: 0;
+    in-out property <string> sheet-margins-text: "10";
+    in-out property <string> sheet-dpi-text: "200";
+    in-out property <string> sheet-columns-text: "4";
+    in-out property <string> sheet-rows-text: "5";
+    in-out property <string> sheet-gutter-text: "4";
+    in-out property <bool> sheet-captions: true;
+    in-out property <string> sheet-caption-size-text: "3";
+    in-out property <int> sheet-intent: 1;
+    in-out property <string> sheet-destination-text: "";
+    in-out property <string> sheet-profile-text: "";
     // Opens the tethered-capture dialog (ADR 0038, ADR 0087 §7) and connects
     // from the first USB camera libgphoto2 finds.
     callback open-tether();

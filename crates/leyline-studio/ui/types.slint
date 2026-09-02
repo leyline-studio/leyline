@@ -450,6 +450,21 @@ export global Tr {
     public pure function printing-ellipsis() -> string {
         return @tr("Printing…");
     }
+    // Contact sheets (ADR 0110). A sheet is one file whatever the number of
+    // photographs, so its outcome names the file and how much of the
+    // selection reached it — an empty cell is a failure worth reading.
+    public pure function sheet-progress(done: int, total: int) -> string {
+        return @tr("Rendering {}/{}…", done, total);
+    }
+    public pure function sheet-written(path: string, placed: int, pages: int) -> string {
+        return @tr("Wrote {} — {} photo(s) on {} page(s).", path, placed, pages);
+    }
+    public pure function sheet-empty-cells(n: int) -> string {
+        return @tr("{} photo could not be rendered and left an empty cell." | "{} photos could not be rendered and left empty cells." % n, n);
+    }
+    public pure function sheet-failed(reason: string) -> string {
+        return @tr("Contact sheet failed: {}", reason);
+    }
     public pure function reprocessed(reprocessed: int, already-current: int, failed: int) -> string {
         return @tr("Reprocessed {} photo(s), {} already current, {} failed", reprocessed, already-current, failed);
     }

@@ -8,13 +8,14 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use leyline_sdk::{
-    AssetDescription, AssetId, CameraProfile, CameraSettings, ColorGrading, ColorGradingZone,
-    ColorLabel, Crop, CurvePoint, Demosaic, ExportFormat, ExportRecipe, ExportRequest,
-    ExportSettings, GridQuery, HighlightReconstruction, HslBand, ImportOptions, LensCorrection,
-    Library, LocalAdjustment, LocalAdjustmentValues, Lut, Margins, NoiseReduction, Orientation,
-    PaperSize, Param, Perspective, PickState, Point, PresetId, PreviewKind, PrintRecipe,
-    PrintRequest, PrintSettings, RedEye, RenderingIntent, ScanOptions, Settings, SettingsGroup,
-    Sharpening, ShotRange, SpotRemoval, TetherOptions, TetherSetting, Value, VersionId, Watermark,
+    AssetDescription, AssetId, CameraProfile, CameraSettings, CaptionSource, ColorGrading,
+    ColorGradingZone, ColorLabel, ContactSheetRecipe, ContactSheetRequest, ContactSheetSettings,
+    Crop, CurvePoint, Demosaic, ExportFormat, ExportRecipe, ExportRequest, ExportSettings,
+    GridQuery, HighlightReconstruction, HslBand, ImportOptions, LensCorrection, Library,
+    LocalAdjustment, LocalAdjustmentValues, Lut, Margins, NoiseReduction, Orientation, PaperSize,
+    Param, Perspective, PickState, Point, PresetId, PreviewKind, PrintRecipe, PrintRequest,
+    PrintSettings, RedEye, RenderingIntent, ScanOptions, Settings, SettingsGroup, Sharpening,
+    ShotRange, SpotRemoval, TetherOptions, TetherSetting, Value, VersionId, Watermark,
     WatermarkAnchor, WhiteBalance,
 };
 
@@ -144,6 +145,12 @@ Usage:
                 [--margins <mm>] [--dpi <n>] [--profile <path>] [--intent <intent>] [--copies <n>]
   leyline print-preset <library> <name> [print options above, minus --preset]
   leyline print-presets <library>
+  leyline contact-sheet <library> <sheet.pdf> <version-id>...
+                [--preset <name>] [print page options above, minus --copies]
+                [--columns <n>] [--rows <n>] [--gutter <mm>]
+                [--captions <filename|none>] [--caption-size <mm>]
+  leyline contact-sheet-preset <library> <name> [contact-sheet options above, minus --preset]
+  leyline contact-sheet-presets <library>
   leyline camera-profile <library> <file.dcp>
   leyline camera-profiles <library>
   leyline lut <library> <file.cube>
@@ -357,6 +364,9 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("print") => print_cmd(&args[1..]),
         Some("print-preset") => print_preset(&args[1..]),
         Some("print-presets") => print_presets(&args[1..]),
+        Some("contact-sheet") => contact_sheet_cmd(&args[1..]),
+        Some("contact-sheet-preset") => contact_sheet_preset(&args[1..]),
+        Some("contact-sheet-presets") => contact_sheet_presets(&args[1..]),
         Some("camera-profile") => camera_profile(&args[1..]),
         Some("camera-profiles") => camera_profiles(&args[1..]),
         Some("lut") => lut_import(&args[1..]),
@@ -2926,6 +2936,180 @@ fn print_presets(args: &[String]) -> Result<(), String> {
         return Err("usage: leyline print-presets <library>".to_owned());
     };
     let stored = open(root)?.print_presets().map_err(|e| e.to_string())?;
+    for preset in &stored {
+        println!(
+            "p{:<6} {:20} {}",
+            preset.preset, preset.name, preset.settings_json
+        );
+    }
+    println!("{} preset(s)", stored.len());
+    Ok(())
+}
+
+/// The page half of a contact sheet is a print's, plus the grid (ADR 0110).
+const SHEET_FLAGS: &[&str] = &[
+    "preset",
+    "paper",
+    "orientation",
+    "margins",
+    "dpi",
+    "profile",
+    "intent",
+    "columns",
+    "rows",
+    "gutter",
+    "captions",
+    "caption-size",
+];
+
+/// Builds a [`ContactSheetSettings`] from the shared page flags — reused as
+/// they are, since a sheet's page *is* a print's (ADR 0110 §1) — plus the
+/// grid's own.
+fn sheet_recipe(options: &Options) -> Result<ContactSheetSettings, String> {
+    let mut settings = ContactSheetSettings::default();
+    // A sheet's page defaults are the sheet's, not a print's: only the flags
+    // the caller actually passed override them.
+    let mut page = settings.page.clone();
+    let printed = print_recipe(options)?;
+    if options.value("paper").is_some() {
+        page.paper = printed.paper;
+    }
+    if options.value("orientation").is_some() {
+        page.orientation = printed.orientation;
+    }
+    if options.value("margins").is_some() {
+        page.margins_mm = printed.margins_mm;
+    }
+    if options.value("dpi").is_some() {
+        page.dpi = printed.dpi;
+    }
+    if options.value("profile").is_some() {
+        page.profile = printed.profile;
+    }
+    if options.value("intent").is_some() {
+        page.intent = printed.intent;
+    }
+    settings.page = page;
+
+    if let Some(columns) = options.value("columns") {
+        settings.columns = columns
+            .parse()
+            .map_err(|_| format!("bad columns {columns:?}"))?;
+    }
+    if let Some(rows) = options.value("rows") {
+        settings.rows = rows.parse().map_err(|_| format!("bad rows {rows:?}"))?;
+    }
+    if let Some(gutter) = options.value("gutter") {
+        settings.gutter_mm = gutter
+            .parse()
+            .map_err(|_| format!("bad gutter {gutter:?}"))?;
+    }
+    if let Some(captions) = options.value("captions") {
+        settings.caption = match captions {
+            "filename" => CaptionSource::Filename,
+            "none" => CaptionSource::None,
+            other => return Err(format!("unknown caption source {other:?}")),
+        };
+    }
+    if let Some(size) = options.value("caption-size") {
+        settings.caption_mm = size
+            .parse()
+            .map_err(|_| format!("bad caption size {size:?}"))?;
+    }
+    Ok(settings)
+}
+
+fn contact_sheet_cmd(args: &[String]) -> Result<(), String> {
+    let (positional, options) = parse(args, SHEET_FLAGS)?;
+    let [root, destination, ids @ ..] = positional.as_slice() else {
+        return Err(
+            "usage: leyline contact-sheet <library> <sheet.pdf> <version-id>... \
+             [--preset <name>] [--paper <p>] [--orientation <o>] [--margins <mm>] \
+             [--dpi <n>] [--profile <path>] [--intent <i>] [--columns <n>] \
+             [--rows <n>] [--gutter <mm>] [--captions <filename|none>] \
+             [--caption-size <mm>]"
+                .to_owned(),
+        );
+    };
+    let versions = version_ids(ids)?;
+    let destination = PathBuf::from(destination);
+    let library = open(root)?;
+
+    let recipe = match options.value("preset") {
+        Some(name) => {
+            if SHEET_FLAGS
+                .iter()
+                .filter(|f| **f != "preset")
+                .any(|f| options.value(f).is_some())
+            {
+                return Err(
+                    "--preset already defines the recipe; drop the other sheet options".to_owned(),
+                );
+            }
+            let stored = library
+                .contact_sheet_presets()
+                .map_err(|e| e.to_string())?
+                .into_iter()
+                .find(|p| p.name == *name)
+                .ok_or_else(|| format!("no contact sheet preset named {name:?}"))?;
+            ContactSheetRecipe::Preset(stored.preset)
+        }
+        None => ContactSheetRecipe::Adhoc(sheet_recipe(&options)?),
+    };
+
+    let progress = |done: u64, total: u64| eprint!("\rrendering {done}/{total}");
+    let report = library
+        .contact_sheet(
+            &ContactSheetRequest {
+                versions,
+                recipe,
+                destination,
+            },
+            progress,
+        )
+        .map_err(|e| e.to_string())?;
+    eprintln!();
+    for failed in &report.failed {
+        println!("empty cell for v{}: {}", failed.version, failed.reason);
+    }
+    println!(
+        "wrote {} ({} photo(s) on {} page(s))",
+        report.path.display(),
+        report.placed,
+        report.pages
+    );
+    Ok(())
+}
+
+fn contact_sheet_preset(args: &[String]) -> Result<(), String> {
+    let (positional, options) = parse(
+        args,
+        &SHEET_FLAGS[1..], // everything but --preset
+    )?;
+    let [root, name] = positional.as_slice() else {
+        return Err("usage: leyline contact-sheet-preset <library> <name> \
+             [--paper <p>] [--orientation <o>] [--margins <mm>] [--dpi <n>] \
+             [--profile <path>] [--intent <i>] [--columns <n>] [--rows <n>] \
+             [--gutter <mm>] [--captions <filename|none>] [--caption-size <mm>]"
+            .to_owned());
+    };
+    let settings = sheet_recipe(&options)?;
+    let library = open(root)?;
+    let id = library
+        .create_contact_sheet_preset(name, &settings)
+        .map_err(|e| e.to_string())?;
+    println!("created contact sheet preset {name:?} (p{id})");
+    Ok(())
+}
+
+fn contact_sheet_presets(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root] = positional.as_slice() else {
+        return Err("usage: leyline contact-sheet-presets <library>".to_owned());
+    };
+    let stored = open(root)?
+        .contact_sheet_presets()
+        .map_err(|e| e.to_string())?;
     for preset in &stored {
         println!(
             "p{:<6} {:20} {}",

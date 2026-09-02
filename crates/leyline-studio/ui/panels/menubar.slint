@@ -115,6 +115,13 @@ export component MenuBar inherits Rectangle {
                 }
             }
             MenuRow {
+                title: @tr("Contact Sheet…");
+                activated => {
+                    DialogState.open-contact-sheet();
+                    root.open-menu = "";
+                }
+            }
+            MenuRow {
                 title: @tr("Tethered Capture…    T");
                 activated => {
                     DialogState.open-tether();

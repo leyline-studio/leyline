@@ -187,7 +187,7 @@ in its own future ADR if it is ever wanted:
 | Seamless _heal_ (spot removal) | [ADR 0032](adr/0032-spot-removal-clone.md) |
 | Per-channel RGB curves + a parametric curve UI | [ADR 0030](adr/0030-tone-curve.md) |
 | Image / logo watermark | [ADR 0034](adr/0034-softproofing-watermark-print.md) |
-| Contact sheets / N-up layouts (printing) | [ADR 0036](adr/0036-print-module.md) |
+| Contact sheets / N-up layouts (printing) | [ADR 0036](adr/0036-print-module.md), reopened and delivered by [ADR 0110](adr/0110-contact-sheets.md) |
 | An embedded DCP profile database | [ADR 0035](adr/0035-camera-profile-dcp.md) |
 
 ---

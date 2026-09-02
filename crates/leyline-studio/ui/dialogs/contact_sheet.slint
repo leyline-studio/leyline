@@ -1,0 +1,281 @@
+// Contact sheet (ADR 0110): the page a print already describes — paper,
+// orientation, margins, resolution, ICC profile, intent — plus the grid drawn
+// on it, and one file for the whole selection.
+//
+// Every field is two-way bound to `DialogState`, so the callbacks take no
+// arguments: thirteen positional parameters would be thirteen chances to
+// swap two of them silently.
+//
+// One of the dialogs hosted by `panels/dialogs.slint` (ADR 0045 §3).
+
+import { DialogState } from "../state/dialog.slint";
+import { FilterChip } from "../widgets/controls.slint";
+
+component LabelledField inherits VerticalLayout {
+    in property <string> label;
+    in-out property <string> value;
+    spacing: 4px;
+    horizontal-stretch: 1;
+    Text {
+        text: root.label;
+        color: #9a9a9a;
+        font-size: 12px;
+    }
+    Rectangle {
+        height: 28px;
+        background: #1b1b1b;
+        border-radius: 4px;
+        border-width: 1px;
+        border-color: #3a3a3a;
+        TextInput {
+            x: 8px;
+            width: parent.width - 16px;
+            height: 100%;
+            text <=> root.value;
+            color: #e6e6e6;
+            font-size: 12px;
+            vertical-alignment: center;
+            single-line: true;
+        }
+    }
+}
+
+export component ContactSheetDialog inherits VerticalLayout {
+    spacing: 12px;
+    Text {
+        text: @tr("Contact sheet");
+        color: #f0f0f0;
+        font-size: 15px;
+        font-weight: 600;
+    }
+    Text {
+        text: @tr("Every selected photo, in order, on one PDF");
+        color: #9a9a9a;
+        font-size: 12px;
+    }
+    Text {
+        text: @tr("Preset");
+        color: #9a9a9a;
+        font-size: 12px;
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: start;
+        FilterChip {
+            text: @tr("Custom");
+            active: DialogState.sheet-preset == -1;
+            clicked => {
+                DialogState.sheet-preset = -1;
+            }
+        }
+        for name[i] in DialogState.sheet-presets: FilterChip {
+            text: name;
+            active: DialogState.sheet-preset == i;
+            clicked => {
+                DialogState.sheet-preset = i;
+            }
+        }
+    }
+    if DialogState.sheet-preset == -1: VerticalLayout {
+        spacing: 8px;
+        Text {
+            text: @tr("Paper");
+            color: #9a9a9a;
+            font-size: 12px;
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            alignment: start;
+            for name[i] in ["A4", "A3", "Letter"]: FilterChip {
+                text: name;
+                active: DialogState.sheet-paper == i;
+                clicked => {
+                    DialogState.sheet-paper = i;
+                }
+            }
+        }
+        Text {
+            text: @tr("Orientation");
+            color: #9a9a9a;
+            font-size: 12px;
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            alignment: start;
+            for name[i] in ["Portrait", "Landscape"]: FilterChip {
+                text: name;
+                active: DialogState.sheet-orientation == i;
+                clicked => {
+                    DialogState.sheet-orientation = i;
+                }
+            }
+        }
+        HorizontalLayout {
+            spacing: 12px;
+            LabelledField {
+                label: @tr("Columns");
+                value <=> DialogState.sheet-columns-text;
+            }
+            LabelledField {
+                label: @tr("Rows");
+                value <=> DialogState.sheet-rows-text;
+            }
+            LabelledField {
+                label: @tr("Gutter (mm)");
+                value <=> DialogState.sheet-gutter-text;
+            }
+        }
+        HorizontalLayout {
+            spacing: 12px;
+            LabelledField {
+                label: @tr("Margins (mm, all sides)");
+                value <=> DialogState.sheet-margins-text;
+            }
+            LabelledField {
+                label: @tr("DPI");
+                value <=> DialogState.sheet-dpi-text;
+            }
+        }
+        Text {
+            text: @tr("Captions");
+            color: #9a9a9a;
+            font-size: 12px;
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            alignment: start;
+            FilterChip {
+                text: @tr("File name");
+                active: DialogState.sheet-captions;
+                clicked => {
+                    DialogState.sheet-captions = true;
+                }
+            }
+            FilterChip {
+                text: @tr("None");
+                active: !DialogState.sheet-captions;
+                clicked => {
+                    DialogState.sheet-captions = false;
+                }
+            }
+            if DialogState.sheet-captions: LabelledField {
+                label: @tr("Caption height (mm)");
+                value <=> DialogState.sheet-caption-size-text;
+            }
+        }
+        Text {
+            text: @tr("Destination ICC profile (blank = sRGB)");
+            color: #9a9a9a;
+            font-size: 12px;
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            Rectangle {
+                height: 28px;
+                horizontal-stretch: 1;
+                background: #1b1b1b;
+                border-radius: 4px;
+                border-width: 1px;
+                border-color: #3a3a3a;
+                TextInput {
+                    x: 8px;
+                    width: parent.width - 16px;
+                    height: 100%;
+                    text <=> DialogState.sheet-profile-text;
+                    color: #e6e6e6;
+                    font-size: 12px;
+                    vertical-alignment: center;
+                    single-line: true;
+                }
+            }
+            FilterChip {
+                text: @tr("Browse…");
+                active: false;
+                clicked => {
+                    DialogState.browse-sheet-profile();
+                }
+            }
+        }
+        Text {
+            text: @tr("Rendering intent");
+            color: #9a9a9a;
+            font-size: 12px;
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            alignment: start;
+            for name[i] in ["Perceptual", "Relative", "Saturation", "Absolute"]: FilterChip {
+                text: name;
+                active: DialogState.sheet-intent == i;
+                clicked => {
+                    DialogState.sheet-intent = i;
+                }
+            }
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            LabelledField {
+                label: @tr("Save as preset (optional name)");
+                value <=> DialogState.sheet-preset-name;
+            }
+            FilterChip {
+                text: @tr("Save as preset");
+                active: false;
+                clicked => {
+                    DialogState.run-save-sheet-preset();
+                }
+            }
+        }
+    }
+    Text {
+        text: @tr("PDF to write (absolute path)");
+        color: #9a9a9a;
+        font-size: 12px;
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        Rectangle {
+            height: 28px;
+            horizontal-stretch: 1;
+            background: #1b1b1b;
+            border-radius: 4px;
+            border-width: 1px;
+            border-color: #3a3a3a;
+            TextInput {
+                x: 8px;
+                width: parent.width - 16px;
+                height: 100%;
+                text <=> DialogState.sheet-destination-text;
+                color: #e6e6e6;
+                font-size: 12px;
+                vertical-alignment: center;
+                single-line: true;
+            }
+        }
+        FilterChip {
+            text: @tr("Browse…");
+            active: false;
+            clicked => {
+                DialogState.browse-sheet-destination();
+            }
+        }
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: end;
+        FilterChip {
+            text: @tr("Cancel");
+            active: false;
+            clicked => {
+                DialogState.dialog = "";
+            }
+        }
+        FilterChip {
+            text: @tr("Create sheet");
+            active: true;
+            clicked => {
+                DialogState.run-contact-sheet();
+            }
+        }
+    }
+}

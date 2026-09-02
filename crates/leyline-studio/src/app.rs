@@ -11,9 +11,9 @@ use std::rc::Rc;
 use crate::map_view;
 use crate::ui::{Cell, LibraryState, StudioWindow, Tr};
 use leyline_sdk::{
-    AssetId, CollectionId, Event, ExportPreset, FolderId, GridItem, GridQuery, ImportCandidate,
-    JobId, KeywordId, Library, MapPin, Preset, PresetFolder, PresetFolderId, PresetId,
-    PresetSettings, PrintPreset, RevisionRow, Sort, VersionId,
+    AssetId, CollectionId, ContactSheetPreset, Event, ExportPreset, FolderId, GridItem, GridQuery,
+    ImportCandidate, JobId, KeywordId, Library, MapPin, Preset, PresetFolder, PresetFolderId,
+    PresetId, PresetSettings, PrintPreset, RevisionRow, Sort, VersionId,
 };
 use slint::{Global, SharedString, Timer, VecModel};
 
@@ -123,6 +123,9 @@ pub(crate) struct App {
     /// Stored print presets (ADR 0036), parallel to the print dialog's
     /// preset chips.
     pub(crate) print_presets: Vec<PrintPreset>,
+    /// Stored contact-sheet presets (ADR 0110), parallel to the sheet
+    /// dialog's preset chips.
+    pub(crate) sheet_presets: Vec<ContactSheetPreset>,
     /// Stored develop presets, in the order the menu bar's submenus and the
     /// panel's `index` both address them.
     pub(crate) dev_presets: Vec<Preset>,
@@ -209,6 +212,8 @@ pub(crate) struct App {
     pub(crate) export_job: Option<JobId>,
     /// The print job the dialog is waiting on, when one runs (ADR 0036).
     pub(crate) print_job: Option<JobId>,
+    /// The contact sheet the dialog is waiting on, when one runs (ADR 0110).
+    pub(crate) sheet_job: Option<JobId>,
     /// The derivation running, when one is (ADR 0107). Not a dialog's job:
     /// it takes minutes and the window stays usable throughout, so what it
     /// owns is the status line and nothing else.

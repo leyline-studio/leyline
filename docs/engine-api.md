@@ -911,6 +911,44 @@ Printing is neither a process version nor a pipeline stage (ADR 0036): it is "an
 
 Unlike export, there is no journalling: no `print_history` table (catalog.md §42) — a print modifies no revision and does not need to be found again later from the catalog.
 
+## 12.2 Contact sheets (ADR 0110)
+
+```rust
+pub enum ContactSheetRecipe {
+    /// Settings supplied by the caller, not stored.
+    Adhoc(ContactSheetSettings),
+    /// A stored preset (catalog.md §45), resolved when the request runs.
+    Preset(ContactSheetPresetId),
+}
+
+pub struct ContactSheetRequest {
+    pub versions: Vec<VersionId>,   // in reading order
+    pub recipe: ContactSheetRecipe,
+    pub destination: PathBuf,       // one file, refused if it exists
+}
+
+pub struct ContactSheetReport {
+    pub path: PathBuf,
+    pub pages: usize,
+    pub placed: usize,
+    pub failed: Vec<FailedPrint>,   // the empty cells, reused from §12.1
+}
+
+impl Library {
+    pub fn contact_sheet(&self, request: &ContactSheetRequest,
+                         progress: impl FnMut(u64, u64)) -> Result<ContactSheetReport>;
+    /// The job: `JobProgress` per photograph, then `JobFinished`.
+    pub fn contact_sheet_async(&self, request: ContactSheetRequest) -> JobId;
+    pub fn create_contact_sheet_preset(&self, name: &str,
+                                       settings: &ContactSheetSettings) -> Result<ContactSheetPresetId>;
+    pub fn contact_sheet_presets(&self) -> Result<Vec<ContactSheetPreset>>;
+}
+```
+
+A contact sheet is a print whose page holds a grid (ADR 0110): `ContactSheetSettings` **contains** a whole `PrintSettings` as its `page`, and adds `columns`, `rows`, `gutter_mm`, `caption` and `caption_mm`. Each cell is planned and rendered exactly as a print is — the same `decode → render → the revision's stages` — scaled into the cell's image box instead of the whole printable area, then blitted onto a page raster the engine composes at `paper × DPI` and hands to `leyline_export::encode_contact_sheet`. The destination ICC transform (ADR 0027) applies once per composed page. **No new rendering algorithm is introduced**, exactly as ADR 0036 introduced none.
+
+The difference from §12.1 is what a request *produces*: a print writes one PDF per version, a sheet writes **one multi-page PDF for the whole request** — which is why it is a separate call rather than a `rows`/`columns` field defaulting to 1×1. Pages are rendered and composed one at a time, so a five hundred photograph sheet holds one page of pixels at a time. A version that fails to render leaves its cell **empty**, the following photographs do not shift up, and the sheet is still written: the failure is reported in `ContactSheetReport.failed` (ADR 0110 §6). Like a print, a sheet journals nothing and never overwrites an existing file — and the destination is checked **before** the first decode.
+
 ---
 
 # 13. API stability

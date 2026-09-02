@@ -45,6 +45,12 @@ and no process version is introduced (ADR 0028's numbering rule therefore does
 
 ### V2's scope — one photo per page, contact sheets are cut
 
+> **Lifted by [ADR 0110](0110-contact-sheets.md) (2026-09).** The cut below
+> stands as the decision it was, and the sentence it ends on — "contact sheets
+> will come back in their own future ADR if they are ever wanted" — is what
+> ADR 0110 answers. Nothing else in this document changed: a print still
+> writes one photograph per page, one file per version.
+
 **V2 prints a single photo per page.** Contact sheets and N-up layouts (several
 photos per page, arbitrary grid mathematics, mixed aspect ratios,
 crop-to-fill rules) are **cut from V2** — a deliberate cut, not an oversight. A

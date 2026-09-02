@@ -75,7 +75,7 @@ pub(crate) struct PrintPlan {
     /// stages' input (ADR 0072). Resolved here, from the same metadata as
     /// `shot`, because the render is a pure function of what it is handed.
     sensor: Option<crate::render::SensorShot>,
-    stem: String,
+    pub(crate) stem: String,
     /// Library root `develop.camera_profile`'s path (if any) is relative
     /// to — resolved in [`render_print`], mirroring
     /// [`crate::export::ExportPlan`].
@@ -127,12 +127,52 @@ pub(crate) fn render_print(
     settings: &PrintSettings,
     destination_dir: &Path,
 ) -> Result<PathBuf> {
+    let (target_w, target_h) = settings.target_pixels().map_err(print_err)?;
+    let scaled = render_to_box(plan, target_w, target_h, false)?;
+
+    let mut pixels = scaled.data().to_vec();
+    if let Some(profile_path) = &settings.profile {
+        let transform = OutputTransform::load(profile_path, settings.intent)
+            .map_err(|e| LeylineError::InvalidSettings(e.to_string()))?;
+        transform.apply(&mut pixels);
+    }
+
+    let filename = format!("{}.pdf", plan.stem);
+    let destination = destination_dir.join(&filename);
+    std::fs::create_dir_all(destination_dir)?;
+    leyline_export::encode_print(
+        &destination,
+        scaled.width(),
+        scaled.height(),
+        &pixels,
+        settings,
+    )
+    .map_err(print_err)?;
+
+    Ok(destination)
+}
+
+/// Decodes, develops and scales one plan to fit inside a `box_w` x `box_h`
+/// pixel box, preserving its aspect ratio — the half of printing that a
+/// contact sheet reuses cell by cell (ADR 0110 §4), with no destination
+/// profile applied yet and nothing written to disk.
+///
+/// `half_size` is handed down to the decoder: a contact sheet's cells are
+/// small enough that half a RAW is more than the box can hold, and a print
+/// is outside `docs/pipeline.md` §5's contract (ADR 0036), so the choice
+/// costs nothing but time (ADR 0110 §7).
+pub(crate) fn render_to_box(
+    plan: &PrintPlan,
+    box_w: u32,
+    box_h: u32,
+    half_size: bool,
+) -> Result<Rgb8> {
     let camera_profile = crate::camera_profile::resolve_from_settings(
         &plan.library_root,
         &plan.develop,
         &plan.source,
     )?;
-    let decode_params = crate::stages::decode_params(&plan.develop, false);
+    let decode_params = crate::stages::decode_params(&plan.develop, half_size);
     let native_depth = crate::stages::native_bit_depth(&plan.develop);
     let decoded =
         crate::source::decode(&plan.source, &decode_params, native_depth).map_err(|e| {
@@ -156,29 +196,7 @@ pub(crate) fn render_print(
 
     let image = Rgb8::new(rendered.width, rendered.height, rendered.data)
         .map_err(|e| LeylineError::InvalidImage(e.to_string()))?;
-    let (target_w, target_h) = settings.target_pixels().map_err(print_err)?;
-    let scaled = image.scaled_to_fit_box(target_w, target_h);
-
-    let mut pixels = scaled.data().to_vec();
-    if let Some(profile_path) = &settings.profile {
-        let transform = OutputTransform::load(profile_path, settings.intent)
-            .map_err(|e| LeylineError::InvalidSettings(e.to_string()))?;
-        transform.apply(&mut pixels);
-    }
-
-    let filename = format!("{}.pdf", plan.stem);
-    let destination = destination_dir.join(&filename);
-    std::fs::create_dir_all(destination_dir)?;
-    leyline_export::encode_print(
-        &destination,
-        scaled.width(),
-        scaled.height(),
-        &pixels,
-        settings,
-    )
-    .map_err(print_err)?;
-
-    Ok(destination)
+    Ok(image.scaled_to_fit_box(box_w, box_h))
 }
 
 /// One version a batch printed to disk.

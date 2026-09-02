@@ -2818,3 +2818,80 @@ msgstr "Bruit de luminance"
 msgctxt "DevelopPanel"
 msgid "Color noise"
 msgstr "Bruit de couleur"
+
+#: crates/leyline-studio/ui/panels/menubar.slint:118
+msgctxt "MenuBar"
+msgid "Contact Sheet…"
+msgstr "Planche contact…"
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:46
+msgctxt "ContactSheetDialog"
+msgid "Contact sheet"
+msgstr "Planche contact"
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:52
+msgctxt "ContactSheetDialog"
+msgid "Every selected photo, in order, on one PDF"
+msgstr "Toutes les photos sélectionnées, dans l'ordre, sur un seul PDF"
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:116
+msgctxt "ContactSheetDialog"
+msgid "Columns"
+msgstr "Colonnes"
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:120
+msgctxt "ContactSheetDialog"
+msgid "Rows"
+msgstr "Lignes"
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:124
+msgctxt "ContactSheetDialog"
+msgid "Gutter (mm)"
+msgstr "Écart (mm)"
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:140
+msgctxt "ContactSheetDialog"
+msgid "Captions"
+msgstr "Légendes"
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:148
+msgctxt "ContactSheetDialog"
+msgid "File name"
+msgstr "Nom du fichier"
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:162
+msgctxt "ContactSheetDialog"
+msgid "Caption height (mm)"
+msgstr "Hauteur de légende (mm)"
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:231
+msgctxt "ContactSheetDialog"
+msgid "PDF to write (absolute path)"
+msgstr "PDF à écrire (chemin absolu)"
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:274
+msgctxt "ContactSheetDialog"
+msgid "Create sheet"
+msgstr "Créer la planche"
+
+#: crates/leyline-studio/ui/types.slint:457
+msgctxt "Tr"
+msgid "Rendering {}/{}…"
+msgstr "Rendu {}/{}…"
+
+#: crates/leyline-studio/ui/types.slint:460
+msgctxt "Tr"
+msgid "Wrote {} — {} photo(s) on {} page(s)."
+msgstr "Écrit {} — {} photo(s) sur {} page(s)."
+
+#: crates/leyline-studio/ui/types.slint:463
+msgctxt "Tr"
+msgid "{} photo could not be rendered and left an empty cell."
+msgid_plural "{} photos could not be rendered and left empty cells."
+msgstr[0] "{} photo n'a pas pu être rendue et laisse une case vide."
+msgstr[1] "{} photos n'ont pas pu être rendues et laissent des cases vides."
+
+#: crates/leyline-studio/ui/types.slint:466
+msgctxt "Tr"
+msgid "Contact sheet failed: {}"
+msgstr "Échec de la planche contact : {}"

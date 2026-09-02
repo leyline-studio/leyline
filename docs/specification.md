@@ -36,7 +36,7 @@ Every feature listed as delivered is delivered on all **three clients**: Studio,
 **Output**
 
 * JPEG, TIFF, PNG, WebP, AVIF export — export presets, batch export
-* Print module: physical dimensions, margins, destination profile ([ADR 0036](adr/0036-print-module.md))
+* Print module: physical dimensions, margins, destination profile ([ADR 0036](adr/0036-print-module.md)); contact sheets came later, in [ADR 0110](adr/0110-contact-sheets.md)
 
 **Distribution**
 
@@ -66,6 +66,7 @@ These features were scoped as post-V1 candidates in [`v2-scope.md`](v2-scope.md)
 | Automatic tone (`Auto`) and black and white, the two buttons Lightroom's Basic panel has above its sliders | [ADR 0088](adr/0088-auto-tone-and-black-and-white.md) |
 | A profile browser: choosing a camera rendering by looking at the open photo through each one | [ADR 0089](adr/0089-camera-profile-browser.md) |
 | Effects: the vignette a photographer *adds*, drawn on the cropped frame, and film grain — both deterministic, neither seeded | [ADR 0090](adr/0090-effects-vignette-grain.md) |
+| Contact sheets: a print whose page holds a grid, one multi-page PDF for a whole selection, captions from the file name | [ADR 0110](adr/0110-contact-sheets.md) |
 
 Masked local adjustments and their range masks have been exposed in all three clients since [ADR 0049](adr/0049-local-adjustments-clients.md): drawing tools and an editor in Studio, the stored `LocalAdjustment` JSON payload in the CLI. What ADR 0049 left out of scope: the overlay of the coverage the engine computes (the "red mask") is **delivered** ([ADR 0071](adr/0071-mask-overlay.md)); the range eyedropper ([ADR 0093](adr/0093-range-mask-eyedropper.md)) and the drag handles on a geometry already drawn ([ADR 0097](adr/0097-mask-geometry-handles.md)) are **delivered** too: nothing of ADR 0049 remains out of scope.
 

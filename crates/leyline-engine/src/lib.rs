@@ -11,6 +11,7 @@
 
 mod auto_tone;
 mod camera_profile;
+mod contact_sheet;
 mod cull;
 mod decode_cache;
 mod derive;
@@ -42,6 +43,7 @@ mod wb;
 mod xmp;
 
 pub use auto_tone::AutoTone;
+pub use contact_sheet::{ContactSheetRecipe, ContactSheetReport, ContactSheetRequest};
 pub use cull::{
     CullEntry, CullOptions, CullProposal, DEFAULT_BURST_DISTANCE, RejectReason, Verdict,
 };

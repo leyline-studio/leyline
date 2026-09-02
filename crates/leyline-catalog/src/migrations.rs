@@ -12,7 +12,7 @@ use leyline_core::Result;
 /// Migration scripts: index `n` migrates the database to `user_version` `n + 1`.
 const MIGRATIONS: &[&str] = &[
     SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8,
-    SCHEMA_V9, SCHEMA_V10, SCHEMA_V11,
+    SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12,
 ];
 
 /// The schema version produced by the newest migration.
@@ -656,4 +656,17 @@ ALTER TABLE assets ADD COLUMN derived_from INTEGER
     REFERENCES assets(id) ON DELETE SET NULL;
 
 CREATE INDEX idx_assets_derived ON assets(derived_from);
+";
+
+const SCHEMA_V12: &str = "
+-- §45 A named contact-sheet recipe: a page, plus the grid drawn on it
+-- (ADR 0110 §8). Parallel to print_presets, and separate from it because
+-- a print preset's settings_json refuses unknown fields.
+CREATE TABLE contact_sheet_presets (
+    id INTEGER PRIMARY KEY,
+    uuid TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    settings_json TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+);
 ";

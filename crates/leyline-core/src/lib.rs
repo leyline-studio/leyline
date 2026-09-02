@@ -14,8 +14,8 @@ mod types;
 
 pub use error::{LeylineError, Result};
 pub use id::{
-    AssetId, CollectionId, ExportPresetId, FolderId, JobId, KeywordId, PresetFolderId, PresetId,
-    PrintPresetId, RevisionId, VersionId,
+    AssetId, CollectionId, ContactSheetPresetId, ExportPresetId, FolderId, JobId, KeywordId,
+    PresetFolderId, PresetId, PrintPresetId, RevisionId, VersionId,
 };
 pub use path::validate_library_relative_path;
 pub use settings::{

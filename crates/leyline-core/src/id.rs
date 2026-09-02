@@ -75,6 +75,10 @@ id_type!(
     PrintPresetId(i64)
 );
 id_type!(
+    /// Identifier of a contact-sheet preset (ADR 0110 §8).
+    ContactSheetPresetId(i64)
+);
+id_type!(
     /// Identifier of a develop preset.
     PresetId(i64)
 );

@@ -9,6 +9,7 @@
 mod assets;
 mod collections;
 mod connection;
+mod contact_sheets;
 mod derived;
 mod descriptions;
 mod details;
@@ -30,6 +31,7 @@ mod versions;
 
 pub use assets::{CHECKSUM_LEN, DeletedAssets, NewAsset, RegisteredAsset};
 pub use collections::{CollectionNode, RatingRule, SmartRules};
+pub use contact_sheets::ContactSheetPreset;
 pub use descriptions::AssetDescription;
 pub use details::AssetDetails;
 pub use exports::{ExportPreset, ExportRecord};

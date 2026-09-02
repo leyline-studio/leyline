@@ -20,8 +20,12 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+mod contact_sheet;
 mod print;
 mod watermark;
+pub use contact_sheet::{
+    CaptionSource, ContactSheetSettings, SheetCell, compose_page, encode_contact_sheet,
+};
 pub use print::{Margins, Orientation, PaperSize, PrintSettings, encode_print};
 pub use watermark::{Watermark, WatermarkAnchor, WatermarkFont};
 

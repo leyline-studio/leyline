@@ -1032,3 +1032,87 @@ fn the_watermark_decorations_reach_the_recipe_and_refuse_on_their_own() {
     assert!(!out.status.success());
     assert!(stderr(&out).contains("watermark size"), "{}", stderr(&out));
 }
+
+/// ADR 0110 at a shell prompt: the grid flags, the preset round trip, and
+/// the one file a sheet writes whatever the number of photographs.
+#[test]
+fn contact_sheet_writes_one_pdf_and_stores_its_recipe() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = library_with_a_photo(&dir);
+    let sheet = dir.path().join("index.pdf");
+    let sheet_s = sheet.to_str().unwrap();
+
+    let out = run(&[
+        "contact-sheet",
+        &root,
+        sheet_s,
+        "1",
+        "--columns",
+        "2",
+        "--rows",
+        "2",
+        "--dpi",
+        "72",
+        "--captions",
+        "filename",
+    ]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(
+        stdout(&out).contains("1 photo(s) on 1 page(s)"),
+        "{}",
+        stdout(&out)
+    );
+    assert_eq!(std::fs::read(&sheet).unwrap()[..5], *b"%PDF-");
+
+    // Never overwritten, like a print.
+    let out = run(&["contact-sheet", &root, sheet_s, "1"]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("already exists"), "{}", stderr(&out));
+
+    let out = run(&[
+        "contact-sheet-preset",
+        &root,
+        "Index",
+        "--columns",
+        "3",
+        "--rows",
+        "3",
+        "--dpi",
+        "72",
+    ]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    let out = run(&["contact-sheet-presets", &root]);
+    assert!(stdout(&out).contains("Index"), "{}", stdout(&out));
+    assert!(stdout(&out).contains("\"rows\":3"), "{}", stdout(&out));
+
+    let second = dir.path().join("from-preset.pdf");
+    let out = run(&[
+        "contact-sheet",
+        &root,
+        second.to_str().unwrap(),
+        "1",
+        "--preset",
+        "Index",
+    ]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(second.is_file());
+
+    // A stored recipe and ad-hoc flags in the same call is a refusal, not a
+    // silent precedence.
+    let out = run(&[
+        "contact-sheet",
+        &root,
+        dir.path().join("third.pdf").to_str().unwrap(),
+        "1",
+        "--preset",
+        "Index",
+        "--columns",
+        "9",
+    ]);
+    assert!(!out.status.success());
+    assert!(
+        stderr(&out).contains("--preset already defines"),
+        "{}",
+        stderr(&out)
+    );
+}

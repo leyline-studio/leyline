@@ -9,6 +9,7 @@ use std::path::PathBuf;
 
 use leyline_core::{AssetId, JobId, PreviewKind, VersionId};
 
+use crate::contact_sheet::ContactSheetReport;
 use crate::cull::CullProposal;
 use crate::export::ExportReport;
 use crate::import::ImportReport;
@@ -125,6 +126,8 @@ pub enum JobResult {
     Preview(PreviewFile),
     /// A print batch completed (per-version failures included).
     Print(PrintReport),
+    /// A contact sheet was written (empty cells reported inside, ADR 0110).
+    ContactSheet(ContactSheetReport),
     /// An import scan completed: what the source holds, nothing written
     /// (ADR 0065 §1).
     Scan(Vec<ImportCandidate>),

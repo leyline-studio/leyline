@@ -20,18 +20,19 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use leyline_catalog::{
-    Catalog, CollectionNode, ExportPreset, FolderNode, KeywordNode, LibraryInfo, Preset,
-    PresetFolder, PrintPreset, Root, SmartRules,
+    Catalog, CollectionNode, ContactSheetPreset, ExportPreset, FolderNode, KeywordNode,
+    LibraryInfo, Preset, PresetFolder, PrintPreset, Root, SmartRules,
 };
 use leyline_core::{
-    AssetId, CameraSettings, CollectionId, ColorLabel, ExportPresetId, JobId, KeywordId,
-    LeylineError, PickState, PresetFolderId, PresetId, PresetSettings, PreviewKind, PrintPresetId,
-    Result, Settings, SettingsGroup, TetherSetting, VersionId, WhiteBalance,
+    AssetId, CameraSettings, CollectionId, ColorLabel, ContactSheetPresetId, ExportPresetId, JobId,
+    KeywordId, LeylineError, PickState, PresetFolderId, PresetId, PresetSettings, PreviewKind,
+    PrintPresetId, Result, Settings, SettingsGroup, TetherSetting, VersionId, WhiteBalance,
 };
-use leyline_export::{ExportSettings, PrintSettings};
-use leyline_preview::PreviewCache;
+use leyline_export::{ContactSheetSettings, ExportSettings, PrintSettings};
+use leyline_preview::{PreviewCache, Rgb8};
 
 use crate::auto_tone::AutoTone;
+use crate::contact_sheet::{ContactSheetRecipe, ContactSheetReport, ContactSheetRequest};
 use crate::cull::{CullOptions, CullProposal};
 use crate::decode_cache::DecodeCache;
 use crate::events::{Event, JobResult};
@@ -2025,6 +2026,170 @@ impl Library {
     /// Lists every stored print preset, ordered by name (ADR 0036).
     pub fn print_presets(&self) -> Result<Vec<PrintPreset>> {
         self.catalog().print_presets()
+    }
+
+    /// Lays `request`'s versions out on a grid and writes **one** multi-page
+    /// PDF (ADR 0110) — the difference from [`Library::print`], which writes
+    /// one file per version.
+    ///
+    /// Pages are rendered and composed one at a time, so the memory a sheet
+    /// costs is one page's worth whatever the number of photographs. A
+    /// version that fails to render leaves its cell empty and lands in
+    /// [`ContactSheetReport::failed`]; the sheet is still written, because
+    /// grid position is how a person points at a frame (ADR 0110 §6).
+    pub fn contact_sheet(
+        &self,
+        request: &ContactSheetRequest,
+        mut progress: impl FnMut(u64, u64),
+    ) -> Result<ContactSheetReport> {
+        let settings = self.resolve_contact_sheet_recipe(&request.recipe)?;
+        settings.validate().map_err(crate::print::print_err)?;
+        if request.versions.is_empty() {
+            return Err(LeylineError::InvalidSettings(
+                "a contact sheet needs at least one version".to_owned(),
+            ));
+        }
+        // Refused before a single photograph is decoded: a sheet of forty
+        // frames must not be rendered to discover the file was already there.
+        if request.destination.exists() {
+            return Err(LeylineError::Io(std::io::Error::new(
+                std::io::ErrorKind::AlreadyExists,
+                format!(
+                    "{} already exists; contact sheets never overwrite",
+                    request.destination.display()
+                ),
+            )));
+        }
+
+        let (box_w, box_h) = settings
+            .image_box_pixels()
+            .map_err(crate::print::print_err)?;
+        let transform = crate::contact_sheet::output_transform(&settings)?;
+        let total = request.versions.len() as u64;
+        let mut report = ContactSheetReport {
+            path: request.destination.clone(),
+            ..ContactSheetReport::default()
+        };
+        let mut pages = Vec::new();
+        let mut done = 0u64;
+
+        for chunk in request
+            .versions
+            .chunks(settings.cells_per_page().max(1) as usize)
+        {
+            let mut cells = Vec::with_capacity(chunk.len());
+            for &version in chunk {
+                match self.render_sheet_cell(version, &settings, box_w, box_h) {
+                    Ok(cell) => {
+                        report.placed += 1;
+                        cells.push(cell);
+                    }
+                    Err(error) => {
+                        report.failed.push(crate::print::FailedPrint {
+                            version,
+                            reason: error.to_string(),
+                        });
+                        cells.push((None, String::new()));
+                    }
+                }
+                done += 1;
+                progress(done, total);
+            }
+            pages.push(crate::contact_sheet::compose_page(
+                &settings,
+                &cells,
+                transform.as_ref(),
+            )?);
+        }
+
+        report.pages = pages.len();
+        leyline_export::encode_contact_sheet(&request.destination, &pages, &settings)
+            .map_err(crate::print::print_err)?;
+        Ok(report)
+    }
+
+    /// Renders `request` as a job (§3.1): returns immediately, progresses
+    /// per photograph, then `JobFinished` with the report.
+    pub fn contact_sheet_async(&self, request: ContactSheetRequest) -> JobId {
+        let job = self.new_job();
+        let library = self.clone();
+        self.spawn_job(move || {
+            let sheet = library.contact_sheet(&request, {
+                let library = library.clone();
+                move |done, total| {
+                    library.emit(Event::JobProgress {
+                        job_id: job,
+                        done,
+                        total,
+                    });
+                }
+            });
+            let result = match sheet {
+                Ok(report) => JobResult::ContactSheet(report),
+                Err(error) => JobResult::Failed(error.to_string()),
+            };
+            library.emit(Event::JobFinished {
+                job_id: job,
+                result,
+            });
+        });
+        job
+    }
+
+    /// Resolves a sheet recipe to the settings that drive the render.
+    fn resolve_contact_sheet_recipe(
+        &self,
+        recipe: &ContactSheetRecipe,
+    ) -> Result<ContactSheetSettings> {
+        match recipe {
+            ContactSheetRecipe::Adhoc(settings) => Ok(settings.clone()),
+            ContactSheetRecipe::Preset(preset) => {
+                let catalog = lock(&self.inner.catalog);
+                let stored = catalog.contact_sheet_preset(*preset)?;
+                ContactSheetSettings::parse(&stored.settings_json).map_err(crate::print::print_err)
+            }
+        }
+    }
+
+    /// Plans and renders one cell, with the catalog lock narrowed to the
+    /// plan (ADR 0024) exactly as [`Library::print_one`] does.
+    fn render_sheet_cell(
+        &self,
+        version: VersionId,
+        settings: &ContactSheetSettings,
+        box_w: u32,
+        box_h: u32,
+    ) -> Result<(Option<Rgb8>, String)> {
+        let cell = {
+            let catalog = lock(&self.inner.catalog);
+            crate::contact_sheet::plan_cell(
+                &catalog,
+                &self.inner.root,
+                version,
+                settings,
+                box_w,
+                box_h,
+            )?
+        };
+        let image = crate::contact_sheet::render_cell(&cell, box_w, box_h)?;
+        Ok((Some(image), cell.caption))
+    }
+
+    /// Stores a named contact-sheet preset (ADR 0110 §8), validating the
+    /// recipe first.
+    pub fn create_contact_sheet_preset(
+        &self,
+        name: &str,
+        settings: &ContactSheetSettings,
+    ) -> Result<ContactSheetPresetId> {
+        settings.validate().map_err(crate::print::print_err)?;
+        self.catalog_mut()
+            .create_contact_sheet_preset(name, &settings.to_json())
+    }
+
+    /// Lists every stored contact-sheet preset, ordered by name (ADR 0110).
+    pub fn contact_sheet_presets(&self) -> Result<Vec<ContactSheetPreset>> {
+        self.catalog().contact_sheet_presets()
     }
 
     /// Opens an edit session on a version (§10.1). The session holds the
