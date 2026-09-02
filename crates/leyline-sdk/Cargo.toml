@@ -23,8 +23,10 @@ leyline-map.workspace = true
 # can turn the backend off from the top of the tree (Cargo can only select
 # features on the package it is asked to build, never on a transitive
 # dependency). Nothing in this crate's own surface changes either way.
-default = ["tether"]
+default = ["tether", "heif"]
 tether = ["leyline-engine/tether"]
+# Same forwarding for the system HEIF decoder (ADR 0114).
+heif = ["leyline-engine/heif"]
 # Same forwarding, for the embedded world basemap (ADR 0059). Off by
 # default: only a client that renders a map wants those 9 Mo.
 bundled-basemap = ["leyline-engine/bundled-basemap"]

@@ -1,0 +1,18 @@
+[package]
+name = "leyline-heif"
+description = "HEIF/HEIC decoding through the system libheif."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+libheif-rs.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

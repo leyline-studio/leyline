@@ -21,6 +21,7 @@ leyline-lens.workspace = true
 leyline-tether = { workspace = true, optional = true }
 leyline-map.workspace = true
 leyline-export.workspace = true
+leyline-heif = { workspace = true, optional = true }
 leyline-derive.workspace = true
 leyline-cull.workspace = true
 notify.workspace = true
@@ -46,8 +47,18 @@ trash.workspace = true
 # `tether_disconnect` and the tether events compile either way, so
 # `leyline-sdk`'s semver surface keeps the same shape and no client — CLI,
 # Studio or third party — needs to know how the engine was built.
-default = ["tether"]
+default = ["tether", "heif"]
 tether = ["dep:leyline-tether"]
+
+# HEIF reading through the *system* libheif (ADR 0114). On by default, so a
+# source build or a distribution's package reads `.heic` with the decoder
+# that distribution ships. Turned off by every packaging script we run
+# ourselves — an AppImage, a dmg or an installer bundles its dependencies,
+# and a package built with this on would carry an HEVC decoder inside it,
+# which is the thing ADR 0114 refuses. Like `tether`, the feature removes
+# the *backend*, never the API: the error a `.heic` gets simply changes from
+# "no decoder in this build" to whatever libheif says.
+heif = ["dep:leyline-heif"]
 
 # The world basemap Leyline Studio ships with (ADR 0059): ~9 Mo of tiles
 # compiled into the binary. Off by default because only a client that

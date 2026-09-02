@@ -16,13 +16,14 @@ That constraint has a real cost — the API has to be designed before the screen
 
 ## The crates
 
-Thirteen crates, each with a single responsibility.
+Fourteen crates, each with a single responsibility.
 
 | Crate | Responsibility |
 |---|---|
 | `leyline-core` | Shared types, identifiers, errors, `Settings`. Depends on nothing. |
 | `leyline-engine` | Orchestration: jobs, events, rendering, edit sessions. The heart. |
 | `leyline-raw` | Decoding RAW files (and JPEG/PNG/TIFF at import). |
+| `leyline-heif` | Decoding HEIF/HEIC through the **system** libheif, behind a feature the published packages leave off ([ADR 0114](adr/0114-heif-reading.md)). |
 | `leyline-catalog` | The SQLite catalog: libraries, assets, versions, revisions. |
 | `leyline-preview` | Preview and thumbnail cache. |
 | `leyline-color` | Colour management (ICC), reading DCP profiles. |

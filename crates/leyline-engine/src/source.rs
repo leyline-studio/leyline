@@ -24,6 +24,10 @@ pub(crate) enum SourceError {
     Image(image::ImageError),
     /// The media type has no decoder in V1.
     Undecodable(MediaType),
+    /// libheif refused the file, or this build has no HEIF backend at all
+    /// (ADR 0114 §2): the two are told apart by the message, because they
+    /// are told apart by what the reader has to do about them.
+    Heif(String),
 }
 
 impl fmt::Display for SourceError {
@@ -34,6 +38,7 @@ impl fmt::Display for SourceError {
             SourceError::Undecodable(kind) => {
                 write!(f, "{kind:?} files cannot be developed in V1")
             }
+            SourceError::Heif(message) => write!(f, "{message}"),
         }
     }
 }
@@ -65,9 +70,12 @@ pub(crate) fn decode(
         Some(MediaType::Jpeg | MediaType::Png | MediaType::Tiff) => {
             decode_native(path, native_depth)
         }
-        Some(kind @ (MediaType::Heif | MediaType::Psd | MediaType::Other)) => {
-            Err(SourceError::Undecodable(kind))
-        }
+        // HEIF goes to the platform's libheif when this build has the
+        // backend, and says which of the two things went wrong when it does
+        // not (ADR 0114). The container's own rotation is applied by the
+        // decoder, so unlike `decode_native` nothing re-applies EXIF's.
+        Some(MediaType::Heif) => decode_heif(path, native_depth),
+        Some(kind @ (MediaType::Psd | MediaType::Other)) => Err(SourceError::Undecodable(kind)),
         // RAW, DNG — and unknown extensions, which only LibRaw can judge:
         // it recognizes content, not names.
         _ => leyline_raw::decode(path, params)
@@ -167,6 +175,32 @@ fn decode_native(path: &Path, native_depth: bool) -> Result<RawImage, SourceErro
     })
 }
 
+/// Decodes a HEIF file through the system libheif (ADR 0114).
+#[cfg(feature = "heif")]
+fn decode_heif(path: &Path, native_depth: bool) -> Result<RawImage, SourceError> {
+    let decoded =
+        leyline_heif::decode(path, native_depth).map_err(|e| SourceError::Heif(e.to_string()))?;
+    Ok(RawImage {
+        width: decoded.width,
+        height: decoded.height,
+        bits: decoded.bits,
+        data: decoded.data,
+    })
+}
+
+/// The same, in a build without the backend: a named refusal rather than a
+/// mystery (ADR 0114 §2). The distinction matters to the person reading it —
+/// this one is fixed by installing a different build, not by installing a
+/// codec.
+#[cfg(not(feature = "heif"))]
+fn decode_heif(_path: &Path, _native_depth: bool) -> Result<RawImage, SourceError> {
+    Err(SourceError::Heif(
+        "this build has no HEIF decoder: it was compiled without the `heif` \
+         feature, which links the libheif your system provides"
+            .to_owned(),
+    ))
+}
+
 /// Whether a decoded image holds more than eight bits per channel — the only
 /// case where keeping the native depth changes anything.
 fn wider_than_eight_bits(image: &image::DynamicImage) -> bool {
@@ -228,16 +262,27 @@ mod tests {
     }
 
     #[test]
-    fn heif_and_psd_are_cleanly_undecodable() {
+    fn psd_is_cleanly_undecodable() {
         let dir = tempfile::tempdir().unwrap();
-        for name in ["c.heic", "c.psd"] {
-            let path = dir.path().join(name);
-            std::fs::write(&path, b"whatever").unwrap();
-            let err = decode(&path, &DecodeParams::default(), false).unwrap_err();
-            assert!(
-                err.to_string().contains("cannot be developed"),
-                "{name}: {err}"
-            );
-        }
+        let path = dir.path().join("c.psd");
+        std::fs::write(&path, b"whatever").unwrap();
+        let err = decode(&path, &DecodeParams::default(), false).unwrap_err();
+        assert!(err.to_string().contains("cannot be developed"), "{err}");
+    }
+
+    /// HEIF stopped being undecodable with ADR 0114 — what it gives now is
+    /// either libheif's own refusal of a file that is not one, or, in a build
+    /// without the backend, a sentence saying exactly that. Both are
+    /// `SourceError::Heif`, and neither is the V1 "cannot be developed".
+    #[test]
+    fn heif_is_refused_by_the_decoder_or_by_the_build_never_as_a_media_type() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("c.heic");
+        std::fs::write(&path, b"whatever").unwrap();
+        let err = decode(&path, &DecodeParams::default(), false).unwrap_err();
+        assert!(matches!(err, SourceError::Heif(_)), "got {err:?}");
+        assert!(!err.to_string().contains("cannot be developed"), "{err}");
+        #[cfg(not(feature = "heif"))]
+        assert!(err.to_string().contains("no HEIF decoder"), "{err}");
     }
 }

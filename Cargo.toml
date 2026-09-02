@@ -19,6 +19,7 @@ leyline-lens = { path = "crates/leyline-lens" }
 leyline-tether = { path = "crates/leyline-tether" }
 leyline-map = { path = "crates/leyline-map" }
 leyline-export = { path = "crates/leyline-export" }
+leyline-heif = { path = "crates/leyline-heif" }
 leyline-detect = { path = "crates/leyline-detect" }
 leyline-derive = { path = "crates/leyline-derive" }
 leyline-cull = { path = "crates/leyline-cull" }
@@ -40,6 +41,10 @@ kamadak-exif = "0.6"
 # ignores that signal at startup, which turns `leyline ls | head` into a
 # panic instead of a quiet exit. Already in the tree transitively.
 libc = "0.2"
+# The binding to the *system* libheif (ADR 0114): the floor of 1.16 is the
+# binding's own, and our own packages are built without the feature that
+# pulls it in, so no HEVC decoder ships inside them.
+libheif-rs = "0.18"
 # `serialize` exposes `sqlite3_deserialize`, which is how `leyline-map`
 # opens the embedded world basemap without extracting it (ADR 0059).
 rusqlite = { version = "0.37", features = ["bundled", "serialize"] }

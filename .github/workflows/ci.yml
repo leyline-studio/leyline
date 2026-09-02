@@ -75,14 +75,14 @@ jobs:
         #
         # No libraw-dev: the pinned LibRaw is built below instead. Installing
         # it as well would only add a second copy for pkg-config to find.
-        run: sudo apt-get update && sudo apt-get install -y libgphoto2-dev nasm
+        run: sudo apt-get update && sudo apt-get install -y libgphoto2-dev libheif-dev nasm
 
       - name: Install system dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
           # No libraw: the pinned one is built below. Homebrew ships 0.22.2,
           # a different minor version from the one the deliverables carry.
-          brew install libgphoto2 nasm
+          brew install libgphoto2 libheif nasm
           # Homebrew's libraw_r.pc hardcodes `-lstdc++` in its Libs line
           # (LibRaw is C++), but current Xcode/macOS SDKs only ship libc++ —
           # there's no standalone libstdc++.dylib/.tbd anymore, so the
@@ -271,7 +271,7 @@ jobs:
         # `check` leg above — LibRaw is C++, its .pc says `-lstdc++`, and
         # current SDKs only ship libc++.
         run: |
-          brew install libgphoto2 nasm
+          brew install libgphoto2 libheif nasm
           mkdir -p "$HOME/lib-shim"
           ln -sf "$(xcrun --show-sdk-path)/usr/lib/libc++.tbd" "$HOME/lib-shim/libstdc++.tbd"
           echo "LIBRARY_PATH=$HOME/lib-shim:$LIBRARY_PATH" >> "$GITHUB_ENV"

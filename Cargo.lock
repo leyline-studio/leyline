@@ -1781,6 +1781,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "enumn"
+version = "0.1.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2f9ed6b3789237c8a0c1c505af1c7eb2c560df6186f01b098c3a1064ea532f38"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "equator"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2054,6 +2065,12 @@ checksum = "cb4cb245038516f5f85277875cdaa4f7d2c9a0fa0468de06ed190163b1581fcf"
 dependencies = [
  "percent-encoding",
 ]
+
+[[package]]
+name = "four-cc"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "92d73a076bdabd78c2f9045dba1b90664a655fa8372581c238596e1eb3a5e1b7"
 
 [[package]]
 name = "fsevent-sys"
@@ -3440,6 +3457,7 @@ dependencies = [
  "leyline-cull",
  "leyline-derive",
  "leyline-export",
+ "leyline-heif",
  "leyline-lens",
  "leyline-map",
  "leyline-preview",
@@ -3476,6 +3494,15 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "tiff",
+]
+
+[[package]]
+name = "leyline-heif"
+version = "0.1.0-alpha.3"
+dependencies = [
+ "libheif-rs",
+ "tempfile",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -3587,6 +3614,28 @@ checksum = "63434be819e4b8933a4df944b3033a1799259f1e37b219a4fb11f2fc01123a9e"
 dependencies = [
  "bindgen 0.65.1",
  "pkg-config",
+]
+
+[[package]]
+name = "libheif-rs"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37d09b0d2d69da084eeeda9534662bc6b6096fbce3f307149750c0e572ad0ccd"
+dependencies = [
+ "enumn",
+ "four-cc",
+ "libheif-sys",
+]
+
+[[package]]
+name = "libheif-sys"
+version = "1.16.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2fec9617ceb95892391fba66dc1d559b3b15997844f5d36b17cb96ed86e0551c"
+dependencies = [
+ "libc",
+ "pkg-config",
+ "vcpkg",
 ]
 
 [[package]]

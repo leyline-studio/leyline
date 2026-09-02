@@ -45,5 +45,14 @@ export LD_LIBRARY_PATH="$LIBRAW_LINUX_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_
 # "Failed to copy file ... No such file or directory" on
 # `target/release/leyline-studio`, which reads like a packaging bug rather
 # than a missing build. Same order as `packaging/windows/build-nsis.sh`.
-cargo build --release -p leyline-studio
+# `--no-default-features --features tether,bundled-basemap` keeps everything
+# an AppImage should have and drops one thing on purpose: `heif` (ADR 0114).
+# The feature links the system libheif, and an AppImage bundles the shared
+# libraries its binary needs — so building it on would put an HEVC decoder
+# inside the image we distribute, which ADR 0114 §1 refuses. Someone running
+# the AppImage therefore gets a named refusal on a `.heic`; someone running a
+# distribution's package, or a build from source, reads it with the libheif
+# their system already provides.
+cargo build --release -p leyline-studio \
+    --no-default-features --features tether,bundled-basemap
 cargo packager --release -p leyline-studio -f appimage "$@"

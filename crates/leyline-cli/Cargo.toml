@@ -25,8 +25,10 @@ embed-resource = "3.0"
 # can turn the backend off from the top of the tree (Cargo can only select
 # features on the package it is asked to build, never on a transitive
 # dependency). Nothing in this crate's own surface changes either way.
-default = ["tether"]
+default = ["tether", "heif"]
 tether = ["leyline-sdk/tether"]
+# Same forwarding for the system HEIF decoder (ADR 0114).
+heif = ["leyline-sdk/heif"]
 
 [dev-dependencies]
 image.workspace = true

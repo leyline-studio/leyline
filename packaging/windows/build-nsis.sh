@@ -154,6 +154,13 @@ cp /usr/x86_64-w64-mingw32/lib/libwinpthread-1.dll "$vendor_dir/"
 # without the world basemap, and its size gave it away (22 Mo instead of
 # 31). Any new default feature of `leyline-studio` belongs in this list
 # too, unless it is deliberately unwanted on Windows.
+#
+# `heif` (ADR 0114) is one that is deliberately unwanted here, and stays
+# unnamed on purpose: the feature links the *system* libheif, there is none
+# to link against on the mingw target, and an installer that bundled one
+# would be shipping an HEVC decoder — which is exactly what ADR 0114 §1
+# refuses. Windows HEIF, when it comes, goes through WIC and the extension
+# the user installs, not through a library we carry.
 build_flags=(
     --release --target x86_64-pc-windows-gnu -p leyline-studio
     --no-default-features --features bundled-basemap

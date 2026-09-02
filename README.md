@@ -59,14 +59,24 @@ it today.
 
 ## Build from source
 
-Two system libraries are needed — **LibRaw** (RAW decoding) and **libgphoto2**
-(USB tethering) — plus **nasm**, which the AVIF encoder's build requires. The
-other bricks come with the crates: the Lensfun optics database is bundled, and
-LittleCMS is built from source.
+Three system libraries are needed — **LibRaw** (RAW decoding), **libgphoto2**
+(USB tethering) and **libheif** ≥ 1.16 (HEIF/HEIC reading) — plus **nasm**,
+which the AVIF encoder's build requires. The other bricks come with the
+crates: the Lensfun optics database is bundled, and LittleCMS is built from
+source.
 
 ```bash
-sudo apt install libraw-dev libgphoto2-dev nasm
+sudo apt install libraw-dev libgphoto2-dev libheif-dev nasm
+# Debian and Ubuntu ship libheif without an HEVC decoder — the plugin is its
+# own package, and without it every HEIC a phone made is refused:
+sudo apt install libheif-plugin-libde265
 ```
+
+Each of the three is linked, never vendored, and each has a feature that
+builds without it: `--no-default-features` drops the tethering backend and
+the HEIF one together. That is how the packages published here are built —
+they deliberately carry no HEVC decoder ([ADR 0114](docs/adr/0114-heif-reading.md)),
+so reading a `.heic` needs a build made against your system's libheif.
 
 Rust is pinned to an exact toolchain in `rust-toolchain.toml` — rendering
 depends on it (see `docs/pipeline.md` §5.2), so `rustup` will pick the right one

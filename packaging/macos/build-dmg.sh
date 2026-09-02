@@ -40,5 +40,10 @@ export DYLD_FALLBACK_LIBRARY_PATH="$LIBRAW_MACOS_PREFIX/lib${DYLD_FALLBACK_LIBRA
 # cargo-packager packages an existing binary, it does not build one — see the
 # same two-step order in `packaging/linux/build-appimage.sh` and
 # `packaging/windows/build-nsis.sh`.
-cargo build --release -p leyline-studio
+# `heif` is left out for the reason ADR 0114 §1 gives: a dmg carries the
+# libraries its binary links, so building it on would put an HEVC decoder in
+# the bundle we distribute. macOS has a HEIF decoder of its own (Image I/O);
+# using it is a backend to write, not a library to ship.
+cargo build --release -p leyline-studio \
+    --no-default-features --features tether,bundled-basemap
 cargo packager --release -p leyline-studio -f dmg "$@"

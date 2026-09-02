@@ -44,8 +44,10 @@ embed-resource = "3.0"
 # `bundled-basemap` is on by default here and nowhere else: Studio is the
 # one client that draws a map (ADR 0040), so it is the one that carries the
 # embedded world basemap (ADR 0059).
-default = ["tether", "bundled-basemap"]
+default = ["tether", "heif", "bundled-basemap"]
 tether = ["leyline-sdk/tether"]
+# Same forwarding for the system HEIF decoder (ADR 0114).
+heif = ["leyline-sdk/heif"]
 bundled-basemap = ["leyline-sdk/bundled-basemap"]
 
 [dev-dependencies]
