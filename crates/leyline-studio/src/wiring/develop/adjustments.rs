@@ -46,6 +46,55 @@ pub(super) fn wire_adjustments(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
+        DevelopState::get(window).on_sample_pixel(move |u, v| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let app = app.borrow();
+            let readout = app
+                .dev_pixels
+                .as_ref()
+                .and_then(|image| develop::pixel_readout(image, u, v))
+                .unwrap_or_default();
+            DevelopState::get(&window).set_pixel_readout(readout.into());
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        DevelopState::get(window).on_reset_group(move |group| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let Some((_, version)) = app.develop else {
+                return;
+            };
+            let committed = (|| {
+                let mut session = app.library.edit(version)?;
+                let changes = develop::reset_group(group.as_str(), session.settings());
+                // A group already at neutral writes no revision: the history
+                // must not fill with entries that changed nothing
+                // (ADR 0112 §4).
+                if changes.is_empty() {
+                    return Ok(());
+                }
+                for (param, value) in changes {
+                    session.set(param, value)?;
+                }
+                session.commit().map(|_| ())
+            })();
+            if let Err(error) = committed
+                .map_err(|e| e.to_string())
+                .and_then(|()| refresh_develop(&mut app, &window))
+            {
+                report_error(&window, &error);
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
         DevelopState::get(window).on_measure_tca(move || {
             let Some(window) = handle.upgrade() else {
                 return;

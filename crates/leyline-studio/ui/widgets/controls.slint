@@ -29,9 +29,37 @@ export component DetailRow inherits HorizontalLayout {
 // Collapsible section header for the develop panel's setting groups: lets
 // a photo's edit stay focused on the groups actually touched instead of
 // scrolling past sliders for adjustments that were never made.
+// The zoom law, in one place (ADR 0112 §3): how far one wheel notch moves
+// the scale, and where it stops at either end.
+//
+// A multiplier and not a step, because zoom is perceived in ratios: the same
+// notch has to feel the same at 30 % and at 400 %.
+export global Zoom {
+    // One image pixel per screen pixel is 1.0; the floor is well below any
+    // fit scale, so the wheel can always come back down to the whole photo.
+    out property <float> minimum: 0.05;
+    out property <float> maximum: 8.0;
+    out property <float> per-notch: 1.15;
+
+    public pure function stepped(current: float, delta: length) -> float {
+        return Math.clamp(
+            delta > 0 ? current * root.per-notch : current / root.per-notch,
+            root.minimum,
+            root.maximum);
+    }
+    // What the corner reads: "100 %", never "100.0000 %".
+    public pure function percent(scale: float) -> string {
+        return Math.round(scale * 100) + " %";
+    }
+}
+
 export component GroupHeader inherits HorizontalLayout {
     in property <string> label;
+    // The group's identifier for `develop::reset_group`. Empty means this
+    // header has nothing to reset — a view toggle, or a list (ADR 0112 §4).
+    in property <string> group;
     in-out property <bool> expanded;
+    callback reset();
 
     TouchArea {
         horizontal-stretch: 1;
@@ -43,6 +71,24 @@ export component GroupHeader inherits HorizontalLayout {
         }
         clicked => {
             root.expanded = !root.expanded;
+        }
+    }
+    // Put the whole group back to neutral, in one revision (ADR 0112 §4).
+    // Shown only while the group is open: a header row is read as a list,
+    // and a column of buttons down the side of a folded panel invites the
+    // one click nobody wants to make by accident.
+    if root.group != "" && root.expanded: TouchArea {
+        width: 16px;
+        mouse-cursor: pointer;
+        Text {
+            text: "⟲";
+            color: parent.has-hover ? #e6e6e6 : #6a6a6a;
+            font-size: 12px;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+        clicked => {
+            root.reset();
         }
     }
 }
@@ -429,17 +475,73 @@ export component EditSlider inherits HorizontalLayout {
             }
         }
     }
-    Text {
-        // A fixed column so the numbers align, and an explicit sign so a
-        // glance tells which way a slider was moved — on the two-sided
-        // sliders only: a temperature in kelvin or a strength in percent is
-        // a quantity, not a deviation, and "+6500 K" reads as an error.
-        text: root.minimum < 0 && root.rounded > 0 ? "+\{root.rounded}" : "\{root.rounded}";
-        color: #e6e6e6;
-        font-size: 12px;
+    // The number, typed as readily as dragged (ADR 0112 §1). A fixed column
+    // so the numbers align, and an explicit sign so a glance tells which way
+    // a slider was moved — on the two-sided sliders only: a temperature in
+    // kelvin or a strength in percent is a quantity, not a deviation, and
+    // "+6500 K" reads as an error.
+    //
+    // The text cannot simply be *bound* to the value: a `TextInput` writes
+    // its own `text` as the user types, which in Slint drops the binding for
+    // good. So the field is written imperatively — whenever the value moves,
+    // and again when focus leaves — and read back only on Enter or on that
+    // same focus loss.
+    property <string> formatted: root.minimum < 0 && root.rounded > 0
+        ? "+\{root.rounded}"
+        : "\{root.rounded}";
+    changed formatted => {
+        if (!field.has-focus) {
+            field.text = root.formatted;
+        }
+    }
+    Rectangle {
         width: 46px;
-        horizontal-alignment: right;
-        vertical-alignment: center;
+        // A frame only while it is being typed into: at rest the number must
+        // read as a number, not as a form to fill in.
+        background: field.has-focus ? #1b1b1b : transparent;
+        border-radius: 3px;
+        border-width: field.has-focus ? 1px : 0;
+        border-color: #6fa8dc;
+        field := TextInput {
+            width: 100%;
+            height: 100%;
+            text: root.formatted;
+            color: #e6e6e6;
+            font-size: 12px;
+            horizontal-alignment: right;
+            vertical-alignment: center;
+            single-line: true;
+            accepted => {
+                root.commit-typed();
+                // Enter should leave the field, not keep the caret blinking
+                // in it — `clear-focus` is `EditSlider`'s own, inherited
+                // from every element, so the sink below is what takes it.
+                focus-sink.focus();
+            }
+            changed has-focus => {
+                if (!self.has-focus) {
+                    root.commit-typed();
+                }
+            }
+        }
+    }
+
+    // Reads the field back: a number inside the range commits, anything else
+    // puts the current value back. `to-float` returns 0 for text that is not
+    // a number, so the two are told apart by re-formatting rather than by
+    // trusting the parse.
+    function commit-typed() {
+        if (field.text != root.formatted) {
+            if (field.text.is-float()) {
+                root.edited(Math.clamp(field.text.to-float(), root.minimum, root.maximum));
+            }
+            field.text = root.formatted;
+        }
+    }
+
+    focus-sink := FocusScope {
+        width: 0;
+        height: 0;
     }
 }
 

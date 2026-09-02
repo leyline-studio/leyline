@@ -273,6 +273,7 @@ fn run() -> Result<(), String> {
         dev_history: Vec::new(),
         dev_history_version: None,
         presets: Vec::new(),
+        dev_pixels: None,
         print_presets: Vec::new(),
         sheet_presets: Vec::new(),
         dev_presets: Vec::new(),

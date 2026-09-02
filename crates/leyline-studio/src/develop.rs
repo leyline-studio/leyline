@@ -312,6 +312,182 @@ pub fn drag_crop(
 /// into `[0, 1]` unit coordinates of the *image itself* — the referential
 /// [`Crop`] and [`Point`] (ADR 0026) both share. `None` for a degenerate
 /// viewport or preview.
+/// The R/G/B under the pointer, formatted for the viewer's corner
+/// (ADR 0112 §2), or `None` when the pointer is off the photograph.
+///
+/// `u` and `v` are the pointer in [0, 1] image coordinates; anything outside
+/// that square is off the image, which is a readout of nothing rather than a
+/// clamped edge pixel.
+pub fn pixel_readout(image: &leyline_sdk::Rgb8, u: f32, v: f32) -> Option<String> {
+    if !(0.0..=1.0).contains(&u) || !(0.0..=1.0).contains(&v) {
+        return None;
+    }
+    // The last row and column are reachable at exactly 1.0, hence the min.
+    let x = ((u * image.width() as f32) as u32).min(image.width().saturating_sub(1));
+    let y = ((v * image.height() as f32) as u32).min(image.height().saturating_sub(1));
+    let offset = (y as usize * image.width() as usize + x as usize) * 3;
+    let rgb = image.data().get(offset..offset + 3)?;
+    Some(format!("R {}  G {}  B {}", rgb[0], rgb[1], rgb[2]))
+}
+
+/// Every parameter one group of the develop panel owns, set back to its
+/// neutral value (ADR 0112 §4).
+///
+/// Returns an empty list for a group already at neutral — a reset that
+/// changes nothing must not write a revision — and for the three headers
+/// that are not settings at all (Soft Proof is a view, Versions and History
+/// are lists).
+///
+/// The mapping is spelled out rather than derived from `SettingsGroup`: the
+/// preset machinery names seven families, and the panel has sixteen headers.
+/// The three the model does name are taken from it; the rest are named here,
+/// where the panel's own division lives.
+pub fn reset_group(group: &str, current: &Settings) -> Vec<(Param, Value)> {
+    let neutral = leyline_sdk::neutral_settings();
+    let mut changes: Vec<(Param, Value)> = Vec::new();
+    let mut set = |param: Param, value: Value| changes.push((param, value));
+
+    match group {
+        "basic" => {
+            if current.white_balance.is_some() {
+                set(Param::WhiteBalance, Value::WhiteBalance(None));
+            }
+            for (param, value, is_neutral) in [
+                (Param::Exposure, Value::Float(0.0), current.exposure == 0.0),
+                (Param::Contrast, Value::Int(0), current.contrast == 0),
+                (Param::Highlights, Value::Int(0), current.highlights == 0),
+                (Param::Shadows, Value::Int(0), current.shadows == 0),
+                (Param::Whites, Value::Int(0), current.whites == 0),
+                (Param::Blacks, Value::Int(0), current.blacks == 0),
+                (Param::Texture, Value::Int(0), current.texture == 0),
+                (Param::Clarity, Value::Int(0), current.clarity == 0),
+                (Param::Dehaze, Value::Int(0), current.dehaze == 0),
+                (Param::Vibrance, Value::Int(0), current.vibrance == 0),
+                (Param::Saturation, Value::Int(0), current.saturation == 0),
+                (Param::Monochrome, Value::Bool(false), !current.monochrome),
+                (
+                    Param::HighlightRolloff,
+                    Value::Int(neutral.output_rendering.highlight_rolloff),
+                    current.output_rendering.highlight_rolloff
+                        == neutral.output_rendering.highlight_rolloff,
+                ),
+                (
+                    Param::HighlightReconstruction,
+                    Value::HighlightReconstruction(neutral.highlight_reconstruction),
+                    current.highlight_reconstruction == neutral.highlight_reconstruction,
+                ),
+                (
+                    Param::Demosaic,
+                    Value::Demosaic(neutral.demosaic),
+                    current.demosaic == neutral.demosaic,
+                ),
+            ] {
+                if !is_neutral {
+                    set(param, value);
+                }
+            }
+        }
+        "camera-profile" => {
+            if current.camera_profile.is_some() {
+                set(Param::CameraProfile, Value::CameraProfile(None));
+            }
+        }
+        "lut" => {
+            if current.lut.is_some() {
+                set(Param::Lut, Value::Lut(None));
+            }
+        }
+        "lens" => {
+            if current.lens_correction != neutral.lens_correction {
+                set(
+                    Param::LensCorrection,
+                    Value::LensCorrection(neutral.lens_correction.clone()),
+                );
+            }
+        }
+        "detail" => {
+            if current.noise_reduction != neutral.noise_reduction {
+                set(
+                    Param::NoiseReduction,
+                    Value::NoiseReduction(neutral.noise_reduction.clone()),
+                );
+            }
+            if current.sharpening != neutral.sharpening {
+                set(
+                    Param::Sharpening,
+                    Value::Sharpening(neutral.sharpening.clone()),
+                );
+            }
+        }
+        "effects" => {
+            if current.vignette != neutral.vignette {
+                set(Param::Vignette, Value::Vignette(neutral.vignette));
+            }
+            if current.grain != neutral.grain {
+                set(Param::Grain, Value::Grain(neutral.grain));
+            }
+        }
+        "tone-curve" => {
+            if current.tone_curve != neutral.tone_curve {
+                set(
+                    Param::ToneCurve,
+                    Value::ToneCurve(neutral.tone_curve.clone()),
+                );
+            }
+        }
+        // Eight bands, each its own parameter: the mixer has no whole-struct
+        // step, so a reset is eight of them — and only the ones that moved.
+        "hsl" => {
+            for (index, band) in current.hsl.iter().enumerate() {
+                if *band != neutral.hsl[index] {
+                    set(Param::HslBand(index), Value::HslBand(neutral.hsl[index]));
+                }
+            }
+        }
+        "color-grading" => {
+            if current.color_grading != neutral.color_grading {
+                set(
+                    Param::ColorGrading,
+                    Value::ColorGrading(neutral.color_grading),
+                );
+            }
+        }
+        "red-eye" => {
+            if !current.red_eye.is_empty() {
+                set(Param::RedEye, Value::RedEye(Vec::new()));
+            }
+        }
+        "spot-removal" => {
+            if !current.spot_removal.is_empty() {
+                set(Param::SpotRemoval, Value::SpotRemoval(Vec::new()));
+            }
+        }
+        // Removing by index, last first: each removal shifts the ones after
+        // it, and walking backwards is the only order in which the indices
+        // stay true.
+        "local" => {
+            for index in (0..current.local_adjustments.len()).rev() {
+                set(Param::LocalAdjustment(index), Value::LocalAdjustment(None));
+            }
+        }
+        "geometry" => {
+            if current.rotation != 0.0 {
+                set(Param::Rotation, Value::Float(0.0));
+            }
+            if current.crop.is_some() {
+                set(Param::Crop, Value::Crop(None));
+            }
+            if current.perspective.is_some() {
+                set(Param::Perspective, Value::Perspective(None));
+            }
+        }
+        // Soft Proof is a view setting, Versions and History are lists:
+        // nothing of a revision to put back.
+        _ => {}
+    }
+    changes
+}
+
 pub(crate) fn letterbox_unit(
     point: (f64, f64),
     view: (f64, f64),
@@ -1412,5 +1588,308 @@ mod tests {
 
         // A degenerate radius proposes nothing, matching `validate`.
         assert!(place_red_eye((50.0, 50.0), view, image, (0.0, 0.5, 0.6), &[]).is_none());
+    }
+}
+
+#[cfg(test)]
+mod reset_tests {
+    use super::*;
+    use leyline_sdk::{
+        ColorGradingZone, Grain, HighlightReconstruction, Lut, Mask, Vignette, WhiteBalance,
+    };
+
+    /// A revision with **every** group away from neutral: the fixture a
+    /// group reset has to be measured against, since the whole question is
+    /// what it leaves alone (ADR 0112 §4).
+    fn everything() -> Settings {
+        let mut settings = Settings {
+            white_balance: Some(WhiteBalance {
+                temperature: 4200,
+                tint: 12,
+            }),
+            exposure: 0.8,
+            contrast: 20,
+            highlights: -30,
+            shadows: 25,
+            whites: 10,
+            blacks: -10,
+            texture: 15,
+            clarity: 20,
+            dehaze: 10,
+            vibrance: 12,
+            saturation: -8,
+            monochrome: true,
+            highlight_reconstruction: HighlightReconstruction::Rebuild,
+            lens_correction: LensCorrection {
+                enabled: true,
+                tca_red: 0.05,
+                ..LensCorrection::default()
+            },
+            noise_reduction: NoiseReduction {
+                luminance: 30,
+                color: 40,
+            },
+            sharpening: Sharpening {
+                amount: 60,
+                radius: 1.5,
+                masking: 20,
+            },
+            vignette: Vignette {
+                amount: -40,
+                ..Vignette::default()
+            },
+            grain: Grain {
+                amount: 30,
+                ..Grain::default()
+            },
+            tone_curve: ToneCurve {
+                points: vec![
+                    CurvePoint { x: 0.0, y: 0.05 },
+                    CurvePoint { x: 1.0, y: 0.95 },
+                ],
+                ..ToneCurve::default()
+            },
+            color_grading: ColorGrading {
+                shadows: ColorGradingZone {
+                    hue: 210,
+                    saturation: 20,
+                    luminance: 0,
+                },
+                ..ColorGrading::default()
+            },
+            red_eye: vec![RedEye {
+                center: Point { x: 0.5, y: 0.5 },
+                radius: 0.05,
+                feather: 0.5,
+                darken: 0.6,
+            }],
+            spot_removal: vec![SpotRemoval {
+                target: Point { x: 0.2, y: 0.3 },
+                source: Point { x: 0.4, y: 0.5 },
+                radius: 0.04,
+                feather: 0.5,
+                opacity: 1.0,
+            }],
+            local_adjustments: vec![
+                leyline_sdk::LocalAdjustment {
+                    mask: Mask::Everything,
+                    range: None,
+                    opacity: 1.0,
+                    adjustments: leyline_sdk::LocalAdjustmentValues {
+                        exposure: Some(0.3),
+                        ..Default::default()
+                    },
+                },
+                leyline_sdk::LocalAdjustment {
+                    mask: Mask::Everything,
+                    range: None,
+                    opacity: 1.0,
+                    adjustments: leyline_sdk::LocalAdjustmentValues {
+                        contrast: Some(10),
+                        ..Default::default()
+                    },
+                },
+            ],
+            rotation: 3.5,
+            crop: Some(Crop {
+                x: 0.1,
+                y: 0.1,
+                width: 0.8,
+                height: 0.8,
+            }),
+            lut: Some(Lut {
+                enabled: true,
+                path: "Profiles/Lut/a.cube".to_owned(),
+                checksum: format!("blake3:{}", "a".repeat(64)),
+                strength: 80,
+            }),
+            ..Settings::default()
+        };
+        settings.hsl[0].saturation = 30;
+        settings.hsl[3].hue = -20;
+        settings.output_rendering.highlight_rolloff = 20;
+        settings
+    }
+
+    /// What a group's reset touches, as parameter names — the list *is* the
+    /// guarantee: a session only ever changes the parameters it is handed,
+    /// so a group that never names another group's parameter cannot reach
+    /// it (ADR 0112 §4).
+    fn touched(group: &str) -> Vec<String> {
+        let mut names: Vec<String> = reset_group(group, &everything())
+            .into_iter()
+            .map(|(param, _)| format!("{param:?}"))
+            .collect();
+        names.sort();
+        names
+    }
+
+    /// And what it puts there: the neutral value, read from the engine's own
+    /// neutral revision rather than from a literal in this file.
+    fn values(group: &str) -> Vec<Value> {
+        reset_group(group, &everything())
+            .into_iter()
+            .map(|(_, value)| value)
+            .collect()
+    }
+
+    #[test]
+    fn every_group_resets_its_own_fields_and_names_no_other() {
+        let neutral = leyline_sdk::neutral_settings();
+
+        assert_eq!(
+            touched("detail"),
+            ["NoiseReduction", "Sharpening"],
+            "detail owns exactly the two pairs"
+        );
+        assert_eq!(
+            values("detail"),
+            [
+                Value::NoiseReduction(neutral.noise_reduction.clone()),
+                Value::Sharpening(neutral.sharpening.clone()),
+            ]
+        );
+        assert_eq!(touched("effects"), ["Grain", "Vignette"]);
+        assert_eq!(touched("lens"), ["LensCorrection"]);
+        assert_eq!(touched("tone-curve"), ["ToneCurve"]);
+        assert_eq!(touched("color-grading"), ["ColorGrading"]);
+        assert_eq!(touched("red-eye"), ["RedEye"]);
+        assert_eq!(touched("spot-removal"), ["SpotRemoval"]);
+        assert_eq!(touched("lut"), ["Lut"]);
+        assert_eq!(touched("geometry"), ["Crop", "Rotation"]);
+
+        // The mixer is eight parameters and the fixture moved two of them:
+        // an untouched band is not written back.
+        assert_eq!(touched("hsl"), ["HslBand(0)", "HslBand(3)"]);
+
+        // Local adjustments are removed by index, last first — the only
+        // order in which the indices stay true.
+        assert_eq!(
+            reset_group("local", &everything())
+                .into_iter()
+                .map(|(param, _)| format!("{param:?}"))
+                .collect::<Vec<_>>(),
+            ["LocalAdjustment(1)", "LocalAdjustment(0)"]
+        );
+
+        // Basic is the wide one, and the list is the point: it names the
+        // tone and colour parameters and **nothing** of detail, effects,
+        // geometry or the mask tools.
+        let basic = touched("basic");
+        for owned in [
+            "Blacks",
+            "Clarity",
+            "Contrast",
+            "Dehaze",
+            "Exposure",
+            "Highlights",
+            "Monochrome",
+            "Saturation",
+            "Shadows",
+            "Texture",
+            "Vibrance",
+            "WhiteBalance",
+            "Whites",
+        ] {
+            assert!(
+                basic.contains(&owned.to_owned()),
+                "basic should reset {owned}"
+            );
+        }
+        for foreign in [
+            "Sharpening",
+            "NoiseReduction",
+            "Vignette",
+            "Grain",
+            "Crop",
+            "Rotation",
+            "ToneCurve",
+            "RedEye",
+            "SpotRemoval",
+        ] {
+            assert!(
+                !basic.contains(&foreign.to_owned()),
+                "basic must not touch {foreign}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_group_already_at_neutral_writes_nothing() {
+        let neutral = leyline_sdk::neutral_settings();
+        for group in [
+            "basic",
+            "camera-profile",
+            "lut",
+            "lens",
+            "detail",
+            "effects",
+            "tone-curve",
+            "hsl",
+            "color-grading",
+            "red-eye",
+            "spot-removal",
+            "local",
+            "geometry",
+        ] {
+            assert!(
+                reset_group(group, &neutral).is_empty(),
+                "{group} proposed a change on an untouched photo"
+            );
+        }
+    }
+
+    /// The three headers that are not settings: a view toggle and two lists.
+    #[test]
+    fn the_headers_that_are_not_settings_reset_nothing() {
+        let loaded = everything();
+        for group in ["proof", "versions", "history", "nonsense"] {
+            assert!(reset_group(group, &loaded).is_empty(), "{group}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod readout_tests {
+    use super::*;
+    use leyline_sdk::Rgb8;
+
+    /// A 4x2 image whose pixels are all different, so a wrong index is
+    /// visible rather than plausible.
+    fn image() -> Rgb8 {
+        let mut data = Vec::new();
+        for i in 0..8u8 {
+            data.extend_from_slice(&[i * 10, i * 10 + 1, i * 10 + 2]);
+        }
+        Rgb8::new(4, 2, data).unwrap()
+    }
+
+    #[test]
+    fn the_readout_names_the_pixel_under_the_pointer() {
+        let image = image();
+        assert_eq!(
+            pixel_readout(&image, 0.0, 0.0).as_deref(),
+            Some("R 0  G 1  B 2")
+        );
+        // Second column of the second row: index 5.
+        assert_eq!(
+            pixel_readout(&image, 0.3, 0.6).as_deref(),
+            Some("R 50  G 51  B 52")
+        );
+    }
+
+    #[test]
+    fn the_far_edge_reads_the_last_pixel_rather_than_running_off_it() {
+        assert_eq!(
+            pixel_readout(&image(), 1.0, 1.0).as_deref(),
+            Some("R 70  G 71  B 72")
+        );
+    }
+
+    #[test]
+    fn off_the_photograph_is_a_readout_of_nothing() {
+        let image = image();
+        assert_eq!(pixel_readout(&image, -0.01, 0.5), None);
+        assert_eq!(pixel_readout(&image, 0.5, 1.2), None);
     }
 }

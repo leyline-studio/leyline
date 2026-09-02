@@ -12,7 +12,7 @@ import { DevelopState } from "../state/develop.slint";
 import { PresetsPanel } from "presets.slint";
 import { GridState } from "../state/grid.slint";
 import { MaskState } from "../state/mask.slint";
-import { EditSlider, Filmstrip, FilterChip, GroupHeader, SubHeading } from "../widgets/controls.slint";
+import { EditSlider, Filmstrip, FilterChip, GroupHeader, SubHeading, Zoom } from "../widgets/controls.slint";
 
 export component DevelopPanel inherits HorizontalLayout {
     // Panel folding, owned by the window (ADR 0055 §6): the settings panel
@@ -67,6 +67,14 @@ export component DevelopPanel inherits HorizontalLayout {
     // fit rather than making every drag tool zoom-aware. `in-out` for the
     // same reason as `active-tool`.
     in-out property <bool> dev-zoomed: false;
+    // Image pixels per screen pixel while zoomed (ADR 0112 §3): 1.0 is
+    // 100 %, and the wheel walks it between `Zoom.minimum` and
+    // `Zoom.maximum`. Meaningless while `dev-zoomed` is false, where the
+    // image is fitted to the viewport instead.
+    in-out property <float> dev-scale: 1.0;
+    // Which point of the image sits in the middle of the viewport, in [0, 1].
+    in-out property <float> dev-center-x: 0.5;
+    in-out property <float> dev-center-y: 0.5;
 
     // Every entry of the profile browser costs a render, so the grid is
     // built when the group is opened and not before (ADR 0089 §1). A
@@ -267,10 +275,16 @@ export component DevelopPanel inherits HorizontalLayout {
                 FilterChip {
                     // Loupe zoom (Z): 100%-with-pan vs fit-to-window,
                     // Select tool only (see `dev-zoomed`'s declaration).
+                    // The one zoom level that means something exact — one
+                    // image pixel per screen pixel — stays one gesture away
+                    // whatever the wheel has been doing (ADR 0112 §3).
                     text: root.dev-zoomed ? @tr("Fit") : @tr("100%    Z");
                     active: root.dev-zoomed;
                     enabled: root.active-tool == "select";
                     clicked => {
+                        root.dev-scale = 1.0;
+                        root.dev-center-x = 0.5;
+                        root.dev-center-y = 0.5;
                         root.dev-zoomed = !root.dev-zoomed;
                     }
                 }
@@ -297,20 +311,112 @@ export component DevelopPanel inherits HorizontalLayout {
                     width: 100%;
                     height: 100%;
                 }
+                // From fit, `Ctrl` + wheel enters the zoom rather than doing
+                // nothing (ADR 0112 §3). Under every tool overlay, and only
+                // in Select mode, where the wheel means nothing else.
+                if !root.dev-zoomed && root.active-tool == "select": TouchArea {
+                    // The R/G/B readout follows the pointer here, in Select
+                    // mode, under every tool overlay (ADR 0112 §2). Slint's
+                    // `moved` fires only while pressed, so the hover is read
+                    // through a mirrored property instead.
+                    property <length> hover-x: self.mouse-x;
+                    property <length> hover-y: self.mouse-y;
+                    changed hover-x => {
+                        self.sample();
+                    }
+                    changed hover-y => {
+                        self.sample();
+                    }
+                    changed has-hover => {
+                        if (!self.has-hover) {
+                            DevelopState.pixel-readout = "";
+                        }
+                    }
+                    function sample() {
+                        if (parent.fit <= 0) {
+                            return;
+                        }
+                        DevelopState.sample-pixel(
+                            (self.mouse-x - parent.pad-x) / (parent.image-w * parent.fit),
+                            (self.mouse-y - parent.pad-y) / (parent.image-h * parent.fit));
+                    }
+                    scroll-event(event) => {
+                        if (event.modifiers.control && event.delta-y > 0) {
+                            root.dev-scale = Zoom.stepped(parent.fit / 1px, event.delta-y);
+                            root.dev-center-x = 0.5;
+                            root.dev-center-y = 0.5;
+                            root.dev-zoomed = true;
+                            return accept;
+                        }
+                        return reject;
+                    }
+                }
 
-                // 100%-with-pan: the image at its native pixel size
-                // inside a scrollable viewport, instead of scaled to
-                // fit — for judging sharpening/noise reduction at the
-                // pixel level, which fit-to-window can't show.
-                if root.dev-zoomed: Flickable {
+                // Zoomed: the image at `dev-scale` image-pixels per screen
+                // pixel, slid so the requested centre sits in the middle of
+                // the viewport — for judging sharpening and noise reduction
+                // at the pixel level, which fit-to-window cannot show.
+                //
+                // Laid out by hand rather than in a `Flickable` because the
+                // wheel has two meanings here (ADR 0112 §3): `Ctrl` zooms,
+                // and a drag pans. A Flickable would own both.
+                if root.dev-zoomed: Rectangle {
                     width: 100%;
                     height: 100%;
-                    viewport-width: DevelopState.develop-image.width * 1px;
-                    viewport-height: DevelopState.develop-image.height * 1px;
+                    property <length> shown-w: parent.image-w * root.dev-scale * 1px;
+                    property <length> shown-h: parent.image-h * root.dev-scale * 1px;
                     Image {
                         source: DevelopState.viewer-image;
-                        width: DevelopState.develop-image.width * 1px;
-                        height: DevelopState.develop-image.height * 1px;
+                        width: parent.shown-w;
+                        height: parent.shown-h;
+                        x: parent.width / 2 - root.dev-center-x * parent.shown-w;
+                        y: parent.height / 2 - root.dev-center-y * parent.shown-h;
+                    }
+                    zoom-area := TouchArea {
+                        property <float> from-x;
+                        property <float> from-y;
+                        pointer-event(event) => {
+                            if (event.kind == PointerEventKind.down) {
+                                self.from-x = root.dev-center-x;
+                                self.from-y = root.dev-center-y;
+                            }
+                        }
+                        moved => {
+                            if (self.pressed) {
+                                root.dev-center-x = Math.clamp(self.from-x - (self.mouse-x - self.pressed-x) / parent.shown-w, 0, 1);
+                                root.dev-center-y = Math.clamp(self.from-y - (self.mouse-y - self.pressed-y) / parent.shown-h, 0, 1);
+                            }
+                        }
+                        scroll-event(event) => {
+                            if (event.modifiers.control) {
+                                root.dev-scale = Zoom.stepped(root.dev-scale, event.delta-y);
+                                return accept;
+                            }
+                            return reject;
+                        }
+                    }
+                }
+
+                // What the pointer is over, and how far in we are
+                // (ADR 0112 §2, §3). Bottom right, out of the way of the
+                // Compare badge in the opposite corner.
+                if root.dev-zoomed || DevelopState.pixel-readout != "": Rectangle {
+                    x: parent.width - self.width - 8px;
+                    y: parent.height - self.height - 8px;
+                    width: readout.preferred-width + 16px;
+                    height: readout.preferred-height + 8px;
+                    background: #000000aa;
+                    border-radius: 4px;
+                    readout := Text {
+                        text: root.dev-zoomed
+                            ? Zoom.percent(root.dev-scale) + "   " + DevelopState.pixel-readout
+                            : DevelopState.pixel-readout;
+                        color: #e6e6e6;
+                        font-size: 11px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        width: 100%;
+                        height: 100%;
                     }
                 }
 
@@ -942,6 +1048,10 @@ export component DevelopPanel inherits HorizontalLayout {
                     // three (ADR 0054 §2).
                     GroupHeader {
                         label: @tr("Basic");
+                        group: "basic";
+                        reset => {
+                            DevelopState.reset-group("basic");
+                        }
                         expanded <=> root.expand-basic;
                     }
                     if root.expand-basic: VerticalLayout {
@@ -1290,6 +1400,10 @@ export component DevelopPanel inherits HorizontalLayout {
 
                     if !root.basic-mode: GroupHeader {
                         label: @tr("Camera profile");
+                        group: "camera-profile";
+                        reset => {
+                            DevelopState.reset-group("camera-profile");
+                        }
                         expanded <=> root.expand-camera-profile;
                     }
                     if !root.basic-mode && root.expand-camera-profile: VerticalLayout {
@@ -1393,6 +1507,10 @@ export component DevelopPanel inherits HorizontalLayout {
 
                     if !root.basic-mode: GroupHeader {
                         label: @tr("Creative LUT");
+                        group: "lut";
+                        reset => {
+                            DevelopState.reset-group("lut");
+                        }
                         expanded <=> root.expand-lut;
                     }
                     // A look chosen elsewhere and imported into the library
@@ -1449,6 +1567,10 @@ export component DevelopPanel inherits HorizontalLayout {
 
                     GroupHeader {
                         label: @tr("Lens correction");
+                        group: "lens";
+                        reset => {
+                            DevelopState.reset-group("lens");
+                        }
                         expanded <=> root.expand-lens;
                     }
                     if root.expand-lens: VerticalLayout {
@@ -1513,6 +1635,10 @@ export component DevelopPanel inherits HorizontalLayout {
 
                     GroupHeader {
                         label: @tr("Detail");
+                        group: "detail";
+                        reset => {
+                            DevelopState.reset-group("detail");
+                        }
                         expanded <=> root.expand-detail;
                     }
                     if root.expand-detail: VerticalLayout {
@@ -1592,6 +1718,10 @@ export component DevelopPanel inherits HorizontalLayout {
                     // reaches for (ADR 0054 §2).
                     if !root.basic-mode: GroupHeader {
                         label: @tr("Effects");
+                        group: "effects";
+                        reset => {
+                            DevelopState.reset-group("effects");
+                        }
                         expanded <=> root.expand-effects;
                     }
                     if !root.basic-mode && root.expand-effects: VerticalLayout {
@@ -1694,6 +1824,10 @@ export component DevelopPanel inherits HorizontalLayout {
 
                     if !root.basic-mode: GroupHeader {
                         label: @tr("Tone Curve");
+                        group: "tone-curve";
+                        reset => {
+                            DevelopState.reset-group("tone-curve");
+                        }
                         expanded <=> root.expand-tone-curve;
                     }
                     if !root.basic-mode && root.expand-tone-curve: VerticalLayout {
@@ -1805,6 +1939,10 @@ export component DevelopPanel inherits HorizontalLayout {
 
                     if !root.basic-mode: GroupHeader {
                         label: @tr("HSL Mixer");
+                        group: "hsl";
+                        reset => {
+                            DevelopState.reset-group("hsl");
+                        }
                         expanded <=> root.expand-hsl;
                     }
                     if !root.basic-mode && root.expand-hsl && DevelopState.dev.monochrome: Text {
@@ -1868,6 +2006,10 @@ export component DevelopPanel inherits HorizontalLayout {
 
                     if !root.basic-mode: GroupHeader {
                         label: @tr("Color Grading");
+                        group: "color-grading";
+                        reset => {
+                            DevelopState.reset-group("color-grading");
+                        }
                         expanded <=> root.expand-color-grading;
                     }
                     if !root.basic-mode && root.expand-color-grading: VerticalLayout {
@@ -2035,6 +2177,10 @@ export component DevelopPanel inherits HorizontalLayout {
 
                     if !root.basic-mode: GroupHeader {
                         label: @tr("Red Eye");
+                        group: "red-eye";
+                        reset => {
+                            DevelopState.reset-group("red-eye");
+                        }
                         expanded <=> root.expand-red-eye;
                     }
                     if !root.basic-mode && root.expand-red-eye: VerticalLayout {
@@ -2108,6 +2254,10 @@ export component DevelopPanel inherits HorizontalLayout {
 
                     if !root.basic-mode: GroupHeader {
                         label: @tr("Spot Removal");
+                        group: "spot-removal";
+                        reset => {
+                            DevelopState.reset-group("spot-removal");
+                        }
                         expanded <=> root.expand-spot-removal;
                     }
                     if !root.basic-mode && root.expand-spot-removal: VerticalLayout {
@@ -2227,6 +2377,10 @@ export component DevelopPanel inherits HorizontalLayout {
 
                     if !root.basic-mode: GroupHeader {
                         label: @tr("Local Adjustments");
+                        group: "local";
+                        reset => {
+                            DevelopState.reset-group("local");
+                        }
                         expanded <=> root.expand-local;
                     }
                     // The masked adjustments of ADR 0029, refined by the range
@@ -2855,6 +3009,10 @@ export component DevelopPanel inherits HorizontalLayout {
 
                     GroupHeader {
                         label: @tr("Geometry");
+                        group: "geometry";
+                        reset => {
+                            DevelopState.reset-group("geometry");
+                        }
                         expanded <=> root.expand-geometry;
                     }
                     if root.expand-geometry: VerticalLayout {

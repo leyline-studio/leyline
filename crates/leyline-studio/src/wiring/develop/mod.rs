@@ -106,6 +106,7 @@ pub(super) fn live_preview(
     })();
     if let Ok(Some(image)) = shown {
         DevelopState::get(window).set_develop_image(crate::models::rgb8_to_slint_image(&image));
+        app.dev_pixels = Some(image);
     }
 }
 
@@ -259,6 +260,8 @@ pub(crate) fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<()
         None => crate::models::rgb8_to_slint_image(&rgb),
     };
     DevelopState::get(window).set_develop_image(image);
+    // Kept for the readout, and the *unpainted* one on purpose (ADR 0112 §2).
+    app.dev_pixels = Some(rgb);
     if let Ok(bins) = app.library.histogram(asset, PreviewKind::Small) {
         const CANVAS: (f64, f64) = (256.0, 90.0);
         let scale_max = bins.iter().flatten().copied().max().unwrap_or(0);

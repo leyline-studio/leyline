@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2026-09-02 10:05+0000\n"
+"POT-Creation-Date: 2026-09-02 11:22+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1377,7 +1377,7 @@ msgctxt "ComparePanel"
 msgid "{} (candidate)"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:53 crates/leyline-studio/ui/panels/develop.slint:1715
+#: crates/leyline-studio/ui/panels/develop.slint:53 crates/leyline-studio/ui/panels/develop.slint:1849
 msgctxt "DevelopPanel"
 msgid "Red"
 msgstr ""
@@ -1392,7 +1392,7 @@ msgctxt "DevelopPanel"
 msgid "Yellow"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:53 crates/leyline-studio/ui/panels/develop.slint:1722
+#: crates/leyline-studio/ui/panels/develop.slint:53 crates/leyline-studio/ui/panels/develop.slint:1856
 msgctxt "DevelopPanel"
 msgid "Green"
 msgstr ""
@@ -1402,7 +1402,7 @@ msgctxt "DevelopPanel"
 msgid "Aqua"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:54 crates/leyline-studio/ui/panels/develop.slint:1729
+#: crates/leyline-studio/ui/panels/develop.slint:54 crates/leyline-studio/ui/panels/develop.slint:1863
 msgctxt "DevelopPanel"
 msgid "Blue"
 msgstr ""
@@ -1417,811 +1417,811 @@ msgctxt "DevelopPanel"
 msgid "Magenta"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:176
+#: crates/leyline-studio/ui/panels/develop.slint:184
 msgctxt "DevelopPanel"
 msgid ""
 "← →: next/prev photo · G: library · Ctrl+Z/Y: undo/redo · S: save preset · "
 "R: reprocess · Ctrl+P: print"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:185
+#: crates/leyline-studio/ui/panels/develop.slint:193
 msgctxt "DevelopPanel"
 msgid "Select"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:193
+#: crates/leyline-studio/ui/panels/develop.slint:201
 msgctxt "DevelopPanel"
 msgid "Crop"
 msgstr ""
 
 #. sliders it drives, lives in Basic.
-#: crates/leyline-studio/ui/panels/develop.slint:204
+#: crates/leyline-studio/ui/panels/develop.slint:212
 msgctxt "DevelopPanel"
 msgid "WB Picker"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:213 crates/leyline-studio/ui/panels/develop.slint:2110
+#: crates/leyline-studio/ui/panels/develop.slint:221 crates/leyline-studio/ui/panels/develop.slint:2256
 msgctxt "DevelopPanel"
 msgid "Spot Removal"
 msgstr ""
 
 #. removal takes two.
-#: crates/leyline-studio/ui/panels/develop.slint:223 crates/leyline-studio/ui/panels/develop.slint:2037
+#: crates/leyline-studio/ui/panels/develop.slint:231 crates/leyline-studio/ui/panels/develop.slint:2179
 msgctxt "DevelopPanel"
 msgid "Red Eye"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:238 crates/leyline-studio/ui/panels/develop.slint:2263
+#: crates/leyline-studio/ui/panels/develop.slint:246 crates/leyline-studio/ui/panels/develop.slint:2417
 msgctxt "DevelopPanel"
 msgid "Radial"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:248 crates/leyline-studio/ui/panels/develop.slint:2264
+#: crates/leyline-studio/ui/panels/develop.slint:256 crates/leyline-studio/ui/panels/develop.slint:2418
 msgctxt "DevelopPanel"
 msgid "Gradient"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:258 crates/leyline-studio/ui/panels/develop.slint:2265
+#: crates/leyline-studio/ui/panels/develop.slint:266 crates/leyline-studio/ui/panels/develop.slint:2419
 msgctxt "DevelopPanel"
 msgid "Brush"
 msgstr ""
 
-#. Select tool only (see `dev-zoomed`'s declaration).
-#: crates/leyline-studio/ui/panels/develop.slint:270
+#. whatever the wheel has been doing (ADR 0112 §3).
+#: crates/leyline-studio/ui/panels/develop.slint:281
 msgctxt "DevelopPanel"
 msgid "Fit"
 msgstr ""
 
-#. Select tool only (see `dev-zoomed`'s declaration).
-#: crates/leyline-studio/ui/panels/develop.slint:270
+#. whatever the wheel has been doing (ADR 0112 §3).
+#: crates/leyline-studio/ui/panels/develop.slint:281
 msgctxt "DevelopPanel"
 msgid "100%    Z"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:327
+#: crates/leyline-studio/ui/panels/develop.slint:433
 msgctxt "DevelopPanel"
 msgid "Before"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:705
+#: crates/leyline-studio/ui/panels/develop.slint:811
 msgctxt "DevelopPanel"
 msgid "Reset Crop"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:711
+#: crates/leyline-studio/ui/panels/develop.slint:817
 msgctxt "DevelopPanel"
 msgid "Undo Last Spot"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:718
+#: crates/leyline-studio/ui/panels/develop.slint:824
 msgctxt "DevelopPanel"
 msgid "Clear All Spots"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:725
+#: crates/leyline-studio/ui/panels/develop.slint:831
 msgctxt "DevelopPanel"
 msgid "Show After    \\"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:725
+#: crates/leyline-studio/ui/panels/develop.slint:831
 msgctxt "DevelopPanel"
 msgid "Compare Before/After    \\"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:732
+#: crates/leyline-studio/ui/panels/develop.slint:838
 msgctxt "DevelopPanel"
 msgid "Reprocess    R"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:739
+#: crates/leyline-studio/ui/panels/develop.slint:845
 msgctxt "DevelopPanel"
 msgid "Back to Library    G"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:897 crates/leyline-studio/ui/panels/develop.slint:944
+#: crates/leyline-studio/ui/panels/develop.slint:1003 crates/leyline-studio/ui/panels/develop.slint:1050
 msgctxt "DevelopPanel"
 msgid "Basic"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:908
+#: crates/leyline-studio/ui/panels/develop.slint:1014
 msgctxt "DevelopPanel"
 msgid "Full"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:924
+#: crates/leyline-studio/ui/panels/develop.slint:1030
 msgctxt "DevelopPanel"
 msgid "Auto"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:931
+#: crates/leyline-studio/ui/panels/develop.slint:1037
 msgctxt "DevelopPanel"
 msgid "B&W"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:956
+#: crates/leyline-studio/ui/panels/develop.slint:1066
 msgctxt "DevelopPanel"
 msgid "As Shot"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:962
+#: crates/leyline-studio/ui/panels/develop.slint:1072
 msgctxt "DevelopPanel"
 msgid "Auto WB"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:968
+#: crates/leyline-studio/ui/panels/develop.slint:1078
 msgctxt "DevelopPanel"
 msgid "Daylight"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:977
+#: crates/leyline-studio/ui/panels/develop.slint:1087
 msgctxt "DevelopPanel"
 msgid "Cloudy"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:983
+#: crates/leyline-studio/ui/panels/develop.slint:1093
 msgctxt "DevelopPanel"
 msgid "Shade"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:989
+#: crates/leyline-studio/ui/panels/develop.slint:1099
 msgctxt "DevelopPanel"
 msgid "Tungsten"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:998
+#: crates/leyline-studio/ui/panels/develop.slint:1108
 msgctxt "DevelopPanel"
 msgid "Fluorescent"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1004
+#: crates/leyline-studio/ui/panels/develop.slint:1114
 msgctxt "DevelopPanel"
 msgid "Flash"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1011 crates/leyline-studio/ui/panels/develop.slint:2641
+#: crates/leyline-studio/ui/panels/develop.slint:1121 crates/leyline-studio/ui/panels/develop.slint:2795
 msgctxt "DevelopPanel"
 msgid "Temperature"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1029 crates/leyline-studio/ui/panels/develop.slint:2653
+#: crates/leyline-studio/ui/panels/develop.slint:1139 crates/leyline-studio/ui/panels/develop.slint:2807
 msgctxt "DevelopPanel"
 msgid "Tint"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1044
+#: crates/leyline-studio/ui/panels/develop.slint:1154
 msgctxt "DevelopPanel"
 msgid "Tone"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1047 crates/leyline-studio/ui/panels/develop.slint:2473
+#: crates/leyline-studio/ui/panels/develop.slint:1157 crates/leyline-studio/ui/panels/develop.slint:2627
 msgctxt "DevelopPanel"
 msgid "Exposure"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1060 crates/leyline-studio/ui/panels/develop.slint:2486
+#: crates/leyline-studio/ui/panels/develop.slint:1170 crates/leyline-studio/ui/panels/develop.slint:2640
 msgctxt "DevelopPanel"
 msgid "Contrast"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1072 crates/leyline-studio/ui/panels/develop.slint:1968 crates/leyline-studio/ui/panels/develop.slint:2498
+#: crates/leyline-studio/ui/panels/develop.slint:1182 crates/leyline-studio/ui/panels/develop.slint:2110 crates/leyline-studio/ui/panels/develop.slint:2652
 msgctxt "DevelopPanel"
 msgid "Highlights"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1084 crates/leyline-studio/ui/panels/develop.slint:1878 crates/leyline-studio/ui/panels/develop.slint:2510
+#: crates/leyline-studio/ui/panels/develop.slint:1194 crates/leyline-studio/ui/panels/develop.slint:2020 crates/leyline-studio/ui/panels/develop.slint:2664
 msgctxt "DevelopPanel"
 msgid "Shadows"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1096 crates/leyline-studio/ui/panels/develop.slint:2522
+#: crates/leyline-studio/ui/panels/develop.slint:1206 crates/leyline-studio/ui/panels/develop.slint:2676
 msgctxt "DevelopPanel"
 msgid "Whites"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1108 crates/leyline-studio/ui/panels/develop.slint:2534
+#: crates/leyline-studio/ui/panels/develop.slint:1218 crates/leyline-studio/ui/panels/develop.slint:2688
 msgctxt "DevelopPanel"
 msgid "Blacks"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1121
+#: crates/leyline-studio/ui/panels/develop.slint:1231
 msgctxt "DevelopPanel"
 msgid "Presence"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1124 crates/leyline-studio/ui/panels/develop.slint:2586
+#: crates/leyline-studio/ui/panels/develop.slint:1234 crates/leyline-studio/ui/panels/develop.slint:2740
 msgctxt "DevelopPanel"
 msgid "Texture"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1136 crates/leyline-studio/ui/panels/develop.slint:2574
+#: crates/leyline-studio/ui/panels/develop.slint:1246 crates/leyline-studio/ui/panels/develop.slint:2728
 msgctxt "DevelopPanel"
 msgid "Clarity"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1148
+#: crates/leyline-studio/ui/panels/develop.slint:1258
 msgctxt "DevelopPanel"
 msgid "Dehaze"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1166
+#: crates/leyline-studio/ui/panels/develop.slint:1276
 msgctxt "DevelopPanel"
 msgid "Clipped highlights"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1174
+#: crates/leyline-studio/ui/panels/develop.slint:1284
 msgctxt "DevelopPanel"
 msgid "Clip"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1181
+#: crates/leyline-studio/ui/panels/develop.slint:1291
 msgctxt "DevelopPanel"
 msgid "Blend"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1188
+#: crates/leyline-studio/ui/panels/develop.slint:1298
 msgctxt "DevelopPanel"
 msgid "Rebuild"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1202
+#: crates/leyline-studio/ui/panels/develop.slint:1312
 msgctxt "DevelopPanel"
 msgid "Demosaic"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1210
+#: crates/leyline-studio/ui/panels/develop.slint:1320
 msgctxt "DevelopPanel"
 msgid "AHD"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1217
+#: crates/leyline-studio/ui/panels/develop.slint:1327
 msgctxt "DevelopPanel"
 msgid "VNG"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1224
+#: crates/leyline-studio/ui/panels/develop.slint:1334
 msgctxt "DevelopPanel"
 msgid "DCB"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1231
+#: crates/leyline-studio/ui/panels/develop.slint:1341
 msgctxt "DevelopPanel"
 msgid "DHT"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1239
+#: crates/leyline-studio/ui/panels/develop.slint:1349
 msgctxt "DevelopPanel"
 msgid ""
 "Visible at full size and on export only — small previews skip interpolation."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1245 crates/leyline-studio/ui/panels/develop.slint:2546
+#: crates/leyline-studio/ui/panels/develop.slint:1355 crates/leyline-studio/ui/panels/develop.slint:2700
 msgctxt "DevelopPanel"
 msgid "Vibrance"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1260 crates/leyline-studio/ui/panels/develop.slint:1843 crates/leyline-studio/ui/panels/develop.slint:1896 crates/leyline-studio/ui/panels/develop.slint:1941 crates/leyline-studio/ui/panels/develop.slint:1986 crates/leyline-studio/ui/panels/develop.slint:2558 crates/leyline-studio/ui/panels/develop.slint:2833
+#: crates/leyline-studio/ui/panels/develop.slint:1370 crates/leyline-studio/ui/panels/develop.slint:1981 crates/leyline-studio/ui/panels/develop.slint:2038 crates/leyline-studio/ui/panels/develop.slint:2083 crates/leyline-studio/ui/panels/develop.slint:2128 crates/leyline-studio/ui/panels/develop.slint:2712 crates/leyline-studio/ui/panels/develop.slint:2987
 msgctxt "DevelopPanel"
 msgid "Saturation"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1278
+#: crates/leyline-studio/ui/panels/develop.slint:1388
 msgctxt "DevelopPanel"
 msgid "Highlight roll-off"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1292
+#: crates/leyline-studio/ui/panels/develop.slint:1402
 msgctxt "DevelopPanel"
 msgid "Camera profile"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1302
+#: crates/leyline-studio/ui/panels/develop.slint:1416
 msgctxt "DevelopPanel"
 msgid "Experimental: colors are not yet validated against reference renders."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1360
+#: crates/leyline-studio/ui/panels/develop.slint:1474
 msgctxt "DevelopPanel"
 msgid "Could not be read"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1378
+#: crates/leyline-studio/ui/panels/develop.slint:1492
 msgctxt "DevelopPanel"
 msgid "Import .dcp…"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1386 crates/leyline-studio/ui/panels/develop.slint:1423 crates/leyline-studio/ui/panels/develop.slint:1458
+#: crates/leyline-studio/ui/panels/develop.slint:1500 crates/leyline-studio/ui/panels/develop.slint:1541 crates/leyline-studio/ui/panels/develop.slint:1580
 msgctxt "DevelopPanel"
 msgid "Enabled"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1386 crates/leyline-studio/ui/panels/develop.slint:1423 crates/leyline-studio/ui/panels/develop.slint:1458
+#: crates/leyline-studio/ui/panels/develop.slint:1500 crates/leyline-studio/ui/panels/develop.slint:1541 crates/leyline-studio/ui/panels/develop.slint:1580
 msgctxt "DevelopPanel"
 msgid "Disabled"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1395
+#: crates/leyline-studio/ui/panels/develop.slint:1509
 msgctxt "DevelopPanel"
 msgid "Creative LUT"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1405
+#: crates/leyline-studio/ui/panels/develop.slint:1523
 msgctxt "DevelopPanel"
 msgid "No LUT — Leyline's own color only"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1415
+#: crates/leyline-studio/ui/panels/develop.slint:1533
 msgctxt "DevelopPanel"
 msgid "Choose .cube…"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1429
+#: crates/leyline-studio/ui/panels/develop.slint:1547
 msgctxt "DevelopPanel"
 msgid "Remove"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1437
+#: crates/leyline-studio/ui/panels/develop.slint:1555
 msgctxt "DevelopPanel"
 msgid "Strength"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1451
+#: crates/leyline-studio/ui/panels/develop.slint:1569
 msgctxt "DevelopPanel"
 msgid "Lens correction"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1467
+#: crates/leyline-studio/ui/panels/develop.slint:1589
 msgctxt "DevelopPanel"
 msgid "Chromatic aberration (% of radius)"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1472
+#: crates/leyline-studio/ui/panels/develop.slint:1594
 msgctxt "DevelopPanel"
 msgid "Red / cyan"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1487
+#: crates/leyline-studio/ui/panels/develop.slint:1609
 msgctxt "DevelopPanel"
 msgid "Blue / yellow"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1505
+#: crates/leyline-studio/ui/panels/develop.slint:1627
 msgctxt "DevelopPanel"
 msgid "Measure from this photo"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1515
+#: crates/leyline-studio/ui/panels/develop.slint:1637
 msgctxt "DevelopPanel"
 msgid "Detail"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1521
+#: crates/leyline-studio/ui/panels/develop.slint:1647
 msgctxt "DevelopPanel"
 msgid "Luminance NR"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1533
+#: crates/leyline-studio/ui/panels/develop.slint:1659
 msgctxt "DevelopPanel"
 msgid "Color NR"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1545
+#: crates/leyline-studio/ui/panels/develop.slint:1671
 msgctxt "DevelopPanel"
 msgid "Sharpen amount"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1557
+#: crates/leyline-studio/ui/panels/develop.slint:1683
 msgctxt "DevelopPanel"
 msgid "Sharpen radius"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1575
+#: crates/leyline-studio/ui/panels/develop.slint:1701
 msgctxt "DevelopPanel"
 msgid "Sharpen masking"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1594
+#: crates/leyline-studio/ui/panels/develop.slint:1720
 msgctxt "DevelopPanel"
 msgid "Effects"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1604
+#: crates/leyline-studio/ui/panels/develop.slint:1734
 msgctxt "DevelopPanel"
 msgid "Vignette"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1607 crates/leyline-studio/ui/panels/develop.slint:1658
+#: crates/leyline-studio/ui/panels/develop.slint:1737 crates/leyline-studio/ui/panels/develop.slint:1788
 msgctxt "DevelopPanel"
 msgid "Amount"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1619
+#: crates/leyline-studio/ui/panels/develop.slint:1749
 msgctxt "DevelopPanel"
 msgid "Midpoint"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1631
+#: crates/leyline-studio/ui/panels/develop.slint:1761
 msgctxt "DevelopPanel"
 msgid "Roundness"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1643 crates/leyline-studio/ui/panels/develop.slint:2052 crates/leyline-studio/ui/panels/develop.slint:2454
+#: crates/leyline-studio/ui/panels/develop.slint:1773 crates/leyline-studio/ui/panels/develop.slint:2198 crates/leyline-studio/ui/panels/develop.slint:2608
 msgctxt "DevelopPanel"
 msgid "Feather"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1655
+#: crates/leyline-studio/ui/panels/develop.slint:1785
 msgctxt "DevelopPanel"
 msgid "Grain"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1670
+#: crates/leyline-studio/ui/panels/develop.slint:1800
 msgctxt "DevelopPanel"
 msgid "Size"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1682
+#: crates/leyline-studio/ui/panels/develop.slint:1812
 msgctxt "DevelopPanel"
 msgid "Roughness"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1696
+#: crates/leyline-studio/ui/panels/develop.slint:1826
 msgctxt "DevelopPanel"
 msgid "Tone Curve"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1708
+#: crates/leyline-studio/ui/panels/develop.slint:1842
 msgctxt "DevelopPanel"
 msgid "Master"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1737
+#: crates/leyline-studio/ui/panels/develop.slint:1871
 msgctxt "DevelopPanel"
 msgid "Click to add a point, click a point to remove it."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1798
+#: crates/leyline-studio/ui/panels/develop.slint:1932
 msgctxt "DevelopPanel"
 msgid "Reset Curve"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1807
+#: crates/leyline-studio/ui/panels/develop.slint:1941
 msgctxt "DevelopPanel"
 msgid "HSL Mixer"
 msgstr ""
 
 #. greying them out would suggest they were broken.
-#: crates/leyline-studio/ui/panels/develop.slint:1815
+#: crates/leyline-studio/ui/panels/develop.slint:1953
 msgctxt "DevelopPanel"
 msgid "In black and white, only Luminance acts: it is the B&W mix."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1831 crates/leyline-studio/ui/panels/develop.slint:1884 crates/leyline-studio/ui/panels/develop.slint:1929 crates/leyline-studio/ui/panels/develop.slint:1974 crates/leyline-studio/ui/panels/develop.slint:2736
+#: crates/leyline-studio/ui/panels/develop.slint:1969 crates/leyline-studio/ui/panels/develop.slint:2026 crates/leyline-studio/ui/panels/develop.slint:2071 crates/leyline-studio/ui/panels/develop.slint:2116 crates/leyline-studio/ui/panels/develop.slint:2890
 msgctxt "DevelopPanel"
 msgid "Hue"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1855 crates/leyline-studio/ui/panels/develop.slint:1908 crates/leyline-studio/ui/panels/develop.slint:1953 crates/leyline-studio/ui/panels/develop.slint:1998
+#: crates/leyline-studio/ui/panels/develop.slint:1993 crates/leyline-studio/ui/panels/develop.slint:2050 crates/leyline-studio/ui/panels/develop.slint:2095 crates/leyline-studio/ui/panels/develop.slint:2140
 msgctxt "DevelopPanel"
 msgid "Luminance"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1870
+#: crates/leyline-studio/ui/panels/develop.slint:2008
 msgctxt "DevelopPanel"
 msgid "Color Grading"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1923
+#: crates/leyline-studio/ui/panels/develop.slint:2065
 msgctxt "DevelopPanel"
 msgid "Midtones"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2011
+#: crates/leyline-studio/ui/panels/develop.slint:2153
 msgctxt "DevelopPanel"
 msgid "Balance"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2023
+#: crates/leyline-studio/ui/panels/develop.slint:2165
 msgctxt "DevelopPanel"
 msgid "Blending"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2043
+#: crates/leyline-studio/ui/panels/develop.slint:2189
 msgctxt "DevelopPanel"
 msgid ""
 "Pick the Red Eye tool above, then click each pupil. Only red pixels inside "
 "the circle are corrected, so the circle need not be precise."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2051 crates/leyline-studio/ui/panels/develop.slint:2127
+#: crates/leyline-studio/ui/panels/develop.slint:2197 crates/leyline-studio/ui/panels/develop.slint:2277
 msgctxt "DevelopPanel"
 msgid "Radius %"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2053
+#: crates/leyline-studio/ui/panels/develop.slint:2199
 msgctxt "DevelopPanel"
 msgid "Darken"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2093
+#: crates/leyline-studio/ui/panels/develop.slint:2239
 msgctxt "DevelopPanel"
 msgid "{} placed"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2099
+#: crates/leyline-studio/ui/panels/develop.slint:2245
 msgctxt "DevelopPanel"
 msgid "Clear"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2116
+#: crates/leyline-studio/ui/panels/develop.slint:2266
 msgctxt "DevelopPanel"
 msgid ""
 "Pick the Spot Removal tool above, click a clean source, then the spot to fix."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2153
+#: crates/leyline-studio/ui/panels/develop.slint:2303
 msgctxt "DevelopPanel"
 msgid "Feather %"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2179
+#: crates/leyline-studio/ui/panels/develop.slint:2329
 msgctxt "DevelopPanel"
 msgid "Opacity %"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2205
+#: crates/leyline-studio/ui/panels/develop.slint:2355
 msgctxt "DevelopPanel"
 msgid "{} spot(s)"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2212
+#: crates/leyline-studio/ui/panels/develop.slint:2362
 msgctxt "DevelopPanel"
 msgid "Undo Last"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2219
+#: crates/leyline-studio/ui/panels/develop.slint:2369
 msgctxt "DevelopPanel"
 msgid "Clear All"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2229
+#: crates/leyline-studio/ui/panels/develop.slint:2379
 msgctxt "DevelopPanel"
 msgid "Local Adjustments"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2239
+#: crates/leyline-studio/ui/panels/develop.slint:2393
 msgctxt "DevelopPanel"
 msgid ""
 "Pick Radial, Gradient or Brush above and draw on the photo. Click a row to "
 "edit it; drawing again moves the selected mask."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2266
+#: crates/leyline-studio/ui/panels/develop.slint:2420
 msgctxt "DevelopPanel"
 msgid "Whole image"
 msgstr ""
 
 #. §1) — nothing to trace, so a button.
-#: crates/leyline-studio/ui/panels/develop.slint:2306
+#: crates/leyline-studio/ui/panels/develop.slint:2460
 msgctxt "DevelopPanel"
 msgid "Add whole-image mask"
 msgstr ""
 
 #. in another program and comes in whole.
-#: crates/leyline-studio/ui/panels/develop.slint:2317
+#: crates/leyline-studio/ui/panels/develop.slint:2471
 msgctxt "DevelopPanel"
 msgid "Add mask from file…"
 msgstr ""
 
 #. handles of its own.
-#: crates/leyline-studio/ui/panels/develop.slint:2341
+#: crates/leyline-studio/ui/panels/develop.slint:2495
 msgctxt "DevelopPanel"
 msgid "Show mask"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2356
+#: crates/leyline-studio/ui/panels/develop.slint:2510
 msgctxt "DevelopPanel"
 msgid "Size %"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2382
+#: crates/leyline-studio/ui/panels/develop.slint:2536
 msgctxt "DevelopPanel"
 msgid "Flow %"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2408
+#: crates/leyline-studio/ui/panels/develop.slint:2562
 msgctxt "DevelopPanel"
 msgid "Hardness %"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2442
+#: crates/leyline-studio/ui/panels/develop.slint:2596
 msgctxt "DevelopPanel"
 msgid "Opacity"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2466
+#: crates/leyline-studio/ui/panels/develop.slint:2620
 msgctxt "DevelopPanel"
 msgid "Outside the ellipse"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2466
+#: crates/leyline-studio/ui/panels/develop.slint:2620
 msgctxt "DevelopPanel"
 msgid "Inside the ellipse"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2598
+#: crates/leyline-studio/ui/panels/develop.slint:2752
 msgctxt "DevelopPanel"
 msgid "Sharpness"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2610
+#: crates/leyline-studio/ui/panels/develop.slint:2764
 msgctxt "DevelopPanel"
 msgid "Luminance noise"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2622
+#: crates/leyline-studio/ui/panels/develop.slint:2776
 msgctxt "DevelopPanel"
 msgid "Color noise"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2634
+#: crates/leyline-studio/ui/panels/develop.slint:2788
 msgctxt "DevelopPanel"
 msgid "Local white balance"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2668
+#: crates/leyline-studio/ui/panels/develop.slint:2822
 msgctxt "DevelopPanel"
 msgid "Luminance range"
 msgstr ""
 
 #. image, the band lands on what was clicked.
-#: crates/leyline-studio/ui/panels/develop.slint:2677
+#: crates/leyline-studio/ui/panels/develop.slint:2831
 msgctxt "DevelopPanel"
 msgid "Sample luminance"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2685
+#: crates/leyline-studio/ui/panels/develop.slint:2839
 msgctxt "DevelopPanel"
 msgid "Range from"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2697
+#: crates/leyline-studio/ui/panels/develop.slint:2851
 msgctxt "DevelopPanel"
 msgid "Range to"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2709
+#: crates/leyline-studio/ui/panels/develop.slint:2863
 msgctxt "DevelopPanel"
 msgid "Range softness"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2721
+#: crates/leyline-studio/ui/panels/develop.slint:2875
 msgctxt "DevelopPanel"
 msgid "Color range"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2728
+#: crates/leyline-studio/ui/panels/develop.slint:2882
 msgctxt "DevelopPanel"
 msgid "Sample hue"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2748
+#: crates/leyline-studio/ui/panels/develop.slint:2902
 msgctxt "DevelopPanel"
 msgid "Hue width"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2760
+#: crates/leyline-studio/ui/panels/develop.slint:2914
 msgctxt "DevelopPanel"
 msgid "Hue softness"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2775
+#: crates/leyline-studio/ui/panels/develop.slint:2929
 msgctxt "DevelopPanel"
 msgid "Soft Proof"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2784
+#: crates/leyline-studio/ui/panels/develop.slint:2938
 msgctxt "DevelopPanel"
 msgid ""
 "Shows the photo as a destination profile would reproduce it. Never stored, "
 "never exported."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2791
+#: crates/leyline-studio/ui/panels/develop.slint:2945
 msgctxt "DevelopPanel"
 msgid "No proof — the real render"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2801
+#: crates/leyline-studio/ui/panels/develop.slint:2955
 msgctxt "DevelopPanel"
 msgid "Choose .icc…"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2808
+#: crates/leyline-studio/ui/panels/develop.slint:2962
 msgctxt "DevelopPanel"
 msgid "Stop proofing"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2819
+#: crates/leyline-studio/ui/panels/develop.slint:2973
 msgctxt "DevelopPanel"
 msgid "Perceptual"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2826
+#: crates/leyline-studio/ui/panels/develop.slint:2980
 msgctxt "DevelopPanel"
 msgid "Relative"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2840
+#: crates/leyline-studio/ui/panels/develop.slint:2994
 msgctxt "DevelopPanel"
 msgid "Absolute"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2848
+#: crates/leyline-studio/ui/panels/develop.slint:3002
 msgctxt "DevelopPanel"
 msgid "Flag out-of-gamut colors"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2857
+#: crates/leyline-studio/ui/panels/develop.slint:3011
 msgctxt "DevelopPanel"
 msgid "Geometry"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2863
+#: crates/leyline-studio/ui/panels/develop.slint:3021
 msgctxt "DevelopPanel"
 msgid "Rotation"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2878
+#: crates/leyline-studio/ui/panels/develop.slint:3036
 msgctxt "DevelopPanel"
 msgid "Vertical perspective"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2890
+#: crates/leyline-studio/ui/panels/develop.slint:3048
 msgctxt "DevelopPanel"
 msgid "Horizontal perspective"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2902
+#: crates/leyline-studio/ui/panels/develop.slint:3060
 msgctxt "DevelopPanel"
 msgid "Crop left"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2914
+#: crates/leyline-studio/ui/panels/develop.slint:3072
 msgctxt "DevelopPanel"
 msgid "Crop top"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2926
+#: crates/leyline-studio/ui/panels/develop.slint:3084
 msgctxt "DevelopPanel"
 msgid "Crop width"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2938
+#: crates/leyline-studio/ui/panels/develop.slint:3096
 msgctxt "DevelopPanel"
 msgid "Crop height"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2952
+#: crates/leyline-studio/ui/panels/develop.slint:3110
 msgctxt "DevelopPanel"
 msgid "Reset crop"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2965
+#: crates/leyline-studio/ui/panels/develop.slint:3123
 msgctxt "DevelopPanel"
 msgid "Versions"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2980
+#: crates/leyline-studio/ui/panels/develop.slint:3138
 msgctxt "DevelopPanel"
 msgid "New Version"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2990
+#: crates/leyline-studio/ui/panels/develop.slint:3148
 msgctxt "DevelopPanel"
 msgid "History"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:3009
+#: crates/leyline-studio/ui/panels/develop.slint:3167
 msgctxt "DevelopPanel"
 msgid "{} (current)"
 msgstr ""
@@ -3040,12 +3040,12 @@ msgctxt "Tr"
 msgid "Preset saved."
 msgstr ""
 
-#: crates/leyline-studio/ui/widgets/controls.slint:322
+#: crates/leyline-studio/ui/widgets/controls.slint:368
 msgctxt "ViewModeChips"
 msgid "Grid"
 msgstr ""
 
-#: crates/leyline-studio/ui/widgets/controls.slint:329
+#: crates/leyline-studio/ui/widgets/controls.slint:375
 msgctxt "ViewModeChips"
 msgid "Loupe"
 msgstr ""

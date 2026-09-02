@@ -84,6 +84,11 @@ pub(crate) struct App {
     /// Nothing about it is stored — it is a way of looking, and it lives
     /// exactly as long as the window does.
     pub(crate) soft_proof: Option<leyline_sdk::SoftProof>,
+    /// The render the develop viewer is showing, kept for the R/G/B readout
+    /// (ADR 0112 §2): the unpainted one, so a mask overlay's red never leaks
+    /// into a number. It existed one line before the displayed image was
+    /// built; what is new is that it is not dropped straight away.
+    pub(crate) dev_pixels: Option<leyline_sdk::Rgb8>,
     /// Whether the selected mask's coverage is painted over the develop
     /// preview (ADR 0071). Interface state, never written to a revision.
     pub(crate) show_mask_overlay: bool,

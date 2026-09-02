@@ -110,6 +110,15 @@ export global DevelopState {
     // coefficients (ADR 0111 §2): a press, never an automatic step, and the
     // result lands in the history as one ordinary edit.
     callback measure-tca();
+    // Puts one panel group back to neutral in a single revision
+    // (ADR 0112 §4); the identifier is `develop::reset_group`'s.
+    callback reset-group(string);
+    // The pixel under the pointer, in [0, 1] image coordinates: Rust reads
+    // the render it already holds and fills `pixel-readout` (ADR 0112 §2).
+    callback sample-pixel(float, float);
+    // Already formatted — "R 215  G 215  B 215", or empty when the pointer
+    // is off the photo.
+    in-out property <string> pixel-readout: "";
     // Highlight reconstruction (ADR 0050): the mode name the decoder is
     // asked for — "clip", "blend" or "rebuild". Its own callback rather than
     // a `develop-edit` with a number, because the three modes are not points
