@@ -57,6 +57,8 @@ use std::collections::BTreeMap;
 use std::io::Cursor;
 
 use leyline_color::DcpProfile;
+
+use crate::stages::Source;
 use leyline_core::{
     BrushStroke, CameraProfile, ColorGrading, ColorGradingZone, ColorRange, Crop, CurvePoint,
     Grain, HslBand, LensCorrection, LocalAdjustment, LocalAdjustmentValues, LuminanceRange, Mask,
@@ -845,7 +847,7 @@ fn capture(case: &Case, stages: &StageVersions) -> Golden {
         Some(&profile),
         Some(&look),
         &Default::default(),
-        source,
+        &Source::plain(source),
     )
     .unwrap_or_else(|e| panic!("render failed: {e}"));
 

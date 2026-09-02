@@ -26,8 +26,8 @@ pub use leyline_engine::{
     ImportedFile, ImportedLut, JobResult, Library, Param, PresetApplyReport, Preview, PreviewFile,
     PrintRecipe, PrintReport, PrintRequest, PrintedVersion, RangeSample, RejectReason,
     RemovalReport, RenameReport, RenamedAsset, ReprocessReport, Rgb8, RootStatus, ScanOptions,
-    SkippedFile, SoftProof, SourceColor, TCA_MIN_SAMPLES, TcaEstimate, TetherOptions, Value,
-    Verdict, WatchError, WatchSessionEvent, WatchedFile, decoder_version, neutral_settings,
+    SkippedFile, SoftProof, Source, SourceColor, TCA_MIN_SAMPLES, TcaEstimate, TetherOptions,
+    Value, Verdict, WatchError, WatchSessionEvent, WatchedFile, decoder_version, neutral_settings,
     overlay, session_folder,
 };
 

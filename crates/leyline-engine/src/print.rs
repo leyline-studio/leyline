@@ -191,7 +191,7 @@ pub(crate) fn render_to_box(
         camera_profile.as_ref(),
         lut.as_ref(),
         &coverages,
-        crate::source::color(&plan.source),
+        &crate::source::color(&plan.source),
     )?;
 
     let image = Rgb8::new(rendered.width, rendered.height, rendered.data)

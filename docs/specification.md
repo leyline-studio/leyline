@@ -70,6 +70,7 @@ These features were scoped as post-V1 candidates in [`v2-scope.md`](v2-scope.md)
 | Adaptive chromatic aberration: the correction **measured on the photograph**, for the lenses no calibration database has ever heard of | [ADR 0111](adr/0111-adaptive-chromatic-aberration.md) |
 | Defringe: the coloured halo axial aberration leaves beside an edge, taken out by desaturation and nothing else | [ADR 0113](adr/0113-defringe.md) |
 | HEIF/HEIC reading, with the decoder the platform provides and none shipped by us | [ADR 0114](adr/0114-heif-reading.md) |
+| The colour space a non-RAW file declares — ICC or HEIF `nclx` — read instead of assumed, for JPEG, PNG, TIFF and HEIF alike | [ADR 0115](adr/0115-tagged-source-colour.md) |
 
 Masked local adjustments and their range masks have been exposed in all three clients since [ADR 0049](adr/0049-local-adjustments-clients.md): drawing tools and an editor in Studio, the stored `LocalAdjustment` JSON payload in the CLI. What ADR 0049 left out of scope: the overlay of the coverage the engine computes (the "red mask") is **delivered** ([ADR 0071](adr/0071-mask-overlay.md)); the range eyedropper ([ADR 0093](adr/0093-range-mask-eyedropper.md)) and the drag handles on a geometry already drawn ([ADR 0097](adr/0097-mask-geometry-handles.md)) are **delivered** too: nothing of ADR 0049 remains out of scope.
 

@@ -79,7 +79,7 @@ pub use render::{LensShot, Rendered, SensorShot, lens_shot, render, render_scale
 pub use reprocess::{FailedReprocess, ReprocessReport, reprocess_batch};
 pub use scan::{ImportCandidate, ScanOptions, scan};
 pub use session::{DEFAULT_AMEND_WINDOW, EditSession, Param, Value};
-pub use stages::{SourceColor, neutral_settings};
+pub use stages::{Source, SourceColor, neutral_settings};
 pub use tether::{DEFAULT_SESSION, TetherOptions, session_folder};
 pub use watch::{WatchError, WatchSessionEvent, WatchedFile};
 pub use wb::RangeSample;

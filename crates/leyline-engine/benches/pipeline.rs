@@ -25,7 +25,7 @@ use leyline_core::{
     LocalAdjustment, LocalAdjustmentValues, Mask, NoiseReduction, Point, Settings, Sharpening,
     SpotRemoval, StageVersions, ToneCurve, WhiteBalance,
 };
-use leyline_engine::{LensShot, SensorShot, SourceColor, render};
+use leyline_engine::{LensShot, SensorShot, Source, SourceColor, render};
 
 /// The colorimetry every bench renders through: no camera matrix, so the
 /// measurement is of the operators rather than of a body's profile.
@@ -147,7 +147,7 @@ fn benches(c: &mut Criterion) {
                 None,
                 None,
                 &Default::default(),
-                SOURCE,
+                &Source::plain(SOURCE),
             )
             .unwrap()
         });
@@ -164,7 +164,7 @@ fn benches(c: &mut Criterion) {
                 None,
                 None,
                 &Default::default(),
-                SOURCE,
+                &Source::plain(SOURCE),
             )
             .unwrap()
         });
@@ -185,7 +185,7 @@ fn benches(c: &mut Criterion) {
                 None,
                 None,
                 &Default::default(),
-                SOURCE,
+                &Source::plain(SOURCE),
             )
             .unwrap()
         });
@@ -213,7 +213,7 @@ fn benches(c: &mut Criterion) {
                 None,
                 None,
                 &Default::default(),
-                SOURCE,
+                &Source::plain(SOURCE),
             )
             .unwrap()
         });
@@ -239,7 +239,7 @@ fn benches(c: &mut Criterion) {
                 None,
                 None,
                 &Default::default(),
-                SOURCE,
+                &Source::plain(SOURCE),
             )
             .unwrap()
         });
@@ -256,7 +256,7 @@ fn benches(c: &mut Criterion) {
                 None,
                 None,
                 &Default::default(),
-                SOURCE,
+                &Source::plain(SOURCE),
             )
             .unwrap()
         });
@@ -282,7 +282,7 @@ fn benches(c: &mut Criterion) {
                 None,
                 None,
                 &Default::default(),
-                SOURCE,
+                &Source::plain(SOURCE),
             )
             .unwrap()
         });
@@ -306,7 +306,7 @@ fn benches(c: &mut Criterion) {
                 None,
                 None,
                 &Default::default(),
-                SOURCE,
+                &Source::plain(SOURCE),
             )
             .unwrap()
         });
@@ -342,7 +342,7 @@ fn benches(c: &mut Criterion) {
                 None,
                 None,
                 &Default::default(),
-                SOURCE,
+                &Source::plain(SOURCE),
             )
             .unwrap()
         });
@@ -370,7 +370,7 @@ fn benches(c: &mut Criterion) {
                     Some(black_box(&profile)),
                     None,
                     &Default::default(),
-                    SOURCE,
+                    &Source::plain(SOURCE),
                 )
                 .unwrap()
             });
@@ -416,7 +416,7 @@ fn benches(c: &mut Criterion) {
                     None,
                     None,
                     &Default::default(),
-                    SOURCE,
+                    &Source::plain(SOURCE),
                 )
                 .unwrap()
             });

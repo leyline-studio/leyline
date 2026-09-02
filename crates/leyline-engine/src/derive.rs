@@ -117,7 +117,7 @@ pub(crate) fn exchange(
         camera_profile.as_ref(),
         lut.as_ref(),
         &coverages,
-        crate::source::color(&plan.source),
+        &crate::source::color(&plan.source),
         crate::stages::DERIVE_RANK,
     )?;
     leyline_derive::process(

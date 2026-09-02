@@ -12,7 +12,7 @@ use leyline_core::{CURRENT_SCHEMA, Settings, SourceEncoding};
 use leyline_core::{LeylineError, Result};
 use leyline_raw::RawImage;
 
-use crate::stages::{self, SourceColor};
+use crate::stages::{self, Source, SourceColor};
 
 /// A rendered develop result: tightly packed, interleaved 8-bit RGB.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -128,7 +128,7 @@ pub fn render(
     camera_profile: Option<&leyline_color::DcpProfile>,
     lut: Option<&leyline_color::CubeLut>,
     coverages: &crate::mask_coverage::MaskCoverages,
-    source: SourceColor,
+    source: &Source,
 ) -> Result<Rendered> {
     render_scaled(
         image,
@@ -165,7 +165,7 @@ pub fn render_scaled(
     camera_profile: Option<&leyline_color::DcpProfile>,
     lut: Option<&leyline_color::CubeLut>,
     coverages: &crate::mask_coverage::MaskCoverages,
-    source: SourceColor,
+    source: &Source,
     scale: f32,
 ) -> Result<Rendered> {
     if settings.schema > CURRENT_SCHEMA {
@@ -196,9 +196,9 @@ pub fn render_scaled(
 /// `input` stage would pass camera-native samples through untouched and the
 /// photograph would render in the wrong space — wrong pixels, silently,
 /// which is the one outcome this pipeline never accepts.
-fn check_source_encoding(settings: &Settings, source: SourceColor) -> Result<()> {
+fn check_source_encoding(settings: &Settings, source: &Source) -> Result<()> {
     if settings.source_encoding == SourceEncoding::LinearWorkspace
-        && matches!(source, SourceColor::Camera { .. })
+        && matches!(source.color, SourceColor::Camera { .. })
     {
         return Err(LeylineError::InvalidSettings(
             "source_encoding says this file is already in the working space, but it decodes \
@@ -223,7 +223,7 @@ pub(crate) fn render_scaled_cached(
     camera_profile: Option<&leyline_color::DcpProfile>,
     lut: Option<&leyline_color::CubeLut>,
     coverages: &crate::mask_coverage::MaskCoverages,
-    source: SourceColor,
+    source: &Source,
     scale: f32,
     asset: leyline_core::AssetId,
     cache: &mut stages::StageCache,
@@ -358,7 +358,7 @@ mod tests {
             None,
             None,
             &Default::default(),
-            SOURCE,
+            &Source::plain(SOURCE),
         )
         .unwrap()
     }
@@ -449,7 +449,7 @@ mod tests {
             None,
             None,
             &Default::default(),
-            SOURCE,
+            &Source::plain(SOURCE),
         )
         .unwrap();
         let second = render(
@@ -460,7 +460,7 @@ mod tests {
             None,
             None,
             &Default::default(),
-            SOURCE,
+            &Source::plain(SOURCE),
         )
         .unwrap();
         assert_eq!(first, second);
@@ -480,7 +480,7 @@ mod tests {
             None,
             None,
             &Default::default(),
-            SOURCE,
+            &Source::plain(SOURCE),
         )
         .unwrap();
         let darker = render(
@@ -494,7 +494,7 @@ mod tests {
             None,
             None,
             &Default::default(),
-            SOURCE,
+            &Source::plain(SOURCE),
         )
         .unwrap();
         let sum = |data: &[u8]| data.iter().map(|&v| u64::from(v)).sum::<u64>();
@@ -520,7 +520,7 @@ mod tests {
             None,
             None,
             &Default::default(),
-            SOURCE,
+            &Source::plain(SOURCE),
         )
         .unwrap();
         let sum = |data: &[u8], channel: usize| {
@@ -550,7 +550,7 @@ mod tests {
             None,
             None,
             &Default::default(),
-            SOURCE,
+            &Source::plain(SOURCE),
         )
         .unwrap();
         assert_eq!(
@@ -573,7 +573,7 @@ mod tests {
             None,
             None,
             &Default::default(),
-            SOURCE,
+            &Source::plain(SOURCE),
         )
         .unwrap();
         for px in out.data.chunks_exact(3) {
@@ -604,7 +604,7 @@ mod tests {
             None,
             None,
             &Default::default(),
-            SOURCE,
+            &Source::plain(SOURCE),
         )
         .unwrap();
         let chroma = |px: &[u8]| i32::from(*px.iter().max().unwrap() - *px.iter().min().unwrap());
@@ -666,7 +666,7 @@ mod tests {
             None,
             None,
             &Default::default(),
-            SOURCE,
+            &Source::plain(SOURCE),
         )
         .unwrap()
     }
@@ -766,7 +766,7 @@ mod tests {
             None,
             None,
             &Default::default(),
-            SOURCE,
+            &Source::plain(SOURCE),
         )
         .unwrap();
         // Overshoot on both sides of the edge, on the row y=1, against the
@@ -797,7 +797,7 @@ mod tests {
             None,
             None,
             &Default::default(),
-            SOURCE,
+            &Source::plain(SOURCE),
         )
         .unwrap();
         assert_eq!((out.width, out.height), (8, 12));
@@ -822,7 +822,7 @@ mod tests {
             None,
             None,
             &Default::default(),
-            SOURCE,
+            &Source::plain(SOURCE),
         )
         .unwrap();
         assert_eq!((out.width, out.height), (6, 2));
@@ -849,7 +849,7 @@ mod tests {
                 None,
                 None,
                 &Default::default(),
-                SOURCE
+                &Source::plain(SOURCE)
             ),
             Err(LeylineError::NewerSettings { .. })
         ));
@@ -878,7 +878,7 @@ mod tests {
                 None,
                 None,
                 &Default::default(),
-                SOURCE
+                &Source::plain(SOURCE)
             ),
             Err(LeylineError::UnknownStage { version: 99, .. })
         ));
@@ -897,7 +897,7 @@ mod tests {
             None,
             None,
             &Default::default(),
-            SOURCE,
+            &Source::plain(SOURCE),
         )
         .unwrap_err();
         assert!(matches!(err, LeylineError::InvalidSettings(_)));

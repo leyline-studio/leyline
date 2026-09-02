@@ -265,10 +265,10 @@ mod tests {
             None,
             None,
             &Default::default(),
-            crate::stages::SourceColor::Camera {
+            &crate::stages::Source::plain(crate::stages::SourceColor::Camera {
                 to_xyz: None,
                 multipliers: None,
-            },
+            }),
             scale,
         )
         .expect("proxy render");
@@ -280,10 +280,10 @@ mod tests {
             None,
             None,
             &Default::default(),
-            crate::stages::SourceColor::Camera {
+            &crate::stages::Source::plain(crate::stages::SourceColor::Camera {
                 to_xyz: None,
                 multipliers: None,
-            },
+            }),
         )
         .expect("full render");
         let full_reduced = leyline_preview::Rgb8::new(full.width, full.height, full.data)

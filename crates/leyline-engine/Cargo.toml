@@ -68,6 +68,9 @@ heif = ["dep:leyline-heif"]
 bundled-basemap = []
 
 [dev-dependencies]
+# Building a Display P3 profile for the colour tests (ADR 0115): the
+# reference implementation writes the fixture, our own reader reads it.
+lcms2.workspace = true
 image.workspace = true
 leyline-raw.workspace = true
 tempfile.workspace = true

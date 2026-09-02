@@ -77,6 +77,7 @@ pub(crate) mod input {
     pub(crate) mod v3;
     pub(crate) mod v4;
     pub(crate) mod v5;
+    pub(crate) mod v6;
 }
 pub(crate) mod camera_profile {
     pub(crate) mod v1;
@@ -206,10 +207,41 @@ pub enum SourceColor {
     Srgb,
 }
 
+/// What the decoder handed over, colorimetrically — [`SourceColor`], plus
+/// what the file *said* about itself when it said anything (ADR 0115).
+///
+/// The two are separate on purpose. Adding a case to `SourceColor` would
+/// have forced every frozen `input` version to grow an arm for something it
+/// must never read; a second field beside it leaves them untouched, and only
+/// `input::v6` looks at it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Source {
+    /// What kind of samples the decoder produced.
+    pub color: SourceColor,
+    /// The colour space the file declares, when it declares one this engine
+    /// can reduce to primaries and a curve (ADR 0115 §3).
+    pub profile: Option<leyline_color::TaggedSource>,
+}
+
+impl Source {
+    /// A source that says nothing: the convention every untagged file
+    /// follows, and what every caller passed before ADR 0115.
+    pub fn plain(color: SourceColor) -> Source {
+        Source {
+            color,
+            profile: None,
+        }
+    }
+}
+
 /// Everything a stage may read besides the buffer it renders.
 pub(crate) struct Context<'a> {
     /// What the decoder produced, colorimetrically (ADR 0044 §3).
     pub source: SourceColor,
+    /// What the file said it was, for the one stage version that reads it
+    /// (ADR 0115). `None` for a RAW, for an untagged file, and for every
+    /// profile this engine cannot reduce.
+    pub profile: Option<&'a leyline_color::TaggedSource>,
     /// The revision being rendered, already validated by the caller.
     pub settings: &'a Settings,
     /// EXIF identification of the shot, for the lens stage.
@@ -435,6 +467,24 @@ pub(crate) static STAGES: &[Stage] = &[
                     input::v5::to_working_space(
                         px,
                         ctx.source,
+                        ctx.camera_profile.is_some(),
+                        ctx.settings,
+                    );
+                },
+            },
+            // A non-RAW file that declares its colour space is read as what
+            // it says rather than as sRGB (ADR 0115). For a RAW, an untagged
+            // file, or a profile this engine cannot reduce, bit for bit
+            // `v5`.
+            Version {
+                version: 6,
+                rank: 0,
+                space: Space::LinearRec2020,
+                apply: |px, ctx| {
+                    input::v6::to_working_space(
+                        px,
+                        ctx.source,
+                        ctx.profile,
                         ctx.camera_profile.is_some(),
                         ctx.settings,
                     );
@@ -1158,6 +1208,7 @@ static INPUT_DECODE: &[(u16, DecodeConfig)] = &[
     (3, input::v3::decode_params),
     (4, input::v4::decode_params),
     (5, input::v5::decode_params),
+    (6, input::v6::decode_params),
 ];
 
 /// Whether one `input` version decodes a non-RAW source at its own bit depth
@@ -1168,8 +1219,14 @@ static INPUT_DECODE: &[(u16, DecodeConfig)] = &[
 /// whatever the decoder happens to do this year. A table rather than a
 /// `version >= 5` test, so that adding a version is a line here and a
 /// decision, never an inherited default.
-static INPUT_NATIVE_DEPTH: &[(u16, bool)] =
-    &[(1, false), (2, false), (3, false), (4, false), (5, true)];
+static INPUT_NATIVE_DEPTH: &[(u16, bool)] = &[
+    (1, false),
+    (2, false),
+    (3, false),
+    (4, false),
+    (5, true),
+    (6, true),
+];
 
 /// What one `input` version asks the decoder for.
 ///
@@ -1566,7 +1623,7 @@ pub(crate) fn develop_scaled_cached(
     camera_profile: Option<&DcpProfile>,
     lut: Option<&leyline_color::CubeLut>,
     coverages: &crate::mask_coverage::MaskCoverages,
-    source: SourceColor,
+    source: &Source,
     scale: f32,
     asset: leyline_core::AssetId,
     cache: &mut StageCache,
@@ -1579,7 +1636,8 @@ pub(crate) fn develop_scaled_cached(
         camera_profile,
         lut,
         coverages,
-        source,
+        source: source.color,
+        profile: source.profile.as_ref(),
         scale,
     };
 
@@ -1629,7 +1687,7 @@ pub(crate) fn develop_scaled(
     camera_profile: Option<&DcpProfile>,
     lut: Option<&leyline_color::CubeLut>,
     coverages: &crate::mask_coverage::MaskCoverages,
-    source: SourceColor,
+    source: &Source,
     scale: f32,
 ) -> Result<Rendered> {
     let plan = plan(settings)?;
@@ -1640,7 +1698,8 @@ pub(crate) fn develop_scaled(
         camera_profile,
         lut,
         coverages,
-        source,
+        source: source.color,
+        profile: source.profile.as_ref(),
         scale,
     };
     let mut px = Pixels::from_raw(image)?;
@@ -1684,7 +1743,7 @@ pub(crate) fn develop_until_rank(
     camera_profile: Option<&DcpProfile>,
     lut: Option<&leyline_color::CubeLut>,
     coverages: &crate::mask_coverage::MaskCoverages,
-    source: SourceColor,
+    source: &Source,
     max_rank: u16,
 ) -> Result<(u32, u32, Vec<f32>)> {
     let plan = plan(settings)?;
@@ -1695,7 +1754,8 @@ pub(crate) fn develop_until_rank(
         camera_profile,
         lut,
         coverages,
-        source,
+        source: source.color,
+        profile: source.profile.as_ref(),
         scale: 1.0,
     };
     let mut px = Pixels::from_raw(image)?;
@@ -1730,7 +1790,7 @@ pub(crate) fn develop_mask_coverage(
     camera_profile: Option<&DcpProfile>,
     lut: Option<&leyline_color::CubeLut>,
     coverages: &crate::mask_coverage::MaskCoverages,
-    source: SourceColor,
+    source: &Source,
     scale: f32,
     index: usize,
 ) -> Result<(u32, u32, Vec<f32>)> {
@@ -1748,7 +1808,8 @@ pub(crate) fn develop_mask_coverage(
         camera_profile,
         lut,
         coverages,
-        source,
+        source: source.color,
+        profile: source.profile.as_ref(),
         scale,
     };
 

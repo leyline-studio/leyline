@@ -16,6 +16,74 @@ use std::path::Path;
 
 use libheif_rs::{ColorSpace, HeifContext, RgbChroma};
 
+/// What a HEIF says its colour is (ADR 0115): an embedded ICC profile, or
+/// the container's own `nclx` description — primaries, white point and a
+/// transfer function, with no ICC anywhere.
+///
+/// A phone writes one or the other, and usually the second.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Colour {
+    /// The bytes of an embedded ICC profile.
+    Icc(Vec<u8>),
+    /// The `nclx` box, reduced to what a colour space is.
+    Nclx {
+        /// Red, green and blue chromaticities.
+        primaries: [[f64; 2]; 3],
+        /// White point chromaticity.
+        white: [f64; 2],
+        /// `true` when the transfer function is one this engine understands
+        /// as sRGB-shaped; `false` for anything else — an HDR curve, a log
+        /// curve — which the caller must refuse rather than approximate
+        /// (ADR 0115 §4).
+        srgb_transfer: bool,
+    },
+}
+
+/// Reads what a HEIF says its colour is, without decoding a pixel.
+///
+/// `None` when the file says nothing usable, which the caller reads as
+/// "sRGB", the convention every untagged file follows.
+pub fn colour(path: &Path) -> Option<Colour> {
+    let name = path.to_str()?;
+    let context = HeifContext::read_from_file(name).ok()?;
+    let handle = context.primary_image_handle().ok()?;
+    if let Some(raw) = handle.color_profile_raw() {
+        if !raw.data.is_empty() {
+            return Some(Colour::Icc(raw.data));
+        }
+    }
+    let nclx = handle.color_profile_nclx()?;
+    use libheif_rs::TransferCharacteristics as T;
+    let srgb_transfer = matches!(
+        nclx.transfer_characteristics(),
+        // The sRGB curve, and the two BT.709/601 curves phones write when
+        // they mean "ordinary SDR". Unspecified means the same thing in
+        // practice, and is what most files carry.
+        T::IEC_61966_2_1 | T::ITU_R_BT_709_5 | T::ITU_R_BT_601_6 | T::Unspecified
+    );
+    Some(Colour::Nclx {
+        primaries: [
+            [
+                f64::from(nclx.color_primary_red_x()),
+                f64::from(nclx.color_primary_red_y()),
+            ],
+            [
+                f64::from(nclx.color_primary_green_x()),
+                f64::from(nclx.color_primary_green_y()),
+            ],
+            [
+                f64::from(nclx.color_primary_blue_x()),
+                f64::from(nclx.color_primary_blue_y()),
+            ],
+        ],
+        white: [
+            f64::from(nclx.color_primary_white_x()),
+            f64::from(nclx.color_primary_white_y()),
+        ],
+        srgb_transfer,
+    })
+}
+
 /// Errors produced while decoding a HEIF file.
 ///
 /// This crate is internal to the engine, which maps these onto

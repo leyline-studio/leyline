@@ -16,6 +16,7 @@
 
 mod cube;
 mod dcp;
+mod icc;
 mod working_space;
 
 pub use cube::{CubeLut, LutError};
@@ -23,6 +24,7 @@ pub use dcp::{
     DcpError, DcpProfile, FALLBACK_TEMPERATURE_K, HsvTable, Matrix3, PreparedProfile,
     xyz_d50_to_linear_rec2020,
 };
+pub use icc::{TaggedSource, Transfer, from_chromaticities, read_rgb_profile};
 pub use working_space::{
     LINEAR_SRGB_TO_REC2020, REC2020_TO_LINEAR_SRGB, apply_matrix, camera_to_rec2020,
 };

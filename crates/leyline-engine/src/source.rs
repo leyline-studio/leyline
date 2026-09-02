@@ -90,15 +90,70 @@ pub(crate) fn decode(
 /// Reads the RAW header only (no unpack, no develop) to pick up the body's
 /// color matrix; a file LibRaw cannot identify still renders, from its
 /// sensor's own numbers, which is all anyone has for it.
-pub(crate) fn color(path: &Path) -> crate::stages::SourceColor {
+pub(crate) fn color(path: &Path) -> crate::stages::Source {
     if !is_camera_native(path) {
-        return crate::stages::SourceColor::Srgb;
+        // What the file says about itself, when it says anything this
+        // engine can reduce to primaries and a curve (ADR 0115).
+        return crate::stages::Source {
+            color: crate::stages::SourceColor::Srgb,
+            profile: tagged_profile(path),
+        };
     }
     let metadata = leyline_raw::identify(path).ok();
-    crate::stages::SourceColor::Camera {
+    crate::stages::Source::plain(crate::stages::SourceColor::Camera {
         to_xyz: metadata.as_ref().and_then(|m| m.camera_to_xyz),
         multipliers: metadata.and_then(|m| m.camera_multipliers),
+    })
+}
+
+/// The colour space a non-RAW file declares (ADR 0115), or `None` when it
+/// declares nothing, declares something unreadable, or declares an HDR
+/// transfer function this engine deliberately refuses (§4).
+fn tagged_profile(path: &Path) -> Option<leyline_color::TaggedSource> {
+    let media_type = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .and_then(|e| crate::import::media_type(&e));
+    match media_type {
+        Some(MediaType::Heif) => heif_profile(path),
+        Some(MediaType::Jpeg | MediaType::Png | MediaType::Tiff) => {
+            let reader = image::ImageReader::open(path)
+                .and_then(|reader| reader.with_guessed_format())
+                .ok()?;
+            let mut decoder = reader.into_decoder().ok()?;
+            let icc = decoder.icc_profile().ok()??;
+            leyline_color::read_rgb_profile(&icc)
+        }
+        _ => None,
     }
+}
+
+/// The HEIF half: an embedded ICC, or the container's `nclx` box.
+#[cfg(feature = "heif")]
+fn heif_profile(path: &Path) -> Option<leyline_color::TaggedSource> {
+    match leyline_heif::colour(path)? {
+        leyline_heif::Colour::Icc(icc) => leyline_color::read_rgb_profile(&icc),
+        leyline_heif::Colour::Nclx {
+            primaries,
+            white,
+            srgb_transfer,
+        } => {
+            // An HDR or log curve is refused rather than approximated
+            // (ADR 0115 §4): rendering it through an SDR curve would be
+            // wrong in a way that reads as a bug rather than as a missing
+            // feature.
+            if !srgb_transfer {
+                return None;
+            }
+            leyline_color::from_chromaticities(primaries, white, leyline_color::Transfer::Srgb)
+        }
+    }
+}
+
+#[cfg(not(feature = "heif"))]
+fn heif_profile(_path: &Path) -> Option<leyline_color::TaggedSource> {
+    None
 }
 
 /// Whether `path` is a source [`decode`] hands to LibRaw — the only kind

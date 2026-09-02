@@ -22,7 +22,7 @@
 
 use criterion::{Criterion, criterion_group, criterion_main};
 use leyline_core::{Crop, NoiseReduction, Settings, Sharpening, WhiteBalance};
-use leyline_engine::{SourceColor, render};
+use leyline_engine::{Source, SourceColor, render};
 use leyline_export::{ExportFormat, ExportSettings};
 use leyline_raw::RawImage;
 use std::hint::black_box;
@@ -116,7 +116,7 @@ fn benches(c: &mut Criterion) {
                         None,
                         None,
                         &Default::default(),
-                        SOURCE,
+                        &Source::plain(SOURCE),
                     )
                     .unwrap()
                 });
