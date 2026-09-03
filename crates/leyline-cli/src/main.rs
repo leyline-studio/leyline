@@ -279,7 +279,9 @@ Develop params (docs/pipeline.md §3.2, schema 1):
                                     adjustments accepte aussi clarity, texture,
                                     sharpness (chacun dans [-100, 100]) et
                                     noise_luminance, noise_color (dans [0, 100]),
-                                    les cinq opérateurs à voisinage de l'ADR 0108 ;
+                                    les cinq opérateurs à voisinage de l'ADR 0108,
+                                    plus defringe_purple et defringe_green (dans
+                                    [0, 100], ADR 0116) ;
                                     @file reads the payload from a file instead
   local-adjustment rm <index>       removes the adjustment at that index
   local-adjustment reset            removes every local adjustment

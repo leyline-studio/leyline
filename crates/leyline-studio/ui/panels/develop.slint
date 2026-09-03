@@ -2932,7 +2932,35 @@ export component DevelopPanel inherits HorizontalLayout {
                                     MaskState.preview-mask(MaskState.selected-mask, "noise-color", v);
                                 }
                             }
-                            FilterChip {
+
+                            EditSlider {
+                                label: @tr("Defringe purple");
+                                minimum: 0;
+                                maximum: 100;
+                                value: editor.sel.defringe-purple;
+                                track-from: #333333;
+                                track-to: #8a4fd0;
+                                edited(v) => {
+                                    MaskState.edit-mask(MaskState.selected-mask, "defringe-purple", v);
+                                }
+                                previewing(v) => {
+                                    MaskState.preview-mask(MaskState.selected-mask, "defringe-purple", v);
+                                }
+                            }
+                            EditSlider {
+                                label: @tr("Defringe green");
+                                minimum: 0;
+                                maximum: 100;
+                                value: editor.sel.defringe-green;
+                                track-from: #333333;
+                                track-to: #4fd06a;
+                                edited(v) => {
+                                    MaskState.edit-mask(MaskState.selected-mask, "defringe-green", v);
+                                }
+                                previewing(v) => {
+                                    MaskState.preview-mask(MaskState.selected-mask, "defringe-green", v);
+                                }
+                            }                            FilterChip {
                                 text: @tr("Local white balance");
                                 active: editor.sel.wb-on;
                                 clicked => {

@@ -142,6 +142,7 @@ pub(crate) mod local_adjustments {
     pub(crate) mod v2;
     pub(crate) mod v3;
     pub(crate) mod v4;
+    pub(crate) mod v5;
 }
 pub(crate) mod noise_luminance {
     pub(crate) mod v1;
@@ -946,6 +947,22 @@ pub(crate) static STAGES: &[Stage] = &[
                 space: Space::LinearRec2020,
                 apply: |px, ctx| {
                     local_adjustments::v4::local_adjustments(
+                        px,
+                        &ctx.settings.local_adjustments,
+                        ctx.settings.rotation,
+                        ctx.coverages,
+                        ctx.scale,
+                    );
+                },
+            },
+            // The defringe pair on a mask (ADR 0116). An adjustment that
+            // sets neither amount renders exactly what `v4` renders.
+            Version {
+                version: 5,
+                rank: 160,
+                space: Space::LinearRec2020,
+                apply: |px, ctx| {
+                    local_adjustments::v5::local_adjustments(
                         px,
                         &ctx.settings.local_adjustments,
                         ctx.settings.rotation,

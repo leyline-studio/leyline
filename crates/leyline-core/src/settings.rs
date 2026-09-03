@@ -902,6 +902,19 @@ pub struct LocalAdjustmentValues {
     /// [0, 100]. Requires `local_adjustments` at version 4.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub noise_color: Option<i32>,
+    /// Same unit, meaning and hue band as [`Defringe::purple`], slider in
+    /// [0, 100] (ADR 0116 §1). Runs **first** among a local adjustment's
+    /// operators, because its stage's rank is 22 — ahead of every other one
+    /// a mask can carry (ADR 0116 §2).
+    ///
+    /// Requires `local_adjustments` at version 5, which
+    /// [`Settings::validate`] enforces rather than dropping the value in
+    /// silence.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub defringe_purple: Option<i32>,
+    /// Same for the green band. Requires `local_adjustments` at version 5.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub defringe_green: Option<i32>,
 }
 
 impl LocalAdjustmentValues {
@@ -915,6 +928,13 @@ impl LocalAdjustmentValues {
             || self.sharpness.is_some()
             || self.noise_luminance.is_some()
             || self.noise_color.is_some()
+    }
+
+    /// Whether this adjustment asks for the defringe pair, which is a
+    /// capability of `local_adjustments` **version 5** (ADR 0116 §4) — its
+    /// own question, because it is its own version.
+    pub fn uses_defringe(&self) -> bool {
+        self.defringe_purple.is_some() || self.defringe_green.is_some()
     }
 }
 
@@ -1616,6 +1636,17 @@ impl Settings {
                      current stage versions first"
                 )));
             }
+            // The defringe pair is a capability of v5, the sixth time this
+            // rule applies (ADR 0116 §4).
+            if values.uses_defringe()
+                && matches!(self.stages.get("local_adjustments"), Some(&v) if v < 5)
+            {
+                return Err(LeylineError::InvalidSettings(format!(
+                    "local_adjustments[{i}].adjustments asks for defringe, which needs \
+                     stage local_adjustments version 5, but this revision pins an \
+                     earlier one; reprocess the photo to the current stage versions first"
+                )));
+            }
             for (name, value) in [
                 ("contrast", values.contrast),
                 ("highlights", values.highlights),
@@ -1642,6 +1673,8 @@ impl Settings {
             for (name, value) in [
                 ("noise_luminance", values.noise_luminance),
                 ("noise_color", values.noise_color),
+                ("defringe_purple", values.defringe_purple),
+                ("defringe_green", values.defringe_green),
             ] {
                 if let Some(value) = value {
                     slider(
@@ -2676,6 +2709,68 @@ mod tests {
             assert!(message.contains("reprocess"), "v{pinned}: {message}");
             assert!(message.contains("version 4"), "v{pinned}: {message}");
         }
+    }
+
+    /// The sixth application of the same rule (ADR 0116 §4): the defringe
+    /// pair needs `local_adjustments` v5, and an earlier pin is refused by
+    /// name rather than rendered without it.
+    #[test]
+    fn a_local_defringe_on_a_revision_pinned_below_v5_is_refused() {
+        let with_defringe = LocalAdjustment {
+            mask: Mask::Everything,
+            range: None,
+            opacity: 1.0,
+            adjustments: LocalAdjustmentValues {
+                defringe_purple: Some(60),
+                ..LocalAdjustmentValues::default()
+            },
+        };
+        for pinned in [1u16, 2, 3, 4] {
+            let refused = Settings {
+                local_adjustments: vec![with_defringe.clone()],
+                stages: StageVersions::from([("local_adjustments".to_owned(), pinned)]),
+                ..Settings::default()
+            };
+            let message = match refused.validate() {
+                Err(LeylineError::InvalidSettings(message)) => message,
+                other => panic!("v{pinned}: expected a refusal, got {other:?}"),
+            };
+            assert!(message.contains("version 5"), "v{pinned}: {message}");
+            assert!(message.contains("reprocess"), "v{pinned}: {message}");
+        }
+
+        // Accepted at v5, and on settings nothing has pinned yet.
+        Settings {
+            local_adjustments: vec![with_defringe.clone()],
+            stages: StageVersions::from([("local_adjustments".to_owned(), 5)]),
+            ..Settings::default()
+        }
+        .validate()
+        .unwrap();
+        Settings {
+            local_adjustments: vec![with_defringe],
+            ..Settings::default()
+        }
+        .validate()
+        .unwrap();
+
+        // And an adjustment that never asks for it stays valid at v4 — the
+        // rule refuses an inexpressible setting, not an old version.
+        Settings {
+            local_adjustments: vec![LocalAdjustment {
+                mask: Mask::Everything,
+                range: None,
+                opacity: 1.0,
+                adjustments: LocalAdjustmentValues {
+                    clarity: Some(20),
+                    ..LocalAdjustmentValues::default()
+                },
+            }],
+            stages: StageVersions::from([("local_adjustments".to_owned(), 4)]),
+            ..Settings::default()
+        }
+        .validate()
+        .unwrap();
     }
 
     #[test]

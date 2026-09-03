@@ -2942,3 +2942,13 @@ msgstr ""
 "Choisissez l'outil Remodeler ci-dessus, puis glissez du contenu vers "
 "l'endroit où il doit aller. Les pixels dans le rayon suivent et s'éteignent "
 "à son bord ; rien n'est inventé."
+
+#: crates/leyline-studio/ui/panels/develop.slint:2937
+msgctxt "DevelopPanel"
+msgid "Defringe purple"
+msgstr "Défrangeage violet"
+
+#: crates/leyline-studio/ui/panels/develop.slint:2951
+msgctxt "DevelopPanel"
+msgid "Defringe green"
+msgstr "Défrangeage vert"

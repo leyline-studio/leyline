@@ -314,6 +314,32 @@ fn lens(settings: Settings) -> Settings {
     }
 }
 
+/// A local adjustment carrying the defringe pair (ADR 0116): the case that
+/// makes `local_adjustments: 5` a rendering somebody froze.
+fn locals_defringe(settings: Settings) -> Settings {
+    Settings {
+        local_adjustments: vec![LocalAdjustment {
+            mask: Mask::Radial {
+                cx: 0.5,
+                cy: 0.5,
+                rx: 0.4,
+                ry: 0.3,
+                angle: 0.0,
+                feather: 0.4,
+                inverted: false,
+            },
+            range: None,
+            opacity: 1.0,
+            adjustments: LocalAdjustmentValues {
+                defringe_purple: Some(70),
+                defringe_green: Some(35),
+                ..Default::default()
+            },
+        }],
+        ..settings
+    }
+}
+
 /// Reshape (ADR 0109): two handles, one of them overlapping the other, so
 /// the case freezes the summing behaviour and not just a single warp.
 fn reshape(settings: Settings) -> Settings {
@@ -777,6 +803,7 @@ fn cases() -> Vec<(String, Case)> {
         ("locals", locals(base.clone())),
         ("locals_range", locals_range(base.clone())),
         ("locals_neighbourhood", locals_neighbourhood(base.clone())),
+        ("locals_defringe", locals_defringe(base.clone())),
         ("hsl_grading", hsl_grading(base.clone())),
         ("monochrome", monochrome(base.clone())),
         ("presence", presence(base.clone())),

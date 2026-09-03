@@ -251,6 +251,8 @@ pub(crate) fn mask_rows(settings: &Settings) -> Vec<crate::ui::MaskRow> {
                 sharpness: values.sharpness.unwrap_or(0) as f32,
                 noise_luminance: values.noise_luminance.unwrap_or(0) as f32,
                 noise_color: values.noise_color.unwrap_or(0) as f32,
+                defringe_purple: values.defringe_purple.unwrap_or(0) as f32,
+                defringe_green: values.defringe_green.unwrap_or(0) as f32,
                 range_luminance_on: luminance.is_some(),
                 lum_min: (luminance.unwrap_or_default().min * 100.0) as f32,
                 lum_max: (luminance.unwrap_or_default().max * 100.0) as f32,

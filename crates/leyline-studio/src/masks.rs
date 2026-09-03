@@ -380,6 +380,10 @@ pub fn edit_field(
         // document the engine will reject.
         "noise-luminance" => entry.adjustments.noise_luminance = positive_level(),
         "noise-color" => entry.adjustments.noise_color = positive_level(),
+        // Same clamp for the defringe pair (ADR 0116): two doses, no
+        // meaningful negative.
+        "defringe-purple" => entry.adjustments.defringe_purple = positive_level(),
+        "defringe-green" => entry.adjustments.defringe_green = positive_level(),
         "range-luminance" => {
             let mut range = entry.range.clone().unwrap_or_default();
             range.luminance = on.then(LuminanceRange::default);
@@ -775,6 +779,8 @@ mod tests {
             ("sharpness", 25.0, Some(25)),
             ("noise-luminance", 30.0, Some(30)),
             ("noise-color", 20.0, Some(20)),
+            ("defringe-purple", 70.0, Some(70)),
+            ("defringe-green", 30.0, Some(30)),
         ] {
             let (_, entry) = written(edit_field(0, field, value, &settings));
             let values = &entry.adjustments;
@@ -782,6 +788,8 @@ mod tests {
                 "clarity" => values.clarity,
                 "texture" => values.texture,
                 "sharpness" => values.sharpness,
+                "defringe-purple" => values.defringe_purple,
+                "defringe-green" => values.defringe_green,
                 "noise-luminance" => values.noise_luminance,
                 _ => values.noise_color,
             };
