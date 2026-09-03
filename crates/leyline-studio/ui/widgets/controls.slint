@@ -215,16 +215,23 @@ export component RangeField inherits HorizontalLayout {
 export component ZoomableImage inherits Rectangle {
     in property <image> source;
     in property <bool> zoomed;
+    // Image pixels per screen pixel while zoomed (ADR 0112 §3): 1.0 is
+    // 100 %. Meaningless while `zoomed` is false, where the image is fitted.
+    in property <float> scale: 1.0;
     in property <float> center-x: 0.5;
     in property <float> center-y: 0.5;
-    // Dragging asks for a new centre; the parent decides, since in compare it
-    // is one centre for two views.
+    // Dragging asks for a new centre and the wheel a new scale; the parent
+    // decides, since in compare it is one centre and one scale for two views
+    // — which is the whole reason neither is owned here.
     callback panned(float, float);
+    callback zoom-requested(float);
 
     clip: true;
 
     property <float> image-w: max(root.source.width, 1);
     property <float> image-h: max(root.source.height, 1);
+    property <length> shown-w: root.image-w * root.scale * 1px;
+    property <length> shown-h: root.image-h * root.scale * 1px;
 
     if !root.zoomed: Image {
         source: root.source;
@@ -233,20 +240,20 @@ export component ZoomableImage inherits Rectangle {
         height: 100%;
     }
 
-    // At 100 % the image is laid out at its native pixel size and slid so the
-    // requested centre sits in the middle of the viewport. A plain `Flickable`
-    // would carry its own scroll position, which is exactly the state that
-    // must not be per-view here.
+    // Zoomed, the image is laid out at `scale` image-pixels per screen pixel
+    // and slid so the requested centre sits in the middle of the viewport. A
+    // plain `Flickable` would carry its own scroll position, which is exactly
+    // the state that must not be per-view here — and it would own the wheel,
+    // which `Ctrl` needs for the zoom.
     if root.zoomed: Image {
         source: root.source;
-        width: root.image-w * 1px;
-        height: root.image-h * 1px;
-        x: parent.width / 2 - root.center-x * root.image-w * 1px;
-        y: parent.height / 2 - root.center-y * root.image-h * 1px;
+        width: root.shown-w;
+        height: root.shown-h;
+        x: parent.width / 2 - root.center-x * root.shown-w;
+        y: parent.height / 2 - root.center-y * root.shown-h;
     }
 
     TouchArea {
-        enabled: root.zoomed;
         property <float> from-x;
         property <float> from-y;
         pointer-event(event) => {
@@ -256,13 +263,30 @@ export component ZoomableImage inherits Rectangle {
             }
         }
         moved => {
-            if (self.pressed) {
+            if (self.pressed && root.zoomed) {
                 // The drag moves the photo under the viewport, so the centre
                 // moves against the pointer.
                 root.panned(
-                    Math.clamp(self.from-x - (self.mouse-x - self.pressed-x) / (root.image-w * 1px), 0, 1),
-                    Math.clamp(self.from-y - (self.mouse-y - self.pressed-y) / (root.image-h * 1px), 0, 1));
+                    Math.clamp(self.from-x - (self.mouse-x - self.pressed-x) / root.shown-w, 0, 1),
+                    Math.clamp(self.from-y - (self.mouse-y - self.pressed-y) / root.shown-h, 0, 1));
             }
+        }
+        // `Ctrl` + wheel, the same law the develop viewer uses (ADR 0112 §3).
+        // From fit, only zooming *in* enters the zoom: a wheel-down on a
+        // fitted photograph means "show me less than all of it", which is
+        // nothing.
+        scroll-event(event) => {
+            if (event.modifiers.control) {
+                if (root.zoomed) {
+                    root.zoom-requested(Zoom.stepped(root.scale, event.delta-y));
+                    return accept;
+                }
+                if (event.delta-y > 0) {
+                    root.zoom-requested(Zoom.stepped(parent.height / (root.image-h * 1px), event.delta-y));
+                    return accept;
+                }
+            }
+            return reject;
         }
     }
 }

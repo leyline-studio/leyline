@@ -19,6 +19,17 @@ export global PreferencesState {
 
     // Consent to the update check (ADR 0077 §2). False until someone says
     // otherwise, including when the preferences file is missing or damaged.
+    // What the viewers paint behind the photograph, and behind a soft proof
+    // (ADR 0117): an index into `background-names`.
+    in property <[string]> background-names;
+    in-out property <int> viewer-background;
+    in-out property <int> proof-background;
+    callback choose-viewer-background(int);
+    callback choose-proof-background(int);
+    // The colours themselves, resolved by Rust so the panels do not each
+    // repeat the table.
+    in property <color> viewer-ground;
+    in property <color> proof-ground;
     in-out property <bool> update-check;
     callback set-update-check(bool);
     // The second-launch question (ADR 0078 §4). Any way out of that dialog

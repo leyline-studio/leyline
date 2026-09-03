@@ -10,8 +10,9 @@
 // them *is* the feature (§2).
 
 import { GridState } from "../state/grid.slint";
+import { PreferencesState } from "../state/preferences.slint";
 import { DevelopState } from "../state/develop.slint";
-import { Filmstrip, FilterChip, ZoomableImage } from "../widgets/controls.slint";
+import { Filmstrip, FilterChip, ZoomableImage, Zoom } from "../widgets/controls.slint";
 
 export component ComparePanel inherits VerticalLayout {
     in property <bool> chrome-hidden;
@@ -19,6 +20,9 @@ export component ComparePanel inherits VerticalLayout {
     // One viewpoint for the two images (ADR 0057 §2).
     // `in-out`: the window's `Z` shortcut toggles it from outside.
     in-out property <bool> zoomed: false;
+    // One scale for the view — and in compare, one for both halves, like the
+    // centre beside it (ADR 0112 §3).
+    in-out property <float> scale: 1.0;
     property <float> center-x: 0.5;
     property <float> center-y: 0.5;
 
@@ -63,8 +67,15 @@ export component ComparePanel inherits VerticalLayout {
             text: root.zoomed ? @tr("Fit") : @tr("100%    Z");
             active: root.zoomed;
             clicked => {
+                root.scale = 1.0;
                 root.zoomed = !root.zoomed;
             }
+        }
+        if root.zoomed: Text {
+            text: Zoom.percent(root.scale);
+            color: #9a9a9a;
+            font-size: 12px;
+            vertical-alignment: center;
         }
         FilterChip {
             text: @tr("Develop    D");
@@ -87,13 +98,19 @@ export component ComparePanel inherits VerticalLayout {
             horizontal-stretch: 1;
             ZoomableImage {
                 vertical-stretch: 1;
+                background: PreferencesState.viewer-ground;
                 source: GridState.compare-select-image;
                 zoomed: root.zoomed;
+                scale: root.scale;
                 center-x: root.center-x;
                 center-y: root.center-y;
                 panned(x, y) => {
                     root.center-x = x;
                     root.center-y = y;
+                }
+                zoom-requested(s) => {
+                    root.scale = s;
+                    root.zoomed = true;
                 }
             }
             Text {
@@ -110,13 +127,19 @@ export component ComparePanel inherits VerticalLayout {
             horizontal-stretch: 1;
             ZoomableImage {
                 vertical-stretch: 1;
+                background: PreferencesState.viewer-ground;
                 source: GridState.compare-candidate-image;
                 zoomed: root.zoomed;
+                scale: root.scale;
                 center-x: root.center-x;
                 center-y: root.center-y;
                 panned(x, y) => {
                     root.center-x = x;
                     root.center-y = y;
+                }
+                zoom-requested(s) => {
+                    root.scale = s;
+                    root.zoomed = true;
                 }
             }
             Text {

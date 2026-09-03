@@ -80,6 +80,14 @@ built around that switch, and converting it would have meant reworking three
 views to finish one. Named as a limit rather than left to be discovered — the
 gesture works where a correction is judged, and nowhere else yet.
 
+> **Limit lifted, 2026-09-03.** `ZoomableImage` now takes a `scale` and asks
+> its parent for a new one on `Ctrl` + wheel, exactly as `panned` already
+> asked for a new centre — which is what made it cheap in the end: the widget
+> owned neither piece of state, so the compare view's two halves share the
+> scale the way they already shared the centre. All three viewers zoom
+> continuously, on the same law, and the sentence above stands only as the
+> record of what was true for a day.
+
 What the zoom magnifies is **the preview the panel already holds**, not a
 fresh full-resolution render. That was already true of the 100 % button before
 this ADR, and it is why 100 % has always meant "one preview pixel per screen

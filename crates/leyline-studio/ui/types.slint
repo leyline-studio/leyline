@@ -474,6 +474,18 @@ export global Tr {
     }
     // Chromatic aberration (ADR 0111 §6): a photograph with nothing to
     // measure on gets an answer, not a silence.
+    // The three grounds a viewer can paint (ADR 0117 §1). Named here rather
+    // than in the dialog because Rust assembles the list, and a string built
+    // in Rust is a string no `.pot` ever learns about.
+    public pure function ground-dark() -> string {
+        return @tr("Dark");
+    }
+    public pure function ground-grey() -> string {
+        return @tr("Mid-grey");
+    }
+    public pure function ground-white() -> string {
+        return @tr("White");
+    }
     public pure function tca-not-enough-edges(samples: int) -> string {
         return @tr("Not enough usable edges on this photo ({}) — try a frame with detail away from the centre.", samples);
     }

@@ -46,6 +46,49 @@ export component PreferencesDialog inherits VerticalLayout {
     }
 
     SubHeading {
+        label: @tr("Behind the photograph");
+    }
+    // Three neutrals, not a colour picker (ADR 0117 §1): a coloured ground
+    // would shift the adaptation of the eye about to judge white balance.
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: start;
+        for name[index] in PreferencesState.background-names: FilterChip {
+            text: name;
+            active: index == PreferencesState.viewer-background;
+            clicked => {
+                PreferencesState.choose-viewer-background(index);
+            }
+        }
+    }
+    Text {
+        text: @tr("Mid-grey is what judging tone asks for; dark is what looking asks for.");
+        color: #808080;
+        font-size: 11px;
+        wrap: word-wrap;
+    }
+    SubHeading {
+        label: @tr("Behind a soft proof");
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: start;
+        for name[index] in PreferencesState.background-names: FilterChip {
+            text: name;
+            active: index == PreferencesState.proof-background;
+            clicked => {
+                PreferencesState.choose-proof-background(index);
+            }
+        }
+    }
+    Text {
+        text: @tr("White by default: a proof answers what a print will look like, and a print is looked at on paper.");
+        color: #808080;
+        font-size: 11px;
+        wrap: word-wrap;
+    }
+
+    SubHeading {
         label: @tr("Updates");
     }
     HorizontalLayout {

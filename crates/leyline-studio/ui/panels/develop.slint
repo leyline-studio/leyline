@@ -9,6 +9,7 @@
 
 import { DevSettings, MaskRow } from "../types.slint";
 import { DevelopState } from "../state/develop.slint";
+import { PreferencesState } from "../state/preferences.slint";
 import { PresetsPanel } from "presets.slint";
 import { GridState } from "../state/grid.slint";
 import { MaskState } from "../state/mask.slint";
@@ -303,6 +304,12 @@ export component DevelopPanel inherits HorizontalLayout {
             preview := Rectangle {
                 vertical-stretch: 1;
                 clip: true;
+                // What the eye adapts to while it judges the photograph
+                // (ADR 0117), and the proof's own ground whenever a proof is
+                // in effect — a print is looked at on paper.
+                background: DevelopState.soft-proof-name == ""
+                    ? PreferencesState.viewer-ground
+                    : PreferencesState.proof-ground;
 
                 // Where the fit-to-window preview actually sits inside this
                 // viewport: the same letterbox `develop::letterbox_unit`

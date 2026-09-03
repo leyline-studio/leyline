@@ -2952,3 +2952,44 @@ msgstr "Défrangeage violet"
 msgctxt "DevelopPanel"
 msgid "Defringe green"
 msgstr "Défrangeage vert"
+
+#: crates/leyline-studio/ui/dialogs/preferences.slint:49
+msgctxt "PreferencesDialog"
+msgid "Behind the photograph"
+msgstr "Derrière la photographie"
+
+#: crates/leyline-studio/ui/dialogs/preferences.slint:65
+msgctxt "PreferencesDialog"
+msgid "Mid-grey is what judging tone asks for; dark is what looking asks for."
+msgstr ""
+"Le gris moyen est ce que demande le jugement des tonalités ; "
+"le sombre, ce que demande le simple regard."
+
+#: crates/leyline-studio/ui/dialogs/preferences.slint:71
+msgctxt "PreferencesDialog"
+msgid "Behind a soft proof"
+msgstr "Derrière une épreuve écran"
+
+#: crates/leyline-studio/ui/dialogs/preferences.slint:85
+msgctxt "PreferencesDialog"
+msgid ""
+"White by default: a proof answers what a print will look like, and a print "
+"is looked at on paper."
+msgstr ""
+"Blanc par défaut : une épreuve répond à « de quoi aura l'air "
+"le tirage », et un tirage se regarde sur du papier."
+
+#: crates/leyline-studio/ui/types.slint:481
+msgctxt "Tr"
+msgid "Dark"
+msgstr "Sombre"
+
+#: crates/leyline-studio/ui/types.slint:484
+msgctxt "Tr"
+msgid "Mid-grey"
+msgstr "Gris moyen"
+
+#: crates/leyline-studio/ui/types.slint:487
+msgctxt "Tr"
+msgid "White"
+msgstr "Blanc"

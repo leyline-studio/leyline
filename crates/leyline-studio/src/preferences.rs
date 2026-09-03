@@ -60,6 +60,19 @@ pub(crate) struct Preferences {
     /// is "no".
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) update_check: Option<bool>,
+    /// What the viewers paint behind the photograph (ADR 0117): `"dark"`,
+    /// `"grey"` or `"white"`. **Absent** means dark, today's ground.
+    ///
+    /// A property of the room, never of the photograph: it changes no pixel,
+    /// reaches no revision, and an export made before and after changing it
+    /// is byte-identical.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) viewer_background: Option<String>,
+    /// The same, applied whenever a soft proof is in effect. **Absent** means
+    /// white — a proof answers "what will this look like printed", and a
+    /// print is looked at on paper (ADR 0117 §2).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) proof_background: Option<String>,
     /// Unix seconds of the last *successful* check — a failed one leaves
     /// this alone, so being offline for a week does not consume the day's
     /// allowance.
@@ -111,6 +124,32 @@ impl PreferencesFile {
         change(&mut self.values);
         save_preferences(&self.path, &self.values)
     }
+}
+
+/// The three grounds a viewer can paint, and the one an unknown value falls
+/// back to (ADR 0117 §1).
+///
+/// Three neutrals rather than a colour picker: a coloured surround shifts the
+/// adaptation of the eye that is about to judge white balance, and these
+/// three are the ones that mean something — dark for looking, mid-grey for
+/// judging tone, white for judging a print.
+pub(crate) const BACKGROUNDS: &[(&str, &str)] = &[
+    ("dark", "#1a1a1a"),
+    ("grey", "#7f7f7f"),
+    ("white", "#ffffff"),
+];
+
+/// The colour one stored name paints, falling back to `default_name` for an
+/// absent or unrecognised one — a preferences file written by a newer
+/// version must not leave a viewer with no ground at all.
+pub(crate) fn background_colour(name: Option<&str>, default_name: &str) -> &'static str {
+    let wanted = name.unwrap_or(default_name);
+    BACKGROUNDS
+        .iter()
+        .find(|(key, _)| *key == wanted)
+        .or_else(|| BACKGROUNDS.iter().find(|(key, _)| *key == default_name))
+        .map(|(_, colour)| *colour)
+        .unwrap_or("#1a1a1a")
 }
 
 /// Where the preferences file lives: next to `recent_libraries.json` and
@@ -277,6 +316,8 @@ mod tests {
             update_check: Some(true),
             last_update_check: Some(1_724_500_000),
             launches: 2,
+            viewer_background: Some("grey".to_owned()),
+            proof_background: Some("white".to_owned()),
         };
         save_preferences(&path, &written).expect("save");
         assert_eq!(load_preferences(&path), written);
@@ -380,5 +421,58 @@ mod tests {
         assert_eq!(language_index(Some("en")), 1);
         assert_eq!(language_index(Some("fr")), 2);
         assert_eq!(language_index(Some("kl")), 0);
+    }
+}
+
+#[cfg(test)]
+mod ground_tests {
+    use super::*;
+
+    /// The two defaults are the decision (ADR 0117 §2): dark for looking,
+    /// white behind a proof.
+    #[test]
+    fn an_absent_preference_paints_its_own_default() {
+        assert_eq!(background_colour(None, "dark"), "#1a1a1a");
+        assert_eq!(background_colour(None, "white"), "#ffffff");
+    }
+
+    #[test]
+    fn each_named_ground_paints_its_neutral() {
+        for (name, colour) in BACKGROUNDS {
+            assert_eq!(background_colour(Some(name), "dark"), *colour);
+            // Every ground is a neutral: a coloured one would shift the
+            // adaptation of the eye about to judge white balance
+            // (ADR 0117 §1).
+            let value = u32::from_str_radix(colour.trim_start_matches('#'), 16).unwrap();
+            let (r, g, b) = ((value >> 16) & 0xff, (value >> 8) & 0xff, value & 0xff);
+            assert!(r == g && g == b, "{name} is not neutral: {colour}");
+        }
+    }
+
+    /// A file written by a newer version must not leave a viewer with no
+    /// ground at all.
+    #[test]
+    fn an_unknown_name_falls_back_to_the_default_rather_than_to_nothing() {
+        assert_eq!(background_colour(Some("chartreuse"), "grey"), "#7f7f7f");
+        assert_eq!(background_colour(Some(""), "white"), "#ffffff");
+    }
+
+    /// The values survive a round trip through the file, and an untouched
+    /// file writes neither (they are absent, not defaulted).
+    #[test]
+    fn the_two_grounds_round_trip_and_stay_absent_until_chosen() {
+        let untouched = Preferences::default();
+        let json = serde_json::to_string(&untouched).unwrap();
+        assert!(!json.contains("viewer_background"), "{json}");
+
+        let chosen = Preferences {
+            viewer_background: Some("grey".to_owned()),
+            proof_background: Some("dark".to_owned()),
+            ..Preferences::default()
+        };
+        let back: Preferences =
+            serde_json::from_str(&serde_json::to_string(&chosen).unwrap()).unwrap();
+        assert_eq!(back.viewer_background.as_deref(), Some("grey"));
+        assert_eq!(back.proof_background.as_deref(), Some("dark"));
     }
 }

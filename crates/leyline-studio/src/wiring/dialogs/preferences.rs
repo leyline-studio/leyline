@@ -15,7 +15,7 @@ use crate::preferences::{
     PreferencesFile, SharedPreferences, consent_question_due, language_choices, language_index,
     now_secs, update_check_due,
 };
-use crate::ui::{DialogState, PreferencesState, StudioWindow};
+use crate::ui::{DialogState, PreferencesState, StudioWindow, Tr};
 use crate::updates::{self, CheckOutcome};
 
 /// How long after the window opens the automatic check runs (ADR 0077 §2):
@@ -81,6 +81,64 @@ fn show_current_values(window: &StudioWindow, preferences: &SharedPreferences) {
     });
     state.set_language(i32::try_from(language).unwrap_or(0));
     state.set_update_check(update_check);
+    show_backgrounds(window, preferences);
+}
+
+/// Fills the two ground pickers and the colours the viewers paint
+/// (ADR 0117). Called on every change, so a chip and the photograph behind
+/// it never disagree.
+pub(crate) fn show_backgrounds(window: &StudioWindow, preferences: &SharedPreferences) {
+    let state = PreferencesState::get(window);
+    let names: Vec<SharedString> = crate::preferences::BACKGROUNDS
+        .iter()
+        .map(|(key, _)| match *key {
+            "dark" => Tr::get(window).invoke_ground_dark(),
+            "grey" => Tr::get(window).invoke_ground_grey(),
+            _ => Tr::get(window).invoke_ground_white(),
+        })
+        .collect();
+    state.set_background_names(ModelRc::from(std::rc::Rc::new(VecModel::from(names))));
+
+    let (viewer, proof) = with_preferences(preferences, |file| {
+        let values = file.values();
+        (
+            values.viewer_background.clone(),
+            values.proof_background.clone(),
+        )
+    });
+    let index_of = |name: Option<&str>, default_name: &str| -> i32 {
+        let wanted = name.unwrap_or(default_name);
+        i32::try_from(
+            crate::preferences::BACKGROUNDS
+                .iter()
+                .position(|(key, _)| *key == wanted)
+                .unwrap_or(0),
+        )
+        .unwrap_or(0)
+    };
+    state.set_viewer_background(index_of(viewer.as_deref(), "dark"));
+    state.set_proof_background(index_of(proof.as_deref(), "white"));
+    state.set_viewer_ground(colour_of(crate::preferences::background_colour(
+        viewer.as_deref(),
+        "dark",
+    )));
+    state.set_proof_ground(colour_of(crate::preferences::background_colour(
+        proof.as_deref(),
+        "white",
+    )));
+}
+
+/// `#rrggbb` to a Slint colour. The strings are this crate's own constants,
+/// so a malformed one is a bug here rather than a value to tolerate.
+fn colour_of(hex: &str) -> slint::Color {
+    let value = u32::from_str_radix(hex.trim_start_matches('#'), 16)
+        .expect("the background table holds well-formed hex");
+    slint::Color::from_argb_u8(
+        255,
+        ((value >> 16) & 0xff) as u8,
+        ((value >> 8) & 0xff) as u8,
+        (value & 0xff) as u8,
+    )
 }
 
 /// Wires every callback of `PreferencesState`.
@@ -123,6 +181,40 @@ pub(crate) fn wire_preferences(window: &StudioWindow, preferences: &SharedPrefer
             }
             PreferencesState::get(&window).set_language(index);
         });
+    }
+
+    for (which, is_proof) in [("viewer", false), ("proof", true)] {
+        let handle = window.as_weak();
+        let preferences = preferences.clone();
+        let choose = move |index: i32| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let Some((key, _)) = usize::try_from(index)
+                .ok()
+                .and_then(|i| crate::preferences::BACKGROUNDS.get(i))
+            else {
+                return;
+            };
+            let key = (*key).to_owned();
+            if let Err(error) = with_preferences(&preferences, |file| {
+                file.update(|values| {
+                    if is_proof {
+                        values.proof_background = Some(key.clone());
+                    } else {
+                        values.viewer_background = Some(key.clone());
+                    }
+                })
+            }) {
+                report_error(&window, &error);
+            }
+            show_backgrounds(&window, &preferences);
+        };
+        if which == "viewer" {
+            state.on_choose_viewer_background(choose);
+        } else {
+            state.on_choose_proof_background(choose);
+        }
     }
 
     {
