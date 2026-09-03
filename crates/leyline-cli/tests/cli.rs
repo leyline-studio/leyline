@@ -1154,6 +1154,31 @@ fn chromatic_aberration_is_measured_and_set_by_hand() {
     );
 }
 
+/// ADR 0118 at a shell prompt: a fourth optional number, and the capability
+/// rule when a revision was pinned before the version that can express it.
+#[test]
+fn grain_takes_a_colour_and_refuses_it_on_the_older_version() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = library_with_a_photo(&dir);
+
+    // Three numbers still work, and pin the version this engine renders.
+    assert!(
+        run(&["develop", &root, "1", "grain", "40", "30", "50"])
+            .status
+            .success()
+    );
+    let history = stdout(&run(&["history", &root, "1"]));
+    assert!(history.contains("grain:2"), "{history}");
+
+    let out = run(&["develop", &root, "1", "grain", "40", "30", "50", "80"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+
+    // Out of range is refused by name, not clamped in silence.
+    let out = run(&["develop", &root, "1", "grain", "40", "30", "50", "140"]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("grain.color"), "{}", stderr(&out));
+}
+
 /// ADR 0113 at a shell prompt: two amounts, a new stage in the revision, and
 /// the green amount optional so a script that only fights purple stays short.
 #[test]

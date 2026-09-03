@@ -73,6 +73,7 @@ fn fully_specified_settings() -> Settings {
             amount: 25,
             size: 30,
             roughness: 50,
+            color: 40,
         },
         tone_curve: ToneCurve {
             points: vec![CurvePoint { x: 0.0, y: 0.0 }, CurvePoint { x: 1.0, y: 1.0 }],

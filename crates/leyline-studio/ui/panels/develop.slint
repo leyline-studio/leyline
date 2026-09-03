@@ -1901,6 +1901,20 @@ export component DevelopPanel inherits HorizontalLayout {
                                 DevelopState.develop-preview("grain-roughness", v);
                             }
                         }
+                        // How much the three layers disagree (ADR 0118): it
+                        // adds chroma and leaves the grain's grey as loud.
+                        EditSlider {
+                            label: @tr("Color");
+                            minimum: 0;
+                            maximum: 100;
+                            value: DevelopState.dev.grain-color;
+                            edited(v) => {
+                                DevelopState.develop-edit("grain-color", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("grain-color", v);
+                            }
+                        }
                     }
 
                     if !root.basic-mode: GroupHeader {

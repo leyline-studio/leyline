@@ -176,13 +176,14 @@ pub fn action(slider: &str, value: f64, current: &Settings) -> Option<(Param, Va
             }
             (Param::Vignette, Value::Vignette(vignette))
         }
-        "grain-amount" | "grain-size" | "grain-roughness" => {
+        "grain-amount" | "grain-size" | "grain-roughness" | "grain-color" => {
             let mut grain = current.grain;
             let v = value.round() as i32;
             match slider {
                 "grain-amount" => grain.amount = v,
                 "grain-size" => grain.size = v,
-                _ => grain.roughness = v,
+                "grain-roughness" => grain.roughness = v,
+                _ => grain.color = v,
             }
             (Param::Grain, Value::Grain(grain))
         }

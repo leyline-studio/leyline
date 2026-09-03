@@ -78,11 +78,11 @@ pub(crate) fn grain(px: &mut Pixels, settings: &Grain, scale: f32) {
 ///
 /// Frozen with the version, like every other constant here: it is what the
 /// slider's top end *means*.
-const MAX_AMPLITUDE: f32 = 0.09;
+pub(super) const MAX_AMPLITUDE: f32 = 0.09;
 
 /// Value noise in [-1, 1]: bilinear interpolation between hashed lattice
 /// points.
-fn value_noise(x: f32, y: f32) -> f32 {
+pub(super) fn value_noise(x: f32, y: f32) -> f32 {
     let (x0, y0) = (x.floor(), y.floor());
     let (fx, fy) = (x - x0, y - y0);
     // Hermite weights, so the field has no visible lattice creases the way

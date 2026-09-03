@@ -464,6 +464,16 @@ pub struct Grain {
     pub size: i32,
     /// Weight of a second octave at half the spacing, in [0, 100].
     pub roughness: i32,
+    /// How much the three layers disagree, in [0, 100]. 0 is one grey on
+    /// all three channels — exactly what ADR 0090 shipped; 100 is three
+    /// emulsion layers graining independently (ADR 0118 §2).
+    ///
+    /// The grain's *grey* is as loud at 100 as at 0: what this adds sums to
+    /// zero across the channels, so it carries chroma and no luminance.
+    ///
+    /// Requires `grain` at version 2, and [`Settings::validate`] refuses it
+    /// on an earlier one rather than let a slider do nothing (ADR 0118 §4).
+    pub color: i32,
 }
 
 impl Default for Grain {
@@ -472,6 +482,7 @@ impl Default for Grain {
             amount: 0,
             size: 25,
             roughness: 50,
+            color: 0,
         }
     }
 }
@@ -1336,6 +1347,17 @@ impl Settings {
         slider("grain.amount", self.grain.amount, 0, 100)?;
         slider("grain.size", self.grain.size, 0, 100)?;
         slider("grain.roughness", self.grain.roughness, 0, 100)?;
+        slider("grain.color", self.grain.color, 0, 100)?;
+        // The capability rule again (ADR 0118 §4): `grain::v1` is frozen and
+        // has no code that reads `color`, so keeping the pinned version and
+        // dropping the setting would leave a slider that does nothing.
+        if self.grain.color != 0 && self.stages.get("grain") == Some(&1) {
+            return Err(LeylineError::InvalidSettings(
+                "grain.color needs stage grain version 2, but this revision pins \
+                 version 1; reprocess the photo to the current stage versions first"
+                    .to_owned(),
+            ));
+        }
         // The master curve and the three channel curves are validated by
         // the same rules (ADR 0098 §1), so they are validated by the same
         // code: a curve that is legal as the master is legal as a channel.
@@ -2939,6 +2961,55 @@ mod tests {
                 masking: 0,
             },
             stages: StageVersions::from([("sharpen".to_owned(), 1)]),
+            ..Settings::default()
+        }
+        .validate()
+        .unwrap();
+    }
+
+    /// The same rule for ADR 0118's coloured grain, and the same three
+    /// cases: refused at v1, accepted at v2 and unpinned, and a v1 revision
+    /// that never asks for colour left alone.
+    #[test]
+    fn coloured_grain_on_a_revision_pinned_at_grain_v1_is_refused() {
+        let coloured = Grain {
+            amount: 60,
+            size: 25,
+            roughness: 50,
+            color: 40,
+        };
+        let message = match (Settings {
+            grain: coloured,
+            stages: StageVersions::from([("grain".to_owned(), 1)]),
+            ..Settings::default()
+        })
+        .validate()
+        {
+            Err(LeylineError::InvalidSettings(message)) => message,
+            other => panic!("expected a refusal, got {other:?}"),
+        };
+        assert!(message.contains("grain version 2"), "{message}");
+        assert!(message.contains("reprocess"), "{message}");
+
+        for stages in [
+            StageVersions::from([("grain".to_owned(), 2)]),
+            StageVersions::new(),
+        ] {
+            Settings {
+                grain: coloured,
+                stages,
+                ..Settings::default()
+            }
+            .validate()
+            .unwrap();
+        }
+
+        Settings {
+            grain: Grain {
+                color: 0,
+                ..coloured
+            },
+            stages: StageVersions::from([("grain".to_owned(), 1)]),
             ..Settings::default()
         }
         .validate()

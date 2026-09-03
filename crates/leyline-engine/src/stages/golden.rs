@@ -682,6 +682,21 @@ fn grain(settings: Settings) -> Settings {
             amount: 70,
             size: 30,
             roughness: 60,
+            color: 0,
+        },
+        ..settings
+    }
+}
+
+/// Coloured grain (ADR 0118 §2). What this case freezes beyond the field
+/// itself is the construction: the chroma term sums to zero across the
+/// three channels, so this render and the `grain` case above must have the
+/// same *luminance* noise and differ only in how the layers disagree.
+fn grain_color(settings: Settings) -> Settings {
+    Settings {
+        grain: Grain {
+            color: 80,
+            ..grain(settings.clone()).grain
         },
         ..settings
     }
@@ -809,6 +824,7 @@ fn cases() -> Vec<(String, Case)> {
         ("presence", presence(base.clone())),
         ("vignette", vignette(base.clone())),
         ("grain", grain(base.clone())),
+        ("grain_color", grain_color(base.clone())),
         (
             "highlight_reconstruction",
             highlight_reconstruction(base.clone()),

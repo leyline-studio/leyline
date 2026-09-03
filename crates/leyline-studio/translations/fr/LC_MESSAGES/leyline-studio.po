@@ -2993,3 +2993,78 @@ msgstr "Gris moyen"
 msgctxt "Tr"
 msgid "White"
 msgstr "Blanc"
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:57
+msgctxt "ContactSheetDialog"
+msgid "Preset"
+msgstr "Preset"
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:65
+msgctxt "ContactSheetDialog"
+msgid "Custom"
+msgstr "Personnalisé"
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:82
+msgctxt "ContactSheetDialog"
+msgid "Paper"
+msgstr "Papier"
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:98
+msgctxt "ContactSheetDialog"
+msgid "Orientation"
+msgstr "Orientation"
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:131
+msgctxt "ContactSheetDialog"
+msgid "Margins (mm, all sides)"
+msgstr "Marges (mm, tous les côtés)"
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:135
+msgctxt "ContactSheetDialog"
+msgid "DPI"
+msgstr "PPP"
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:155
+msgctxt "ContactSheetDialog"
+msgid "None"
+msgstr "Aucune"
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:167
+msgctxt "ContactSheetDialog"
+msgid "Destination ICC profile (blank = sRGB)"
+msgstr "Profil ICC de destination (vide = sRVB)"
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:192 crates/leyline-studio/ui/dialogs/contact_sheet.slint:256
+msgctxt "ContactSheetDialog"
+msgid "Browse…"
+msgstr "Parcourir…"
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:200
+msgctxt "ContactSheetDialog"
+msgid "Rendering intent"
+msgstr "Intention de rendu"
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:218
+msgctxt "ContactSheetDialog"
+msgid "Save as preset (optional name)"
+msgstr "Enregistrer comme preset (nom facultatif)"
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:222
+msgctxt "ContactSheetDialog"
+msgid "Save as preset"
+msgstr "Enregistrer comme preset"
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:267
+msgctxt "ContactSheetDialog"
+msgid "Cancel"
+msgstr "Annuler"
+
+#: crates/leyline-studio/ui/panels/develop.slint:1907
+msgctxt "DevelopPanel"
+msgid "Color"
+msgstr "Couleur"
+
+#: crates/leyline-studio/ui/panels/develop.slint:2337 crates/leyline-studio/ui/panels/develop.slint:2414
+msgctxt "DevelopPanel"
+msgid "Clear"
+msgstr "Effacer"

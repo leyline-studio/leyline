@@ -97,6 +97,24 @@ fn test_image(width: u32, height: u32) -> RawImage {
     }
 }
 
+/// A neutral ramp: the three channels equal everywhere, so an operator
+/// that weighs each channel by its own value weighs them alike.
+fn grey_ramp(width: u32, height: u32) -> RawImage {
+    let mut data = Vec::with_capacity(width as usize * height as usize * 3);
+    for y in 0..height {
+        for x in 0..width {
+            let v = ((x + y) * 255 / (width + height)) as u8;
+            data.extend_from_slice(&[v, v, v]);
+        }
+    }
+    RawImage {
+        width,
+        height,
+        bits: 8,
+        data,
+    }
+}
+
 fn canon_shot(focal_mm: f32) -> LensShot {
     LensShot {
         camera_make: "Canon".to_owned(),
@@ -1578,12 +1596,106 @@ fn grain_at_zero_renders_nothing() {
             amount: 0,
             size: 90,
             roughness: 10,
+            color: 0,
         },
         ..Settings::default()
     };
     assert_eq!(
         develop(&image, &settings, None, None).unwrap().data,
         neutral(&image).data
+    );
+}
+
+/// ADR 0118 §3: at `color: 0`, `grain::v2` calls v1. The claim is about
+/// control flow, so the test is about pixels — nothing about the new
+/// version may move a photograph that did not ask for colour.
+#[test]
+fn coloured_grain_at_zero_is_version_one_exactly() {
+    let image = test_image(64, 48);
+    let grain = leyline_core::Grain {
+        amount: 70,
+        size: 30,
+        roughness: 60,
+        color: 0,
+    };
+    let pin = |version: u16| Settings {
+        grain,
+        stages: leyline_core::StageVersions::from([("grain".to_owned(), version)]),
+        ..Settings::default()
+    };
+    assert_eq!(
+        develop(&image, &pin(1), None, None).unwrap().data,
+        develop(&image, &pin(2), None, None).unwrap().data
+    );
+}
+
+/// ADR 0118 §2's claim, which is about the *slider* and not the formula:
+/// the grain's grey stays exactly as loud at every setting, and what grows
+/// is how much the three layers disagree. A cross-fade between one shared
+/// field and three independent ones — the construction this one was chosen
+/// over — would be about 30 % quieter in the middle of its travel.
+///
+/// Measured on a neutral ramp, where v1's per-channel fade weighs the three
+/// channels alike. Loudness here is the mean absolute move of the *mean of
+/// the three channels* away from an ungrained render: the grain's grey.
+#[test]
+fn coloured_grain_keeps_the_grey_as_loud() {
+    let image = grey_ramp(96, 72);
+    let render = |color: i32| {
+        develop(
+            &image,
+            &Settings {
+                grain: leyline_core::Grain {
+                    amount: 100,
+                    size: 20,
+                    roughness: 50,
+                    color,
+                },
+                stages: leyline_core::StageVersions::from([("grain".to_owned(), 2)]),
+                ..Settings::default()
+            },
+            None,
+            None,
+        )
+        .unwrap()
+    };
+    let plain = develop(&image, &Settings::default(), None, None).unwrap();
+
+    let grey_loudness = |grained: &Rendered| {
+        let mut total = 0.0f64;
+        let mut pixels = 0u32;
+        for (a, b) in plain.data.chunks_exact(3).zip(grained.data.chunks_exact(3)) {
+            let sum: f64 = (0..3).map(|c| b[c] as f64 - a[c] as f64).sum();
+            total += (sum / 3.0).abs();
+            pixels += 1;
+        }
+        total / pixels as f64
+    };
+    let channel_spread = |grained: &Rendered| {
+        let mut total = 0.0f64;
+        let mut pixels = 0u32;
+        for rgb in grained.data.chunks_exact(3) {
+            let mean = (rgb[0] as f64 + rgb[1] as f64 + rgb[2] as f64) / 3.0;
+            total += (0..3).map(|c| (rgb[c] as f64 - mean).abs()).sum::<f64>() / 3.0;
+            pixels += 1;
+        }
+        total / pixels as f64
+    };
+
+    let (grey_mono, grey_coloured) = (grey_loudness(&render(0)), grey_loudness(&render(100)));
+    assert!(
+        (grey_coloured - grey_mono).abs() < grey_mono * 0.1,
+        "the grey must stay as loud: {grey_mono} levels at color 0, \
+         {grey_coloured} at 100"
+    );
+
+    // And the layers must actually come apart: a neutral ramp grained in
+    // one grey stays neutral pixel by pixel.
+    let (spread_mono, spread_coloured) = (channel_spread(&render(0)), channel_spread(&render(100)));
+    assert!(
+        spread_mono < 0.5 && spread_coloured > 2.0,
+        "colour must separate the channels: {spread_mono} levels of spread \
+         at color 0, {spread_coloured} at 100"
     );
 }
 
@@ -1651,6 +1763,7 @@ fn everything() -> Settings {
             amount: 30,
             size: 20,
             roughness: 40,
+            color: 0,
         },
         rotation: 5.0,
         perspective: Some(leyline_core::Perspective {

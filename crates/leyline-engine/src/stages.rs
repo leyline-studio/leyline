@@ -172,6 +172,7 @@ pub(crate) mod vignette {
 }
 pub(crate) mod grain {
     pub(crate) mod v1;
+    pub(crate) mod v2;
 }
 pub(crate) mod output_rendering {
     pub(crate) mod v1;
@@ -1203,15 +1204,26 @@ pub(crate) static STAGES: &[Stage] = &[
         name: "grain",
         active: |settings| !settings.grain.is_neutral(),
         reads: &["grain"],
-        versions: &[Version {
-            version: 1,
-            rank: 230,
-            space: Space::LinearRec2020,
-            // The only stage reading `ctx.scale` for anything but a radius:
-            // its lattice is in full-resolution pixels, so a preview
-            // samples the same field as the export (ADR 0090 §3).
-            apply: |px, ctx| grain::v1::grain(px, &ctx.settings.grain, ctx.scale),
-        }],
+        versions: &[
+            Version {
+                version: 1,
+                rank: 230,
+                space: Space::LinearRec2020,
+                // The only stage reading `ctx.scale` for anything but a radius:
+                // its lattice is in full-resolution pixels, so a preview
+                // samples the same field as the export (ADR 0090 §3).
+                apply: |px, ctx| grain::v1::grain(px, &ctx.settings.grain, ctx.scale),
+            },
+            // Layers that disagree (ADR 0118). Same rank and same slider; at
+            // `color: 0` it calls v1, so the two are bit-identical there by
+            // control flow rather than by argument.
+            Version {
+                version: 2,
+                rank: 230,
+                space: Space::LinearRec2020,
+                apply: |px, ctx| grain::v2::grain(px, &ctx.settings.grain, ctx.scale),
+            },
+        ],
     },
     Stage {
         // Always active, like `input` and for the same reason: the buffer

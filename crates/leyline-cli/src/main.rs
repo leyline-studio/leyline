@@ -240,8 +240,11 @@ Develop params (docs/pipeline.md §3.2, schema 1):
                                     (ADR 0090): amount/roundness in [-100, 100] (negative
                                     amount darkens the corners), midpoint/feather in
                                     [0, 100]; the three shape values default to 50/0/50
-  grain <amount> [size] [roughness] film grain, each in [0, 100] (ADR 0090);
-                                    size and roughness default to 25 and 50
+  grain <amount> [size] [roughness] [color]
+                                    film grain, each in [0, 100] (ADR 0090); size and
+                                    roughness default to 25 and 50, color to 0. Color is
+                                    how much the three layers disagree, and it adds
+                                    chroma without touching the grain's grey (ADR 0118)
   defringe <purple> [green]         takes the saturation out of the coloured halo
                                     beside a high-contrast edge, each in [0, 100]
                                     (ADR 0113); green defaults to 0
@@ -1133,6 +1136,7 @@ fn develop(args: &[String]) -> Result<(), String> {
                 amount: int_at(0)?,
                 size: rest.get(1).map_or(Ok(25), |_| int_at(1))?,
                 roughness: rest.get(2).map_or(Ok(50), |_| int_at(2))?,
+                color: rest.get(3).map_or(Ok(0), |_| int_at(3))?,
             }),
         ),
         "vibrance" => (Param::Vibrance, Value::Int(int_at(0)?)),

@@ -414,6 +414,7 @@ The code of every stage version is kept in the engine forever: that is the price
 | 210 | `crop` | 1 | Cropping |
 | 220 | `vignette` | 1 | The vignette the photographer *adds*, a multiplication in linear light. Ranked after `crop` on purpose (ADR 0090 §1): it is centred on the composed frame and follows a re-framing — the opposite end of the pipeline from `lens` (20), which *removes* the one the lens made |
 | 230 | `grain` | 1 | Film grain: value noise hashed from the pixel's full-resolution coordinates, monochromatic, on the display axis, faded out of blacks and highlights. No seed is stored — the field is recomputed, never replayed (ADR 0090 §3) |
+| 230 | `grain` | 2 | The same, plus `color`: how much the three layers disagree. A chroma-only term added on top of the shared field, so the grain's grey stays as loud at every setting ([ADR 0118](adr/0118-coloured-grain.md)). At `color = 0`, bit-identical to v1 |
 | 900 | `output_rendering` | 1 | The highlight shoulder, then Rec. 2020 → sRGB and encoding; always active (ADR 0044 §3) |
 
 Ranks go up in tens: a future stage inserts itself between two existing ones without anyone renumbering anything.
