@@ -39,6 +39,7 @@ use crate::decode_cache::DecodeCache;
 use crate::events::{Event, JobResult};
 use crate::export::{ExportReport, ExportRequest};
 use crate::import::{ImportOptions, ImportReport, ImportedFile};
+use crate::keystone::{GuideLine, KeystoneSolution};
 use crate::presets::PresetApplyReport;
 use crate::preview::{Preview, PreviewFile};
 use crate::print::{PrintRecipe, PrintReport, PrintRequest};
@@ -2048,6 +2049,40 @@ impl Library {
         Ok(crate::auto_tca::estimate(&crate::pixels::Pixels::from_raw(
             &decoded,
         )?))
+    }
+
+    /// Solves the two perspective sliders that best bring a set of drawn
+    /// guide lines upright (ADR 0119).
+    ///
+    /// **Nothing is written here**, and nothing is decoded either: the lines
+    /// are the whole input, and the aspect ratio of the buffer they were
+    /// drawn on is computed from what the catalog already holds — the
+    /// sensor's dimensions, the EXIF orientation and the revision's own
+    /// rotation. The caller decides what to do with the answer, and an
+    /// ordinary `EditSession` records the decision, exactly as for
+    /// [`Library::auto_tone`] and [`Library::estimate_tca`].
+    ///
+    /// `lines` are in ADR 0026's frame: normalized, post-rotation,
+    /// **pre-crop**. A client showing a cropped photograph maps its own
+    /// coordinates back through the crop before calling.
+    pub fn keystone(&self, version: VersionId, lines: &[GuideLine]) -> Result<KeystoneSolution> {
+        let aspect = {
+            let catalog = lock(&self.inner.catalog);
+            let asset = catalog.version_asset(version)?;
+            let head = catalog.version_head(version)?;
+            let develop = Settings::parse(&catalog.revision(head)?.settings_json)?;
+            let details = catalog.asset_details(asset)?;
+            let (Some(width), Some(height)) = (details.width, details.height) else {
+                return Err(LeylineError::InvalidSettings(
+                    "this photograph's dimensions were never recorded, so a guided \
+                     keystone has no frame to solve in"
+                        .to_owned(),
+                ));
+            };
+            let orientation = details.metadata.as_ref().and_then(|m| m.orientation);
+            crate::keystone::frame_aspect(width, height, orientation, develop.rotation)
+        };
+        crate::keystone::solve(lines, aspect)
     }
 
     /// Stores a named print preset (ADR 0036), validating the recipe first.

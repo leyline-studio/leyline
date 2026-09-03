@@ -97,6 +97,13 @@ pub(crate) struct App {
     pub(crate) clip_highlights: bool,
     /// Whether crushed shadows (all channels at 0) are painted blue.
     pub(crate) clip_shadows: bool,
+    /// The guide lines drawn for a keystone (ADR 0119), each kept twice:
+    /// once in the frame the `perspective` stage sees, which is what the
+    /// solver is given, and once in the displayed frame's own units, which
+    /// is what the overlay draws. Interface state — ADR 0119 §5 keeps them
+    /// out of every revision, preset and fingerprint, because they render
+    /// nothing.
+    pub(crate) keystone: Vec<(leyline_sdk::GuideLine, [f64; 4])>,
     /// When the last live render of a slider drag started (ADR 0074 §3).
     /// The renders are synchronous, so this is all the throttling needed:
     /// a move arriving too soon is dropped, never queued — what matters is

@@ -410,7 +410,7 @@ The code of every stage version is kept in the engine forever: that is the price
 | 190 | `sharpen` | 1 | Unsharp mask on the luminance plane |
 | 190 | `sharpen` | 2 | The same, confined to edges by `masking` (ADR 0096). At `masking = 0`, bit-identical to v1 |
 | 200 | `rotate` | 1 | Rotation by an arbitrary angle, bilinear sampling |
-| 205 | `perspective` | 1 | A two-slider homography straightening converging lines; the output is the bounding box of the transformed quadrilateral (ADR 0052) |
+| 205 | `perspective` | 1 | A two-slider homography straightening converging lines; the output is the bounding box of the transformed quadrilateral (ADR 0052). The two values can also be **solved from lines the photographer drew** along what ought to be straight ([ADR 0119](adr/0119-guided-keystone.md)) — a tool that writes settings, never a stage and never a rendering |
 | 210 | `crop` | 1 | Cropping |
 | 220 | `vignette` | 1 | The vignette the photographer *adds*, a multiplication in linear light. Ranked after `crop` on purpose (ADR 0090 §1): it is centred on the composed frame and follows a re-framing — the opposite end of the pipeline from `lens` (20), which *removes* the one the lens made |
 | 230 | `grain` | 1 | Film grain: value noise hashed from the pixel's full-resolution coordinates, monochromatic, on the display axis, faded out of blacks and highlights. No seed is stored — the field is recomputed, never replayed (ADR 0090 §3) |

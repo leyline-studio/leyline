@@ -27,7 +27,7 @@ use crate::stages::kernel::v1::bilinear;
 /// building shot from well below into parallel verticals, and beyond it the
 /// stretch at the far edge becomes visible as softness rather than as
 /// perspective.
-const MAX_SHIFT: f64 = 1.0 / 3.0;
+pub(crate) const MAX_SHIFT: f64 = 1.0 / 3.0;
 
 /// Applies the perspective correction, returning a new buffer.
 pub(crate) fn correct(px: &Pixels, perspective: &Perspective) -> Pixels {
@@ -100,7 +100,7 @@ pub(crate) fn correct(px: &Pixels, perspective: &Perspective) -> Pixels {
 /// Solved the classical way: the unit square maps to the quadrilateral in
 /// closed form, and the rectangle maps to the unit square by a scaling, so the
 /// answer is the product of the two.
-fn homography(w: f64, h: f64, corners: [(f64, f64); 4]) -> Option<[f64; 9]> {
+pub(crate) fn homography(w: f64, h: f64, corners: [(f64, f64); 4]) -> Option<[f64; 9]> {
     let [(x0, y0), (x1, y1), (x2, y2), (x3, y3)] = corners;
     // Unit square → quadrilateral (Heckbert's derivation).
     let sum_x = x0 - x1 + x2 - x3;

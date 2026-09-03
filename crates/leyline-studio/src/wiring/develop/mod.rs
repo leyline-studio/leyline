@@ -15,6 +15,7 @@ pub(crate) mod adjustments;
 pub(crate) mod clipboard;
 pub(crate) mod curve;
 pub(crate) mod history;
+pub(crate) mod keystone;
 pub(crate) mod masks;
 pub(crate) mod profiles;
 pub(crate) mod proof;
@@ -39,6 +40,7 @@ pub(crate) fn wire_develop(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     adjustments::wire_adjustments(app, window);
     curve::wire_curve(app, window);
     spot::wire_spot(app, window);
+    keystone::wire_keystone(app, window);
     wb::wire_wb(app, window);
     masks::wire_masks(app, window);
     profiles::wire_profiles(app, window);

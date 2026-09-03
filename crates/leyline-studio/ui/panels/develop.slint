@@ -248,6 +248,22 @@ export component DevelopPanel inherits HorizontalLayout {
                         root.dev-zoomed = false;
                         root.expand-reshape = true;
                     }
+                }
+
+                // Keystone by drawn lines (ADR 0119). Picking it zeroes the
+                // two perspective sliders: the guides are read against the
+                // photograph *before* the correction, and drawing "this
+                // should be vertical" on an already-straightened one asks
+                // about a picture that no longer exists (§4).
+                if !root.basic-mode: FilterChip {
+                    text: @tr("Keystone");
+                    active: root.active-tool == "keystone";
+                    clicked => {
+                        root.active-tool = "keystone";
+                        root.dev-zoomed = false;
+                        root.expand-geometry = true;
+                        DevelopState.develop-keystone-begin();
+                    }
                 }                // The three local-adjustment tools (ADR 0049 §1). Like Crop
                 // and Spot Removal they assume the fit-to-window letterbox,
                 // so picking one drops the loupe back to fit; each also opens
@@ -648,6 +664,57 @@ export component DevelopPanel inherits HorizontalLayout {
                     viewbox-height: self.height / 1px;
                     commands: "M\{reshape-drag.pressed-x / 1px} \{reshape-drag.pressed-y / 1px} L\{reshape-drag.mouse-x / 1px} \{reshape-drag.mouse-y / 1px}";
                     stroke: #ffcc00;
+                    stroke-width: 1px;
+                }
+
+                // Keystone (ADR 0119): one drag per guide, drawn along
+                // something that ought to be straight. The tool stays armed
+                // — it takes at least two.
+                keystone-drag := TouchArea {
+                    enabled: root.active-tool == "keystone";
+                    mouse-cursor: crosshair;
+                    pointer-event(event) => {
+                        if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
+                            DevelopState.develop-keystone-drag(
+                                self.pressed-x / 1px, self.pressed-y / 1px,
+                                self.mouse-x / 1px, self.mouse-y / 1px,
+                                self.width / 1px, self.height / 1px,
+                                DevelopState.develop-image.width, DevelopState.develop-image.height);
+                        }
+                    }
+                }
+
+                // The guides already drawn, in the displayed frame's own
+                // units — so the letterbox is recomputed here rather than
+                // baked into the stored numbers, and a window resize moves
+                // them with the photograph.
+                if root.active-tool == "keystone": Rectangle {
+                    property <float> image-ratio: DevelopState.develop-image.height > 0
+                        ? DevelopState.develop-image.width / DevelopState.develop-image.height
+                        : 1.0;
+                    property <length> shown-width: min(self.width, self.height * self.image-ratio);
+                    property <length> shown-height: self.image-ratio > 0 ? self.shown-width / self.image-ratio : self.height;
+                    property <length> shown-x: (self.width - self.shown-width) / 2;
+                    property <length> shown-y: (self.height - self.shown-height) / 2;
+
+                    for guide in DevelopState.keystone-guides: Path {
+                        width: 100%;
+                        height: 100%;
+                        viewbox-width: self.width / 1px;
+                        viewbox-height: self.height / 1px;
+                        commands: "M\{(parent.shown-x + guide.x1 * parent.shown-width) / 1px} \{(parent.shown-y + guide.y1 * parent.shown-height) / 1px} L\{(parent.shown-x + guide.x2 * parent.shown-width) / 1px} \{(parent.shown-y + guide.y2 * parent.shown-height) / 1px}";
+                        stroke: #33ddff;
+                        stroke-width: 1px;
+                    }
+                }
+
+                if keystone-drag.pressed: Path {
+                    width: 100%;
+                    height: 100%;
+                    viewbox-width: self.width / 1px;
+                    viewbox-height: self.height / 1px;
+                    commands: "M\{keystone-drag.pressed-x / 1px} \{keystone-drag.pressed-y / 1px} L\{keystone-drag.mouse-x / 1px} \{keystone-drag.mouse-y / 1px}";
+                    stroke: #33ddff;
                     stroke-width: 1px;
                 }
 
@@ -3253,6 +3320,40 @@ export component DevelopPanel inherits HorizontalLayout {
                                 DevelopState.develop-preview("perspective-horizontal", v);
                             }
                         }
+                        // The guide tool's own row (ADR 0119): what it has,
+                        // and the two verbs. Drawing happens on the photo.
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Text {
+                                text: @tr("{} guides", DevelopState.keystone-guides.length);
+                                color: #9a9a9a;
+                                font-size: 12px;
+                                vertical-alignment: center;
+                            }
+                            FilterChip {
+                                text: @tr("Straighten");
+                                active: false;
+                                enabled: DevelopState.keystone-guides.length >= 2;
+                                clicked => {
+                                    DevelopState.develop-keystone-apply();
+                                }
+                            }
+                            FilterChip {
+                                text: @tr("Clear");
+                                active: false;
+                                enabled: DevelopState.keystone-guides.length > 0;
+                                clicked => {
+                                    DevelopState.develop-keystone-clear();
+                                }
+                            }
+                        }
+                        Text {
+                            text: @tr("Pick the Keystone tool above, then drag along two or more edges that ought to be vertical or horizontal. Each line's own slope says which it is, and nothing is detected: the drawing is the whole input.");
+                            color: #7a7a7a;
+                            font-size: 11px;
+                            wrap: word-wrap;
+                        }
+
                         EditSlider {
                             label: @tr("Crop left");
                             minimum: 0;

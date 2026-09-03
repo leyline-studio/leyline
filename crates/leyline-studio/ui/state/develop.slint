@@ -10,7 +10,7 @@
 // click. None of those cross to Rust, so they stay private to the develop
 // panel.
 
-import { CurveMarker, DevSettings, PresetRow, ProfileRow } from "../types.slint";
+import { CurveMarker, DevSettings, KeystoneGuide, PresetRow, ProfileRow } from "../types.slint";
 export global DevelopState {
     // Develop view state, mirrored from Rust.
     in property <bool> develop-mode;
@@ -163,6 +163,16 @@ export global DevelopState {
     callback develop-red-eye-reset();
     in property <int> dev-red-eye-count;
     in property <int> dev-reshape-count;
+    // Keystone by drawn lines (ADR 0119): one drag per guide, same letterbox
+    // convention as the others. `begin` zeroes the two perspective sliders,
+    // because the guides are read against the photograph *before* the
+    // correction (§4); `apply` solves and writes; `clear` drops the guides
+    // without touching the revision.
+    callback develop-keystone-begin();
+    callback develop-keystone-drag(float, float, float, float, float, float, float, float);
+    callback develop-keystone-apply();
+    callback develop-keystone-clear();
+    in property <[KeystoneGuide]> keystone-guides;
     // The three red-eye fields, typed like the spot ones.
     in-out property <string> red-eye-radius-text: "2";
     in-out property <string> red-eye-feather-text: "0.5";

@@ -3068,3 +3068,30 @@ msgstr "Couleur"
 msgctxt "DevelopPanel"
 msgid "Clear"
 msgstr "Effacer"
+
+#: crates/leyline-studio/ui/panels/develop.slint:259
+msgctxt "DevelopPanel"
+msgid "Keystone"
+msgstr "Lignes directrices"
+
+#: crates/leyline-studio/ui/panels/develop.slint:3328
+msgctxt "DevelopPanel"
+msgid "{} guides"
+msgstr "{} lignes"
+
+#: crates/leyline-studio/ui/panels/develop.slint:3334
+msgctxt "DevelopPanel"
+msgid "Straighten"
+msgstr "Redresser"
+
+#: crates/leyline-studio/ui/panels/develop.slint:3351
+msgctxt "DevelopPanel"
+msgid ""
+"Pick the Keystone tool above, then drag along two or more edges that ought "
+"to be vertical or horizontal. Each line's own slope says which it is, and "
+"nothing is detected: the drawing is the whole input."
+msgstr ""
+"Choisissez l'outil Lignes directrices ci-dessus, puis tracez le long d'au "
+"moins deux arêtes qui devraient être verticales ou horizontales. La pente de "
+"chaque ligne dit laquelle des deux elle est, et rien n'est détecté : le "
+"tracé est la totalité de l'entrée."

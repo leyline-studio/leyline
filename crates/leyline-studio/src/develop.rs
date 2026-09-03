@@ -5,9 +5,9 @@
 //! the session applies whatever comes back.
 
 use leyline_sdk::{
-    ColorGrading, Crop, CurvePoint, Demosaic, HighlightReconstruction, HslBand, LensCorrection,
-    NoiseReduction, Param, Point, RedEye, ReshapePoint, Settings, Sharpening, SpotRemoval,
-    ToneCurve, Value,
+    ColorGrading, Crop, CurvePoint, Demosaic, GuideLine, HighlightReconstruction, HslBand,
+    LensCorrection, NoiseReduction, Param, Point, RedEye, ReshapePoint, Settings, Sharpening,
+    SpotRemoval, ToneCurve, Value,
 };
 
 /// Decodes a slider release into an engine parameter update.
@@ -514,6 +514,56 @@ pub fn reset_group(group: &str, current: &Settings) -> Vec<(Param, Value)> {
     changes
 }
 
+/// Turns one drag on the develop viewer into a keystone guide (ADR 0119).
+///
+/// Returns the line twice: in the frame the `perspective` stage sees, which
+/// is what the solver is given, and in the displayed frame's own units,
+/// which is what the overlay draws. The second is resolution-independent, so
+/// resizing the window moves the drawn guides with the photograph instead of
+/// leaving them behind.
+///
+/// **The crop is undone on the way**, and this is the one placed tool that
+/// does it: the guides answer a question about the buffer `perspective`
+/// receives, which is the *uncropped* one, and getting that wrong would tilt
+/// every answer on a cropped photograph. A click is refused rather than
+/// recorded as a line of no length.
+pub fn keystone_line(
+    press: (f64, f64),
+    release: (f64, f64),
+    view: (f64, f64),
+    image: (f64, f64),
+    crop: Option<&Crop>,
+) -> Option<(GuideLine, [f64; 4])> {
+    let a = letterbox_unit(press, view, image)?;
+    let b = letterbox_unit(release, view, image)?;
+    if (a.0 - b.0).abs() < 1e-6 && (a.1 - b.1).abs() < 1e-6 {
+        return None;
+    }
+    Some((
+        GuideLine {
+            a: uncropped(a, crop),
+            b: uncropped(b, crop),
+        },
+        [a.0, a.1, b.0, b.1],
+    ))
+}
+
+/// Maps a point of the displayed (cropped) frame back into the frame the
+/// `perspective` stage sees — ADR 0026's, pre-crop. Identity when nothing is
+/// cropped.
+fn uncropped(unit: (f64, f64), crop: Option<&Crop>) -> Point {
+    match crop {
+        Some(crop) if crop.width > 0.0 && crop.height > 0.0 => Point {
+            x: crop.x + unit.0 * crop.width,
+            y: crop.y + unit.1 * crop.height,
+        },
+        _ => Point {
+            x: unit.0,
+            y: unit.1,
+        },
+    }
+}
+
 pub(crate) fn letterbox_unit(
     point: (f64, f64),
     view: (f64, f64),
@@ -847,6 +897,71 @@ mod tests {
     use leyline_sdk::{CameraProfile, Perspective, WhiteBalance};
 
     use super::*;
+
+    /// ADR 0119: a keystone guide comes back twice — once for the solver,
+    /// in the frame the stage sees, and once for the overlay, in the
+    /// displayed frame's own units.
+    #[test]
+    fn a_keystone_guide_is_kept_in_both_frames() {
+        // A square viewport showing a 2:1 image: the letterbox puts the
+        // photograph in the middle half.
+        let (view, image) = ((200.0, 200.0), (200.0, 100.0));
+        let (line, drawn) =
+            keystone_line((50.0, 50.0), (150.0, 150.0), view, image, None).expect("a drag");
+        assert!((drawn[0] - 0.25).abs() < 1e-9, "{drawn:?}");
+        assert!((drawn[1] - 0.0).abs() < 1e-9, "{drawn:?}");
+        assert!((drawn[2] - 0.75).abs() < 1e-9, "{drawn:?}");
+        assert!((drawn[3] - 1.0).abs() < 1e-9, "{drawn:?}");
+        // Nothing cropped, so the two frames coincide.
+        assert!((line.a.x - 0.25).abs() < 1e-9 && (line.b.y - 1.0).abs() < 1e-9);
+    }
+
+    /// The crop is undone on the way in — the guides answer a question about
+    /// the *uncropped* buffer, and getting that wrong would tilt every
+    /// answer on a cropped photograph.
+    #[test]
+    fn a_keystone_guide_is_read_through_the_crop() {
+        let crop = Crop {
+            x: 0.25,
+            y: 0.5,
+            width: 0.5,
+            height: 0.25,
+        };
+        let (line, drawn) = keystone_line(
+            (0.0, 0.0),
+            (100.0, 100.0),
+            (100.0, 100.0),
+            (100.0, 100.0),
+            Some(&crop),
+        )
+        .expect("a drag");
+        // The overlay still speaks of the picture on screen.
+        assert_eq!(drawn, [0.0, 0.0, 1.0, 1.0]);
+        // The solver is handed the same drag inside the cropped rectangle.
+        assert!(
+            (line.a.x - 0.25).abs() < 1e-9 && (line.a.y - 0.5).abs() < 1e-9,
+            "{line:?}"
+        );
+        assert!(
+            (line.b.x - 0.75).abs() < 1e-9 && (line.b.y - 0.75).abs() < 1e-9,
+            "{line:?}"
+        );
+    }
+
+    /// A click is not a guide.
+    #[test]
+    fn a_click_is_not_a_keystone_guide() {
+        assert!(
+            keystone_line(
+                (40.0, 40.0),
+                (40.0, 40.0),
+                (100.0, 100.0),
+                (100.0, 100.0),
+                None
+            )
+            .is_none()
+        );
+    }
 
     /// Neutral settings, with the given white balance / crop overrides.
     fn settings(wb: Option<WhiteBalance>, crop: Option<Crop>) -> Settings {

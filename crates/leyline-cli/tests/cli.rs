@@ -1154,6 +1154,68 @@ fn chromatic_aberration_is_measured_and_set_by_hand() {
     );
 }
 
+/// ADR 0119 at a shell prompt: lines in, two sliders out, and the two
+/// refusals by name.
+#[test]
+fn keystone_solves_from_drawn_lines_and_refuses_a_single_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = library_with_a_photo(&dir);
+
+    // Two edges converging upward: a vertical correction, and nothing said
+    // about the horizontal one.
+    let out = run(&[
+        "keystone",
+        &root,
+        "1",
+        "--line",
+        "0.30,0.05,0.20,0.95",
+        "--line",
+        "0.70,0.05,0.80,0.95",
+        "--dry-run",
+    ]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    let printed = stdout(&out);
+    assert!(printed.contains("horizontal +0"), "{printed}");
+    assert!(!printed.contains("vertical +0"), "{printed}");
+    // --dry-run wrote nothing.
+    let history = stdout(&run(&["history", &root, "1"]));
+    assert_eq!(history.lines().count(), 1, "{history}");
+
+    // Without it, one revision, and the sliders now carry the answer.
+    let out = run(&[
+        "keystone",
+        &root,
+        "1",
+        "--line",
+        "0.30,0.05,0.20,0.95",
+        "--line",
+        "0.70,0.05,0.80,0.95",
+    ]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    let history = stdout(&run(&["history", &root, "1"]));
+    assert_eq!(history.lines().count(), 2, "{history}");
+
+    let out = run(&["keystone", &root, "1", "--line", "0.30,0.05,0.20,0.95"]);
+    assert!(!out.status.success());
+    assert!(
+        stderr(&out).contains("at least 2 lines"),
+        "{}",
+        stderr(&out)
+    );
+
+    let out = run(&[
+        "keystone",
+        &root,
+        "1",
+        "--line",
+        "0.3,0.4,0.3,0.4",
+        "--line",
+        "0.70,0.05,0.80,0.95",
+    ]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("no length"), "{}", stderr(&out));
+}
+
 /// ADR 0118 at a shell prompt: a fourth optional number, and the capability
 /// rule when a revision was pinned before the version that can express it.
 #[test]

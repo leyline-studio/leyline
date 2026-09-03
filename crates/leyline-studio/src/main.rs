@@ -268,6 +268,7 @@ fn run() -> Result<(), String> {
         show_mask_overlay: true,
         clip_highlights: false,
         clip_shadows: false,
+        keystone: Vec::new(),
         last_live_render: None,
         dev_clipboard: None,
         dev_history: Vec::new(),

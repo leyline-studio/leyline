@@ -187,6 +187,17 @@ export struct MaskDab {
     radius: float,
 }
 
+// One keystone guide (ADR 0119), in the displayed frame's own units so the
+// overlay follows the photograph through a window resize. The pre-crop
+// coordinates the solver actually needs never cross to the panel: it draws
+// this and nothing else.
+export struct KeystoneGuide {
+    x1: float,
+    y1: float,
+    x2: float,
+    y2: float,
+}
+
 // One entry of `Settings::local_adjustments` (ADR 0029, ADR 0048), mirrored
 // by `models::mask_rows` for the local-adjustment panel (ADR 0049).
 //

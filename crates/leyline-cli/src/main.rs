@@ -11,12 +11,12 @@ use leyline_sdk::{
     AssetDescription, AssetId, CameraProfile, CameraSettings, CaptionSource, ColorGrading,
     ColorGradingZone, ColorLabel, ContactSheetRecipe, ContactSheetRequest, ContactSheetSettings,
     Crop, CurvePoint, Defringe, Demosaic, ExportFormat, ExportRecipe, ExportRequest,
-    ExportSettings, GridQuery, HighlightReconstruction, HslBand, ImportOptions, LensCorrection,
-    Library, LocalAdjustment, LocalAdjustmentValues, Lut, Margins, NoiseReduction, Orientation,
-    PaperSize, Param, Perspective, PickState, Point, PresetId, PreviewKind, PrintRecipe,
-    PrintRequest, PrintSettings, RedEye, RenderingIntent, ReshapePoint, ScanOptions, Settings,
-    SettingsGroup, Sharpening, ShotRange, SpotRemoval, TetherOptions, TetherSetting, Value,
-    VersionId, Watermark, WatermarkAnchor, WhiteBalance,
+    ExportSettings, GridQuery, GuideLine, HighlightReconstruction, HslBand, ImportOptions,
+    LensCorrection, Library, LocalAdjustment, LocalAdjustmentValues, Lut, Margins, NoiseReduction,
+    Orientation, PaperSize, Param, Perspective, PickState, Point, PresetId, PreviewKind,
+    PrintRecipe, PrintRequest, PrintSettings, RedEye, RenderingIntent, ReshapePoint, ScanOptions,
+    Settings, SettingsGroup, Sharpening, ShotRange, SpotRemoval, TetherOptions, TetherSetting,
+    Value, VersionId, Watermark, WatermarkAnchor, WhiteBalance,
 };
 
 const USAGE: &str = "\
@@ -46,6 +46,12 @@ Usage:
                                     fichier en entier et nomme l'asset (ADR 0095)
   leyline auto-tone <library> <version-id> [--dry-run]
   leyline auto-tca <library> <version-id> [--dry-run]
+  leyline keystone <library> <version-id> --line x1,y1,x2,y2 [--line …] [--dry-run]
+                                    solves the two perspective sliders from lines
+                                    you drew along what ought to be straight
+                                    (ADR 0119) ; rien n'est détecté, la pente de
+                                    chaque ligne dit si elle doit être verticale
+                                    ou horizontale ; --dry-run n'écrit rien
                                     measures the lens's chromatic aberration on
                                     this photo and writes it to the revision
                                     (ADR 0111); --dry-run only prints it
@@ -352,6 +358,7 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("scan") => scan(&args[1..]),
         Some("auto-tone") => auto_tone(&args[1..]),
         Some("auto-tca") => auto_tca(&args[1..]),
+        Some("keystone") => keystone(&args[1..]),
         Some("auto-wb") => auto_wb(&args[1..]),
         Some("sample-range") => sample_range(&args[1..]),
         Some("describe") => describe(&args[1..]),
@@ -1865,6 +1872,60 @@ fn auto_tca(args: &[String]) -> Result<(), String> {
     };
     session
         .set(Param::LensCorrection, Value::LensCorrection(lens))
+        .map_err(|e| e.to_string())?;
+    let revision = session.commit().map_err(|e| e.to_string())?;
+    println!("committed revision {revision}");
+    Ok(())
+}
+
+/// ADR 0119: the photographer draws the lines that ought to be straight and
+/// the engine answers with the two sliders. Nothing is detected — the lines
+/// are the whole input.
+fn keystone(args: &[String]) -> Result<(), String> {
+    let (positional, options) = parse(args, &["line"])?;
+    let [root, version] = positional.as_slice() else {
+        return Err(
+            "usage: leyline keystone <library> <version-id> --line x1,y1,x2,y2 \
+             [--line …] [--dry-run]"
+                .to_owned(),
+        );
+    };
+    let mut lines = Vec::new();
+    for drawn in options.all("line") {
+        let numbers: Vec<f64> = drawn
+            .split(',')
+            .map(|n| n.trim().parse::<f64>())
+            .collect::<Result<_, _>>()
+            .map_err(|_| format!("--line takes four numbers, got {drawn:?}"))?;
+        let [x1, y1, x2, y2] = numbers.as_slice() else {
+            return Err(format!(
+                "--line takes four numbers x1,y1,x2,y2 in [0, 1], got {drawn:?}"
+            ));
+        };
+        lines.push(GuideLine {
+            a: Point { x: *x1, y: *y1 },
+            b: Point { x: *x2, y: *y2 },
+        });
+    }
+
+    let library = open(root)?;
+    let version = VersionId::new(version.parse().map_err(|_| "version id must be a number")?);
+    let solution = library
+        .keystone(version, &lines)
+        .map_err(|e| e.to_string())?;
+    println!(
+        "vertical {:+}  horizontal {:+}  ({:.2}° left)",
+        solution.perspective.vertical, solution.perspective.horizontal, solution.residual_degrees
+    );
+    if options.switch("dry-run") {
+        return Ok(());
+    }
+    let mut session = library.edit(version).map_err(|e| e.to_string())?;
+    session
+        .set(
+            Param::Perspective,
+            Value::Perspective(Some(solution.perspective)),
+        )
         .map_err(|e| e.to_string())?;
     let revision = session.commit().map_err(|e| e.to_string())?;
     println!("committed revision {revision}");

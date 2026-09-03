@@ -21,6 +21,7 @@ mod events;
 mod exif;
 mod export;
 mod import;
+mod keystone;
 mod library;
 mod lut;
 mod mask;
@@ -56,6 +57,7 @@ pub use export::{
     export_version,
 };
 pub use import::{ImportOptions, ImportReport, ImportedFile, SkippedFile, import, import_files};
+pub use keystone::{GuideLine, KeystoneSolution, MIN_GUIDES as KEYSTONE_MIN_GUIDES};
 pub use leyline_catalog::{LIBRARY_ROOT, Root};
 pub use leyline_preview::Rgb8;
 /// The RAW decoder that produced this process's pixels, e.g. `"0.21.2-Release"`.
