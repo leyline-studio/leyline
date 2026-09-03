@@ -211,6 +211,8 @@ pub(crate) fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<()
         .set_dev_spot_count(i32::try_from(settings.spot_removal.len()).unwrap_or(i32::MAX));
     DevelopState::get(window)
         .set_dev_red_eye_count(i32::try_from(settings.red_eye.len()).unwrap_or(i32::MAX));
+    DevelopState::get(window)
+        .set_dev_reshape_count(i32::try_from(settings.reshape.len()).unwrap_or(i32::MAX));
     // Local adjustments (ADR 0049): the whole list, plus a selection kept
     // inside it — a removal, an undo or a jump through the history can shorten
     // the list under a row that was selected a moment ago.

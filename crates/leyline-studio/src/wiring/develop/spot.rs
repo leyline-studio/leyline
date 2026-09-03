@@ -18,6 +18,78 @@ pub(super) fn wire_spot(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
+        DevelopState::get(window).on_develop_reshape_drag(move |px, py, rx, ry, vw, vh, iw, ih| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let Some((_, version)) = app.develop else {
+                return;
+            };
+            let state = DevelopState::get(&window);
+            let radius_strength = match reshape_defaults(
+                state.get_reshape_radius_text().as_str(),
+                state.get_reshape_strength_text().as_str(),
+            ) {
+                Ok(defaults) => defaults,
+                Err(error) => {
+                    report_error(&window, &error);
+                    return;
+                }
+            };
+            let committed = (|| {
+                let mut session = app.library.edit(version)?;
+                let Some((param, value)) = develop::place_reshape(
+                    (f64::from(px), f64::from(py)),
+                    (f64::from(rx), f64::from(ry)),
+                    (f64::from(vw), f64::from(vh)),
+                    (f64::from(iw), f64::from(ih)),
+                    radius_strength,
+                    &session.settings().reshape,
+                ) else {
+                    return Ok(());
+                };
+                session.set(param, value)?;
+                session.commit().map(|_| ())
+            })();
+            if let Err(error) = committed
+                .map_err(|e| e.to_string())
+                .and_then(|()| refresh_develop(&mut app, &window))
+            {
+                report_error(&window, &error);
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        DevelopState::get(window).on_develop_reshape_reset(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let Some((_, version)) = app.develop else {
+                return;
+            };
+            let committed = (|| {
+                let mut session = app.library.edit(version)?;
+                if session.settings().reshape.is_empty() {
+                    return Ok(());
+                }
+                session.set(Param::Reshape, Value::Reshape(Vec::new()))?;
+                session.commit().map(|_| ())
+            })();
+            if let Err(error) = committed
+                .map_err(|e| e.to_string())
+                .and_then(|()| refresh_develop(&mut app, &window))
+            {
+                report_error(&window, &error);
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
         // Red-eye (ADR 0103): one click, one disk — the panel's own fields
         // give the radius and the two strengths, like spot removal's.
         DevelopState::get(window).on_develop_red_eye_click(move |vx, vy, vw, vh, iw, ih| {
@@ -214,6 +286,27 @@ pub(crate) fn spot_defaults(
 
 /// Parses the red-eye panel's three fields (ADR 0103): a radius in percent
 /// of the frame, a feather and a darkening in [0, 1] — the units
+/// Reads the reshape panel's two fields, in the units [`ReshapePoint`]
+/// stores: a radius in percent of the frame's larger side, and a strength in
+/// `[0, 1]`.
+fn reshape_defaults(radius: &str, strength: &str) -> Result<(f64, f64), String> {
+    let radius: f64 = radius
+        .trim()
+        .parse()
+        .map_err(|_| format!("bad reshape radius {radius:?}"))?;
+    let strength: f64 = strength
+        .trim()
+        .parse()
+        .map_err(|_| format!("bad reshape strength {strength:?}"))?;
+    if !(0.0..=100.0).contains(&radius) || radius <= 0.0 {
+        return Err("the reshape radius is a percentage in (0, 100]".to_owned());
+    }
+    if !(0.0..=1.0).contains(&strength) {
+        return Err("the reshape strength is in [0, 1]".to_owned());
+    }
+    Ok((radius / 100.0, strength))
+}
+
 /// [`leyline_sdk::RedEye`] stores, so the panel and the model agree.
 fn red_eye_defaults(radius: &str, feather: &str, darken: &str) -> Result<(f64, f64, f64), String> {
     let number = |name: &str, text: &str, default: f64| -> Result<f64, String> {

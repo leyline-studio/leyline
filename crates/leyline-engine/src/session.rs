@@ -17,8 +17,8 @@ use leyline_catalog::{Catalog, RevisionRow};
 use leyline_core::{
     CURRENT_SCHEMA, CameraProfile, ColorGrading, Crop, Defringe, Demosaic, Grain,
     HighlightReconstruction, HslBand, LensCorrection, LeylineError, LocalAdjustment, Lut,
-    NoiseReduction, Perspective, PresetId, RedEye, Result, RevisionId, Settings, Sharpening,
-    SpotRemoval, ToneCurve, VersionId, Vignette, WhiteBalance,
+    NoiseReduction, Perspective, PresetId, RedEye, ReshapePoint, Result, RevisionId, Settings,
+    Sharpening, SpotRemoval, ToneCurve, VersionId, Vignette, WhiteBalance,
 };
 
 /// Default amendment window of `docs/catalog.md` §17.
@@ -82,6 +82,9 @@ pub enum Param {
     /// Defringe (ADR 0113), the whole struct as one commit unit like
     /// [`Param::LensCorrection`] beside it.
     Defringe,
+    /// The whole list of reshape handles (ADR 0109), like
+    /// [`Param::SpotRemoval`] and [`Param::RedEye`] beside it.
+    Reshape,
     /// One band of the 8-band HSL mixer (ADR 0031), addressed by its index
     /// in `hsl` (always `0..8`) — the same per-index coalescing
     /// [`Param::LocalAdjustment`] applies.
@@ -143,6 +146,8 @@ pub enum Value {
     LensCorrection(LensCorrection),
     /// For [`Param::Defringe`].
     Defringe(Defringe),
+    /// For [`Param::Reshape`].
+    Reshape(Vec<ReshapePoint>),
     /// For [`Param::HslBand`].
     HslBand(HslBand),
     /// For [`Param::ColorGrading`].
@@ -506,6 +511,7 @@ pub(crate) fn apply(settings: &mut Settings, param: Param, value: Value) -> Resu
         (Param::WhiteBalance, Value::WhiteBalance(v)) => settings.white_balance = v,
         (Param::LensCorrection, Value::LensCorrection(v)) => settings.lens_correction = v,
         (Param::Defringe, Value::Defringe(v)) => settings.defringe = v,
+        (Param::Reshape, Value::Reshape(v)) => settings.reshape = v,
         (Param::HslBand(index), Value::HslBand(band)) => {
             if index >= settings.hsl.len() {
                 return Err(LeylineError::InvalidSettings(format!(

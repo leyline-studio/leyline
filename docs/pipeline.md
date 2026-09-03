@@ -61,6 +61,10 @@ Defringe
 
 ↓
 
+Reshape
+
+↓
+
 Spot removal
 
 ↓
@@ -256,6 +260,7 @@ Never a delta.
 
     "lens_correction": { "enabled": true, "profile": "auto", "tca_red": 0.034, "tca_blue": -0.012 },
     "defringe": { "purple": 40, "green": 0 },
+    "reshape": [ { "from": { "x": 0.41, "y": 0.38 }, "to": { "x": 0.44, "y": 0.4 }, "radius": 0.12, "strength": 0.8 } ],
     "noise_reduction": { "luminance": 15, "color": 25 },
     "sharpening": { "amount": 40, "radius": 1.0, "masking": 0 },
     "output_rendering": { "highlight_rolloff": 50 },
@@ -301,6 +306,7 @@ Neutral values of schema 1:
 | `color_grading` | absent — each zone at `{ "hue": 0, "saturation": 0, "luminance": 0 }`, `balance`/`blending` at 0 |
 | `lens_correction` | `{ "enabled": false, "profile": "auto", "tca_red": 0.0, "tca_blue": 0.0 }` |
 | `defringe` | `{ "purple": 0, "green": 0 }` |
+| `reshape` | `[]` |
 | `noise_reduction` | `{ "luminance": 0, "color": 0 }` |
 | `sharpening` | `{ "amount": 0, "radius": 1.0, "masking": 0 }` |
 | `output_rendering` | `{ "highlight_rolloff": 50 }` — the only field whose default value is not "do nothing": there is no render without an output, so it is a rendering choice, frozen with the stage version that reads it (ADR 0044 §3). Importing a JPEG/PNG/TIFF opens it at 0, there being no headroom to recover |
@@ -374,6 +380,7 @@ The code of every stage version is kept in the engine forever: that is the price
 | 20 | `lens` | 1 | Distortion, transverse chromatic aberration and vignetting through a Lensfun profile (ADR 0016–0018) |
 | 20 | `lens` | 2 | The same, plus two **measured** chromatic aberration coefficients folded into the same per-channel resample — the correction for a lens Lensfun has never calibrated ([ADR 0111](adr/0111-adaptive-chromatic-aberration.md)). At zero coefficients, bit-identical to v1 |
 | 22 | `defringe` | 1 | Takes the saturation out of the purple and green halos axial aberration and blooming leave **beside** a high-contrast edge, hue and luminance untouched ([ADR 0113](adr/0113-defringe.md)) |
+| 25 | `reshape` | 1 | Moves content *within* the frame: handles that grab at one point and drop at another, the pixels around following through an **inverse** map — nothing invented, every output pixel comes from an input pixel ([ADR 0109](adr/0109-reshape-stage.md)) |
 | 30 | `spot_removal` | 1 | Deterministic cloning by a softened bilinear copy, with no *heal* mode (ADR 0031) |
 | 35 | `red_eye` | 1 | Red-eye correction: a hand-placed disk, corrected by red dominance (ADR 0103) |
 | 40 | `gains` | 1 | White balance and exposure: a per-channel multiplication, the buffer being already in linear light (ADR 0044) |

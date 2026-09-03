@@ -14,9 +14,9 @@ use leyline_sdk::{
     ExportSettings, GridQuery, HighlightReconstruction, HslBand, ImportOptions, LensCorrection,
     Library, LocalAdjustment, LocalAdjustmentValues, Lut, Margins, NoiseReduction, Orientation,
     PaperSize, Param, Perspective, PickState, Point, PresetId, PreviewKind, PrintRecipe,
-    PrintRequest, PrintSettings, RedEye, RenderingIntent, ScanOptions, Settings, SettingsGroup,
-    Sharpening, ShotRange, SpotRemoval, TetherOptions, TetherSetting, Value, VersionId, Watermark,
-    WatermarkAnchor, WhiteBalance,
+    PrintRequest, PrintSettings, RedEye, RenderingIntent, ReshapePoint, ScanOptions, Settings,
+    SettingsGroup, Sharpening, ShotRange, SpotRemoval, TetherOptions, TetherSetting, Value,
+    VersionId, Watermark, WatermarkAnchor, WhiteBalance,
 };
 
 const USAGE: &str = "\
@@ -257,6 +257,11 @@ Develop params (docs/pipeline.md §3.2, schema 1):
                                     `tone-curve reset` ; canal parmi
                                     master/red/green/blue (ADR 0098), absent =
                                     la courbe maîtresse
+  reshape <from-x> <from-y> <to-x> <to-y> <radius> [strength]
+                                    déplace le contenu pris en (from) vers (to),
+                                    positions et rayon en pourcents 0-100,
+                                    strength dans [0, 1] (défaut 1) — ADR 0109 ;
+                                    `reshape reset` vide la liste
   red-eye <x> <y> <radius> <feather> <darken>
                                     position/rayon en pourcents 0-100,
                                     feather/darken dans [0, 1] ; ajoute une
@@ -1364,6 +1369,30 @@ fn develop(args: &[String]) -> Result<(), String> {
                 _ => curve.points = points,
             }
             (Param::ToneCurve, Value::ToneCurve(curve))
+        }
+        // One handle appended per call, or `reshape reset` to clear the
+        // list — the shape `red-eye` and `spot-removal` already have
+        // (ADR 0109 §2).
+        "reshape" => {
+            let points = if at(0)? == "reset" {
+                Vec::new()
+            } else {
+                let mut points = session.settings().reshape.clone();
+                points.push(ReshapePoint {
+                    from: Point {
+                        x: float_at(0)? / 100.0,
+                        y: float_at(1)? / 100.0,
+                    },
+                    to: Point {
+                        x: float_at(2)? / 100.0,
+                        y: float_at(3)? / 100.0,
+                    },
+                    radius: float_at(4)? / 100.0,
+                    strength: rest.get(5).map_or(Ok(1.0), |_| float_at(5))?,
+                });
+                points
+            };
+            (Param::Reshape, Value::Reshape(points))
         }
         "red-eye" => {
             // Same shape as `spot-removal` below, one entry appended per

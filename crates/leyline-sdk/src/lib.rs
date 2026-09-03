@@ -12,8 +12,8 @@ pub use leyline_core::{
     HighlightReconstruction, HslBand, JobId, KeywordId, LensCorrection, LeylineError,
     LocalAdjustment, LocalAdjustmentValues, LuminanceRange, Lut, Mask, MediaType, NoiseReduction,
     Perspective, PickState, Point, PresetFolderId, PresetId, PresetSettings, PreviewKind,
-    PrintPresetId, RangeMask, RedEye, Result, RevisionId, Settings, SettingsGroup, Sharpening,
-    SpotRemoval, StageVersions, TetherSetting, ToneCurve, VersionId, Vignette,
+    PrintPresetId, RangeMask, RedEye, ReshapePoint, Result, RevisionId, Settings, SettingsGroup,
+    Sharpening, SpotRemoval, StageVersions, TetherSetting, ToneCurve, VersionId, Vignette,
     WHITE_BALANCE_PRESETS, WhiteBalance, WhiteBalancePreset,
 };
 

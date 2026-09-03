@@ -314,6 +314,28 @@ fn lens(settings: Settings) -> Settings {
     }
 }
 
+/// Reshape (ADR 0109): two handles, one of them overlapping the other, so
+/// the case freezes the summing behaviour and not just a single warp.
+fn reshape(settings: Settings) -> Settings {
+    Settings {
+        reshape: vec![
+            leyline_core::ReshapePoint {
+                from: Point { x: 0.35, y: 0.45 },
+                to: Point { x: 0.45, y: 0.5 },
+                radius: 0.25,
+                strength: 0.8,
+            },
+            leyline_core::ReshapePoint {
+                from: Point { x: 0.6, y: 0.6 },
+                to: Point { x: 0.55, y: 0.55 },
+                radius: 0.2,
+                strength: 1.0,
+            },
+        ],
+        ..settings
+    }
+}
+
 /// Defringe (ADR 0113): a new stage, so this case is the only entry the
 /// manifest gains — no existing case activates it.
 fn defringe(settings: Settings) -> Settings {
@@ -746,6 +768,7 @@ fn cases() -> Vec<(String, Case)> {
         ("lens", lens(base.clone())),
         ("lens_tca", lens_tca(base.clone())),
         ("defringe", defringe(base.clone())),
+        ("reshape", reshape(base.clone())),
         ("camera_profile", camera_profile(base.clone())),
         ("tone_curve", tone_curve(base.clone())),
         ("tone_curve_channels", tone_curve_channels(base.clone())),

@@ -1695,6 +1695,12 @@ fn everything() -> Settings {
         luminance: 20,
         color: 20,
     };
+    settings.reshape = vec![leyline_core::ReshapePoint {
+        from: leyline_core::Point { x: 0.4, y: 0.4 },
+        to: leyline_core::Point { x: 0.45, y: 0.45 },
+        radius: 0.15,
+        strength: 0.7,
+    }];
     settings.defringe = leyline_core::Defringe {
         purple: 60,
         green: 30,

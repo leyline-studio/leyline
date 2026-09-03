@@ -2926,3 +2926,19 @@ msgstr "Pas assez de contours exploitables sur cette photo ({}) — essayez une 
 msgctxt "DevelopPanel"
 msgid "Defringe (colour halo at an edge)"
 msgstr "Défrangeage (halo coloré sur un contour)"
+
+#: crates/leyline-studio/ui/panels/develop.slint:243 crates/leyline-studio/ui/panels/develop.slint:2253
+msgctxt "DevelopPanel"
+msgid "Reshape"
+msgstr "Remodeler"
+
+#: crates/leyline-studio/ui/panels/develop.slint:2263
+msgctxt "DevelopPanel"
+msgid ""
+"Pick the Reshape tool above, then drag from the content to where it should "
+"go. The pixels within the radius follow and fade to nothing at its edge; "
+"nothing is invented."
+msgstr ""
+"Choisissez l'outil Remodeler ci-dessus, puis glissez du contenu vers "
+"l'endroit où il doit aller. Les pixels dans le rayon suivent et s'éteignent "
+"à son bord ; rien n'est inventé."

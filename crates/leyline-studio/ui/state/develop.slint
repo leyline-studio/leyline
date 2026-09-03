@@ -153,9 +153,16 @@ export global DevelopState {
     callback develop-spot-click(float, float, float, float, float, float, float, float);
     // Red-eye (ADR 0103): one click places one disk — view x/y, viewport
     // w/h, preview w/h, the same letterbox convention as the others.
+    // Reshape (ADR 0109): one drag, press where the content is and release
+    // where it should go — press x/y, release x/y, viewport w/h, image w/h.
+    callback develop-reshape-drag(float, float, float, float, float, float, float, float);
+    callback develop-reshape-reset();
+    in-out property <string> reshape-radius-text: "12";
+    in-out property <string> reshape-strength-text: "1";
     callback develop-red-eye-click(float, float, float, float, float, float);
     callback develop-red-eye-reset();
     in property <int> dev-red-eye-count;
+    in property <int> dev-reshape-count;
     // The three red-eye fields, typed like the spot ones.
     in-out property <string> red-eye-radius-text: "2";
     in-out property <string> red-eye-feather-text: "0.5";

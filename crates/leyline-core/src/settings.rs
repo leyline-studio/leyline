@@ -617,6 +617,31 @@ pub struct SpotRemoval {
     pub opacity: f64,
 }
 
+/// One reshape handle (ADR 0109): content grabbed at [`ReshapePoint::from`]
+/// and dropped at [`ReshapePoint::to`], with the pixels around it stretched
+/// to follow.
+///
+/// Nothing is invented — every output pixel comes from an input pixel, which
+/// is why this needs no model. An empty [`Settings::reshape`] is the neutral
+/// value and there is no neutral entry, the convention [`SpotRemoval`],
+/// [`RedEye`] and [`LocalAdjustment`] already share.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct ReshapePoint {
+    /// The content to move: the point the user grabbed. Normalized,
+    /// post-rotation, pre-crop (ADR 0026).
+    pub from: Point,
+    /// Where it is to appear: the point they dropped it at.
+    pub to: Point,
+    /// Radius of influence around `to`, normalized against the buffer's
+    /// larger dimension. Strictly positive.
+    pub radius: f64,
+    /// How much of the displacement to apply, in `[0, 1]` — the dose
+    /// [`SpotRemoval::opacity`] and [`LocalAdjustment::opacity`] already
+    /// have, per handle rather than per stage so one can be dialled back
+    /// without touching its neighbours.
+    pub strength: f64,
+}
+
 /// One red-eye correction (ADR 0103): a disk placed over a pupil, inside
 /// which red is desaturated and darkened *in proportion to how red each
 /// pixel is*.
@@ -1026,6 +1051,9 @@ pub struct Settings {
     /// Spot removal clones, applied in list order. Neutral: empty (ADR 0032).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub spot_removal: Vec<SpotRemoval>,
+    /// Reshape handles (ADR 0109). Neutral: empty.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub reshape: Vec<ReshapePoint>,
     /// Red-eye corrections (ADR 0103). Empty = none, the neutral state.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub red_eye: Vec<RedEye>,
@@ -1114,6 +1142,7 @@ impl Default for Settings {
             hsl: [HslBand::default(); 8],
             color_grading: ColorGrading::default(),
             spot_removal: Vec::new(),
+            reshape: Vec::new(),
             red_eye: Vec::new(),
             local_adjustments: Vec::new(),
             lens_correction: LensCorrection::default(),
@@ -1354,6 +1383,32 @@ impl Settings {
                 return Err(LeylineError::InvalidSettings(format!(
                     "red_eye[{i}].radius must be in (0, 1], got {}",
                     eye.radius
+                )));
+            }
+        }
+        for (i, point) in self.reshape.iter().enumerate() {
+            for (name, value) in [
+                (format!("reshape[{i}].from.x"), point.from.x),
+                (format!("reshape[{i}].from.y"), point.from.y),
+                (format!("reshape[{i}].to.x"), point.to.x),
+                (format!("reshape[{i}].to.y"), point.to.y),
+            ] {
+                if !(0.0..=1.0).contains(&value) {
+                    return Err(LeylineError::InvalidSettings(format!(
+                        "{name} must be in [0, 1], got {value}"
+                    )));
+                }
+            }
+            if !(point.radius > 0.0 && point.radius <= 1.0) {
+                return Err(LeylineError::InvalidSettings(format!(
+                    "reshape[{i}].radius must be in (0, 1], got {}",
+                    point.radius
+                )));
+            }
+            if !(0.0..=1.0).contains(&point.strength) {
+                return Err(LeylineError::InvalidSettings(format!(
+                    "reshape[{i}].strength must be in [0, 1], got {}",
+                    point.strength
                 )));
             }
         }
@@ -3115,6 +3170,12 @@ mod specification {
                 purple: 40,
                 green: 20,
             },
+            reshape: vec![ReshapePoint {
+                from: Point { x: 0.4, y: 0.4 },
+                to: Point { x: 0.45, y: 0.42 },
+                radius: 0.1,
+                strength: 1.0,
+            }],
             spot_removal: vec![SpotRemoval {
                 target: Point { x: 0.5, y: 0.5 },
                 source: Point { x: 0.4, y: 0.4 },

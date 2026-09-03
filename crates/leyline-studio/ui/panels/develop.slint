@@ -42,6 +42,7 @@ export component DevelopPanel inherits HorizontalLayout {
     property <bool> expand-hsl: false;
     property <bool> expand-color-grading: false;
     property <bool> expand-spot-removal: false;
+    property <bool> expand-reshape: false;
     property <bool> expand-red-eye: false;
     property <bool> expand-versions: false;
     property <bool> expand-local: false;
@@ -237,7 +238,16 @@ export component DevelopPanel inherits HorizontalLayout {
                         root.expand-red-eye = true;
                     }
                 }
-                // The three local-adjustment tools (ADR 0049 §1). Like Crop
+
+                if !root.basic-mode: FilterChip {
+                    text: @tr("Reshape");
+                    active: root.active-tool == "reshape";
+                    clicked => {
+                        root.active-tool = "reshape";
+                        root.dev-zoomed = false;
+                        root.expand-reshape = true;
+                    }
+                }                // The three local-adjustment tools (ADR 0049 §1). Like Crop
                 // and Spot Removal they assume the fit-to-window letterbox,
                 // so picking one drops the loupe back to fit; each also opens
                 // the panel section that shows what the gesture just wrote.
@@ -601,6 +611,35 @@ export component DevelopPanel inherits HorizontalLayout {
                     viewbox-width: self.width / 1px;
                     viewbox-height: self.height / 1px;
                     commands: "M\{mask-drag.pressed-x / 1px} \{mask-drag.pressed-y / 1px} L\{mask-drag.mouse-x / 1px} \{mask-drag.mouse-y / 1px}";
+                    stroke: #ffcc00;
+                    stroke-width: 1px;
+                }
+
+                // Reshape (ADR 0109): one drag — press on the content, release
+                // where it should go. The tool stays armed, because a face or
+                // a horizon usually takes several handles.
+                reshape-drag := TouchArea {
+                    enabled: root.active-tool == "reshape";
+                    mouse-cursor: crosshair;
+                    pointer-event(event) => {
+                        if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
+                            DevelopState.develop-reshape-drag(
+                                self.pressed-x / 1px, self.pressed-y / 1px,
+                                self.mouse-x / 1px, self.mouse-y / 1px,
+                                self.width / 1px, self.height / 1px,
+                                DevelopState.develop-image.width, DevelopState.develop-image.height);
+                        }
+                    }
+                }
+
+                // What the drag is about to do: the displacement, and the
+                // circle of influence around where it lands.
+                if reshape-drag.pressed: Path {
+                    width: 100%;
+                    height: 100%;
+                    viewbox-width: self.width / 1px;
+                    viewbox-height: self.height / 1px;
+                    commands: "M\{reshape-drag.pressed-x / 1px} \{reshape-drag.pressed-y / 1px} L\{reshape-drag.mouse-x / 1px} \{reshape-drag.mouse-y / 1px}";
                     stroke: #ffcc00;
                     stroke-width: 1px;
                 }
@@ -2206,6 +2245,80 @@ export component DevelopPanel inherits HorizontalLayout {
                             }
                             previewing(v) => {
                                 DevelopState.develop-preview("color-grading-blending", v);
+                            }
+                        }
+                    }
+
+                    if !root.basic-mode: GroupHeader {
+                        label: @tr("Reshape");
+                        group: "reshape";
+                        reset => {
+                            DevelopState.reset-group("reshape");
+                        }
+                        expanded <=> root.expand-reshape;
+                    }
+                    if !root.basic-mode && root.expand-reshape: VerticalLayout {
+                        spacing: 8px;
+                        Text {
+                            text: @tr("Pick the Reshape tool above, then drag from the content to where it should go. The pixels within the radius follow and fade to nothing at its edge; nothing is invented.");
+                            color: #666666;
+                            font-size: 11px;
+                            wrap: word-wrap;
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            for field in [
+                                { label: @tr("Radius %"), value: DevelopState.reshape-radius-text, key: "radius" },
+                                { label: @tr("Strength"), value: DevelopState.reshape-strength-text, key: "strength" },
+                            ]: VerticalLayout {
+                                spacing: 4px;
+                                horizontal-stretch: 1;
+                                Text {
+                                    text: field.label;
+                                    color: #9a9a9a;
+                                    font-size: 12px;
+                                }
+                                Rectangle {
+                                    height: 26px;
+                                    background: #1b1b1b;
+                                    border-radius: 4px;
+                                    border-width: 1px;
+                                    border-color: #3a3a3a;
+                                    reshape-input := TextInput {
+                                        x: 6px;
+                                        width: parent.width - 12px;
+                                        height: 100%;
+                                        text: field.value;
+                                        color: #e6e6e6;
+                                        font-size: 12px;
+                                        vertical-alignment: center;
+                                        single-line: true;
+                                        edited => {
+                                            if (field.key == "radius") {
+                                                DevelopState.reshape-radius-text = self.text;
+                                            } else {
+                                                DevelopState.reshape-strength-text = self.text;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        HorizontalLayout {
+                            alignment: space-between;
+                            Text {
+                                text: @tr("{} placed", DevelopState.dev-reshape-count);
+                                color: #9a9a9a;
+                                font-size: 12px;
+                                vertical-alignment: center;
+                            }
+                            FilterChip {
+                                text: @tr("Clear");
+                                active: false;
+                                enabled: DevelopState.dev-reshape-count > 0;
+                                clicked => {
+                                    DevelopState.develop-reshape-reset();
+                                }
                             }
                         }
                     }

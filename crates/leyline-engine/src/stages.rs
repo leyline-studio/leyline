@@ -91,6 +91,9 @@ pub(crate) mod lens {
     pub(crate) mod v1;
     pub(crate) mod v2;
 }
+pub(crate) mod reshape {
+    pub(crate) mod v1;
+}
 pub(crate) mod red_eye {
     pub(crate) mod v1;
 }
@@ -619,6 +622,24 @@ pub(crate) static STAGES: &[Stage] = &[
                 },
             },
         ],
+    },
+    Stage {
+        // Between `lens` (20) and `spot_removal` (30), and the rank is the
+        // decision (ADR 0109 §1): everything a person places afterwards is
+        // placed on what they see, a reshape states something about the
+        // subject rather than the composition, and resampling before
+        // `sharpen` means what gets sharpened is the final geometry.
+        name: "reshape",
+        active: |settings| !settings.reshape.is_empty(),
+        reads: &["reshape", "rotation"],
+        versions: &[Version {
+            version: 1,
+            rank: 25,
+            space: Space::LinearRec2020,
+            apply: |px, ctx| {
+                *px = reshape::v1::reshape(px, &ctx.settings.reshape, ctx.settings.rotation);
+            },
+        }],
     },
     Stage {
         // Right after `lens` (ADR 0113 §1): a fringe is a defect of the
