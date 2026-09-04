@@ -106,7 +106,7 @@ and what any future optional service would have to satisfy, is fixed by
 | HDR | A whole feature, to be settled by an ADR of its own when the day comes |
 | Panorama | Likewise |
 | Face recognition | Likewise, with a privacy dimension that demands its own decision |
-| Automatic synchronisation | Contradicts Local First |
+| Automatic synchronisation | No second copy of the catalog is kept anywhere: two catalogs mean a conflict model, a cross-machine identity, and — since [`pipeline.md`](pipeline.md) §5.1 names the platform, the toolchain and the decoder — the same revision rendering into *different pixels* depending on which device opened it. **Not to be confused with [ADR 0121](adr/0121-remote-engine-boundary.md)**, which is the opposite arrangement: one catalog and two screens, a second device driving the engine on the machine that holds the library. That holds no copy, so none of the four costs above exists, and one machine always computes the pixels |
 | Video | Refused by [ADR 0101](adr/0101-refused-modules.md) §1: a second application sharing a catalog — codecs, a timeline, audio — and §5.1's promise means nothing for a frame nobody can address. *Cataloguing* a video file as an opaque asset is a separate, smaller question, left open |
 | Book, Slideshow, Web | Refused ([ADR 0101](adr/0101-refused-modules.md) §2): three layout engines, legacy in Lightroom itself. What a photographer needs from Leyline here is an export folder, which exists |
 | Publish services (Flickr, social networks) | Refused ([ADR 0101](adr/0101-refused-modules.md) §3): credentials, tokens and a background process talking to the network — a publish service is an account by another name. Export plus the tool you already use does the job |

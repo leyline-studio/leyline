@@ -74,6 +74,16 @@ Then the second socket. [ADR 0073](adr/0073-external-mask-detectors.md) had buil
 
 Assisted culling was decided in August ([ADR 0084](adr/0084-assisted-culling.md)), built as a crate that nothing used, and left there deliberately; it is now wired end to end — `Library::cull` measures the cached thumbnails of a shoot and returns a **proposal**, `leyline cull` prints it, Studio's Library ▸ Assisted Culling… narrows the grid to exactly what it proposes. Nothing is written until the photographer presses the reject key themselves, which is §2 and is not negotiable: a wrongly rejected photograph does not look wrong, it looks absent.
 
+Two decisions are taken and **not yet built**, which is the state ADR 0109
+was in for a while and is the ordinary order of work here. A develop session
+holds the whole catalog's lock while it lives, and it should hold a claim on
+its version instead ([ADR 0120](adr/0120-edit-session-claim.md)) — a local
+defect worth fixing on its own, and a prerequisite for the second: a tablet
+that does not develop but **drives** the machine that does
+([ADR 0121](adr/0121-remote-engine-boundary.md)). One catalog, two screens,
+no copy — so none of the costs a synchronisation carries, and `pipeline.md`
+§5.1 never crossed, because one machine always computes.
+
 What [`readme.md`](readme.md) lists as still open remains the reference: DCP colorimetry not validated against the profile vendor's own render, and two finishing touches to local-adjustment tooling left out of scope by [ADR 0049](adr/0049-local-adjustments-clients.md).
 
 ---
