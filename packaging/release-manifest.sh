@@ -53,23 +53,49 @@ sign() {
 # a manifest that names a file nobody published sends the updater to a 404,
 # and a platform left out simply reports "no update" there — which is the
 # honest answer while, say, macOS has no build (ADR 0019, ADR 0077).
+#
+# Matched on the version being released, not just on the extension. `target/`
+# keeps every artifact ever built, and a plain `ls … | head -1` picks them in
+# alphabetical order — which is to say it picks the *oldest* version still
+# lying around. The manifest would then carry a signature over the previous
+# release's bytes while pointing at this release's URL, and every updater
+# would refuse the download it just made. Found the day 0.1.0-alpha.4 was
+# packaged next to 0.1.0-alpha.3.
 platforms=()
 
-appimage="$(ls target/release/*.AppImage 2>/dev/null | head -1 || true)"
+# The one artifact of this version, or nothing. Two matches means `target/`
+# holds something unexpected, and guessing between them is exactly the
+# mistake above.
+only_one() {
+    local matches=()
+    while IFS= read -r line; do
+        [[ -n "$line" ]] && matches+=("$line")
+    done < <(ls "$@" 2>/dev/null || true)
+    case ${#matches[@]} in
+        0) return 0 ;;
+        1) printf '%s' "${matches[0]}" ;;
+        *)
+            printf 'several artifacts match %s:\n%s\n' "$*" "$(printf '  %s\n' "${matches[@]}")" >&2
+            exit 1
+            ;;
+    esac
+}
+
+appimage="$(only_one "target/release/"*"_${version}_"*.AppImage)"
 if [[ -n "$appimage" ]]; then
     signature="$(sign "$appimage")"
     platforms+=("$(printf '"linux-x86_64": {"url": "%s/releases/download/v%s/%s", "signature": "%s", "format": "appimage"}' \
         "$repository" "$version" "$(basename "$appimage")" "$signature")")
 fi
 
-nsis="$(ls target/x86_64-pc-windows-gnu/release/*-setup.exe 2>/dev/null | head -1 || true)"
+nsis="$(only_one "target/x86_64-pc-windows-gnu/release/"*"_${version}_"*-setup.exe)"
 if [[ -n "$nsis" ]]; then
     signature="$(sign "$nsis")"
     platforms+=("$(printf '"windows-x86_64": {"url": "%s/releases/download/v%s/%s", "signature": "%s", "format": "nsis"}' \
         "$repository" "$version" "$(basename "$nsis")" "$signature")")
 fi
 
-dmg="$(ls target/release/*.dmg 2>/dev/null | head -1 || true)"
+dmg="$(only_one "target/release/"*"_${version}_"*.dmg)"
 if [[ -n "$dmg" ]]; then
     signature="$(sign "$dmg")"
     platforms+=("$(printf '"darwin-x86_64": {"url": "%s/releases/download/v%s/%s", "signature": "%s", "format": "app"}' \
