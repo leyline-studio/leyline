@@ -2818,6 +2818,21 @@ msgctxt "TetherBar"
 msgid "None"
 msgstr "Aucune"
 
+#: crates/leyline-studio/ui/startup_error.slint:41
+msgctxt "StartupErrorWindow"
+msgid "Leyline Studio could not start"
+msgstr "Leyline Studio n'a pas pu démarrer"
+
+#: crates/leyline-studio/ui/startup_error.slint:58
+msgctxt "StartupErrorWindow"
+msgid "It was trying to open"
+msgstr "Il tentait d'ouvrir"
+
+#: crates/leyline-studio/ui/startup_error.slint:84
+msgctxt "StartupErrorWindow"
+msgid "Close"
+msgstr "Fermer"
+
 #: crates/leyline-studio/ui/types.slint:370
 msgctxt "Tr"
 msgid "White balance"

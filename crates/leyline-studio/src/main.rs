@@ -200,17 +200,94 @@ fn size_window_to_screen(window: &StudioWindow) {
     });
 }
 
+/// Why Studio stopped, split by whether anything was ever on screen
+/// (ADR 0122 §1).
+enum Startup {
+    /// The start was refused before the event loop ran: no window has been
+    /// shown, and on a build with no console nothing has been *said* either.
+    /// This is the one that gets a window of its own.
+    Refused {
+        /// The engine's sentence, verbatim.
+        reason: String,
+        /// What was being opened, when the failure knows.
+        path: Option<PathBuf>,
+    },
+    /// The event loop itself ended badly. The loop is spent by then, and the
+    /// user has already seen the application: stderr, as before.
+    LoopFailed(String),
+}
+
+impl From<String> for Startup {
+    /// Every `?` inside [`run`] is a refusal by construction: the event loop
+    /// is the function's last statement, so nothing that returns early has
+    /// reached it. That one failure is classified by hand at the call.
+    ///
+    /// A path is attached only where one is known — the library being opened.
+    /// The rest (a window that will not build, a config directory that cannot
+    /// be resolved) name no file worth showing.
+    fn from(reason: String) -> Startup {
+        Startup::Refused { reason, path: None }
+    }
+}
+
 fn main() -> std::process::ExitCode {
     match run() {
         Ok(()) => std::process::ExitCode::SUCCESS,
-        Err(message) => {
+        Err(Startup::LoopFailed(message)) => {
             eprintln!("error: {message}");
+            std::process::ExitCode::FAILURE
+        }
+        Err(Startup::Refused { reason, path }) => {
+            // stderr first and unconditionally: it is what a developer running
+            // from a terminal reads, and it must not depend on a window that
+            // may itself fail to open.
+            eprintln!("error: {reason}");
+            show_startup_error(&reason, path.as_deref());
             std::process::ExitCode::FAILURE
         }
     }
 }
 
-fn run() -> Result<(), String> {
+/// Puts the refusal on screen, for the launch that has no console to print to
+/// (ADR 0122).
+///
+/// Best-effort from end to end: this may improve the outcome and must never
+/// make it worse. The message has already been printed, and every failure
+/// here simply returns — including the language lookup, which reads a
+/// preferences file that may be the very thing that failed.
+fn show_startup_error(reason: &str, path: Option<&Path>) {
+    let Ok(window) = ui::StartupErrorWindow::new() else {
+        return;
+    };
+    // The window has to exist before the language can be chosen: the bundled
+    // language list is registered by the generated constructor (ADR 0122 §4),
+    // which is the same ordering constraint `run()` lives with.
+    let preferences = Arc::new(Mutex::new(PreferencesFile::open(
+        preferences_path().unwrap_or_default(),
+    )));
+    apply_startup_language(&preferences, system_language().as_deref());
+
+    window.set_reason(SharedString::from(reason));
+    // Only when it adds something. Several engine errors name the path in
+    // their own sentence — `library not found at …` — and repeating it under
+    // "It was trying to open" reads like a program with nothing to say.
+    let path = path
+        .map(|p| p.display().to_string())
+        .filter(|path| !reason.contains(path.as_str()))
+        .unwrap_or_default();
+    window.set_path(SharedString::from(path));
+    {
+        let handle = window.as_weak();
+        window.on_close(move || {
+            if let Some(window) = handle.upgrade() {
+                let _ = window.hide();
+            }
+        });
+    }
+    let _ = window.run();
+}
+
+fn run() -> Result<(), Startup> {
     // No argument: this is how a GUI shortcut launches Studio (the Windows
     // installer's Start Menu entry, the Linux AppImage, double-clicking the
     // macOS .app) — none of those attach a console, so the old
@@ -219,8 +296,20 @@ fn run() -> Result<(), String> {
     // `leyline-studio <library-dir>` argument (scripts, the CLI test
     // harness, an existing user's shortcut) still behaves exactly as before.
     let library = match std::env::args().nth(1) {
-        Some(root) => Library::open(Path::new(&root)).map_err(|e| e.to_string())?,
-        None => open_or_create_library(&default_library_dir()?)?,
+        Some(root) => {
+            let root = PathBuf::from(root);
+            Library::open(&root).map_err(|e| Startup::Refused {
+                reason: e.to_string(),
+                path: Some(root),
+            })?
+        }
+        None => {
+            let root = default_library_dir()?;
+            open_or_create_library(&root).map_err(|reason| Startup::Refused {
+                reason,
+                path: Some(root),
+            })?
+        }
     };
     // Preferences (ADR 0078 §5), read before anything is on screen: the
     // language they may carry has to be applied at the window's first
@@ -228,12 +317,21 @@ fn run() -> Result<(), String> {
     // question of §4 is due. A config directory that cannot be read or
     // written is not a reason to refuse to start — every failure here
     // lands on the defaults, and every default is offline.
-    let preferences = Arc::new(Mutex::new(PreferencesFile::open(preferences_path()?)));
+    // `unwrap_or_default` rather than `?`: the comment above is the rule, and
+    // a `?` here broke it (ADR 0122 §5). An unresolvable config directory
+    // gives an empty path, `PreferencesFile::open` reads nothing from it and
+    // lands on the defaults, and Studio starts.
+    let preferences = Arc::new(Mutex::new(PreferencesFile::open(
+        preferences_path().unwrap_or_default(),
+    )));
     if let Ok(mut file) = preferences.lock() {
         let _ = file.update(record_launch);
     }
 
-    let info = library.catalog().library().map_err(|e| e.to_string())?;
+    let info = library.catalog().library().map_err(|e| Startup::Refused {
+        reason: e.to_string(),
+        path: Some(library.root().to_path_buf()),
+    })?;
     let library_path = library.root().display().to_string();
     let events = library.subscribe();
 
@@ -241,10 +339,13 @@ fn run() -> Result<(), String> {
     // the list (the ones other than the one we're opening right now) around
     // for the callback below to relaunch into. A failure to read/write this
     // file is never fatal to opening the library itself.
-    let recent_path = recent_libraries_path()?;
+    // Both halves are best-effort, which is what the sentence above always
+    // claimed and what the code did not do (ADR 0122 §5): nobody is kept out
+    // of their library because a list of recent ones could not be written.
+    let recent_path = recent_libraries_path().unwrap_or_default();
     let recent_libraries =
         record_recent_library(&load_recent_libraries(&recent_path), library.root());
-    save_recent_libraries(&recent_path, &recent_libraries)?;
+    let _ = save_recent_libraries(&recent_path, &recent_libraries);
     let other_recent_libraries: Vec<PathBuf> = recent_libraries
         .iter()
         .filter(|p| p.as_path() != library.root())
@@ -445,12 +546,43 @@ fn run() -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     }
 
-    window.run().map_err(|e| e.to_string())
+    // The one failure that is not a refusal: by here the window has been
+    // shown (ADR 0122 §1).
+    window.run().map_err(|e| Startup::LoopFailed(e.to_string()))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A `?` inside `run()` is a refusal, and a refusal is what earns a
+    /// window (ADR 0122 §1).
+    ///
+    /// The classification is the only part of this that a test without a
+    /// display can reach; the window itself is smoke-tested under Xvfb by
+    /// pointing Studio at a directory that is not a library.
+    #[test]
+    fn a_string_error_classifies_as_a_refusal_and_names_no_path() {
+        let Startup::Refused { reason, path } = Startup::from("library is locked".to_owned())
+        else {
+            panic!("a `?` inside run() has not reached the event loop");
+        };
+        assert_eq!(reason, "library is locked");
+        // Only the library branches know a path worth showing; a config
+        // directory that cannot be resolved names no file (ADR 0122 §1).
+        assert_eq!(path, None);
+    }
+
+    /// And the loop's own failure is not one: by then the window has been
+    /// shown, the loop is spent, and a second one is not something an error
+    /// path should depend on.
+    #[test]
+    fn the_event_loops_failure_is_not_a_refusal() {
+        assert!(matches!(
+            Startup::LoopFailed("the event loop exited".to_owned()),
+            Startup::LoopFailed(_)
+        ));
+    }
 
     /// Every screen a window may open on must get a window that fits it.
     ///

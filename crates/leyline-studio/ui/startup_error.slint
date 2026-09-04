@@ -1,0 +1,112 @@
+// The window a start that refuses gets (ADR 0122).
+//
+// A release build on Windows has no console — `windows_subsystem = "windows"`
+// is deliberate, and the cost is that `eprintln!` writes to nothing at all.
+// Without this window a library that cannot be opened is an application that
+// simply never appears: no message, no flicker, nothing for the person trying
+// Leyline for the first time to report.
+//
+// It explains and closes. No picker, no retry, no repair — every one of those
+// is a feature with failure modes of its own, in the one code path that must
+// not itself fail (ADR 0122 §2).
+//
+// Its own window rather than a dialog inside `StudioWindow`: at the moment it
+// is needed there is no `StudioWindow`, and that is the whole point.
+
+export component StartupErrorWindow inherits Window {
+    title: "Leyline Studio";
+    // Without this the `FocusScope` below never has focus, and the window's
+    // one action would need the mouse.
+    forward-focus: keys;
+    icon: @image-url("../../../packaging/icons/icon.png");
+    // Fixed: nothing here reflows usefully, and a window whose size follows
+    // its content would follow the length of an engine message.
+    width: 520px;
+    height: 240px;
+    background: #1b1b1b;
+
+    // The engine's own sentence, verbatim and in English — the same rule the
+    // rest of Studio follows for a reason coming from the engine (ADR 0122 §4).
+    in property <string> reason;
+    // What was being opened, when the failure knows. Empty otherwise, and the
+    // line disappears rather than showing a dash.
+    in property <string> path;
+    callback close();
+
+    VerticalLayout {
+        padding: 24px;
+        spacing: 14px;
+
+        Text {
+            text: @tr("Leyline Studio could not start");
+            color: #f0f0f0;
+            font-size: 17px;
+            font-weight: 600;
+        }
+
+        Text {
+            width: 472px;
+            text: root.reason;
+            color: #e6e6e6;
+            font-size: 13px;
+            wrap: word-wrap;
+        }
+
+        if root.path != "": VerticalLayout {
+            spacing: 2px;
+            Text {
+                text: @tr("It was trying to open");
+                color: #9a9a9a;
+                font-size: 11px;
+            }
+            Text {
+                width: 472px;
+                text: root.path;
+                color: #9a9a9a;
+                font-size: 12px;
+                wrap: word-wrap;
+                overflow: elide;
+            }
+        }
+
+        Rectangle {
+            vertical-stretch: 1;
+        }
+
+        HorizontalLayout {
+            alignment: end;
+            Rectangle {
+                width: 92px;
+                height: 26px;
+                border-radius: 13px;
+                background: touch.has-hover ? #3a5f8f : #2f4f6f;
+                Text {
+                    text: @tr("Close");
+                    color: #f0f0f0;
+                    font-size: 12px;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    width: 100%;
+                    height: 100%;
+                }
+                touch := TouchArea {
+                    clicked => {
+                        root.close();
+                    }
+                }
+            }
+        }
+    }
+
+    // Enter and Escape close it too: this window has exactly one action, and
+    // a window with one action should not need the mouse.
+    keys := FocusScope {
+        key-pressed(event) => {
+            if (event.text == Key.Escape || event.text == Key.Return) {
+                root.close();
+                return accept;
+            }
+            return reject;
+        }
+    }
+}

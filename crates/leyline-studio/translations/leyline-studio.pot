@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2026-09-04 11:54+0000\n"
+"POT-Creation-Date: 2026-09-04 13:28+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -2817,6 +2817,21 @@ msgstr ""
 #: crates/leyline-studio/ui/panels/tether.slint:229
 msgctxt "TetherBar"
 msgid "None"
+msgstr ""
+
+#: crates/leyline-studio/ui/startup_error.slint:41
+msgctxt "StartupErrorWindow"
+msgid "Leyline Studio could not start"
+msgstr ""
+
+#: crates/leyline-studio/ui/startup_error.slint:58
+msgctxt "StartupErrorWindow"
+msgid "It was trying to open"
+msgstr ""
+
+#: crates/leyline-studio/ui/startup_error.slint:84
+msgctxt "StartupErrorWindow"
+msgid "Close"
 msgstr ""
 
 #: crates/leyline-studio/ui/types.slint:370

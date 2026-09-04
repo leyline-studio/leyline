@@ -29,6 +29,10 @@ import { SurveyPanel } from "panels/survey.slint";
 import { MapPanel } from "panels/map.slint";
 import { MenuBar } from "panels/menubar.slint";
 import { TetherBar } from "panels/tether.slint";
+// A second top-level window, not a panel of this one: it is shown when
+// `StudioWindow` was never built (ADR 0122). Imported and re-exported here
+// because the generated Rust only sees what this root file exports.
+import { StartupErrorWindow } from "startup_error.slint";
 
 // The generated Rust only sees what the root file re-exports: the structs it
 // builds models from, and the globals it reads and writes through
@@ -61,6 +65,7 @@ export {
     TetherControl,
     TetherState,
     Tr,
+    StartupErrorWindow,
 }
 
 export component StudioWindow inherits Window {
