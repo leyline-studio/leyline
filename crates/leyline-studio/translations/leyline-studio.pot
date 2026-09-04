@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2026-09-04 14:24+0000\n"
+"POT-Creation-Date: 2026-09-04 15:00+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -715,42 +715,45 @@ msgctxt "RenameDialog"
 msgid "Rename"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/report.slint:16
+#: crates/leyline-studio/ui/dialogs/report.slint:17
 msgctxt "ReportDialog"
 msgid "Report a problem"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/report.slint:22
+#: crates/leyline-studio/ui/dialogs/report.slint:23
 msgctxt "ReportDialog"
 msgid ""
 "Leyline writes a folder and opens it. Nothing is sent: you look at it, then "
 "attach it wherever you like."
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/report.slint:29
+#: crates/leyline-studio/ui/dialogs/report.slint:30
 msgctxt "ReportDialog"
 msgid "What were you doing, and what happened?"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/report.slint:53
+#: crates/leyline-studio/ui/dialogs/report.slint:57
 msgctxt "ReportDialog"
-msgid "The folder will hold three files, and nothing else:"
+msgid "Add files…"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/report.slint:58
+#. is for.
+#: crates/leyline-studio/ui/dialogs/report.slint:68
 msgctxt "ReportDialog"
-msgid ""
-"description.txt — what you just wrote\n"
-"screenshot.png — this window as it was when you opened this dialog\n"
-"build.txt — version, commit, decoder, and the library's path and schema"
+msgid "Take a screenshot"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/report.slint:75
+#: crates/leyline-studio/ui/dialogs/report.slint:77
+msgctxt "ReportDialog"
+msgid "The folder will hold these, and nothing else:"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/report.slint:126
 msgctxt "ReportDialog"
 msgid "Close"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/report.slint:82
+#: crates/leyline-studio/ui/dialogs/report.slint:133
 msgctxt "ReportDialog"
 msgid "Create the folder"
 msgstr ""

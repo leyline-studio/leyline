@@ -714,42 +714,45 @@ msgctxt "RenameDialog"
 msgid "Rename"
 msgstr "Renommer"
 
-#: crates/leyline-studio/ui/dialogs/report.slint:16
+#: crates/leyline-studio/ui/dialogs/report.slint:17
 msgctxt "ReportDialog"
 msgid "Report a problem"
 msgstr "Signaler un problème"
 
-#: crates/leyline-studio/ui/dialogs/report.slint:22
+#: crates/leyline-studio/ui/dialogs/report.slint:23
 msgctxt "ReportDialog"
 msgid ""
 "Leyline writes a folder and opens it. Nothing is sent: you look at it, then "
 "attach it wherever you like."
 msgstr "Leyline écrit un dossier et l'ouvre. Rien n'est envoyé : vous le regardez, puis vous le joignez où vous voulez."
 
-#: crates/leyline-studio/ui/dialogs/report.slint:29
+#: crates/leyline-studio/ui/dialogs/report.slint:30
 msgctxt "ReportDialog"
 msgid "What were you doing, and what happened?"
 msgstr "Que faisiez-vous, et que s'est-il passé ?"
 
-#: crates/leyline-studio/ui/dialogs/report.slint:53
+#: crates/leyline-studio/ui/dialogs/report.slint:57
 msgctxt "ReportDialog"
-msgid "The folder will hold three files, and nothing else:"
-msgstr "Le dossier contiendra trois fichiers, et rien d'autre :"
+msgid "Add files…"
+msgstr "Ajouter des fichiers…"
 
-#: crates/leyline-studio/ui/dialogs/report.slint:58
+#. is for.
+#: crates/leyline-studio/ui/dialogs/report.slint:68
 msgctxt "ReportDialog"
-msgid ""
-"description.txt — what you just wrote\n"
-"screenshot.png — this window as it was when you opened this dialog\n"
-"build.txt — version, commit, decoder, and the library's path and schema"
-msgstr "description.txt — ce que vous venez d'écrire\nscreenshot.png — cette fenêtre telle qu'elle était à l'ouverture de ce dialogue\nbuild.txt — version, commit, décodeur, plus le chemin et le schéma de la bibliothèque"
+msgid "Take a screenshot"
+msgstr "Prendre une capture"
 
-#: crates/leyline-studio/ui/dialogs/report.slint:75
+#: crates/leyline-studio/ui/dialogs/report.slint:77
+msgctxt "ReportDialog"
+msgid "The folder will hold these, and nothing else:"
+msgstr "Le dossier contiendra ceci, et rien d'autre :"
+
+#: crates/leyline-studio/ui/dialogs/report.slint:126
 msgctxt "ReportDialog"
 msgid "Close"
 msgstr "Fermer"
 
-#: crates/leyline-studio/ui/dialogs/report.slint:82
+#: crates/leyline-studio/ui/dialogs/report.slint:133
 msgctxt "ReportDialog"
 msgid "Create the folder"
 msgstr "Créer le dossier"

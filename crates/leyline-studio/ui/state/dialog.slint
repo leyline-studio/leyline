@@ -177,6 +177,18 @@ export global DialogState {
     callback open-report();
     callback run-report();
     in-out property <string> report-description: "";
+    // What will be copied into the folder, one line each, already worded by
+    // Rust (name and size). The list *is* the promise of ADR 0123 §3: what
+    // it shows is what the folder will hold, and it is shown before the
+    // folder exists.
+    in property <[string]> report-attachments;
+    // Adds files the photographer chose themselves — their own screenshot,
+    // taken with whatever tool they use, of whatever Leyline could not
+    // photograph itself.
+    callback report-add-files();
+    // Retakes Leyline's own capture, with this dialog out of the way.
+    callback report-take-screenshot();
+    callback report-remove-attachment(int);
 
     // Opens the watched-folder auto-import panel (ADR 0039): starts/stops
     // watching a folder, importing every file that settles there.

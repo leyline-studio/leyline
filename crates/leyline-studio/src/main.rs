@@ -418,6 +418,7 @@ fn run() -> Result<(), Startup> {
         map: None,
         map_canvas: (map_view::DEFAULT_WIDTH, map_view::DEFAULT_HEIGHT),
         report_shot: None,
+        report_files: Vec::new(),
     }));
 
     let window = StudioWindow::new().map_err(|e| e.to_string())?;

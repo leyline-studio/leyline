@@ -13,7 +13,10 @@ use std::time::Duration;
 
 use crate::app::App;
 use crate::ui::{DialogState, LibraryState, StudioWindow, Tr};
-use slint::{ComponentHandle, Global, SharedString, Timer};
+use slint::{ComponentHandle, Global, ModelRc, SharedString, Timer, VecModel};
+
+/// The name Leyline's own capture goes in the folder under.
+const SHOT_NAME: &str = "screenshot.png";
 
 /// Everything `build.txt` says, gathered before any file is written.
 ///
@@ -31,11 +34,11 @@ pub(crate) struct ReportFacts {
     /// The window's size in physical pixels — the first thing to check
     /// against a layout complaint.
     pub(crate) window_size: (u32, u32),
-    /// Whether `screenshot.png` was written. A capture that fails is not a
-    /// failed report (ADR 0123 §4), but it must not be left unsaid either:
-    /// a reader has to know the difference between "nothing was visible" and
-    /// "nothing was captured".
-    pub(crate) screenshot: bool,
+    /// Every file in the folder besides the two texts, in the order the
+    /// dialog listed them. Named here so someone reading `build.txt` alone
+    /// knows what else was meant to be in the folder, and notices when
+    /// something did not reach them.
+    pub(crate) attachments: Vec<String>,
 }
 
 /// Renders `build.txt`.
@@ -45,16 +48,86 @@ pub(crate) fn build_report(facts: &ReportFacts) -> String {
         None => "unreadable".to_owned(),
     };
     let (width, height) = facts.window_size;
+    let attachments = if facts.attachments.is_empty() {
+        "none".to_owned()
+    } else {
+        facts.attachments.join(", ")
+    };
     format!(
-        "{}\nWindow {width}x{height}\nLibrary {}\nCatalog schema {schema}\nScreenshot {}\n",
-        facts.build_details,
-        facts.library_path,
-        if facts.screenshot {
-            "screenshot.png"
-        } else {
-            "could not be captured"
-        },
+        "{}\nWindow {width}x{height}\nLibrary {}\nCatalog schema {schema}\nAttachments \
+         {attachments}\n",
+        facts.build_details, facts.library_path,
     )
+}
+
+/// One thing that will be copied into the folder.
+///
+/// Leyline's own capture and a file the photographer chose are the same kind
+/// of thing here — both are listed, and both can be taken back out. That is
+/// what makes the list honest rather than a summary.
+pub(crate) enum Attachment {
+    /// The window as Leyline photographed it, still in memory.
+    Screenshot,
+    /// A file the photographer picked, at this index in `App::report_files`.
+    File(usize),
+}
+
+/// What the dialog lists, and what `run-report` walks — one function, so the
+/// two can never disagree about what index 2 means.
+fn attachments(app: &App) -> Vec<Attachment> {
+    let mut all = Vec::new();
+    if app.report_shot.is_some() {
+        all.push(Attachment::Screenshot);
+    }
+    all.extend((0..app.report_files.len()).map(Attachment::File));
+    all
+}
+
+/// The line shown for one attachment: its name, and its size when it has one
+/// on disk.
+///
+/// The size is shown because a report is something the photographer will
+/// attach to a message: a 60 MB file they forgot they added should be visible
+/// before they send it, not after it bounces.
+fn label(app: &App, attachment: &Attachment) -> String {
+    match attachment {
+        Attachment::Screenshot => SHOT_NAME.to_owned(),
+        Attachment::File(index) => {
+            let Some(path) = app.report_files.get(*index) else {
+                return String::new();
+            };
+            let name = path.file_name().map_or_else(
+                || path.display().to_string(),
+                |n| n.to_string_lossy().into(),
+            );
+            match std::fs::metadata(path).map(|m| m.len()) {
+                Ok(bytes) => format!("{name} ({})", human_size(bytes)),
+                Err(_) => name,
+            }
+        }
+    }
+}
+
+/// A byte count as a person reads it.
+fn human_size(bytes: u64) -> String {
+    const KB: u64 = 1024;
+    const MB: u64 = 1024 * KB;
+    if bytes >= MB {
+        format!("{:.1} MB", bytes as f64 / MB as f64)
+    } else if bytes >= KB {
+        format!("{} kB", bytes / KB)
+    } else {
+        format!("{bytes} B")
+    }
+}
+
+/// Sends the current attachment list to the dialog.
+fn show_attachments(app: &App, window: &StudioWindow) {
+    let lines: Vec<SharedString> = attachments(app)
+        .iter()
+        .map(|attachment| SharedString::from(label(app, attachment)))
+        .collect();
+    DialogState::get(window).set_report_attachments(ModelRc::from(Rc::new(VecModel::from(lines))));
 }
 
 /// The folder this report goes in: `Documents/Leyline Reports/<stamp>/`.
@@ -75,17 +148,47 @@ fn report_dir(stamp: &str) -> PathBuf {
 }
 
 /// A sortable, filename-safe stamp — the folder's whole identity.
-///
-/// Local time on purpose: it is read by the person who made it, next to the
-/// moment they remember.
 fn timestamp() -> String {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0);
-    // Enough to sort and to recognise, without pulling in a date library for
-    // one filename: seconds since the epoch read the same everywhere.
     format!("leyline-report-{now}")
+}
+
+/// A name for `wanted` that is not already taken in the folder.
+///
+/// Two files picked from two different folders can carry the same name, and
+/// the second one silently replacing the first would lose evidence — which is
+/// the one thing this feature exists to gather.
+pub(crate) fn free_name(taken: &[String], wanted: &str) -> String {
+    if !taken.iter().any(|name| name == wanted) {
+        return wanted.to_owned();
+    }
+    let (stem, extension) = match wanted.rsplit_once('.') {
+        Some((stem, extension)) => (stem, format!(".{extension}")),
+        None => (wanted, String::new()),
+    };
+    (2..)
+        .map(|n| format!("{stem}-{n}{extension}"))
+        .find(|candidate| !taken.iter().any(|name| name == candidate))
+        .unwrap_or_else(|| wanted.to_owned())
+}
+
+/// Copies one chosen file into the folder, under a name nothing else has
+/// taken, and returns that name.
+///
+/// Extracted from the callback so the one step where evidence can be lost is
+/// covered by a test: a file that fails to copy returns `None` and is left out
+/// of the list `build.txt` names, so the folder and its manifest agree even
+/// when a source has gone away between the picking and the writing.
+pub(crate) fn copy_attachment(dir: &Path, source: &Path, taken: &[String]) -> Option<String> {
+    let wanted = source
+        .file_name()
+        .map_or_else(|| "attachment".to_owned(), |n| n.to_string_lossy().into());
+    let name = free_name(taken, &wanted);
+    std::fs::copy(source, dir.join(&name)).ok()?;
+    Some(name)
 }
 
 /// Opens the folder in the system file manager.
@@ -102,7 +205,7 @@ fn reveal(path: &Path) {
     let _ = std::process::Command::new(command).arg(path).spawn();
 }
 
-/// Writes the three files, and returns the folder.
+/// Writes the two texts.
 fn write_report(dir: &Path, description: &str, facts: &ReportFacts) -> Result<(), String> {
     std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     std::fs::write(dir.join("description.txt"), description).map_err(|e| e.to_string())?;
@@ -110,38 +213,108 @@ fn write_report(dir: &Path, description: &str, facts: &ReportFacts) -> Result<()
     Ok(())
 }
 
+/// Takes Leyline's own capture, then shows the dialog.
+///
+/// Deferred, and that delay is the feature: `take_snapshot()` returns what has
+/// been *painted*, not the state of the model, so hiding the dialog — or
+/// closing the menu that opened it — does not by itself keep it out of the
+/// picture. The first report ever made carried the Help menu that asked for
+/// it. The wait is long enough for one repaint at any refresh rate, and short
+/// enough that nothing else can happen in it (ADR 0123 §4).
+fn capture_after_repaint(app: &Rc<RefCell<App>>, window: &StudioWindow) {
+    let app = Rc::clone(app);
+    let handle = window.as_weak();
+    Timer::single_shot(Duration::from_millis(50), move || {
+        let Some(window) = handle.upgrade() else {
+            return;
+        };
+        app.borrow_mut().report_shot = window.window().take_snapshot().ok();
+        show_attachments(&app.borrow(), &window);
+        DialogState::get(&window).set_dialog(SharedString::from("report"));
+    });
+}
+
 pub(crate) fn wire_report(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
         DialogState::get(window).on_open_report(move || {
-            let app = Rc::clone(&app);
-            let handle = handle.clone();
-            // Deferred by one frame, and that delay is the feature.
-            //
-            // The screenshot is of the moment the report was asked for — what
-            // the photographer was looking at — not of the moment they press
-            // the button, which would show this dialog and nothing else
-            // (ADR 0123 §4). But the menu row that just ran sets
-            // `open-menu = ""` and returns: the frame on screen still has the
-            // Help menu covering a quarter of the grid, and
-            // `take_snapshot()` gave exactly that, menu included. It reads
-            // what has been painted; closing a menu in the model does not
-            // repaint it.
-            //
-            // So: let the frame without the menu be painted, then capture,
-            // then open the dialog. Long enough for one repaint at any
-            // refresh rate, short enough that nothing else can happen in it.
-            Timer::single_shot(Duration::from_millis(50), move || {
-                let Some(window) = handle.upgrade() else {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            {
+                let mut app = app.borrow_mut();
+                app.report_files.clear();
+                app.report_shot = None;
+            }
+            let state = DialogState::get(&window);
+            state.set_report_description(SharedString::default());
+            state.set_dialog_result(SharedString::default());
+            // The capture is of the moment the report was asked for — what
+            // the photographer was looking at — so it is taken before the
+            // dialog appears, which this does last.
+            capture_after_repaint(&app, &window);
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        DialogState::get(window).on_report_take_screenshot(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            // Out of the way first: a screenshot taken with the report dialog
+            // on top of the window is a picture of the report dialog.
+            DialogState::get(&window).set_dialog(SharedString::default());
+            capture_after_repaint(&app, &window);
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        DialogState::get(window).on_report_add_files(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            // Their own screenshot, of whatever Leyline could not photograph:
+            // a frozen interface, a second screen, the moment before they
+            // thought to report.
+            let Some(picked) = rfd::FileDialog::new().pick_files() else {
+                return;
+            };
+            {
+                let mut app = app.borrow_mut();
+                for path in picked {
+                    if !app.report_files.contains(&path) {
+                        app.report_files.push(path);
+                    }
+                }
+            }
+            show_attachments(&app.borrow(), &window);
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        DialogState::get(window).on_report_remove_attachment(move |index| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            {
+                let mut app = app.borrow_mut();
+                let Ok(index) = usize::try_from(index) else {
                     return;
                 };
-                app.borrow_mut().report_shot = window.window().take_snapshot().ok();
-                let state = DialogState::get(&window);
-                state.set_report_description(SharedString::default());
-                state.set_dialog_result(SharedString::default());
-                state.set_dialog(SharedString::from("report"));
-            });
+                match attachments(&app).get(index) {
+                    Some(Attachment::Screenshot) => app.report_shot = None,
+                    Some(Attachment::File(file)) => {
+                        let file = *file;
+                        app.report_files.remove(file);
+                    }
+                    None => return,
+                }
+            }
+            show_attachments(&app.borrow(), &window);
         });
     }
     {
@@ -151,23 +324,46 @@ pub(crate) fn wire_report(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             let Some(window) = handle.upgrade() else {
                 return;
             };
-            let mut app = app.borrow_mut();
+            let app = app.borrow();
             let dir = report_dir(&timestamp());
+            if let Err(error) = std::fs::create_dir_all(&dir) {
+                DialogState::get(&window).set_dialog_result(
+                    Tr::get(&window).invoke_error_prefix(SharedString::from(error.to_string())),
+                );
+                return;
+            }
 
-            // The capture is consumed here whether or not it can be encoded:
-            // a second report should photograph a second moment.
-            let shot = app.report_shot.take();
-            let screenshot = shot.and_then(|buffer| {
-                let png = dir.join("screenshot.png");
-                std::fs::create_dir_all(&dir).ok()?;
-                image::RgbaImage::from_raw(
-                    buffer.width(),
-                    buffer.height(),
-                    buffer.as_bytes().to_vec(),
-                )?
-                .save(&png)
-                .ok()
-            });
+            // Walked in the order the dialog listed them, so what `build.txt`
+            // names and what the folder holds are the same list, in the same
+            // order.
+            let mut written: Vec<String> = Vec::new();
+            for attachment in attachments(&app) {
+                match attachment {
+                    Attachment::Screenshot => {
+                        let Some(buffer) = app.report_shot.as_ref() else {
+                            continue;
+                        };
+                        let name = free_name(&written, SHOT_NAME);
+                        let saved = image::RgbaImage::from_raw(
+                            buffer.width(),
+                            buffer.height(),
+                            buffer.as_bytes().to_vec(),
+                        )
+                        .and_then(|image| image.save(dir.join(&name)).ok());
+                        if saved.is_some() {
+                            written.push(name);
+                        }
+                    }
+                    Attachment::File(index) => {
+                        let Some(path) = app.report_files.get(index) else {
+                            continue;
+                        };
+                        if let Some(name) = copy_attachment(&dir, path, &written) {
+                            written.push(name);
+                        }
+                    }
+                }
+            }
 
             let facts = ReportFacts {
                 build_details: LibraryState::get(&window).get_build_details().to_string(),
@@ -177,7 +373,7 @@ pub(crate) fn wire_report(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                     let size = window.window().size();
                     (size.width, size.height)
                 },
-                screenshot: screenshot.is_some(),
+                attachments: written,
             };
             let description = DialogState::get(&window)
                 .get_report_description()
@@ -213,7 +409,7 @@ mod tests {
             library_path: "/home/someone/Pictures/Library".to_owned(),
             schema_version: Some(11),
             window_size: (1400, 720),
-            screenshot: true,
+            attachments: vec![SHOT_NAME.to_owned()],
         }
     }
 
@@ -232,18 +428,23 @@ mod tests {
         assert!(report.contains("1400x720"));
     }
 
-    /// A capture that failed says so, rather than leaving a reader to wonder
-    /// whether the window was empty (ADR 0123 §4).
+    /// `build.txt` names the other files, so someone who received the folder
+    /// can tell that something was meant to be in it and is not.
     #[test]
-    fn a_missing_screenshot_is_stated_not_omitted() {
-        let written = build_report(&facts());
-        assert!(written.contains("screenshot.png"));
-
-        let none = build_report(&ReportFacts {
-            screenshot: false,
+    fn the_attachments_are_named_and_their_absence_too() {
+        let named = build_report(&ReportFacts {
+            attachments: vec![SHOT_NAME.to_owned(), "frozen-window.png".to_owned()],
             ..facts()
         });
-        assert!(none.contains("could not be captured"));
+        assert!(named.contains("Attachments screenshot.png, frozen-window.png"));
+
+        // Nothing attached is an ordinary report, not a broken one: the
+        // description may be all there is to say.
+        let bare = build_report(&ReportFacts {
+            attachments: Vec::new(),
+            ..facts()
+        });
+        assert!(bare.contains("Attachments none"));
     }
 
     /// An unreadable schema is a fact about the library, not a reason to fail:
@@ -257,10 +458,78 @@ mod tests {
         assert!(report.contains("Catalog schema unreadable"));
     }
 
-    /// The three files, and nothing else — the dialog names them before the
-    /// folder exists, and this is what keeps that promise true (ADR 0123 §3).
+    /// Two files picked from two folders may share a name. The second must not
+    /// silently replace the first: losing evidence is the one failure this
+    /// feature cannot afford.
     #[test]
-    fn the_folder_holds_exactly_what_the_dialog_announced() {
+    fn a_name_already_taken_is_given_a_suffix_never_overwritten() {
+        assert_eq!(free_name(&[], "shot.png"), "shot.png");
+        let taken = vec!["shot.png".to_owned()];
+        assert_eq!(free_name(&taken, "shot.png"), "shot-2.png");
+        let taken = vec!["shot.png".to_owned(), "shot-2.png".to_owned()];
+        assert_eq!(free_name(&taken, "shot.png"), "shot-3.png");
+        // A name with no extension keeps its shape too.
+        assert_eq!(free_name(&["notes".to_owned()], "notes"), "notes-2");
+    }
+
+    /// Two files of the same name, chosen from two folders, both arrive — and
+    /// `build.txt` names both. The alternative is a report that silently holds
+    /// one of the two pictures its author attached.
+    #[test]
+    fn two_files_of_the_same_name_both_reach_the_folder() {
+        let scratch = tempfile::tempdir().expect("tempdir");
+        let (first, second) = (scratch.path().join("a"), scratch.path().join("b"));
+        std::fs::create_dir_all(&first).expect("a");
+        std::fs::create_dir_all(&second).expect("b");
+        std::fs::write(first.join("shot.png"), b"first").expect("write");
+        std::fs::write(second.join("shot.png"), b"second").expect("write");
+
+        let dir = scratch.path().join("report");
+        std::fs::create_dir_all(&dir).expect("report dir");
+        let mut taken: Vec<String> = Vec::new();
+        for source in [first.join("shot.png"), second.join("shot.png")] {
+            let name = copy_attachment(&dir, &source, &taken).expect("copied");
+            taken.push(name);
+        }
+        assert_eq!(taken, vec!["shot.png", "shot-2.png"]);
+        assert_eq!(
+            std::fs::read(dir.join("shot.png")).expect("first"),
+            b"first"
+        );
+        assert_eq!(
+            std::fs::read(dir.join("shot-2.png")).expect("second"),
+            b"second"
+        );
+    }
+
+    /// A source that has gone away between the picking and the writing is left
+    /// out of the manifest rather than named in it: the folder and `build.txt`
+    /// must describe the same set of files.
+    #[test]
+    fn a_source_that_vanished_is_not_named_in_the_manifest() {
+        let scratch = tempfile::tempdir().expect("tempdir");
+        let dir = scratch.path().join("report");
+        std::fs::create_dir_all(&dir).expect("report dir");
+        assert_eq!(
+            copy_attachment(&dir, &scratch.path().join("never-existed.png"), &[]),
+            None
+        );
+    }
+
+    /// Sizes are shown so a 60 MB attachment is noticed before the message is
+    /// sent, not after it bounces.
+    #[test]
+    fn sizes_read_the_way_a_person_reads_them() {
+        assert_eq!(human_size(512), "512 B");
+        assert_eq!(human_size(2048), "2 kB");
+        assert_eq!(human_size(3 * 1024 * 1024), "3.0 MB");
+    }
+
+    /// The two texts, and nothing else — the attachments are copied by the
+    /// caller, which is what keeps `write_report` from ever adding a file the
+    /// dialog did not announce (ADR 0123 §3).
+    #[test]
+    fn the_texts_are_the_only_thing_written_here() {
         let dir = tempfile::tempdir().expect("tempdir");
         let path = dir.path().join("report");
         write_report(&path, "the crop tool stopped responding", &facts()).expect("write");
@@ -271,9 +540,6 @@ mod tests {
             .map(|entry| entry.file_name().to_string_lossy().into_owned())
             .collect();
         written.sort();
-        // `screenshot.png` is written separately, by the capture path; what
-        // this asserts is that nothing *else* appears — no catalog copy, no
-        // preferences, no list of the user's other libraries.
         assert_eq!(written, vec!["build.txt", "description.txt"]);
         assert_eq!(
             std::fs::read_to_string(path.join("description.txt")).expect("description"),

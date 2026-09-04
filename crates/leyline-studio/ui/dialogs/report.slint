@@ -3,15 +3,16 @@
 //
 // One of the dialogs hosted by `panels/dialogs.slint` (ADR 0045 §3).
 //
-// The list of files is shown *before* the folder exists, and named one by
-// one. A report that surprises its author when they open it has already
-// failed at the only thing this feature is for (ADR 0123 §3).
+// The attachment list is the promise: it shows every file that will be in
+// the folder, before the folder exists, and each one can be taken back out.
+// A report that surprises its author when they open it has already failed at
+// the only thing this feature is for (ADR 0123 §3).
 
 import { DialogState } from "../state/dialog.slint";
 import { FilterChip } from "../widgets/controls.slint";
 
 export component ReportDialog inherits VerticalLayout {
-    spacing: 12px;
+    spacing: 10px;
     Text {
         text: @tr("Report a problem");
         color: #f0f0f0;
@@ -31,7 +32,7 @@ export component ReportDialog inherits VerticalLayout {
         font-size: 12px;
     }
     Rectangle {
-        height: 92px;
+        height: 84px;
         background: #1b1b1b;
         border-radius: 4px;
         border-width: 1px;
@@ -49,16 +50,73 @@ export component ReportDialog inherits VerticalLayout {
         }
     }
 
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: start;
+        FilterChip {
+            text: @tr("Add files…");
+            active: false;
+            clicked => {
+                DialogState.report-add-files();
+            }
+        }
+        FilterChip {
+            // Leyline photographs its own window. It cannot photograph a
+            // frozen interface, a second screen, or the moment before the
+            // photographer thought to report — which is what "Add files…"
+            // is for.
+            text: @tr("Take a screenshot");
+            active: false;
+            clicked => {
+                DialogState.report-take-screenshot();
+            }
+        }
+    }
+
     Text {
-        text: @tr("The folder will hold three files, and nothing else:");
+        text: @tr("The folder will hold these, and nothing else:");
         color: #9a9a9a;
         font-size: 11px;
     }
     Text {
-        text: @tr("description.txt — what you just wrote\nscreenshot.png — this window as it was when you opened this dialog\nbuild.txt — version, commit, decoder, and the library's path and schema");
+        text: "description.txt · build.txt";
         color: #9a9a9a;
         font-size: 11px;
-        wrap: word-wrap;
+    }
+    // Absolute positions inside a fixed-height row, the same shape the folder
+    // tree uses: a `HorizontalLayout` gave the name all the width and left
+    // nothing for the × — it was there and could not be seen.
+    for attachment[index] in DialogState.report-attachments: Rectangle {
+        height: 18px;
+        Text {
+            x: 0;
+            width: parent.width - 22px;
+            height: 100%;
+            text: attachment;
+            color: #9a9a9a;
+            font-size: 11px;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+        Rectangle {
+            x: parent.width - 18px;
+            width: 16px;
+            height: 100%;
+            Text {
+                text: "×";
+                color: remove.has-hover ? #e06c6c : #7a7a7a;
+                font-size: 13px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                width: 100%;
+                height: 100%;
+            }
+            remove := TouchArea {
+                clicked => {
+                    DialogState.report-remove-attachment(index);
+                }
+            }
+        }
     }
 
     if DialogState.dialog-result != "": Text {
