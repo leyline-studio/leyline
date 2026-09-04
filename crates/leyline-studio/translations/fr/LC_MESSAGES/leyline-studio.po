@@ -733,26 +733,23 @@ msgstr "Que faisiez-vous, et que s'est-il passé ?"
 
 #: crates/leyline-studio/ui/dialogs/report.slint:57
 msgctxt "ReportDialog"
-msgid "Add files…"
-msgstr "Ajouter des fichiers…"
+msgid "Attach a screenshot…"
+msgstr "Joindre une capture…"
 
-#. is for.
-#: crates/leyline-studio/ui/dialogs/report.slint:68
+#. Optional, and said so: a description on its own is a report.
+#: crates/leyline-studio/ui/dialogs/report.slint:67
 msgctxt "ReportDialog"
-msgid "Take a screenshot"
-msgstr "Prendre une capture"
+msgid ""
+"A screenshot helps, and is not required. The folder will hold these, and "
+"nothing else:"
+msgstr "Une capture aide, sans être obligatoire. Le dossier contiendra ceci, et rien d'autre :"
 
-#: crates/leyline-studio/ui/dialogs/report.slint:77
-msgctxt "ReportDialog"
-msgid "The folder will hold these, and nothing else:"
-msgstr "Le dossier contiendra ceci, et rien d'autre :"
-
-#: crates/leyline-studio/ui/dialogs/report.slint:126
+#: crates/leyline-studio/ui/dialogs/report.slint:123
 msgctxt "ReportDialog"
 msgid "Close"
 msgstr "Fermer"
 
-#: crates/leyline-studio/ui/dialogs/report.slint:133
+#: crates/leyline-studio/ui/dialogs/report.slint:130
 msgctxt "ReportDialog"
 msgid "Create the folder"
 msgstr "Créer le dossier"

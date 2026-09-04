@@ -281,14 +281,10 @@ pub(crate) struct App {
     /// kilometres from where the photo was taken, until the first window
     /// resize happened to correct it.
     pub(crate) map_canvas: (u32, u32),
-    /// The window as it was when `Help ▸ Report a Problem…` was chosen
-    /// (ADR 0123 §4), waiting for the description that will accompany it.
-    /// Taken before the dialog opens, so a report never photographs itself.
-    pub(crate) report_shot: Option<slint::SharedPixelBuffer<slint::Rgba8Pixel>>,
-    /// Files the photographer added to the report themselves (ADR 0123 §3) —
-    /// their own screenshot of a frozen interface, a second screen, anything
-    /// Leyline could not photograph. Paths only: nothing is copied until the
-    /// folder is created.
+    /// Files the photographer attached to a problem report (ADR 0123 §3) —
+    /// their own screenshot, taken with whatever tool they use. Optional: a
+    /// description on its own is a report. Paths only, so nothing is copied
+    /// until the folder is created.
     pub(crate) report_files: Vec<std::path::PathBuf>,
 }
 

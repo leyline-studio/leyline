@@ -622,9 +622,6 @@ export component MenuBar inherits Rectangle {
                 title: @tr("Report a Problem…");
                 activated => {
                     root.open-menu = "";
-                    // The menu is closed *before* the callback: that is what
-                    // takes the screenshot, and it must not photograph the
-                    // menu that asked for it (ADR 0123 §4).
                     DialogState.open-report();
                 }
             }

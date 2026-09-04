@@ -51,12 +51,9 @@ export component RenameDialog inherits VerticalLayout {
         font-size: 11px;
         wrap: word-wrap;
     }
-    if DialogState.dialog-result != "": Text {
-        text: DialogState.dialog-result;
-        color: #9a9a9a;
-        font-size: 12px;
-        wrap: word-wrap;
-    }
+    // The result line is not repeated here: `panels/dialogs.slint` already
+    // draws `dialog-result` under every dialog it hosts, and this one showed
+    // its outcome twice.
     HorizontalLayout {
         spacing: 8px;
         alignment: end;

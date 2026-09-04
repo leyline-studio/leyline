@@ -9,14 +9,10 @@
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::time::Duration;
 
 use crate::app::App;
 use crate::ui::{DialogState, LibraryState, StudioWindow, Tr};
-use slint::{ComponentHandle, Global, ModelRc, SharedString, Timer, VecModel};
-
-/// The name Leyline's own capture goes in the folder under.
-const SHOT_NAME: &str = "screenshot.png";
+use slint::{ComponentHandle, Global, ModelRc, SharedString, VecModel};
 
 /// Everything `build.txt` says, gathered before any file is written.
 ///
@@ -60,51 +56,20 @@ pub(crate) fn build_report(facts: &ReportFacts) -> String {
     )
 }
 
-/// One thing that will be copied into the folder.
-///
-/// Leyline's own capture and a file the photographer chose are the same kind
-/// of thing here — both are listed, and both can be taken back out. That is
-/// what makes the list honest rather than a summary.
-pub(crate) enum Attachment {
-    /// The window as Leyline photographed it, still in memory.
-    Screenshot,
-    /// A file the photographer picked, at this index in `App::report_files`.
-    File(usize),
-}
-
-/// What the dialog lists, and what `run-report` walks — one function, so the
-/// two can never disagree about what index 2 means.
-fn attachments(app: &App) -> Vec<Attachment> {
-    let mut all = Vec::new();
-    if app.report_shot.is_some() {
-        all.push(Attachment::Screenshot);
-    }
-    all.extend((0..app.report_files.len()).map(Attachment::File));
-    all
-}
-
-/// The line shown for one attachment: its name, and its size when it has one
-/// on disk.
+/// The line shown for one attached file: its name, and its size when it has
+/// one on disk.
 ///
 /// The size is shown because a report is something the photographer will
 /// attach to a message: a 60 MB file they forgot they added should be visible
 /// before they send it, not after it bounces.
-fn label(app: &App, attachment: &Attachment) -> String {
-    match attachment {
-        Attachment::Screenshot => SHOT_NAME.to_owned(),
-        Attachment::File(index) => {
-            let Some(path) = app.report_files.get(*index) else {
-                return String::new();
-            };
-            let name = path.file_name().map_or_else(
-                || path.display().to_string(),
-                |n| n.to_string_lossy().into(),
-            );
-            match std::fs::metadata(path).map(|m| m.len()) {
-                Ok(bytes) => format!("{name} ({})", human_size(bytes)),
-                Err(_) => name,
-            }
-        }
+fn label(path: &Path) -> String {
+    let name = path.file_name().map_or_else(
+        || path.display().to_string(),
+        |n| n.to_string_lossy().into(),
+    );
+    match std::fs::metadata(path).map(|m| m.len()) {
+        Ok(bytes) => format!("{name} ({})", human_size(bytes)),
+        Err(_) => name,
     }
 }
 
@@ -123,9 +88,10 @@ fn human_size(bytes: u64) -> String {
 
 /// Sends the current attachment list to the dialog.
 fn show_attachments(app: &App, window: &StudioWindow) {
-    let lines: Vec<SharedString> = attachments(app)
+    let lines: Vec<SharedString> = app
+        .report_files
         .iter()
-        .map(|attachment| SharedString::from(label(app, attachment)))
+        .map(|path| SharedString::from(label(path)))
         .collect();
     DialogState::get(window).set_report_attachments(ModelRc::from(Rc::new(VecModel::from(lines))));
 }
@@ -135,7 +101,7 @@ fn show_attachments(app: &App, window: &StudioWindow) {
 /// Not inside the library — a library is portable and self-contained
 /// (`docs/catalog.md` §37) and a bug report is not library content. Documents
 /// rather than the config directory because this is a document the user is
-/// meant to find, open and attach (ADR 0123 §5).
+/// meant to find, open and attach (ADR 0123 §4).
 fn report_dir(stamp: &str) -> PathBuf {
     let base = directories::UserDirs::new()
         .and_then(|dirs| dirs.document_dir().map(Path::to_path_buf))
@@ -213,27 +179,6 @@ fn write_report(dir: &Path, description: &str, facts: &ReportFacts) -> Result<()
     Ok(())
 }
 
-/// Takes Leyline's own capture, then shows the dialog.
-///
-/// Deferred, and that delay is the feature: `take_snapshot()` returns what has
-/// been *painted*, not the state of the model, so hiding the dialog — or
-/// closing the menu that opened it — does not by itself keep it out of the
-/// picture. The first report ever made carried the Help menu that asked for
-/// it. The wait is long enough for one repaint at any refresh rate, and short
-/// enough that nothing else can happen in it (ADR 0123 §4).
-fn capture_after_repaint(app: &Rc<RefCell<App>>, window: &StudioWindow) {
-    let app = Rc::clone(app);
-    let handle = window.as_weak();
-    Timer::single_shot(Duration::from_millis(50), move || {
-        let Some(window) = handle.upgrade() else {
-            return;
-        };
-        app.borrow_mut().report_shot = window.window().take_snapshot().ok();
-        show_attachments(&app.borrow(), &window);
-        DialogState::get(&window).set_dialog(SharedString::from("report"));
-    });
-}
-
 pub(crate) fn wire_report(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
@@ -242,31 +187,12 @@ pub(crate) fn wire_report(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             let Some(window) = handle.upgrade() else {
                 return;
             };
-            {
-                let mut app = app.borrow_mut();
-                app.report_files.clear();
-                app.report_shot = None;
-            }
+            app.borrow_mut().report_files.clear();
             let state = DialogState::get(&window);
             state.set_report_description(SharedString::default());
             state.set_dialog_result(SharedString::default());
-            // The capture is of the moment the report was asked for — what
-            // the photographer was looking at — so it is taken before the
-            // dialog appears, which this does last.
-            capture_after_repaint(&app, &window);
-        });
-    }
-    {
-        let app = Rc::clone(app);
-        let handle = window.as_weak();
-        DialogState::get(window).on_report_take_screenshot(move || {
-            let Some(window) = handle.upgrade() else {
-                return;
-            };
-            // Out of the way first: a screenshot taken with the report dialog
-            // on top of the window is a picture of the report dialog.
-            DialogState::get(&window).set_dialog(SharedString::default());
-            capture_after_repaint(&app, &window);
+            show_attachments(&app.borrow(), &window);
+            state.set_dialog(SharedString::from("report"));
         });
     }
     {
@@ -276,9 +202,9 @@ pub(crate) fn wire_report(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             let Some(window) = handle.upgrade() else {
                 return;
             };
-            // Their own screenshot, of whatever Leyline could not photograph:
-            // a frozen interface, a second screen, the moment before they
-            // thought to report.
+            // Their own screenshot, taken with whatever tool they use — of
+            // whatever they judge worth showing, which is not always Leyline's
+            // own window (ADR 0123 §3).
             let Some(picked) = rfd::FileDialog::new().pick_files() else {
                 return;
             };
@@ -305,14 +231,10 @@ pub(crate) fn wire_report(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 let Ok(index) = usize::try_from(index) else {
                     return;
                 };
-                match attachments(&app).get(index) {
-                    Some(Attachment::Screenshot) => app.report_shot = None,
-                    Some(Attachment::File(file)) => {
-                        let file = *file;
-                        app.report_files.remove(file);
-                    }
-                    None => return,
+                if index >= app.report_files.len() {
+                    return;
                 }
+                app.report_files.remove(index);
             }
             show_attachments(&app.borrow(), &window);
         });
@@ -337,31 +259,9 @@ pub(crate) fn wire_report(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             // names and what the folder holds are the same list, in the same
             // order.
             let mut written: Vec<String> = Vec::new();
-            for attachment in attachments(&app) {
-                match attachment {
-                    Attachment::Screenshot => {
-                        let Some(buffer) = app.report_shot.as_ref() else {
-                            continue;
-                        };
-                        let name = free_name(&written, SHOT_NAME);
-                        let saved = image::RgbaImage::from_raw(
-                            buffer.width(),
-                            buffer.height(),
-                            buffer.as_bytes().to_vec(),
-                        )
-                        .and_then(|image| image.save(dir.join(&name)).ok());
-                        if saved.is_some() {
-                            written.push(name);
-                        }
-                    }
-                    Attachment::File(index) => {
-                        let Some(path) = app.report_files.get(index) else {
-                            continue;
-                        };
-                        if let Some(name) = copy_attachment(&dir, path, &written) {
-                            written.push(name);
-                        }
-                    }
+            for path in &app.report_files {
+                if let Some(name) = copy_attachment(&dir, path, &written) {
+                    written.push(name);
                 }
             }
 
@@ -409,7 +309,7 @@ mod tests {
             library_path: "/home/someone/Pictures/Library".to_owned(),
             schema_version: Some(11),
             window_size: (1400, 720),
-            attachments: vec![SHOT_NAME.to_owned()],
+            attachments: vec!["screenshot.png".to_owned()],
         }
     }
 
@@ -433,7 +333,7 @@ mod tests {
     #[test]
     fn the_attachments_are_named_and_their_absence_too() {
         let named = build_report(&ReportFacts {
-            attachments: vec![SHOT_NAME.to_owned(), "frozen-window.png".to_owned()],
+            attachments: vec!["screenshot.png".to_owned(), "frozen-window.png".to_owned()],
             ..facts()
         });
         assert!(named.contains("Attachments screenshot.png, frozen-window.png"));

@@ -56,7 +56,7 @@ Opening the folder is best-effort — a spawned `xdg-open`/`explorer`/`open`, no
 new dependency, and no failure of it matters. The dialog shows the path either
 way, so a file manager that will not start costs a copy-paste and nothing else.
 
-### 3. Two texts Leyline writes, and attachments the photographer controls
+### 3. Two texts Leyline writes, and screenshots the photographer attaches
 
 Always written:
 
@@ -67,24 +67,21 @@ Always written:
   two cannot drift; naming the attachments is what lets someone holding only
   `build.txt` notice that something did not reach them.
 
-Then a list of attachments, which the photographer decides:
+Then, **optionally**, files the photographer attaches — `Attach a
+screenshot…`, their own, taken with whatever tool they already use. Optional
+is part of the decision and the dialog says so: a description on its own is a
+report, and a feature that makes people hunt for a screenshot before they can
+complain will collect fewer complaints.
 
-* **`Take a screenshot`** — Leyline photographs its own window through
-  `slint::Window::take_snapshot()`. Done once automatically when the dialog
-  opens, and repeatable afterwards. No new dependency: `image` is already a
-  Studio dependency with its `png` feature on.
-* **`Add files…`** — files they chose themselves. This is the half Leyline
-  cannot supply: **it can only photograph its own window, and the interesting
-  cases are the ones it cannot reach** — an interface that has stopped
-  repainting, a second screen, the file manager beside it, the moment before
-  they thought to report. Their own screenshot tool sees all of that.
+Leyline does **not** take the screenshot itself (see the alternatives). The
+one it could take is of its own window, and the photographer is the one who
+knows what is worth showing.
 
 **The list is the promise.** Every attachment is shown by name — with its size,
 so a 60 MB file they forgot is visible before they send it rather than after it
-bounces — and each one carries a × that takes it back out, the automatic
-screenshot included. It is shown before the folder exists. A report that
-surprises its author when they open it has already failed at the only thing
-this feature is for.
+bounces — and each one carries a × that takes it back out. It is shown before
+the folder exists. A report that surprises its author when they open it has
+already failed at the only thing this feature is for.
 
 Two files chosen from two folders may share a name; the second is written
 beside the first under a suffixed name, never over it. Losing evidence is the
@@ -97,28 +94,7 @@ people's photographs, none of which is about the defect at hand. What the
 photographer attaches is their own decision, and the list shows it back to
 them.
 
-### 4. The screenshot is of the moment the report was asked for
-
-Taken when the menu item is chosen — after the menu closes, before the dialog
-opens — not when the "Create" button is pressed. Otherwise every report would
-show the report dialog, which is the one thing in the window nobody needs to
-see. `Take a screenshot` follows the same rule: it hides the dialog first,
-captures, and brings it back with the description still in it.
-
-**And it is deferred by one frame**, which is not a detail. The menu row sets
-`open-menu = ""` and returns; the frame *on screen* still has the Help menu
-across a quarter of the grid, and `take_snapshot()` returns what has been
-painted — the first report made carried the menu that asked for it. Closing a
-menu in the model does not repaint the window. So the capture waits ~50 ms:
-long enough for one repaint at any refresh rate, short enough that nothing
-else can happen in between.
-
-A capture that fails (a renderer that does not implement it) is not a failed
-report: the folder is written without it, and `build.txt` says the screenshot
-could not be taken. A report with two files out of three is worth far more than
-an error message.
-
-### 5. Where the folder goes
+### 4. Where the folder goes
 
 `Documents/Leyline Reports/leyline-report-<seconds since the epoch>/`, falling
 back to the config directory and then to the temporary directory.
@@ -134,7 +110,7 @@ wonders about when they copy the folder to another disk. Not inside the config
 directory by preference either: this is a document the user is meant to find,
 open and attach, which is what `Documents` is for.
 
-### 6. No log, and what that costs
+### 5. No log, and what that costs
 
 The report carries no log because there is none to carry (§Context). Stated
 here rather than left implicit, because it is the one thing a reader of this
@@ -146,7 +122,7 @@ trace in the description is a defect this report will not explain. That is the
 argument for deciding the log question — separately, on its own merits, and not
 by smuggling a file format in through a feedback dialog.
 
-### 7. Out of scope
+### 6. Out of scope
 
 * **Sending anything, by any means**, including opening a mail client or a
   pre-filled issue URL. That was weighed and left out: it delegates the network
@@ -161,9 +137,9 @@ by smuggling a file format in through a feedback dialog.
 
 ## Consequences
 
-* No new dependency: `image` (png), `directories` and `slint` are all already
-  Studio's.
-* Nine strings in the `.pot` and their French translations.
+* No new dependency, and none needed: the folder is `std::fs`, the picker is
+  `rfd` and the paths are `directories`, all already Studio's.
+* Eight strings in the `.pot` and their French translations.
 * One more dialog in `panels/dialogs.slint` and one menu entry, following the
   same shape as every other ([ADR 0045](0045-studio-ui-modularisation.md) §3).
 * The report's *content* is assembled by pure functions — the `build.txt` text,
@@ -184,9 +160,18 @@ by smuggling a file format in through a feedback dialog.
   private, so the link would greet most testers with a 404.
 * **A `.zip`.** Better to attach, worse to inspect, and inspection is the point
   (§2).
+* **Leyline taking the screenshot itself.** Built first, then removed. It cost
+  a real trap — `slint::Window::take_snapshot()` returns what has been
+  *painted*, not the state of the model, so the first report ever made carried
+  the Help menu that had asked for it, and the capture had to be deferred a
+  frame behind a timer — and it bought less than it looked. Leyline can only
+  photograph *its own window*: not an interface that has stopped repainting,
+  not a second screen, not the file manager beside it, not the moment before
+  the photographer thought to report. Their own screenshot tool sees all of
+  that, they already know how to use it, and what they choose to show is a
+  better signal than what Leyline would have guessed.
 * **Attaching the photograph being developed, automatically.** It is the
   single most useful thing for a rendering bug and the single most private: a
   RAW file is the user's work, and nothing takes it out of their folder on
-  their behalf. `Add files…` means they can attach one when they judge it
-  useful — which is the difference between a decision they made and one made
-  for them.
+  their behalf. They can attach one when they judge it useful — which is the
+  difference between a decision they made and one made for them.

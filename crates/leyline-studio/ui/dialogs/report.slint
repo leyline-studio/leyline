@@ -54,29 +54,22 @@ export component ReportDialog inherits VerticalLayout {
         spacing: 8px;
         alignment: start;
         FilterChip {
-            text: @tr("Add files…");
+            text: @tr("Attach a screenshot…");
             active: false;
             clicked => {
                 DialogState.report-add-files();
             }
         }
-        FilterChip {
-            // Leyline photographs its own window. It cannot photograph a
-            // frozen interface, a second screen, or the moment before the
-            // photographer thought to report — which is what "Add files…"
-            // is for.
-            text: @tr("Take a screenshot");
-            active: false;
-            clicked => {
-                DialogState.report-take-screenshot();
-            }
-        }
     }
 
     Text {
-        text: @tr("The folder will hold these, and nothing else:");
+        // Optional, and said so: a description on its own is a report.
+        text: @tr("A screenshot helps, and is not required. The folder will hold these, and nothing else:");
         color: #9a9a9a;
         font-size: 11px;
+        // Two sentences now, and without this the line was cut mid-word at
+        // the dialog's edge.
+        wrap: word-wrap;
     }
     Text {
         text: "description.txt · build.txt";
@@ -117,13 +110,6 @@ export component ReportDialog inherits VerticalLayout {
                 }
             }
         }
-    }
-
-    if DialogState.dialog-result != "": Text {
-        text: DialogState.dialog-result;
-        color: #7fc97f;
-        font-size: 11px;
-        wrap: word-wrap;
     }
 
     HorizontalLayout {
