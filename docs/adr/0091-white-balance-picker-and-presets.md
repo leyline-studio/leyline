@@ -77,6 +77,26 @@ the illuminant: it clears the override (`None`), the true neutral of the
 Temperature slider; the CLI accepts the preset names wherever
 `white-balance` already takes `<kelvin> <tint>`.
 
+### The picker is a pictogram, and the toolbar is grouped
+
+Corrected after the first user session. The picker shipped as a labelled chip,
+*WB Picker*, among a dozen other labelled chips — and a labelled button reads
+as *a thing that happens when clicked*, where a picker is *a thing you then
+click the photograph with*. It is now the eyedropper pictogram it is in every
+other photo application, and so are the two range eyedroppers of
+[ADR 0093](0093-range-mask-eyedropper.md), for the same gesture.
+
+Drawn as a `Path`, not written as a character: no font can be relied on for an
+eyedropper, and the emoji that come close vanish on the fonts of a bare X
+session. Its viewbox is square and so is the element — a `Path` whose viewbox
+ratio differs from its element's distorts rather than letterboxes.
+
+The toolbar around it is grouped rather than laid out in one row: the frame,
+then what is measured, then what is repaired, then what is masked, with a rule
+between the groups. Twelve chips side by side is a list, not a toolbar. Basic
+mode shows the first two groups, and the separators of the hidden groups go
+with them.
+
 ## Consequences
 
 * One new engine module (`wb.rs`), two `Library` methods, one core table.

@@ -13,7 +13,7 @@
 // the former when a dab is painted and writes the latter when a gesture
 // creates a row.
 
-import { DetectionRow, MaskRow } from "../types.slint";
+import { DetectionRow, MaskDab, MaskRow } from "../types.slint";
 export global MaskState {
     // Every stored adjustment of the photo being developed, in list order.
     in property <[MaskRow]> masks;
@@ -46,6 +46,16 @@ export global MaskState {
     // letterbox convention as the develop clicks. Applies to the selected
     // mask row.
     callback range-sample-click(string, float, float, float, float, float, float);
+
+    // Tracing with the brush (ADR 0049 §2). `begin` starts a stroke, `extend`
+    // is sent while the pointer is down, `end` commits the whole stroke as
+    // one revision. The dabs kept so far are mirrored back in
+    // `brush-pending` so the panel can draw the stroke as it is traced,
+    // without a render: the coverage only exists once committed.
+    callback brush-begin(float, float, float, float, float, float);
+    callback brush-extend(float, float, float, float, float, float);
+    callback brush-end();
+    in property <[MaskDab]> brush-pending;
     // A handle of the selected geometry was dragged (ADR 0097): which
     // handle, then the release point in view pixels, the viewport size and
     // the preview size — the same letterbox convention as every other

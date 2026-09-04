@@ -13,7 +13,7 @@ use crate::app::{App, report_error};
 use crate::masks;
 use crate::ui::{MaskState, StudioWindow};
 use leyline_sdk::{Param, Value};
-use slint::{ComponentHandle, Global};
+use slint::{ComponentHandle, Global, ModelRc, VecModel};
 
 /// Asks for an image file, converts it to a coverage and stores it in the
 /// library, returning the mask that references it (ADR 0070 §7).
@@ -250,6 +250,58 @@ pub(super) fn wire_masks(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
+        // A stroke begins: the pending list is emptied and takes its first
+        // dab. The row it will land on is decided at the commit, from the
+        // selection as it stands then — the same rule the single click had.
+        MaskState::get(window).on_brush_begin(move |mx, my, vw, vh, iw, ih| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            app.brush_stroke.clear();
+            extend_stroke(&mut app, &window, (mx, my), (vw, vh), (iw, ih));
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        MaskState::get(window).on_brush_extend(move |mx, my, vw, vh, iw, ih| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            if app.brush_stroke.is_empty() {
+                // A move with no press behind it: nothing to extend.
+                return;
+            }
+            extend_stroke(&mut app, &window, (mx, my), (vw, vh), (iw, ih));
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        // Release: one revision for the whole stroke. Committing per dab
+        // would fill the history with a hundred entries nobody can navigate,
+        // and undo would step back one dab at a time.
+        MaskState::get(window).on_brush_end(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let stroke = std::mem::take(&mut app.brush_stroke);
+            show_pending(&app, &window);
+            if stroke.is_empty() {
+                return;
+            }
+            let selected = MaskState::get(&window).get_selected_mask();
+            commit(&mut app, &window, |current| {
+                Some(masks::paint_stroke(selected, &stroke, current))
+            });
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
         MaskState::get(window).on_preview_mask(move |index, field, value| {
             let Some(window) = handle.upgrade() else {
                 return;
@@ -356,6 +408,60 @@ pub(super) fn wire_masks(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             }
         });
     }
+}
+
+/// Adds a dab to the stroke in progress, if it is far enough from the last
+/// one, and mirrors the stroke back to the panel so it draws as it is traced.
+///
+/// Nothing is rendered here: the coverage of a brush only exists once the
+/// revision is committed, and asking the engine for one per mouse event would
+/// be far slower than the pointer. What the photographer sees while tracing is
+/// the outline, which is exactly what they are placing.
+fn extend_stroke(
+    app: &mut App,
+    window: &StudioWindow,
+    click: (f32, f32),
+    view: (f32, f32),
+    image: (f32, f32),
+) {
+    let defaults = match brush_defaults(
+        MaskState::get(window).get_brush_size_text().as_str(),
+        MaskState::get(window).get_brush_flow_text().as_str(),
+        MaskState::get(window).get_brush_hardness_text().as_str(),
+    ) {
+        Ok(defaults) => defaults,
+        Err(error) => {
+            report_error(window, &error);
+            return;
+        }
+    };
+    let Some(stroke) = masks::dab(
+        (f64::from(click.0), f64::from(click.1)),
+        (f64::from(view.0), f64::from(view.1)),
+        (f64::from(image.0), f64::from(image.1)),
+        defaults,
+    ) else {
+        return;
+    };
+    if !masks::dab_is_far_enough(app.brush_stroke.last(), &stroke) {
+        return;
+    }
+    app.brush_stroke.push(stroke);
+    show_pending(app, window);
+}
+
+/// Sends the stroke in progress to the panel.
+fn show_pending(app: &App, window: &StudioWindow) {
+    let dabs: Vec<crate::ui::MaskDab> = app
+        .brush_stroke
+        .iter()
+        .map(|stroke| crate::ui::MaskDab {
+            x: stroke.x as f32,
+            y: stroke.y as f32,
+            radius: stroke.radius as f32,
+        })
+        .collect();
+    MaskState::get(window).set_brush_pending(ModelRc::from(Rc::new(VecModel::from(dabs))));
 }
 
 /// Runs one local-adjustment decision against the current entries and commits

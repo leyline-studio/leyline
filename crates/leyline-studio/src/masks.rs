@@ -224,14 +224,32 @@ pub fn paint_dab(
     stroke: BrushStroke,
     current: &[LocalAdjustment],
 ) -> (Param, Value) {
+    paint_stroke(selected, &[stroke], current)
+}
+
+/// The same, for a whole traced stroke: every dab of one drag lands in one
+/// entry, and the drag is **one** revision rather than one per dab.
+///
+/// `Mask::Brush` was always a *path* — `BrushStroke` is documented as "a
+/// single dab in the brush's path" — so tracing needs no engine change, no
+/// stage version and no migration. What was missing was a client that drew
+/// more than one dab at a time.
+///
+/// An empty slice returns the entry unchanged rather than an empty brush,
+/// which `Settings::validate()` refuses (ADR 0049 §2).
+pub fn paint_stroke(
+    selected: i32,
+    strokes: &[BrushStroke],
+    current: &[LocalAdjustment],
+) -> (Param, Value) {
     let index = usize::try_from(selected)
         .ok()
         .filter(|&i| matches!(current.get(i).map(|e| &e.mask), Some(Mask::Brush { .. })));
     match index {
         Some(index) => {
             let mut entry = current[index].clone();
-            if let Mask::Brush { strokes } = &mut entry.mask {
-                strokes.push(stroke);
+            if let Mask::Brush { strokes: existing } = &mut entry.mask {
+                existing.extend_from_slice(strokes);
             }
             (
                 Param::LocalAdjustment(index),
@@ -241,9 +259,24 @@ pub fn paint_dab(
         None => (
             Param::LocalAdjustment(current.len()),
             Value::LocalAdjustment(Some(fresh(Mask::Brush {
-                strokes: vec![stroke],
+                strokes: strokes.to_vec(),
             }))),
         ),
+    }
+}
+
+/// Whether a dab belongs in a stroke being traced, given the last one kept.
+///
+/// Spacing is **half the radius** — a quarter of the diameter, the figure
+/// every painting program uses: the disks overlap heavily, so the stroke reads
+/// as continuous, and a drag across the whole frame costs tens of dabs rather
+/// than one per mouse event. Without a rule the pointer's own sampling rate
+/// would decide how many dabs a revision holds.
+#[must_use]
+pub fn dab_is_far_enough(last: Option<&BrushStroke>, next: &BrushStroke) -> bool {
+    match last {
+        None => true,
+        Some(last) => (next.x - last.x).hypot(next.y - last.y) >= next.radius / 2.0,
     }
 }
 

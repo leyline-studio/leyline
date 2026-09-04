@@ -13,7 +13,7 @@ import { PreferencesState } from "../state/preferences.slint";
 import { PresetsPanel } from "presets.slint";
 import { GridState } from "../state/grid.slint";
 import { MaskState } from "../state/mask.slint";
-import { EditSlider, Filmstrip, FilterChip, GroupHeader, SubHeading, Zoom } from "../widgets/controls.slint";
+import { EditSlider, Filmstrip, FilterChip, GroupHeader, PipetteChip, SubHeading, ToolSeparator, Zoom } from "../widgets/controls.slint";
 
 export component DevelopPanel inherits HorizontalLayout {
     // Panel folding, owned by the window (ADR 0055 §6): the settings panel
@@ -208,10 +208,20 @@ export component DevelopPanel inherits HorizontalLayout {
                         root.dev-zoomed = false;
                     }
                 }
-                FilterChip {
-                    // The white-balance picker (ADR 0091): W, like the
-                    // sliders it drives, lives in Basic.
-                    text: @tr("WB Picker");
+
+                // The toolbar is a dozen tools deep in Full mode, and a dozen
+                // chips in one undifferentiated row is a list rather than a
+                // toolbar. Grouped by what the tool acts on — the frame, then
+                // what is measured, then what is repaired, then what is
+                // masked — with a rule between the groups. Basic mode shows
+                // only the first two, and the separators of the hidden groups
+                // go with them.
+                ToolSeparator { }
+
+                // The white-balance picker (ADR 0091), now the pictogram it
+                // is everywhere else: a picker is something you then click the
+                // photograph with, which a labelled button does not say.
+                PipetteChip {
                     active: root.active-tool == "wb";
                     clicked => {
                         root.active-tool = "wb";
@@ -219,6 +229,8 @@ export component DevelopPanel inherits HorizontalLayout {
                         root.dev-zoomed = false;
                     }
                 }
+
+                if !root.basic-mode: ToolSeparator { }
                 if !root.basic-mode: FilterChip {
                     text: @tr("Spot Removal");
                     active: root.active-tool == "spot";
@@ -269,6 +281,8 @@ export component DevelopPanel inherits HorizontalLayout {
                 // so picking one drops the loupe back to fit; each also opens
                 // the panel section that shows what the gesture just wrote.
                 // Full mode only (ADR 0054 §2).
+                if !root.basic-mode: ToolSeparator { }
+
                 if !root.basic-mode: FilterChip {
                     text: @tr("Radial");
                     active: root.active-tool == "radial";
@@ -299,6 +313,8 @@ export component DevelopPanel inherits HorizontalLayout {
                         root.expand-local = true;
                     }
                 }
+                ToolSeparator { }
+
                 FilterChip {
                     // Loupe zoom (Z): 100%-with-pan vs fit-to-window,
                     // Select tool only (see `dev-zoomed`'s declaration).
@@ -718,19 +734,76 @@ export component DevelopPanel inherits HorizontalLayout {
                     stroke-width: 1px;
                 }
 
-                // Brush: one dab per click, appended to the selected brush or
-                // starting a new one (ADR 0049 §2).
+                // Brush: a traced stroke, not a dab per click (ADR 0049 §2).
+                // Press begins it, moving extends it, release commits the
+                // whole stroke as one revision. A click that never moves is
+                // still a single dab, which is what it was before.
                 brush-click := TouchArea {
                     enabled: root.active-tool == "brush";
                     mouse-cursor: crosshair;
-                    pointer-event(event) => {
-                        if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
-                            MaskState.paint-mask-dab(
-                                MaskState.selected-mask,
+                    moved => {
+                        if (self.pressed) {
+                            MaskState.brush-extend(
                                 self.mouse-x / 1px, self.mouse-y / 1px,
                                 self.width / 1px, self.height / 1px,
                                 DevelopState.develop-image.width, DevelopState.develop-image.height);
                         }
+                    }
+                    pointer-event(event) => {
+                        if (event.button != PointerEventButton.left) {
+                            return;
+                        }
+                        if (event.kind == PointerEventKind.down) {
+                            MaskState.brush-begin(
+                                self.mouse-x / 1px, self.mouse-y / 1px,
+                                self.width / 1px, self.height / 1px,
+                                DevelopState.develop-image.width, DevelopState.develop-image.height);
+                        }
+                        if (event.kind == PointerEventKind.up) {
+                            MaskState.brush-end();
+                        }
+                    }
+                }
+
+                // Where the next dab will land, and how big it will be — the
+                // circle every painting program puts under the pointer. Drawn
+                // from the same size the panel's field holds, so it cannot
+                // disagree with what gets painted: the radius is a percentage
+                // of the image's larger dimension, exactly as `brush_defaults`
+                // reads it.
+                if root.active-tool == "brush" && brush-click.has-hover: Rectangle {
+                    property <length> radius:
+                        MaskState.brush-size-text.to-float() / 100
+                        * max(preview.image-w * preview.fit, preview.image-h * preview.fit);
+                    x: brush-click.mouse-x - self.radius;
+                    y: brush-click.mouse-y - self.radius;
+                    width: 2 * self.radius;
+                    height: self.width;
+                    border-radius: self.width / 2;
+                    border-width: 1px;
+                    // Lighter than a placed dab: this one is a promise, not a
+                    // mark.
+                    border-color: #ffffff99;
+                }
+
+                // The stroke as it is being traced, drawn from the dabs Rust
+                // has kept so far. It exists only during the drag: on release
+                // the commit turns it into the selected mask's own outline
+                // below, which is drawn by exactly the same arithmetic.
+                if MaskState.brush-pending.length > 0: Rectangle {
+                    x: preview.pad-x;
+                    y: preview.pad-y;
+                    width: preview.image-w * preview.fit;
+                    height: preview.image-h * preview.fit;
+                    for dab in MaskState.brush-pending: Rectangle {
+                        x: dab.x * parent.width - dab.radius * max(parent.width, parent.height);
+                        y: dab.y * parent.height - dab.radius * max(parent.width, parent.height);
+                        width: 2 * dab.radius * max(parent.width, parent.height);
+                        height: self.width;
+                        border-radius: self.width / 2;
+                        background: #ffcc0022;
+                        border-width: 1px;
+                        border-color: #ffcc0088;
                     }
                 }
 
@@ -3089,10 +3162,11 @@ export component DevelopPanel inherits HorizontalLayout {
                                     MaskState.edit-mask(MaskState.selected-mask, "range-luminance", editor.sel.range-luminance-on ? 0 : 1);
                                 }
                             }
-                            if editor.sel.range-luminance-on: FilterChip {
+                            if editor.sel.range-luminance-on: PipetteChip {
                                 // The eyedropper (ADR 0093): arm, click the
                                 // image, the band lands on what was clicked.
-                                text: @tr("Sample luminance");
+                                // The same pictogram as the white-balance
+                                // picker, for the same gesture.
                                 active: root.active-tool == "range-lum";
                                 clicked => {
                                     root.active-tool = "range-lum";
@@ -3142,8 +3216,7 @@ export component DevelopPanel inherits HorizontalLayout {
                                     MaskState.edit-mask(MaskState.selected-mask, "range-color", editor.sel.range-color-on ? 0 : 1);
                                 }
                             }
-                            if editor.sel.range-color-on: FilterChip {
-                                text: @tr("Sample hue");
+                            if editor.sel.range-color-on: PipetteChip {
                                 active: root.active-tool == "range-color";
                                 clicked => {
                                     root.active-tool = "range-color";

@@ -145,6 +145,54 @@ export component FilterChip inherits Rectangle {
     }
 }
 
+// An eyedropper, drawn rather than written.
+//
+// A picker is a pictogram everywhere in photography, and Leyline had it as a
+// labelled button — which reads as "a thing that happens" rather than "a thing
+// you then click the photograph with". Drawn as a `Path` and not a character:
+// there is no eyedropper in a font one can rely on, and the emoji that come
+// close vanish on the fonts of a bare X session.
+//
+// The viewbox is square and the element is square, which is the rule for a
+// `Path` here: a viewbox whose ratio differs from the element's distorts the
+// drawing rather than letterboxing it.
+export component PipetteChip inherits Rectangle {
+    in property <bool> active;
+    callback clicked;
+
+    height: 24px;
+    width: 30px;
+    border-radius: 12px;
+    background: root.active ? #2f4f6f : #242424;
+    border-width: 1px;
+    border-color: root.active ? #6fa8dc : #333333;
+
+    Path {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: 14px;
+        height: 14px;
+        viewbox-width: 16;
+        viewbox-height: 16;
+        // The barrel from tip to shoulder, then the bulb across it.
+        commands: "M1.5 14.5 L3 10.5 L9.5 4 L12 6.5 L5.5 13 Z M10 3.5 L12.5 1 L15 3.5 L12.5 6 Z";
+        fill: root.active ? #e6e6e6 : #9a9a9a;
+    }
+    TouchArea {
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+// A thin rule between groups of tools: the toolbar carries a dozen of them,
+// and a dozen chips in one undifferentiated row is a list, not a toolbar.
+export component ToolSeparator inherits Rectangle {
+    width: 1px;
+    height: 16px;
+    background: #3a3a3a;
+}
+
 // A photo shown large, fitted or at 100 %, with the viewpoint driven from
 // **outside** (ADR 0057 §2).
 //

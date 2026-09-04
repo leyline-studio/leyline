@@ -57,6 +57,30 @@ otherwise: the Brush tool's first dab **creates** the adjustment, and the
 following ones lengthen it. Radial and graduated, whose geometry is complete on
 release, follow the same rule for consistency: the drag creates.
 
+**The brush traces; it does not stamp.** Pressing begins a stroke, moving
+extends it, releasing commits it. This ADR shipped with one dab per click,
+which the first real user met head-on: *« pour le pinceau on ne peut pas
+tracer avec, c'est au clic, ça fait un gros rond »*. Three things make the
+corrected gesture what it should have been:
+
+* **the engine needed nothing.** `Mask::Brush` was always a *path* —
+  `BrushStroke` is documented as "a single dab in the brush's path" — so
+  tracing is a client that draws more than one dab, not a new stage, a new
+  version or a migration;
+* **spacing is half the radius**, a quarter of the diameter, the figure every
+  painting program uses. Without a rule the pointer's own sampling rate would
+  decide how many dabs a revision holds;
+* **one stroke is one revision.** Committing per dab would fill the history
+  with entries nobody can navigate and make undo step back one dab at a time.
+  The dabs of a drag are held in the client and written once, on release.
+
+While tracing, the panel draws the dabs it has so far and a circle under the
+pointer showing where the next one lands and how big it is — both pure
+interface, computed from the same size field `brush_defaults` reads, so
+neither can disagree with what gets painted. Nothing is rendered during the
+drag: a brush's coverage exists only once committed, and asking the engine for
+one per mouse event would be slower than the hand.
+
 A selected entry is redrawn rather than duplicated — the same drag on an
 already-selected radial adjustment replaces its geometry. Without that,
 correcting a badly placed radial would require deleting it first.

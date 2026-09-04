@@ -281,6 +281,11 @@ pub(crate) struct App {
     /// kilometres from where the photo was taken, until the first window
     /// resize happened to correct it.
     pub(crate) map_canvas: (u32, u32),
+    /// The dabs of the brush stroke being traced, in image fractions
+    /// (ADR 0049 §2). Held here for the length of one drag: the panel draws
+    /// them as it goes, and the release commits the lot as **one** revision.
+    /// A dab per mouse event would be a revision per mouse event.
+    pub(crate) brush_stroke: Vec<leyline_sdk::BrushStroke>,
     /// Files the photographer attached to a problem report (ADR 0123 §3) —
     /// their own screenshot, taken with whatever tool they use. Optional: a
     /// description on its own is a report. Paths only, so nothing is copied
