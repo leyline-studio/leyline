@@ -417,6 +417,7 @@ fn run() -> Result<(), Startup> {
         watch_imported: 0,
         map: None,
         map_canvas: (map_view::DEFAULT_WIDTH, map_view::DEFAULT_HEIGHT),
+        report_shot: None,
     }));
 
     let window = StudioWindow::new().map_err(|e| e.to_string())?;

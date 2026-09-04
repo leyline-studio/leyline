@@ -1,0 +1,89 @@
+// Help ▸ Report a Problem… (ADR 0123): Leyline assembles a report, the
+// photographer sends it.
+//
+// One of the dialogs hosted by `panels/dialogs.slint` (ADR 0045 §3).
+//
+// The list of files is shown *before* the folder exists, and named one by
+// one. A report that surprises its author when they open it has already
+// failed at the only thing this feature is for (ADR 0123 §3).
+
+import { DialogState } from "../state/dialog.slint";
+import { FilterChip } from "../widgets/controls.slint";
+
+export component ReportDialog inherits VerticalLayout {
+    spacing: 12px;
+    Text {
+        text: @tr("Report a problem");
+        color: #f0f0f0;
+        font-size: 15px;
+        font-weight: 600;
+    }
+    Text {
+        text: @tr("Leyline writes a folder and opens it. Nothing is sent: you look at it, then attach it wherever you like.");
+        color: #9a9a9a;
+        font-size: 12px;
+        wrap: word-wrap;
+    }
+
+    Text {
+        text: @tr("What were you doing, and what happened?");
+        color: #e6e6e6;
+        font-size: 12px;
+    }
+    Rectangle {
+        height: 92px;
+        background: #1b1b1b;
+        border-radius: 4px;
+        border-width: 1px;
+        border-color: #333333;
+        description := TextInput {
+            x: 8px;
+            y: 6px;
+            width: parent.width - 16px;
+            height: parent.height - 12px;
+            text <=> DialogState.report-description;
+            color: #e6e6e6;
+            font-size: 12px;
+            single-line: false;
+            wrap: word-wrap;
+        }
+    }
+
+    Text {
+        text: @tr("The folder will hold three files, and nothing else:");
+        color: #9a9a9a;
+        font-size: 11px;
+    }
+    Text {
+        text: @tr("description.txt — what you just wrote\nscreenshot.png — this window as it was when you opened this dialog\nbuild.txt — version, commit, decoder, and the library's path and schema");
+        color: #9a9a9a;
+        font-size: 11px;
+        wrap: word-wrap;
+    }
+
+    if DialogState.dialog-result != "": Text {
+        text: DialogState.dialog-result;
+        color: #7fc97f;
+        font-size: 11px;
+        wrap: word-wrap;
+    }
+
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: end;
+        FilterChip {
+            text: @tr("Close");
+            active: false;
+            clicked => {
+                DialogState.dialog = "";
+            }
+        }
+        FilterChip {
+            text: @tr("Create the folder");
+            active: true;
+            clicked => {
+                DialogState.run-report();
+            }
+        }
+    }
+}

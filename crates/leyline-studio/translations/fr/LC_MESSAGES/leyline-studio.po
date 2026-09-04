@@ -714,6 +714,46 @@ msgctxt "RenameDialog"
 msgid "Rename"
 msgstr "Renommer"
 
+#: crates/leyline-studio/ui/dialogs/report.slint:16
+msgctxt "ReportDialog"
+msgid "Report a problem"
+msgstr "Signaler un problème"
+
+#: crates/leyline-studio/ui/dialogs/report.slint:22
+msgctxt "ReportDialog"
+msgid ""
+"Leyline writes a folder and opens it. Nothing is sent: you look at it, then "
+"attach it wherever you like."
+msgstr "Leyline écrit un dossier et l'ouvre. Rien n'est envoyé : vous le regardez, puis vous le joignez où vous voulez."
+
+#: crates/leyline-studio/ui/dialogs/report.slint:29
+msgctxt "ReportDialog"
+msgid "What were you doing, and what happened?"
+msgstr "Que faisiez-vous, et que s'est-il passé ?"
+
+#: crates/leyline-studio/ui/dialogs/report.slint:53
+msgctxt "ReportDialog"
+msgid "The folder will hold three files, and nothing else:"
+msgstr "Le dossier contiendra trois fichiers, et rien d'autre :"
+
+#: crates/leyline-studio/ui/dialogs/report.slint:58
+msgctxt "ReportDialog"
+msgid ""
+"description.txt — what you just wrote\n"
+"screenshot.png — this window as it was when you opened this dialog\n"
+"build.txt — version, commit, decoder, and the library's path and schema"
+msgstr "description.txt — ce que vous venez d'écrire\nscreenshot.png — cette fenêtre telle qu'elle était à l'ouverture de ce dialogue\nbuild.txt — version, commit, décodeur, plus le chemin et le schéma de la bibliothèque"
+
+#: crates/leyline-studio/ui/dialogs/report.slint:75
+msgctxt "ReportDialog"
+msgid "Close"
+msgstr "Fermer"
+
+#: crates/leyline-studio/ui/dialogs/report.slint:82
+msgctxt "ReportDialog"
+msgid "Create the folder"
+msgstr "Créer le dossier"
+
 #: crates/leyline-studio/ui/dialogs/roots.slint:17
 msgctxt "RootsDialog"
 msgid "Roots"
@@ -2702,43 +2742,49 @@ msgctxt "MenuBar"
 msgid "Keyboard Shortcuts…"
 msgstr "Raccourcis clavier…"
 
-#: crates/leyline-studio/ui/panels/menubar.slint:619
+#. version number (ADR 0123).
+#: crates/leyline-studio/ui/panels/menubar.slint:622
+msgctxt "MenuBar"
+msgid "Report a Problem…"
+msgstr "Signaler un problème…"
+
+#: crates/leyline-studio/ui/panels/menubar.slint:633
 msgctxt "MenuBar"
 msgid "About Leyline"
 msgstr "À propos de Leyline"
 
-#: crates/leyline-studio/ui/panels/menubar.slint:676
+#: crates/leyline-studio/ui/panels/menubar.slint:690
 msgctxt "MenuBar"
 msgid "File"
 msgstr "Fichier"
 
-#: crates/leyline-studio/ui/panels/menubar.slint:684 crates/leyline-studio/ui/panels/menubar.slint:741
+#: crates/leyline-studio/ui/panels/menubar.slint:698 crates/leyline-studio/ui/panels/menubar.slint:755
 msgctxt "MenuBar"
 msgid "Library"
 msgstr "Bibliothèque"
 
-#: crates/leyline-studio/ui/panels/menubar.slint:692
+#: crates/leyline-studio/ui/panels/menubar.slint:706
 msgctxt "MenuBar"
 msgid "Photo"
 msgstr "Photo"
 
-#: crates/leyline-studio/ui/panels/menubar.slint:700 crates/leyline-studio/ui/panels/menubar.slint:760
+#: crates/leyline-studio/ui/panels/menubar.slint:714 crates/leyline-studio/ui/panels/menubar.slint:774
 msgctxt "MenuBar"
 msgid "Develop"
 msgstr "Développement"
 
-#: crates/leyline-studio/ui/panels/menubar.slint:709
+#: crates/leyline-studio/ui/panels/menubar.slint:723
 msgctxt "MenuBar"
 msgid "View"
 msgstr "Affichage"
 
 #. `@tr(...)` so no translation has to carry the mark.
-#: crates/leyline-studio/ui/panels/menubar.slint:722
+#: crates/leyline-studio/ui/panels/menubar.slint:736
 msgctxt "MenuBar"
 msgid "Help"
 msgstr "Aide"
 
-#: crates/leyline-studio/ui/panels/menubar.slint:781
+#: crates/leyline-studio/ui/panels/menubar.slint:795
 msgctxt "MenuBar"
 msgid "Map"
 msgstr "Carte"
@@ -3004,138 +3050,143 @@ msgctxt "Tr"
 msgid "Nothing to print."
 msgstr "Rien à imprimer."
 
-#: crates/leyline-studio/ui/types.slint:486
+#: crates/leyline-studio/ui/types.slint:487
+msgctxt "Tr"
+msgid "Written to {} — look at it, then attach it wherever you like."
+msgstr "Écrit dans {} — regardez-le, puis joignez-le où vous voulez."
+
+#: crates/leyline-studio/ui/types.slint:490
 msgctxt "Tr"
 msgid "System language"
 msgstr "Langue du système"
 
-#: crates/leyline-studio/ui/types.slint:491
+#: crates/leyline-studio/ui/types.slint:495
 msgctxt "Tr"
 msgid "{} file renamed."
 msgid_plural "{} files renamed."
 msgstr[0] "{} fichier renommé."
 msgstr[1] "{} fichiers renommés."
 
-#: crates/leyline-studio/ui/types.slint:494
+#: crates/leyline-studio/ui/types.slint:498
 msgctxt "Tr"
 msgid "{} renamed, {} refused — {}"
 msgstr "{} renommés, {} refusés — {}"
 
-#: crates/leyline-studio/ui/types.slint:497
+#: crates/leyline-studio/ui/types.slint:501
 msgctxt "Tr"
 msgid "Export failed: {}"
 msgstr "Échec de l'export : {}"
 
-#: crates/leyline-studio/ui/types.slint:500
+#: crates/leyline-studio/ui/types.slint:504
 msgctxt "Tr"
 msgid "Printing {}/{}…"
 msgstr "Impression {}/{}…"
 
-#: crates/leyline-studio/ui/types.slint:503
+#: crates/leyline-studio/ui/types.slint:507
 msgctxt "Tr"
 msgid "Print failed: {}"
 msgstr "Échec de l'impression : {}"
 
-#: crates/leyline-studio/ui/types.slint:506
+#: crates/leyline-studio/ui/types.slint:510
 msgctxt "Tr"
 msgid "Printing…"
 msgstr "Impression…"
 
-#: crates/leyline-studio/ui/types.slint:512
+#: crates/leyline-studio/ui/types.slint:516
 msgctxt "Tr"
 msgid "Rendering {}/{}…"
 msgstr "Rendu {}/{}…"
 
-#: crates/leyline-studio/ui/types.slint:515
+#: crates/leyline-studio/ui/types.slint:519
 msgctxt "Tr"
 msgid "Wrote {} — {} photo(s) on {} page(s)."
 msgstr "Écrit {} — {} photo(s) sur {} page(s)."
 
-#: crates/leyline-studio/ui/types.slint:518
+#: crates/leyline-studio/ui/types.slint:522
 msgctxt "Tr"
 msgid "{} photo could not be rendered and left an empty cell."
 msgid_plural "{} photos could not be rendered and left empty cells."
 msgstr[0] "{} photo n'a pas pu être rendue et laisse une case vide."
 msgstr[1] "{} photos n'ont pas pu être rendues et laissent des cases vides."
 
-#: crates/leyline-studio/ui/types.slint:526
+#: crates/leyline-studio/ui/types.slint:530
 msgctxt "Tr"
 msgid "Dark"
 msgstr "Sombre"
 
-#: crates/leyline-studio/ui/types.slint:529
+#: crates/leyline-studio/ui/types.slint:533
 msgctxt "Tr"
 msgid "Mid-grey"
 msgstr "Gris moyen"
 
-#: crates/leyline-studio/ui/types.slint:532
+#: crates/leyline-studio/ui/types.slint:536
 msgctxt "Tr"
 msgid "White"
 msgstr "Blanc"
 
-#: crates/leyline-studio/ui/types.slint:535
+#: crates/leyline-studio/ui/types.slint:539
 msgctxt "Tr"
 msgid ""
 "Not enough usable edges on this photo ({}) — try a frame with detail away "
 "from the centre."
 msgstr "Pas assez de contours exploitables sur cette photo ({}) — essayez une image avec du détail loin du centre."
 
-#: crates/leyline-studio/ui/types.slint:538
+#: crates/leyline-studio/ui/types.slint:542
 msgctxt "Tr"
 msgid "Contact sheet failed: {}"
 msgstr "Échec de la planche contact : {}"
 
-#: crates/leyline-studio/ui/types.slint:541
+#: crates/leyline-studio/ui/types.slint:545
 msgctxt "Tr"
 msgid "Reprocessed {} photo(s), {} already current, {} failed"
 msgstr "{} photo(s) retraitée(s), {} déjà à jour, {} en échec"
 
-#: crates/leyline-studio/ui/types.slint:547
+#: crates/leyline-studio/ui/types.slint:551
 msgctxt "Tr"
 msgid "Remove {} photo from the catalog?"
 msgid_plural "Remove {} photos from the catalog?"
 msgstr[0] "Retirer {} photo du catalogue ?"
 msgstr[1] "Retirer {} photos du catalogue ?"
 
-#: crates/leyline-studio/ui/types.slint:550
+#: crates/leyline-studio/ui/types.slint:554
 msgctxt "Tr"
 msgid ""
 "The files stay exactly where they are, and can be imported again. Develop "
 "settings, keywords and collection membership go with the photos."
 msgstr "Les fichiers restent exactement où ils sont, et pourront être réimportés. Les réglages de développement, les mots-clés et l'appartenance aux collections partent avec les photos."
 
-#: crates/leyline-studio/ui/types.slint:553
+#: crates/leyline-studio/ui/types.slint:557
 msgctxt "Tr"
 msgid "Remove"
 msgstr "Retirer"
 
-#: crates/leyline-studio/ui/types.slint:556
+#: crates/leyline-studio/ui/types.slint:560
 msgctxt "Tr"
 msgid "Delete {} photo from the disk?"
 msgid_plural "Delete {} photos from the disk?"
 msgstr[0] "Supprimer {} photo du disque ?"
 msgstr[1] "Supprimer {} photos du disque ?"
 
-#: crates/leyline-studio/ui/types.slint:559
+#: crates/leyline-studio/ui/types.slint:563
 msgctxt "Tr"
 msgid ""
 "The photos leave the catalog, and their files — with their XMP sidecars — "
 "are sent to the system trash, from where they can still be recovered."
 msgstr "Les photos quittent le catalogue, et leurs fichiers — avec leurs sidecars XMP — partent à la corbeille du système, d'où ils restent récupérables."
 
-#: crates/leyline-studio/ui/types.slint:562
+#: crates/leyline-studio/ui/types.slint:566
 msgctxt "Tr"
 msgid "Delete"
 msgstr "Supprimer"
 
-#: crates/leyline-studio/ui/types.slint:568
+#: crates/leyline-studio/ui/types.slint:572
 msgctxt "Tr"
 msgid "Pair {} shot?"
 msgid_plural "Pair {} shots?"
 msgstr[0] "Appairer {} prise de vue ?"
 msgstr[1] "Appairer {} prises de vue ?"
 
-#: crates/leyline-studio/ui/types.slint:571
+#: crates/leyline-studio/ui/types.slint:575
 msgctxt "Tr"
 msgid ""
 "Each JPEG the camera wrote alongside a RAW of the same shot becomes a "
@@ -3143,37 +3194,37 @@ msgid ""
 "deleted, and any photo can be detached again."
 msgstr "Chaque JPEG que le boîtier a écrit à côté d'un RAW de la même prise en devient le compagnon : une photo dans la grille au lieu de deux. Aucun fichier n'est déplacé ni supprimé, et toute photo peut être détachée à nouveau."
 
-#: crates/leyline-studio/ui/types.slint:574
+#: crates/leyline-studio/ui/types.slint:578
 msgctxt "Tr"
 msgid "Pair"
 msgstr "Appairer"
 
-#: crates/leyline-studio/ui/types.slint:577
+#: crates/leyline-studio/ui/types.slint:581
 msgctxt "Tr"
 msgid "No RAW+JPEG couple left to pair."
 msgstr "Plus aucun couple RAW+JPEG à appairer."
 
-#: crates/leyline-studio/ui/types.slint:583
+#: crates/leyline-studio/ui/types.slint:587
 msgctxt "Tr"
 msgid "Processing…"
 msgstr "Traitement…"
 
-#: crates/leyline-studio/ui/types.slint:586
+#: crates/leyline-studio/ui/types.slint:590
 msgctxt "Tr"
 msgid "{} added — a new photo carrying this one's development."
 msgstr "{} ajoutée — une nouvelle photo qui porte le développement de celle-ci."
 
-#: crates/leyline-studio/ui/types.slint:593
+#: crates/leyline-studio/ui/types.slint:597
 msgctxt "Tr"
 msgid "Looking through the photos…"
 msgstr "Examen des photos…"
 
-#: crates/leyline-studio/ui/types.slint:596
+#: crates/leyline-studio/ui/types.slint:600
 msgctxt "Tr"
 msgid "Looking through the photos… {} / {}"
 msgstr "Examen des photos… {} / {}"
 
-#: crates/leyline-studio/ui/types.slint:599
+#: crates/leyline-studio/ui/types.slint:603
 msgctxt "Tr"
 msgid ""
 "{} photo proposed for rejection, in {} burst — nothing written yet: reject "
@@ -3184,96 +3235,96 @@ msgid_plural ""
 msgstr[0] "{} photo proposée au rejet, dans {} rafale — rien n'est encore écrit : rejetez-les avec X, ou Bibliothèque ▸ Abandonner la proposition."
 msgstr[1] "{} photos proposées au rejet, dans {} rafales — rien n'est encore écrit : rejetez-les avec X, ou Bibliothèque ▸ Abandonner la proposition."
 
-#: crates/leyline-studio/ui/types.slint:602
+#: crates/leyline-studio/ui/types.slint:606
 msgctxt "Tr"
 msgid "Nothing to propose: no burst, and nothing technically wrong."
 msgstr "Rien à proposer : aucune rafale, et rien de techniquement raté."
 
-#: crates/leyline-studio/ui/types.slint:606
+#: crates/leyline-studio/ui/types.slint:610
 msgctxt "Tr"
 msgid "Paired {} shot."
 msgid_plural "Paired {} shots."
 msgstr[0] "{} prise de vue appairée."
 msgstr[1] "{} prises de vue appairées."
 
-#: crates/leyline-studio/ui/types.slint:609
+#: crates/leyline-studio/ui/types.slint:613
 msgctxt "Tr"
 msgid "Enter a source folder."
 msgstr "Indiquez un dossier source."
 
-#: crates/leyline-studio/ui/types.slint:612
+#: crates/leyline-studio/ui/types.slint:616
 msgctxt "Tr"
 msgid "Importing…"
 msgstr "Import en cours…"
 
-#: crates/leyline-studio/ui/types.slint:615
+#: crates/leyline-studio/ui/types.slint:619
 msgctxt "Tr"
 msgid "Looking at what is there…"
 msgstr "Lecture de ce qui s'y trouve…"
 
-#: crates/leyline-studio/ui/types.slint:618
+#: crates/leyline-studio/ui/types.slint:622
 msgctxt "Tr"
 msgid "{} photo found."
 msgid_plural "{} photos found."
 msgstr[0] "{} photo trouvée."
 msgstr[1] "{} photos trouvées."
 
-#: crates/leyline-studio/ui/types.slint:621
+#: crates/leyline-studio/ui/types.slint:625
 msgctxt "Tr"
 msgid "Select a photo first."
 msgstr "Sélectionnez d'abord une photo."
 
-#: crates/leyline-studio/ui/types.slint:624
+#: crates/leyline-studio/ui/types.slint:628
 msgctxt "Tr"
 msgid "Enter a destination folder."
 msgstr "Indiquez un dossier de destination."
 
-#: crates/leyline-studio/ui/types.slint:627
+#: crates/leyline-studio/ui/types.slint:631
 msgctxt "Tr"
 msgid "Exporting…"
 msgstr "Export en cours…"
 
-#: crates/leyline-studio/ui/types.slint:630
+#: crates/leyline-studio/ui/types.slint:634
 msgctxt "Tr"
 msgid "Enter a name."
 msgstr "Indiquez un nom."
 
-#: crates/leyline-studio/ui/types.slint:634
+#: crates/leyline-studio/ui/types.slint:638
 msgctxt "Tr"
 msgid "Top level"
 msgstr "Premier niveau"
 
-#: crates/leyline-studio/ui/types.slint:637
+#: crates/leyline-studio/ui/types.slint:641
 msgctxt "Tr"
 msgid "Creation failed: {}"
 msgstr "Échec de la création : {}"
 
-#: crates/leyline-studio/ui/types.slint:640
+#: crates/leyline-studio/ui/types.slint:644
 msgctxt "Tr"
 msgid "Open a photo in develop first."
 msgstr "Ouvrez d'abord une photo en développement."
 
-#: crates/leyline-studio/ui/types.slint:643
+#: crates/leyline-studio/ui/types.slint:647
 msgctxt "Tr"
 msgid "Pick at least one group."
 msgstr "Choisissez au moins un groupe."
 
-#: crates/leyline-studio/ui/types.slint:646
+#: crates/leyline-studio/ui/types.slint:650
 msgctxt "Tr"
 msgid "Save failed: {}"
 msgstr "Échec de l'enregistrement : {}"
 
-#: crates/leyline-studio/ui/types.slint:649
+#: crates/leyline-studio/ui/types.slint:653
 msgctxt "Tr"
 msgid "Error: {}"
 msgstr "Erreur : {}"
 
-#: crates/leyline-studio/ui/types.slint:652
+#: crates/leyline-studio/ui/types.slint:656
 msgctxt "Tr"
 msgid "Select a collection in the sidebar first."
 msgstr "Sélectionnez d'abord une collection dans le panneau latéral."
 
-#: crates/leyline-studio/ui/types.slint:655
+#: crates/leyline-studio/ui/types.slint:659
 msgctxt "Tr"
 msgid "Preset saved."
 msgstr "Préréglage enregistré."

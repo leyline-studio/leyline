@@ -170,6 +170,14 @@ export global DialogState {
     // Index into `tether-presets`, -1 for "no preset".
     in-out property <int> tether-preset: -1;
     in property <[string]> tether-presets: [];
+    // Reporting a problem (ADR 0123). `open-report` is where the screenshot
+    // is taken — the state the photographer was looking at, before this
+    // dialog covers it (§4) — and `run-report` writes the folder and opens
+    // it. Leyline sends nothing, here or anywhere.
+    callback open-report();
+    callback run-report();
+    in-out property <string> report-description: "";
+
     // Opens the watched-folder auto-import panel (ADR 0039): starts/stops
     // watching a folder, importing every file that settles there.
     callback open-watch();

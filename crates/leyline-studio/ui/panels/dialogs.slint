@@ -21,6 +21,7 @@ import { ShortcutsDialog } from "../dialogs/shortcuts.slint";
 import { TetherDialog } from "../dialogs/tether.slint";
 import { UpdateConsentDialog, UpdateDialog } from "../dialogs/update.slint";
 import { WatchDialog } from "../dialogs/watch.slint";
+import { ReportDialog } from "../dialogs/report.slint";
 import { RootsDialog } from "../dialogs/roots.slint";
 
 export component DialogOverlay inherits Rectangle {
@@ -84,6 +85,7 @@ export component DialogOverlay inherits Rectangle {
                 if DialogState.dialog == "tether": TetherDialog { }
 
                 if DialogState.dialog == "watch": WatchDialog { }
+                if DialogState.dialog == "report": ReportDialog { }
                 if DialogState.dialog == "roots": RootsDialog { }
 
                 if DialogState.dialog == "collection": CollectionDialog { }

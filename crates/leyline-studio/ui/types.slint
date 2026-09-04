@@ -482,6 +482,10 @@ export global Tr {
     public pure function nothing-to-print() -> string {
         return @tr("Nothing to print.");
     }
+    // Reporting a problem (ADR 0123): the folder is named, never sent.
+    public pure function report-written(path: string) -> string {
+        return @tr("Written to {} — look at it, then attach it wherever you like.", path);
+    }
     public pure function system-language() -> string {
         return @tr("System language");
     }

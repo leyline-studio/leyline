@@ -281,6 +281,10 @@ pub(crate) struct App {
     /// kilometres from where the photo was taken, until the first window
     /// resize happened to correct it.
     pub(crate) map_canvas: (u32, u32),
+    /// The window as it was when `Help ▸ Report a Problem…` was chosen
+    /// (ADR 0123 §4), waiting for the description that will accompany it.
+    /// Taken before the dialog opens, so a report never photographs itself.
+    pub(crate) report_shot: Option<slint::SharedPixelBuffer<slint::Rgba8Pixel>>,
 }
 
 /// Live state of the GPS map view while it's open.

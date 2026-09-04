@@ -616,6 +616,20 @@ export component MenuBar inherits Rectangle {
                 }
             }
             MenuRow {
+                // Before About, because a photographer who has just met a
+                // defect is looking for somewhere to say so, not for a
+                // version number (ADR 0123).
+                title: @tr("Report a Problem…");
+                activated => {
+                    root.open-menu = "";
+                    // The menu is closed *before* the callback: that is what
+                    // takes the screenshot, and it must not photograph the
+                    // menu that asked for it (ADR 0123 §4).
+                    DialogState.open-report();
+                }
+            }
+            MenuSep { }
+            MenuRow {
                 title: @tr("About Leyline");
                 activated => {
                     DialogState.dialog-result = "";
