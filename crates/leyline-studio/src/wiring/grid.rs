@@ -193,6 +193,9 @@ pub(crate) fn reload(app: &mut App, window: &StudioWindow) -> Result<(), String>
         .map_err(|e| e.to_string())?;
     let total = i32::try_from(app.total).unwrap_or(i32::MAX);
     GridState::get(window).set_total_cells(total);
+    // An empty grid means two different things, and only the query knows
+    // which: nothing imported yet, or criteria matching nothing (ADR 0054 §1).
+    GridState::get(window).set_narrowed(app.query.narrows());
     LibraryState::get(window).set_status_line(Tr::get(window).invoke_photo_count(total));
     load_window(app, window)?;
 

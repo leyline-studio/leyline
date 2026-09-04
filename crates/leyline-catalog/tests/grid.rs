@@ -5,7 +5,10 @@ use leyline_catalog::{
     ShotFacets, ShotRange, Sort,
 };
 use leyline_core::Settings;
-use leyline_core::{AssetId, ColorLabel, LeylineError, MediaType, PickState, VersionId};
+use leyline_core::{
+    AssetId, CollectionId, ColorLabel, FolderId, KeywordId, LeylineError, MediaType, PickState,
+    VersionId,
+};
 
 fn new_catalog(dir: &tempfile::TempDir) -> Catalog {
     Catalog::create(&dir.path().join("catalog.db"), "Grid").unwrap()
@@ -721,4 +724,91 @@ fn a_query_can_name_the_photographs_it_wants() {
 
     // Empty restricts nothing — the ordinary case, and the default.
     assert_eq!(catalog.count(&GridQuery::default()).unwrap(), 5);
+}
+
+#[test]
+fn narrows_answers_no_for_the_default_query_and_yes_for_every_criterion() {
+    // The default asks for everything: a grid that comes back empty under it
+    // is an empty library, and a client says so rather than blaming a filter.
+    assert!(!GridQuery::default().narrows());
+
+    // Ordering and the row window are not criteria: scrolling or re-sorting
+    // an empty library must not start blaming a filter either.
+    assert!(
+        !GridQuery {
+            sort: Sort::Filename { ascending: true },
+            range: 500..1500,
+            ..GridQuery::default()
+        }
+        .narrows()
+    );
+
+    // Every field that restricts rows counts. Listed one per assertion so a
+    // criterion added to `GridQuery` without a line here shows up as a gap
+    // in this test rather than as a wrong empty state on screen.
+    let narrowing: Vec<GridQuery> = vec![
+        GridQuery {
+            folder: Some(FolderId::new(1)),
+            ..GridQuery::default()
+        },
+        GridQuery {
+            collection: Some(CollectionId::new(1)),
+            ..GridQuery::default()
+        },
+        GridQuery {
+            keywords: vec![KeywordId::new(1)],
+            ..GridQuery::default()
+        },
+        GridQuery {
+            rating_at_least: Some(3),
+            ..GridQuery::default()
+        },
+        GridQuery {
+            color_label: Some(ColorLabel::Red),
+            ..GridQuery::default()
+        },
+        GridQuery {
+            pick: Some(PickState::Pick),
+            ..GridQuery::default()
+        },
+        GridQuery {
+            assets: vec![AssetId::new(1)],
+            ..GridQuery::default()
+        },
+        GridQuery {
+            text: Some("beach".to_owned()),
+            ..GridQuery::default()
+        },
+        GridQuery {
+            capture_range: Some((0, 1)),
+            ..GridQuery::default()
+        },
+        GridQuery {
+            camera: Some("Canon EOS 60D".to_owned()),
+            ..GridQuery::default()
+        },
+        GridQuery {
+            lens: Some("EF 50mm f/1.8".to_owned()),
+            ..GridQuery::default()
+        },
+        GridQuery {
+            iso: ShotRange::at_least(800.0),
+            ..GridQuery::default()
+        },
+        GridQuery {
+            aperture: ShotRange::at_least(2.8),
+            ..GridQuery::default()
+        },
+        GridQuery {
+            focal_length: ShotRange::at_least(35.0),
+            ..GridQuery::default()
+        },
+        GridQuery {
+            shutter_speed: ShotRange::at_least(0.005),
+            ..GridQuery::default()
+        },
+    ];
+    for query in narrowing {
+        assert!(query.narrows(), "{query:?}");
+    }
 }

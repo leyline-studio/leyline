@@ -116,7 +116,16 @@ export component StudioWindow inherits Window {
     // The threshold is set from the *longest* translation rather than from
     // English: the same bar is noticeably wider in French, and a threshold
     // tuned to English would leave French overflowing in the band between.
-    property <length> narrow-threshold: 1340px;
+    //
+    // Measured, not guessed: at 1340px the sidebar, the French filter bar's
+    // minimum and the 300px metadata panel add up to more than the window,
+    // and a `HorizontalLayout` that cannot fit its children overflows to the
+    // right instead of shrinking — the metadata panel went off the edge, the
+    // description fields cut in half. The layout first fits at ~1384px, and
+    // 1340px was exactly the width `startup_size` opens a 1920x1080 screen
+    // at, so the commonest desktop there is met that overflow on its first
+    // launch. 1400px is the first round number clear of it.
+    property <length> narrow-threshold: 1400px;
     // What the **browser** reads. `side-panels-hidden` stays the manual
     // gesture (Tab, ADR 0055 §6) and keeps working; this is that choice, or
     // the window being too narrow to have one.

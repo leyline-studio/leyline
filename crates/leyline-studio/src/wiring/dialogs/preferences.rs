@@ -67,9 +67,15 @@ pub(crate) fn apply_startup_language(
 fn show_current_values(window: &StudioWindow, preferences: &SharedPreferences) {
     let state = PreferencesState::get(window);
     let choices = language_choices();
+    // Every entry but the first is a language named in its own language,
+    // which is right and must not be translated. The first one is a
+    // sentence, so it comes from the `.pot` like every other sentence.
     let names: Vec<SharedString> = choices
         .iter()
-        .map(|(_, name)| SharedString::from(name.as_str()))
+        .map(|(tag, name)| match tag {
+            None => Tr::get(window).invoke_system_language(),
+            Some(_) => SharedString::from(name.as_str()),
+        })
         .collect();
     state.set_languages(ModelRc::from(std::rc::Rc::new(VecModel::from(names))));
     let (language, update_check) = with_preferences(preferences, |file| {

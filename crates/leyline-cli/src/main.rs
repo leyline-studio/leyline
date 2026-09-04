@@ -36,96 +36,94 @@ Usage:
                                     refused while it still holds photographs
   leyline import <library> <source> [--reference] [--flat] [--no-pair]
                                     [--thumbnails] [--only <name>]...
-                                    --only, répétable, n'importe que ces
-                                    fichiers-là parmi ceux que `scan` liste
+                                    --only, repeatable, imports only those
+                                    files among the ones `scan` lists
   leyline scan <library> <source> [--flat] [--exact]
-                                    ce qu'un import prendrait, sans rien écrire
-                                    (ADR 0065) ; « = » marque un fichier que la
-                                    bibliothèque contient déjà — par nom+taille,
-                                    ou exactement avec --exact, qui lit chaque
-                                    fichier en entier et nomme l'asset (ADR 0095)
+                                    what an import would take, writing nothing
+                                    (ADR 0065); « = » marks a file the library
+                                    already holds — by name+size, or exactly with
+                                    --exact, which reads each file in full and
+                                    names the asset (ADR 0095)
   leyline auto-tone <library> <version-id> [--dry-run]
+                                    proposes a tone and writes it (ADR 0088);
+                                    --dry-run prints without committing
   leyline auto-tca <library> <version-id> [--dry-run]
-  leyline keystone <library> <version-id> --line x1,y1,x2,y2 [--line …] [--dry-run]
-                                    solves the two perspective sliders from lines
-                                    you drew along what ought to be straight
-                                    (ADR 0119) ; rien n'est détecté, la pente de
-                                    chaque ligne dit si elle doit être verticale
-                                    ou horizontale ; --dry-run n'écrit rien
                                     measures the lens's chromatic aberration on
                                     this photo and writes it to the revision
                                     (ADR 0111); --dry-run only prints it
-                                    propose une tonalité et l'écrit (ADR 0088) ;
-                                    --dry-run affiche sans committer
+  leyline keystone <library> <version-id> --line x1,y1,x2,y2 [--line …] [--dry-run]
+                                    solves the two perspective sliders from lines
+                                    you drew along what ought to be straight
+                                    (ADR 0119); nothing is detected — each line's
+                                    slope says whether it should be vertical or
+                                    horizontal; --dry-run writes nothing
   leyline rename <library> <template> <asset-id>...
-                                    renomme les fichiers sur le disque
-                                    (ADR 0100) : {name} {date} {time} {seq},
-                                    l'extension est conservée ; un nom déjà
-                                    pris est refusé, jamais écrasé, et les
-                                    compagnons RAW+JPEG suivent
-  leyline detectors [--from <dir>]  les détecteurs de masque installés pour
-                                    cet utilisateur (ADR 0073) ; aucun n'est
-                                    livré avec Leyline. --from lit les
-                                    manifestes ailleurs : ce qu'utilise un
-                                    auteur de détecteur avant d'installer
-  leyline detect <library> <version-id> <détecteur:détection>
-                                    lance la détection sur l'aperçu et ajoute
-                                    un réglage local portant la couverture
-                                    obtenue (ADR 0105)
-  leyline detect-check <détecteur:détection>
-                                    vérifie qu'un détecteur parle le protocole,
-                                    sur une image de synthèse (ADR 0105 §3) ;
-                                    ne juge jamais la qualité d'une découpe
+                                    renames the files on disk (ADR 0100):
+                                    {name} {date} {time} {seq}, the extension is
+                                    kept; a name already taken is refused, never
+                                    overwritten, and RAW+JPEG companions follow
+  leyline detectors [--from <dir>]  the mask detectors installed for this user
+                                    (ADR 0073); none ships with Leyline. --from
+                                    reads manifests elsewhere: what a detector
+                                    author uses before installing
+  leyline detect <library> <version-id> <detector:detection>
+                                    runs the detection on the preview and adds a
+                                    local adjustment carrying the coverage it
+                                    returned (ADR 0105)
+  leyline detect-check <detector:detection>
+                                    checks a detector speaks the protocol, on a
+                                    synthetic image (ADR 0105 §3); never judges
+                                    the quality of a cut-out
   leyline cull <library> [asset-id...] [--burst-distance <bits>] [--apply]
-                                    parcourt les photos et PROPOSE lesquelles
-                                    rejeter (ADR 0084) : rafales groupées, la
-                                    plus nette gardée, images noires ou brûlées
-                                    nommées. N'écrit rien sans --apply
-  leyline processors [--from <dir>] les traitements à pixels installés pour
-                                    cet utilisateur (ADR 0107) ; aucun n'est
-                                    livré avec Leyline. --from lit les
-                                    manifestes ailleurs
-  leyline derive <library> <version-id> <traitement:opération>
-                                    développe la photo jusqu'au rang 20, la
-                                    donne au traitement, et classe la réponse
-                                    comme un NOUVEL ASSET portant le
-                                    développement de l'original (ADR 0107)
-  leyline derive-check <traitement:opération>
-                                    vérifie qu'un traitement parle le protocole,
-                                    sur une image de synthèse (ADR 0107 §8) ;
-                                    ne juge jamais la qualité d'un débruitage
+                                    walks the photos and PROPOSES which to
+                                    reject (ADR 0084): bursts grouped, the
+                                    sharpest kept, black or blown frames named.
+                                    Writes nothing without --apply
+  leyline processors [--from <dir>] the pixel processors installed for this
+                                    user (ADR 0107); none ships with Leyline.
+                                    --from reads manifests elsewhere
+  leyline derive <library> <version-id> <processor:operation>
+                                    develops the photo up to rank 20, hands it to
+                                    the processor, and files the answer as a NEW
+                                    ASSET carrying the original's development
+                                    (ADR 0107)
+  leyline derive-check <processor:operation>
+                                    checks a processor speaks the protocol, on a
+                                    synthetic image (ADR 0107 §8); never judges
+                                    the quality of a denoise
   leyline describe <library> <asset-id> [--title <t>] [--caption <c>]
                [--creator <n>] [--copyright <c>] [--credit <c>]
                [--city <c>] [--state <s>] [--country <c>] [--clear]
-                                    ce qu'on écrit sur une photo (ADR 0099) :
-                                    conservé quoi qu'il arrive au fichier, et
-                                    porté dans le sidecar XMP ; sans option,
-                                    affiche ce qui est écrit
+                                    what one writes about a photo (ADR 0099):
+                                    kept whatever happens to the file, and
+                                    carried into the XMP sidecar; with no option,
+                                    prints what is written
   leyline versions <library> <version-id>
-                                    les développements de cette photo (ADR 0094),
-                                    l'actuel marqué d'une étoile
-  leyline version-create <library> <version-id> [nom]
-                                    branche un second développement et le rend
-                                    actuel ; le nom est auto si absent
+                                    the developments of this photo (ADR 0094),
+                                    the current one starred
+  leyline version-create <library> <version-id> [name]
+                                    branches a second development and makes it
+                                    current; the name is generated if absent
   leyline version-switch <library> <version-id>
-                                    rend ce développement l'actuel — le graphe
-                                    n'est jamais réécrit
+                                    makes this development the current one —
+                                    the graph is never rewritten
   leyline sample-range <library> <version-id> <x,y>
-                                    luminance (axe d'affichage) et teinte sous
-                                    le point [0,1]² (ADR 0093) — pour écrire
-                                    soi-même un payload local-adjustment
+                                    luminance (display axis) and hue under the
+                                    [0,1]² point (ADR 0093) — to write a
+                                    local-adjustment payload by hand
   leyline auto-wb <library> <version-id> [--sample x,y] [--dry-run]
-                                    balance des blancs mesurée (ADR 0091) :
-                                    gris-monde sans --sample, pipette sur le
-                                    point [0,1]² avec ; --dry-run n'écrit rien
+                                    measured white balance (ADR 0091):
+                                    grey-world without --sample, eyedropper on
+                                    the [0,1]² point with it; --dry-run writes
+                                    nothing
   leyline tether <library> [--session <name>] [--preset <name>]
                [--set <setting>=<value>] [--capture-every <seconds>]
-                                    capture connectée (ADR 0038, ADR 0087) :
-                                    --session est le dossier sous Photos/,
-                                    --preset développe chaque photo à
-                                    l'arrivée, --set règle le boîtier
-                                    (shutter, aperture, iso, wb) et
-                                    --capture-every déclenche à intervalle
+                                    tethered capture (ADR 0038, ADR 0087):
+                                    --session is the folder under Photos/,
+                                    --preset develops each photo as it arrives,
+                                    --set drives the body (shutter, aperture,
+                                    iso, wb) and --capture-every releases the
+                                    shutter at an interval
   leyline watch <library> <folder>
   leyline ls <library> [--text <query>] [--rating <min>]
                [--camera <name>] [--lens <name>] [--iso <range>]
@@ -165,11 +163,11 @@ Usage:
   leyline camera-profiles <library>
   leyline lut <library> <file.cube>
   leyline luts <library>
-  leyline pair <library>            attache chaque JPEG boîtier au RAW de la même
-                                    prise (ADR 0079) ; l'import le fait déjà, ceci
-                                    rattrape ce qui a été importé avant
+  leyline pair <library>            attaches each in-camera JPEG to the RAW of
+                                    the same shot (ADR 0079); import already does
+                                    it, this catches up what was imported before
   leyline unpair <library> <asset-id>...
-                                    détache, et la photo revient dans la grille
+                                    detaches, and the photo returns to the grid
   leyline remove <library> <asset-id>...
                                     takes the photos out of the catalog; the
                                     files are left exactly where they are
@@ -256,25 +254,26 @@ Develop params (docs/pipeline.md §3.2, schema 1):
                                     (ADR 0113); green defaults to 0
   noise-reduction <luminance> <color>
   sharpening <amount> <radius> [masking]
-                                    masking confine la netteté aux contours
-                                    (ADR 0096) ; absent = 0, comme avant
+                                    masking confines the sharpening to edges
+                                    (ADR 0096); absent = 0, as before
   crop <x> <y> <width> <height>     percent 0-100, or `crop reset`
   perspective <vertical> <horizontal>
                                     keystone correction, integers in [-100, 100]
                                     (ADR 0052), or `perspective reset`
-  tone-curve [canal] <x,y> <x,y>... points in [0,1], strictly increasing x, or
-                                    `tone-curve reset` ; canal parmi
+  tone-curve [channel] <x,y> <x,y>...
+                                    points in [0,1], strictly increasing x, or
+                                    `tone-curve reset`; channel is one of
                                     master/red/green/blue (ADR 0098), absent =
-                                    la courbe maîtresse
+                                    the master curve
   reshape <from-x> <from-y> <to-x> <to-y> <radius> [strength]
-                                    déplace le contenu pris en (from) vers (to),
-                                    positions et rayon en pourcents 0-100,
-                                    strength dans [0, 1] (défaut 1) — ADR 0109 ;
-                                    `reshape reset` vide la liste
+                                    moves the content grabbed at (from) to
+                                    (to), positions and radius percent 0-100,
+                                    strength in [0, 1] (default 1) — ADR 0109;
+                                    `reshape reset` empties the list
   red-eye <x> <y> <radius> <feather> <darken>
-                                    position/rayon en pourcents 0-100,
-                                    feather/darken dans [0, 1] ; ajoute une
-                                    correction (ADR 0103), ou `red-eye reset`
+                                    position/radius percent 0-100,
+                                    feather/darken in [0, 1]; appends one
+                                    correction (ADR 0103), or `red-eye reset`
   spot-removal <tx> <ty> <sx> <sy> <radius> <feather> <opacity>
                                     positions/radius percent 0-100, feather/opacity 0-1;
                                     appends one spot, or `spot-removal reset` to clear all
@@ -285,12 +284,12 @@ Develop params (docs/pipeline.md §3.2, schema 1):
                                     \"rx\":0.3,\"ry\":0.3,\"angle\":0,\"feather\":0.5,
                                     \"inverted\":false},\"opacity\":1,
                                     \"adjustments\":{\"exposure\":-0.5}}';
-                                    adjustments accepte aussi clarity, texture,
-                                    sharpness (chacun dans [-100, 100]) et
-                                    noise_luminance, noise_color (dans [0, 100]),
-                                    les cinq opérateurs à voisinage de l'ADR 0108,
-                                    plus defringe_purple et defringe_green (dans
-                                    [0, 100], ADR 0116) ;
+                                    adjustments also accepts clarity, texture,
+                                    sharpness (each in [-100, 100]) and
+                                    noise_luminance, noise_color (in [0, 100]),
+                                    the five neighbourhood operators of ADR 0108,
+                                    plus defringe_purple and defringe_green (in
+                                    [0, 100], ADR 0116);
                                     @file reads the payload from a file instead
   local-adjustment rm <index>       removes the adjustment at that index
   local-adjustment reset            removes every local adjustment

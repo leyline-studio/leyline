@@ -2,9 +2,40 @@
 // listed with the keys that reach them.
 //
 // One of the dialogs hosted by `panels/dialogs.slint` (ADR 0045 §3).
+//
+// This is the card a photographer opens on their first evening with Leyline,
+// so it is the one list in the interface that must not be a subset of what
+// `studio.slint` actually binds: a key missing here is a feature nobody
+// finds. Grouped by *where* a key works, because several of them mean
+// different things in the library and in develop.
 
 import { DialogState } from "../state/dialog.slint";
 import { FilterChip } from "../widgets/controls.slint";
+
+// One line of the card: the keys, then what they do.
+component Shortcut inherits HorizontalLayout {
+    in property <string> keys;
+    in property <string> what;
+    spacing: 12px;
+    Text {
+        text: root.keys;
+        color: #e6e6e6;
+        font-size: 12px;
+        font-weight: 600;
+        width: 110px;
+    }
+    Text {
+        text: root.what;
+        color: #9a9a9a;
+        font-size: 12px;
+    }
+}
+
+component Section inherits Text {
+    color: #6fa8dc;
+    font-size: 11px;
+    font-weight: 600;
+}
 
 export component ShortcutsDialog inherits VerticalLayout {
     spacing: 12px;
@@ -16,260 +47,121 @@ export component ShortcutsDialog inherits VerticalLayout {
     }
     VerticalLayout {
         spacing: 4px;
-        HorizontalLayout {
-            spacing: 12px;
-            Text {
-                text: "G / D";
-                color: #e6e6e6;
-                font-size: 12px;
-                font-weight: 600;
-                width: 110px;
-            }
-            Text {
-                text: @tr("Library / develop");
-                color: #9a9a9a;
-                font-size: 12px;
-            }
+
+        Section {
+            text: @tr("Anywhere");
         }
-        HorizontalLayout {
-            spacing: 12px;
-            Text {
-                text: "I";
-                color: #e6e6e6;
-                font-size: 12px;
-                font-weight: 600;
-                width: 110px;
-            }
-            Text {
-                text: @tr("Import");
-                color: #9a9a9a;
-                font-size: 12px;
-            }
+        Shortcut {
+            keys: "Tab / Shift+Tab";
+            what: @tr("Fold the panels / fold everything");
         }
-        HorizontalLayout {
-            spacing: 12px;
-            Text {
-                text: "E";
-                color: #e6e6e6;
-                font-size: 12px;
-                font-weight: 600;
-                width: 110px;
-            }
-            Text {
-                text: @tr("Loupe (large view)");
-                color: #9a9a9a;
-                font-size: 12px;
-            }
+        Shortcut {
+            keys: "Ctrl+E";
+            what: @tr("Export");
         }
-        HorizontalLayout {
-            spacing: 12px;
-            Text {
-                text: "C";
-                color: #e6e6e6;
-                font-size: 12px;
-                font-weight: 600;
-                width: 110px;
-            }
-            Text {
-                text: @tr("Compare two photos");
-                color: #9a9a9a;
-                font-size: 12px;
-            }
+        Shortcut {
+            keys: "Ctrl+P";
+            what: @tr("Print");
         }
-        HorizontalLayout {
-            spacing: 12px;
-            Text {
-                text: "N";
-                color: #e6e6e6;
-                font-size: 12px;
-                font-weight: 600;
-                width: 110px;
-            }
-            Text {
-                text: @tr("Survey the selection");
-                color: #9a9a9a;
-                font-size: 12px;
-            }
+        Shortcut {
+            keys: "Ctrl+C / Ctrl+V";
+            what: @tr("Copy / paste develop settings");
         }
-        HorizontalLayout {
-            spacing: 12px;
-            Text {
-                text: "Tab / Shift+Tab";
-                color: #e6e6e6;
-                font-size: 12px;
-                font-weight: 600;
-                width: 110px;
-            }
-            Text {
-                text: @tr("Fold the panels");
-                color: #9a9a9a;
-                font-size: 12px;
-            }
+
+        Section {
+            text: @tr("Library");
         }
-        HorizontalLayout {
-            spacing: 12px;
-            Text {
-                text: "Ctrl+E";
-                color: #e6e6e6;
-                font-size: 12px;
-                font-weight: 600;
-                width: 110px;
-            }
-            Text {
-                text: @tr("Export");
-                color: #9a9a9a;
-                font-size: 12px;
-            }
+        Shortcut {
+            keys: "D / Enter";
+            what: @tr("Develop the selected photo");
         }
-        HorizontalLayout {
-            spacing: 12px;
-            Text {
-                text: "T";
-                color: #e6e6e6;
-                font-size: 12px;
-                font-weight: 600;
-                width: 110px;
-            }
-            Text {
-                text: @tr("Tethered capture");
-                color: #9a9a9a;
-                font-size: 12px;
-            }
+        Shortcut {
+            keys: "E";
+            what: @tr("Loupe (large view)");
         }
-        HorizontalLayout {
-            spacing: 12px;
-            Text {
-                text: "Ctrl+N";
-                color: #e6e6e6;
-                font-size: 12px;
-                font-weight: 600;
-                width: 110px;
-            }
-            Text {
-                text: @tr("New collection");
-                color: #9a9a9a;
-                font-size: 12px;
-            }
+        Shortcut {
+            keys: "C";
+            what: @tr("Compare two photos");
         }
-        HorizontalLayout {
-            spacing: 12px;
-            Text {
-                text: "B / Shift+B";
-                color: #e6e6e6;
-                font-size: 12px;
-                font-weight: 600;
-                width: 110px;
-            }
-            Text {
-                text: @tr("Add / remove from collection");
-                color: #9a9a9a;
-                font-size: 12px;
-            }
+        Shortcut {
+            keys: "N";
+            what: @tr("Survey the selection");
         }
-        HorizontalLayout {
-            spacing: 12px;
-            Text {
-                text: "Shift+R";
-                color: #e6e6e6;
-                font-size: 12px;
-                font-weight: 600;
-                width: 110px;
-            }
-            Text {
-                text: @tr("Reprocess library");
-                color: #9a9a9a;
-                font-size: 12px;
-            }
+        Shortcut {
+            keys: "M";
+            what: @tr("Map of the geotagged photos");
         }
-        HorizontalLayout {
-            spacing: 12px;
-            Text {
-                text: "R";
-                color: #e6e6e6;
-                font-size: 12px;
-                font-weight: 600;
-                width: 110px;
-            }
-            Text {
-                text: @tr("Reprocess (develop mode)");
-                color: #9a9a9a;
-                font-size: 12px;
-            }
+        Shortcut {
+            keys: "I";
+            what: @tr("Import");
         }
-        HorizontalLayout {
-            spacing: 12px;
-            Text {
-                text: "Ctrl+Z / Ctrl+Y";
-                color: #e6e6e6;
-                font-size: 12px;
-                font-weight: 600;
-                width: 110px;
-            }
-            Text {
-                text: @tr("Undo / redo");
-                color: #9a9a9a;
-                font-size: 12px;
-            }
+        Shortcut {
+            keys: "T";
+            what: @tr("Tethered capture");
         }
-        HorizontalLayout {
-            spacing: 12px;
-            Text {
-                text: "S";
-                color: #e6e6e6;
-                font-size: 12px;
-                font-weight: 600;
-                width: 110px;
-            }
-            Text {
-                text: @tr("Save preset");
-                color: #9a9a9a;
-                font-size: 12px;
-            }
+        Shortcut {
+            keys: "Ctrl+N";
+            what: @tr("New collection");
         }
-        HorizontalLayout {
-            spacing: 12px;
-            Text {
-                text: "0–5";
-                color: #e6e6e6;
-                font-size: 12px;
-                font-weight: 600;
-                width: 110px;
-            }
-            Text {
-                text: @tr("Rate");
-                color: #9a9a9a;
-                font-size: 12px;
-            }
+        Shortcut {
+            keys: "B / Shift+B";
+            what: @tr("Add / remove from collection");
         }
-        HorizontalLayout {
-            spacing: 12px;
-            Text {
-                text: "6–9";
-                color: #e6e6e6;
-                font-size: 12px;
-                font-weight: 600;
-                width: 110px;
-            }
-            Text {
-                text: @tr("Color label");
-                color: #9a9a9a;
-                font-size: 12px;
-            }
+        Shortcut {
+            keys: "Shift+R";
+            what: @tr("Reprocess library");
         }
-        HorizontalLayout {
-            spacing: 12px;
-            Text {
-                text: "P / X / U";
-                color: #e6e6e6;
-                font-size: 12px;
-                font-weight: 600;
-                width: 110px;
-            }
-            Text {
-                text: @tr("Pick / reject / clear");
-                color: #9a9a9a;
-                font-size: 12px;
-            }
+        Shortcut {
+            keys: @tr("Arrows");
+            what: @tr("Move the selection");
+        }
+        Shortcut {
+            keys: "0–5";
+            what: @tr("Rate");
+        }
+        Shortcut {
+            keys: "6–9";
+            what: @tr("Color label");
+        }
+        Shortcut {
+            keys: "P / X / U";
+            what: @tr("Pick / reject / clear");
+        }
+
+        Section {
+            text: @tr("Develop");
+        }
+        Shortcut {
+            keys: "G / Esc";
+            what: @tr("Back to the library");
+        }
+        Shortcut {
+            keys: "Ctrl+Z / Ctrl+Y";
+            what: @tr("Undo / redo");
+        }
+        Shortcut {
+            keys: "\\";
+            what: @tr("Before / after");
+        }
+        Shortcut {
+            keys: "J";
+            what: @tr("Clipping warnings");
+        }
+        Shortcut {
+            keys: "Z";
+            what: @tr("Zoom to 100%");
+        }
+        Shortcut {
+            keys: "S";
+            what: @tr("Save preset");
+        }
+        Shortcut {
+            keys: "R";
+            what: @tr("Reprocess this photo");
+        }
+        Shortcut {
+            keys: "← / →";
+            what: @tr("Previous / next photo");
         }
     }
     HorizontalLayout {

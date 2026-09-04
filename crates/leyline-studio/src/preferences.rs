@@ -288,6 +288,144 @@ mod tests {
         assert_eq!(on_disk, named);
     }
 
+    /// The shape of every `.po` entry must match the `.pot`'s, and every
+    /// entry must be translated.
+    ///
+    /// Two failures this catches, both of which leave a French interface
+    /// showing English with nothing reporting anything (ADR 0019,
+    /// Consequences):
+    ///
+    /// * an entry the template declares `msgid_plural` for, answered with a
+    ///   singular `msgstr`. A plural lookup reads `msgstr[N]`, finds none,
+    ///   and falls back to the English `msgid` for every count above one.
+    ///   Six entries were in that state — the grid's photo count and the two
+    ///   confirmations before removing or deleting photographs among them —
+    ///   and they all *looked* translated;
+    /// * a `msgstr` left empty by a re-extraction that added a string.
+    ///
+    /// Reads the files rather than the bundle: `slint_build` compiles the
+    /// `.po`s into the binary, and by then a missing plural form is
+    /// indistinguishable from a translation that happens to equal English.
+    #[test]
+    fn every_translation_entry_matches_the_templates_shape() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("translations");
+        let template = parse_entries(&root.join("leyline-studio.pot"));
+        assert!(!template.is_empty(), "the template must not be empty");
+
+        for (tag, _) in TRANSLATED_LANGUAGES {
+            let catalog = parse_entries(&root.join(tag).join("LC_MESSAGES/leyline-studio.po"));
+            for entry in &template {
+                let Some(translated) = catalog.iter().find(|e| e.id == entry.id) else {
+                    panic!("{tag}: nothing translates {:?}", entry.id);
+                };
+                assert_eq!(
+                    translated.plural, entry.plural,
+                    "{tag}: {:?} is plural in the template and not in the translation, or the \
+                     other way round — a plural lookup would fall back to English",
+                    entry.id
+                );
+                // The defect that started this test: `msgid_plural` present,
+                // and the forms given as a single `msgstr` instead of
+                // `msgstr[0]`/`msgstr[1]`. Everything reads as translated;
+                // the lookup finds no indexed form and shows English.
+                if entry.plural {
+                    assert!(
+                        translated.indexed && translated.texts.len() >= 2,
+                        "{tag}: {:?} is plural, so it needs msgstr[0] and msgstr[1] — a single \
+                         msgstr answers no plural lookup",
+                        entry.id
+                    );
+                } else {
+                    assert!(
+                        !translated.indexed,
+                        "{tag}: {:?} is not plural, so it takes one plain msgstr",
+                        entry.id
+                    );
+                }
+                assert!(
+                    !translated.texts.is_empty()
+                        && translated.texts.iter().all(|text| !text.is_empty()),
+                    "{tag}: {:?} is left untranslated",
+                    entry.id
+                );
+            }
+        }
+    }
+
+    /// One entry of a gettext catalog, reduced to what the test compares.
+    struct Entry {
+        /// The `msgid`, joined across its continuation lines.
+        id: String,
+        /// Whether the entry declares a `msgid_plural`.
+        plural: bool,
+        /// The `msgstr` (one) or the `msgstr[N]` forms (several). Empty for
+        /// the template, whose forms are all blank by construction.
+        texts: Vec<String>,
+        /// Whether those forms were written `msgstr[N]` rather than
+        /// `msgstr`. Kept apart from `plural`, which reads the *template's*
+        /// side: the two disagreeing is exactly the defect.
+        indexed: bool,
+    }
+
+    /// Reads a `.po`/`.pot` far enough to compare entry shapes.
+    ///
+    /// Deliberately small: it handles the two things gettext files do that a
+    /// line-by-line reader gets wrong — a value continued over several
+    /// quoted lines, and the header entry, whose `msgid` is empty. Anything
+    /// beyond that (escapes, comments, obsolete entries) it leaves alone,
+    /// because none of it changes an entry's shape.
+    fn parse_entries(path: &Path) -> Vec<Entry> {
+        let text = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{path:?}: {e}"));
+        let mut entries = Vec::new();
+        let mut current: Option<Entry> = None;
+        let mut collecting: Option<usize> = None;
+        for line in text.lines() {
+            let line = line.trim();
+            let quoted = |rest: &str| rest.trim().trim_matches('"').to_owned();
+            if let Some(rest) = line.strip_prefix("msgid ") {
+                if let Some(entry) = current.take()
+                    && !entry.id.is_empty()
+                {
+                    entries.push(entry);
+                }
+                current = Some(Entry {
+                    id: quoted(rest),
+                    plural: false,
+                    texts: Vec::new(),
+                    indexed: false,
+                });
+                collecting = None;
+            } else if let Some(entry) = current.as_mut() {
+                if line.starts_with("msgid_plural ") {
+                    entry.plural = true;
+                    collecting = None;
+                } else if let Some(rest) = line.strip_prefix("msgstr ") {
+                    entry.texts.push(quoted(rest));
+                    collecting = Some(entry.texts.len() - 1);
+                } else if line.starts_with("msgstr[") {
+                    let rest = line.split_once(']').map_or("", |(_, rest)| rest);
+                    entry.texts.push(quoted(rest));
+                    entry.indexed = true;
+                    collecting = Some(entry.texts.len() - 1);
+                } else if line.starts_with('"') {
+                    // A continuation line belongs to whatever was last read.
+                    match collecting {
+                        Some(index) => entry.texts[index].push_str(&quoted(line)),
+                        None => entry.id.push_str(&quoted(line)),
+                    }
+                } else if line.is_empty() {
+                    collecting = None;
+                }
+            }
+        }
+        if let Some(entry) = current.take()
+            && !entry.id.is_empty()
+        {
+            entries.push(entry);
+        }
+        entries
+    }
+
     #[test]
     fn a_missing_file_reads_as_the_offline_defaults() {
         let preferences = load_preferences(Path::new("/nonexistent/preferences.json"));

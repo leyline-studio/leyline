@@ -7,7 +7,7 @@ use std::rc::Rc;
 use crate::app::{App, SORTS, item_at, report_error, selected_versions};
 use crate::classify;
 use crate::classify::Action;
-use crate::ui::{FilterState, GridState, StudioWindow};
+use crate::ui::{CollectionState, FilterState, FolderState, GridState, StudioWindow};
 use crate::wiring::grid::reload;
 use leyline_sdk::{ColorLabel, GridQuery, PickState, ShotRange};
 use slint::{ComponentHandle, Global, Model, ModelRc, SharedString, VecModel};
@@ -225,6 +225,40 @@ pub(crate) fn wire_filters(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             app.query.focal_length = ShotRange::default();
             app.query.shutter_speed = ShotRange::default();
             publish_shot_filters(&app, &window);
+            on_error(&window, reload(&mut app, &window));
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        // The way back from a grid narrowed to nothing (ADR 0054 §1). Several
+        // criteria may be on at once — a folder *and* three stars *and* a
+        // search — so the empty grid cannot point at the one chip to click;
+        // this drops the lot and republishes every mirror of it.
+        GridState::get(window).on_clear_criteria(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            crate::wiring::library::forget_proposal(&mut app, &window);
+            // Sort and the row window are not criteria: the order the
+            // photographer chose survives showing everything again.
+            let sort = app.query.sort;
+            let range = app.query.range.clone();
+            app.query = GridQuery {
+                sort,
+                range,
+                ..GridQuery::default()
+            };
+            app.keyword_filter = None;
+            let filters = FilterState::get(&window);
+            filters.set_filter_rating(0);
+            filters.set_filter_label(-1);
+            filters.set_filter_pick(-1);
+            filters.set_filter_keyword_label(SharedString::default());
+            publish_shot_filters(&app, &window);
+            FolderState::get(&window).set_active_folder(-1);
+            CollectionState::get(&window).set_active_collection(-1);
             on_error(&window, reload(&mut app, &window));
         });
     }

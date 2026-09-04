@@ -53,9 +53,8 @@ between releases.
 ## Status — not released yet
 
 There is **no packaged download**. The V1 scope is implemented and the test
-suite is green, but nothing has been published, no version number has been cut,
-and the documentation is in French. Building from source is the only way to run
-it today.
+suite is green, but nothing has been published and no release has been cut.
+Building from source is the only way to run it today.
 
 ## Build from source
 

@@ -521,8 +521,14 @@ export component BrowserPanel inherits HorizontalLayout {
                 padding-left: 8px;
                 padding-right: 24px;
 
+                // Two different empty grids, and telling them apart is the
+                // whole point: a library that holds nothing wants photographs
+                // imported, a library narrowed to nothing wants the criteria
+                // widened. Offering "Import…" to someone whose only mistake
+                // was a three-star filter sends them the wrong way, and
+                // saying "No photos yet" about 38 000 photographs is a lie.
                 Text {
-                    text: @tr("No photos yet");
+                    text: GridState.narrowed ? @tr("No photo matches") : @tr("No photos yet");
                     color: #e6e6e6;
                     font-size: 18px;
                 }
@@ -532,7 +538,9 @@ export component BrowserPanel inherits HorizontalLayout {
                     // that one with "Recursion detected" at startup, the
                     // geometry hazard of ADR 0045 §3 in its most literal form.
                     width: 420px;
-                    text: @tr("Import a folder of photos, or watch one so new shots arrive on their own.");
+                    text: GridState.narrowed
+                        ? @tr("The library is not empty — nothing in it answers the filters, the search or the folder currently selected.")
+                        : @tr("Import a folder of photos, or watch one so new shots arrive on their own.");
                     color: #9a9a9a;
                     font-size: 13px;
                     wrap: word-wrap;
@@ -540,14 +548,26 @@ export component BrowserPanel inherits HorizontalLayout {
                 HorizontalLayout {
                     spacing: 10px;
                     alignment: start;
-                    FilterChip {
+                    if GridState.narrowed: FilterChip {
+                        text: @tr("Show all photos");
+                        active: true;
+                        clicked => {
+                            // The search box holds its own text — the query
+                            // Rust just reset knows nothing about it, so it
+                            // is cleared here or the box would still show a
+                            // term that no longer filters anything.
+                            search-input.text = "";
+                            GridState.clear-criteria();
+                        }
+                    }
+                    if !GridState.narrowed: FilterChip {
                         text: @tr("Import photos…");
                         active: true;
                         clicked => {
                             DialogState.dialog = "import";
                         }
                     }
-                    FilterChip {
+                    if !GridState.narrowed: FilterChip {
                         text: @tr("Watch a folder…");
                         active: false;
                         clicked => {

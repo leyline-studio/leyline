@@ -460,6 +460,39 @@ export global Tr {
     public pure function import-failed(reason: string) -> string {
         return @tr("Import failed: {}", reason);
     }
+    // What a finished batch says. Assembled here rather than in Rust for the
+    // reason given at the top of this global: a sentence built in Rust is a
+    // sentence no `.pot` ever learns about, and these three are the lines a
+    // photographer reads after every import, export and print.
+    public pure function imported(n: int) -> string {
+        return @tr("{} photo imported." | "{} photos imported." % n, n);
+    }
+    public pure function imported-with-skips(n: int, skipped: int, reason: string) -> string {
+        return @tr("{} imported, {} skipped ({}).", n, skipped, reason);
+    }
+    public pure function exported-to(path: string) -> string {
+        return @tr("Exported to {}.", path);
+    }
+    public pure function nothing-to-export() -> string {
+        return @tr("Nothing to export.");
+    }
+    public pure function printed-to(path: string) -> string {
+        return @tr("Printed to {}.", path);
+    }
+    public pure function nothing-to-print() -> string {
+        return @tr("Nothing to print.");
+    }
+    public pure function system-language() -> string {
+        return @tr("System language");
+    }
+    // Renaming (ADR 0100 §2): a refusal is the outcome the photographer most
+    // needs to read, so it is worded here rather than assembled in Rust.
+    public pure function renamed(n: int) -> string {
+        return @tr("{} file renamed." | "{} files renamed." % n, n);
+    }
+    public pure function renamed-with-refusals(n: int, refused: int, reason: string) -> string {
+        return @tr("{} renamed, {} refused — {}", n, refused, reason);
+    }
     public pure function export-failed(reason: string) -> string {
         return @tr("Export failed: {}", reason);
     }

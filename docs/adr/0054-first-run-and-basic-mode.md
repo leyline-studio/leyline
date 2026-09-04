@@ -43,6 +43,24 @@ new behind them.
 The shortcut stays displayed where it is. A shortcut is discovered after the
 fact; it does not replace a front door.
 
+**And an empty grid is two different situations.** A library that holds
+nothing wants photographs imported; a library whose filters, search, folder or
+collection happen to match nothing wants those criteria widened. Offering
+*Import…* to someone whose only mistake was a three-star filter sends them the
+wrong way, and telling someone with 38 000 photographs that they have none is
+simply false. So the block reads the query, not the row count: when the query
+narrows the library at all, it says **no photograph matches**, explains that
+the library is not empty, and offers the one gesture that gets out —
+*Show all photos*, which drops every criterion at once and leaves the sort
+order alone.
+
+Which of the two it is is not guessed from the filter chips the interface
+mirrors: `GridQuery::narrows()` answers it in the catalog, beside the struct
+whose every field is a criterion, so a criterion added later cannot quietly
+stop counting (ADR 0045 §1 — the UI never decides what matches). One button
+rather than one per criterion: several may be on at once, and an empty grid
+cannot point at the one to click.
+
 ### 2. Develop opens in **Basic** mode, and **Full** mode is one click away
 
 Two levels of disclosure, chosen by a switch at the head of the panel:

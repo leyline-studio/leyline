@@ -11,6 +11,12 @@ export global GridState {
     // `window-start + i` out of `total-cells` matching rows.
     in property <[Cell]> cells;
     in property <int> total-cells;
+    // Whether the query behind those rows narrows the library at all — a
+    // filter, a search, a folder, a collection, a culling proposal. Sent by
+    // Rust from `GridQuery::narrows()` rather than guessed from the mirrored
+    // filter chips, which is what lets the empty grid tell an empty library
+    // apart from criteria that match nothing.
+    in property <bool> narrowed;
     in property <int> window-start;
     in-out property <int> selected: -1;
     callback select(int);
@@ -18,6 +24,10 @@ export global GridState {
     // (multi-select) — plain clicks (both false) behave like `select`.
     callback cell-clicked(int, bool, bool);
     callback classify(string);
+    // Drops every criterion at once and shows the whole library again: the
+    // way out of a grid narrowed to nothing, where no single chip is the one
+    // to click because several of them may be on at the same time.
+    callback clear-criteria();
     // First visible cell and how many cells fit, sent on scroll or resize.
     callback viewport-moved(int, int);
     // Loupe view (ADR 0055 §3): the selected photo, large, from the same

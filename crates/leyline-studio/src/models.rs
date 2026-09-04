@@ -6,36 +6,44 @@
 use std::rc::Rc;
 
 use crate::app::SORTS;
-use leyline_sdk::{ColorLabel, ExportReport, PrintReport, Settings, SkippedFile, Sort};
+use leyline_sdk::{ColorLabel, ExportReport, PrintReport, Settings, Sort};
 use slint::{ModelRc, SharedString, VecModel};
 
-/// One line summing up an import batch for the dialog.
-pub(crate) fn import_summary(imported: usize, skipped: &[SkippedFile]) -> String {
-    match skipped {
-        [] => format!("{imported} imported."),
-        [first, ..] => format!(
-            "{imported} imported, {} skipped ({}).",
-            skipped.len(),
-            first.reason
-        ),
-    }
+/// What a finished export or print batch amounts to, before it is worded.
+///
+/// The sentence itself lives in `Tr` (`ui/types.slint`) like every other
+/// sentence the photographer reads: one built here would be a string no
+/// `.pot` ever learns about, and the dialog would answer an import in
+/// French and an export in English. What stays here is the only part that
+/// is a decision rather than wording — which of the three cases a report
+/// falls into.
+pub(crate) enum BatchOutcome<'a> {
+    /// At least one file was written; this is the first of them.
+    Done(&'a std::path::Path),
+    /// Nothing was written and the first failure said this.
+    Failed(&'a str),
+    /// The batch had nothing to do.
+    Nothing,
 }
 
-/// One line summing up an export batch for the dialog.
-pub(crate) fn export_summary(report: &ExportReport) -> String {
+/// Reads an export report as one of the three outcomes.
+///
+/// A batch that wrote *and* failed counts as done: the photographer has
+/// files on disk, and the count in the dialog already says how many.
+pub(crate) fn export_outcome(report: &ExportReport) -> BatchOutcome<'_> {
     match (report.exported.first(), report.failed.first()) {
-        (Some(done), _) => format!("Exported to {}.", done.path.display()),
-        (None, Some(failed)) => format!("Export failed: {}", failed.reason),
-        (None, None) => "Nothing to export.".to_owned(),
+        (Some(done), _) => BatchOutcome::Done(&done.path),
+        (None, Some(failed)) => BatchOutcome::Failed(&failed.reason),
+        (None, None) => BatchOutcome::Nothing,
     }
 }
 
-/// One line summing up a print batch for the dialog (ADR 0036).
-pub(crate) fn print_summary(report: &PrintReport) -> String {
+/// Reads a print report the same way (ADR 0036).
+pub(crate) fn print_outcome(report: &PrintReport) -> BatchOutcome<'_> {
     match (report.printed.first(), report.failed.first()) {
-        (Some(done), _) => format!("Printed to {}.", done.path.display()),
-        (None, Some(failed)) => format!("Print failed: {}", failed.reason),
-        (None, None) => "Nothing to print.".to_owned(),
+        (Some(done), _) => BatchOutcome::Done(&done.path),
+        (None, Some(failed)) => BatchOutcome::Failed(&failed.reason),
+        (None, None) => BatchOutcome::Nothing,
     }
 }
 
@@ -408,25 +416,6 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn import_summaries_count_and_explain() {
-        assert_eq!(import_summary(3, &[]), "3 imported.");
-        let skipped = vec![
-            SkippedFile {
-                path: PathBuf::from("/photos/a.xmp"),
-                reason: "unsupported file type".to_owned(),
-            },
-            SkippedFile {
-                path: PathBuf::from("/photos/b.xmp"),
-                reason: "unsupported file type".to_owned(),
-            },
-        ];
-        assert_eq!(
-            import_summary(1, &skipped),
-            "1 imported, 2 skipped (unsupported file type)."
-        );
-    }
-
     fn source(id: &str, label: &str, detections: &[(&str, &str)]) -> leyline_sdk::DetectorSource {
         leyline_sdk::DetectorSource {
             id: id.to_owned(),
@@ -602,18 +591,27 @@ mod tests {
     }
 
     #[test]
-    fn export_summaries_show_the_file_or_the_failure() {
+    fn export_outcomes_name_the_file_or_the_failure() {
+        // The wording is `Tr`'s business; what is asserted here is which of
+        // the three cases a report falls into, and that a batch which wrote
+        // something reports the file even when another version failed.
         let mut report = ExportReport::default();
-        assert_eq!(export_summary(&report), "Nothing to export.");
+        assert!(matches!(export_outcome(&report), BatchOutcome::Nothing));
         report.failed.push(FailedExport {
             version: VersionId::new(7),
             reason: "no such version".to_owned(),
         });
-        assert_eq!(export_summary(&report), "Export failed: no such version");
+        assert!(matches!(
+            export_outcome(&report),
+            BatchOutcome::Failed("no such version")
+        ));
         report.exported.push(ExportedVersion {
             version: VersionId::new(7),
             path: PathBuf::from("/out/photo.jpg"),
         });
-        assert_eq!(export_summary(&report), "Exported to /out/photo.jpg.");
+        let BatchOutcome::Done(path) = export_outcome(&report) else {
+            panic!("a written file outranks a failure");
+        };
+        assert_eq!(path, PathBuf::from("/out/photo.jpg"));
     }
 }

@@ -202,6 +202,36 @@ impl Default for GridQuery {
     }
 }
 
+impl GridQuery {
+    /// Whether this query narrows the library — any criterion beyond the
+    /// order and the window of rows asked for.
+    ///
+    /// A client showing an empty grid needs to tell two situations apart: a
+    /// library that holds nothing, and a library whose criteria happen to
+    /// match nothing. They call for opposite remedies — import photographs,
+    /// or widen the criteria — and the answer belongs here rather than in a
+    /// client re-deriving it from mirrored state, which would drift the
+    /// moment a criterion is added to the struct above.
+    #[must_use]
+    pub fn narrows(&self) -> bool {
+        self.folder.is_some()
+            || self.collection.is_some()
+            || self.rating_at_least.is_some()
+            || self.color_label.is_some()
+            || self.pick.is_some()
+            || !self.assets.is_empty()
+            || !self.keywords.is_empty()
+            || self.text.is_some()
+            || self.capture_range.is_some()
+            || self.camera.is_some()
+            || self.lens.is_some()
+            || self.iso != ShotRange::default()
+            || self.aperture != ShotRange::default()
+            || self.focal_length != ShotRange::default()
+            || self.shutter_speed != ShotRange::default()
+    }
+}
+
 /// The grid select list, in order.
 ///
 /// [`Catalog::grid`] reads its rows **by position**, which is only safe as

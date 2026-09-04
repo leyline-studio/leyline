@@ -16,7 +16,7 @@ The aim is not to reproduce an existing product feature by feature, but to build
 
 ---
 
-## Project status — August 2026
+## Project status — September 2026
 
 **The V1 scope is delivered in full**, on all three clients (Studio, CLI, SDK): import, catalog, thumbnails, EXIF, the complete non-destructive develop pipeline, lens correction, colour management, presets, reprocessing, JPEG/TIFF/WebP/AVIF export, printing, tethering, watched folder, map view, installers and a multilingual interface.
 

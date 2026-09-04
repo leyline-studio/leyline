@@ -102,8 +102,9 @@ const MIN_WINDOW_HEIGHT: f32 = 600.0;
 ///
 /// The two must be changed together: this one decides whether the window
 /// *starts* wide enough to show the panels, that one decides whether they
-/// are shown at any given width.
-const PANELS_THRESHOLD: f32 = 1340.0;
+/// are shown at any given width. `studio.slint` carries the measurement
+/// behind the number.
+const PANELS_THRESHOLD: f32 = 1400.0;
 
 /// How much of the screen a window may occupy at startup.
 ///

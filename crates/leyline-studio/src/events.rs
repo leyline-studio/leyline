@@ -9,7 +9,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use crate::app::{App, MAX_PREVIEW_JOBS, item_at, report_error};
-use crate::models::{export_summary, import_summary, print_summary};
+use crate::models::{BatchOutcome, export_outcome, print_outcome};
 use crate::ui::{DialogState, GridState, LibraryState, StudioWindow, TetherState, Tr};
 use crate::wiring::filters::refresh_shot_facets;
 use crate::wiring::folders::refresh_folders;
@@ -139,7 +139,15 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
                 app.import_job = None;
                 DialogState::get(window).set_dialog_result(match result {
                     JobResult::Import(report) => {
-                        SharedString::from(import_summary(report.imported.len(), &report.skipped))
+                        let imported = i32::try_from(report.imported.len()).unwrap_or(i32::MAX);
+                        match report.skipped.first() {
+                            None => Tr::get(window).invoke_imported(imported),
+                            Some(first) => Tr::get(window).invoke_imported_with_skips(
+                                imported,
+                                i32::try_from(report.skipped.len()).unwrap_or(i32::MAX),
+                                SharedString::from(first.reason.as_str()),
+                            ),
+                        }
                     }
                     JobResult::Failed(reason) => {
                         Tr::get(window).invoke_import_failed(SharedString::from(reason))
@@ -157,7 +165,14 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
             } else if app.export_job == Some(job_id) {
                 app.export_job = None;
                 DialogState::get(window).set_dialog_result(match result {
-                    JobResult::Export(report) => SharedString::from(export_summary(&report)),
+                    JobResult::Export(report) => match export_outcome(&report) {
+                        BatchOutcome::Done(path) => Tr::get(window)
+                            .invoke_exported_to(SharedString::from(path.display().to_string())),
+                        BatchOutcome::Failed(reason) => {
+                            Tr::get(window).invoke_export_failed(SharedString::from(reason))
+                        }
+                        BatchOutcome::Nothing => Tr::get(window).invoke_nothing_to_export(),
+                    },
                     JobResult::Failed(reason) => {
                         Tr::get(window).invoke_export_failed(SharedString::from(reason))
                     }
@@ -166,7 +181,14 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
             } else if app.print_job == Some(job_id) {
                 app.print_job = None;
                 DialogState::get(window).set_dialog_result(match result {
-                    JobResult::Print(report) => SharedString::from(print_summary(&report)),
+                    JobResult::Print(report) => match print_outcome(&report) {
+                        BatchOutcome::Done(path) => Tr::get(window)
+                            .invoke_printed_to(SharedString::from(path.display().to_string())),
+                        BatchOutcome::Failed(reason) => {
+                            Tr::get(window).invoke_print_failed(SharedString::from(reason))
+                        }
+                        BatchOutcome::Nothing => Tr::get(window).invoke_nothing_to_print(),
+                    },
                     JobResult::Failed(reason) => {
                         Tr::get(window).invoke_print_failed(SharedString::from(reason))
                     }

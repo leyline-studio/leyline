@@ -8,7 +8,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::app::{App, selected_indices};
-use crate::ui::{DialogState, GridState, StudioWindow};
+use crate::ui::{DialogState, GridState, StudioWindow, Tr};
 use slint::{ComponentHandle, Global, SharedString};
 
 pub(crate) fn wire_rename(app: &Rc<RefCell<App>>, window: &StudioWindow) {
@@ -36,7 +36,7 @@ pub(crate) fn wire_rename(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 .collect();
             if assets.is_empty() {
                 DialogState::get(&window)
-                    .set_dialog_result(SharedString::from("Select a photo first."));
+                    .set_dialog_result(Tr::get(&window).invoke_select_photo_first());
                 return;
             }
             // The template is remembered: renaming a second batch the same
@@ -53,16 +53,16 @@ pub(crate) fn wire_rename(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             };
             // Reported, never silently closed: a refusal is the outcome the
             // user most needs to see (ADR 0100 §2).
+            let renamed = i32::try_from(report.renamed.len()).unwrap_or(i32::MAX);
             let message = match report.failed.first() {
-                None => format!("{} renamed.", report.renamed.len()),
-                Some(first) => format!(
-                    "{} renamed, {} refused — {}",
-                    report.renamed.len(),
-                    report.failed.len(),
-                    first.reason
+                None => Tr::get(&window).invoke_renamed(renamed),
+                Some(first) => Tr::get(&window).invoke_renamed_with_refusals(
+                    renamed,
+                    i32::try_from(report.failed.len()).unwrap_or(i32::MAX),
+                    SharedString::from(first.reason.as_str()),
                 ),
             };
-            DialogState::get(&window).set_dialog_result(SharedString::from(message));
+            DialogState::get(&window).set_dialog_result(message);
             if report.failed.is_empty() {
                 DialogState::get(&window).set_dialog(SharedString::default());
             }
