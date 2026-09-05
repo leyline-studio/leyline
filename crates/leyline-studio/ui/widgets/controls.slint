@@ -345,36 +345,101 @@ export component ZoomableImage inherits Rectangle {
 // Takes the cell model rather than reading `GridState` itself, like every
 // other control here — that is what lets the two panels mount it without
 // either of them owning it.
-export component Filmstrip inherits Flickable {
+export component Filmstrip inherits Rectangle {
     in property <[Cell]> cells;
     // Grid index of `cells[0]`, so a click can report a whole-grid index.
     in property <int> window-start;
     in property <int> selected;
     callback clicked(int);
 
-    height: 64px;
-    viewport-width: root.cells.length * 64px;
+    // One thumbnail's width, and the strip's height: the cells are square.
+    property <length> cell-size: 64px;
 
-    HorizontalLayout {
-        for cell[i] in root.cells: TouchArea {
-            width: 64px;
-            height: 64px;
-            clicked => {
-                root.clicked(root.window-start + i);
+    height: root.cell-size;
+
+    // Brings the current photo back into view.
+    //
+    // The strip shows the loaded window, and the arrow keys walk the whole
+    // grid: without this the highlight simply left the visible run of
+    // thumbnails and the strip went on showing a stretch of photographs
+    // that had nothing to do with the one on screen.
+    function scroll-into-view() {
+        if (root.selected < root.window-start
+            || root.selected >= root.window-start + root.cells.length) {
+            return;
+        }
+        // Scroll by the smallest amount that puts the cell inside: stepping
+        // off the left edge scrolls one cell left, off the right edge one
+        // cell right, and a cell already visible moves nothing.
+        if ((root.selected - root.window-start) * root.cell-size < -strip.viewport-x) {
+            strip.viewport-x = -(root.selected - root.window-start) * root.cell-size;
+        } else if ((root.selected - root.window-start + 1) * root.cell-size
+            > -strip.viewport-x + strip.width) {
+            strip.viewport-x = strip.width
+                - (root.selected - root.window-start + 1) * root.cell-size;
+        }
+    }
+    // Two handlers because both halves of "which cell is highlighted" move
+    // on their own: the selection walks inside the loaded window, and the
+    // window itself slides under the selection when navigation crosses a
+    // virtual-scrolling boundary.
+    changed selected => {
+        root.scroll-into-view();
+    }
+    changed window-start => {
+        root.scroll-into-view();
+    }
+
+    // The wheel, caught *under* the strip rather than on it.
+    //
+    // Slint's `Flickable` ignores a vertical wheel whenever its viewport is
+    // no taller than itself — which a one-row strip never is — so the
+    // gesture used to fall through to nothing at all. Ignoring is not
+    // swallowing: the event carries on to the items behind, and a
+    // `TouchArea` declared *before* the `Flickable` is exactly that. The
+    // cells keep their own `TouchArea`s in front, so a click still picks a
+    // photograph.
+    TouchArea {
+        scroll-event(event) => {
+            if (strip.viewport-width <= strip.width) {
+                return reject;
             }
-            Rectangle {
-                x: 2px;
-                y: 2px;
-                width: parent.width - 4px;
-                height: parent.height - 4px;
-                border-radius: 3px;
-                border-width: root.window-start + i == root.selected ? 2px : 0px;
-                border-color: #6fa8dc;
-                Image {
-                    source: cell.thumbnail;
-                    image-fit: contain;
-                    width: 100%;
-                    height: 100%;
+            // Both axes, added: `delta-y` is the ordinary wheel and
+            // `delta-x` the horizontal one — and Slint has already swapped
+            // the two when Shift was held.
+            strip.viewport-x = Math.clamp(
+                strip.viewport-x + event.delta-x + event.delta-y,
+                strip.width - strip.viewport-width, 0);
+            return accept;
+        }
+    }
+
+    strip := Flickable {
+        width: 100%;
+        height: 100%;
+        viewport-width: root.cells.length * root.cell-size;
+
+        HorizontalLayout {
+            for cell[i] in root.cells: TouchArea {
+                width: root.cell-size;
+                height: root.cell-size;
+                clicked => {
+                    root.clicked(root.window-start + i);
+                }
+                Rectangle {
+                    x: 2px;
+                    y: 2px;
+                    width: parent.width - 4px;
+                    height: parent.height - 4px;
+                    border-radius: 3px;
+                    border-width: root.window-start + i == root.selected ? 2px : 0px;
+                    border-color: #6fa8dc;
+                    Image {
+                        source: cell.thumbnail;
+                        image-fit: contain;
+                        width: 100%;
+                        height: 100%;
+                    }
                 }
             }
         }

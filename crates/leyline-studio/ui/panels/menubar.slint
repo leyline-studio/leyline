@@ -638,6 +638,34 @@ export component MenuBar inherits Rectangle {
     }
 
 
+    // The strip the row of labels sits on.
+    //
+    // The menu row *overlaps* the views rather than pushing them down (see
+    // the note below), so every panel that scrolls sends its content
+    // straight under these labels: the develop settings column, the presets
+    // column, the metadata panel. With nothing behind the words, a slider
+    // or a thumbnail slid up through them and the bar became unreadable
+    // exactly while it was being scrolled past.
+    //
+    // A plain sibling `Rectangle` — the one shape the repaint hazard below
+    // leaves available. It carries no `TouchArea`, so it changes nothing
+    // about where a click lands; only what is painted under the labels.
+    Rectangle {
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: 28px;
+        background: #1b1b1b;
+
+        // A hairline rather than a shadow: it separates the bar from
+        // whatever scrolls beneath it without pretending the bar floats.
+        Rectangle {
+            y: parent.height - 1px;
+            height: 1px;
+            background: #303030;
+        }
+    }
+
     // `MenuBar` was a magic top-level element Slint gives special sizing
     // treatment (reserving space above the rest of the content natively);
     // a plain `HorizontalLayout` isn't. `keys` above (and its content)

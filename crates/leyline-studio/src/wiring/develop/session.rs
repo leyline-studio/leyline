@@ -10,7 +10,7 @@ use super::refresh_develop;
 use crate::app::{App, item_at, report_error};
 use crate::models::rgb8_to_slint_image;
 use crate::ui::{DevelopState, GridState, StudioWindow};
-use crate::wiring::grid::reload;
+use crate::wiring::grid::{load_window, reload};
 use leyline_sdk::PreviewKind;
 use slint::{ComponentHandle, Global, SharedString};
 
@@ -123,9 +123,7 @@ pub(super) fn wire_session(app: &Rc<RefCell<App>>, window: &StudioWindow) {
 /// settings into the sliders.
 /// Moves the develop view to the grid row `delta` away from the currently
 /// selected one (±1), without leaving develop mode. A no-op past either
-/// end of the grid, or if that row isn't in the currently loaded window
-/// (`item_at`) — crossing a virtual-scroll window boundary while develop
-/// is open is rare enough not to warrant reloading the grid for it.
+/// end of the grid, and only there.
 pub(crate) fn develop_navigate(app: &mut App, window: &StudioWindow, delta: i32) {
     develop_switch_to(app, window, GridState::get(window).get_selected() + delta);
 }
@@ -136,6 +134,25 @@ pub(crate) fn develop_navigate(app: &mut App, window: &StudioWindow, delta: i32)
 pub(crate) fn develop_switch_to(app: &mut App, window: &StudioWindow, next: i32) {
     if next < 0 || next >= GridState::get(window).get_total_cells() {
         return;
+    }
+    // The arrow keys walk the whole grid, but only the loaded window has
+    // rows: stepping off its edge used to be a silent no-op, so the
+    // filmstrip stopped dead a screenful before the end of a folder and
+    // gave no reason why. The window is a cache, not a boundary — fetch
+    // the one holding `next` and carry on.
+    //
+    // Centred on `next` rather than merely extended to reach it: navigation
+    // that crossed an edge once is about to cross it again, and a window
+    // that begins where it is needed is one query, not one per photograph.
+    if item_at(app, next).is_none()
+        && let Ok(index) = usize::try_from(next)
+    {
+        let capacity = app.viewport.1.max(1);
+        app.viewport = (index.saturating_sub(capacity / 2), capacity);
+        if let Err(error) = load_window(app, window) {
+            report_error(window, &error);
+            return;
+        }
     }
     let Some((asset, version, filename)) =
         item_at(app, next).map(|item| (item.asset_id, item.version_id, item.filename.clone()))

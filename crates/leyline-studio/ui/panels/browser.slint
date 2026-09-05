@@ -57,11 +57,32 @@ export component BrowserPanel inherits HorizontalLayout {
         }
         GridState.selected = index;
         GridState.select(index);
+        root.scroll-into-view(index);
+    }
+
+    // Scrolls the grid by the smallest amount that puts row `index` inside
+    // the viewport, and nothing at all when it is already there.
+    function scroll-into-view(index: int) {
+        if (index < 0) {
+            return;
+        }
         if (Math.floor(index / flick.columns) * root.cell-size < -flick.viewport-y) {
             flick.viewport-y = -Math.floor(index / flick.columns) * root.cell-size;
         } else if ((Math.floor(index / flick.columns) + 1) * root.cell-size > -flick.viewport-y + flick.height) {
             flick.viewport-y = flick.height - (Math.floor(index / flick.columns) + 1) * root.cell-size;
         }
+    }
+
+    // The selection also moves while the grid is *not* the visible module:
+    // develop's arrow keys walk this same grid, and can now walk clean past
+    // the loaded window. Following it here — rather than only inside
+    // `select-cell` — is what makes leaving develop land on the photograph
+    // one was editing instead of wherever the grid happened to be left.
+    // A local mirror because `changed` only ever attaches to a property of
+    // the element declaring it, never to a global's.
+    property <int> followed-selection: GridState.selected;
+    changed followed-selection => {
+        root.scroll-into-view(root.followed-selection);
     }
 
         visible: !DevelopState.develop-mode && !MapState.map-mode
