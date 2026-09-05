@@ -346,6 +346,27 @@ pub fn pixel_readout(image: &leyline_sdk::Rgb8, u: f32, v: f32) -> Option<String
     Some(format!("R {}  G {}  B {}", rgb[0], rgb[1], rgb[2]))
 }
 
+/// Every group [`reset_group`] answers to, in panel order — the list
+/// `reset_group("all")` walks (ADR 0124 §4). The three headers that are not
+/// settings are absent for the reason they are absent from the `match`:
+/// Soft Proof is a view, Versions and History are lists.
+const GROUPS: [&str; 14] = [
+    "basic",
+    "camera-profile",
+    "lut",
+    "lens",
+    "detail",
+    "effects",
+    "tone-curve",
+    "hsl",
+    "color-grading",
+    "red-eye",
+    "reshape",
+    "spot-removal",
+    "local",
+    "geometry",
+];
+
 /// Every parameter one group of the develop panel owns, set back to its
 /// neutral value (ADR 0112 §4).
 ///
@@ -359,6 +380,17 @@ pub fn pixel_readout(image: &leyline_sdk::Rgb8, u: f32, v: f32) -> Option<String
 /// The three the model does name are taken from it; the rest are named here,
 /// where the panel's own division lives.
 pub fn reset_group(group: &str, current: &Settings) -> Vec<(Param, Value)> {
+    // Everything, in one revision (ADR 0124 §4): the union of every other
+    // group, built by calling this same function once per group. Spelled
+    // out as a list of *this* function's own arms rather than as a second
+    // enumeration of parameters, so a group added below joins it by
+    // construction and cannot be left behind.
+    if group == "all" {
+        return GROUPS
+            .iter()
+            .flat_map(|group| reset_group(group, current))
+            .collect();
+    }
     let neutral = leyline_sdk::neutral_settings();
     let mut changes: Vec<(Param, Value)> = Vec::new();
     let mut set = |param: Param, value: Value| changes.push((param, value));
@@ -1886,6 +1918,17 @@ mod reset_tests {
                 checksum: format!("blake3:{}", "a".repeat(64)),
                 strength: 80,
             }),
+            camera_profile: Some(leyline_sdk::CameraProfile {
+                enabled: true,
+                path: "Profiles/Camera/a.dcp".to_owned(),
+                checksum: format!("blake3:{}", "b".repeat(64)),
+            }),
+            reshape: vec![leyline_sdk::ReshapePoint {
+                from: Point { x: 0.4, y: 0.4 },
+                to: Point { x: 0.45, y: 0.42 },
+                radius: 0.1,
+                strength: 1.0,
+            }],
             ..Settings::default()
         };
         settings.hsl[0].saturation = 30;
@@ -2001,26 +2044,38 @@ mod reset_tests {
     #[test]
     fn a_group_already_at_neutral_writes_nothing() {
         let neutral = leyline_sdk::neutral_settings();
-        for group in [
-            "basic",
-            "camera-profile",
-            "lut",
-            "lens",
-            "detail",
-            "effects",
-            "tone-curve",
-            "hsl",
-            "color-grading",
-            "red-eye",
-            "spot-removal",
-            "local",
-            "geometry",
-        ] {
+        for group in GROUPS.iter().chain(["all"].iter()) {
             assert!(
                 reset_group(group, &neutral).is_empty(),
                 "{group} proposed a change on an untouched photo"
             );
         }
+    }
+
+    /// `GROUPS` is walked by name, so a name that is not an arm of the
+    /// `match` would silently contribute nothing to `all` — the fixture
+    /// moves every group, so every entry must have something to say about
+    /// it (ADR 0124 §4).
+    #[test]
+    fn every_named_group_is_a_real_arm() {
+        let loaded = everything();
+        for group in GROUPS {
+            assert!(
+                !reset_group(group, &loaded).is_empty(),
+                "{group} is named in GROUPS but resets nothing"
+            );
+        }
+    }
+
+    #[test]
+    fn resetting_everything_is_exactly_the_union_of_the_groups() {
+        let mut union: Vec<String> = GROUPS.iter().flat_map(|group| touched(group)).collect();
+        union.sort();
+        assert_eq!(touched("all"), union);
+
+        // And it is one call, not fourteen revisions: the caller commits
+        // the whole list at once.
+        assert!(touched("all").len() > touched("basic").len());
     }
 
     /// The three headers that are not settings: a view toggle and two lists.

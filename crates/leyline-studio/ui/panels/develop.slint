@@ -10,7 +10,7 @@
 import { DevSettings, MaskRow } from "../types.slint";
 import { DevelopState } from "../state/develop.slint";
 import { PreferencesState } from "../state/preferences.slint";
-import { PresetsPanel } from "presets.slint";
+import { DevelopLeftPanel } from "develop_left.slint";
 import { GridState } from "../state/grid.slint";
 import { MaskState } from "../state/mask.slint";
 import { DialogState } from "../state/dialog.slint";
@@ -46,11 +46,9 @@ export component DevelopPanel inherits HorizontalLayout {
     property <bool> expand-spot-removal: false;
     property <bool> expand-reshape: false;
     property <bool> expand-red-eye: false;
-    property <bool> expand-versions: false;
     property <bool> expand-local: false;
     property <bool> expand-proof: false;
     property <bool> expand-geometry: false;
-    property <bool> expand-history: false;
     // Fixed band order (ADR 0031), parallel to `DevSettings::hsl`.
     property <[string]> hsl-band-names: [
         @tr("Red"), @tr("Orange"), @tr("Yellow"), @tr("Green"),
@@ -111,6 +109,17 @@ export component DevelopPanel inherits HorizontalLayout {
             + " C\{cx - 0.5523 * rx} \{cy + ry} \{cx - rx} \{cy + 0.5523 * ry} \{cx - rx} \{cy} Z";
     }
 
+    // The viewer's current size, for the Navigator's viewport frame
+    // (ADR 0124 §2).
+    //
+    // **Assigned from `changed` handlers, never bound.** A left column that
+    // read `preview.width` directly would make one column's content depend
+    // on another column's geometry inside the same `HorizontalLayout` —
+    // the layout cycle ADR 0045 §3 records. An event handler assigns; it
+    // does not join the dependency graph.
+    property <length> viewer-width;
+    property <length> viewer-height;
+
     // A new photo's image just loaded (entered develop, or navigated): loupe
     // zoom is per-photo UI state, so it resets like Compare Before/After
     // does (in Rust, for `dev-compare`). `changed` only ever attaches to a
@@ -123,11 +132,22 @@ export component DevelopPanel inherits HorizontalLayout {
 
         visible: DevelopState.develop-mode;
 
-        // The library of modifications, on the left (ADR 0058 §1) — folded
-        // by the same manual `Tab` as the settings panel opposite, and by
-        // nothing else: on a narrow window Develop keeps both panels,
-        // because there the panels *are* the module.
-        if !root.side-panels-hidden: PresetsPanel { }
+        // Where one is looking and what one chooses, on the left
+        // (ADR 0124 §1) — folded by the same manual `Tab` as the settings
+        // panel opposite, and by nothing else: on a narrow window Develop
+        // keeps both panels, because there the panels *are* the module.
+        if !root.side-panels-hidden: DevelopLeftPanel {
+            zoomed: root.dev-zoomed;
+            scale: root.dev-scale;
+            center-x: root.dev-center-x;
+            center-y: root.dev-center-y;
+            viewer-width: root.viewer-width;
+            viewer-height: root.viewer-height;
+            panned(x, y) => {
+                root.dev-center-x = x;
+                root.dev-center-y = y;
+            }
+        }
 
         VerticalLayout {
             horizontal-stretch: 1;
@@ -346,6 +366,12 @@ export component DevelopPanel inherits HorizontalLayout {
             preview := Rectangle {
                 vertical-stretch: 1;
                 clip: true;
+                changed width => {
+                    root.viewer-width = self.width;
+                }
+                changed height => {
+                    root.viewer-height = self.height;
+                }
                 // What the eye adapts to while it judges the photograph
                 // (ADR 0117), and the proof's own ground whenever a proof is
                 // in effect — a print is looked at on paper.
@@ -1234,6 +1260,21 @@ export component DevelopPanel inherits HorizontalLayout {
                             active: DevelopState.dev.monochrome;
                             clicked => {
                                 DevelopState.develop-edit("monochrome", DevelopState.dev.monochrome ? 0 : 1);
+                            }
+                        }
+                        // The whole development back to neutral, in one
+                        // revision (ADR 0124 §4). Here rather than at the
+                        // bottom of the column because the other two chips
+                        // on this row also act on the development as a
+                        // whole, and because a button one has to scroll
+                        // sixteen groups to reach is a button one gives up
+                        // on. No confirmation: `Ctrl+Z` and the History
+                        // section take it straight back.
+                        FilterChip {
+                            text: @tr("Reset All");
+                            active: false;
+                            clicked => {
+                                DevelopState.reset-group("all");
                             }
                         }
                     }
@@ -3497,63 +3538,11 @@ export component DevelopPanel inherits HorizontalLayout {
                         }
                     }
 
-                    // Versions (ADR 0094 §2): the branches of this photo,
-                    // above the history because a history is *of* a version
-                    // — picking the branch comes first, then walking it.
-                    GroupHeader {
-                        label: @tr("Versions");
-                        expanded <=> root.expand-versions;
-                    }
-                    if root.expand-versions: VerticalLayout {
-                        spacing: 4px;
-                        for name[index] in DevelopState.dev-versions: FilterChip {
-                            text: name;
-                            active: index == DevelopState.dev-version-current;
-                            clicked => {
-                                DevelopState.switch-version(index);
-                            }
-                        }
-                        HorizontalLayout {
-                            alignment: start;
-                            FilterChip {
-                                text: @tr("New Version");
-                                active: false;
-                                clicked => {
-                                    DevelopState.create-version();
-                                }
-                            }
-                        }
-                    }
-
-                    GroupHeader {
-                        label: @tr("History");
-                        expanded <=> root.expand-history;
-                    }
-                    // Browsable revision list beyond linear undo/redo
-                    // (Ctrl+Z/Y): head first, click any row to jump
-                    // straight to it (`checkout-history-row`).
-                    if root.expand-history: VerticalLayout {
-                        for entry[index] in DevelopState.dev-history: touch := TouchArea {
-                            height: 26px;
-                            clicked => {
-                                DevelopState.checkout-history-row(index);
-                            }
-                            Rectangle {
-                                width: 100%;
-                                height: 100%;
-                                background: index == DevelopState.dev-history-current ? #2f4f6f : (touch.has-hover ? #2a2a2a : transparent);
-                                border-radius: 4px;
-                                Text {
-                                    x: 8px;
-                                    text: index == DevelopState.dev-history-current ? @tr("{} (current)", entry) : entry;
-                                    color: #d0d0d0;
-                                    font-size: 12px;
-                                    vertical-alignment: center;
-                                    height: 100%;
-                                }
-                            }
-                        }
-                    }
+                    // Versions and History used to close this column.
+                    // They are lists of *states*, not settings — which is
+                    // why ADR 0112 §4 had to except them from the group
+                    // reset — so they now sit in the left column with the
+                    // preset library (ADR 0124 §3).
                 }
             }
         }

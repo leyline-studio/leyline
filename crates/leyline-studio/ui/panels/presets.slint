@@ -1,9 +1,14 @@
-// The develop presets panel (ADR 0058 §1–§4): the left column of Develop.
+// The develop presets section (ADR 0058 §1–§4): one of the four sections of
+// Develop's left column (ADR 0124 §1), mounted by `develop_left.slint`.
 //
 // Its place is the left because ADR 0058 §1 settled it — the right panel is
 // *the modification in progress*, this is *the library of modifications* —
 // and because ADR 0055 §2 already put what one **chooses** on the left of
 // the browser. Same side, same job.
+//
+// A section and no longer the column itself: it sets no width, paints no
+// background and reserves nothing for the menu bar — the column does all
+// three, once, for the four sections it holds.
 //
 // Rows arrive flat from Rust (`PresetRow`), like the collections sidebar:
 // one level of folders, favourites first, filtered by the search box above.
@@ -11,6 +16,7 @@
 
 import { PresetRow } from "../types.slint";
 import { DevelopState } from "../state/develop.slint";
+import { GroupHeader } from "../widgets/controls.slint";
 
 // One preset. Two lines: its name, and what it actually changes — the whole
 // point of ADR 0058 §3, and the thing Lightroom cannot show because its
@@ -129,50 +135,47 @@ component PresetItem inherits Rectangle {
     // of them destructive or near enough to deserve being asked for.
 }
 
-export component PresetsPanel inherits Rectangle {
-    width: 260px;
-    background: #212121;
+export component PresetsSection inherits VerticalLayout {
+    // Folded by the column's own header, like the other three sections
+    // (ADR 0124 §1). `in-out` because the column owns the flag.
+    in-out property <bool> expanded: true;
 
-    VerticalLayout {
-        padding: 16px;
-        spacing: 8px;
-        alignment: start;
+    spacing: 8px;
 
-        // Clears the window's title bar, like the settings panel opposite.
+    HorizontalLayout {
+        spacing: 4px;
+        GroupHeader {
+            label: @tr("Presets");
+            expanded <=> root.expanded;
+            horizontal-stretch: 1;
+        }
+        // Saving one, from the header of the list it lands in. Kept out of
+        // `GroupHeader` — that widget's right-hand slot is the group reset,
+        // and a list of presets has nothing to put back.
         Rectangle {
-            height: 28px;
-        }
-
-        HorizontalLayout {
+            width: 18px;
+            height: 18px;
+            border-radius: 3px;
+            background: add-touch.has-hover ? #ffffff14 : transparent;
             Text {
-                text: @tr("Presets");
-                color: #f0f0f0;
-                font-size: 13px;
-                font-weight: 600;
+                text: "+";
+                color: #b0b0b0;
+                font-size: 14px;
+                horizontal-alignment: center;
                 vertical-alignment: center;
-                horizontal-stretch: 1;
+                width: 100%;
+                height: 100%;
             }
-            Rectangle {
-                width: 18px;
-                height: 18px;
-                border-radius: 3px;
-                background: add-touch.has-hover ? #ffffff14 : transparent;
-                Text {
-                    text: "+";
-                    color: #b0b0b0;
-                    font-size: 14px;
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
-                    width: 100%;
-                    height: 100%;
-                }
-                add-touch := TouchArea {
-                    clicked => {
-                        DevelopState.open-preset-dialog();
-                    }
+            add-touch := TouchArea {
+                clicked => {
+                    DevelopState.open-preset-dialog();
                 }
             }
         }
+    }
+
+    if root.expanded: VerticalLayout {
+        spacing: 8px;
 
         Rectangle {
             height: 24px;
@@ -212,87 +215,86 @@ export component PresetsPanel inherits Rectangle {
             wrap: word-wrap;
         }
 
-        Flickable {
-            viewport-height: rows.preferred-height;
-            rows := VerticalLayout {
-                width: parent.width;
-                spacing: 1px;
-                for row[i] in DevelopState.dev-preset-rows: line := Rectangle {
-                    height: row.is-folder ? 24px : (row.summary == "" ? 26px : 38px);
-                    // Hoisted out of the model. A `Menu` subtree that reads
-                    // a struct field of the `for` element directly makes the
-                    // Slint 1.13 Rust generator panic; reading a plain `int`
-                    // property of an enclosing element does not.
-                    property <int> index: row.index;
+        // No `Flickable` of its own: the whole column scrolls as one
+        // (ADR 0124, Consequences), which is what lets four sections share
+        // it without four scrollbars stacked down one 260px strip.
+        VerticalLayout {
+            spacing: 1px;
+            for row[i] in DevelopState.dev-preset-rows: line := Rectangle {
+                height: row.is-folder ? 24px : (row.summary == "" ? 26px : 38px);
+                // Hoisted out of the model. A `Menu` subtree that reads
+                // a struct field of the `for` element directly makes the
+                // Slint 1.13 Rust generator panic; reading a plain `int`
+                // property of an enclosing element does not.
+                property <int> index: row.index;
 
-                    if row.is-folder: Rectangle {
-                        background: folder-touch.has-hover ? #ffffff10 : transparent;
-                        border-radius: 3px;
-                        HorizontalLayout {
-                            x: 4px;
-                            width: parent.width - 8px;
-                            height: 100%;
-                            spacing: 4px;
-                            Text {
-                                text: row.expanded ? "▾" : "▸";
-                                color: #8a8a8a;
-                                font-size: 9px;
-                                vertical-alignment: center;
-                            }
-                            Text {
-                                text: row.name;
-                                color: #c8c8c8;
-                                font-size: 11px;
-                                font-weight: 600;
-                                vertical-alignment: center;
-                                horizontal-stretch: 1;
-                                overflow: elide;
-                            }
-                            Text {
-                                text: row.count;
-                                color: #6a6a6a;
-                                font-size: 10px;
-                                vertical-alignment: center;
-                            }
+                if row.is-folder: Rectangle {
+                    background: folder-touch.has-hover ? #ffffff10 : transparent;
+                    border-radius: 3px;
+                    HorizontalLayout {
+                        x: 4px;
+                        width: parent.width - 8px;
+                        height: 100%;
+                        spacing: 4px;
+                        Text {
+                            text: row.expanded ? "▾" : "▸";
+                            color: #8a8a8a;
+                            font-size: 9px;
+                            vertical-alignment: center;
                         }
-                        folder-touch := TouchArea {
-                            clicked => {
-                                DevelopState.toggle-preset-folder(i);
-                            }
+                        Text {
+                            text: row.name;
+                            color: #c8c8c8;
+                            font-size: 11px;
+                            font-weight: 600;
+                            vertical-alignment: center;
+                            horizontal-stretch: 1;
+                            overflow: elide;
                         }
-                        // The root row has no folder to delete, and an
-                        // `index` below zero is how it says so.
-                        if line.index >= 0: ContextMenuArea {
-                            Menu {
-                                MenuItem {
-                                    title: @tr("Delete folder (its presets move to the root)");
-                                    activated => {
-                                        DevelopState.delete-preset-folder(line.index);
-                                    }
+                        Text {
+                            text: row.count;
+                            color: #6a6a6a;
+                            font-size: 10px;
+                            vertical-alignment: center;
+                        }
+                    }
+                    folder-touch := TouchArea {
+                        clicked => {
+                            DevelopState.toggle-preset-folder(i);
+                        }
+                    }
+                    // The root row has no folder to delete, and an
+                    // `index` below zero is how it says so.
+                    if line.index >= 0: ContextMenuArea {
+                        Menu {
+                            MenuItem {
+                                title: @tr("Delete folder (its presets move to the root)");
+                                activated => {
+                                    DevelopState.delete-preset-folder(line.index);
                                 }
                             }
                         }
-                        // The root row carries no folder to delete, and
-                        // `index < 0` is how a row says so.
                     }
+                    // The root row carries no folder to delete, and
+                    // `index < 0` is how a row says so.
+                }
 
-                    if !row.is-folder: PresetItem {
-                        entry: row;
-                        apply => {
-                            DevelopState.apply-preset(row.index);
-                        }
-                        star => {
-                            DevelopState.favourite-preset(row.index, !row.favourite);
-                        }
-                        update => {
-                            DevelopState.update-preset(row.index);
-                        }
-                        remove => {
-                            DevelopState.delete-preset(row.index);
-                        }
-                        hovered(on) => {
-                            DevelopState.trial-preset(on ? row.index : -1);
-                        }
+                if !row.is-folder: PresetItem {
+                    entry: row;
+                    apply => {
+                        DevelopState.apply-preset(row.index);
+                    }
+                    star => {
+                        DevelopState.favourite-preset(row.index, !row.favourite);
+                    }
+                    update => {
+                        DevelopState.update-preset(row.index);
+                    }
+                    remove => {
+                        DevelopState.delete-preset(row.index);
+                    }
+                    hovered(on) => {
+                        DevelopState.trial-preset(on ? row.index : -1);
                     }
                 }
             }

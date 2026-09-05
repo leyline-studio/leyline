@@ -457,6 +457,17 @@ export component MenuBar inherits Rectangle {
                 }
             }
             MenuSep { }
+            // The whole development back to neutral, in one revision
+            // (ADR 0124 §4). Under Undo/Redo because that is what takes it
+            // back, and the same call the `Reset All` chip makes.
+            MenuRow {
+                title: @tr("Reset All Settings");
+                activated => {
+                    DevelopState.reset-group("all");
+                    root.open-menu = "";
+                }
+            }
+            MenuSep { }
             MenuRow {
                 title: @tr("Save Preset…    S");
                 activated => {

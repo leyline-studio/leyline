@@ -1,0 +1,198 @@
+// The left column of Develop (ADR 0124 §1): the Navigator, the preset
+// library, the versions of this photograph and its history — in that order,
+// which is the reading: where am I looking, what look can I put on this,
+// which branch am I on, how did it get here.
+//
+// The column is the one that *chooses* and the one that *shows where one is
+// looking*; the right-hand panel is the modification in progress
+// (ADR 0058 §1). Versions and History moved here from that panel because
+// they are lists of states rather than settings — which is exactly the
+// reason ADR 0112 §4 had to except them from the group reset.
+
+import { DevelopState } from "../state/develop.slint";
+import { PresetsSection } from "presets.slint";
+import { FilterChip, GroupHeader } from "../widgets/controls.slint";
+
+export component DevelopLeftPanel inherits Rectangle {
+    // The viewer's zoom state, read and never owned (ADR 0124, Consequences):
+    // the same four properties the toolbar and the image share. The
+    // Navigator draws them; moving the view goes back out through `panned`.
+    in property <bool> zoomed;
+    in property <float> scale: 1.0;
+    in property <float> center-x: 0.5;
+    in property <float> center-y: 0.5;
+    // The viewer's own size, which is what decides how much of the frame is
+    // on screen. Handed in rather than read off the sibling element: a
+    // binding that reaches across to the middle column's geometry is the
+    // layout cycle ADR 0045 §3 is about.
+    in property <length> viewer-width;
+    in property <length> viewer-height;
+    callback panned(float, float);
+
+    // Section folding, panel-private like every other bit of interface
+    // state here (ADR 0045 §2): the two lists start closed, so the column
+    // opens on the photograph and the presets.
+    property <bool> expand-navigator: true;
+    property <bool> expand-presets: true;
+    property <bool> expand-versions: false;
+    property <bool> expand-history: false;
+
+    width: 260px;
+    background: #212121;
+
+    Flickable {
+        VerticalLayout {
+            padding: 16px;
+            spacing: 10px;
+            alignment: start;
+
+            // Clears the window's menu row, like the settings panel
+            // opposite — a spacer child, never a geometry override on the
+            // column (see the note above `menu-row` in `menubar.slint`).
+            Rectangle {
+                height: 28px;
+            }
+
+            GroupHeader {
+                label: @tr("Navigator");
+                expanded <=> root.expand-navigator;
+            }
+            if root.expand-navigator: navigator := Rectangle {
+                height: 150px;
+                background: #1a1a1a;
+                border-radius: 4px;
+                // The viewport frame is drawn in the photograph's own
+                // coordinates and is not clamped to it: at the edge of a
+                // zoomed image the viewer really does show ground beside
+                // the frame, and a rectangle that stopped at the border
+                // would say otherwise. Clipping is what keeps that honest
+                // *and* inside the box.
+                clip: true;
+
+                property <float> image-w: max(DevelopState.develop-image.width, 1);
+                property <float> image-h: max(DevelopState.develop-image.height, 1);
+                // Where `image-fit: contain` actually puts the photograph
+                // inside this box — the same letterbox the viewer computes,
+                // at thumbnail size.
+                property <length> shown-w: min(self.width, self.height * self.image-w / self.image-h);
+                property <length> shown-h: min(self.height, self.width * self.image-h / self.image-w);
+                property <length> shown-x: (self.width - self.shown-w) / 2;
+                property <length> shown-y: (self.height - self.shown-h) / 2;
+                // The fraction of the frame on screen: the viewport's size
+                // in image pixels, over the image's own size. Capped at 1 —
+                // a viewport wider than the photograph shows all of it.
+                property <float> visible-w: min(1, root.viewer-width / (self.image-w * root.scale * 1px));
+                property <float> visible-h: min(1, root.viewer-height / (self.image-h * root.scale * 1px));
+
+                Image {
+                    source: DevelopState.develop-image;
+                    image-fit: contain;
+                    width: 100%;
+                    height: 100%;
+                }
+
+                // Only while zoomed: fitted, the frame *is* the thumbnail,
+                // and a rectangle drawn around the whole picture says
+                // nothing while hiding its edges.
+                if root.zoomed: Rectangle {
+                    x: navigator.shown-x + navigator.shown-w * (root.center-x - navigator.visible-w / 2);
+                    y: navigator.shown-y + navigator.shown-h * (root.center-y - navigator.visible-h / 2);
+                    width: navigator.shown-w * navigator.visible-w;
+                    height: navigator.shown-h * navigator.visible-h;
+                    border-width: 1px;
+                    border-color: #e6e6e6;
+                    background: #ffffff18;
+                }
+
+                // Click or drag to move the view. Both are the same
+                // gesture — where the pointer is *becomes* the centre — so
+                // there is nothing to grab and nothing to miss.
+                TouchArea {
+                    mouse-cursor: root.zoomed ? pointer : default;
+                    property <length> at-x: self.mouse-x;
+                    property <length> at-y: self.mouse-y;
+                    function aim() {
+                        if (!root.zoomed || navigator.shown-w <= 0 || navigator.shown-h <= 0) {
+                            return;
+                        }
+                        root.panned(
+                            Math.clamp((self.at-x - navigator.shown-x) / navigator.shown-w, 0, 1),
+                            Math.clamp((self.at-y - navigator.shown-y) / navigator.shown-h, 0, 1));
+                    }
+                    clicked => {
+                        self.aim();
+                    }
+                    moved => {
+                        if (self.pressed) {
+                            self.aim();
+                        }
+                    }
+                }
+            }
+
+            PresetsSection {
+                expanded <=> root.expand-presets;
+            }
+
+            // Versions (ADR 0094 §2): the branches of this photograph, above
+            // the history because a history is *of* a version — picking the
+            // branch comes first, then walking it.
+            GroupHeader {
+                label: @tr("Versions");
+                expanded <=> root.expand-versions;
+            }
+            if root.expand-versions: VerticalLayout {
+                spacing: 4px;
+                for name[index] in DevelopState.dev-versions: FilterChip {
+                    text: name;
+                    active: index == DevelopState.dev-version-current;
+                    clicked => {
+                        DevelopState.switch-version(index);
+                    }
+                }
+                HorizontalLayout {
+                    alignment: start;
+                    FilterChip {
+                        text: @tr("New Version");
+                        active: false;
+                        clicked => {
+                            DevelopState.create-version();
+                        }
+                    }
+                }
+            }
+
+            GroupHeader {
+                label: @tr("History");
+                expanded <=> root.expand-history;
+            }
+            // Browsable revision list beyond linear undo/redo (Ctrl+Z/Y):
+            // head first, click any row to jump straight to it
+            // (`checkout-history-row`).
+            if root.expand-history: VerticalLayout {
+                for entry[index] in DevelopState.dev-history: touch := TouchArea {
+                    height: 26px;
+                    clicked => {
+                        DevelopState.checkout-history-row(index);
+                    }
+                    Rectangle {
+                        width: 100%;
+                        height: 100%;
+                        background: index == DevelopState.dev-history-current ? #2f4f6f : (touch.has-hover ? #2a2a2a : transparent);
+                        border-radius: 4px;
+                        Text {
+                            x: 8px;
+                            width: parent.width - 16px;
+                            text: index == DevelopState.dev-history-current ? @tr("{} (current)", entry) : entry;
+                            color: #d0d0d0;
+                            font-size: 12px;
+                            vertical-alignment: center;
+                            height: 100%;
+                            overflow: elide;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
