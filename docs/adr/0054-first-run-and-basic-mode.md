@@ -139,6 +139,17 @@ beginner has no "once" to give.
 
 * **A guided tour, tooltips, a first-run assistant.** Software that needs to be
   explained on top of its interface has a problem in its interface.
+
+  Applied afterwards to the one place that already did it: Develop carried a
+  permanent strip of grey text listing six shortcuts, across the row that has
+  to show the photograph's name. It predated both the menu bar (which prints
+  each shortcut beside its item) and `Help ▸ Keyboard Shortcuts` (which lists
+  all six, grouped by where the key works), so it had become a third copy —
+  and it was the module's longest string, markedly so in French, which made it
+  set the view's minimum width at ~1200px. It is replaced by a **`?`** at the
+  end of the toolbar, one glyph wide, opening the card that already holds
+  them. The reminder stays one click away; there is one list to maintain
+  rather than two that drift.
 * **Reorganizing the fifteen groups** or merging some. Perhaps justified, but
   that is a redesign, and it would be decided with real users rather than with
   assumptions.

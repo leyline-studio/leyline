@@ -13,6 +13,7 @@ import { PreferencesState } from "../state/preferences.slint";
 import { PresetsPanel } from "presets.slint";
 import { GridState } from "../state/grid.slint";
 import { MaskState } from "../state/mask.slint";
+import { DialogState } from "../state/dialog.slint";
 import { EditSlider, Filmstrip, FilterChip, GroupHeader, PipetteChip, SubHeading, ToolSeparator, Zoom } from "../widgets/controls.slint";
 
 export component DevelopPanel inherits HorizontalLayout {
@@ -161,32 +162,24 @@ export component DevelopPanel inherits HorizontalLayout {
                 height: 28px;
             }
 
-            if !root.chrome-hidden: HorizontalLayout {
-                Text {
-                    text: DevelopState.develop-filename;
-                    color: #f0f0f0;
-                    font-size: 14px;
-                    font-weight: 600;
-                    overflow: elide;
-                    horizontal-stretch: 1;
-                }
-                Text {
-                    // A hint line, and a hint is what yields when room runs
-                    // short. Without these two lines it did the opposite: a
-                    // `Text` reports its natural width as its column's
-                    // *minimum* even when it would elide, and this is the
-                    // longest string in the module — markedly so in French.
-                    // The column above documents that un-wrapped text sets
-                    // this view's width; that cuts both ways, and here it
-                    // was setting the minimum, which demanded ~1200px and
-                    // pushed the settings panel — the module itself — off
-                    // the right of the window.
-                    min-width: 0px;
-                    overflow: elide;
-                    text: @tr("← →: next/prev photo · G: library · Ctrl+Z/Y: undo/redo · S: save preset · R: reprocess · Ctrl+P: print");
-                    color: #666666;
-                    font-size: 12px;
-                }
+            // The photograph's name, and nothing beside it.
+            //
+            // A strip of grey text listing six shortcuts used to sit here. It
+            // dated from before the menu bar (which prints each shortcut next
+            // to its item) and before Help ▸ Keyboard Shortcuts (which lists
+            // all six, grouped by where the key works), so by the end it
+            // repeated what two other places already said — permanently, in
+            // the one row that has to show the file name. It was also the
+            // module's longest string, markedly so in French, and the
+            // comments that used to live here existed only to stop it setting
+            // this view's minimum width at ~1200px. Removing it removes the
+            // hazard with the redundancy (ADR 0054 §4).
+            if !root.chrome-hidden: Text {
+                text: DevelopState.develop-filename;
+                color: #f0f0f0;
+                font-size: 14px;
+                font-weight: 600;
+                overflow: elide;
             }
 
             if !root.chrome-hidden: HorizontalLayout {
@@ -329,6 +322,23 @@ export component DevelopPanel inherits HorizontalLayout {
                         root.dev-center-x = 0.5;
                         root.dev-center-y = 0.5;
                         root.dev-zoomed = !root.dev-zoomed;
+                    }
+                }
+
+                // The quick reminder of the keys, one glyph wide instead of a
+                // permanent strip of grey text across the row that has to
+                // show the file name. It opens the card that already holds
+                // them all, grouped by where the key works — so there is one
+                // list to maintain and not two that drift.
+                //
+                // A plain "?" and not a drawn glyph: unlike an eyedropper, a
+                // question mark is in every font there is.
+                FilterChip {
+                    text: "?";
+                    active: false;
+                    clicked => {
+                        DialogState.dialog-result = "";
+                        DialogState.dialog = "shortcuts";
                     }
                 }
             }
