@@ -4,12 +4,14 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::app::{App, SORTS, item_at, report_error, selected_versions};
+use crate::app::{App, SORTS, item_at, report_error, selected_indices, selected_versions};
 use crate::classify;
 use crate::classify::Action;
 use crate::ui::{CollectionState, FilterState, FolderState, GridState, StudioWindow};
+use crate::undo::{Edit, Snapshot};
 use crate::wiring::grid::reload;
-use leyline_sdk::{ColorLabel, GridQuery, PickState, ShotRange};
+use crate::wiring::library::refresh_undo;
+use leyline_sdk::{ColorLabel, GridQuery, PickState, ShotRange, VersionId};
 use slint::{ComponentHandle, Global, Model, ModelRc, SharedString, VecModel};
 
 /// Applies a classement key (`0`–`9`, `p`, `x`, `u`) to the selection — every
@@ -38,6 +40,11 @@ pub(crate) fn wire_classify(app: &Rc<RefCell<App>>, window: &StudioWindow) {
         if versions.is_empty() {
             return;
         }
+        // What every one of them held a moment ago (ADR 0129 §1). Read from
+        // the grid rows rather than from the catalog: they are the values
+        // the cells are showing, which is what the photographer means by
+        // "the way it was".
+        let before = classement_of(&app, focused);
         let applied = match action {
             Action::Rate(rating) => app.library.set_rating(&versions, rating),
             Action::Label(label) => app.library.set_color_label(&versions, label),
@@ -48,8 +55,36 @@ pub(crate) fn wire_classify(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             .and_then(|()| reload(&mut app, &window))
         {
             report_error(&window, &error);
+            return;
         }
+        // After the reload, so the "after" half is what the catalog
+        // actually holds and not what was asked for.
+        let after = classement_of(&app, focused);
+        app.undo.push(Edit {
+            kind: match action {
+                Action::Rate(_) => "rating",
+                Action::Label(_) => "label",
+                Action::Flag(_) => "flag",
+            },
+            before: Snapshot::Classement(before),
+            after: Snapshot::Classement(after),
+        });
+        refresh_undo(&app, &window);
     });
+}
+
+/// The classement of every selected row, as the grid currently shows it.
+fn classement_of(
+    app: &App,
+    focused: i32,
+) -> Vec<(VersionId, Option<u8>, Option<ColorLabel>, PickState)> {
+    selected_indices(app, focused)
+        .into_iter()
+        .filter_map(|index| {
+            let item = item_at(app, i32::try_from(index).ok()?)?;
+            Some((item.version_id, item.rating, item.color_label, item.pick))
+        })
+        .collect()
 }
 
 /// Connects the filter bar: stars, label dots, pick chips, sort cycling.

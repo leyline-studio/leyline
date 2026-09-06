@@ -37,6 +37,30 @@ export component MenuBar inherits Rectangle {
     property <bool> apply-preset-submenu-open: false;
     property <bool> delete-preset-submenu-open: false;
     property <bool> open-recent-submenu-open: false;
+
+    // What the library's Undo and Redo items read (ADR 0129 §3).
+    //
+    // One function for both, because the pair differ by one word and the
+    // list of things they can name is the same. `@tr` with a placeholder
+    // rather than concatenation: a translator needs the whole sentence, and
+    // in French the article changes with the noun.
+    pure function undo-title(kind: string, undoing: bool) -> string {
+        return undoing
+            ? (kind == "rating" ? @tr("Undo Rating    Ctrl+Z")
+                : kind == "label" ? @tr("Undo Colour Label    Ctrl+Z")
+                : kind == "flag" ? @tr("Undo Flag    Ctrl+Z")
+                : kind == "keyword" ? @tr("Undo Keyword    Ctrl+Z")
+                : kind == "collection" ? @tr("Undo Collection Change    Ctrl+Z")
+                : kind == "description" ? @tr("Undo Description    Ctrl+Z")
+                : @tr("Undo    Ctrl+Z"))
+            : (kind == "rating" ? @tr("Redo Rating    Ctrl+Y")
+                : kind == "label" ? @tr("Redo Colour Label    Ctrl+Y")
+                : kind == "flag" ? @tr("Redo Flag    Ctrl+Y")
+                : kind == "keyword" ? @tr("Redo Keyword    Ctrl+Y")
+                : kind == "collection" ? @tr("Redo Collection Change    Ctrl+Y")
+                : kind == "description" ? @tr("Redo Description    Ctrl+Y")
+                : @tr("Redo    Ctrl+Y"));
+    }
     property <bool> process-submenu-open: false;
 
     // `public` for the same reason `open-menu` is `in-out`: closing a menu
@@ -175,6 +199,31 @@ export component MenuBar inherits Rectangle {
         if root.open-menu == "library": MenuDropdown {
             x: menus.x + library-label.x;
             y: 28px;
+            // Undoing a library edit (ADR 0129 §3). Here and not in the
+            // Develop menu, which is disabled outside Develop — which is
+            // exactly why its `Ctrl+Z` could never have served the grid.
+            //
+            // The item names what it will undo, from the closed set of
+            // words `LibraryState.undoable` carries. The words are turned
+            // into sentences on this side because a sentence has to be
+            // translatable and none is ever assembled in Rust (ADR 0078 §3).
+            MenuRow {
+                title: root.undo-title(LibraryState.undoable, true);
+                enabled: LibraryState.undoable != "";
+                activated => {
+                    LibraryState.undo-library();
+                    root.open-menu = "";
+                }
+            }
+            MenuRow {
+                title: root.undo-title(LibraryState.redoable, false);
+                enabled: LibraryState.redoable != "";
+                activated => {
+                    LibraryState.redo-library();
+                    root.open-menu = "";
+                }
+            }
+            MenuSep { }
             MenuRow {
                 title: @tr("New Collection…    Ctrl+N");
                 activated => {

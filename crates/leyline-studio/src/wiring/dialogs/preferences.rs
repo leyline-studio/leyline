@@ -87,6 +87,19 @@ fn show_current_values(window: &StudioWindow, preferences: &SharedPreferences) {
     });
     state.set_language(i32::try_from(language).unwrap_or(0));
     state.set_update_check(update_check);
+    // How the interface was left (ADR 0128). Set before the window is
+    // shown, which is what the panels' initial bindings read; `-1` for an
+    // absent value, so "never stored" and "stored empty" stay different
+    // states.
+    let (develop, develop_left) = with_preferences(preferences, |file| {
+        let values = file.values();
+        (
+            values.develop_view.unwrap_or(-1),
+            values.develop_left_view.unwrap_or(-1),
+        )
+    });
+    state.set_develop_view(develop);
+    state.set_develop_left_view(develop_left);
     show_backgrounds(window, preferences);
 }
 
@@ -151,6 +164,32 @@ fn colour_of(hex: &str) -> slint::Color {
 pub(crate) fn wire_preferences(window: &StudioWindow, preferences: &SharedPreferences) {
     show_current_values(window, preferences);
     let state = PreferencesState::get(window);
+
+    // Remembering the interface (ADR 0128 §3): the number arrives opaque
+    // and is stored opaque. A write per fold, which is a `serde_json`
+    // serialisation and an atomic rename of a file under 1 KB, on a gesture
+    // a human performs a few times a minute.
+    //
+    // A failure is deliberately silent here, unlike every other write in
+    // this module: the user clicked a group heading, not a setting, and a
+    // read-only config directory must not put an error in the status line
+    // every time someone folds one.
+    {
+        let preferences = preferences.clone();
+        state.on_remember_develop_view(move |code| {
+            let _ = with_preferences(&preferences, |file| {
+                file.update(|values| values.develop_view = Some(code))
+            });
+        });
+    }
+    {
+        let preferences = preferences.clone();
+        state.on_remember_develop_left_view(move |code| {
+            let _ = with_preferences(&preferences, |file| {
+                file.update(|values| values.develop_left_view = Some(code))
+            });
+        });
+    }
 
     {
         let handle = window.as_weak();

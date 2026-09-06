@@ -346,6 +346,41 @@ pub fn pixel_readout(image: &leyline_sdk::Rgb8, u: f32, v: f32) -> Option<String
     Some(format!("R {}  G {}  B {}", rgb[0], rgb[1], rgb[2]))
 }
 
+/// Which tonal setting a tone belongs to (ADR 0130 §3).
+///
+/// `u` and `v` are the pointer in [0, 1] image coordinates, as
+/// [`pixel_readout`] takes them; outside that square there is no tone and
+/// therefore no setting.
+///
+/// The thresholds cut the displayed range into the five bands the Basic
+/// panel names, and they are **bands rather than weights** on purpose: a
+/// weighted blend would move three sliders at once from one gesture, and a
+/// photographer dragging on a sky wants to be able to say afterwards what
+/// changed. The boundaries are the conventional ones — a sixth of the way
+/// up is black, a quarter is shadow, three fifths is midtone — and the
+/// midtone band is deliberately the widest, being where most of a
+/// photograph is.
+///
+/// Luminance is Rec. 709's, on the **displayed** pixel: this is a question
+/// about what the eye is looking at, not about scene-referred energy.
+pub fn target_setting(image: &leyline_sdk::Rgb8, u: f32, v: f32) -> Option<&'static str> {
+    if !(0.0..=1.0).contains(&u) || !(0.0..=1.0).contains(&v) {
+        return None;
+    }
+    let x = ((u * image.width() as f32) as u32).min(image.width().saturating_sub(1));
+    let y = ((v * image.height() as f32) as u32).min(image.height().saturating_sub(1));
+    let offset = (y as usize * image.width() as usize + x as usize) * 3;
+    let rgb = image.data().get(offset..offset + 3)?;
+    let luma = 0.2126 * f32::from(rgb[0]) + 0.7152 * f32::from(rgb[1]) + 0.0722 * f32::from(rgb[2]);
+    Some(match luma {
+        l if l < 40.0 => "blacks",
+        l if l < 80.0 => "shadows",
+        l if l < 160.0 => "exposure",
+        l if l < 215.0 => "highlights",
+        _ => "whites",
+    })
+}
+
 /// Every group [`reset_group`] answers to, in panel order — the list
 /// `reset_group("all")` walks (ADR 0124 §4). The three headers that are not
 /// settings are absent for the reason they are absent from the `match`:

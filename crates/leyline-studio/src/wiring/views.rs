@@ -125,7 +125,7 @@ pub(crate) fn wire_views(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             // photo stays in the catalog, in the grid and on disk.
             let dropped = app.survey.remove(index);
             app.multi_selected.remove(&dropped);
-            refresh_multi_selected_cells(&app);
+            refresh_multi_selected_cells(&app, &window);
             show_survey(&mut app, &window);
         });
     }

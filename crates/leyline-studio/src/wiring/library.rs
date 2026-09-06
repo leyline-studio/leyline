@@ -179,3 +179,57 @@ pub(crate) fn forget_proposal(app: &mut App, window: &StudioWindow) -> bool {
     LibraryState::get(window).set_reviewing_proposal(false);
     true
 }
+
+/// Tells the interface what `Ctrl+Z` and `Ctrl+Y` would do (ADR 0129 §3).
+///
+/// Called after every edit that pushes onto the stack and after every step
+/// through it, which is the whole of keeping the two menu items truthful:
+/// the words are read straight off the stack, so there is no second place
+/// where "can undo" is decided.
+pub(crate) fn refresh_undo(app: &App, window: &StudioWindow) {
+    let state = LibraryState::get(window);
+    state.set_undoable(app.undo.undoable().unwrap_or_default().into());
+    state.set_redoable(app.undo.redoable().unwrap_or_default().into());
+}
+
+/// Connects the library's undo and redo (ADR 0129).
+///
+/// A step that fails leaves the stack where it was — `History` moves its
+/// cursor only on a successful write — so the message in the status line
+/// and the state of the menu agree about what happened.
+pub(crate) fn wire_undo(app: &Rc<RefCell<App>>, window: &StudioWindow) {
+    for redo in [false, true] {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        let step = move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut borrowed = app.borrow_mut();
+            // Reborrowed as a plain `&mut App` so the two fields below can
+            // be borrowed apart: through the `RefMut` alone, `app.undo` and
+            // `app.library` are one borrow of the same value.
+            let app = &mut *borrowed;
+            let stepped = if redo {
+                app.undo.redo(&app.library)
+            } else {
+                app.undo.undo(&app.library)
+            };
+            match stepped.and_then(|moved| {
+                if moved {
+                    crate::wiring::grid::reload(app, &window)
+                } else {
+                    Ok(())
+                }
+            }) {
+                Ok(()) => refresh_undo(app, &window),
+                Err(error) => report_error(&window, &error),
+            }
+        };
+        if redo {
+            LibraryState::get(window).on_redo_library(step);
+        } else {
+            LibraryState::get(window).on_undo_library(step);
+        }
+    }
+}

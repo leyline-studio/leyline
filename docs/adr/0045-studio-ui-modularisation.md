@@ -80,6 +80,16 @@ that effect is simple and non-negotiable:
 > **A global carries only the state that crosses the Rust ↔ UI boundary. State
 > that concerns only one panel stays a private property of that panel.**
 
+> **Amended twice.** [ADR 0128](0128-remembered-interface-state.md) makes the
+> `expand-*` booleans and the Basic/Full mode cross the boundary — as **one
+> opaque number per view**, because persistence *is* such a crossing and the
+> rule above then permits it, while the meaning of every bit stays in the
+> panel. And [ADR 0127](0127-hints-on-wordless-controls.md) and
+> [ADR 0130](0130-direct-manipulation.md) add two globals — `HintState` and
+> `DragState` — that carry interface state Rust never reads: both have their
+> two ends in *different panels*, which is the case the rule's "concerns only
+> one panel" does not cover.
+
 Concretely, what stays local — and therefore disappears from the shared surface
 — is the Develop panel's eleven `expand-*` accordion booleans, `active-tool`,
 `dev-zoomed` (and the `changed develop-image` that resets it), `spot-pending*`,

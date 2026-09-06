@@ -3329,3 +3329,165 @@ msgstr "Grille"
 msgctxt "ViewModeChips"
 msgid "Loupe"
 msgstr "Loupe"
+
+#: crates/leyline-studio/ui/dialogs/shortcuts.slint:116
+msgctxt "ShortcutsDialog"
+msgid "Undo / redo the last library change"
+msgstr "Annuler / rétablir la dernière modification"
+
+#. them in — red, yellow, green, blue, purple.
+#: crates/leyline-studio/ui/panels/browser.slint:376
+msgctxt "BrowserPanel"
+msgid "Filter: red label"
+msgstr "Filtrer : étiquette rouge"
+
+#: crates/leyline-studio/ui/panels/browser.slint:377
+msgctxt "BrowserPanel"
+msgid "Filter: yellow label"
+msgstr "Filtrer : étiquette jaune"
+
+#: crates/leyline-studio/ui/panels/browser.slint:378
+msgctxt "BrowserPanel"
+msgid "Filter: green label"
+msgstr "Filtrer : étiquette verte"
+
+#: crates/leyline-studio/ui/panels/browser.slint:379
+msgctxt "BrowserPanel"
+msgid "Filter: blue label"
+msgstr "Filtrer : étiquette bleue"
+
+#: crates/leyline-studio/ui/panels/browser.slint:380
+msgctxt "BrowserPanel"
+msgid "Filter: purple label"
+msgstr "Filtrer : étiquette violette"
+
+#: crates/leyline-studio/ui/panels/develop.slint:374
+msgctxt "DevelopPanel"
+msgid "Target"
+msgstr "Cible"
+
+#: crates/leyline-studio/ui/panels/develop.slint:397
+msgctxt "DevelopPanel"
+msgid "White balance: click a neutral grey in the photograph"
+msgstr "Balance des blancs : cliquez un gris neutre sur la photo"
+
+#: crates/leyline-studio/ui/panels/develop.slint:518
+msgctxt "DevelopPanel"
+msgid "Keyboard shortcuts"
+msgstr "Raccourcis clavier"
+
+#: crates/leyline-studio/ui/panels/develop.slint:1391 crates/leyline-studio/ui/panels/develop.slint:1394
+msgctxt "DevelopPanel"
+msgid "Show crushed shadows    J"
+msgstr "Afficher les ombres bouchées    J"
+
+#: crates/leyline-studio/ui/panels/develop.slint:1417 crates/leyline-studio/ui/panels/develop.slint:1420
+msgctxt "DevelopPanel"
+msgid "Show clipped highlights    J"
+msgstr "Afficher les hautes lumières écrêtées    J"
+
+#. picker, for the same gesture.
+#: crates/leyline-studio/ui/panels/develop.slint:3466
+msgctxt "DevelopPanel"
+msgid "Take the brightness range from the photograph"
+msgstr "Prendre la plage de luminosité sur la photo"
+
+#: crates/leyline-studio/ui/panels/develop.slint:3517
+msgctxt "DevelopPanel"
+msgid "Take the colour range from the photograph"
+msgstr "Prendre la plage de couleur sur la photo"
+
+#: crates/leyline-studio/ui/panels/menubar.slint:49
+msgctxt "MenuBar"
+msgid "Undo Rating    Ctrl+Z"
+msgstr "Annuler la note    Ctrl+Z"
+
+#: crates/leyline-studio/ui/panels/menubar.slint:50
+msgctxt "MenuBar"
+msgid "Undo Colour Label    Ctrl+Z"
+msgstr "Annuler l'étiquette    Ctrl+Z"
+
+#: crates/leyline-studio/ui/panels/menubar.slint:51
+msgctxt "MenuBar"
+msgid "Undo Flag    Ctrl+Z"
+msgstr "Annuler le marquage    Ctrl+Z"
+
+#: crates/leyline-studio/ui/panels/menubar.slint:52
+msgctxt "MenuBar"
+msgid "Undo Keyword    Ctrl+Z"
+msgstr "Annuler le mot-clé    Ctrl+Z"
+
+#: crates/leyline-studio/ui/panels/menubar.slint:53
+msgctxt "MenuBar"
+msgid "Undo Collection Change    Ctrl+Z"
+msgstr "Annuler la mise en collection    Ctrl+Z"
+
+#: crates/leyline-studio/ui/panels/menubar.slint:54
+msgctxt "MenuBar"
+msgid "Undo Description    Ctrl+Z"
+msgstr "Annuler la description    Ctrl+Z"
+
+#: crates/leyline-studio/ui/panels/menubar.slint:56
+msgctxt "MenuBar"
+msgid "Redo Rating    Ctrl+Y"
+msgstr "Rétablir la note    Ctrl+Y"
+
+#: crates/leyline-studio/ui/panels/menubar.slint:57
+msgctxt "MenuBar"
+msgid "Redo Colour Label    Ctrl+Y"
+msgstr "Rétablir l'étiquette    Ctrl+Y"
+
+#: crates/leyline-studio/ui/panels/menubar.slint:58
+msgctxt "MenuBar"
+msgid "Redo Flag    Ctrl+Y"
+msgstr "Rétablir le marquage    Ctrl+Y"
+
+#: crates/leyline-studio/ui/panels/menubar.slint:59
+msgctxt "MenuBar"
+msgid "Redo Keyword    Ctrl+Y"
+msgstr "Rétablir le mot-clé    Ctrl+Y"
+
+#: crates/leyline-studio/ui/panels/menubar.slint:60
+msgctxt "MenuBar"
+msgid "Redo Collection Change    Ctrl+Y"
+msgstr "Rétablir la mise en collection    Ctrl+Y"
+
+#: crates/leyline-studio/ui/panels/menubar.slint:61
+msgctxt "MenuBar"
+msgid "Redo Description    Ctrl+Y"
+msgstr "Rétablir la description    Ctrl+Y"
+
+#: crates/leyline-studio/ui/panels/presets.slint:179 crates/leyline-studio/ui/panels/presets.slint:182
+msgctxt "PresetsSection"
+msgid "Save these settings as a preset    S"
+msgstr "Enregistrer ces réglages en préréglage    S"
+
+#: crates/leyline-studio/ui/widgets/controls.slint:98 crates/leyline-studio/ui/widgets/controls.slint:101
+msgctxt "GroupHeader"
+msgid "Put this group back to neutral"
+msgstr "Remettre ce groupe à zéro"
+
+#: crates/leyline-studio/ui/widgets/controls.slint:263 crates/leyline-studio/ui/widgets/controls.slint:266
+msgctxt "ToolbarChevron"
+msgid "More tools"
+msgstr "Plus d'outils"
+
+#: crates/leyline-studio/ui/dialogs/shortcuts.slint:174
+msgctxt "ShortcutsDialog"
+msgid "Wheel"
+msgstr "Molette"
+
+#: crates/leyline-studio/ui/dialogs/shortcuts.slint:175
+msgctxt "ShortcutsDialog"
+msgid "Over a slider's track: adjust it"
+msgstr "Sur la piste d'un curseur : le règle"
+
+#: crates/leyline-studio/ui/dialogs/shortcuts.slint:178
+msgctxt "ShortcutsDialog"
+msgid "Shift + drag"
+msgstr "Maj + glisser"
+
+#: crates/leyline-studio/ui/dialogs/shortcuts.slint:179
+msgctxt "ShortcutsDialog"
+msgid "Fine adjustment, five times slower"
+msgstr "Réglage fin, cinq fois plus lent"

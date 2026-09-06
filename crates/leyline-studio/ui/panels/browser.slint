@@ -20,6 +20,8 @@ import { FilterState } from "../state/filter.slint";
 import { GridState } from "../state/grid.slint";
 import { MapState } from "../state/map.slint";
 import { DetailRow, FilterChip, MiniSlider, RangeField, ViewModeChips } from "../widgets/controls.slint";
+import { DragState } from "../state/drag.slint";
+import { HintState } from "../state/hint.slint";
 
 export component BrowserPanel inherits HorizontalLayout {
     // Hands keyboard focus back to the window's `FocusScope` after a text
@@ -29,8 +31,21 @@ export component BrowserPanel inherits HorizontalLayout {
     callback return-focus();
     // Panel folding, owned by the window (ADR 0055 §6): the sidebar and the
     // metadata panel go first, the toolbar under the grid with `Maj+Tab`.
-    in property <bool> side-panels-hidden;
+    //
+    // Two flags rather than one since ADR 0130 §2: the two panels are not
+    // worth the same on a narrow window. The metadata panel is
+    // informational — ADR 0055 §6's own words — while the sidebar is how one
+    // reaches a folder or a collection at all, so a width that can carry
+    // only one of them carries the sidebar.
+    in property <bool> sidebar-hidden;
+    in property <bool> detail-hidden;
     in property <bool> chrome-hidden;
+    // Whether the panels are hidden because someone pressed `Tab`, as
+    // opposed to because the window is too narrow to hold them. Only the
+    // first has a way back that is not "resize the window", so only the
+    // first gets a handle to click (ADR 0130 §2).
+    in property <bool> folded-by-hand;
+    callback unfold();
     // How many thumbnails fit per row. Exposed because the window's Up/Down
     // arrow shortcuts move the selection by exactly one row, and only the
     // grid knows how wide a row currently is.
@@ -94,7 +109,7 @@ export component BrowserPanel inherits HorizontalLayout {
         // the collection and the other way round, since a grid showing "the
         // intersection of a folder and a collection" would be a filter nobody
         // asked for.
-        if !root.side-panels-hidden: Rectangle {
+        if !root.sidebar-hidden: Rectangle {
             width: 200px;
             background: #202020;
 
@@ -191,12 +206,32 @@ export component BrowserPanel inherits HorizontalLayout {
                 Flickable {
                     vertical-stretch: 1;
                     viewport-height: CollectionState.collections.length * 26px;
-                    for row[i] in CollectionState.collections: Rectangle {
+                    for row[i] in CollectionState.collections: collection-row := Rectangle {
                         y: i * 26px;
                         height: 24px;
                         width: parent.width;
                         border-radius: 4px;
-                        background: CollectionState.active-collection == i ? #2f4f6f : transparent;
+                        // A row tests the dragged pointer against its own
+                        // rectangle (ADR 0130 §1): during a drag the grid
+                        // cell holds the pointer grab, so `has-hover` here
+                        // never becomes true and this is the only way a row
+                        // can know. A smart collection is not a drop target
+                        // — its members are its query's answer, and adding
+                        // to it by hand would be a lie.
+                        property <bool> drop-target: DragState.dragging && !row.smart
+                            && DragState.x >= self.absolute-position.x
+                            && DragState.x < self.absolute-position.x + self.width
+                            && DragState.y >= self.absolute-position.y
+                            && DragState.y < self.absolute-position.y + self.height;
+                        changed drop-target => {
+                            if (self.drop-target) {
+                                DragState.target = i;
+                            } else if (DragState.target == i) {
+                                DragState.target = -1;
+                            }
+                        }
+                        background: self.drop-target ? #3f6f3f
+                            : (CollectionState.active-collection == i ? #2f4f6f : transparent);
                         Text {
                             x: 8px + row.depth * 12px;
                             width: parent.width - self.x - 8px;
@@ -272,6 +307,30 @@ export component BrowserPanel inherits HorizontalLayout {
             }
         }
 
+        // The way back, for panels hidden by hand (ADR 0130 §2). `Tab`
+        // goes on working and is what an experienced user reaches for;
+        // this is what says the panels exist at all to someone who pressed
+        // it by accident, or who never knew.
+        if root.sidebar-hidden && root.folded-by-hand: Rectangle {
+            width: 14px;
+            background: #202020;
+            Text {
+                text: "›";
+                color: unfold-touch.has-hover ? #e6e6e6 : #6a6a6a;
+                font-size: 14px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                width: 100%;
+                height: 100%;
+            }
+            unfold-touch := TouchArea {
+                mouse-cursor: pointer;
+                clicked => {
+                    root.unfold();
+                }
+            }
+        }
+
         VerticalLayout {
             horizontal-stretch: 1;
             padding: 12px;
@@ -306,9 +365,27 @@ export component BrowserPanel inherits HorizontalLayout {
 
                 HorizontalLayout {
                     spacing: 4px;
-                    for l in 5: TouchArea {
+                    for l[i] in 5: dot := TouchArea {
                         width: 16px;
                         height: 24px;
+                        // Five coloured circles, and nothing anywhere says
+                        // they filter (ADR 0127 §1). The names are the
+                        // labels' own, in the order `label-colors` holds
+                        // them, which is the order the `6`–`9` keys assign
+                        // them in — red, yellow, green, blue, purple.
+                        property <string> label-name: i == 0 ? @tr("Filter: red label")
+                            : i == 1 ? @tr("Filter: yellow label")
+                            : i == 2 ? @tr("Filter: green label")
+                            : i == 3 ? @tr("Filter: blue label")
+                            : @tr("Filter: purple label");
+                        changed has-hover => {
+                            if (self.has-hover) {
+                                HintState.enter(self.label-name,
+                                    self.absolute-position.x, self.absolute-position.y + self.height);
+                            } else {
+                                HintState.leave(self.label-name);
+                            }
+                        }
                         Rectangle {
                             width: 12px;
                             height: 12px;
@@ -320,6 +397,7 @@ export component BrowserPanel inherits HorizontalLayout {
                             opacity: FilterState.filter-label == l || FilterState.filter-label == -1 ? 1 : 0.35;
                         }
                         clicked => {
+                            HintState.dismiss();
                             FilterState.label-filter(l);
                         }
                     }
@@ -731,15 +809,52 @@ export component BrowserPanel inherits HorizontalLayout {
                         }
                     }
 
-                    TouchArea {
+                    cell-touch := TouchArea {
                         double-clicked => {
                             GridState.selected = GridState.window-start + i;
                             GridState.select(GridState.window-start + i);
                             DevelopState.enter-develop();
                         }
+                        // Dragging a photograph onto a collection
+                        // (ADR 0130 §1). A drag only becomes one after 6px
+                        // of movement, so a click that wanders a pixel
+                        // between press and release is still a click — and
+                        // the selection, which happens on release below, is
+                        // left alone when it was a drag.
+                        moved => {
+                            if (self.pressed) {
+                                if (!DragState.dragging
+                                    && (abs((self.mouse-x - self.pressed-x) / 1px)
+                                        + abs((self.mouse-y - self.pressed-y) / 1px)) > 6) {
+                                    DragState.dragging = true;
+                                    DragState.from-cell = GridState.window-start + i;
+                                    // What the drop will actually file, and
+                                    // read the same way Rust reads it: the
+                                    // selection only when *this* cell
+                                    // belongs to it, otherwise this one
+                                    // photograph (ADR 0130 §1). The cell
+                                    // carries its own membership, so the
+                                    // label cannot disagree with the drop.
+                                    DragState.count = cell.multi-selected
+                                        ? GridState.selection-size
+                                        : 1;
+                                }
+                                if (DragState.dragging) {
+                                    DragState.x = self.absolute-position.x + self.mouse-x;
+                                    DragState.y = self.absolute-position.y + self.mouse-y;
+                                }
+                            }
+                        }
                         pointer-event(event) => {
                             if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
-                                GridState.cell-clicked(GridState.window-start + i, event.modifiers.control, event.modifiers.shift);
+                                if (DragState.dragging) {
+                                    if (DragState.target >= 0) {
+                                        CollectionState.drop-on-collection(DragState.from-cell, DragState.target);
+                                    }
+                                    DragState.stop();
+                                } else {
+                                    GridState.cell-clicked(GridState.window-start + i, event.modifiers.control, event.modifiers.shift);
+                                }
                             }
                         }
                     }
@@ -1002,7 +1117,7 @@ export component BrowserPanel inherits HorizontalLayout {
             }
         }
 
-        if !root.side-panels-hidden: Rectangle {
+        if !root.detail-hidden: Rectangle {
             width: 300px;
             background: #212121;
 

@@ -9,18 +9,26 @@
 
 import { DevSettings, MaskRow } from "../types.slint";
 import { DevelopState } from "../state/develop.slint";
+import { HintState } from "../state/hint.slint";
 import { PreferencesState } from "../state/preferences.slint";
 import { DevelopLeftPanel } from "develop_left.slint";
 import { GridState } from "../state/grid.slint";
 import { MaskState } from "../state/mask.slint";
 import { DialogState } from "../state/dialog.slint";
-import { EditSlider, Filmstrip, FilterChip, GroupHeader, PipetteChip, SubHeading, ToolSeparator, Zoom } from "../widgets/controls.slint";
+import { EditSlider, Filmstrip, FilterChip, GroupHeader, PipetteChip, SubHeading, ToolSeparator, ToolbarChevron, Zoom } from "../widgets/controls.slint";
 
 export component DevelopPanel inherits HorizontalLayout {
     // Panel folding, owned by the window (ADR 0055 §6): the settings panel
     // first, then the toolbar, the shortcut line and the filmstrip.
     in property <bool> side-panels-hidden;
     in property <bool> chrome-hidden;
+    // The window is too narrow to carry both columns beside a viewer worth
+    // looking at, so the left one folds on its own (ADR 0125 §1). Only the
+    // left one: the right-hand panel *is* the module, and Develop without
+    // its sliders is a picture viewer. Computed by the window, like the
+    // browser's own fold, and never read off this element's width — that
+    // binding is the layout cycle ADR 0045 §3 records.
+    in property <bool> left-panel-folded;
     // Panel-private state (ADR 0045 §2): none of it crosses to Rust.
     //
     // Accordion state — basic adjustments start open, the rest start
@@ -31,24 +39,107 @@ export component DevelopPanel inherits HorizontalLayout {
     // tools. Panel-private, like every other bit of interface state here: Rust
     // never reads it, and it deliberately survives nothing — not a file, not a
     // preset, not a session (§3).
-    property <bool> basic-mode: true;
+    // ...and it now survives the session (ADR 0128). ADR 0054 §3 chose the
+    // opposite, for a reason that has expired: *a configuration file the
+    // project does not have* — `preferences.json` has existed since
+    // ADR 0078. What that ADR's argument really protects is the **first**
+    // session, and §2 of ADR 0128 keeps it: with nothing stored (`-1`),
+    // every default below is the one ADR 0054 shipped.
+    //
+    // Each initial value is read once, at startup, from the number Rust
+    // hands back. A click assigns the property, which in Slint drops the
+    // binding for good — so nothing here is re-evaluated later, and a
+    // choice made in this session is never overwritten by the one stored
+    // from the last.
+    property <int> stored-view: PreferencesState.develop-view;
+    property <bool> basic-mode: !root.stored-bit(root.stored-view, 0, false);
     // White balance, tone and presence are one foldable group now, read as a
     // single sequence (ADR 0054 §2), so they share one flag.
-    property <bool> expand-basic: true;
-    property <bool> expand-camera-profile: false;
-    property <bool> expand-lut: false;
-    property <bool> expand-lens: false;
-    property <bool> expand-detail: false;
-    property <bool> expand-effects: false;
-    property <bool> expand-tone-curve: false;
-    property <bool> expand-hsl: false;
-    property <bool> expand-color-grading: false;
-    property <bool> expand-spot-removal: false;
-    property <bool> expand-reshape: false;
-    property <bool> expand-red-eye: false;
-    property <bool> expand-local: false;
-    property <bool> expand-proof: false;
-    property <bool> expand-geometry: false;
+    property <bool> expand-basic: root.stored-bit(root.stored-view, 1, true);
+    property <bool> expand-camera-profile: root.stored-bit(root.stored-view, 2, false);
+    property <bool> expand-lut: root.stored-bit(root.stored-view, 3, false);
+    property <bool> expand-lens: root.stored-bit(root.stored-view, 4, false);
+    property <bool> expand-detail: root.stored-bit(root.stored-view, 5, false);
+    property <bool> expand-effects: root.stored-bit(root.stored-view, 6, false);
+    property <bool> expand-tone-curve: root.stored-bit(root.stored-view, 7, false);
+    property <bool> expand-hsl: root.stored-bit(root.stored-view, 8, false);
+    property <bool> expand-color-grading: root.stored-bit(root.stored-view, 9, false);
+    property <bool> expand-spot-removal: root.stored-bit(root.stored-view, 10, false);
+    property <bool> expand-reshape: root.stored-bit(root.stored-view, 11, false);
+    property <bool> expand-red-eye: root.stored-bit(root.stored-view, 12, false);
+    property <bool> expand-local: root.stored-bit(root.stored-view, 13, false);
+    property <bool> expand-proof: root.stored-bit(root.stored-view, 14, false);
+    property <bool> expand-geometry: root.stored-bit(root.stored-view, 15, false);
+
+    // The toolbar's height, named because the `Flickable` that carries it
+    // has to be told its viewport's height and must not read it back off
+    // the element it sizes.
+    property <length> toolbar-height: 24px;
+
+    // The three things the targeted adjustment needs to know about the
+    // setting it was handed (ADR 0130 §3): where it stands, how far a pixel
+    // of drag moves it, and where it stops. Written here rather than read
+    // off the sliders because a `for`-less panel has no way to ask an
+    // `EditSlider` about itself — and kept beside those sliders' own
+    // declarations, which is what makes the two easy to keep in step.
+    //
+    // Exposure is the exception in all three: it is the one tonal setting
+    // measured in stops rather than in hundredths.
+    pure function target-base(setting: string) -> float {
+        return setting == "exposure" ? DevelopState.dev.exposure
+            : setting == "highlights" ? DevelopState.dev.highlights
+            : setting == "shadows" ? DevelopState.dev.shadows
+            : setting == "whites" ? DevelopState.dev.whites
+            : setting == "blacks" ? DevelopState.dev.blacks
+            : 0;
+    }
+    pure function target-value(setting: string, base: float, moved: float) -> float {
+        // 200px of drag covers 2 EV, or the whole of a [-100, 100] slider's
+        // upper half — the same hand movement, in each setting's own units.
+        return Math.clamp(base + moved * (setting == "exposure" ? 0.01 : 0.5),
+            setting == "exposure" ? -5 : -100,
+            setting == "exposure" ? 5 : 100);
+    }
+
+    // One bit per thing that folds, in the order they are declared above.
+    // Bit 0 is Full mode, so a stored `0` is Basic with every group closed
+    // — a real state, and the reason `-1` and not `0` means "never stored".
+    // The `fallback` is what a first launch gets, and it is a parameter
+    // rather than a test at each call site because the first version of
+    // this guarded only two of the seventeen: `Math.mod` of a negative
+    // number comes back as a value this comparison reads as *true*, so
+    // "nothing stored" decoded as "everything expanded" — and a first
+    // launch opened Develop with all fifteen groups unfolded, which is
+    // the screen ADR 0054 exists to prevent.
+    pure function stored-bit(code: int, index: int, fallback: bool) -> bool {
+        return code < 0
+            ? fallback
+            : Math.mod(Math.floor(code / Math.pow(2, index)), 2) == 1;
+    }
+    // The same number, recomposed. Written as **one** derived property with
+    // **one** handler rather than sixteen `changed` handlers: every fold in
+    // this panel already feeds it, so a group added later is remembered by
+    // adding its term here and nowhere else.
+    property <int> view-code:
+        (root.basic-mode ? 0 : 1)
+        + (root.expand-basic ? 2 : 0)
+        + (root.expand-camera-profile ? 4 : 0)
+        + (root.expand-lut ? 8 : 0)
+        + (root.expand-lens ? 16 : 0)
+        + (root.expand-detail ? 32 : 0)
+        + (root.expand-effects ? 64 : 0)
+        + (root.expand-tone-curve ? 128 : 0)
+        + (root.expand-hsl ? 256 : 0)
+        + (root.expand-color-grading ? 512 : 0)
+        + (root.expand-spot-removal ? 1024 : 0)
+        + (root.expand-reshape ? 2048 : 0)
+        + (root.expand-red-eye ? 4096 : 0)
+        + (root.expand-local ? 8192 : 0)
+        + (root.expand-proof ? 16384 : 0)
+        + (root.expand-geometry ? 32768 : 0);
+    changed view-code => {
+        PreferencesState.remember-develop-view(self.view-code);
+    }
     // Fixed band order (ADR 0031), parallel to `DevSettings::hsl`.
     property <[string]> hsl-band-names: [
         @tr("Red"), @tr("Orange"), @tr("Yellow"), @tr("Green"),
@@ -136,7 +227,7 @@ export component DevelopPanel inherits HorizontalLayout {
         // (ADR 0124 §1) — folded by the same manual `Tab` as the settings
         // panel opposite, and by nothing else: on a narrow window Develop
         // keeps both panels, because there the panels *are* the module.
-        if !root.side-panels-hidden: DevelopLeftPanel {
+        if !root.side-panels-hidden && !root.left-panel-folded: DevelopLeftPanel {
             zoomed: root.dev-zoomed;
             scale: root.dev-scale;
             center-x: root.dev-center-x;
@@ -175,6 +266,22 @@ export component DevelopPanel inherits HorizontalLayout {
             // Declaring no maximum is the only way out in Slint 1.13, the
             // same idiom and the same reason as `StudioWindow`.
             max-width: 100000px;
+            // And no *minimum*, for the symmetric failure (ADR 0125 §1).
+            // The same rows that bounded this column's maximum also set its
+            // minimum — the toolbar is ten fixed-width chips deep in Full
+            // mode, some 820px of them — and a `HorizontalLayout` that
+            // cannot fit its children does not shrink them: it overflows to
+            // the right. The settings panel went off the edge of the window
+            // below ~1400px, at 1280 (the `preferred-width` this very
+            // application declares) losing the value column of every slider,
+            // and at 900 (the `min-width` it lets the user drag to) losing
+            // the panel entirely. A module whose controls leave the window
+            // is not a narrow layout, it is a broken one.
+            //
+            // Yielding the space is what a column beside a fixed panel has
+            // to do. What must not disappear with it is a *tool*, so the
+            // toolbar below scrolls rather than clipping.
+            min-width: 0px;
             padding: 12px;
             spacing: 8px;
 
@@ -202,163 +309,267 @@ export component DevelopPanel inherits HorizontalLayout {
                 overflow: elide;
             }
 
-            if !root.chrome-hidden: HorizontalLayout {
-                spacing: 6px;
-                FilterChip {
-                    text: @tr("Select");
-                    active: root.active-tool == "select";
-                    clicked => {
-                        root.active-tool = "select";
-                        root.spot-pending = false;
-                    }
-                }
-                FilterChip {
-                    text: @tr("Crop");
-                    active: root.active-tool == "crop";
-                    clicked => {
-                        root.active-tool = "crop";
-                        root.spot-pending = false;
-                        root.dev-zoomed = false;
-                    }
-                }
+            // The toolbar scrolls sideways rather than losing its last
+            // tools (ADR 0125 §3). Ten chips wide in Full mode, each sized
+            // by its own label — and markedly wider in French — this row is
+            // what a narrow window runs out of first, and clipping it would
+            // hide *Brush* behind the panel edge with nothing to say it was
+            // ever there.
+            //
+            // Scrolled by hand rather than by a `Flickable`, having tried
+            // that first: a `Flickable` pans when *it* receives the press,
+            // and here every press lands on a chip's own `TouchArea`, so
+            // dragging the row did nothing at all — only a horizontal wheel,
+            // which most mice do not have, ever moved it. What this needs is
+            // the plain wheel and something to click, so it is a clipping
+            // frame, an offset, and two chevrons.
+            //
+            // The `TouchArea` is the row's **parent** and not its sibling,
+            // which is the whole mechanism: a chip is a descendant, so it
+            // still takes clicks first, and the scroll it does not handle
+            // bubbles up to here. A sibling would take neither.
+            if !root.chrome-hidden: toolbar := Rectangle {
+                height: root.toolbar-height;
+                // How much of the row is out of sight, and therefore
+                // whether either chevron is shown.
+                property <length> hidden-width: max(0px, toolrow.preferred-width - self.width);
 
-                // The toolbar is a dozen tools deep in Full mode, and a dozen
-                // chips in one undifferentiated row is a list rather than a
-                // toolbar. Grouped by what the tool acts on — the frame, then
-                // what is measured, then what is repaired, then what is
-                // masked — with a rule between the groups. Basic mode shows
-                // only the first two, and the separators of the hidden groups
-                // go with them.
-                ToolSeparator { }
-
-                // The white-balance picker (ADR 0091), now the pictogram it
-                // is everywhere else: a picker is something you then click the
-                // photograph with, which a labelled button does not say.
-                PipetteChip {
-                    active: root.active-tool == "wb";
-                    clicked => {
-                        root.active-tool = "wb";
-                        root.spot-pending = false;
-                        root.dev-zoomed = false;
-                    }
-                }
-
-                if !root.basic-mode: ToolSeparator { }
-                if !root.basic-mode: FilterChip {
-                    text: @tr("Spot Removal");
-                    active: root.active-tool == "spot";
-                    clicked => {
-                        root.active-tool = "spot";
-                        root.dev-zoomed = false;
-                    }
-                }
-                if !root.basic-mode: FilterChip {
-                    // Red-eye (ADR 0103): one click per pupil, where spot
-                    // removal takes two.
-                    text: @tr("Red Eye");
-                    active: root.active-tool == "red-eye";
-                    clicked => {
-                        root.active-tool = "red-eye";
-                        root.spot-pending = false;
-                        root.dev-zoomed = false;
-                        root.expand-red-eye = true;
-                    }
-                }
-
-                if !root.basic-mode: FilterChip {
-                    text: @tr("Reshape");
-                    active: root.active-tool == "reshape";
-                    clicked => {
-                        root.active-tool = "reshape";
-                        root.dev-zoomed = false;
-                        root.expand-reshape = true;
-                    }
-                }
-
-                // Keystone by drawn lines (ADR 0119). Picking it zeroes the
-                // two perspective sliders: the guides are read against the
-                // photograph *before* the correction, and drawing "this
-                // should be vertical" on an already-straightened one asks
-                // about a picture that no longer exists (§4).
-                if !root.basic-mode: FilterChip {
-                    text: @tr("Keystone");
-                    active: root.active-tool == "keystone";
-                    clicked => {
-                        root.active-tool = "keystone";
-                        root.dev-zoomed = false;
-                        root.expand-geometry = true;
-                        DevelopState.develop-keystone-begin();
-                    }
-                }                // The three local-adjustment tools (ADR 0049 §1). Like Crop
-                // and Spot Removal they assume the fit-to-window letterbox,
-                // so picking one drops the loupe back to fit; each also opens
-                // the panel section that shows what the gesture just wrote.
-                // Full mode only (ADR 0054 §2).
-                if !root.basic-mode: ToolSeparator { }
-
-                if !root.basic-mode: FilterChip {
-                    text: @tr("Radial");
-                    active: root.active-tool == "radial";
-                    clicked => {
-                        root.active-tool = "radial";
-                        root.spot-pending = false;
-                        root.dev-zoomed = false;
-                        root.expand-local = true;
-                    }
-                }
-                if !root.basic-mode: FilterChip {
-                    text: @tr("Gradient");
-                    active: root.active-tool == "gradient";
-                    clicked => {
-                        root.active-tool = "gradient";
-                        root.spot-pending = false;
-                        root.dev-zoomed = false;
-                        root.expand-local = true;
-                    }
-                }
-                if !root.basic-mode: FilterChip {
-                    text: @tr("Brush");
-                    active: root.active-tool == "brush";
-                    clicked => {
-                        root.active-tool = "brush";
-                        root.spot-pending = false;
-                        root.dev-zoomed = false;
-                        root.expand-local = true;
-                    }
-                }
-                ToolSeparator { }
-
-                FilterChip {
-                    // Loupe zoom (Z): 100%-with-pan vs fit-to-window,
-                    // Select tool only (see `dev-zoomed`'s declaration).
-                    // The one zoom level that means something exact — one
-                    // image pixel per screen pixel — stays one gesture away
-                    // whatever the wheel has been doing (ADR 0112 §3).
-                    text: root.dev-zoomed ? @tr("Fit") : @tr("100%    Z");
-                    active: root.dev-zoomed;
-                    enabled: root.active-tool == "select";
-                    clicked => {
-                        root.dev-scale = 1.0;
-                        root.dev-center-x = 0.5;
-                        root.dev-center-y = 0.5;
-                        root.dev-zoomed = !root.dev-zoomed;
-                    }
-                }
-
-                // The quick reminder of the keys, one glyph wide instead of a
-                // permanent strip of grey text across the row that has to
-                // show the file name. It opens the card that already holds
-                // them all, grouped by where the key works — so there is one
-                // list to maintain and not two that drift.
+                // A `Flickable` — for its **layout info**, not for its
+                // panning (ADR 0125 §3). A clipping `Rectangle` was tried
+                // first and reintroduced the very defect this ADR is about:
+                // a plain element merges its children's constraints, so the
+                // ten chips went on reporting ~900px of minimum through it,
+                // the middle column's `min-width: 0` could not take effect,
+                // and in Full mode at 1400px the settings panel was pushed
+                // off the window again. A `Flickable` reports **no minimum
+                // of its own** — that is what it is for — and is the only
+                // container here that lets the column shrink.
                 //
-                // A plain "?" and not a drawn glyph: unlike an eyedropper, a
-                // question mark is in every font there is.
-                FilterChip {
-                    text: "?";
-                    active: false;
+                // Its own drag is not used: every press lands on a chip's
+                // `TouchArea`, so `viewport-x` is driven by hand instead,
+                // from the wheel below and the chevrons underneath.
+                flick := Flickable {
+                    width: 100%;
+                    height: 100%;
+                    viewport-width: toolrow.preferred-width;
+                    viewport-height: root.toolbar-height;
+
+                    TouchArea {
+                        scroll-event(event) => {
+                            if (toolbar.hidden-width <= 0px) {
+                                return reject;
+                            }
+                            // Either axis moves it: a vertical wheel is what
+                            // most people have, a horizontal one is what the
+                            // gesture means. `viewport-x` is negative when
+                            // scrolled, hence the reversed clamp.
+                            flick.viewport-x = clamp(flick.viewport-x + event.delta-y + event.delta-x,
+                                -toolbar.hidden-width, 0px);
+                            return accept;
+                        }
+                        toolrow := HorizontalLayout {
+                    // Pinned to its natural width. Left to the parent's, the
+                    // chips would be squeezed to fit and there would be
+                    // nothing to scroll — `preferred-width` is what they ask
+                    // for, never what they were given.
+                    width: self.preferred-width;
+                    height: 100%;
+                    spacing: 6px;
+                    FilterChip {
+                        text: @tr("Select");
+                        active: root.active-tool == "select";
+                        clicked => {
+                            root.active-tool = "select";
+                            root.spot-pending = false;
+                        }
+                    }
+                    FilterChip {
+                        text: @tr("Crop");
+                        active: root.active-tool == "crop";
+                        clicked => {
+                            root.active-tool = "crop";
+                            root.spot-pending = false;
+                            root.dev-zoomed = false;
+                        }
+                    }
+                    // The targeted adjustment (ADR 0130 §3). In **Basic**,
+                    // beside Select and Crop, because the sliders it drives
+                    // are Basic's own — a tool that moves *Exposure* while
+                    // living in a mode that hides it would be incoherent,
+                    // and pointing at what should be brighter is the least
+                    // technical gesture in the module.
+                    FilterChip {
+                        text: @tr("Target");
+                        active: root.active-tool == "target";
+                        clicked => {
+                            root.active-tool = "target";
+                            root.spot-pending = false;
+                            root.dev-zoomed = false;
+                            root.expand-basic = true;
+                        }
+                    }
+
+                    // The toolbar is a dozen tools deep in Full mode, and a dozen
+                    // chips in one undifferentiated row is a list rather than a
+                    // toolbar. Grouped by what the tool acts on — the frame, then
+                    // what is measured, then what is repaired, then what is
+                    // masked — with a rule between the groups. Basic mode shows
+                    // only the first two, and the separators of the hidden groups
+                    // go with them.
+                    ToolSeparator { }
+
+                    // The white-balance picker (ADR 0091), now the pictogram it
+                    // is everywhere else: a picker is something you then click the
+                    // photograph with, which a labelled button does not say.
+                    PipetteChip {
+                        hint: @tr("White balance: click a neutral grey in the photograph");
+                        active: root.active-tool == "wb";
+                        clicked => {
+                            root.active-tool = "wb";
+                            root.spot-pending = false;
+                            root.dev-zoomed = false;
+                        }
+                    }
+
+                    if !root.basic-mode: ToolSeparator { }
+                    if !root.basic-mode: FilterChip {
+                        text: @tr("Spot Removal");
+                        active: root.active-tool == "spot";
+                        clicked => {
+                            root.active-tool = "spot";
+                            root.dev-zoomed = false;
+                        }
+                    }
+                    if !root.basic-mode: FilterChip {
+                        // Red-eye (ADR 0103): one click per pupil, where spot
+                        // removal takes two.
+                        text: @tr("Red Eye");
+                        active: root.active-tool == "red-eye";
+                        clicked => {
+                            root.active-tool = "red-eye";
+                            root.spot-pending = false;
+                            root.dev-zoomed = false;
+                            root.expand-red-eye = true;
+                        }
+                    }
+
+                    if !root.basic-mode: FilterChip {
+                        text: @tr("Reshape");
+                        active: root.active-tool == "reshape";
+                        clicked => {
+                            root.active-tool = "reshape";
+                            root.dev-zoomed = false;
+                            root.expand-reshape = true;
+                        }
+                    }
+
+                    // Keystone by drawn lines (ADR 0119). Picking it zeroes the
+                    // two perspective sliders: the guides are read against the
+                    // photograph *before* the correction, and drawing "this
+                    // should be vertical" on an already-straightened one asks
+                    // about a picture that no longer exists (§4).
+                    if !root.basic-mode: FilterChip {
+                        text: @tr("Keystone");
+                        active: root.active-tool == "keystone";
+                        clicked => {
+                            root.active-tool = "keystone";
+                            root.dev-zoomed = false;
+                            root.expand-geometry = true;
+                            DevelopState.develop-keystone-begin();
+                        }
+                    }                // The three local-adjustment tools (ADR 0049 §1). Like Crop
+                    // and Spot Removal they assume the fit-to-window letterbox,
+                    // so picking one drops the loupe back to fit; each also opens
+                    // the panel section that shows what the gesture just wrote.
+                    // Full mode only (ADR 0054 §2).
+                    if !root.basic-mode: ToolSeparator { }
+
+                    if !root.basic-mode: FilterChip {
+                        text: @tr("Radial");
+                        active: root.active-tool == "radial";
+                        clicked => {
+                            root.active-tool = "radial";
+                            root.spot-pending = false;
+                            root.dev-zoomed = false;
+                            root.expand-local = true;
+                        }
+                    }
+                    if !root.basic-mode: FilterChip {
+                        text: @tr("Gradient");
+                        active: root.active-tool == "gradient";
+                        clicked => {
+                            root.active-tool = "gradient";
+                            root.spot-pending = false;
+                            root.dev-zoomed = false;
+                            root.expand-local = true;
+                        }
+                    }
+                    if !root.basic-mode: FilterChip {
+                        text: @tr("Brush");
+                        active: root.active-tool == "brush";
+                        clicked => {
+                            root.active-tool = "brush";
+                            root.spot-pending = false;
+                            root.dev-zoomed = false;
+                            root.expand-local = true;
+                        }
+                    }
+                    ToolSeparator { }
+
+                    FilterChip {
+                        // Loupe zoom (Z): 100%-with-pan vs fit-to-window,
+                        // Select tool only (see `dev-zoomed`'s declaration).
+                        // The one zoom level that means something exact — one
+                        // image pixel per screen pixel — stays one gesture away
+                        // whatever the wheel has been doing (ADR 0112 §3).
+                        text: root.dev-zoomed ? @tr("Fit") : @tr("100%    Z");
+                        active: root.dev-zoomed;
+                        enabled: root.active-tool == "select";
+                        clicked => {
+                            root.dev-scale = 1.0;
+                            root.dev-center-x = 0.5;
+                            root.dev-center-y = 0.5;
+                            root.dev-zoomed = !root.dev-zoomed;
+                        }
+                    }
+
+                    // The quick reminder of the keys, one glyph wide instead of a
+                    // permanent strip of grey text across the row that has to
+                    // show the file name. It opens the card that already holds
+                    // them all, grouped by where the key works — so there is one
+                    // list to maintain and not two that drift.
+                    //
+                    // A plain "?" and not a drawn glyph: unlike an eyedropper, a
+                    // question mark is in every font there is.
+                    FilterChip {
+                        text: "?";
+                        hint: @tr("Keyboard shortcuts");
+                        active: false;
+                        clicked => {
+                            DialogState.dialog-result = "";
+                            DialogState.dialog = "shortcuts";
+                        }
+                    }
+                    }
+                    }
+                }
+
+                // What says there is more. Declared after the `Flickable`
+                // so they sit above it, and each shown only on the side
+                // that has something left — a chevron pointing at nothing
+                // is worse than none.
+                if flick.viewport-x < 0px: ToolbarChevron {
+                    x: 0;
+                    forward: false;
                     clicked => {
-                        DialogState.dialog-result = "";
-                        DialogState.dialog = "shortcuts";
+                        flick.viewport-x = min(0px, flick.viewport-x + 120px);
+                    }
+                }
+                if -flick.viewport-x < toolbar.hidden-width: ToolbarChevron {
+                    x: parent.width - self.width;
+                    forward: true;
+                    clicked => {
+                        flick.viewport-x = max(-toolbar.hidden-width, flick.viewport-x - 120px);
                     }
                 }
             }
@@ -590,6 +801,48 @@ export component DevelopPanel inherits HorizontalLayout {
                                 self.width / 1px, self.height / 1px,
                                 DevelopState.develop-image.width, DevelopState.develop-image.height);
                             root.active-tool = "select";
+                        }
+                    }
+                }
+
+                // The targeted adjustment (ADR 0130 §3): press on a tone,
+                // drag up to lift it and down to lower it. The press names
+                // the setting — Rust reads the pixel and says which of the
+                // five it belongs to — and the drag is then an ordinary
+                // slider gesture on it, preview while moving, commit on
+                // release, exactly as `EditSlider` does.
+                //
+                // The tool stays armed after a release: adjusting a
+                // photograph by pointing at it is a sequence of pulls, not
+                // one answer like the eyedroppers above.
+                target-drag := TouchArea {
+                    enabled: root.active-tool == "target";
+                    mouse-cursor: ns-resize;
+                    // Where the drag started from, in the setting's own
+                    // units. Read once at the press: a preview writes
+                    // nothing, so `DevelopState.dev` holds still for the
+                    // length of the drag.
+                    property <float> base;
+                    property <float> shown: root.target-value(DevelopState.target-setting, self.base,
+                        (self.pressed-y - self.mouse-y) / 1px);
+                    pointer-event(event) => {
+                        if (event.kind == PointerEventKind.down && event.button == PointerEventButton.left) {
+                            if (parent.fit > 0) {
+                                DevelopState.target-pick(
+                                    (self.mouse-x - parent.pad-x) / (parent.image-w * parent.fit),
+                                    (self.mouse-y - parent.pad-y) / (parent.image-h * parent.fit));
+                                self.base = root.target-base(DevelopState.target-setting);
+                            }
+                        }
+                        if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left
+                            && DevelopState.target-setting != "") {
+                            DevelopState.develop-edit(DevelopState.target-setting, self.shown);
+                            DevelopState.target-setting = "";
+                        }
+                    }
+                    moved => {
+                        if (self.pressed && DevelopState.target-setting != "") {
+                            DevelopState.develop-preview(DevelopState.target-setting, self.shown);
                         }
                     }
                 }
@@ -1154,9 +1407,21 @@ export component DevelopPanel inherits HorizontalLayout {
                             background: DevelopState.dev-clip-shadows
                                 ? #0a84ff
                                 : (DevelopState.dev-shadows-clipped ? #0a84ff40 : transparent);
-                            TouchArea {
+                            // Two 10px squares at the corners of a
+                            // histogram: the most wordless control in the
+                            // application (ADR 0127 §2).
+                            shadow-clip-touch := TouchArea {
                                 clicked => {
+                                    HintState.dismiss();
                                     DevelopState.toggle-clipping("shadows");
+                                }
+                                changed has-hover => {
+                                    if (self.has-hover) {
+                                        HintState.enter(@tr("Show crushed shadows    J"),
+                                            self.absolute-position.x, self.absolute-position.y + self.height);
+                                    } else {
+                                        HintState.leave(@tr("Show crushed shadows    J"));
+                                    }
                                 }
                             }
                         }
@@ -1171,9 +1436,18 @@ export component DevelopPanel inherits HorizontalLayout {
                             background: DevelopState.dev-clip-highlights
                                 ? #ff3b30
                                 : (DevelopState.dev-highlights-clipped ? #ff3b3040 : transparent);
-                            TouchArea {
+                            highlight-clip-touch := TouchArea {
                                 clicked => {
+                                    HintState.dismiss();
                                     DevelopState.toggle-clipping("highlights");
+                                }
+                                changed has-hover => {
+                                    if (self.has-hover) {
+                                        HintState.enter(@tr("Show clipped highlights    J"),
+                                            self.absolute-position.x, self.absolute-position.y + self.height);
+                                    } else {
+                                        HintState.leave(@tr("Show clipped highlights    J"));
+                                    }
                                 }
                             }
                         }
@@ -3218,6 +3492,7 @@ export component DevelopPanel inherits HorizontalLayout {
                                 // image, the band lands on what was clicked.
                                 // The same pictogram as the white-balance
                                 // picker, for the same gesture.
+                                hint: @tr("Take the brightness range from the photograph");
                                 active: root.active-tool == "range-lum";
                                 clicked => {
                                     root.active-tool = "range-lum";
@@ -3268,6 +3543,7 @@ export component DevelopPanel inherits HorizontalLayout {
                                 }
                             }
                             if editor.sel.range-color-on: PipetteChip {
+                                hint: @tr("Take the colour range from the photograph");
                                 active: root.active-tool == "range-color";
                                 clicked => {
                                     root.active-tool = "range-color";

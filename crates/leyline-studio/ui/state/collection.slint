@@ -18,6 +18,12 @@ export global CollectionState {
     callback run-new-collection(string);
     callback add-to-collection();
     callback remove-from-collection();
+    // Photographs dropped on a collection row (ADR 0130 §1): the grid cell
+    // the drag started from, then the row it was let go over. The cell is
+    // named because the drop must act on what was *dragged* — Rust widens
+    // it to the whole selection when that cell is part of one, and leaves
+    // the selection itself alone either way.
+    callback drop-on-collection(int, int);
 
     // The collection a management dialog is about: an index into
     // `collections`, -1 when none is.

@@ -46,6 +46,25 @@ pub(super) fn wire_adjustments(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
+        // The one part of the targeted adjustment that needs the pixels
+        // (ADR 0130 §3): which tonal setting the tone under the pointer
+        // belongs to. The panel does the rest, on a slider it already knows.
+        DevelopState::get(window).on_target_pick(move |u, v| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let app = app.borrow();
+            let setting = app
+                .dev_pixels
+                .as_ref()
+                .and_then(|image| develop::target_setting(image, u, v))
+                .unwrap_or_default();
+            DevelopState::get(&window).set_target_setting(setting.into());
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
         DevelopState::get(window).on_sample_pixel(move |u, v| {
             let Some(window) = handle.upgrade() else {
                 return;

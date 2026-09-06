@@ -1,0 +1,45 @@
+// The one hint on screen (ADR 0127).
+//
+// A global holding *interface* state, which is the exception ADR 0045 §2
+// allows and this one earns: a hint is drawn by the window and asked for by
+// a control anywhere inside it, so the two ends are in different files and
+// neither owns the other. Nothing here crosses to Rust — Rust neither reads
+// nor writes a single property of this global.
+//
+// The rule that keeps it small is in the ADR: a hint exists only for a
+// control that carries **no words**. `Exposure` gets none; `⟲` does. The
+// list of `hint:` in the source is therefore a list of the places the
+// interface is not self-evident, and it should stay short.
+export global HintState {
+    // What the pointer is over, or "" for nothing. Set by the control, read
+    // by the window's hint layer.
+    in-out property <string> hint;
+    // Where to draw it: the asking control's own bottom-left corner, in
+    // window coordinates. `absolute-position` is what every element already
+    // reports, so a control needs to know nothing about the layer.
+    in-out property <length> x;
+    in-out property <length> y;
+    // Whether the delay has elapsed. The timer lives in the layer.
+    in-out property <bool> shown;
+
+    // The pointer entered a control with something to say.
+    public function enter(text: string, at-x: length, at-y: length) {
+        self.hint = text;
+        self.x = at-x;
+        self.y = at-y;
+    }
+    // ...and left it. Guarded, because entering the next control happens
+    // *before* leaving the previous one: without the test, crossing a
+    // toolbar would clear the hint that had just been asked for.
+    public function leave(text: string) {
+        if (self.hint == text) {
+            self.dismiss();
+        }
+    }
+    // A click answers the question the hint was about to ask, and a hint
+    // that stays up over a photograph one is adjusting is in the way.
+    public function dismiss() {
+        self.hint = "";
+        self.shown = false;
+    }
+}

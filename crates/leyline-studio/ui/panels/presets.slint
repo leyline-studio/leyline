@@ -15,6 +15,7 @@
 // Nothing here decides an order or a filter.
 
 import { PresetRow } from "../types.slint";
+import { HintState } from "../state/hint.slint";
 import { DevelopState } from "../state/develop.slint";
 import { GroupHeader } from "../widgets/controls.slint";
 
@@ -168,7 +169,18 @@ export component PresetsSection inherits VerticalLayout {
             }
             add-touch := TouchArea {
                 clicked => {
+                    HintState.dismiss();
                     DevelopState.open-preset-dialog();
+                }
+                // A `+` beside a heading, which says where but not what
+                // (ADR 0127 §1).
+                changed has-hover => {
+                    if (self.has-hover) {
+                        HintState.enter(@tr("Save these settings as a preset    S"),
+                            self.absolute-position.x, self.absolute-position.y + self.height);
+                    } else {
+                        HintState.leave(@tr("Save these settings as a preset    S"));
+                    }
                 }
             }
         }

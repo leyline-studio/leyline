@@ -63,4 +63,28 @@ export global PreferencesState {
     callback install-update();
     // File ▸ Preferences…
     callback open-preferences();
+
+    // How the interface was left, so it comes back that way (ADR 0128).
+    //
+    // **Numbers Rust never interprets.** Each is a bitfield the panel that
+    // owns it composes and decomposes: bit 0 of `develop-view` is Full mode,
+    // the rest are its setting groups, and `develop-left-view` carries the
+    // four sections of the left column. Rust reads neither — it stores the
+    // number and hands it back at the next launch — which is what keeps
+    // ADR 0045 §2 true rather than merely bypassed: the crossing is real
+    // (persistence needs it) and it is as narrow as the need, so a
+    // sixteenth group costs one line, in Slint, in the panel that owns it.
+    //
+    // A number and not a list of names because Slint 1.13 has no string
+    // search: `is-float`, `to-float`, `is-empty`, `character-count` and the
+    // two case conversions are the whole of its string surface, so a panel
+    // could write `"basic,detail"` and never read it back.
+    //
+    // **-1 means nothing is stored** — a first launch — and each panel then
+    // uses the defaults its own ADR chose (ADR 0128 §2). It is not the same
+    // as 0, which is a deliberately empty interface.
+    in property <int> develop-view: -1;
+    in property <int> develop-left-view: -1;
+    callback remember-develop-view(int);
+    callback remember-develop-left-view(int);
 }

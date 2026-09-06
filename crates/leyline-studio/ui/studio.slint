@@ -23,6 +23,8 @@ import { TetherState } from "state/tether.slint";
 import { BrowserPanel } from "panels/browser.slint";
 import { DevelopPanel } from "panels/develop.slint";
 import { DialogOverlay } from "panels/dialogs.slint";
+import { DragState } from "state/drag.slint";
+import { HintState } from "state/hint.slint";
 import { ComparePanel } from "panels/compare.slint";
 import { LoupePanel } from "panels/loupe.slint";
 import { SurveyPanel } from "panels/survey.slint";
@@ -130,7 +132,18 @@ export component StudioWindow inherits Window {
     // 1340px was exactly the width `startup_size` opens a 1920x1080 screen
     // at, so the commonest desktop there is met that overflow on its first
     // launch. 1400px is the first round number clear of it.
+    //
+    // Since ADR 0130 §2 this is the **metadata** panel's threshold alone —
+    // which is what the measurement above was always about — and the
+    // sidebar has its own, lower, one below.
     property <length> narrow-threshold: 1400px;
+    // And below this one the sidebar goes too (ADR 0130 §2). 1100px:
+    // 200px of sidebar and the filter bar's own minimum — the bar is chips
+    // sized by their labels beside a search field that gives ground down to
+    // 90px — leave the grid a usable width there, and nothing off the edge
+    // of the window. It is the *other* 300px, the metadata panel, that the
+    // 1340px measurement above was about.
+    property <length> sidebar-threshold: 1100px;
     // What the **browser** reads. `side-panels-hidden` stays the manual
     // gesture (Tab, ADR 0055 §6) and keeps working; this is that choice, or
     // the window being too narrow to have one.
@@ -154,9 +167,35 @@ export component StudioWindow inherits Window {
     // Writing it from a `changed` handler breaks the cycle: an event handler
     // assigns, it does not participate in the dependency graph.
     property <bool> browser-panels-folded: false;
+    // The metadata panel folds earlier than the sidebar (ADR 0130 §2): it
+    // is informational, and dropping it alone is what lets a 1366px laptop
+    // keep its folders and its collections instead of losing both panels
+    // at once. It keeps `narrow-threshold`, which it always was the
+    // measurement for: what went off the edge at 1340px was the metadata
+    // panel.
+    property <bool> browser-detail-folded: false;
+    // The same fold for Develop, at its own threshold and on one column
+    // only (ADR 0125 §1). The paragraph above says Develop keeps its panels
+    // because there the panels *are* the module — which is true of the
+    // right-hand one, and not of the left. Navigator, presets, versions and
+    // history are what one *chooses* with (ADR 0124 §1); the sliders are
+    // what one *works* with. So the left column is the one that yields,
+    // and the settings panel never does.
+    //
+    // 1150px, and measured rather than picked: 260px of left column plus
+    // 300px of settings leaves 590px of viewer at that width, which is
+    // still a photograph one can judge; below it the viewer is the thing
+    // being squeezed, and the column that chooses is worth less then than
+    // the picture. Assigned from the same handler, for the same
+    // cycle-avoidance reason.
+    property <length> develop-narrow-threshold: 1150px;
+    property <bool> develop-left-folded: false;
     function refresh-fold() {
-        root.browser-panels-folded =
+        root.browser-detail-folded =
             root.side-panels-hidden || root.width < root.narrow-threshold;
+        root.browser-panels-folded =
+            root.side-panels-hidden || root.width < root.sidebar-threshold;
+        root.develop-left-folded = root.width < root.develop-narrow-threshold;
     }
     changed width => {
         root.refresh-fold();
@@ -222,6 +261,20 @@ export component StudioWindow inherits Window {
             }
             if (event.modifiers.control && (event.text == "v" || event.text == "V")) {
                 DevelopState.paste-settings();
+                return accept;
+            }
+            // `Ctrl+Z` means "undo here" (ADR 0129 §3): in Develop it walks
+            // the revision graph, in the library it steps the edit stack.
+            // Placed before the develop branch, and guarded by it, so the
+            // two never race for the same keystroke.
+            if (!DevelopState.develop-mode && event.modifiers.control
+                && (event.text == "z" || event.text == "Z")) {
+                LibraryState.undo-library();
+                return accept;
+            }
+            if (!DevelopState.develop-mode && event.modifiers.control
+                && (event.text == "y" || event.text == "Y")) {
+                LibraryState.redo-library();
                 return accept;
             }
             if (DevelopState.develop-mode) {
@@ -421,16 +474,23 @@ export component StudioWindow inherits Window {
         }
 
         develop := DevelopPanel {
-            // The manual fold only — see `browser-panels-folded`.
             side-panels-hidden: root.side-panels-hidden;
             chrome-hidden: root.chrome-hidden;
+            left-panel-folded: root.develop-left-folded;
         }
 
         MapPanel { }
 
         browser := BrowserPanel {
-            side-panels-hidden: root.browser-panels-folded;
+            sidebar-hidden: root.browser-panels-folded;
+            detail-hidden: root.browser-detail-folded;
             chrome-hidden: root.chrome-hidden;
+            folded-by-hand: root.side-panels-hidden;
+            unfold => {
+                root.side-panels-hidden = false;
+                root.chrome-hidden = false;
+                root.refresh-fold();
+            }
             return-focus => {
                 keys.focus();
             }
@@ -463,4 +523,74 @@ export component StudioWindow inherits Window {
     }
 
     menubar := MenuBar { }
+
+    // What is under the pointer while photographs are being dragged
+    // (ADR 0130 §1). Drawn by the window for the same reason the hint is:
+    // it has to escape every panel's clipping, and it must not join any
+    // layout it passes over.
+    if DragState.dragging: Rectangle {
+        x: DragState.x + 12px;
+        y: DragState.y + 12px;
+        width: drag-label.preferred-width + 16px;
+        height: 22px;
+        background: #2f4f6f;
+        border-radius: 4px;
+        border-width: 1px;
+        border-color: #6fa8dc;
+
+        drag-label := Text {
+            // Says *how many*, because the answer differs from what the
+            // pointer is on top of whenever a multi-selection is dragged.
+            // `Tr.photo-count` is the phrase the import and removal
+            // dialogs already use, plural form included.
+            text: Tr.photo-count(DragState.count);
+            color: #e6e6e6;
+            font-size: 11px;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            width: 100%;
+            height: 100%;
+        }
+    }
+
+    // The hint layer (ADR 0127 §3): one on screen, drawn by the window.
+    //
+    // Here, and not by the control that asks for it, for three mechanical
+    // reasons — a hint has to escape the `Flickable` that clips its
+    // control, it must not join any layout it appears over, and there must
+    // be exactly one. Declared last so it draws above every panel, and
+    // *after* the menu bar so an open menu does not cover it.
+    //
+    // 500 ms, restarted by each new control: long enough that crossing a
+    // toolbar shows nothing, short enough to read as an answer.
+    hint-delay := Timer {
+        interval: 500ms;
+        running: HintState.hint != "" && !HintState.shown;
+        triggered => {
+            HintState.shown = true;
+        }
+    }
+    if HintState.shown && HintState.hint != "": Rectangle {
+        // Clamped into the window: a control at the right edge — the
+        // settings panel's ⟲ is one — would otherwise put its hint outside
+        // it.
+        x: clamp(HintState.x, 8px, max(8px, root.width - self.width - 8px));
+        y: clamp(HintState.y + 6px, 8px, max(8px, root.height - self.height - 8px));
+        width: hint-text.preferred-width + 16px;
+        height: 22px;
+        background: #0e0e0e;
+        border-radius: 4px;
+        border-width: 1px;
+        border-color: #3a3a3a;
+
+        hint-text := Text {
+            text: HintState.hint;
+            color: #e6e6e6;
+            font-size: 11px;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            width: 100%;
+            height: 100%;
+        }
+    }
 }

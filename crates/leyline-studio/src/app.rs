@@ -291,6 +291,15 @@ pub(crate) struct App {
     /// description on its own is a report. Paths only, so nothing is copied
     /// until the folder is created.
     pub(crate) report_files: Vec<std::path::PathBuf>,
+    /// What the library's `Ctrl+Z` steps through (ADR 0129).
+    ///
+    /// Studio's, not the engine's: the four operations it covers replace
+    /// catalog state the client already holds — the grid rows carry rating,
+    /// label and flag, the detail panel carries the description it is about
+    /// to overwrite — so an undo is the same public call with the values
+    /// read a moment earlier. Develop's `Ctrl+Z` is untouched and is not
+    /// this: it walks the revision graph (ADR 0007).
+    pub(crate) undo: crate::undo::History,
 }
 
 /// Live state of the GPS map view while it's open.

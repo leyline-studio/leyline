@@ -68,7 +68,13 @@ Two levels of disclosure, chosen by a switch at the head of the panel:
 | | Basic (default) | Full |
 | :--- | :--- | :--- |
 | Groups | White balance, Tone, Presence, Lens correction, Detail, Geometry, History | all fifteen |
-| Tools on the image | Select, Crop | all six |
+| Tools on the image | Select, Crop, Target | all of them |
+
+> **Amended by [ADR 0130](0130-direct-manipulation.md) §3**, which adds
+> *Target* to Basic. It has to be there: the sliders it drives are Basic's
+> own, and a tool that moved *Exposure* from a mode hiding *Exposure* would
+> be incoherent — and of the three it is the least technical, asking only
+> that the user point at what is wrong.
 
 The split is not arbitrary: **Basic holds what has an obvious equivalent in any
 photo tool** — a temperature, an exposure, a crop, a lens-correction switch.
@@ -130,6 +136,14 @@ Three properties to hold:
 
 ### 3. Basic is the default, including for those who already know the application
 
+> **Amended by [ADR 0128](0128-remembered-interface-state.md).** The reason
+> below — *a configuration file the project does not have* — expired when
+> [ADR 0078](0078-preferences-panel.md) created one. The mode and the group
+> folds are now remembered; what stands is the paragraph's real argument,
+> about the **first** launch, which still opens exactly the interface
+> described here.
+
+
 The opposite — remembering the last mode — would require storing a preference,
 hence a configuration file the project does not have, and this decision does
 not justify creating one. An experienced user clicks once per session; a
@@ -139,6 +153,13 @@ beginner has no "once" to give.
 
 * **A guided tour, tooltips, a first-run assistant.** Software that needs to be
   explained on top of its interface has a problem in its interface.
+
+  > **Narrowed by [ADR 0127](0127-hints-on-wordless-controls.md).** The
+  > sentence holds for a *labelled* interface, which is what it was written
+  > about. It was never an argument about a control that carries no words at
+  > all — a 10x10px square, a `⟲`, an eyedropper — and the interface has
+  > acquired eleven of those since, this ADR's own `?` among them. A hint
+  > appears on those and on nothing else.
 
   Applied afterwards to the one place that already did it: Develop carried a
   permanent strip of grey text listing six shortcuts, across the row that has

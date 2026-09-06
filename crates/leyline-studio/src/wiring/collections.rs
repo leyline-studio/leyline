@@ -3,9 +3,11 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::app::{App, item_at, report_error};
+use crate::app::{App, item_at, report_error, selected_versions};
 use crate::ui::{CollectionState, DialogState, FolderState, GridState, StudioWindow, Tr};
+use crate::undo::{Edit, Snapshot};
 use crate::wiring::grid::reload;
+use crate::wiring::library::refresh_undo;
 use leyline_sdk::{CollectionId, CollectionNode, CollectionType};
 use slint::{ComponentHandle, Global, Model, ModelRc, SharedString, VecModel};
 
@@ -71,6 +73,58 @@ pub(crate) fn wire_collections(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             if let Some(window) = handle.upgrade() {
                 collection_membership(&mut app.borrow_mut(), &window, true);
             }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        CollectionState::get(window).on_drop_on_collection(move |cell, target| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            let Some(collection) = usize::try_from(target)
+                .ok()
+                .and_then(|i| app.collections.get(i))
+                .copied()
+            else {
+                return;
+            };
+            // What was dragged (ADR 0130 §1): the whole selection when the
+            // dragged cell belongs to it, otherwise that one photograph.
+            // Dragging a cell outside the selection is a statement about
+            // that cell, and it must not silently file fifty others.
+            let dragged = usize::try_from(cell).ok();
+            let versions = if dragged.is_some_and(|c| app.multi_selected.contains(&c)) {
+                selected_versions(&app, cell)
+            } else {
+                item_at(&app, cell)
+                    .map(|item| vec![item.version_id])
+                    .unwrap_or_default()
+            };
+            if versions.is_empty() {
+                return;
+            }
+            if let Err(error) = app
+                .library
+                .add_to_collection(collection, &versions)
+                .map_err(|e| e.to_string())
+                .and_then(|()| reload(&mut app, &window))
+            {
+                report_error(&window, &error);
+                return;
+            }
+            let membership = |member| Snapshot::Collection {
+                collection,
+                versions: versions.clone(),
+                member,
+            };
+            app.undo.push(Edit {
+                kind: "collection",
+                before: membership(false),
+                after: membership(true),
+            });
+            refresh_undo(&app, &window);
         });
     }
     {
@@ -321,7 +375,22 @@ pub(crate) fn collection_membership(app: &mut App, window: &StudioWindow, add: b
         .and_then(|()| reload(app, window))
     {
         report_error(window, &error);
+        return;
     }
+    // Undoable (ADR 0129). The membership is a fact about one version and
+    // one collection, so both halves of the edit are the same shape with
+    // the boolean flipped.
+    let membership = |member| Snapshot::Collection {
+        collection,
+        versions: vec![version],
+        member,
+    };
+    app.undo.push(Edit {
+        kind: "collection",
+        before: membership(!add),
+        after: membership(add),
+    });
+    refresh_undo(app, window);
 }
 
 /// Reloads the sidebar from the catalog's collection tree.

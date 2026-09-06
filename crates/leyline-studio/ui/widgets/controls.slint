@@ -6,6 +6,7 @@
 // the singleton panels of `ui/panels/`.
 
 import { Cell } from "../types.slint";
+import { HintState } from "../state/hint.slint";
 
 export component DetailRow inherits HorizontalLayout {
     in property <string> label;
@@ -77,7 +78,7 @@ export component GroupHeader inherits HorizontalLayout {
     // Shown only while the group is open: a header row is read as a list,
     // and a column of buttons down the side of a folded panel invites the
     // one click nobody wants to make by accident.
-    if root.group != "" && root.expanded: TouchArea {
+    if root.group != "" && root.expanded: reset-glyph := TouchArea {
         width: 16px;
         mouse-cursor: pointer;
         Text {
@@ -88,7 +89,17 @@ export component GroupHeader inherits HorizontalLayout {
             vertical-alignment: center;
         }
         clicked => {
+            HintState.dismiss();
             root.reset();
+        }
+        // A glyph with no word anywhere near it (ADR 0127 §1).
+        changed has-hover => {
+            if (self.has-hover) {
+                HintState.enter(@tr("Put this group back to neutral"),
+                    self.absolute-position.x, self.absolute-position.y + self.height);
+            } else {
+                HintState.leave(@tr("Put this group back to neutral"));
+            }
         }
     }
 }
@@ -118,6 +129,11 @@ export component FilterChip inherits Rectangle {
     in property <bool> active;
     in property <bool> enabled: true;
     in property <string> text;
+    // What to say on hover, for a chip whose label is a glyph (ADR 0127
+    // §1). Empty for every chip that carries a word, which is nearly all
+    // of them — a hint on a chip that says `Crop` is the layer of
+    // explanation ADR 0054 §4 was right to refuse.
+    in property <string> hint;
     callback clicked;
 
     height: 24px;
@@ -137,10 +153,20 @@ export component FilterChip inherits Rectangle {
         width: 100%;
         height: 100%;
     }
-    TouchArea {
+    touch := TouchArea {
         enabled: root.enabled;
         clicked => {
+            HintState.dismiss();
             root.clicked();
+        }
+        changed has-hover => {
+            if (root.hint != "") {
+                if (self.has-hover) {
+                    HintState.enter(root.hint, root.absolute-position.x, root.absolute-position.y + root.height);
+                } else {
+                    HintState.leave(root.hint);
+                }
+            }
         }
     }
 }
@@ -158,6 +184,9 @@ export component FilterChip inherits Rectangle {
 // drawing rather than letterboxing it.
 export component PipetteChip inherits Rectangle {
     in property <bool> active;
+    // A picker is a pictogram by design, so this one is never empty
+    // (ADR 0127 §1).
+    in property <string> hint;
     callback clicked;
 
     height: 24px;
@@ -180,7 +209,62 @@ export component PipetteChip inherits Rectangle {
     }
     TouchArea {
         clicked => {
+            HintState.dismiss();
             root.clicked();
+        }
+        changed has-hover => {
+            if (root.hint != "") {
+                if (self.has-hover) {
+                    HintState.enter(root.hint, root.absolute-position.x, root.absolute-position.y + root.height);
+                } else {
+                    HintState.leave(root.hint);
+                }
+            }
+        }
+    }
+}
+
+// The end of a toolbar that does not fit, and the way to reach it
+// (ADR 0125 §3).
+//
+// A chevron rather than a scrollbar: a 24px-tall row would carry a 4px bar
+// under controls that are themselves 24px tall, and the gesture that bar
+// invites — grabbing something thinner than the thing it scrolls — is the
+// one a cramped window is least able to serve. This is a button, the size
+// of the chips beside it, and it says which way there is more.
+//
+// It paints its own ground because it sits *over* the row it scrolls: with
+// a transparent one, a chip would read through the glyph.
+export component ToolbarChevron inherits Rectangle {
+    in property <bool> forward;
+    callback clicked;
+
+    width: 18px;
+    height: 24px;
+    background: #1b1b1b;
+
+    Text {
+        text: root.forward ? "›" : "‹";
+        color: touch.has-hover ? #e6e6e6 : #9a9a9a;
+        font-size: 14px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        width: 100%;
+        height: 100%;
+    }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            HintState.dismiss();
+            root.clicked();
+        }
+        changed has-hover => {
+            if (self.has-hover) {
+                HintState.enter(@tr("More tools"),
+                    self.absolute-position.x, self.absolute-position.y + self.height);
+            } else {
+                HintState.leave(@tr("More tools"));
+            }
         }
     }
 }
@@ -557,6 +641,28 @@ export component EditSlider inherits HorizontalLayout {
     property <float> shown: root.dragging ? root.drag-value : root.value;
     property <float> factor: Math.pow(10, root.decimals);
     property <float> rounded: Math.round(root.shown * root.factor) / root.factor;
+    property <float> range: root.maximum - root.minimum;
+    // Where the drag began, in value and in pointer position (ADR 0126 §1).
+    // Movement is counted from here rather than read off the pointer's
+    // absolute position, which is what makes §2 possible at all: on a 110px
+    // track, absolute means one pixel is a hundredth of the range and there
+    // is no way to ask for less.
+    property <float> anchor-value;
+    property <length> anchor-x;
+    // Whether `Shift` is down. Refreshed from `pointer-event`, because
+    // `moved` carries no modifiers and `Move` reaches `pointer-event` just
+    // before it — read continuously and not latched at press time, so one
+    // can start coarse and finish fine without releasing.
+    property <bool> fine;
+
+    // One wheel notch: 1 % of the range, a fifth of that with `Shift`
+    // (ADR 0126 §3), rounded to a value this slider can actually hold.
+    function nudge(direction: float, small: bool) {
+        root.edited(Math.clamp(
+            Math.round((root.value + direction * root.range / (small ? 500 : 100)) * root.factor) / root.factor,
+            root.minimum,
+            root.maximum));
+    }
 
     spacing: 8px;
     height: 22px;
@@ -591,18 +697,53 @@ export component EditSlider inherits HorizontalLayout {
         TouchArea {
             moved => {
                 if (self.pressed) {
-                    root.dragging = true;
-                    root.drag-value = Math.clamp(root.minimum + (self.mouse-x / self.width) * (root.maximum - root.minimum), root.minimum, root.maximum);
+                    // Relative to the anchor, and a fifth of the distance
+                    // while `Shift` is held (ADR 0126 §2).
+                    root.drag-value = Math.clamp(
+                        root.anchor-value
+                            + ((self.mouse-x - root.anchor-x) / self.width) * root.range / (root.fine ? 5 : 1),
+                        root.minimum,
+                        root.maximum);
                     // Show what the value does, under the finger. Nothing is
                     // written until the release below (ADR 0074 §2).
                     root.previewing(root.drag-value);
                 }
             }
             pointer-event(event) => {
+                root.fine = event.modifiers.shift;
+                // A press sets the value and becomes the anchor (ADR 0126
+                // §1). Before this, pressing the track without moving did
+                // nothing whatever — the drag began on `moved`, so the most
+                // ordinary gesture on the most-used control in the
+                // application was dead.
+                if (event.kind == PointerEventKind.down && event.button == PointerEventButton.left) {
+                    root.dragging = true;
+                    root.anchor-x = self.mouse-x;
+                    root.anchor-value = Math.clamp(root.minimum + (self.mouse-x / self.width) * root.range, root.minimum, root.maximum);
+                    root.drag-value = root.anchor-value;
+                    root.previewing(root.drag-value);
+                }
                 if (event.kind == PointerEventKind.up && root.dragging) {
                     root.dragging = false;
                     root.edited(root.drag-value);
                 }
+            }
+            // The wheel, over the **track** and nowhere else (ADR 0126 §3):
+            // over the label, the number or the gap between rows it is
+            // declined, and the panel behind goes on scrolling — which is
+            // how the panel is read, and what a wheel that edited whatever
+            // it passed over would destroy.
+            //
+            // Each notch commits, there being no release to commit on. That
+            // is affordable because successive edits of one setting coalesce
+            // into a single revision (ADR 0120), so a turn of the wheel
+            // writes one revision and not thirty.
+            scroll-event(event) => {
+                if (event.delta-y == 0 && event.delta-x == 0) {
+                    return reject;
+                }
+                root.nudge(event.delta-y + event.delta-x > 0 ? 1 : -1, event.modifiers.shift);
+                return accept;
             }
             // The gesture everyone already has in their fingers: a
             // double-click puts the slider back where it does nothing.

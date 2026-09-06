@@ -9,8 +9,10 @@ use std::rc::Rc;
 
 use crate::app::{App, item_at, report_error};
 use crate::ui::{DetailState, FilterState, GridState, StudioWindow};
+use crate::undo::{Edit, Snapshot};
 use crate::wiring::grid::reload;
-use leyline_sdk::{AssetId, KeywordId, KeywordNode};
+use crate::wiring::library::refresh_undo;
+use leyline_sdk::{AssetDescription, AssetId, KeywordId, KeywordNode};
 use slint::{ComponentHandle, Global, Model, SharedString};
 
 /// Connects the keyword panel: tagging by path, untagging by row.
@@ -36,11 +38,33 @@ pub(crate) fn wire_keywords(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 app.library
                     .add_keyword(&[asset], keyword)
                     .map_err(|e| e.to_string())
+                    .map(|()| keyword)
             });
             // Reload rather than refresh the panel alone: a text search may
             // now match (or no longer match) the tagged photo.
-            if let Err(error) = tagged.and_then(|()| reload(&mut app, &window)) {
-                report_error(&window, &error);
+            match tagged.and_then(|keyword| reload(&mut app, &window).map(|()| keyword)) {
+                Ok(keyword) => {
+                    // Undoable (ADR 0129): the inverse of tagging one photo
+                    // is untagging it. The keyword the path resolved to may
+                    // have been created on the way, and is deliberately not
+                    // deleted by an undo — a keyword is a name in a
+                    // hierarchy, not a property of this photograph.
+                    app.undo.push(Edit {
+                        kind: "keyword",
+                        before: Snapshot::Keyword {
+                            assets: vec![asset],
+                            keyword,
+                            tagged: false,
+                        },
+                        after: Snapshot::Keyword {
+                            assets: vec![asset],
+                            keyword,
+                            tagged: true,
+                        },
+                    });
+                    refresh_undo(&app, &window);
+                }
+                Err(error) => report_error(&window, &error),
             }
         });
     }
@@ -60,11 +84,24 @@ pub(crate) fn wire_keywords(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             else {
                 return;
             };
-            let written = (|| {
+            // The description as it stands, which is both what the field
+            // is written onto and the half an undo puts back (ADR 0129 §1).
+            let before = app
+                .library
+                .catalog()
+                .description(asset)
+                .ok()
+                .flatten()
+                .unwrap_or_default();
+            // Annotated because the closure now yields the description it
+            // wrote — with `?` alone, nothing here says which error type
+            // the two arms share.
+            let written: Result<AssetDescription, String> = (|| {
                 let mut description = app
                     .library
                     .catalog()
-                    .description(asset)?
+                    .description(asset)
+                    .map_err(|e| e.to_string())?
                     .unwrap_or_default();
                 // An emptied field clears that field, and only it.
                 let value = value.trim();
@@ -74,18 +111,37 @@ pub(crate) fn wire_keywords(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                     "caption" => description.caption = value,
                     "creator" => description.creator = value,
                     "copyright" => description.copyright = value,
-                    _ => return Ok(()),
+                    // A field this panel does not write: nothing changed,
+                    // and the description travels back unmodified so the
+                    // caller compares it with itself and records nothing.
+                    _ => return Ok(description),
                 }
-                app.library.set_description(asset, &description)
+                app.library
+                    .set_description(asset, &description)
+                    .map_err(|e| e.to_string())?;
+                Ok(description)
             })();
             // Reload rather than refresh the panel alone: an authored
             // creator feeds the search index (ADR 0099 §2), so a text
             // search may now match this photo.
-            if let Err(error) = written
-                .map_err(|e| e.to_string())
-                .and_then(|()| reload(&mut app, &window))
-            {
-                report_error(&window, &error);
+            match written.and_then(|after| reload(&mut app, &window).map(|()| after)) {
+                Ok(after) => {
+                    if after != before {
+                        app.undo.push(Edit {
+                            kind: "description",
+                            before: Snapshot::Description {
+                                asset,
+                                description: Box::new(before),
+                            },
+                            after: Snapshot::Description {
+                                asset,
+                                description: Box::new(after),
+                            },
+                        });
+                        refresh_undo(&app, &window);
+                    }
+                }
+                Err(error) => report_error(&window, &error),
             }
         });
     }
@@ -117,8 +173,24 @@ pub(crate) fn wire_keywords(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 .library
                 .remove_keyword(&[asset], keyword)
                 .map_err(|e| e.to_string());
-            if let Err(error) = untagged.and_then(|()| reload(&mut app, &window)) {
-                report_error(&window, &error);
+            match untagged.and_then(|()| reload(&mut app, &window)) {
+                Ok(()) => {
+                    app.undo.push(Edit {
+                        kind: "keyword",
+                        before: Snapshot::Keyword {
+                            assets: vec![asset],
+                            keyword,
+                            tagged: true,
+                        },
+                        after: Snapshot::Keyword {
+                            assets: vec![asset],
+                            keyword,
+                            tagged: false,
+                        },
+                    });
+                    refresh_undo(&app, &window);
+                }
+                Err(error) => report_error(&window, &error),
             }
         });
     }

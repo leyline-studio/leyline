@@ -23,6 +23,11 @@ export global GridState {
     // A grid cell was clicked: index, then whether Ctrl/Shift was held
     // (multi-select) — plain clicks (both false) behave like `select`.
     callback cell-clicked(int, bool, bool);
+    // How many photographs a batch action would touch: the multi-selection
+    // when there is one, otherwise the lone focused photo. Set by Rust from
+    // the one place the selection changes; read by the label under a drag
+    // (ADR 0130 §1), which has to say *how many* before the drop.
+    in property <int> selection-size;
     callback classify(string);
     // Drops every criterion at once and shows the whole library again: the
     // way out of a grid narrowed to nothing, where no single chip is the one

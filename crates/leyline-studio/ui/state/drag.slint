@@ -1,0 +1,38 @@
+// Dragging photographs onto a collection (ADR 0130 §1).
+//
+// Interface state, like `HintState` and for the same reason: the two ends of
+// a drag are in different panels — the grid cell that is being dragged and
+// the sidebar row it is dropped on — and neither owns the other. Rust reads
+// none of it; what reaches Rust is one callback, at the drop.
+//
+// Slint 1.13 has no drag-and-drop of its own, and the piece that has to be
+// worked around is the **pointer grab**: while a `TouchArea` is pressed,
+// every move goes to it and to nothing else, so a sidebar row can never
+// learn that the pointer is over it. Hence the position in a global: the
+// dragged cell publishes where the pointer is, in window coordinates, and
+// each candidate row tests that point against its own `absolute-position`.
+// Nobody guesses at anybody's geometry.
+export global DragState {
+    // Whether a drag is under way — set only once the pointer has moved
+    // far enough that this is a drag and not a click.
+    in-out property <bool> dragging;
+    // The pointer, in window coordinates.
+    in-out property <length> x;
+    in-out property <length> y;
+    // How many photographs are being dragged, for the label under the
+    // pointer.
+    in-out property <int> count;
+    // The collection row the pointer is over, or -1. Written by the row
+    // itself, read by the cell that will report the drop.
+    in-out property <int> target: -1;
+
+    // The grid cell the drag started from, so the drop can say what was
+    // dragged without depending on the selection having changed first.
+    in-out property <int> from-cell: -1;
+
+    public function stop() {
+        self.dragging = false;
+        self.target = -1;
+        self.from-cell = -1;
+    }
+}

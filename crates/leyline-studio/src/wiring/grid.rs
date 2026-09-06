@@ -52,7 +52,7 @@ pub(crate) fn wire_select(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             {
                 let mut app = app.borrow_mut();
                 app.multi_selected.clear();
-                refresh_multi_selected_cells(&app);
+                refresh_multi_selected_cells(&app, &window);
             }
             show_details(&mut app.borrow_mut(), &window, index);
         });
@@ -87,7 +87,7 @@ pub(crate) fn wire_select(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 } else {
                     app.multi_selected.clear();
                 }
-                refresh_multi_selected_cells(&app);
+                refresh_multi_selected_cells(&app, &window);
             }
             GridState::get(&window).set_selected(index);
             show_details(&mut app.borrow_mut(), &window, index);
@@ -98,7 +98,17 @@ pub(crate) fn wire_select(app: &Rc<RefCell<App>>, window: &StudioWindow) {
 /// Re-marks every loaded cell's `multi-selected` flag from
 /// `app.multi_selected`, without refetching anything from the catalog —
 /// called after every Ctrl/Shift-click.
-pub(crate) fn refresh_multi_selected_cells(app: &App) {
+pub(crate) fn refresh_multi_selected_cells(app: &App, window: &StudioWindow) {
+    // How many photographs a batch action would act on, which is what the
+    // label under a drag says (ADR 0130 §1). Set from the one place the
+    // selection ever changes, so it cannot drift: an empty multi-selection
+    // means the lone focused photo, exactly as `selected_indices` reads it.
+    let size = if app.multi_selected.len() > 1 {
+        app.multi_selected.len()
+    } else {
+        usize::from(GridState::get(window).get_selected() >= 0)
+    };
+    GridState::get(window).set_selection_size(i32::try_from(size).unwrap_or(i32::MAX));
     for i in 0..app.cells.row_count() {
         let Some(mut cell) = app.cells.row_data(i) else {
             continue;
@@ -169,6 +179,11 @@ pub(crate) fn load_window(app: &mut App, window: &StudioWindow) -> Result<(), St
 
     GridState::get(window).set_cells(ModelRc::from(Rc::clone(&app.cells)));
     GridState::get(window).set_window_start(i32::try_from(range.start).unwrap_or(i32::MAX));
+    // Here as well as on every selection change, because a window loaded
+    // without one — at startup, or coming back from Develop — would leave
+    // the count at its default and a drag would offer "0 photos" while
+    // filing one (ADR 0130 §1).
+    refresh_multi_selected_cells(app, window);
 
     // The selection may have just scrolled into the loaded window (arrow
     // navigation past the edge): fill the side panel now that its row exists.

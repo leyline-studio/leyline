@@ -112,6 +112,10 @@ export component ShortcutsDialog inherits VerticalLayout {
             what: @tr("Reprocess library");
         }
         Shortcut {
+            keys: "Ctrl+Z / Ctrl+Y";
+            what: @tr("Undo / redo the last library change");
+        }
+        Shortcut {
             keys: @tr("Arrows");
             what: @tr("Move the selection");
         }
@@ -162,6 +166,17 @@ export component ShortcutsDialog inherits VerticalLayout {
         Shortcut {
             keys: "← / →";
             what: @tr("Previous / next photo");
+        }
+        // Not keys, but the two gestures on a slider nothing else announces
+        // (ADR 0126 §2, §3). This card is where a photographer looks for
+        // what the interface can do that is not written on it.
+        Shortcut {
+            keys: @tr("Wheel");
+            what: @tr("Over a slider's track: adjust it");
+        }
+        Shortcut {
+            keys: @tr("Shift + drag");
+            what: @tr("Fine adjustment, five times slower");
         }
     }
     HorizontalLayout {

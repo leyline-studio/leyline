@@ -58,4 +58,20 @@ export global LibraryState {
     // Library ▸ Pair RAW+JPEG… (ADR 0079 §7). Announces before it acts:
     // Rust counts, fills the confirmation dialog, and only the accept pairs.
     callback pair-library();
+
+    // Undoing a library edit (ADR 0129). `Ctrl+Z` in Develop walks the
+    // revision graph and always did; this is the other half, for the four
+    // things the grid writes — classement, keywords, collection membership,
+    // authored descriptions.
+    //
+    // Each is one of a closed set of words — "", "rating", "label", "flag",
+    // "keyword", "collection", "description" — which the menu turns into a
+    // sentence. A word rather than a sentence because every string a user
+    // reads lives behind `@tr(...)` on this side and none is ever assembled
+    // in Rust (ADR 0078 §3). Empty means there is nothing to undo, which is
+    // also what disables the menu item.
+    in property <string> undoable;
+    in property <string> redoable;
+    callback undo-library();
+    callback redo-library();
 }

@@ -81,6 +81,27 @@ pub(crate) struct Preferences {
     /// Launch counter, saturating at [`LAUNCH_CAP`].
     #[serde(default)]
     pub(crate) launches: u32,
+    /// How Develop's settings panel was left: mode and folded groups, as
+    /// the bitfield the panel itself composes (ADR 0128 §3).
+    ///
+    /// **Nothing here interprets it.** It is stored and handed back, which
+    /// is what keeps the meaning of every bit on the Slint side where the
+    /// groups are declared — a sixteenth group costs one line there and
+    /// nothing at all in this file. **Absent** means "never stored", and
+    /// the panel then opens on the defaults ADR 0054 chose, which is what
+    /// makes a first launch identical to the one that ADR shipped.
+    ///
+    /// Not a preference, and it never appears in the Preferences dialog:
+    /// ADR 0078 §1's admission rule excludes it twice over. It lives here
+    /// for the reason §5 of that ADR already applied to `launches` and
+    /// `last_update_check` — state of the same scope and lifetime belongs
+    /// in the same file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) develop_view: Option<i32>,
+    /// The same, for Develop's left column (ADR 0124 §1): its four
+    /// sections, four bits, equally uninterpreted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) develop_left_view: Option<i32>,
 }
 
 /// The preferences as the running application holds them: the values, and
@@ -456,6 +477,10 @@ mod tests {
             launches: 2,
             viewer_background: Some("grey".to_owned()),
             proof_background: Some("white".to_owned()),
+            // Opaque to this file by design (ADR 0128 §3), which is exactly
+            // what this test checks: it goes out and comes back untouched.
+            develop_view: Some(3),
+            develop_left_view: Some(1),
         };
         save_preferences(&path, &written).expect("save");
         assert_eq!(load_preferences(&path), written);

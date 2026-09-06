@@ -10,6 +10,7 @@
 // reason ADR 0112 §4 had to except them from the group reset.
 
 import { DevelopState } from "../state/develop.slint";
+import { PreferencesState } from "../state/preferences.slint";
 import { PresetsSection } from "presets.slint";
 import { FilterChip, GroupHeader } from "../widgets/controls.slint";
 
@@ -29,13 +30,34 @@ export component DevelopLeftPanel inherits Rectangle {
     in property <length> viewer-height;
     callback panned(float, float);
 
-    // Section folding, panel-private like every other bit of interface
-    // state here (ADR 0045 §2): the two lists start closed, so the column
+    // Section folding — which now survives the session (ADR 0128), by the
+    // same one-number-per-view arrangement the settings panel opposite
+    // uses. With nothing stored (`-1`, a first launch) the defaults are the
+    // ones ADR 0124 §1 chose: the two lists start closed, so the column
     // opens on the photograph and the presets.
-    property <bool> expand-navigator: true;
-    property <bool> expand-presets: true;
-    property <bool> expand-versions: false;
-    property <bool> expand-history: false;
+    property <int> stored-view: PreferencesState.develop-left-view;
+    property <bool> expand-navigator: root.stored-bit(root.stored-view, 0, true);
+    property <bool> expand-presets: root.stored-bit(root.stored-view, 1, true);
+    property <bool> expand-versions: root.stored-bit(root.stored-view, 2, false);
+    property <bool> expand-history: root.stored-bit(root.stored-view, 3, false);
+
+    // See the twin in `develop.slint`: the `fallback` is what a first
+    // launch gets, and it belongs in the function because a negative
+    // code must never reach the arithmetic — it decodes as *every bit
+    // set*, which shipped an interface with all its groups open.
+    pure function stored-bit(code: int, index: int, fallback: bool) -> bool {
+        return code < 0
+            ? fallback
+            : Math.mod(Math.floor(code / Math.pow(2, index)), 2) == 1;
+    }
+    property <int> view-code:
+        (root.expand-navigator ? 1 : 0)
+        + (root.expand-presets ? 2 : 0)
+        + (root.expand-versions ? 4 : 0)
+        + (root.expand-history ? 8 : 0);
+    changed view-code => {
+        PreferencesState.remember-develop-left-view(self.view-code);
+    }
 
     width: 260px;
     background: #212121;

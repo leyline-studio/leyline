@@ -261,7 +261,7 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
                             .map(|(index, _)| app.window_start + index)
                             .collect();
                         app.multi_selected = rejected;
-                        crate::wiring::grid::refresh_multi_selected_cells(app);
+                        crate::wiring::grid::refresh_multi_selected_cells(app, window);
                         LibraryState::get(window).set_status_line(
                             Tr::get(window).invoke_culling_proposal(
                                 i32::try_from(rejects.len()).unwrap_or(i32::MAX),

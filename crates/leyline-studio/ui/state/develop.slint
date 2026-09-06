@@ -116,6 +116,16 @@ export global DevelopState {
     // The pixel under the pointer, in [0, 1] image coordinates: Rust reads
     // the render it already holds and fills `pixel-readout` (ADR 0112 §2).
     callback sample-pixel(float, float);
+    // The targeted adjustment (ADR 0130 §3): point at a tone in the
+    // photograph and drag it. Rust answers with the **name** of the tonal
+    // setting that tone belongs to — and only that, because choosing it is
+    // the one part that needs the pixels. Everything after is the panel's
+    // own arithmetic on a slider it already knows, through the same
+    // preview-then-commit pair a drag on the track uses (ADR 0074 §1).
+    //
+    // Empty when the click landed outside the photograph.
+    in-out property <string> target-setting;
+    callback target-pick(float, float);
     // Already formatted — "R 215  G 215  B 215", or empty when the pointer
     // is off the photo.
     in-out property <string> pixel-readout: "";

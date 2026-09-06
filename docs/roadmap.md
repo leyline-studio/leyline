@@ -76,6 +76,27 @@ Assisted culling was decided in August ([ADR 0084](adr/0084-assisted-culling.md)
 
 The develop view's own furniture followed, from the first alpha's feedback: the left column stopped being a preset list with three quarters of a column beneath it ([ADR 0124](adr/0124-develop-left-column.md)). It carries four sections now — Navigator, Presets, Versions, History — the last two having moved across from the settings panel for the reason [ADR 0112](adr/0112-four-panel-affordances.md) §4 had already given without meaning to: they are lists of states, not settings, which is why the group reset had to except them. The same decision adds the reset that was missing entirely — the whole development back to neutral in **one** revision, undoable like any other.
 
+Then an **ergonomic pass**, run the same way as the parity passes before it:
+against the two reference applications, on the built binary rather than from
+memory, and with the findings ranked by what they cost a photographer. Six
+came out of it, and all six are closed. One was not a matter of comfort but a
+plain defect — below ~1400px Develop pushed its settings panel off the edge of
+the window, and at the `min-width` the window itself offers there was not a
+slider left on screen ([ADR 0125](adr/0125-narrow-window-develop.md)). The
+other five are the gap that was real: a slider one could neither turn a wheel
+over nor adjust finely, and on which a click did nothing at all
+([ADR 0126](adr/0126-slider-precision.md)); eleven controls carrying no word
+and no way to ask what they were ([ADR 0127](adr/0127-hints-on-wordless-controls.md),
+which narrows [ADR 0054](adr/0054-first-run-and-basic-mode.md) §4 rather than
+reversing it — the sentence holds for a *labelled* interface); an interface
+that forgot every session what mode it had been left in, on an argument that
+expired the day `preferences.json` was created
+([ADR 0128](adr/0128-remembered-interface-state.md)); no undo anywhere in the
+library, where the fastest and most bulk gestures are
+([ADR 0129](adr/0129-library-undo.md)); and no gesture that acted on the
+photograph itself — nothing dragged, nothing pointed at
+([ADR 0130](adr/0130-direct-manipulation.md)).
+
 Two decisions are taken and **not yet built**, which is the state ADR 0109
 was in for a while and is the ordinary order of work here. A develop session
 holds the whole catalog's lock while it lives, and it should hold a claim on
