@@ -7,7 +7,7 @@
 // its attributes, the keyboard `FocusScope`, and the order the pieces are
 // mounted in.
 
-import { Cell, CollectionRow, ColorGradingZoneValues, CurveMarker, DevSettings, FolderRow, HslBandValues, MapPinMarker, MaskDab, MaskRow, PresetRow, ProfileRow, SurveyCell, TetherControl, Tr } from "types.slint";
+import { Cell, CollectionRow, ColorGradingZoneValues, CurveMarker, DevSettings, FolderRow, HslBandValues, KeywordRow, MapPinMarker, MaskDab, MaskRow, PresetRow, ProfileRow, SurveyCell, TetherControl, Tr } from "types.slint";
 import { CollectionState } from "state/collection.slint";
 import { FolderState } from "state/folder.slint";
 import { DetailState } from "state/detail.slint";
@@ -15,6 +15,7 @@ import { DevelopState } from "state/develop.slint";
 import { DialogState } from "state/dialog.slint";
 import { FilterState } from "state/filter.slint";
 import { GridState } from "state/grid.slint";
+import { KeywordState } from "state/keyword.slint";
 import { LibraryState } from "state/library.slint";
 import { MapState } from "state/map.slint";
 import { MaskState } from "state/mask.slint";
@@ -54,6 +55,8 @@ export {
     FolderState,
     GridState,
     HslBandValues,
+    KeywordRow,
+    KeywordState,
     LibraryState,
     MapPinMarker,
     MapState,

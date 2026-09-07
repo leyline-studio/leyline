@@ -73,7 +73,7 @@ use wiring::dialogs::wire_dialogs;
 use wiring::filters::{refresh_shot_facets, wire_classify, wire_filters};
 use wiring::folders::{refresh_folders, wire_folders};
 use wiring::grid::{load_window, reload, wire_select};
-use wiring::keywords::wire_keywords;
+use wiring::keywords::{refresh_keyword_panel, wire_keyword_panel, wire_keywords};
 use wiring::library::{wire_culling, wire_library, wire_processors, wire_undo};
 use wiring::map::wire_map;
 use wiring::pairs::wire_pairs;
@@ -398,6 +398,9 @@ fn run() -> Result<(), Startup> {
         survey: Vec::new(),
         keywords: Vec::new(),
         keyword_filter: None,
+        keyword_panel: Vec::new(),
+        keyword_expanded: std::collections::BTreeSet::new(),
+        keyword_target: None,
         cells: Rc::new(VecModel::default()),
         pending: VecDeque::new(),
         events,
@@ -484,6 +487,9 @@ fn run() -> Result<(), Startup> {
         refresh_presets(&mut app, &window)?;
         refresh_shot_facets(&app, &window)?;
         reload(&mut app, &window)?;
+        // After the reload, so the tree's `tagged` dots agree with whatever
+        // photograph the grid landed on (ADR 0134 §2).
+        refresh_keyword_panel(&mut app, &window);
     }
 
     wire_select(&app, &window);
@@ -504,6 +510,7 @@ fn run() -> Result<(), Startup> {
     wire_collection_management(&app, &window);
     wire_folders(&app, &window);
     wire_keywords(&app, &window);
+    wire_keyword_panel(&app, &window);
     wire_presets(&app, &window);
     wire_map(&app, &window);
     wire_tether(&app, &window);

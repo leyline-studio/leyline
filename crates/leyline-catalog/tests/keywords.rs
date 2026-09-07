@@ -157,3 +157,93 @@ fn asset_keywords_come_back_ordered_by_path() {
         vec![alpha, nature, heron]
     );
 }
+
+/// ADR 0134 §4: renaming rewrites the level and every path under it, and
+/// touches nothing a photograph carries.
+#[test]
+fn renaming_rewrites_the_subtree_and_keeps_the_tags() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+    let asset = registered_asset(&mut catalog, "IMG_0001.CR3").asset;
+
+    let nature = catalog.create_keyword(None, "Nature").unwrap();
+    let birds = catalog.create_keyword(Some(nature), "Birds").unwrap();
+    let heron = catalog.create_keyword(Some(birds), "Heron").unwrap();
+    // A sibling branch, to prove the prefix match does not reach it.
+    let natural = catalog.create_keyword(None, "Naturalism").unwrap();
+    catalog.add_keyword(&[asset], heron).unwrap();
+
+    catalog.rename_keyword(nature, "Wildlife").unwrap();
+
+    let paths: Vec<String> = catalog
+        .keyword_tree()
+        .unwrap()
+        .iter()
+        .flat_map(flatten)
+        .map(|(_, path)| path)
+        .collect();
+    assert!(paths.contains(&"Wildlife".to_owned()));
+    assert!(paths.contains(&"Wildlife/Birds".to_owned()));
+    assert!(paths.contains(&"Wildlife/Birds/Heron".to_owned()));
+    // `Naturalism` starts with `Nature`'s old name and must be untouched:
+    // the rewrite matches `Nature/%`, not `Nature%`.
+    assert!(paths.contains(&"Naturalism".to_owned()));
+    assert_eq!(catalog.keyword_tree().unwrap().len(), 2);
+    let _ = natural;
+
+    // The tag is by id, so the photograph still carries the same keyword.
+    assert_eq!(catalog.asset_keywords(asset).unwrap(), vec![heron]);
+}
+
+/// ADR 0134 §4: leaves only, and the tags go with it.
+#[test]
+fn deleting_is_refused_above_a_child_and_untags_below_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+    let asset = registered_asset(&mut catalog, "IMG_0002.CR3").asset;
+
+    let nature = catalog.create_keyword(None, "Nature").unwrap();
+    let birds = catalog.create_keyword(Some(nature), "Birds").unwrap();
+    catalog.add_keyword(&[asset], birds).unwrap();
+
+    // A keyword with children is refused: one deletes leaves, upward.
+    assert!(catalog.delete_keyword(nature).is_err());
+    assert_eq!(catalog.asset_keywords(asset).unwrap(), vec![birds]);
+
+    catalog.delete_keyword(birds).unwrap();
+    assert!(catalog.asset_keywords(asset).unwrap().is_empty());
+    // And now the parent is a leaf.
+    catalog.delete_keyword(nature).unwrap();
+    assert!(catalog.keyword_tree().unwrap().is_empty());
+}
+
+/// ADR 0134 §2: one query for every count the panel shows.
+#[test]
+fn counts_are_per_keyword_and_direct() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+    let one = registered_asset(&mut catalog, "IMG_0003.CR3").asset;
+    let two = registered_asset(&mut catalog, "IMG_0004.CR3").asset;
+
+    let nature = catalog.create_keyword(None, "Nature").unwrap();
+    let birds = catalog.create_keyword(Some(nature), "Birds").unwrap();
+    catalog.add_keyword(&[one, two], birds).unwrap();
+    catalog.add_keyword(&[one], nature).unwrap();
+
+    let mut counts = catalog.keyword_counts().unwrap();
+    counts.sort_by_key(|&(keyword, _)| keyword.get());
+    assert_eq!(counts, vec![(nature, 1), (birds, 2)]);
+
+    // Direct, not rolled up: the subtree total is the caller's to compute,
+    // because the caller is the one holding the tree.
+    assert_eq!(counts.iter().find(|(k, _)| *k == nature).unwrap().1, 1);
+}
+
+/// Every `(id, path)` in a tree, depth-first.
+fn flatten(node: &leyline_catalog::KeywordNode) -> Vec<(KeywordId, String)> {
+    let mut out = vec![(node.keyword, node.path.clone())];
+    for child in &node.children {
+        out.extend(flatten(child));
+    }
+    out
+}

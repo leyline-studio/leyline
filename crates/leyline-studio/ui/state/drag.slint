@@ -22,9 +22,14 @@ export global DragState {
     // How many photographs are being dragged, for the label under the
     // pointer.
     in-out property <int> count;
-    // The collection row the pointer is over, or -1. Written by the row
-    // itself, read by the cell that will report the drop.
+    // The row the pointer is over, or -1. Written by the row itself, read
+    // by the cell that will report the drop.
     in-out property <int> target: -1;
+    // Which sort of row that index belongs to: "collection" or "keyword"
+    // (ADR 0134 §2). Two sorts are droppable now, and an integer alone can
+    // no longer say which — the cell that reports the drop has to know
+    // which callback to call.
+    in-out property <string> target-kind;
 
     // The grid cell the drag started from, so the drop can say what was
     // dragged without depending on the selection having changed first.
@@ -33,6 +38,7 @@ export global DragState {
     public function stop() {
         self.dragging = false;
         self.target = -1;
+        self.target-kind = "";
         self.from-cell = -1;
     }
 }

@@ -1,0 +1,49 @@
+// The library's keyword tree, as the sidebar shows it (ADR 0134 §2).
+//
+// The third way a library is navigated, beside folders and collections, and
+// until this it had no surface at all: keywords were visible only as the tags
+// of the focused photograph, in the metadata panel opposite.
+//
+// Flattened here rather than nested: Slint has no recursive `for`, and a
+// depth on each row draws the same tree with a `Flickable` that can hold
+// thousands of rows. Rust owns the flattening, including which parents are
+// open — a row of a closed parent simply is not in the list.
+
+import { KeywordRow } from "../types.slint";
+export global KeywordState {
+    // The visible rows: every root, plus the children of every open parent.
+    in property <[KeywordRow]> keywords;
+    // Whether the tree has anything in it at all, so the panel can say so
+    // rather than showing an empty strip of nothing.
+    in property <bool> any;
+
+    // Opens or closes a parent. Rust rebuilds `keywords` from it.
+    callback toggle-expand(int);
+    // Filters the grid on this keyword **and its descendants** — the query
+    // already matches subtrees (`docs/catalog.md` §22), so the count on the
+    // row and what clicking it shows are the same set. Toggles.
+    callback filter(int);
+    // Tags the whole selection with it — the `+` that appears under the
+    // pointer (ADR 0134 §2).
+    callback tag-selection(int);
+    // Photographs dropped on a keyword row: the grid cell the drag began on,
+    // then the row. Separate from `tag-selection` because the dragged set is
+    // ADR 0130 §1's — the whole selection when the dragged cell belongs to
+    // it, that one photograph when it does not — and reading that requires
+    // the selection still to be intact.
+    callback drop-on-keyword(int, int);
+    // The two ways of maintaining the tree, from the row's context menu.
+    // Both open a dialog: Rust has to look up the current name, or count the
+    // photographs a delete would untag.
+    callback open-rename(int);
+    callback open-delete(int);
+
+    // What those two dialogs show, filled by Rust as each opens.
+    in-out property <string> target-name;
+    in-out property <string> target-path;
+    // Composed in Rust because only Rust knows how many photographs carry
+    // the keyword, and the sentence changes with the number.
+    in-out property <string> delete-warning;
+    callback run-rename(string);
+    callback run-delete();
+}

@@ -20,7 +20,9 @@ import { FilterState } from "../state/filter.slint";
 import { GridState } from "../state/grid.slint";
 import { MapState } from "../state/map.slint";
 import { AdvanceChip, DetailRow, FilterChip, MiniSlider, RangeField, ViewModeChips } from "../widgets/controls.slint";
+import { KeywordRow } from "../types.slint";
 import { DragState } from "../state/drag.slint";
+import { KeywordState } from "../state/keyword.slint";
 import { HintState } from "../state/hint.slint";
 
 export component BrowserPanel inherits HorizontalLayout {
@@ -226,8 +228,10 @@ export component BrowserPanel inherits HorizontalLayout {
                         changed drop-target => {
                             if (self.drop-target) {
                                 DragState.target = i;
-                            } else if (DragState.target == i) {
+                                DragState.target-kind = "collection";
+                            } else if (DragState.target == i && DragState.target-kind == "collection") {
                                 DragState.target = -1;
+                                DragState.target-kind = "";
                             }
                         }
                         background: self.drop-target ? #3f6f3f
@@ -273,6 +277,160 @@ export component BrowserPanel inherits HorizontalLayout {
                                     title: @tr("Delete…");
                                     activated => {
                                         CollectionState.open-delete(i);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // The library's keyword tree (ADR 0134 §2) — the third way
+                // a library is navigated, beside folders and collections,
+                // and until now the only one with no surface at all.
+                //
+                // Hidden entirely while the library has no keywords: an
+                // empty strip under a heading says less than nothing, and
+                // the way keywords are made is the field opposite.
+                if KeywordState.any: Text {
+                    text: @tr("Keywords");
+                    color: #9a9a9a;
+                    font-size: 11px;
+                }
+                if KeywordState.any: Flickable {
+                    vertical-stretch: 1;
+                    viewport-height: KeywordState.keywords.length * 26px;
+                    for row[i] in KeywordState.keywords: keyword-row := Rectangle {
+                        y: i * 26px;
+                        height: 24px;
+                        width: parent.width;
+                        border-radius: 4px;
+                        // The same hit test the collection rows use, and for
+                        // the same reason (ADR 0130 §1): during a drag the
+                        // grid cell holds the pointer grab, so `has-hover`
+                        // here never becomes true.
+                        property <bool> drop-target: DragState.dragging
+                            && DragState.x >= self.absolute-position.x
+                            && DragState.x < self.absolute-position.x + self.width
+                            && DragState.y >= self.absolute-position.y
+                            && DragState.y < self.absolute-position.y + self.height;
+                        changed drop-target => {
+                            if (self.drop-target) {
+                                DragState.target = i;
+                                DragState.target-kind = "keyword";
+                            } else if (DragState.target == i && DragState.target-kind == "keyword") {
+                                DragState.target = -1;
+                                DragState.target-kind = "";
+                            }
+                        }
+                        background: self.drop-target ? #3f6f3f
+                            : (row.active ? #2f4f6f
+                                : ((name-touch.has-hover || plus-touch.has-hover) ? #ffffff10 : transparent));
+
+                        // The chevron, on the parents only, and its own
+                        // touch target: opening a branch is not filtering on
+                        // it, and the two must not be the same click.
+                        if row.has-children: Rectangle {
+                            x: 4px + row.depth * 12px;
+                            width: 14px;
+                            height: 100%;
+                            Text {
+                                text: row.expanded ? "▾" : "▸";
+                                color: #7a7a7a;
+                                font-size: 10px;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                                width: 100%;
+                                height: 100%;
+                            }
+                            TouchArea {
+                                clicked => {
+                                    KeywordState.toggle-expand(i);
+                                }
+                            }
+                        }
+
+                        Text {
+                            x: 20px + row.depth * 12px;
+                            width: parent.width - self.x - 62px;
+                            height: 100%;
+                            // A dot on a keyword the focused photograph
+                            // carries: the panel and the tag list opposite
+                            // then agree without either reading the other.
+                            text: (row.tagged ? "• " : "") + row.name;
+                            color: row.active ? #e6e6e6 : #d0d0d0;
+                            font-size: 12px;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+                        // Photographs in the subtree — the set clicking the
+                        // row filters to, so the number and the gesture
+                        // agree.
+                        Text {
+                            x: parent.width - 38px;
+                            width: 34px;
+                            height: 100%;
+                            text: row.count > 0 ? row.count : "";
+                            color: #6a6a6a;
+                            font-size: 11px;
+                            horizontal-alignment: right;
+                            vertical-alignment: center;
+                        }
+                        // Writing, under the pointer only (ADR 0134 §2): a
+                        // permanent control here would sit a pixel from the
+                        // name and mean the opposite of it.
+                        //
+                        // The area is always declared and only its glyph
+                        // appears: a conditional `TouchArea` would have to
+                        // read its own `has-hover` to decide whether to
+                        // exist. It also keeps the count from shifting as
+                        // the pointer crosses the row.
+                        Rectangle {
+                            x: parent.width - 18px;
+                            width: 16px;
+                            height: 100%;
+                            Text {
+                                text: "+";
+                                visible: name-touch.has-hover || plus-touch.has-hover;
+                                color: #6fa8dc;
+                                font-size: 14px;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                                width: 100%;
+                                height: 100%;
+                            }
+                            plus-touch := TouchArea {
+                                clicked => {
+                                    KeywordState.tag-selection(i);
+                                }
+                            }
+                        }
+                        name-touch := TouchArea {
+                            // Starts where the name starts and stops short
+                            // of the `+`, so neither the chevron nor the `+`
+                            // ever competes with it for a click. Declared
+                            // last, it sits on top: without the `x` it
+                            // covered the chevron entirely, and opening a
+                            // branch filtered on it instead.
+                            x: 20px + row.depth * 12px;
+                            width: parent.width - self.x - 20px;
+                            clicked => {
+                                KeywordState.filter(i);
+                            }
+                        }
+
+                        ContextMenuArea {
+                            Menu {
+                                MenuItem {
+                                    title: @tr("Rename…");
+                                    activated => {
+                                        KeywordState.open-rename(i);
+                                    }
+                                }
+                                MenuSeparator { }
+                                MenuItem {
+                                    title: @tr("Delete…");
+                                    activated => {
+                                        KeywordState.open-delete(i);
                                     }
                                 }
                             }
@@ -426,7 +584,11 @@ export component BrowserPanel inherits HorizontalLayout {
                 }
 
                 if FilterState.filter-keyword-label != "": FilterChip {
-                    text: "🏷 " + FilterState.filter-keyword-label;
+                    // `#` and not `🏷`: the bundled font has no U+1F3F7 and
+                    // drew an empty box — seen the moment ADR 0134 made this
+                    // chip reachable from the sidebar, having been unreachable
+                    // before.
+                    text: "# " + FilterState.filter-keyword-label;
                     active: true;
                     clicked => {
                         FilterState.clear-keyword-filter();
@@ -848,8 +1010,18 @@ export component BrowserPanel inherits HorizontalLayout {
                         pointer-event(event) => {
                             if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
                                 if (DragState.dragging) {
-                                    if (DragState.target >= 0) {
+                                    if (DragState.target >= 0 && DragState.target-kind == "collection") {
                                         CollectionState.drop-on-collection(DragState.from-cell, DragState.target);
+                                    } else if (DragState.target >= 0 && DragState.target-kind == "keyword") {
+                                        // The cell it began on, not the
+                                        // selection: Rust applies ADR 0130
+                                        // §1's rule — the whole selection
+                                        // when the dragged cell belongs to
+                                        // it, that one photograph when it
+                                        // does not. Selecting here first
+                                        // would destroy the very thing the
+                                        // rule reads.
+                                        KeywordState.drop-on-keyword(DragState.from-cell, DragState.target);
                                     }
                                     DragState.stop();
                                 } else {
@@ -1284,9 +1456,17 @@ export component BrowserPanel inherits HorizontalLayout {
                             font-size: 12px;
                             vertical-alignment: center;
                             single-line: true;
+                            // What exists, before something new is made
+                            // (ADR 0134 §3). Rust matches on **any level**,
+                            // so `her` finds `Nature/Birds/Heron` without
+                            // typing the branch.
+                            edited => {
+                                DetailState.suggest-keywords(self.text);
+                            }
                             accepted => {
                                 DetailState.add-keyword(self.text);
                                 self.text = "";
+                                DetailState.suggest-keywords("");
                                 root.return-focus();
                             }
                         }
@@ -1297,6 +1477,36 @@ export component BrowserPanel inherits HorizontalLayout {
                             color: #666666;
                             font-size: 12px;
                             vertical-alignment: center;
+                        }
+                    }
+                    // The suggestions, under the field and only while there
+                    // are any: clicking one tags with the path it names,
+                    // which is also how a misspelling gets corrected — the
+                    // wrong spelling has nothing behind it and the right one
+                    // is one click away (ADR 0134 §3).
+                    if DetailState.keyword-suggestions.length > 0: VerticalLayout {
+                        spacing: 1px;
+                        for path[s] in DetailState.keyword-suggestions: Rectangle {
+                            height: 20px;
+                            background: suggestion-touch.has-hover ? #2f4f6f : #1b1b1b;
+                            border-radius: 3px;
+                            Text {
+                                x: 8px;
+                                width: parent.width - 16px;
+                                height: 100%;
+                                text: path;
+                                color: #d0d0d0;
+                                font-size: 11px;
+                                vertical-alignment: center;
+                                overflow: elide;
+                            }
+                            suggestion-touch := TouchArea {
+                                clicked => {
+                                    DetailState.add-keyword(path);
+                                    keyword-input.text = "";
+                                    DetailState.suggest-keywords("");
+                                }
+                            }
                         }
                     }
                 }

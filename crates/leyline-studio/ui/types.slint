@@ -98,6 +98,27 @@ export struct CollectionRow {
     smart: bool,
 }
 
+// One visible row of the keyword tree (ADR 0134 §2).
+//
+// Flat, with a depth, because Slint has no recursive `for`; Rust decides
+// which rows are visible, so a row of a closed parent is simply absent.
+export struct KeywordRow {
+    name: string,
+    // The full slash-separated path, for the rename dialog and the hint.
+    path: string,
+    depth: int,
+    // Photographs in this keyword's **subtree** — the set clicking the row
+    // filters to, since the query matches descendants.
+    count: int,
+    has-children: bool,
+    expanded: bool,
+    // The grid is currently filtered on this keyword.
+    active: bool,
+    // The focused photograph carries it, so the panel and the metadata list
+    // opposite agree without either reading the other.
+    tagged: bool,
+}
+
 // One photo of the survey view (ADR 0057 §4): the preview Rust already had
 // in cache, and the name under it. Its index in the list is what a removal
 // reports back.
@@ -645,6 +666,16 @@ export global Tr {
     }
     public pure function pick-at-least-one-group() -> string {
         return @tr("Pick at least one group.");
+    }
+    // The delete-keyword warning (ADR 0134 §4). Assembled here rather than
+    // in Rust because the sentence is prose, and prose lives where
+    // `slint-tr-extractor` can see it — and because the plural form is the
+    // translator's business, not the caller's.
+    public pure function delete-keyword-from(path: string, photos: int) -> string {
+        return @tr("Delete “{}”, and remove it from {} photo?" | "Delete “{}”, and remove it from {} photos?" % photos, path, photos);
+    }
+    public pure function keyword-has-children(path: string) -> string {
+        return @tr("“{}” still has keywords under it. Delete those first — one deletes leaves, upward, so nothing disappears unseen.", path);
     }
     public pure function save-failed(error: string) -> string {
         return @tr("Save failed: {}", error);

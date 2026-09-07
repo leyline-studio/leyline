@@ -3797,3 +3797,45 @@ msgstr "Redresse les verticales convergentes — un bâtiment qui bascule en arr
 msgctxt "DevelopPanel"
 msgid "Straightens converging horizontals — a wall taken from an angle."
 msgstr "Redresse les horizontales convergentes — un mur pris de biais."
+
+msgctxt "RenameKeywordDialog"
+msgid "Rename keyword"
+msgstr "Renommer le mot-clé"
+
+msgctxt "RenameKeywordDialog"
+msgid "Name of this level, in {}"
+msgstr "Nom de ce niveau, dans {}"
+
+msgctxt "RenameKeywordDialog"
+msgid "Cancel"
+msgstr "Annuler"
+
+msgctxt "RenameKeywordDialog"
+msgid "Rename"
+msgstr "Renommer"
+
+msgctxt "DeleteKeywordDialog"
+msgid "Delete keyword"
+msgstr "Supprimer le mot-clé"
+
+msgctxt "DeleteKeywordDialog"
+msgid "The files are not touched, and this cannot be undone."
+msgstr "Les fichiers ne sont pas touchés, et ceci ne peut pas être annulé."
+
+msgctxt "DeleteKeywordDialog"
+msgid "Cancel"
+msgstr "Annuler"
+
+msgctxt "DeleteKeywordDialog"
+msgid "Delete"
+msgstr "Supprimer"
+
+msgctxt "Tr"
+msgid "“{}” still has keywords under it. Delete those first — one deletes leaves, upward, so nothing disappears unseen."
+msgstr "« {} » a encore des mots-clés en dessous. Supprimez-les d'abord — on supprime les feuilles, en remontant, pour que rien ne disparaisse sans être vu."
+
+msgctxt "Tr"
+msgid "Delete “{}”, and remove it from {} photo?"
+msgid_plural "Delete “{}”, and remove it from {} photos?"
+msgstr[0] "Supprimer « {} » et l'enlever de {} photo ?"
+msgstr[1] "Supprimer « {} » et l'enlever de {} photos ?"

@@ -29,6 +29,15 @@ export global DetailState {
     in-out property <string> written-copyright;
     // Field name ("title", "caption", …) and its new value, on commit.
     callback write-description(string, string);
+    // Tags **the whole selection** since ADR 0134 §1 — the multi-selection
+    // when there is one, the focused photograph otherwise, which is the rule
+    // every other batch action in the interface follows. Before that it
+    // wrote to the focused photograph alone, so selecting two hundred frames
+    // and typing a keyword tagged one of them.
     callback add-keyword(string);
     callback remove-keyword(int);
+    // Keyword paths from the library's tree matching what is being typed,
+    // on **any level** (ADR 0134 §3). Empty when the field is.
+    in property <[string]> keyword-suggestions;
+    callback suggest-keywords(string);
 }

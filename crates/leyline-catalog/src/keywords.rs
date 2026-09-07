@@ -179,6 +179,132 @@ impl Catalog {
         Ok(())
     }
 
+    /// Renames one level of the hierarchy, rewriting the `path` of the
+    /// keyword and of every descendant (ADR 0134 §4).
+    ///
+    /// The join to assets is by id, so nothing a photograph carries moves:
+    /// this changes a name and the denormalized paths that follow from it,
+    /// and nothing else.
+    pub fn rename_keyword(&mut self, keyword: KeywordId, name: &str) -> Result<()> {
+        self.ensure_writable()?;
+        if name.is_empty() || name.contains('/') || name.trim() != name {
+            return Err(LeylineError::Io(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!("keyword name {name:?} must be one non-empty trimmed hierarchy level"),
+            )));
+        }
+        let tx = self.conn.transaction().map_err(db_err)?;
+        let (old_path, parent): (String, Option<i64>) = tx
+            .query_row(
+                "SELECT path, parent_id FROM keywords WHERE id = ?1",
+                [keyword.get()],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(|e| match e {
+                rusqlite::Error::QueryReturnedNoRows => LeylineError::KeywordMissing(keyword),
+                other => db_err(other),
+            })?;
+        let new_path = match parent {
+            None => name.to_owned(),
+            Some(parent) => {
+                let parent_path: String = tx
+                    .query_row("SELECT path FROM keywords WHERE id = ?1", [parent], |row| {
+                        row.get(0)
+                    })
+                    .map_err(db_err)?;
+                format!("{parent_path}/{name}")
+            }
+        };
+        // Descendants first, by prefix. `path` is unique, so a rename onto
+        // an existing sibling fails here rather than corrupting the tree.
+        tx.execute(
+            "UPDATE keywords
+             SET path = ?1 || substr(path, ?2)
+             WHERE path LIKE ?3 ESCAPE '\\'",
+            rusqlite::params![
+                new_path,
+                i64::try_from(old_path.len() + 1).unwrap_or(i64::MAX),
+                format!("{}/%", like_escape(&old_path)),
+            ],
+        )
+        .map_err(db_err)?;
+        tx.execute(
+            "UPDATE keywords SET name = ?1, path = ?2 WHERE id = ?3",
+            rusqlite::params![name, new_path, keyword.get()],
+        )
+        .map_err(db_err)?;
+        tx.commit().map_err(db_err)?;
+        Ok(())
+    }
+
+    /// How many photographs carry this keyword, counted for every keyword in
+    /// one query (ADR 0134 §2).
+    ///
+    /// Direct tags only — the subtree roll-up is the caller's, because the
+    /// caller is the one holding the tree.
+    pub fn keyword_counts(&self) -> Result<Vec<(KeywordId, u32)>> {
+        let mut stmt = self
+            .conn
+            .prepare_cached("SELECT keyword_id, COUNT(*) FROM asset_keywords GROUP BY keyword_id")
+            .map_err(db_err)?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((KeywordId::new(row.get::<_, i64>(0)?), row.get::<_, u32>(1)?))
+            })
+            .map_err(db_err)?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(db_err)
+    }
+
+    /// Deletes a leaf keyword and untags every photograph carrying it
+    /// (ADR 0134 §4).
+    ///
+    /// **Refused while it has children.** One deletes leaves, upward, so the
+    /// destruction is explicit: a recursive delete of `Nature` is a gesture
+    /// whose consequence nobody can see at the moment of making it.
+    pub fn delete_keyword(&mut self, keyword: KeywordId) -> Result<()> {
+        self.ensure_writable()?;
+        let tx = self.conn.transaction().map_err(db_err)?;
+        keyword_exists(&tx, keyword)?;
+        let children: i64 = tx
+            .query_row(
+                "SELECT COUNT(*) FROM keywords WHERE parent_id = ?1",
+                [keyword.get()],
+                |row| row.get(0),
+            )
+            .map_err(db_err)?;
+        if children > 0 {
+            return Err(LeylineError::Io(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!("keyword still has {children} keywords under it"),
+            )));
+        }
+        // The photographs that carried it, collected before the delete: each
+        // needs its search row refreshed afterwards (ADR 0099 §2).
+        let assets: Vec<i64> = {
+            let mut stmt = tx
+                .prepare_cached("SELECT asset_id FROM asset_keywords WHERE keyword_id = ?1")
+                .map_err(db_err)?;
+            let rows = stmt
+                .query_map([keyword.get()], |row| row.get::<_, i64>(0))
+                .map_err(db_err)?;
+            rows.collect::<std::result::Result<Vec<_>, _>>()
+                .map_err(db_err)?
+        };
+        tx.execute(
+            "DELETE FROM asset_keywords WHERE keyword_id = ?1",
+            [keyword.get()],
+        )
+        .map_err(db_err)?;
+        tx.execute("DELETE FROM keywords WHERE id = ?1", [keyword.get()])
+            .map_err(db_err)?;
+        for asset in assets {
+            crate::search::refresh_asset_keywords(&tx, AssetId::new(asset))?;
+        }
+        tx.commit().map_err(db_err)?;
+        Ok(())
+    }
+
     /// Returns the keywords of an asset, ordered by path.
     pub fn asset_keywords(&self, asset: AssetId) -> Result<Vec<KeywordId>> {
         let mut stmt = self
@@ -209,4 +335,13 @@ fn keyword_exists(conn: &rusqlite::Connection, keyword: KeywordId) -> Result<()>
         rusqlite::Error::QueryReturnedNoRows => LeylineError::KeywordMissing(keyword),
         other => db_err(other),
     })
+}
+
+/// Escapes a `LIKE` pattern's wildcards, so a keyword containing `%` or `_`
+/// renames only itself and its own descendants.
+fn like_escape(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
 }

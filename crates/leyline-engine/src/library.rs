@@ -745,6 +745,22 @@ impl Library {
         self.catalog().keyword_tree()
     }
 
+    /// Renames one level of the keyword hierarchy (ADR 0134 §4).
+    pub fn rename_keyword(&self, keyword: KeywordId, name: &str) -> Result<()> {
+        self.catalog_mut().rename_keyword(keyword, name)
+    }
+
+    /// Deletes a leaf keyword and untags every photograph carrying it
+    /// (ADR 0134 §4). Refused while it has children.
+    pub fn delete_keyword(&self, keyword: KeywordId) -> Result<()> {
+        self.catalog_mut().delete_keyword(keyword)
+    }
+
+    /// How many photographs carry each keyword, directly (ADR 0134 §2).
+    pub fn keyword_counts(&self) -> Result<Vec<(KeywordId, u32)>> {
+        self.catalog().keyword_counts()
+    }
+
     /// Creates a manual collection under `parent`, or at the root (§9).
     pub fn create_collection(
         &self,

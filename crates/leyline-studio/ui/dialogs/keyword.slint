@@ -1,0 +1,124 @@
+// Maintaining the keyword tree (ADR 0134 §4): rename a level, or delete a
+// leaf and every tag on it.
+//
+// Two dialogs and not two inline edits, for the reason the collection ones
+// give: each needs something Rust has to look up first — the current name,
+// or how many photographs a delete would untag.
+//
+// Hosted by `panels/dialogs.slint` (ADR 0045 §3).
+
+import { DialogState } from "../state/dialog.slint";
+import { KeywordState } from "../state/keyword.slint";
+import { FilterChip } from "../widgets/controls.slint";
+
+export component RenameKeywordDialog inherits VerticalLayout {
+    spacing: 12px;
+    Text {
+        text: @tr("Rename keyword");
+        color: #f0f0f0;
+        font-size: 15px;
+        font-weight: 600;
+    }
+    Text {
+        // One level, never a path: renaming rewrites the paths below it,
+        // and a slash here would be asking to move the branch — which
+        // ADR 0134 §6 leaves out on purpose.
+        text: @tr("Name of this level, in {}", KeywordState.target-path);
+        color: #9a9a9a;
+        font-size: 12px;
+        wrap: word-wrap;
+    }
+    Rectangle {
+        height: 28px;
+        background: #1b1b1b;
+        border-radius: 4px;
+        border-width: 1px;
+        border-color: #3a3a3a;
+        new-name := TextInput {
+            x: 8px;
+            width: parent.width - 16px;
+            height: 100%;
+            text: KeywordState.target-name;
+            color: #e6e6e6;
+            font-size: 12px;
+            vertical-alignment: center;
+            single-line: true;
+            accepted => {
+                KeywordState.run-rename(self.text);
+            }
+        }
+    }
+    if DialogState.dialog-result != "": Text {
+        text: DialogState.dialog-result;
+        color: #d08a6a;
+        font-size: 11px;
+        wrap: word-wrap;
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: end;
+        FilterChip {
+            text: @tr("Cancel");
+            active: false;
+            clicked => {
+                DialogState.dialog = "";
+            }
+        }
+        FilterChip {
+            text: @tr("Rename");
+            active: true;
+            clicked => {
+                KeywordState.run-rename(new-name.text);
+            }
+        }
+    }
+}
+
+export component DeleteKeywordDialog inherits VerticalLayout {
+    spacing: 12px;
+    Text {
+        text: @tr("Delete keyword");
+        color: #f0f0f0;
+        font-size: 15px;
+        font-weight: 600;
+    }
+    Text {
+        // Rust composes this one: it is the only place that knows how many
+        // photographs carry the keyword, and the sentence changes with the
+        // number (ADR 0134 §4).
+        text: KeywordState.delete-warning;
+        color: #d0d0d0;
+        font-size: 12px;
+        wrap: word-wrap;
+    }
+    Text {
+        text: @tr("The files are not touched, and this cannot be undone.");
+        color: #9a9a9a;
+        font-size: 11px;
+        wrap: word-wrap;
+    }
+    if DialogState.dialog-result != "": Text {
+        text: DialogState.dialog-result;
+        color: #d08a6a;
+        font-size: 11px;
+        wrap: word-wrap;
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: end;
+        FilterChip {
+            text: @tr("Cancel");
+            active: false;
+            clicked => {
+                DialogState.dialog = "";
+            }
+        }
+        FilterChip {
+            text: @tr("Delete");
+            active: true;
+            clicked => {
+                KeywordState.run-delete();
+            }
+        }
+    }
+}

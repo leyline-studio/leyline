@@ -351,6 +351,10 @@ pub(crate) fn show_details(app: &mut App, window: &StudioWindow, index: i32) {
         }
         Err(error) => eprintln!("error: {error}"),
     }
+    // The sidebar tree marks the keywords this photograph carries, so it
+    // follows the selection too (ADR 0134 §2). After `app.keywords` above,
+    // which is what it reads.
+    crate::wiring::keywords::refresh_keyword_panel(app, window);
     let meta = details.metadata.as_ref();
     DetailState::get(window).set_detail_filename(SharedString::from(details.filename.as_str()));
     DetailState::get(window).set_detail_path(SharedString::from(details.relative_path.as_str()));

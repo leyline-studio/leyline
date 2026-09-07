@@ -189,6 +189,14 @@ pub(crate) struct App {
     pub(crate) keywords: Vec<KeywordId>,
     /// The keyword the grid is filtered to, when one is active.
     pub(crate) keyword_filter: Option<KeywordId>,
+    /// The keyword tree's **visible** rows, parallel to the sidebar panel's
+    /// (ADR 0134 §2): every root, plus the children of every open parent.
+    pub(crate) keyword_panel: Vec<KeywordId>,
+    /// Which parents are open. By id, not by row, so the tree keeps its
+    /// shape across a rename, a delete or a new keyword.
+    pub(crate) keyword_expanded: std::collections::BTreeSet<KeywordId>,
+    /// The keyword the rename or delete dialog is asking about.
+    pub(crate) keyword_target: Option<KeywordId>,
     /// The removal the confirmation dialog is currently asking about
     /// (ADR 0060) or library-wide pairing (ADR 0079 §7).
     /// Held here rather than re-derived on accept because the selection can

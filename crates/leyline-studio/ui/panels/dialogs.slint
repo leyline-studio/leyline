@@ -16,6 +16,7 @@ import { ImportDialog } from "../dialogs/import.slint";
 import { PreferencesDialog } from "../dialogs/preferences.slint";
 import { PresetDialog } from "../dialogs/preset.slint";
 import { CopySettingsDialog } from "../dialogs/copy.slint";
+import { DeleteKeywordDialog, RenameKeywordDialog } from "../dialogs/keyword.slint";
 import { ContactSheetDialog } from "../dialogs/contact_sheet.slint";
 import { PrintDialog } from "../dialogs/print.slint";
 import { ShortcutsDialog } from "../dialogs/shortcuts.slint";
@@ -105,6 +106,8 @@ export component DialogOverlay inherits Rectangle {
 
                 if DialogState.dialog == "preset": PresetDialog { }
                 if DialogState.dialog == "copy-settings": CopySettingsDialog { }
+                if DialogState.dialog == "keyword-rename": RenameKeywordDialog { }
+                if DialogState.dialog == "keyword-delete": DeleteKeywordDialog { }
 
                 // File ▸ Preferences… (ADR 0078), and the two dialogs of
                 // the update decision it gates (ADR 0077).
