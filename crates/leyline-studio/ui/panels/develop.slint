@@ -17,6 +17,25 @@ import { MaskState } from "../state/mask.slint";
 import { DialogState } from "../state/dialog.slint";
 import { EditSlider, Filmstrip, FilterChip, GroupHeader, PipetteChip, SubHeading, ToolSeparator, ToolbarChevron, Zoom } from "../widgets/controls.slint";
 
+// One aspect-ratio chip of the crop row (ADR 0135 §2). Its own component so
+// the seven of them are seven lines and not seven blocks, and so the
+// comparison that lights the current one is written once.
+component CropRatioChip inherits FilterChip {
+    in property <string> label;
+    in property <float> ratio;
+    in property <float> chosen;
+    callback picked(float);
+
+    text: root.label;
+    // Compared with a tolerance: `4.0 / 3.0` is not the same float twice
+    // over, and a chip that failed to light because of a rounding digit
+    // would be the sort of defect nobody thinks to look for.
+    active: abs(root.chosen - root.ratio) < 0.0001;
+    clicked => {
+        root.picked(root.ratio);
+    }
+}
+
 export component DevelopPanel inherits HorizontalLayout {
     // Panel folding, owned by the window (ADR 0055 §6): the settings panel
     // first, then the toolbar, the shortcut line and the filmstrip.
@@ -75,6 +94,96 @@ export component DevelopPanel inherits HorizontalLayout {
     // has to be told its viewport's height and must not read it back off
     // the element it sizes.
     property <length> toolbar-height: 24px;
+
+    // The crop's aspect ratio, as width ÷ height (ADR 0135 §2). `0` is
+    // Free, which constrains nothing.
+    //
+    // A number and not a pair, because the constraint only ever needs the
+    // quotient — and it is applied in **screen** pixels: the render is
+    // letterboxed undistorted, so a sub-rectangle whose screen ratio is 3:2
+    // encloses a region whose pixel ratio is 3:2. Rust knows nothing of it.
+    property <float> crop-ratio: 0;
+    // Which composition guide is drawn: "none", "thirds", "golden",
+    // "diagonals", "grid". Cycled by `O` and by the chip.
+    property <string> crop-guide: "none";
+
+    // The corner the rubber band actually reaches, given the ratio.
+    //
+    // The **longer** edge of the drag drives and the other is computed, so
+    // dragging diagonally always grows the rectangle instead of fighting it
+    // back to the shorter axis.
+    pure function crop-corner-x(px: length, py: length, mx: length, my: length) -> length {
+        if (root.crop-ratio <= 0) {
+            return mx;
+        }
+        return abs((mx - px) / 1px) >= abs((my - py) / 1px) * root.crop-ratio
+            ? mx
+            : px + (mx >= px ? 1 : -1) * abs((my - py) / 1px) * root.crop-ratio * 1px;
+    }
+    pure function crop-corner-y(px: length, py: length, mx: length, my: length) -> length {
+        if (root.crop-ratio <= 0) {
+            return my;
+        }
+        return abs((mx - px) / 1px) >= abs((my - py) / 1px) * root.crop-ratio
+            ? py + (my >= py ? 1 : -1) * abs((mx - px) / 1px) / root.crop-ratio * 1px
+            : my;
+    }
+
+    // The next guide in the cycle, so `O` and the chip agree by sharing one
+    // list instead of each carrying its own.
+    // `O`, from the window's key handler. Picking the Crop tool as it goes:
+    // cycling a guide one cannot see is a keystroke that appears to do
+    // nothing, and the only reason to press it is to place a crop.
+    public function cycle-guide() {
+        root.active-tool = "crop";
+        root.crop-guide = root.next-guide(root.crop-guide);
+    }
+
+    pure function next-guide(current: string) -> string {
+        return current == "none" ? "thirds"
+            : current == "thirds" ? "golden"
+            : current == "golden" ? "diagonals"
+            : current == "diagonals" ? "grid"
+            : "none";
+    }
+
+    // The SVG commands of one guide over the rectangle `(gx, gy, gw, gh)`.
+    //
+    // A `Path` with a viewbox equal to its own pixel size, which is the
+    // arrangement ADR 0119's keystone guides already use and the one known
+    // to render in the software backend — and the reason `diagonals` is on
+    // the list at all: a diagonal cannot be drawn with axis-aligned
+    // rectangles, and this technique is shipped rather than a new bet.
+    pure function guide-commands(kind: string, gx: length, gy: length, gw: length, gh: length) -> string {
+        if (kind == "thirds") {
+            return root.h-line(gx, gw, gy + gh / 3) + root.h-line(gx, gw, gy + 2 * gh / 3)
+                + root.v-line(gy, gh, gx + gw / 3) + root.v-line(gy, gh, gx + 2 * gw / 3);
+        }
+        // 0.382 and 0.618 — the golden section, which sits nearer the edge
+        // than a third and is the whole reason to offer both.
+        if (kind == "golden") {
+            return root.h-line(gx, gw, gy + gh * 0.382) + root.h-line(gx, gw, gy + gh * 0.618)
+                + root.v-line(gy, gh, gx + gw * 0.382) + root.v-line(gy, gh, gx + gw * 0.618);
+        }
+        if (kind == "diagonals") {
+            return "M\{gx / 1px} \{gy / 1px} L\{(gx + gw) / 1px} \{(gy + gh) / 1px}"
+                + "M\{(gx + gw) / 1px} \{gy / 1px} L\{gx / 1px} \{(gy + gh) / 1px}";
+        }
+        if (kind == "grid") {
+            return root.h-line(gx, gw, gy + gh / 4) + root.h-line(gx, gw, gy + gh / 2)
+                + root.h-line(gx, gw, gy + 3 * gh / 4)
+                + root.v-line(gy, gh, gx + gw / 4) + root.v-line(gy, gh, gx + gw / 2)
+                + root.v-line(gy, gh, gx + 3 * gw / 4);
+        }
+        return "";
+    }
+    pure function h-line(gx: length, gw: length, at: length) -> string {
+        return "M\{gx / 1px} \{at / 1px} L\{(gx + gw) / 1px} \{at / 1px}";
+    }
+    pure function v-line(gy: length, gh: length, at: length) -> string {
+        return "M\{at / 1px} \{gy / 1px} L\{at / 1px} \{(gy + gh) / 1px}";
+    }
+
 
     // The three things the targeted adjustment needs to know about the
     // setting it was handed (ADR 0130 §3): where it stands, how far a pixel
@@ -574,6 +683,61 @@ export component DevelopPanel inherits HorizontalLayout {
                 }
             }
 
+            // The crop's own row (ADR 0135 §1): the ratio the next drag will
+            // take, and the guide drawn while it is taken. Shown only while
+            // the Crop tool is picked — a setting that changes the meaning of
+            // a gesture belongs beside the gesture, and a row that appears
+            // with a tool is how the tool says what it can do.
+            //
+            // Not in the Geometry group opposite, which holds the crop's four
+            // edges as numbers: those describe the crop that exists, these
+            // describe the one about to be made.
+            if !root.chrome-hidden && root.active-tool == "crop": HorizontalLayout {
+                height: root.toolbar-height;
+                spacing: 6px;
+                alignment: start;
+
+                FilterChip {
+                    text: @tr("Free");
+                    active: root.crop-ratio == 0;
+                    clicked => {
+                        root.crop-ratio = 0;
+                    }
+                }
+                CropRatioChip { label: "1:1"; ratio: 1.0; chosen: root.crop-ratio; picked(r) => { root.crop-ratio = r; } }
+                CropRatioChip { label: "5:4"; ratio: 1.25; chosen: root.crop-ratio; picked(r) => { root.crop-ratio = r; } }
+                CropRatioChip { label: "4:3"; ratio: 4.0 / 3.0; chosen: root.crop-ratio; picked(r) => { root.crop-ratio = r; } }
+                CropRatioChip { label: "3:2"; ratio: 1.5; chosen: root.crop-ratio; picked(r) => { root.crop-ratio = r; } }
+                CropRatioChip { label: "16:9"; ratio: 16.0 / 9.0; chosen: root.crop-ratio; picked(r) => { root.crop-ratio = r; } }
+                CropRatioChip { label: "7:5"; ratio: 1.4; chosen: root.crop-ratio; picked(r) => { root.crop-ratio = r; } }
+                // Turns any of them on its side. Disabled on Free, where
+                // there is no shape to turn, and on 1:1, where turning one
+                // changes nothing.
+                FilterChip {
+                    text: @tr("Turn");
+                    active: false;
+                    enabled: root.crop-ratio > 0 && root.crop-ratio != 1;
+                    clicked => {
+                        root.crop-ratio = 1 / root.crop-ratio;
+                    }
+                }
+                ToolSeparator { }
+                FilterChip {
+                    // Names the guide currently drawn, and carries the key
+                    // that cycles it: `O` is the gesture, and the chip is
+                    // what tells anyone it exists.
+                    text: root.crop-guide == "none" ? @tr("Guide    O")
+                        : root.crop-guide == "thirds" ? @tr("Thirds    O")
+                        : root.crop-guide == "golden" ? @tr("Golden    O")
+                        : root.crop-guide == "diagonals" ? @tr("Diagonals    O")
+                        : @tr("Grid    O");
+                    active: root.crop-guide != "none";
+                    clicked => {
+                        root.crop-guide = root.next-guide(root.crop-guide);
+                    }
+                }
+            }
+
             preview := Rectangle {
                 vertical-stretch: 1;
                 clip: true;
@@ -740,25 +904,82 @@ export component DevelopPanel inherits HorizontalLayout {
                     mouse-cursor: crosshair;
                     pointer-event(event) => {
                         if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
+                            // The **constrained** corner, not the pointer
+                            // (ADR 0135 §2): the rectangle drawn and the
+                            // crop committed have to be the same rectangle,
+                            // and the only way to guarantee that is for one
+                            // of them to be computed from the other.
                             DevelopState.develop-crop-drag(
                                 self.pressed-x / 1px, self.pressed-y / 1px,
-                                self.mouse-x / 1px, self.mouse-y / 1px,
+                                root.crop-corner-x(self.pressed-x, self.pressed-y, self.mouse-x, self.mouse-y) / 1px,
+                                root.crop-corner-y(self.pressed-x, self.pressed-y, self.mouse-x, self.mouse-y) / 1px,
                                 self.width / 1px, self.height / 1px,
                                 DevelopState.develop-image.width, DevelopState.develop-image.height);
                         }
                     }
                 }
 
-                // Selection rectangle, live while the mouse is down.
-                Rectangle {
+                // Selection rectangle, live while the mouse is down, drawn
+                // at the chosen ratio.
+                crop-band := Rectangle {
+                    property <length> corner-x: root.crop-corner-x(crop-drag.pressed-x, crop-drag.pressed-y, crop-drag.mouse-x, crop-drag.mouse-y);
+                    property <length> corner-y: root.crop-corner-y(crop-drag.pressed-x, crop-drag.pressed-y, crop-drag.mouse-x, crop-drag.mouse-y);
                     visible: crop-drag.pressed;
-                    x: min(crop-drag.pressed-x, crop-drag.mouse-x);
-                    y: min(crop-drag.pressed-y, crop-drag.mouse-y);
-                    width: abs((crop-drag.pressed-x - crop-drag.mouse-x) / 1px) * 1px;
-                    height: abs((crop-drag.pressed-y - crop-drag.mouse-y) / 1px) * 1px;
+                    x: min(crop-drag.pressed-x, self.corner-x);
+                    y: min(crop-drag.pressed-y, self.corner-y);
+                    width: abs((crop-drag.pressed-x - self.corner-x) / 1px) * 1px;
+                    height: abs((crop-drag.pressed-y - self.corner-y) / 1px) * 1px;
                     background: #ffffff22;
                     border-width: 1px;
                     border-color: #f0f0f0;
+                }
+
+                // Composition guides (ADR 0135 §3), over the whole frame
+                // before a drag and **inside the rubber band** during one
+                // (§4): thirds of a frame one is about to discard are thirds
+                // of nothing.
+                //
+                // Two strokes per line, dark under light: a guide has to
+                // read over a white sky and a black shadow, and one colour
+                // cannot do both.
+                if root.active-tool == "crop" && root.crop-guide != "none": Rectangle {
+                    // The **letterboxed photograph**, not the viewer: on a
+                    // portrait frame in a wide viewer the two are nothing
+                    // alike, and thirds of the grey surround are thirds of
+                    // nothing. Seen on the running binary — the first
+                    // version drew corner to corner of the element.
+                    property <float> image-ratio: DevelopState.develop-image.height > 0
+                        ? DevelopState.develop-image.width / DevelopState.develop-image.height
+                        : 1;
+                    property <length> shown-width: min(parent.width, parent.height * self.image-ratio);
+                    property <length> shown-height: self.image-ratio > 0 ? self.shown-width / self.image-ratio : parent.height;
+                    property <length> shown-x: (parent.width - self.shown-width) / 2;
+                    property <length> shown-y: (parent.height - self.shown-height) / 2;
+
+                    property <length> gx: crop-drag.pressed ? crop-band.x : self.shown-x;
+                    property <length> gy: crop-drag.pressed ? crop-band.y : self.shown-y;
+                    property <length> gw: crop-drag.pressed ? crop-band.width : self.shown-width;
+                    property <length> gh: crop-drag.pressed ? crop-band.height : self.shown-height;
+                    property <string> commands: root.guide-commands(root.crop-guide, self.gx, self.gy, self.gw, self.gh);
+
+                    Path {
+                        width: 100%;
+                        height: 100%;
+                        viewbox-width: self.width / 1px;
+                        viewbox-height: self.height / 1px;
+                        commands: parent.commands;
+                        stroke: #00000066;
+                        stroke-width: 3px;
+                    }
+                    Path {
+                        width: 100%;
+                        height: 100%;
+                        viewbox-width: self.width / 1px;
+                        viewbox-height: self.height / 1px;
+                        commands: parent.commands;
+                        stroke: #ffffffaa;
+                        stroke-width: 1px;
+                    }
                 }
 
                 // Spot removal (ADR 0032): two clicks place one spot —

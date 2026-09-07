@@ -3839,3 +3839,35 @@ msgid "Delete “{}”, and remove it from {} photo?"
 msgid_plural "Delete “{}”, and remove it from {} photos?"
 msgstr[0] "Supprimer « {} » et l'enlever de {} photo ?"
 msgstr[1] "Supprimer « {} » et l'enlever de {} photos ?"
+
+msgctxt "ShortcutsDialog"
+msgid "Composition guide, while cropping"
+msgstr "Repère de composition, pendant le recadrage"
+
+msgctxt "DevelopPanel"
+msgid "Free"
+msgstr "Libre"
+
+msgctxt "DevelopPanel"
+msgid "Turn"
+msgstr "Pivoter"
+
+msgctxt "DevelopPanel"
+msgid "Guide    O"
+msgstr "Repère    O"
+
+msgctxt "DevelopPanel"
+msgid "Thirds    O"
+msgstr "Tiers    O"
+
+msgctxt "DevelopPanel"
+msgid "Golden    O"
+msgstr "Nombre d'or    O"
+
+msgctxt "DevelopPanel"
+msgid "Diagonals    O"
+msgstr "Diagonales    O"
+
+msgctxt "DevelopPanel"
+msgid "Grid    O"
+msgstr "Grille    O"

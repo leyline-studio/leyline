@@ -303,6 +303,14 @@ export component StudioWindow inherits Window {
                     DevelopState.toggle-clipping("both");
                     return accept;
                 }
+                // Composition guides (ADR 0135 §3): O cycles them, the key
+                // both references use. It reaches the panel rather than a
+                // global, because the guide is a property of the crop tool
+                // and nothing outside develop has an opinion about it.
+                if (event.text == "o" || event.text == "O") {
+                    develop.cycle-guide();
+                    return accept;
+                }
                 if (event.modifiers.control && (event.text == "y" || event.text == "Y")) {
                     DevelopState.develop-redo();
                     return accept;
