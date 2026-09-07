@@ -113,7 +113,10 @@ export component StudioWindow inherits Window {
     // input. `Tab` drops the side panels, `Maj+Tab` drops the toolbars and
     // the filmstrip too — the menu row always stays, since it carries the
     // module switcher and therefore the way out.
-    property <bool> side-panels-hidden: false;
+    // Seeded from the stored preference and reported back on every change
+    // (ADR 0136 §5). Only the manual fold is stored: the automatic one below
+    // `narrow-threshold` is a constraint, not a decision.
+    property <bool> side-panels-hidden: PreferencesState.panels-folded;
     property <bool> chrome-hidden: false;
     // Below this width the side panels fold on their own, and the fold is a
     // constraint rather than a preference: the sidebar and the detail panel
@@ -205,6 +208,7 @@ export component StudioWindow inherits Window {
     }
     changed side-panels-hidden => {
         root.refresh-fold();
+        PreferencesState.remember-panels-folded(self.side-panels-hidden);
     }
 
     keys := FocusScope {

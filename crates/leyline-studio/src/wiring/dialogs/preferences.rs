@@ -118,6 +118,17 @@ fn show_current_values(window: &StudioWindow, preferences: &SharedPreferences) {
             .unwrap_or(crate::groups::LOOK)
     });
     state.set_copy_groups(copy_groups);
+    // ADR 0136 §5: the window opening the way it was left. Absent means the
+    // value the interface shipped with, in each case.
+    let (thumbnail, folded) = with_preferences(preferences, |file| {
+        let values = file.values();
+        (
+            values.thumbnail_size.unwrap_or(176),
+            values.panels_folded.unwrap_or(false),
+        )
+    });
+    state.set_thumbnail_size(thumbnail.clamp(110, 320));
+    state.set_panels_folded(folded);
     show_backgrounds(window, preferences);
 }
 
@@ -217,6 +228,37 @@ pub(crate) fn wire_preferences(window: &StudioWindow, preferences: &SharedPrefer
     // Silent on a write failure, like the two above and for the same reason:
     // a read-only config directory must not put an error in the status line
     // because someone flipped a mode.
+    // The two remembered view settings of ADR 0136 §5. Both write the value
+    // back into the property as well as the file: the property is what every
+    // surface reads, and a stored value nobody displays is a value that did
+    // not take.
+    //
+    // Silent on a write failure, like the folds above: the user resized a
+    // thumbnail, not a setting, and a read-only config directory must not
+    // put an error in the status line for it.
+    {
+        let preferences = preferences.clone();
+        let handle = window.as_weak();
+        state.on_remember_thumbnail_size(move |size| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let size = size.clamp(110, 320);
+            PreferencesState::get(&window).set_thumbnail_size(size);
+            let _ = with_preferences(&preferences, |file| {
+                file.update(|values| values.thumbnail_size = Some(size))
+            });
+        });
+    }
+    {
+        let preferences = preferences.clone();
+        state.on_remember_panels_folded(move |folded| {
+            let _ = with_preferences(&preferences, |file| {
+                file.update(|values| values.panels_folded = Some(folded))
+            });
+        });
+    }
+
     {
         let preferences = preferences.clone();
         let handle = window.as_weak();

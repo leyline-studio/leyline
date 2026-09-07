@@ -4,13 +4,17 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::app::{App, SORTS, item_at, report_error, selected_indices, selected_versions};
+use crate::app::{
+    App, SORTS, item_at, report_error, selected_indices, selected_versions, sort_key,
+};
 use crate::classify;
 use crate::classify::Action;
+use crate::preferences::SharedPreferences;
 use crate::ui::{
     CollectionState, FilterState, FolderState, GridState, MapState, PreferencesState, StudioWindow,
 };
 use crate::undo::{Edit, Snapshot};
+use crate::wiring::dialogs::preferences::with_preferences;
 use crate::wiring::grid::{reload, show_details};
 use crate::wiring::library::refresh_undo;
 use leyline_sdk::{ColorLabel, GridQuery, PickState, ShotRange, VersionId};
@@ -141,7 +145,11 @@ fn classement_of(
 }
 
 /// Connects the filter bar: stars, label dots, pick chips, sort cycling.
-pub(crate) fn wire_filters(app: &Rc<RefCell<App>>, window: &StudioWindow) {
+pub(crate) fn wire_filters(
+    app: &Rc<RefCell<App>>,
+    window: &StudioWindow,
+    preferences: &SharedPreferences,
+) {
     let on_error = |window: &StudioWindow, result: Result<(), String>| {
         if let Err(error) = result {
             report_error(window, &error);
@@ -353,6 +361,7 @@ pub(crate) fn wire_filters(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
+        let preferences = preferences.clone();
         FilterState::get(window).on_cycle_sort(move || {
             let Some(window) = handle.upgrade() else {
                 return;
@@ -364,6 +373,11 @@ pub(crate) fn wire_filters(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 .map_or(0, |i| (i + 1) % SORTS.len());
             app.query.sort = SORTS[next].0;
             FilterState::get(&window).set_sort_label(SharedString::from(SORTS[next].1));
+            // Remembered across launches (ADR 0136 §5), by name. Silent on a
+            // write failure, like every other remembered view setting.
+            let _ = with_preferences(&preferences, |file| {
+                file.update(|values| values.sort = Some(sort_key(SORTS[next].0).to_owned()))
+            });
             on_error(&window, reload(&mut app, &window));
         });
     }

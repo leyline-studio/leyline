@@ -29,6 +29,38 @@ pub(crate) const SORTS: [(Sort, &str); 8] = [
     (Sort::Rating { ascending: true }, "rating ↑"),
 ];
 
+/// The stable name of a sort order, for `preferences.json` (ADR 0136 §5).
+///
+/// Written out rather than derived from the display label: the label is
+/// prose and will one day be translated, and a stored value must survive
+/// that. Paired with [`sort_from_key`], which is its only reader.
+pub(crate) fn sort_key(sort: Sort) -> &'static str {
+    match sort {
+        Sort::CaptureDate { ascending: false } => "capture-desc",
+        Sort::CaptureDate { ascending: true } => "capture-asc",
+        Sort::Filename { ascending: true } => "filename-asc",
+        Sort::Filename { ascending: false } => "filename-desc",
+        Sort::ImportedAt { ascending: false } => "imported-desc",
+        Sort::ImportedAt { ascending: true } => "imported-asc",
+        Sort::Rating { ascending: false } => "rating-desc",
+        Sort::Rating { ascending: true } => "rating-asc",
+        // Not in `SORTS` and not reachable from the header button: a
+        // collection's own order applies when a collection is open, and it
+        // is a property of that view rather than a sort anyone chose.
+        Sort::CollectionOrder => "collection",
+    }
+}
+
+/// The sort a stored name refers to, or `None` for a name this build does
+/// not know — a preferences file written by a version with one more sort is
+/// not an error, it is simply an order this binary cannot restore.
+pub(crate) fn sort_from_key(key: &str) -> Option<Sort> {
+    SORTS
+        .iter()
+        .map(|(sort, _)| *sort)
+        .find(|sort| sort_key(*sort) == key)
+}
+
 /// Cells kept loaded beyond each edge of the visible window; a new window
 /// is fetched once the viewport gets within half this margin of an edge.
 pub(crate) const OVERSCAN: usize = 48;

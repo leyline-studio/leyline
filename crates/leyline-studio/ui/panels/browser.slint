@@ -23,6 +23,7 @@ import { AdvanceChip, DetailRow, FilterChip, MiniSlider, RangeField, ViewModeChi
 import { KeywordRow } from "../types.slint";
 import { DragState } from "../state/drag.slint";
 import { KeywordState } from "../state/keyword.slint";
+import { PreferencesState } from "../state/preferences.slint";
 import { HintState } from "../state/hint.slint";
 
 export component BrowserPanel inherits HorizontalLayout {
@@ -61,7 +62,10 @@ export component BrowserPanel inherits HorizontalLayout {
     // Thumbnail size (ADR 0055 §3), driven by the toolbar slider under the
     // grid. Panel-private and never stored: it is how one is looking right
     // now, not a setting (ADR 0045 §2).
-    property <length> cell-size: 176px;
+    // Followed from the stored preference rather than owned here
+    // (ADR 0136 §5): Rust holds the value, the slider reports a new one, and
+    // the binding brings it back.
+    property <length> cell-size: PreferencesState.thumbnail-size * 1px;
 
     // Moves the selection to `index` and scrolls it into view.
     //
@@ -1292,7 +1296,7 @@ export component BrowserPanel inherits HorizontalLayout {
                     maximum: 320;
                     value: root.cell-size / 1px;
                     edited(v) => {
-                        root.cell-size = v * 1px;
+                        PreferencesState.remember-thumbnail-size(v);
                     }
                 }
             }

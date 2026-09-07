@@ -123,6 +123,28 @@ pub(crate) struct Preferences {
     /// is what a first launch copies.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) copy_groups: Option<Vec<SettingsGroup>>,
+    /// The grid's thumbnail size in logical pixels (ADR 0136 §5).
+    ///
+    /// A property of the screen and of the eyes in front of it, not of the
+    /// photographs — which is why it is stored per installation rather than
+    /// per library. **Absent** means the 176px the grid shipped with.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) thumbnail_size: Option<i32>,
+    /// Whether the side panels were folded **by hand** (ADR 0136 §5).
+    ///
+    /// Only the manual fold. Below the narrow threshold the fold is a
+    /// constraint (ADR 0125), and storing a constraint as a decision would
+    /// fold a wide window tomorrow because a small one folded today.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) panels_folded: Option<bool>,
+    /// The grid's sort order, **by name** (ADR 0136 §5).
+    ///
+    /// A name and not an index into `SORTS`: an index would silently become
+    /// a different sort the day a ninth is inserted rather than appended,
+    /// and a preferences file is exactly the thing that outlives such a
+    /// change. Unlike the panel bitfields above, Rust decodes this one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) sort: Option<String>,
 }
 
 /// The preferences as the running application holds them: the values, and
@@ -504,6 +526,9 @@ mod tests {
             develop_left_view: Some(1),
             advance_after_classement: Some(true),
             copy_groups: Some(vec![SettingsGroup::Tone, SettingsGroup::ToneCurve]),
+            thumbnail_size: Some(220),
+            panels_folded: Some(true),
+            sort: Some("rating-desc".to_owned()),
         };
         save_preferences(&path, &written).expect("save");
         assert_eq!(load_preferences(&path), written);

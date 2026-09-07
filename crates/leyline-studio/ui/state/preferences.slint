@@ -110,4 +110,19 @@ export global PreferencesState {
     //
     // Seeded with the look (bits 0..10), which is what a first launch gets.
     in-out property <int> copy-groups: 2047;
+
+    // The three settings ADR 0128 left behind and ADR 0136 §5 finishes: the
+    // window opening the way it was left.
+    //
+    // The thumbnail size in logical pixels — a property of the screen and of
+    // the eyes in front of it, not of the photographs, which is why it is
+    // stored per installation and not per library.
+    in-out property <int> thumbnail-size: 176;
+    callback remember-thumbnail-size(int);
+    // Whether the side panels were folded **by hand**. Only the manual fold:
+    // below the narrow threshold the fold is a constraint (ADR 0125), and
+    // storing a constraint as a decision would fold a wide window tomorrow
+    // because a small one folded today.
+    in-out property <bool> panels-folded;
+    callback remember-panels-folded(bool);
 }

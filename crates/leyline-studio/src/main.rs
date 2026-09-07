@@ -474,6 +474,25 @@ fn run() -> Result<(), Startup> {
     FilterState::get(&window).set_filter_pick(-1);
     FilterState::get(&window)
         .set_sort_label(SharedString::from(sort_label(GridQuery::default().sort)));
+
+    // The sort the window was last left in (ADR 0136 §5). Restored before
+    // the first `reload`, so the grid is never drawn in one order and then
+    // redrawn in another. A name this build does not know leaves the default
+    // in place — a preferences file written by a version with one more sort
+    // is not an error.
+    {
+        let stored = preferences
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .values()
+            .sort
+            .clone();
+        if let Some(sort) = stored.as_deref().and_then(app::sort_from_key) {
+            let mut app = app.borrow_mut();
+            app.query.sort = sort;
+            FilterState::get(&window).set_sort_label(SharedString::from(sort_label(sort)));
+        }
+    }
     let palette: Vec<slint::Color> = (0..5)
         .filter_map(ColorLabel::from_i64)
         .map(|label| label_color(Some(label)))
@@ -498,7 +517,7 @@ fn run() -> Result<(), Startup> {
     wire_pairs(&app, &window);
     wire_confirm(&app, &window);
     wire_settings_clipboard(&app, &window, &preferences);
-    wire_filters(&app, &window);
+    wire_filters(&app, &window, &preferences);
     wire_develop(&app, &window);
     wire_library(&window, other_recent_libraries);
     wire_processors(&app, &window);
