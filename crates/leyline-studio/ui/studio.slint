@@ -255,6 +255,14 @@ export component StudioWindow inherits Window {
                 DialogState.open-export();
                 return accept;
             }
+            // Ctrl+Shift+C asks which categories, Ctrl+C copies the
+            // remembered set without asking (ADR 0132 §5). Tested first,
+            // since Shift is not exclusive with the plain form below.
+            if (event.modifiers.control && event.modifiers.shift
+                && (event.text == "c" || event.text == "C")) {
+                DevelopState.open-copy-dialog();
+                return accept;
+            }
             if (event.modifiers.control && (event.text == "c" || event.text == "C")) {
                 DevelopState.copy-settings();
                 return accept;

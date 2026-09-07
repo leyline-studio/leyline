@@ -101,4 +101,13 @@ export global PreferencesState {
     // and Rust sets it at startup from the stored value.
     in-out property <bool> advance-after-classement;
     callback set-advance-after-classement(bool);
+
+    // The categories the clipboard last picked up (ADR 0132 §6), as the
+    // seventeen-bit mask `SettingsGroupChips` composes. Unlike the two
+    // opaque numbers above, Rust **does** read this one — it has to, to turn
+    // it into a `Vec<SettingsGroup>` — so the bit order is a contract, and
+    // `crate::groups` holds the other half of it.
+    //
+    // Seeded with the look (bits 0..10), which is what a first launch gets.
+    in-out property <int> copy-groups: 2047;
 }

@@ -439,6 +439,36 @@ export component MenuBar inherits Rectangle {
                 }
             }
             MenuSep { }
+            // Copy/paste of develop settings had no menu bar entry at all
+            // until ADR 0132 — only the grid's context menu and two
+            // shortcuts nobody was told about. Three rows, because the two
+            // ways of copying are a real choice and not a modifier trick:
+            // one takes the remembered set, the other asks.
+            MenuRow {
+                title: @tr("Copy Settings    Ctrl+C");
+                enabled: GridState.selected >= 0;
+                activated => {
+                    DevelopState.copy-settings();
+                    root.open-menu = "";
+                }
+            }
+            MenuRow {
+                title: @tr("Copy Settings…    Ctrl+Shift+C");
+                enabled: GridState.selected >= 0;
+                activated => {
+                    DevelopState.open-copy-dialog();
+                    root.open-menu = "";
+                }
+            }
+            MenuRow {
+                title: @tr("Paste Settings    Ctrl+V");
+                enabled: DevelopState.has-settings-clipboard && GridState.selected >= 0;
+                activated => {
+                    DevelopState.paste-settings();
+                    root.open-menu = "";
+                }
+            }
+            MenuSep { }
             MenuRow {
                 title: @tr("Develop    D");
                 enabled: GridState.selected >= 0 && !DevelopState.develop-mode;

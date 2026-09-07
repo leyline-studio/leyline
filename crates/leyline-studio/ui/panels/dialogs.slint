@@ -15,6 +15,7 @@ import { ExportDialog } from "../dialogs/export.slint";
 import { ImportDialog } from "../dialogs/import.slint";
 import { PreferencesDialog } from "../dialogs/preferences.slint";
 import { PresetDialog } from "../dialogs/preset.slint";
+import { CopySettingsDialog } from "../dialogs/copy.slint";
 import { ContactSheetDialog } from "../dialogs/contact_sheet.slint";
 import { PrintDialog } from "../dialogs/print.slint";
 import { ShortcutsDialog } from "../dialogs/shortcuts.slint";
@@ -103,6 +104,7 @@ export component DialogOverlay inherits Rectangle {
                 if DialogState.dialog == "confirm": ConfirmDialog { }
 
                 if DialogState.dialog == "preset": PresetDialog { }
+                if DialogState.dialog == "copy-settings": CopySettingsDialog { }
 
                 // File ▸ Preferences… (ADR 0078), and the two dialogs of
                 // the update decision it gates (ADR 0077).

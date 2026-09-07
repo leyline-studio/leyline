@@ -181,6 +181,12 @@ Usage:
   leyline reprocess <library> <version-id>...
   leyline history <library> <version-id>
   leyline preset-save <library> <name> <version-id> --groups <g,g,...>
+                                    groups: white_balance, tone, presence,
+                                    tone_curve, color_mixer, color_grading,
+                                    camera_profile, creative_lut, effects,
+                                    lens_correction, detail, rendering,
+                                    geometry, reshape, spot_removal, red_eye,
+                                    local_adjustments (ADR 0132 §1)
   leyline preset-list <library>
   leyline preset-apply <library> <name> <version-id>...
   leyline preset-rm <library> <name>
@@ -1654,10 +1660,20 @@ fn groups(value: &str) -> Result<Vec<SettingsGroup>, String> {
             "white_balance" => Ok(SettingsGroup::WhiteBalance),
             "tone" => Ok(SettingsGroup::Tone),
             "presence" => Ok(SettingsGroup::Presence),
+            "tone_curve" => Ok(SettingsGroup::ToneCurve),
+            "color_mixer" => Ok(SettingsGroup::ColorMixer),
+            "color_grading" => Ok(SettingsGroup::ColorGrading),
+            "camera_profile" => Ok(SettingsGroup::CameraProfile),
+            "creative_lut" => Ok(SettingsGroup::CreativeLut),
             "effects" => Ok(SettingsGroup::Effects),
             "lens_correction" => Ok(SettingsGroup::LensCorrection),
             "detail" => Ok(SettingsGroup::Detail),
+            "rendering" => Ok(SettingsGroup::Rendering),
             "geometry" => Ok(SettingsGroup::Geometry),
+            "reshape" => Ok(SettingsGroup::Reshape),
+            "spot_removal" => Ok(SettingsGroup::SpotRemoval),
+            "red_eye" => Ok(SettingsGroup::RedEye),
+            "local_adjustments" => Ok(SettingsGroup::LocalAdjustments),
             other => Err(format!("unknown preset group {other:?}")),
         })
         .collect()

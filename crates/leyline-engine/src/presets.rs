@@ -155,6 +155,18 @@ fn param_values(preset: &PresetSettings) -> Vec<(Param, Value)> {
     if let Some(v) = preset.blacks {
         values.push((Param::Blacks, Value::Int(v)));
     }
+    // ADR 0132 §1 widened Presence to the whole of Basic below the tonal
+    // sliders; a preset written before it carries none of these three, and
+    // an absent field is left alone as always.
+    if let Some(v) = preset.clarity {
+        values.push((Param::Clarity, Value::Int(v)));
+    }
+    if let Some(v) = preset.texture {
+        values.push((Param::Texture, Value::Int(v)));
+    }
+    if let Some(v) = preset.dehaze {
+        values.push((Param::Dehaze, Value::Int(v)));
+    }
     if let Some(v) = preset.vibrance {
         values.push((Param::Vibrance, Value::Int(v)));
     }
@@ -190,6 +202,58 @@ fn param_values(preset: &PresetSettings) -> Vec<(Param, Value)> {
     }
     if let Some(v) = &preset.crop {
         values.push((Param::Crop, Value::Crop(v.clone())));
+    }
+    if let Some(v) = &preset.perspective {
+        values.push((Param::Perspective, Value::Perspective(*v)));
+    }
+
+    // The ten categories ADR 0132 §1 added. Each is one whole value, which
+    // is what makes them atomic in the sense `docs/presets.md` §3.1 means:
+    // a mix is one decision, not eight.
+    if let Some(v) = &preset.tone_curve {
+        values.push((Param::ToneCurve, Value::ToneCurve(v.clone())));
+    }
+    if let Some(bands) = &preset.hsl {
+        // The one category with no whole-value parameter: the mixer is
+        // addressed a band at a time, so eight entries stand for one
+        // checkbox. Indices are fixed `0..8`, never the target's length,
+        // which is why this needs no equivalent of `Param::LocalAdjustments`.
+        for (index, band) in bands.iter().enumerate() {
+            values.push((Param::HslBand(index), Value::HslBand(*band)));
+        }
+    }
+    if let Some(v) = &preset.color_grading {
+        values.push((Param::ColorGrading, Value::ColorGrading(*v)));
+    }
+    if let Some(v) = &preset.camera_profile {
+        values.push((Param::CameraProfile, Value::CameraProfile(v.clone())));
+    }
+    if let Some(v) = &preset.lut {
+        values.push((Param::Lut, Value::Lut(v.clone())));
+    }
+    if let Some(v) = preset.highlight_reconstruction {
+        values.push((
+            Param::HighlightReconstruction,
+            Value::HighlightReconstruction(v),
+        ));
+    }
+    if let Some(v) = preset.demosaic {
+        values.push((Param::Demosaic, Value::Demosaic(v)));
+    }
+    if let Some(v) = &preset.output_rendering {
+        values.push((Param::HighlightRolloff, Value::Int(v.highlight_rolloff)));
+    }
+    if let Some(v) = &preset.reshape {
+        values.push((Param::Reshape, Value::Reshape(v.clone())));
+    }
+    if let Some(v) = &preset.spot_removal {
+        values.push((Param::SpotRemoval, Value::SpotRemoval(v.clone())));
+    }
+    if let Some(v) = &preset.red_eye {
+        values.push((Param::RedEye, Value::RedEye(v.clone())));
+    }
+    if let Some(v) = &preset.local_adjustments {
+        values.push((Param::LocalAdjustments, Value::LocalAdjustments(v.clone())));
     }
     values
 }

@@ -77,6 +77,15 @@ pub enum Param {
     /// `local_adjustments` — the same grouping [`Param::WhiteBalance`]
     /// already applies to temperature + tint.
     LocalAdjustment(usize),
+    /// The **whole list** of local adjustments, replacing whatever the
+    /// target held (ADR 0132 §4).
+    ///
+    /// Not a duplicate of [`Param::LocalAdjustment`]: the indexed one is
+    /// what the mask tools use, one gesture at a time, and it cannot express
+    /// "make this photograph's layers be these" without knowing the target's
+    /// current length — which a captured set of settings, built once and
+    /// applied to many photographs, does not know.
+    LocalAdjustments,
     /// Lens correction step.
     LensCorrection,
     /// Defringe (ADR 0113), the whole struct as one commit unit like
@@ -142,6 +151,8 @@ pub enum Value {
     /// there is no separate `add_mask` method, ADR 0029); `None` removes
     /// the entry at that index.
     LocalAdjustment(Option<LocalAdjustment>),
+    /// For [`Param::LocalAdjustments`]: the whole list.
+    LocalAdjustments(Vec<LocalAdjustment>),
     /// For [`Param::LensCorrection`].
     LensCorrection(LensCorrection),
     /// For [`Param::Defringe`].
@@ -509,6 +520,7 @@ pub(crate) fn apply(settings: &mut Settings, param: Param, value: Value) -> Resu
             }
         },
         (Param::WhiteBalance, Value::WhiteBalance(v)) => settings.white_balance = v,
+        (Param::LocalAdjustments, Value::LocalAdjustments(v)) => settings.local_adjustments = v,
         (Param::LensCorrection, Value::LensCorrection(v)) => settings.lens_correction = v,
         (Param::Defringe, Value::Defringe(v)) => settings.defringe = v,
         (Param::Reshape, Value::Reshape(v)) => settings.reshape = v,

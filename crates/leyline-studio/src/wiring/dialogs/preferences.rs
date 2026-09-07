@@ -29,7 +29,7 @@ const STARTUP_CHECK_DELAY: Duration = Duration::from_secs(5);
 /// call that can panic, so poisoning would mean a panic somewhere else
 /// entirely — in which case losing the language setting is not the problem
 /// worth failing over.
-fn with_preferences<T>(
+pub(crate) fn with_preferences<T>(
     preferences: &SharedPreferences,
     change: impl FnOnce(&mut PreferencesFile) -> T,
 ) -> T {
@@ -105,6 +105,19 @@ fn show_current_values(window: &StudioWindow, preferences: &SharedPreferences) {
         file.values().advance_after_classement.unwrap_or(false)
     });
     state.set_advance_after_classement(advance);
+    // ADR 0132 §6: stored as names, shown as the mask the two dialogs read.
+    // Absent means the look, which is what a first launch copies — and so
+    // does a file naming only categories this build no longer has, since an
+    // empty set would copy nothing at all.
+    let copy_groups = with_preferences(preferences, |file| {
+        file.values()
+            .copy_groups
+            .as_ref()
+            .map(|groups| crate::groups::to_mask(groups))
+            .filter(|mask| *mask != 0)
+            .unwrap_or(crate::groups::LOOK)
+    });
+    state.set_copy_groups(copy_groups);
     show_backgrounds(window, preferences);
 }
 

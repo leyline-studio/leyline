@@ -603,6 +603,110 @@ export component ViewModeChips inherits HorizontalLayout {
     }
 }
 
+// The seventeen categories of develop settings (ADR 0132 §1, `docs/presets.md`
+// §3.1), and the arithmetic that packs them into one number.
+//
+// A bitfield rather than seventeen properties because two dialogs ask the
+// same question — *what does this carry?* — and a single `int` crosses to
+// Rust once, is stored once, and cannot drift into two lists that disagree.
+// Slint 1.13 has no bit operators, so this is the `Math.pow` arrangement
+// ADR 0128 §3 already uses for the remembered panel state.
+//
+// **The bit order is a contract with Rust**: index 0 is White balance and
+// index 16 is Local adjustments, in the order of the table in
+// `docs/presets.md` §3.1, which is also the order of the develop panel.
+// `crate::groups::GROUP_BITS` on the Rust side reads the same order, and the
+// two are checked against each other by a test there.
+export global SettingsGroups {
+    // Everything a *look* is made of: bits 0..10 (ADR 0132 §6). The six
+    // positional categories — geometry, rendering, reshape, spot removal,
+    // red eye, local adjustments — are left out, because they are statements
+    // about one frame or about one file.
+    out property <int> look: 2047;
+    // All seventeen, for a Check All that means it.
+    out property <int> every: 131071;
+
+    pure public function has(mask: int, bit: int) -> bool {
+        return Math.mod(Math.floor(mask / Math.pow(2, bit)), 2) == 1;
+    }
+    pure public function flip(mask: int, bit: int) -> int {
+        return SettingsGroups.has(mask, bit)
+            ? mask - Math.pow(2, bit)
+            : mask + Math.pow(2, bit);
+    }
+}
+
+// One chip of the row below. Its own component so the bit arithmetic is
+// written once instead of seventeen times.
+component GroupChip inherits FilterChip {
+    in property <int> bit;
+    in property <int> mask;
+    in property <string> label;
+    callback toggled(int);
+
+    text: root.label;
+    active: SettingsGroups.has(root.mask, root.bit);
+    clicked => {
+        root.toggled(root.bit);
+    }
+}
+
+// One row of that bitfield, as chips.
+//
+// Chips and not Lightroom's column of checkboxes because ours are **atomic**
+// (`docs/presets.md` §3.1 — a category is captured whole or not at all), so
+// there is no sub-tree to draw and nothing to half-tick. Seventeen of them
+// wrap onto four rows, in the order they appear down the develop panel: a
+// photographer looking for *Color grading* finds it where it is on screen.
+// Five rows, because seventeen chips on four ran the last one into the
+// dialog's edge.
+export component SettingsGroupChips inherits VerticalLayout {
+    in property <int> mask;
+    callback toggled(int);
+
+    spacing: 6px;
+
+    HorizontalLayout {
+        spacing: 6px;
+        GroupChip { bit: 0; label: @tr("White balance"); mask: root.mask; toggled(b) => { root.toggled(b); } }
+        GroupChip { bit: 1; label: @tr("Tone"); mask: root.mask; toggled(b) => { root.toggled(b); } }
+        GroupChip { bit: 2; label: @tr("Presence"); mask: root.mask; toggled(b) => { root.toggled(b); } }
+        GroupChip { bit: 3; label: @tr("Tone curve"); mask: root.mask; toggled(b) => { root.toggled(b); } }
+        Rectangle { horizontal-stretch: 1; }
+    }
+    HorizontalLayout {
+        spacing: 6px;
+        GroupChip { bit: 4; label: @tr("Color mixer"); mask: root.mask; toggled(b) => { root.toggled(b); } }
+        GroupChip { bit: 5; label: @tr("Color grading"); mask: root.mask; toggled(b) => { root.toggled(b); } }
+        GroupChip { bit: 6; label: @tr("Camera profile"); mask: root.mask; toggled(b) => { root.toggled(b); } }
+        GroupChip { bit: 7; label: @tr("Creative LUT"); mask: root.mask; toggled(b) => { root.toggled(b); } }
+        Rectangle { horizontal-stretch: 1; }
+    }
+    HorizontalLayout {
+        spacing: 6px;
+        GroupChip { bit: 8; label: @tr("Effects"); mask: root.mask; toggled(b) => { root.toggled(b); } }
+        GroupChip { bit: 9; label: @tr("Lens correction"); mask: root.mask; toggled(b) => { root.toggled(b); } }
+        GroupChip { bit: 10; label: @tr("Detail"); mask: root.mask; toggled(b) => { root.toggled(b); } }
+        GroupChip { bit: 11; label: @tr("Rendering"); mask: root.mask; toggled(b) => { root.toggled(b); } }
+        Rectangle { horizontal-stretch: 1; }
+    }
+    // Three on the last two rows and not five on one: measured on the built
+    // dialog, "Local adjustments" ran into its right edge.
+    HorizontalLayout {
+        spacing: 6px;
+        GroupChip { bit: 12; label: @tr("Geometry"); mask: root.mask; toggled(b) => { root.toggled(b); } }
+        GroupChip { bit: 13; label: @tr("Reshape"); mask: root.mask; toggled(b) => { root.toggled(b); } }
+        GroupChip { bit: 14; label: @tr("Spot removal"); mask: root.mask; toggled(b) => { root.toggled(b); } }
+        Rectangle { horizontal-stretch: 1; }
+    }
+    HorizontalLayout {
+        spacing: 6px;
+        GroupChip { bit: 15; label: @tr("Red eye"); mask: root.mask; toggled(b) => { root.toggled(b); } }
+        GroupChip { bit: 16; label: @tr("Local adjustments"); mask: root.mask; toggled(b) => { root.toggled(b); } }
+        Rectangle { horizontal-stretch: 1; }
+    }
+}
+
 // The reminder that the selection is going to move on its own (ADR 0131 §4),
 // mounted by the grid and the loupe — the two views the advance acts in.
 //

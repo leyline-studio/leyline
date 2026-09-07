@@ -3501,3 +3501,131 @@ msgstr "Maj + glisser"
 msgctxt "ShortcutsDialog"
 msgid "Fine adjustment, five times slower"
 msgstr "Réglage fin, cinq fois plus lent"
+
+msgctxt "CopySettingsDialog"
+msgid "Copy settings"
+msgstr "Copier les réglages"
+
+msgctxt "CopySettingsDialog"
+msgid "What the clipboard picks up, and what a paste then writes over. Six start off: what a look is made of is on, what a place in this photograph — or this file — is made of is not."
+msgstr "Ce que le presse-papiers emporte, et ce qu'un collage écrasera. Six partent éteintes : ce dont un rendu est fait est allumé, ce dont un endroit de cette photo — ou ce fichier — est fait ne l'est pas."
+
+msgctxt "CopySettingsDialog"
+msgid "The look"
+msgstr "Le rendu"
+
+msgctxt "CopySettingsDialog"
+msgid "Everything"
+msgstr "Tout"
+
+msgctxt "CopySettingsDialog"
+msgid "Nothing"
+msgstr "Rien"
+
+msgctxt "CopySettingsDialog"
+msgid "Cancel"
+msgstr "Annuler"
+
+msgctxt "CopySettingsDialog"
+msgid "Copy"
+msgstr "Copier"
+
+msgctxt "PresetDialog"
+msgid "Categories (the six that start off are not part of a look)"
+msgstr "Catégories (les six éteintes ne font pas partie d'un rendu)"
+
+msgctxt "PresetDialog"
+msgid "The look"
+msgstr "Le rendu"
+
+msgctxt "PresetDialog"
+msgid "Everything"
+msgstr "Tout"
+
+msgctxt "PresetDialog"
+msgid "Nothing"
+msgstr "Rien"
+
+msgctxt "BrowserPanel"
+msgid "Copy Settings…"
+msgstr "Copier les réglages…"
+
+msgctxt "MenuBar"
+msgid "Copy Settings    Ctrl+C"
+msgstr "Copier les réglages    Ctrl+C"
+
+msgctxt "MenuBar"
+msgid "Copy Settings…    Ctrl+Shift+C"
+msgstr "Copier les réglages…    Ctrl+Maj+C"
+
+msgctxt "MenuBar"
+msgid "Paste Settings    Ctrl+V"
+msgstr "Coller les réglages    Ctrl+V"
+
+msgctxt "SettingsGroupChips"
+msgid "White balance"
+msgstr "Balance des blancs"
+
+msgctxt "SettingsGroupChips"
+msgid "Tone"
+msgstr "Tonalité"
+
+msgctxt "SettingsGroupChips"
+msgid "Presence"
+msgstr "Présence"
+
+msgctxt "SettingsGroupChips"
+msgid "Tone curve"
+msgstr "Courbe des tonalités"
+
+msgctxt "SettingsGroupChips"
+msgid "Color mixer"
+msgstr "Mélangeur TSL"
+
+msgctxt "SettingsGroupChips"
+msgid "Color grading"
+msgstr "Étalonnage couleur"
+
+msgctxt "SettingsGroupChips"
+msgid "Camera profile"
+msgstr "Profil d'appareil"
+
+msgctxt "SettingsGroupChips"
+msgid "Creative LUT"
+msgstr "LUT créative"
+
+msgctxt "SettingsGroupChips"
+msgid "Effects"
+msgstr "Effets"
+
+msgctxt "SettingsGroupChips"
+msgid "Lens correction"
+msgstr "Correction optique"
+
+msgctxt "SettingsGroupChips"
+msgid "Detail"
+msgstr "Détail"
+
+msgctxt "SettingsGroupChips"
+msgid "Rendering"
+msgstr "Rendu du fichier"
+
+msgctxt "SettingsGroupChips"
+msgid "Geometry"
+msgstr "Géométrie"
+
+msgctxt "SettingsGroupChips"
+msgid "Reshape"
+msgstr "Remodeler"
+
+msgctxt "SettingsGroupChips"
+msgid "Spot removal"
+msgstr "Correction des taches"
+
+msgctxt "SettingsGroupChips"
+msgid "Red eye"
+msgstr "Yeux rouges"
+
+msgctxt "SettingsGroupChips"
+msgid "Local adjustments"
+msgstr "Retouches locales"

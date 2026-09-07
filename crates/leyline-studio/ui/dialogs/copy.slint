@@ -1,0 +1,100 @@
+// Copy Settings… (ADR 0132 §5): which categories the clipboard picks up.
+//
+// The dialog `Ctrl+Shift+C` opens. `Ctrl+C` never opens it — it copies the
+// remembered set in one keystroke, because copying a look onto forty frames
+// is the common path and a dialog on the common path is the trade backwards.
+//
+// The choice is made **at copy** and not at paste, because `PresetSettings`
+// carries its own `groups` list as the source of truth for what it touches
+// (`docs/presets.md` §3.2); a second filter at paste would put a second
+// answer next to that one.
+//
+// One of the dialogs hosted by `panels/dialogs.slint` (ADR 0045 §3).
+
+import { DevelopState } from "../state/develop.slint";
+import { DialogState } from "../state/dialog.slint";
+import { PreferencesState } from "../state/preferences.slint";
+import { FilterChip, SettingsGroupChips, SettingsGroups } from "../widgets/controls.slint";
+
+export component CopySettingsDialog inherits VerticalLayout {
+    spacing: 12px;
+
+    // Seeded from the last set copied and kept only while the dialog is up:
+    // Rust owns the stored value, and only a completed copy writes it back
+    // (§6). Cancelling therefore changes nothing, which is what Cancel means.
+    property <int> mask: PreferencesState.copy-groups;
+
+    Text {
+        text: @tr("Copy settings");
+        color: #f0f0f0;
+        font-size: 15px;
+        font-weight: 600;
+    }
+    Text {
+        text: @tr("What the clipboard picks up, and what a paste then writes over. Six start off: what a look is made of is on, what a place in this photograph — or this file — is made of is not.");
+        color: #9a9a9a;
+        font-size: 11px;
+        wrap: word-wrap;
+    }
+
+    SettingsGroupChips {
+        mask: root.mask;
+        toggled(bit) => {
+            root.mask = SettingsGroups.flip(root.mask, bit);
+        }
+    }
+
+    HorizontalLayout {
+        spacing: 8px;
+        FilterChip {
+            text: @tr("The look");
+            active: false;
+            clicked => {
+                root.mask = SettingsGroups.look;
+            }
+        }
+        FilterChip {
+            text: @tr("Everything");
+            active: false;
+            clicked => {
+                root.mask = SettingsGroups.every;
+            }
+        }
+        FilterChip {
+            text: @tr("Nothing");
+            active: false;
+            clicked => {
+                root.mask = 0;
+            }
+        }
+        Rectangle {
+            horizontal-stretch: 1;
+        }
+    }
+
+    if DialogState.dialog-result != "": Text {
+        text: DialogState.dialog-result;
+        color: #d08a6a;
+        font-size: 11px;
+        wrap: word-wrap;
+    }
+
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: end;
+        FilterChip {
+            text: @tr("Cancel");
+            active: false;
+            clicked => {
+                DialogState.dialog = "";
+            }
+        }
+        FilterChip {
+            text: @tr("Copy");
+            active: true;
+            clicked => {
+                DevelopState.copy-settings-groups(root.mask);
+            }
+        }
+    }
+}

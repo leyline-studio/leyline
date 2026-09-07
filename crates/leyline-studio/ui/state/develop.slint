@@ -279,19 +279,26 @@ export global DevelopState {
     // is back, because it never went anywhere.
     in property <image> dev-trial-image;
     in property <bool> dev-trial-active: false;
-    // Name, then one flag per group: white-balance, tone, presence,
-    // effects, lens-correction, detail, geometry (`docs/presets.md` §3.1),
-    // then the folder to file it under — an index into the folder list,
-    // `-1` for the root (ADR 0058 §2).
-    callback run-save-preset(string, bool, bool, bool, bool, bool, bool, bool, int);
+    // Name, then the categories to capture as the seventeen-bit mask
+    // `SettingsGroupChips` composes (ADR 0132 §1 — bit 0 is White balance,
+    // bit 16 Local adjustments), then the folder to file it under: an index
+    // into the folder list, `-1` for the root (ADR 0058 §2).
+    callback run-save-preset(string, int, int);
     // The preset folders that already exist, for the save dialog's picker.
     in property <[string]> preset-folders;
     // Create a folder from the save dialog and file the preset in it.
     callback new-preset-folder(string);
     // Copy/paste develop settings between photos (distinct from named
-    // presets): captures White Balance/Tone/Presence/Effects/Lens/Detail from one
-    // photo, pastes onto the current grid selection.
+    // presets): captures the chosen categories from one photo, pastes onto
+    // the whole grid selection.
+    //
+    // `copy-settings` is `Ctrl+C` — it copies the remembered set without
+    // asking. `open-copy-dialog` is `Ctrl+Shift+C`, and
+    // `copy-settings-groups` is what its Copy button reports: the mask
+    // chosen, which Rust both acts on and stores (ADR 0132 §5, §6).
     callback copy-settings();
+    callback open-copy-dialog();
+    callback copy-settings-groups(int);
     callback paste-settings();
     in property <bool> has-settings-clipboard: false;
 }

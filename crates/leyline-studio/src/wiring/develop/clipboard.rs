@@ -2,33 +2,32 @@
 //!
 //! Distinct from named presets: this captures the current photo's settings in
 //! memory and applies them to the grid selection.
+//!
+//! Which categories it captures is the user's answer, asked once in Copy
+//! Settings… and remembered after that (ADR 0132 §5): `Ctrl+C` takes the
+//! stored set without a dialog, `Ctrl+Shift+C` opens the dialog, and paste
+//! writes whatever was taken. There is no filter at paste — a captured set
+//! carries its own `groups` list, and that is the only answer to "what does
+//! this touch" (`docs/presets.md` §3.2).
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::refresh_develop;
 use crate::app::{App, item_at, report_error, selected_versions};
-use crate::ui::{DevelopState, GridState, StudioWindow};
+use crate::preferences::SharedPreferences;
+use crate::ui::{DevelopState, DialogState, GridState, PreferencesState, StudioWindow, Tr};
+use crate::wiring::dialogs::preferences::with_preferences;
 use crate::wiring::grid::reload;
-use leyline_sdk::SettingsGroup;
-use slint::{ComponentHandle, Global};
-
-/// Develop settings groups copy/paste captures and applies — the same
-/// default set a saved preset captures (`docs/presets.md` §3.1), Geometry
-/// excluded since a crop/rotation is a per-photo judgment, not a
-/// transferable style.
-pub(crate) const CLIPBOARD_GROUPS: &[SettingsGroup] = &[
-    SettingsGroup::WhiteBalance,
-    SettingsGroup::Tone,
-    SettingsGroup::Presence,
-    SettingsGroup::Effects,
-    SettingsGroup::LensCorrection,
-    SettingsGroup::Detail,
-];
+use slint::{ComponentHandle, Global, SharedString};
 
 /// Copy/paste develop settings between photos (distinct from named
 /// presets, item 4 of the Lightroom/Darktable workflow-gap survey).
-pub(crate) fn wire_settings_clipboard(app: &Rc<RefCell<App>>, window: &StudioWindow) {
+pub(crate) fn wire_settings_clipboard(
+    app: &Rc<RefCell<App>>,
+    window: &StudioWindow,
+    preferences: &SharedPreferences,
+) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
@@ -36,19 +35,47 @@ pub(crate) fn wire_settings_clipboard(app: &Rc<RefCell<App>>, window: &StudioWin
             let Some(window) = handle.upgrade() else {
                 return;
             };
-            let mut app = app.borrow_mut();
-            let Some(version) =
-                item_at(&app, GridState::get(&window).get_selected()).map(|item| item.version_id)
-            else {
+            let mask = PreferencesState::get(&window).get_copy_groups();
+            copy(&app, &window, mask);
+        });
+    }
+    {
+        let handle = window.as_weak();
+        DevelopState::get(window).on_open_copy_dialog(move || {
+            let Some(window) = handle.upgrade() else {
                 return;
             };
-            match app.library.capture_settings(version, CLIPBOARD_GROUPS) {
-                Ok(settings) => {
-                    app.dev_clipboard = Some(settings);
-                    DevelopState::get(&window).set_has_settings_clipboard(true);
-                }
-                Err(error) => report_error(&window, &error.to_string()),
+            DialogState::get(&window).set_dialog_result(SharedString::new());
+            DialogState::get(&window).set_dialog(SharedString::from("copy-settings"));
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        let preferences = preferences.clone();
+        DevelopState::get(window).on_copy_settings_groups(move |mask| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            // Nothing chosen would copy nothing and say so nowhere: the
+            // dialog stays up with the sentence instead of closing on a
+            // gesture that did not happen.
+            if mask == 0 {
+                DialogState::get(&window)
+                    .set_dialog_result(Tr::get(&window).invoke_pick_at_least_one_group());
+                return;
             }
+            if !copy(&app, &window, mask) {
+                return;
+            }
+            // Stored only once the copy has actually landed (ADR 0132 §6),
+            // and stored as the category names rather than the mask — see
+            // `Preferences::copy_groups`.
+            PreferencesState::get(&window).set_copy_groups(mask);
+            let _ = with_preferences(&preferences, |file| {
+                file.update(|values| values.copy_groups = Some(crate::groups::from_mask(mask)))
+            });
+            DialogState::get(&window).set_dialog(SharedString::new());
         });
     }
     {
@@ -97,5 +124,30 @@ pub(crate) fn wire_settings_clipboard(app: &Rc<RefCell<App>>, window: &StudioWin
                 }
             }
         });
+    }
+}
+
+/// Captures `mask`'s categories from the focused photograph. `false` when
+/// nothing was captured, so a caller that has a dialog open can leave it up.
+fn copy(app: &Rc<RefCell<App>>, window: &StudioWindow, mask: i32) -> bool {
+    let mut app = app.borrow_mut();
+    let Some(version) =
+        item_at(&app, GridState::get(window).get_selected()).map(|item| item.version_id)
+    else {
+        return false;
+    };
+    match app
+        .library
+        .capture_settings(version, &crate::groups::from_mask(mask))
+    {
+        Ok(settings) => {
+            app.dev_clipboard = Some(settings);
+            DevelopState::get(window).set_has_settings_clipboard(true);
+            true
+        }
+        Err(error) => {
+            report_error(window, &error.to_string());
+            false
+        }
     }
 }

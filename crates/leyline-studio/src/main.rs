@@ -23,6 +23,7 @@ mod classify;
 mod develop;
 mod events;
 mod format;
+mod groups;
 mod library;
 mod map_view;
 mod masks;
@@ -487,7 +488,7 @@ fn run() -> Result<(), Startup> {
     wire_removal(&app, &window);
     wire_pairs(&app, &window);
     wire_confirm(&app, &window);
-    wire_settings_clipboard(&app, &window);
+    wire_settings_clipboard(&app, &window, &preferences);
     wire_filters(&app, &window);
     wire_develop(&app, &window);
     wire_library(&window, other_recent_libraries);

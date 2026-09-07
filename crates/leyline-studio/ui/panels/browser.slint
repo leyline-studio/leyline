@@ -1063,6 +1063,14 @@ export component BrowserPanel inherits HorizontalLayout {
                                 }
                             }
                             MenuItem {
+                                title: @tr("Copy Settings…");
+                                activated => {
+                                    GridState.selected = GridState.window-start + i;
+                                    GridState.select(GridState.window-start + i);
+                                    DevelopState.open-copy-dialog();
+                                }
+                            }
+                            MenuItem {
                                 // Deliberately does *not* touch
                                 // `selected`/`select` first: pasting must
                                 // act on whatever multi-selection is

@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use leyline_sdk::SettingsGroup;
 use serde::{Deserialize, Serialize};
 
 /// The native name of every bundled translation, keyed by the language tag
@@ -113,6 +114,15 @@ pub(crate) struct Preferences {
     /// outlives a launch. Same shape as `develop_view` above.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) advance_after_classement: Option<bool>,
+    /// The categories Copy Settings last picked up (ADR 0132 §6).
+    ///
+    /// The names themselves and not the bitfield the dialog composes: a
+    /// stored number would become a different set the day a category is
+    /// inserted rather than appended, and a preferences file is exactly the
+    /// place that outlives such a change. **Absent** means the look, which
+    /// is what a first launch copies.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) copy_groups: Option<Vec<SettingsGroup>>,
 }
 
 /// The preferences as the running application holds them: the values, and
@@ -493,6 +503,7 @@ mod tests {
             develop_view: Some(3),
             develop_left_view: Some(1),
             advance_after_classement: Some(true),
+            copy_groups: Some(vec![SettingsGroup::Tone, SettingsGroup::ToneCurve]),
         };
         save_preferences(&path, &written).expect("save");
         assert_eq!(load_preferences(&path), written);

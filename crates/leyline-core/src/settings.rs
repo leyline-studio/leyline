@@ -1874,6 +1874,46 @@ impl Settings {
     }
 }
 
+/// `Option<Option<T>>` where the outer level means *included* and the inner
+/// one means *cleared*, so `null` in the document has to survive the trip.
+///
+/// Serde's default deserialization of `Option<Option<T>>` folds `null` and
+/// "key absent" into the same `None`, which for these fields is the
+/// difference between "this preset clears the crop" and "this preset does
+/// not touch the crop". Found by [`PresetSettings`]'s round-trip test the
+/// day ADR 0132 gave `perspective` the same shape `crop` already had — and
+/// it was silently wrong for `crop` before that: a Geometry preset captured
+/// from an uncropped photograph stored `"crop": null` and read back as *not
+/// included*, so applying it left the target's crop alone instead of
+/// clearing it.
+///
+/// Paired with `skip_serializing_if = "Option::is_none"`, which is what
+/// keeps "not included" out of the document entirely.
+mod double_option {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub(super) fn serialize<T, S>(
+        value: &Option<Option<T>>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        T: Serialize,
+        S: Serializer,
+    {
+        value.serialize(serializer)
+    }
+
+    pub(super) fn deserialize<'de, T, D>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+    where
+        T: Deserialize<'de>,
+        D: Deserializer<'de>,
+    {
+        // The key is present — `null` included — so it *is* included, and
+        // the inner `Option` carries whether it holds a value.
+        Option::deserialize(deserializer).map(Some)
+    }
+}
+
 /// One category of develop settings a preset can capture (`docs/presets.md`
 /// §3.1). Atomic: including a group captures — or applies — all of its
 /// fields together, never a single field of it.
@@ -1883,8 +1923,21 @@ pub enum SettingsGroup {
     WhiteBalance,
     /// [`Settings::exposure`], `contrast`, `highlights`, `shadows`, `whites`, `blacks`.
     Tone,
-    /// [`Settings::vibrance`], `saturation`, `monochrome`.
+    /// [`Settings::clarity`], `texture`, `dehaze`, `vibrance`, `saturation`,
+    /// `monochrome` — the whole of Basic below the tonal sliders
+    /// (ADR 0132 §1). The first three joined the category with ADR 0132; a
+    /// preset written before it simply does not carry them.
     Presence,
+    /// [`Settings::tone_curve`] (ADR 0098).
+    ToneCurve,
+    /// [`Settings::hsl`], all eight bands (ADR 0047).
+    ColorMixer,
+    /// [`Settings::color_grading`] (ADR 0047).
+    ColorGrading,
+    /// [`Settings::camera_profile`] (ADR 0035).
+    CameraProfile,
+    /// [`Settings::lut`] (ADR 0053).
+    CreativeLut,
     /// [`Settings::vignette`], `grain` (ADR 0090 §5) — the two halves of a
     /// look a "film" preset would be missing without them.
     Effects,
@@ -1893,10 +1946,30 @@ pub enum SettingsGroup {
     LensCorrection,
     /// [`Settings::noise_reduction`], `sharpening`.
     Detail,
-    /// [`Settings::rotation`], `crop`. Never included by default when a
-    /// preset is created (`docs/presets.md` §3.1): geometry is a per-photo
-    /// judgment, not a reproducible style.
+    /// [`Settings::highlight_reconstruction`], `demosaic`,
+    /// `output_rendering` — how the photograph comes out of the file
+    /// (ADR 0132 §1). Not included by default: it is a decision about *this*
+    /// file, and a look copied onto a series does not mean to change a
+    /// demosaic.
+    Rendering,
+    /// [`Settings::rotation`], `crop`, `perspective`. Never included by
+    /// default when a preset is created (`docs/presets.md` §3.1): geometry
+    /// is a per-photo judgment, not a reproducible style.
     Geometry,
+    /// [`Settings::reshape`] (ADR 0109). Positional, so never included by
+    /// default (ADR 0132 §6).
+    Reshape,
+    /// [`Settings::spot_removal`]. Positional — but the one positional
+    /// category with a real batch use: sensor dust lands in the same place
+    /// on every frame.
+    SpotRemoval,
+    /// [`Settings::red_eye`] (ADR 0103). Positional, so never included by
+    /// default.
+    RedEye,
+    /// [`Settings::local_adjustments`] (ADR 0029). Positional, so never
+    /// included by default — though a graduated filter over a horizon often
+    /// suits a whole series.
+    LocalAdjustments,
 }
 
 /// A named, partial jeu of develop settings (`docs/presets.md` §3.2,
@@ -1939,6 +2012,17 @@ pub struct PresetSettings {
     /// Present when `groups` includes [`SettingsGroup::Tone`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub blacks: Option<i32>,
+    /// Present when `groups` includes [`SettingsGroup::Presence`]
+    /// (ADR 0132 §1). Absent from a preset written before that ADR, which
+    /// then leaves the setting alone — the rule every absent field follows.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clarity: Option<i32>,
+    /// Present when `groups` includes [`SettingsGroup::Presence`] (ADR 0132 §1).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub texture: Option<i32>,
+    /// Present when `groups` includes [`SettingsGroup::Presence`] (ADR 0132 §1).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dehaze: Option<i32>,
     /// Present when `groups` includes [`SettingsGroup::Presence`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub vibrance: Option<i32>,
@@ -1980,8 +2064,72 @@ pub struct PresetSettings {
     pub rotation: Option<f64>,
     /// `Some(None)` = included, cleared to full frame; `Some(Some(c))` =
     /// included with a crop; `None` = category not included.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "double_option"
+    )]
     pub crop: Option<Option<Crop>>,
+    /// `Some(None)` = included, cleared to no keystone; `Some(Some(p))` =
+    /// included with a correction; `None` = category not included
+    /// (ADR 0132 §1).
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "double_option"
+    )]
+    pub perspective: Option<Option<Perspective>>,
+
+    /// Present when `groups` includes [`SettingsGroup::ToneCurve`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tone_curve: Option<ToneCurve>,
+    /// Present when `groups` includes [`SettingsGroup::ColorMixer`] — all
+    /// eight bands together, since a mix is one decision.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hsl: Option<[HslBand; 8]>,
+    /// Present when `groups` includes [`SettingsGroup::ColorGrading`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color_grading: Option<ColorGrading>,
+    /// `Some(None)` = included, back to the decoder's own conversion;
+    /// `Some(Some(p))` = included with a profile; `None` = not included.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "double_option"
+    )]
+    pub camera_profile: Option<Option<CameraProfile>>,
+    /// `Some(None)` = included, no look; `Some(Some(l))` = included with
+    /// one; `None` = not included.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "double_option"
+    )]
+    pub lut: Option<Option<Lut>>,
+
+    /// Present when `groups` includes [`SettingsGroup::Rendering`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub highlight_reconstruction: Option<HighlightReconstruction>,
+    /// Present when `groups` includes [`SettingsGroup::Rendering`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub demosaic: Option<Demosaic>,
+    /// Present when `groups` includes [`SettingsGroup::Rendering`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_rendering: Option<OutputRendering>,
+
+    /// Present when `groups` includes [`SettingsGroup::Reshape`] — the
+    /// whole list, replacing whatever the target held.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reshape: Option<Vec<ReshapePoint>>,
+    /// Present when `groups` includes [`SettingsGroup::SpotRemoval`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spot_removal: Option<Vec<SpotRemoval>>,
+    /// Present when `groups` includes [`SettingsGroup::RedEye`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub red_eye: Option<Vec<RedEye>>,
+    /// Present when `groups` includes [`SettingsGroup::LocalAdjustments`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local_adjustments: Option<Vec<LocalAdjustment>>,
 }
 
 impl PresetSettings {
@@ -2007,9 +2155,44 @@ impl PresetSettings {
                     preset.blacks = Some(settings.blacks);
                 }
                 SettingsGroup::Presence => {
+                    preset.clarity = Some(settings.clarity);
+                    preset.texture = Some(settings.texture);
+                    preset.dehaze = Some(settings.dehaze);
                     preset.vibrance = Some(settings.vibrance);
                     preset.saturation = Some(settings.saturation);
                     preset.monochrome = Some(settings.monochrome);
+                }
+                SettingsGroup::ToneCurve => {
+                    preset.tone_curve = Some(settings.tone_curve.clone());
+                }
+                SettingsGroup::ColorMixer => {
+                    preset.hsl = Some(settings.hsl);
+                }
+                SettingsGroup::ColorGrading => {
+                    preset.color_grading = Some(settings.color_grading);
+                }
+                SettingsGroup::CameraProfile => {
+                    preset.camera_profile = Some(settings.camera_profile.clone());
+                }
+                SettingsGroup::CreativeLut => {
+                    preset.lut = Some(settings.lut.clone());
+                }
+                SettingsGroup::Rendering => {
+                    preset.highlight_reconstruction = Some(settings.highlight_reconstruction);
+                    preset.demosaic = Some(settings.demosaic);
+                    preset.output_rendering = Some(settings.output_rendering.clone());
+                }
+                SettingsGroup::Reshape => {
+                    preset.reshape = Some(settings.reshape.clone());
+                }
+                SettingsGroup::SpotRemoval => {
+                    preset.spot_removal = Some(settings.spot_removal.clone());
+                }
+                SettingsGroup::RedEye => {
+                    preset.red_eye = Some(settings.red_eye.clone());
+                }
+                SettingsGroup::LocalAdjustments => {
+                    preset.local_adjustments = Some(settings.local_adjustments.clone());
                 }
                 SettingsGroup::Effects => {
                     preset.vignette = Some(settings.vignette);
@@ -2026,6 +2209,7 @@ impl PresetSettings {
                 SettingsGroup::Geometry => {
                     preset.rotation = Some(settings.rotation);
                     preset.crop = Some(settings.crop.clone());
+                    preset.perspective = Some(settings.perspective);
                 }
             }
         }

@@ -1,43 +1,25 @@
 // Save a develop preset (`docs/presets.md` §3.1, ADR 0058 §2): a name, the
-// folder to file it under, and one flag per group of settings to capture.
+// folder to file it under, and which categories of settings to capture.
 //
-// The groups are chips rather than Lightroom's column of checkboxes because
-// there are seven of them and not forty: ours are atomic by design
-// (`docs/presets.md` §3.1 — a group is captured whole or not at all), so
-// there is no sub-tree to draw and nothing to half-tick.
+// The categories are the seventeen of ADR 0132 §1 and the widget drawing
+// them is shared with Copy Settings — the two dialogs ask the same question,
+// and until that ADR both asked it about seven categories out of seventeen,
+// so a preset could not hold a tone curve.
 //
 // One of the dialogs hosted by `panels/dialogs.slint` (ADR 0045 §3).
 
 import { DevelopState } from "../state/develop.slint";
 import { DialogState } from "../state/dialog.slint";
-import { FilterChip } from "../widgets/controls.slint";
+import { FilterChip, SettingsGroupChips, SettingsGroups } from "../widgets/controls.slint";
 
 export component PresetDialog inherits VerticalLayout {
     spacing: 12px;
-    property <bool> g-white-balance: true;
-    property <bool> g-tone: true;
-    property <bool> g-presence: true;
-    property <bool> g-effects: false;
-    property <bool> g-lens-correction: false;
-    property <bool> g-detail: false;
-    property <bool> g-geometry: false;
+    // A preset starts on the look and nothing positional — the same default
+    // Copy Settings uses, and the rule `docs/presets.md` §3.1 states.
+    property <int> mask: SettingsGroups.look;
     // The folder to file it under: an index into `DevelopState.preset-folders`,
     // -1 for the root.
     property <int> folder: -1;
-
-    public function check-all(on: bool) {
-        root.g-white-balance = on;
-        root.g-tone = on;
-        root.g-presence = on;
-        root.g-effects = on;
-        root.g-lens-correction = on;
-        root.g-detail = on;
-        // Geometry stays out of "all" on purpose: `docs/presets.md` §3.1
-        // calls it a per-photo judgment, not a reproducible style, and a
-        // Check All that silently packed the crop into every preset would
-        // make that rule a lie.
-        root.g-geometry = on ? root.g-geometry : false;
-    }
 
     Text {
         text: @tr("Save as preset");
@@ -67,80 +49,44 @@ export component PresetDialog inherits VerticalLayout {
         }
     }
     Text {
-        text: @tr("Groups (geometry is rarely reused across photos)");
+        // Wrapped, and short enough not to need it: a single-line `Text`
+        // here was silently elided at the dialog's width.
+        text: @tr("Categories (the six that start off are not part of a look)");
         color: #9a9a9a;
         font-size: 12px;
+        wrap: word-wrap;
     }
-    HorizontalLayout {
-        spacing: 8px;
-        FilterChip {
-            text: @tr("White balance");
-            active: root.g-white-balance;
-            clicked => {
-                root.g-white-balance = !root.g-white-balance;
-            }
-        }
-        FilterChip {
-            text: @tr("Tone");
-            active: root.g-tone;
-            clicked => {
-                root.g-tone = !root.g-tone;
-            }
-        }
-        FilterChip {
-            text: @tr("Presence");
-            active: root.g-presence;
-            clicked => {
-                root.g-presence = !root.g-presence;
-            }
-        }
-        FilterChip {
-            text: @tr("Effects");
-            active: root.g-effects;
-            clicked => {
-                root.g-effects = !root.g-effects;
-            }
+    SettingsGroupChips {
+        mask: root.mask;
+        toggled(bit) => {
+            root.mask = SettingsGroups.flip(root.mask, bit);
         }
     }
     HorizontalLayout {
         spacing: 8px;
         FilterChip {
-            text: @tr("Lens correction");
-            active: root.g-lens-correction;
-            clicked => {
-                root.g-lens-correction = !root.g-lens-correction;
-            }
-        }
-        FilterChip {
-            text: @tr("Detail");
-            active: root.g-detail;
-            clicked => {
-                root.g-detail = !root.g-detail;
-            }
-        }
-        FilterChip {
-            text: @tr("Geometry");
-            active: root.g-geometry;
-            clicked => {
-                root.g-geometry = !root.g-geometry;
-            }
-        }
-    }
-    HorizontalLayout {
-        spacing: 8px;
-        FilterChip {
-            text: @tr("Check all");
+            text: @tr("The look");
             active: false;
             clicked => {
-                root.check-all(true);
+                root.mask = SettingsGroups.look;
             }
         }
         FilterChip {
-            text: @tr("Check none");
+            text: @tr("Everything");
             active: false;
             clicked => {
-                root.check-all(false);
+                root.mask = SettingsGroups.every;
             }
+        }
+        FilterChip {
+            text: @tr("Nothing");
+            active: false;
+            clicked => {
+                root.mask = 0;
+            }
+        }
+        Rectangle {
+            horizontal-stretch: 1;
         }
     }
 
@@ -238,16 +184,7 @@ export component PresetDialog inherits VerticalLayout {
             text: @tr("Save");
             active: true;
             clicked => {
-                DevelopState.run-save-preset(
-                    preset-name.text,
-                    root.g-white-balance,
-                    root.g-tone,
-                    root.g-presence,
-                    root.g-effects,
-                    root.g-lens-correction,
-                    root.g-detail,
-                    root.g-geometry,
-                    root.folder);
+                DevelopState.run-save-preset(preset-name.text, root.mask, root.folder);
             }
         }
     }

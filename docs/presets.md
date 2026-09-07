@@ -34,26 +34,40 @@ A preset never captures the complete state of a development (`settings_json`, `p
 
 The settings of schema 1 (`pipeline.md` §3.2) fall into **categories**, at checkbox granularity — never at the individual field:
 
-| Category | Fields covered |
-|---|---|
-| `white_balance` | `white_balance` (temperature, tint) |
-| `tone` | `exposure`, `contrast`, `highlights`, `shadows`, `whites`, `blacks` |
-| `presence` | `vibrance`, `saturation`, `monochrome` |
-| `effects` | `vignette`, `grain` (ADR 0090 §5) |
-| `lens_correction` | `lens_correction`, `defringe` — the category is *what the lens did to this photograph*, not the `LensCorrection` struct ([ADR 0113](adr/0113-defringe.md) §5) |
-| `detail` | `noise_reduction`, `sharpening` |
-| `geometry` | `rotation`, `crop` |
+The rule that generates the list: **one category per block of the develop panel** ([ADR 0132](adr/0132-selective-copy-and-full-coverage.md) §1), because the panel is where a photographer already decides what a development is made of.
+
+| Category (CLI name) | `groups` value | Fields covered |
+|---|---|---|
+| `white_balance` | `WhiteBalance` | `white_balance` (temperature, tint) |
+| `tone` | `Tone` | `exposure`, `contrast`, `highlights`, `shadows`, `whites`, `blacks` |
+| `presence` | `Presence` | `clarity`, `texture`, `dehaze`, `vibrance`, `saturation`, `monochrome` |
+| `tone_curve` | `ToneCurve` | `tone_curve` ([ADR 0098](adr/0098-per-channel-tone-curves.md)) |
+| `color_mixer` | `ColorMixer` | `hsl`, all eight bands together |
+| `color_grading` | `ColorGrading` | `color_grading` |
+| `camera_profile` | `CameraProfile` | `camera_profile` ([ADR 0035](adr/0035-camera-profile-dcp.md)) |
+| `creative_lut` | `CreativeLut` | `lut` ([ADR 0053](adr/0053-creative-lut.md)) |
+| `effects` | `Effects` | `vignette`, `grain` (ADR 0090 §5) |
+| `lens_correction` | `LensCorrection` | `lens_correction`, `defringe` — the category is *what the lens did to this photograph*, not the `LensCorrection` struct ([ADR 0113](adr/0113-defringe.md) §5) |
+| `detail` | `Detail` | `noise_reduction`, `sharpening` |
+| `rendering` | `Rendering` | `highlight_reconstruction`, `demosaic`, `output_rendering` — how the photograph comes out of the file |
+| `geometry` | `Geometry` | `rotation`, `crop`, `perspective` |
+| `reshape` | `Reshape` | `reshape` ([ADR 0109](adr/0109-reshape-stage.md)) |
+| `spot_removal` | `SpotRemoval` | `spot_removal` |
+| `red_eye` | `RedEye` | `red_eye` ([ADR 0103](adr/0103-red-eye-correction.md)) |
+| `local_adjustments` | `LocalAdjustments` | `local_adjustments` ([ADR 0029](adr/0029-process-6-local-adjustments.md)) |
+
+Four settings are deliberately in **no** category, and each for a stated reason (ADR 0132 §3): `source_encoding` is a fact about the file rather than a decision about the photograph; `schema` and `stages` are the revision's own versioning, and a preset never fixes a rendering version ([ADR 0043](adr/0043-collapse-prerelease-render-history.md) §3); `extra` is the forward-compatibility passthrough, which belongs to the document that carried it.
 
 A category is **atomic**: including it captures (or applies) all of its fields together. You cannot include `temperature` without `tint`. That granularity matches what the user actually chooses ("I want this colour rendering and this contrast, but not this crop"), with no superfluous complexity at the field level.
 
-`geometry` is **never included by default** when a preset is created: crop and rotation are per-photo judgements, not a style reproducible over a series. The user can include it explicitly (e.g. a "centred square" preset for an Instagram series).
+Six categories are **never included by default** — `geometry`, `rendering`, `reshape`, `spot_removal`, `red_eye`, `local_adjustments` — under one rule: *what a look is made of is included, what a place in this photograph is made of is not* (ADR 0132 §6). A crop, a mask, a spot repair, a pair of eyes and a reshape are statements about one frame; `rendering` is excluded from the other side, being about this *file*. The user can include any of them explicitly — a "centred square" preset for an Instagram series, or a graduated filter over a horizon that suits a whole shoot.
 
 ## 3.2 Format (`preset_json`)
 
 ```json
 {
     "schema": 1,
-    "groups": ["white_balance", "tone", "presence"],
+    "groups": ["WhiteBalance", "Tone", "Presence"],
 
     "white_balance": { "temperature": 5400, "tint": 4 },
     "exposure": 0.35,
