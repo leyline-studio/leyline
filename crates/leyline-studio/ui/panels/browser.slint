@@ -19,7 +19,7 @@ import { DialogState } from "../state/dialog.slint";
 import { FilterState } from "../state/filter.slint";
 import { GridState } from "../state/grid.slint";
 import { MapState } from "../state/map.slint";
-import { DetailRow, FilterChip, MiniSlider, RangeField, ViewModeChips } from "../widgets/controls.slint";
+import { AdvanceChip, DetailRow, FilterChip, MiniSlider, RangeField, ViewModeChips } from "../widgets/controls.slint";
 import { DragState } from "../state/drag.slint";
 import { HintState } from "../state/hint.slint";
 
@@ -1097,6 +1097,7 @@ export component BrowserPanel inherits HorizontalLayout {
                         GridState.loupe-mode-changed();
                     }
                 }
+                AdvanceChip { }
                 Rectangle {
                     horizontal-stretch: 1;
                 }

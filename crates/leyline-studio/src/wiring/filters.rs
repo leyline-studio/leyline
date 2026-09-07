@@ -7,9 +7,11 @@ use std::rc::Rc;
 use crate::app::{App, SORTS, item_at, report_error, selected_indices, selected_versions};
 use crate::classify;
 use crate::classify::Action;
-use crate::ui::{CollectionState, FilterState, FolderState, GridState, StudioWindow};
+use crate::ui::{
+    CollectionState, FilterState, FolderState, GridState, MapState, PreferencesState, StudioWindow,
+};
 use crate::undo::{Edit, Snapshot};
-use crate::wiring::grid::reload;
+use crate::wiring::grid::{reload, show_details};
 use crate::wiring::library::refresh_undo;
 use leyline_sdk::{ColorLabel, GridQuery, PickState, ShotRange, VersionId};
 use slint::{ComponentHandle, Global, Model, ModelRc, SharedString, VecModel};
@@ -70,7 +72,58 @@ pub(crate) fn wire_classify(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             after: Snapshot::Classement(after),
         });
         refresh_undo(&app, &window);
+        // ADR 0131 §1: last, so nothing moves past a failed write, and the
+        // photograph left on screen after an error is the one that did not
+        // take the rating.
+        if let Some(next) = advance_target(&app, &window, focused) {
+            // The same steps `on_select` takes, minus the multi-selection
+            // clear it does not need — the advance only happens when there
+            // was none. Setting `selected` is what makes `browser.slint`'s
+            // `followed-selection` scroll the new focus into view, which is
+            // also what refills the loaded window of rows when the advance
+            // walks off the end of it.
+            GridState::get(&window).set_selected(next);
+            show_details(&mut app, &window, next);
+        }
     });
+}
+
+/// Where the selection goes after a classement has landed (ADR 0131 §1, §2),
+/// or `None` when it stays put.
+///
+/// Every condition is read from state rather than from the call site: the
+/// number row, the Photo menu and the grid's context menu all reach
+/// `classify`, and they all mean the same thing.
+fn advance_target(app: &App, window: &StudioWindow, focused: i32) -> Option<i32> {
+    let grid = GridState::get(window);
+    // The grid and the loupe are the culling surfaces; the other four views
+    // each refuse for a reason of their own (§2). Develop is read from `App`
+    // rather than from the flag, because what disqualifies it is the open
+    // edit session, not the panel being visible.
+    let elsewhere = grid.get_compare_mode()
+        || grid.get_survey_mode()
+        || MapState::get(window).get_map_mode()
+        || app.develop.is_some();
+    next_to_class(
+        PreferencesState::get(window).get_advance_after_classement(),
+        app.multi_selected.len(),
+        elsewhere,
+        focused,
+        grid.get_total_cells(),
+    )
+}
+
+/// The rule itself, with nothing to read it from (ADR 0131 §1).
+///
+/// `multi` is the size of the multi-selection and is compared against `1`
+/// rather than `0`, so it reads the set exactly as [`selected_indices`]
+/// does: one entry, or none, is a lone photograph.
+fn next_to_class(on: bool, multi: usize, elsewhere: bool, focused: i32, total: i32) -> Option<i32> {
+    if !on || multi > 1 || elsewhere || focused < 0 {
+        return None;
+    }
+    let next = focused.checked_add(1)?;
+    (next < total).then_some(next)
 }
 
 /// The classement of every selected row, as the grid currently shows it.
@@ -365,4 +418,31 @@ fn shot_count(query: &GridQuery) -> i32 {
     let discrete = i32::from(query.camera.is_some()) + i32::from(query.lens.is_some());
     let continuous = ranges.iter().filter(|r| !r.is_unbounded()).count();
     discrete + i32::try_from(continuous).unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_lone_photograph_steps_on_and_stops_at_the_end() {
+        assert_eq!(next_to_class(true, 0, false, 0, 3), Some(1));
+        assert_eq!(next_to_class(true, 1, false, 1, 3), Some(2));
+        // The last photograph is where the run ends: no wrap (ADR 0131 §1).
+        assert_eq!(next_to_class(true, 0, false, 2, 3), None);
+        // Nothing focused, nothing to step from.
+        assert_eq!(next_to_class(true, 0, false, -1, 3), None);
+        assert_eq!(next_to_class(true, 0, false, i32::MAX, i32::MAX), None);
+    }
+
+    #[test]
+    fn the_three_refusals() {
+        // Off is the shipped default, and it is a refusal like any other.
+        assert_eq!(next_to_class(false, 0, false, 0, 3), None);
+        // A multi-selection is one decision about many photographs, and
+        // "the next one" after it names nothing (§1).
+        assert_eq!(next_to_class(true, 2, false, 0, 3), None);
+        // Compare, survey, map, develop (§2).
+        assert_eq!(next_to_class(true, 0, true, 0, 3), None);
+    }
 }

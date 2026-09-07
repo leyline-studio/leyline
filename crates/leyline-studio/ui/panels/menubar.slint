@@ -22,7 +22,7 @@ import { GridState } from "../state/grid.slint";
 import { LibraryState } from "../state/library.slint";
 import { MapState } from "../state/map.slint";
 import { PreferencesState } from "../state/preferences.slint";
-import { MenuDropdown, MenuRow, MenuSep, ModuleLabel, SubmenuHeader, TopMenuLabel } from "../widgets/menu.slint";
+import { MenuDropdown, MenuRow, MenuSep, MenuToggleRow, ModuleLabel, SubmenuHeader, TopMenuLabel } from "../widgets/menu.slint";
 
 export component MenuBar inherits Rectangle {
     // Which top-level menu is open: "" or one of "file"/"library"/"photo"/
@@ -422,6 +422,20 @@ export component MenuBar inherits Rectangle {
                         root.open-menu = "";
                         root.reset-submenus();
                     }
+                }
+            }
+            // The switch sits directly under the three submenus it changes
+            // (ADR 0131 §3), outside them: it is not a fourth way of
+            // classing a photograph, it is what the other three do next.
+            // Never disabled — a mode is set before there is a selection to
+            // apply it to, and often precisely then.
+            MenuToggleRow {
+                title: @tr("Advance after rating");
+                checked: PreferencesState.advance-after-classement;
+                activated => {
+                    PreferencesState.set-advance-after-classement(!PreferencesState.advance-after-classement);
+                    root.open-menu = "";
+                    root.reset-submenus();
                 }
             }
             MenuSep { }

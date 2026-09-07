@@ -87,4 +87,18 @@ export global PreferencesState {
     in property <int> develop-left-view: -1;
     callback remember-develop-view(int);
     callback remember-develop-left-view(int);
+
+    // Advance after a classement (ADR 0131): the selection steps to the next
+    // photograph once a lone one has been rated, labelled or flagged.
+    //
+    // Stored here for the same reason `develop-view` is — a way of working,
+    // kept across launches — and shown *not* here but in Photo ▸ Advance
+    // after rating, which is ADR 0078 §1's third condition applied: a
+    // setting with a natural place in the surface it governs never enters
+    // the Preferences dialog.
+    //
+    // `in-out` because the menu row and the two toolbar chips all flip it,
+    // and Rust sets it at startup from the stored value.
+    in-out property <bool> advance-after-classement;
+    callback set-advance-after-classement(bool);
 }

@@ -100,6 +100,11 @@ fn show_current_values(window: &StudioWindow, preferences: &SharedPreferences) {
     });
     state.set_develop_view(develop);
     state.set_develop_left_view(develop_left);
+    // ADR 0131 §5: absent means off, and off is the shipped default.
+    let advance = with_preferences(preferences, |file| {
+        file.values().advance_after_classement.unwrap_or(false)
+    });
+    state.set_advance_after_classement(advance);
     show_backgrounds(window, preferences);
 }
 
@@ -187,6 +192,28 @@ pub(crate) fn wire_preferences(window: &StudioWindow, preferences: &SharedPrefer
         state.on_remember_develop_left_view(move |code| {
             let _ = with_preferences(&preferences, |file| {
                 file.update(|values| values.develop_left_view = Some(code))
+            });
+        });
+    }
+
+    // Photo ▸ Advance after rating, and the chip that turns it back off
+    // (ADR 0131 §3, §4). The property is `in-out` and the menu row reads it,
+    // so this writes both halves: the file, and the value every surface
+    // shows.
+    //
+    // Silent on a write failure, like the two above and for the same reason:
+    // a read-only config directory must not put an error in the status line
+    // because someone flipped a mode.
+    {
+        let preferences = preferences.clone();
+        let handle = window.as_weak();
+        state.on_set_advance_after_classement(move |on| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            PreferencesState::get(&window).set_advance_after_classement(on);
+            let _ = with_preferences(&preferences, |file| {
+                file.update(|values| values.advance_after_classement = Some(on))
             });
         });
     }

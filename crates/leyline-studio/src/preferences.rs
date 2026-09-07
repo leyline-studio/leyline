@@ -102,6 +102,17 @@ pub(crate) struct Preferences {
     /// sections, four bits, equally uninterpreted.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) develop_left_view: Option<i32>,
+    /// Whether classing a lone photograph moves the selection on to the next
+    /// one (ADR 0131). **Absent means off**, which is the decision of §3 and
+    /// not a fallback: a selection that moves without having been asked to
+    /// is the most surprising thing this interface could do.
+    ///
+    /// Here rather than in the Preferences dialog for ADR 0078 §1's third
+    /// condition — it has a natural place, Photo ▸ Advance after rating —
+    /// and here rather than nowhere because it is a way of working, which
+    /// outlives a launch. Same shape as `develop_view` above.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) advance_after_classement: Option<bool>,
 }
 
 /// The preferences as the running application holds them: the values, and
@@ -481,6 +492,7 @@ mod tests {
             // what this test checks: it goes out and comes back untouched.
             develop_view: Some(3),
             develop_left_view: Some(1),
+            advance_after_classement: Some(true),
         };
         save_preferences(&path, &written).expect("save");
         assert_eq!(load_preferences(&path), written);

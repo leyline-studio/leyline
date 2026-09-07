@@ -2632,6 +2632,11 @@ msgctxt "MenuBar"
 msgid "Clear    U"
 msgstr "Effacer    U"
 
+#: crates/leyline-studio/ui/panels/menubar.slint:433
+msgctxt "MenuBar"
+msgid "Advance after rating"
+msgstr "Avancer après la note"
+
 #: crates/leyline-studio/ui/panels/menubar.slint:380 crates/leyline-studio/ui/panels/menubar.slint:582
 msgctxt "MenuBar"
 msgid "Develop    D"
@@ -3329,6 +3334,11 @@ msgstr "Grille"
 msgctxt "ViewModeChips"
 msgid "Loupe"
 msgstr "Loupe"
+
+#: crates/leyline-studio/ui/widgets/controls.slint:621
+msgctxt "AdvanceChip"
+msgid "Advance ▸"
+msgstr "Avance ▸"
 
 #: crates/leyline-studio/ui/dialogs/shortcuts.slint:116
 msgctxt "ShortcutsDialog"

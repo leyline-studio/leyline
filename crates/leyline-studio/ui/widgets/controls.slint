@@ -7,6 +7,7 @@
 
 import { Cell } from "../types.slint";
 import { HintState } from "../state/hint.slint";
+import { PreferencesState } from "../state/preferences.slint";
 
 export component DetailRow inherits HorizontalLayout {
     in property <string> label;
@@ -598,6 +599,33 @@ export component ViewModeChips inherits HorizontalLayout {
         enabled: root.loupe-available;
         clicked => {
             root.show-loupe();
+        }
+    }
+}
+
+// The reminder that the selection is going to move on its own (ADR 0131 §4),
+// mounted by the grid and the loupe — the two views the advance acts in.
+//
+// It shows itself only while the mode is on: an always-present chip would
+// buy discoverability with permanent clutter on the two surfaces that most
+// need to be quiet, and the mode is discovered in Photo ▸ Advance after
+// rating, not here. What it adds is the way *out* — one click, without
+// leaving the photographs for a menu.
+export component AdvanceChip inherits Rectangle {
+    // A bare `if` at a layout's top level would still occupy a slot; this
+    // collapses to nothing at all when the mode is off.
+    width: PreferencesState.advance-after-classement ? chip.preferred-width : 0px;
+    visible: PreferencesState.advance-after-classement;
+
+    chip := FilterChip {
+        // `▸` and not `⏵`: the bundled font has no U+23F5, and a glyph it
+        // cannot draw comes out as an empty box — seen on the running
+        // binary, not in the source. The marker `SubmenuHeader` already
+        // uses is the one known to render.
+        text: @tr("Advance ▸");
+        active: true;
+        clicked => {
+            PreferencesState.set-advance-after-classement(false);
         }
     }
 }

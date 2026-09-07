@@ -13,7 +13,7 @@
 import { GridState } from "../state/grid.slint";
 import { PreferencesState } from "../state/preferences.slint";
 import { DevelopState } from "../state/develop.slint";
-import { Filmstrip, FilterChip, ViewModeChips, ZoomableImage, Zoom } from "../widgets/controls.slint";
+import { AdvanceChip, Filmstrip, FilterChip, ViewModeChips, ZoomableImage, Zoom } from "../widgets/controls.slint";
 
 export component LoupePanel inherits VerticalLayout {
     // Panel folding, owned by the window (ADR 0055 §6). The loupe has no
@@ -59,6 +59,7 @@ export component LoupePanel inherits VerticalLayout {
             }
             show-loupe => { }
         }
+        AdvanceChip { }
         FilterChip {
             text: root.zoomed ? @tr("Fit") : @tr("100%    Z");
             active: root.zoomed;

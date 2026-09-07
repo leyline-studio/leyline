@@ -156,3 +156,46 @@ export component MenuSep inherits Rectangle {
     }
 }
 
+
+// A menu row that carries a state rather than an action (ADR 0131 §3): the
+// tick lives in a column of its own, so a toggled and an untoggled row have
+// their titles in the same place and the menu does not shift as one is
+// switched. `MenuRow` stays what it is — a row that *does* something —
+// because a checkable variant of it would leave every existing caller
+// carrying a `checked: false` that means nothing.
+export component MenuToggleRow inherits Rectangle {
+    in property <string> title;
+    in property <bool> checked;
+    in property <bool> enabled: true;
+    callback activated;
+
+    height: 26px;
+    width: 240px;
+    background: touch.has-hover && root.enabled ? #2f4f6f : transparent;
+
+    Text {
+        x: 12px;
+        width: 14px;
+        text: root.checked ? "✓" : "";
+        color: root.enabled ? #6fa8dc : #666666;
+        font-size: 12px;
+        vertical-alignment: center;
+        height: 100%;
+    }
+    Text {
+        x: 26px;
+        width: parent.width - 38px;
+        text: root.title;
+        color: root.enabled ? #e6e6e6 : #666666;
+        font-size: 12px;
+        vertical-alignment: center;
+        height: 100%;
+        overflow: elide;
+    }
+    touch := TouchArea {
+        enabled: root.enabled;
+        clicked => {
+            root.activated();
+        }
+    }
+}
