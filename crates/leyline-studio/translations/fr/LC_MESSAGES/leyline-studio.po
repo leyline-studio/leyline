@@ -3629,3 +3629,171 @@ msgstr "Yeux rouges"
 msgctxt "SettingsGroupChips"
 msgid "Local adjustments"
 msgstr "Retouches locales"
+
+msgctxt "DevelopPanel"
+msgid "Warms or cools the photograph. Higher values look warmer — the reverse of the physical scale."
+msgstr "Réchauffe ou refroidit la photo. Plus la valeur monte, plus c'est chaud — l'inverse de l'échelle physique."
+
+msgctxt "DevelopPanel"
+msgid "The green–magenta axis: the half of a white balance that temperature alone cannot reach."
+msgstr "L'axe vert–magenta : la moitié d'une balance des blancs que la température seule n'atteint pas."
+
+msgctxt "DevelopPanel"
+msgid "Bends the bright tones below the clipping point. Whites sets the point itself."
+msgstr "Infléchit les tons clairs sous le point d'écrêtage. Blancs règle le point lui-même."
+
+msgctxt "DevelopPanel"
+msgid "Lifts or lowers the dark tones above the black point. Blacks sets the point itself."
+msgstr "Relève ou abaisse les tons sombres au-dessus du point noir. Noirs règle le point lui-même."
+
+msgctxt "DevelopPanel"
+msgid "Where the brightest tones clip. Highlights bends what is below that point; this sets the point."
+msgstr "Où les tons les plus clairs s'écrêtent. Hautes lumières infléchit ce qui est en dessous ; ceci règle le point."
+
+msgctxt "DevelopPanel"
+msgid "Where the darkest tones clip. Shadows lifts what is above that point; this sets the point."
+msgstr "Où les tons les plus sombres s'écrêtent. Ombres relève ce qui est au-dessus ; ceci règle le point."
+
+msgctxt "DevelopPanel"
+msgid "Contrast over fine detail: skin, bark, fabric. Unlike sharpening, it leaves edges alone."
+msgstr "Contraste sur le détail fin : peau, écorce, tissu. Contrairement à l'accentuation, il laisse les contours."
+
+msgctxt "DevelopPanel"
+msgid "Contrast over broad shapes. Coarser than Texture, gentler than Dehaze."
+msgstr "Contraste sur les formes larges. Plus grossier que Texture, plus doux que Voile."
+
+msgctxt "DevelopPanel"
+msgid "Pulls contrast back into flat, veiled light. A contrast tool, not a weather one."
+msgstr "Ramène du contraste dans une lumière plate et voilée. Un outil de contraste, pas de météo."
+
+msgctxt "DevelopPanel"
+msgid "Cuts the clipped channels off at white. Fastest, and what a photograph without blown highlights wants."
+msgstr "Coupe les canaux saturés au blanc. Le plus rapide, et ce que veut une photo sans hautes lumières brûlées."
+
+msgctxt "DevelopPanel"
+msgid "Fills a clipped channel from the ones that did not clip, keeping the colour plausible."
+msgstr "Remplit un canal saturé à partir de ceux qui ne le sont pas, en gardant une couleur plausible."
+
+msgctxt "DevelopPanel"
+msgid "Reconstructs clipped detail from neighbouring pixels. Slowest, for a badly blown sky."
+msgstr "Reconstruit le détail saturé à partir des pixels voisins. Le plus lent, pour un ciel très brûlé."
+
+msgctxt "DevelopPanel"
+msgid "Adaptive Homogeneity-Directed. The default: good detail, few zips along diagonal edges."
+msgstr "Adaptive Homogeneity-Directed. Le défaut : bon détail, peu d'escaliers sur les diagonales."
+
+msgctxt "DevelopPanel"
+msgid "Variable Number of Gradients. Softer, and steadier on very noisy files."
+msgstr "Variable Number of Gradients. Plus doux, et plus stable sur un fichier très bruité."
+
+msgctxt "DevelopPanel"
+msgid "A refined interpolation: more detail than AHD, and slower."
+msgstr "Une interpolation affinée : plus de détail qu'AHD, et plus lente."
+
+msgctxt "DevelopPanel"
+msgid "Directional, for fine repeating texture — fabric, brickwork — where others produce maze artefacts."
+msgstr "Directionnel, pour une texture fine répétée — tissu, brique — où les autres font des labyrinthes."
+
+msgctxt "DevelopPanel"
+msgid "Saturates the muted colours and spares the vivid ones. Saturation moves them all equally."
+msgstr "Sature les couleurs ternes et épargne les vives. Saturation les déplace toutes pareil."
+
+msgctxt "DevelopPanel"
+msgid "How gently the brightest tones reach white. Higher keeps a bright sky a sky instead of a white shape."
+msgstr "Avec quelle douceur les tons les plus clairs atteignent le blanc. Plus haut, un ciel reste un ciel."
+
+msgctxt "DevelopPanel"
+msgid "Manual correction of colour fringing on the red–cyan axis, for a lens no profile fits."
+msgstr "Correction manuelle des franges colorées sur l'axe rouge–cyan, pour un objectif sans profil."
+
+msgctxt "DevelopPanel"
+msgid "Manual correction of colour fringing on the blue–yellow axis, for a lens no profile fits."
+msgstr "Correction manuelle des franges colorées sur l'axe bleu–jaune, pour un objectif sans profil."
+
+msgctxt "DevelopPanel"
+msgid "Removes purple fringes along high-contrast edges."
+msgstr "Enlève les franges violettes le long des contours très contrastés."
+
+msgctxt "DevelopPanel"
+msgid "Removes green fringes along high-contrast edges."
+msgstr "Enlève les franges vertes le long des contours très contrastés."
+
+msgctxt "DevelopPanel"
+msgid "Noise reduction on brightness — the grain. Too much turns detail into plastic."
+msgstr "Débruitage de la luminosité — le grain. Trop, et le détail devient plastique."
+
+msgctxt "DevelopPanel"
+msgid "Noise reduction on colour — the coloured speckle. Costs far less detail than luminance does."
+msgstr "Débruitage de la couleur — les taches colorées. Coûte bien moins de détail que la luminance."
+
+msgctxt "DevelopPanel"
+msgid "How wide an edge the sharpening works on. Small for fine detail, larger for a soft image."
+msgstr "Sur quelle largeur de contour l'accentuation agit. Petit pour le détail fin, large pour une image molle."
+
+msgctxt "DevelopPanel"
+msgid "Keeps the sharpening on the edges and off the flat areas, so a sky stays smooth."
+msgstr "Garde l'accentuation sur les contours et hors des aplats, pour qu'un ciel reste lisse."
+
+msgctxt "DevelopPanel"
+msgid "How far from the centre the vignette begins."
+msgstr "À quelle distance du centre le vignettage commence."
+
+msgctxt "DevelopPanel"
+msgid "Whether the vignette follows a circle or the shape of the frame."
+msgstr "Si le vignettage suit un cercle ou la forme du cadre."
+
+msgctxt "DevelopPanel"
+msgid "How gradually the vignette fades in."
+msgstr "Avec quelle progressivité le vignettage s'installe."
+
+msgctxt "DevelopPanel"
+msgid "How uneven the grain is. Higher reads as faster film."
+msgstr "À quel point le grain est irrégulier. Plus haut, cela se lit comme un film plus rapide."
+
+msgctxt "DevelopPanel"
+msgid "How coloured the grain is. Zero is a monochrome speckle."
+msgstr "À quel point le grain est coloré. Zéro donne une granulation monochrome."
+
+msgctxt "DevelopPanel"
+msgid "Which zones the three wheels reach: towards the shadows, or towards the highlights."
+msgstr "Quelles zones les trois roues atteignent : vers les ombres, ou vers les hautes lumières."
+
+msgctxt "DevelopPanel"
+msgid "How much the three zones overlap. Low keeps them apart, high blends them into one another."
+msgstr "À quel point les trois zones se recouvrent. Bas les sépare, haut les fond l'une dans l'autre."
+
+msgctxt "DevelopPanel"
+msgid "How gradually the mask fades at its edge."
+msgstr "Avec quelle progressivité le masque s'estompe sur son bord."
+
+msgctxt "DevelopPanel"
+msgid "Sharpening, inside the mask only."
+msgstr "Accentuation, à l'intérieur du masque seulement."
+
+msgctxt "DevelopPanel"
+msgid "The mask acts only on tones brighter than this."
+msgstr "Le masque n'agit que sur les tons plus clairs que ceci."
+
+msgctxt "DevelopPanel"
+msgid "The mask acts only on tones darker than this."
+msgstr "Le masque n'agit que sur les tons plus sombres que ceci."
+
+msgctxt "DevelopPanel"
+msgid "How gradually the mask fades outside that band of brightness."
+msgstr "Avec quelle progressivité le masque s'estompe hors de cette plage de luminosité."
+
+msgctxt "DevelopPanel"
+msgid "How far either side of the chosen hue the mask reaches."
+msgstr "Jusqu'où de part et d'autre de la teinte choisie le masque s'étend."
+
+msgctxt "DevelopPanel"
+msgid "How gradually the mask fades outside that band of hues."
+msgstr "Avec quelle progressivité le masque s'estompe hors de cette plage de teintes."
+
+msgctxt "DevelopPanel"
+msgid "Straightens converging verticals — a building that leans away."
+msgstr "Redresse les verticales convergentes — un bâtiment qui bascule en arrière."
+
+msgctxt "DevelopPanel"
+msgid "Straightens converging horizontals — a wall taken from an angle."
+msgstr "Redresse les horizontales convergentes — un mur pris de biais."

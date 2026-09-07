@@ -24,6 +24,9 @@ mod develop;
 mod events;
 mod format;
 mod groups;
+// Test-only: the debt list of ADR 0133 §4 and the test that counts it.
+#[cfg(test)]
+mod hints;
 mod library;
 mod map_view;
 mod masks;

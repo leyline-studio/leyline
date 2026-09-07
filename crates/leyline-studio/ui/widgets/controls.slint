@@ -747,6 +747,11 @@ export component AdvanceChip inherits Rectangle {
 // binding.
 export component EditSlider inherits HorizontalLayout {
     in property <string> label;
+    // One sentence saying what this slider does, shown on hovering its
+    // label (ADR 0133). Empty for a label that names its own effect —
+    // `Exposure`, `Rotation`, `Crop left`; the classification of every
+    // slider in Develop is enforced by a test, see `src/hints.rs`.
+    in property <string> hint;
     in property <float> minimum;
     in property <float> maximum;
     in property <float> value;
@@ -799,16 +804,39 @@ export component EditSlider inherits HorizontalLayout {
     spacing: 8px;
     height: 22px;
 
-    Text {
-        // Right-aligned against the track, fixed width: the labels line up as
-        // a column, and the tracks all start at the same x.
-        text: root.label;
-        color: #9a9a9a;
-        font-size: 12px;
+    // The hint lives on the **word**, not on the control (ADR 0133 §3): the
+    // track carries the drag, the wheel and the double-click, and a hint
+    // that appeared in the middle of aiming is the one ADR 0127 §3 refuses.
+    // Pointing at the word one does not understand *is* the question.
+    Rectangle {
         width: 88px;
-        horizontal-alignment: right;
-        vertical-alignment: center;
-        overflow: elide;
+        Text {
+            // Right-aligned against the track, fixed width: the labels line
+            // up as a column, and the tracks all start at the same x.
+            text: root.label;
+            color: #9a9a9a;
+            font-size: 12px;
+            width: 100%;
+            height: 100%;
+            horizontal-alignment: right;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+        label-touch := TouchArea {
+            // Declared only when there is something to say, so a label with
+            // no hint keeps taking no input at all — the panel behind goes
+            // on scrolling under the wheel, as ADR 0126 §3 requires.
+            enabled: root.hint != "";
+            changed has-hover => {
+                if (root.hint != "") {
+                    if (self.has-hover) {
+                        HintState.enter(root.hint, self.absolute-position.x, self.absolute-position.y + parent.height);
+                    } else {
+                        HintState.leave(root.hint);
+                    }
+                }
+            }
+        }
     }
     track := Rectangle {
         horizontal-stretch: 1;
