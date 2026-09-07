@@ -11,10 +11,10 @@ pub use leyline_core::{
     ContactSheetPresetId, Crop, CurvePoint, Defringe, Demosaic, ExportPresetId, FolderId, Grain,
     HighlightReconstruction, HslBand, JobId, KeywordId, LensCorrection, LeylineError,
     LocalAdjustment, LocalAdjustmentValues, LuminanceRange, Lut, Mask, MediaType, NoiseReduction,
-    Perspective, PickState, Point, PresetFolderId, PresetId, PresetSettings, PreviewKind,
-    PrintPresetId, RangeMask, RedEye, ReshapePoint, Result, RevisionId, Settings, SettingsGroup,
-    Sharpening, SpotRemoval, StageVersions, TetherSetting, ToneCurve, VersionId, Vignette,
-    WHITE_BALANCE_PRESETS, WhiteBalance, WhiteBalancePreset,
+    ParametricCurve, Perspective, PickState, Point, PresetFolderId, PresetId, PresetSettings,
+    PreviewKind, PrintPresetId, RangeMask, RedEye, ReshapePoint, Result, RevisionId, Settings,
+    SettingsGroup, Sharpening, SpotRemoval, StageVersions, TetherSetting, ToneCurve, VersionId,
+    Vignette, WHITE_BALANCE_PRESETS, WhiteBalance, WhiteBalancePreset,
 };
 
 pub use leyline_engine::{
@@ -29,7 +29,7 @@ pub use leyline_engine::{
     RenameReport, RenamedAsset, ReprocessReport, Rgb8, RootStatus, ScanOptions, SkippedFile,
     SoftProof, Source, SourceColor, TCA_MIN_SAMPLES, TcaEstimate, TetherOptions, Value, Verdict,
     WatchError, WatchSessionEvent, WatchedFile, decoder_version, neutral_settings, overlay,
-    session_folder,
+    parametric_curve_samples, session_folder,
 };
 
 /// The measures assisted culling is built on (ADR 0084 §4) — focus,

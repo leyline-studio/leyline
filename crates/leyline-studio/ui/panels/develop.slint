@@ -17,6 +17,66 @@ import { MaskState } from "../state/mask.slint";
 import { DialogState } from "../state/dialog.slint";
 import { EditSlider, Filmstrip, FilterChip, GroupHeader, PipetteChip, SubHeading, ToolSeparator, ToolbarChevron, Zoom } from "../widgets/controls.slint";
 
+// One split marker of the parametric curve (ADR 0137 §4): a triangle on the
+// tonal axis, dragged left and right and stopped by its neighbours.
+//
+// Its own component so the three of them are three declarations, and so the
+// clamp — which is what keeps `Settings::validate`'s strictly-increasing rule
+// unreachable from the interface — is written once.
+component SplitHandle inherits Rectangle {
+    in property <string> which;
+    in property <float> value;
+    in property <float> lower;
+    in property <float> upper;
+
+    // While dragging, the handle follows the pointer; at rest it follows the
+    // committed value. The same arrangement `EditSlider` uses, and for the
+    // same reason: refreshing the settings mid-drag must not fight the hand.
+    property <float> shown: drag.pressed ? root.dragged : root.value;
+    property <float> dragged;
+
+    // The canvas is the same fixed 220px square the point curve uses, which
+    // is why `2.2px` per percent and `210px` are literals here as they are
+    // there: one number for the square, written where it is used.
+    x: root.shown * 2.2px - 5px;
+    y: 210px;
+    width: 10px;
+    height: 10px;
+
+    Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: 10;
+        viewbox-height: 10;
+        commands: "M5 0 L10 10 L0 10 Z";
+        fill: drag.pressed ? #6fa8dc : #9a9a9a;
+    }
+    drag := TouchArea {
+        // Wider than the triangle: a 10px target is a target one misses.
+        x: -5px;
+        width: 20px;
+        y: -6px;
+        height: 16px;
+        mouse-cursor: ew-resize;
+        moved => {
+            if (self.pressed) {
+                root.dragged = Math.clamp(
+                    Math.round(root.value + (self.mouse-x - self.pressed-x) / 2.2px),
+                    root.lower, root.upper);
+                DevelopState.develop-preview-split(root.which, root.dragged);
+            }
+        }
+        pointer-event(event) => {
+            if (event.kind == PointerEventKind.up) {
+                DevelopState.develop-set-split(root.which, root.dragged);
+            }
+            if (event.kind == PointerEventKind.down) {
+                root.dragged = root.value;
+            }
+        }
+    }
+}
+
 // One aspect-ratio chip of the crop row (ADR 0135 §2). Its own component so
 // the seven of them are seven lines and not seven blocks, and so the
 // comparison that lights the current one is written once.
@@ -2648,7 +2708,27 @@ export component DevelopPanel inherits HorizontalLayout {
                         // (ADR 0098 §4). The canvas below tints itself from
                         // the same property, so the state is visible without
                         // reading the chips.
+                        // Which of the two curves is on screen (ADR 0137 §4).
+                        // Both apply whichever is shown: this chooses what one
+                        // edits, not what the photograph gets.
                         HorizontalLayout {
+                            spacing: 4px;
+                            FilterChip {
+                                text: @tr("Point");
+                                active: DevelopState.dev-curve-mode == "point";
+                                clicked => {
+                                    DevelopState.dev-curve-mode = "point";
+                                }
+                            }
+                            FilterChip {
+                                text: @tr("Region");
+                                active: DevelopState.dev-curve-mode == "region";
+                                clicked => {
+                                    DevelopState.dev-curve-mode = "region";
+                                }
+                            }
+                        }
+                        if DevelopState.dev-curve-mode == "point": HorizontalLayout {
                             spacing: 4px;
                             FilterChip {
                                 text: @tr("Master");
@@ -2679,13 +2759,13 @@ export component DevelopPanel inherits HorizontalLayout {
                                 }
                             }
                         }
-                        Text {
+                        if DevelopState.dev-curve-mode == "point": Text {
                             text: @tr("Click to add a point, click a point to remove it.");
                             color: #666666;
                             font-size: 11px;
                             wrap: word-wrap;
                         }
-                        Rectangle {
+                        if DevelopState.dev-curve-mode == "point": Rectangle {
                             width: 220px;
                             height: 220px;
                             background: #1b1b1b;
@@ -2738,6 +2818,133 @@ export component DevelopPanel inherits HorizontalLayout {
                                         DevelopState.develop-curve-click(self.mouse-x / 1px, self.mouse-y / 1px, self.width / 1px, self.height / 1px);
                                     }
                                 }
+                            }
+                        }
+
+                        // The parametric curve (ADR 0137 §4). The same square
+                        // as the point canvas, so the two modes read as two
+                        // views of one thing rather than two panels.
+                        if DevelopState.dev-curve-mode == "region": Rectangle {
+                            width: 220px;
+                            height: 220px;
+                            background: #1b1b1b;
+                            border-width: 1px;
+                            border-color: #3a3a3a;
+
+                            // The four regions, faintly shaded, so the split
+                            // one drags is visibly the boundary between two
+                            // named things.
+                            Rectangle {
+                                x: 0;
+                                width: DevelopState.dev.parametric-shadow-split * 2.2px;
+                                height: 100%;
+                                background: #ffffff08;
+                            }
+                            Rectangle {
+                                x: DevelopState.dev.parametric-midtone-split * 2.2px;
+                                width: (DevelopState.dev.parametric-highlight-split - DevelopState.dev.parametric-midtone-split) * 2.2px;
+                                height: 100%;
+                                background: #ffffff08;
+                            }
+
+                            Path {
+                                width: 220px;
+                                height: 220px;
+                                viewbox-width: 220;
+                                viewbox-height: 220;
+                                commands: "M0 220 L220 0";
+                                stroke: #444444;
+                                stroke-width: 1px;
+                            }
+                            Path {
+                                width: 220px;
+                                height: 220px;
+                                viewbox-width: 220;
+                                viewbox-height: 220;
+                                commands: DevelopState.dev-parametric-path;
+                                stroke: #6fa8dc;
+                                stroke-width: 2px;
+                            }
+
+                            // The three splits. Each is stopped by its
+                            // neighbours — `validate` refuses equal splits,
+                            // so the interface must never be able to ask for
+                            // them (ADR 0137 §1).
+                            SplitHandle {
+                                which: "shadow";
+                                value: DevelopState.dev.parametric-shadow-split;
+                                lower: 1;
+                                upper: DevelopState.dev.parametric-midtone-split - 1;
+                            }
+                            SplitHandle {
+                                which: "midtone";
+                                value: DevelopState.dev.parametric-midtone-split;
+                                lower: DevelopState.dev.parametric-shadow-split + 1;
+                                upper: DevelopState.dev.parametric-highlight-split - 1;
+                            }
+                            SplitHandle {
+                                which: "highlight";
+                                value: DevelopState.dev.parametric-highlight-split;
+                                lower: DevelopState.dev.parametric-midtone-split + 1;
+                                upper: 99;
+                            }
+                        }
+                        if DevelopState.dev-curve-mode == "region": Text {
+                            text: @tr("Drag the three markers to say where each region begins.");
+                            color: #666666;
+                            font-size: 11px;
+                            wrap: word-wrap;
+                        }
+                        if DevelopState.dev-curve-mode == "region": EditSlider {
+                            label: @tr("Highlights");
+                            hint: @tr("Lifts the brightest region, between the last marker and white.");
+                            minimum: -100;
+                            maximum: 100;
+                            value: DevelopState.dev.parametric-highlights;
+                            edited(v) => {
+                                DevelopState.develop-edit("parametric-highlights", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("parametric-highlights", v);
+                            }
+                        }
+                        if DevelopState.dev-curve-mode == "region": EditSlider {
+                            label: @tr("Lights");
+                            hint: @tr("Lifts the region between the second and third markers.");
+                            minimum: -100;
+                            maximum: 100;
+                            value: DevelopState.dev.parametric-lights;
+                            edited(v) => {
+                                DevelopState.develop-edit("parametric-lights", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("parametric-lights", v);
+                            }
+                        }
+                        if DevelopState.dev-curve-mode == "region": EditSlider {
+                            label: @tr("Darks");
+                            hint: @tr("Lifts the region between the first and second markers.");
+                            minimum: -100;
+                            maximum: 100;
+                            value: DevelopState.dev.parametric-darks;
+                            edited(v) => {
+                                DevelopState.develop-edit("parametric-darks", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("parametric-darks", v);
+                            }
+                        }
+                        if DevelopState.dev-curve-mode == "region": EditSlider {
+                            label: @tr("Shadows");
+                            hint: @tr("Lifts the darkest region, between black and the first marker.");
+                            minimum: -100;
+                            maximum: 100;
+                            value: DevelopState.dev.parametric-shadows;
+                            edited(v) => {
+                                DevelopState.develop-edit("parametric-shadows", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("parametric-shadows", v);
                             }
                         }
                         FilterChip {

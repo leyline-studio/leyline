@@ -41,7 +41,7 @@ The rule that generates the list: **one category per block of the develop panel*
 | `white_balance` | `WhiteBalance` | `white_balance` (temperature, tint) |
 | `tone` | `Tone` | `exposure`, `contrast`, `highlights`, `shadows`, `whites`, `blacks` |
 | `presence` | `Presence` | `clarity`, `texture`, `dehaze`, `vibrance`, `saturation`, `monochrome` |
-| `tone_curve` | `ToneCurve` | `tone_curve` ([ADR 0098](adr/0098-per-channel-tone-curves.md)) |
+| `tone_curve` | `ToneCurve` | `tone_curve` ([ADR 0098](adr/0098-per-channel-tone-curves.md)) and `parametric_curve` ([ADR 0137](adr/0137-parametric-tone-curve.md)) — one block of the panel and one idea |
 | `color_mixer` | `ColorMixer` | `hsl`, all eight bands together |
 | `color_grading` | `ColorGrading` | `color_grading` |
 | `camera_profile` | `CameraProfile` | `camera_profile` ([ADR 0035](adr/0035-camera-profile-dcp.md)) |

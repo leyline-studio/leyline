@@ -41,6 +41,24 @@ pub fn action(slider: &str, value: f64, current: &Settings) -> Option<(Param, Va
                 (perspective.vertical != 0 || perspective.horizontal != 0).then_some(perspective);
             (Param::Perspective, Value::Perspective(perspective))
         }
+        // The parametric curve's four regions (ADR 0137). Read-modify-write
+        // on the whole struct, like `perspective` above and for the same
+        // reason: the stage takes one value, so a slider that moved only its
+        // own field would have to be reassembled somewhere else.
+        "parametric-shadows"
+        | "parametric-darks"
+        | "parametric-lights"
+        | "parametric-highlights" => {
+            let mut curve = current.parametric_curve;
+            let v = value.round() as i32;
+            match slider {
+                "parametric-shadows" => curve.shadows = v,
+                "parametric-darks" => curve.darks = v,
+                "parametric-lights" => curve.lights = v,
+                _ => curve.highlights = v,
+            }
+            (Param::ParametricCurve, Value::ParametricCurve(curve))
+        }
         "contrast" => (Param::Contrast, int),
         "highlights" => (Param::Highlights, int),
         "shadows" => (Param::Shadows, int),
@@ -736,6 +754,35 @@ fn written(curve: &ToneCurve, channel: &str, points: Vec<CurvePoint>) -> (Param,
 /// other three where they are (ADR 0098 §4).
 pub fn reset_curve(channel: &str, current: &ToneCurve) -> (Param, Value) {
     written(current, channel, Vec::new())
+}
+
+/// A parametric split moved to `percent` (ADR 0137 §4).
+///
+/// Read-modify-write on the whole struct, like the four region sliders: the
+/// stage takes one value. The clamp is the interface's half of the rule
+/// `Settings::validate` enforces — splits are strictly increasing, and the
+/// panel must never be able to ask for anything else.
+#[must_use]
+pub fn split_action(which: &str, percent: i32, current: &Settings) -> Option<(Param, Value)> {
+    let mut curve = current.parametric_curve;
+    match which {
+        "shadow" => curve.shadow_split = percent.clamp(1, curve.midtone_split - 1),
+        "midtone" => {
+            curve.midtone_split = percent.clamp(curve.shadow_split + 1, curve.highlight_split - 1);
+        }
+        "highlight" => curve.highlight_split = percent.clamp(curve.midtone_split + 1, 99),
+        _ => return None,
+    }
+    Some((Param::ParametricCurve, Value::ParametricCurve(curve)))
+}
+
+/// The parametric curve's polyline in the same `size`-pixel-square canvas
+/// space [`curve_layout`] uses, sampled from the table the stage renders
+/// through (ADR 0137 §4).
+#[must_use]
+pub fn parametric_layout(curve: &leyline_sdk::ParametricCurve, size: f64) -> String {
+    let (path, _) = curve_layout(&leyline_sdk::parametric_curve_samples(curve, 96), size);
+    path
 }
 
 /// Builds the tone-curve graph's SVG-style line commands and marker

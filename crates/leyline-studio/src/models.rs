@@ -75,6 +75,13 @@ pub(crate) fn dev_model(settings: &Settings) -> crate::ui::DevSettings {
         height: 1.0,
     });
     crate::ui::DevSettings {
+        parametric_shadows: settings.parametric_curve.shadows as f32,
+        parametric_darks: settings.parametric_curve.darks as f32,
+        parametric_lights: settings.parametric_curve.lights as f32,
+        parametric_highlights: settings.parametric_curve.highlights as f32,
+        parametric_shadow_split: settings.parametric_curve.shadow_split as f32,
+        parametric_midtone_split: settings.parametric_curve.midtone_split as f32,
+        parametric_highlight_split: settings.parametric_curve.highlight_split as f32,
         exposure: settings.exposure as f32,
         contrast: settings.contrast as f32,
         highlights: settings.highlights as f32,

@@ -504,6 +504,71 @@ pub struct CurvePoint {
     pub y: f64,
 }
 
+/// Parametric tone curve (ADR 0137): four regions lifted by their own
+/// slider, and three splits saying where each region begins.
+///
+/// The instrument one reaches for without knowing where on the axis a tone
+/// lives — *lift the darks a little*, and then adjust what counts as dark.
+/// Applied before [`ToneCurve`], the precise one, which therefore has the
+/// last word (ADR 0137 §2).
+///
+/// Neutral: every region at 0, splits at 25/50/75 — in which case the stage
+/// does not run at all.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ParametricCurve {
+    /// Lifts the darkest region, in [-100, 100].
+    pub shadows: i32,
+    /// Lifts the region between the first and second splits, in [-100, 100].
+    pub darks: i32,
+    /// Lifts the region between the second and third splits, in [-100, 100].
+    pub lights: i32,
+    /// Lifts the brightest region, in [-100, 100].
+    pub highlights: i32,
+    /// Where the shadows region ends, in percent of the tonal axis [1, 99].
+    pub shadow_split: i32,
+    /// Where the darks region ends, in [1, 99].
+    pub midtone_split: i32,
+    /// Where the lights region ends, in [1, 99].
+    pub highlight_split: i32,
+}
+
+impl Default for ParametricCurve {
+    fn default() -> Self {
+        Self {
+            shadows: 0,
+            darks: 0,
+            lights: 0,
+            highlights: 0,
+            shadow_split: 25,
+            midtone_split: 50,
+            highlight_split: 75,
+        }
+    }
+}
+
+impl ParametricCurve {
+    /// Whether any region is lifted — i.e. whether the **stage changes a
+    /// pixel**. The splits alone change nothing: they say where regions are,
+    /// and a region at 0 lifts nothing wherever it begins.
+    #[must_use]
+    pub fn is_neutral(&self) -> bool {
+        self.shadows == 0 && self.darks == 0 && self.lights == 0 && self.highlights == 0
+    }
+
+    /// Whether the whole control is where it started — which is a different
+    /// question from [`Self::is_neutral`], and the one the **document** asks.
+    ///
+    /// Found by dragging a split on the running binary: with
+    /// `skip_serializing_if` asking `is_neutral`, moving a marker while every
+    /// region sat at 0 was stored nowhere, so the marker sprang back on the
+    /// next open. A split is a decision even when it changes no pixel yet.
+    #[must_use]
+    pub fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
 /// Tone curve step (ADR 0030): a point curve applied in luminance, i.e. the
 /// same curve to every channel of the working buffer. Neutral: no points,
 /// in which case the stage does not run at all.
@@ -1069,6 +1134,11 @@ pub struct Settings {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub monochrome: bool,
 
+    /// Parametric tone curve (ADR 0137), applied at rank 75 — before the
+    /// point curve below, which is the precise instrument and therefore has
+    /// the last word. Neutral: every region at 0.
+    #[serde(default, skip_serializing_if = "ParametricCurve::is_default")]
+    pub parametric_curve: ParametricCurve,
     /// Tone curve step. Neutral: no points.
     pub tone_curve: ToneCurve,
 
@@ -1169,6 +1239,7 @@ impl Default for Settings {
             vibrance: 0,
             saturation: 0,
             monochrome: false,
+            parametric_curve: ParametricCurve::default(),
             tone_curve: ToneCurve::default(),
             hsl: [HslBand::default(); 8],
             color_grading: ColorGrading::default(),
@@ -1358,6 +1429,46 @@ impl Settings {
                     .to_owned(),
             ));
         }
+        // The parametric curve (ADR 0137 §1). The splits are **strictly**
+        // increasing, which is stricter than Lightroom and costs a
+        // photographer nothing — a region of zero width has no slider that
+        // can reach it — while buying the control points of §3 their
+        // strictly increasing `x` for free.
+        for (name, value) in [
+            ("parametric_curve.shadows", self.parametric_curve.shadows),
+            ("parametric_curve.darks", self.parametric_curve.darks),
+            ("parametric_curve.lights", self.parametric_curve.lights),
+            (
+                "parametric_curve.highlights",
+                self.parametric_curve.highlights,
+            ),
+        ] {
+            slider(name, value, -100, 100)?;
+        }
+        for (name, value) in [
+            (
+                "parametric_curve.shadow_split",
+                self.parametric_curve.shadow_split,
+            ),
+            (
+                "parametric_curve.midtone_split",
+                self.parametric_curve.midtone_split,
+            ),
+            (
+                "parametric_curve.highlight_split",
+                self.parametric_curve.highlight_split,
+            ),
+        ] {
+            slider(name, value, 1, 99)?;
+        }
+        if self.parametric_curve.shadow_split >= self.parametric_curve.midtone_split
+            || self.parametric_curve.midtone_split >= self.parametric_curve.highlight_split
+        {
+            return Err(LeylineError::InvalidSettings(
+                "parametric_curve splits must be strictly increasing".to_owned(),
+            ));
+        }
+
         // The master curve and the three channel curves are validated by
         // the same rules (ADR 0098 §1), so they are validated by the same
         // code: a curve that is legal as the master is legal as a channel.
@@ -1928,7 +2039,9 @@ pub enum SettingsGroup {
     /// (ADR 0132 §1). The first three joined the category with ADR 0132; a
     /// preset written before it simply does not carry them.
     Presence,
-    /// [`Settings::tone_curve`] (ADR 0098).
+    /// [`Settings::tone_curve`] (ADR 0098) and
+    /// [`Settings::parametric_curve`] (ADR 0137) — one block of the panel
+    /// and one idea.
     ToneCurve,
     /// [`Settings::hsl`], all eight bands (ADR 0047).
     ColorMixer,
@@ -2083,6 +2196,12 @@ pub struct PresetSettings {
     /// Present when `groups` includes [`SettingsGroup::ToneCurve`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tone_curve: Option<ToneCurve>,
+    /// Present when `groups` includes [`SettingsGroup::ToneCurve`]
+    /// (ADR 0137 §5). Absent from a preset written before that ADR, which
+    /// then leaves the parametric curve alone — the rule every absent field
+    /// follows.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parametric_curve: Option<ParametricCurve>,
     /// Present when `groups` includes [`SettingsGroup::ColorMixer`] — all
     /// eight bands together, since a mix is one decision.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2163,7 +2282,11 @@ impl PresetSettings {
                     preset.monochrome = Some(settings.monochrome);
                 }
                 SettingsGroup::ToneCurve => {
+                    // Both curves (ADR 0137 §5): they are one block of the
+                    // panel and one idea — *the tone curve of this
+                    // photograph* — and a photographer copying it means both.
                     preset.tone_curve = Some(settings.tone_curve.clone());
+                    preset.parametric_curve = Some(settings.parametric_curve);
                 }
                 SettingsGroup::ColorMixer => {
                     preset.hsl = Some(settings.hsl);

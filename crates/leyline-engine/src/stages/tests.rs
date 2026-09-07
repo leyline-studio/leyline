@@ -1785,6 +1785,8 @@ fn everything() -> Settings {
         ..Settings::default()
     };
     settings.tone_curve.points = vec![CurvePoint { x: 0.0, y: 0.0 }, CurvePoint { x: 1.0, y: 1.0 }];
+    // ADR 0137: a region off neutral, so the parametric stage plans too.
+    settings.parametric_curve.darks = 20;
     settings.hsl[0].saturation = 20;
     settings.color_grading.shadows.saturation = 20;
     settings.local_adjustments = vec![LocalAdjustment {

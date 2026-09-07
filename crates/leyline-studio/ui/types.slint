@@ -301,6 +301,15 @@ export struct MaskRow {
 
 // Develop slider values, mirrored from the Settings held in Rust.
 export struct DevSettings {
+    // The parametric tone curve (ADR 0137): four regions and the three
+    // splits that say where each begins, in percent of the tonal axis.
+    parametric-shadows: float,
+    parametric-darks: float,
+    parametric-lights: float,
+    parametric-highlights: float,
+    parametric-shadow-split: float,
+    parametric-midtone-split: float,
+    parametric-highlight-split: float,
     exposure: float,
     contrast: float,
     highlights: float,

@@ -266,6 +266,11 @@ Develop params (docs/pipeline.md §3.2, schema 1):
   perspective <vertical> <horizontal>
                                     keystone correction, integers in [-100, 100]
                                     (ADR 0052), or `perspective reset`
+  parametric-curve <shadows> <darks> <lights> <highlights>
+                   [<shadow-split> <midtone-split> <highlight-split>]
+                                    four regions in -100..100 and the three
+                                    splits in 1..99 (ADR 0137); `-` keeps a
+                                    field, and trailing fields may be omitted
   tone-curve [channel] <x,y> <x,y>...
                                     points in [0,1], strictly increasing x, or
                                     `tone-curve reset`; channel is one of
@@ -1350,6 +1355,43 @@ fn develop(args: &[String]) -> Result<(), String> {
                 }),
             };
             (Param::Crop, Value::Crop(crop))
+        }
+        // The parametric curve (ADR 0137): seven numbers in one verb, since
+        // the stage takes one value and a partial one has no meaning.
+        "parametric-curve" => {
+            let mut curve = session.settings().parametric_curve;
+            for (index, field) in [
+                "shadows",
+                "darks",
+                "lights",
+                "highlights",
+                "shadow-split",
+                "midtone-split",
+                "highlight-split",
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                // Anything not given keeps its current value, so one field
+                // is changed without restating the other six.
+                let Some(raw) = rest.get(index) else { break };
+                if raw == "-" {
+                    continue;
+                }
+                let value: i32 = raw
+                    .parse()
+                    .map_err(|_| format!("bad {field} {raw:?}, expected a whole number"))?;
+                match field {
+                    "shadows" => curve.shadows = value,
+                    "darks" => curve.darks = value,
+                    "lights" => curve.lights = value,
+                    "highlights" => curve.highlights = value,
+                    "shadow-split" => curve.shadow_split = value,
+                    "midtone-split" => curve.midtone_split = value,
+                    _ => curve.highlight_split = value,
+                }
+            }
+            (Param::ParametricCurve, Value::ParametricCurve(curve))
         }
         "tone-curve" => {
             // An optional channel name comes first (ADR 0098 §4); absent,

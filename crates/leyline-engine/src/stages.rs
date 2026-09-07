@@ -112,6 +112,9 @@ pub(crate) mod highlights_shadows {
 pub(crate) mod whites_blacks {
     pub(crate) mod v1;
 }
+pub(crate) mod parametric_curve {
+    pub(crate) mod v1;
+}
 pub(crate) mod tone_curve {
     pub(crate) mod v1;
     pub(crate) mod v2;
@@ -758,6 +761,24 @@ pub(crate) static STAGES: &[Stage] = &[
         }],
     },
     Stage {
+        // The parametric curve (ADR 0137): a stage of its own and not a new
+        // version of `tone_curve`, so every revision written before it keeps
+        // rendering exactly what it rendered — absent from their maps, it
+        // falls back to its pinned version, and `active` is false while
+        // every region is 0 (the shape ADR 0103 established for red-eye).
+        name: "parametric_curve",
+        active: |settings| !settings.parametric_curve.is_neutral(),
+        reads: &["parametric_curve"],
+        versions: &[Version {
+            version: 1,
+            rank: 75,
+            space: Space::LinearRec2020,
+            apply: |px, ctx| {
+                parametric_curve::v1::parametric_curve(px, &ctx.settings.parametric_curve);
+            },
+        }],
+    },
+    Stage {
         name: "tone_curve",
         active: |settings| {
             !settings.tone_curve.points.is_empty() || settings.tone_curve.has_channel_curves()
@@ -1334,6 +1355,30 @@ fn version_of(stage_name: &'static str, settings: &Settings) -> &'static Version
             .unwrap_or_else(|| stage.current()),
         None => pinned_version(stage, settings),
     }
+}
+
+/// The parametric curve as `samples` points of the very table the stage
+/// renders through (ADR 0137 §4).
+///
+/// What a client draws is therefore computed by the code that renders, and
+/// the two cannot drift — the same reason the keystone guides arrive from
+/// Rust as a polyline rather than being redrawn in the panel (ADR 0119).
+#[must_use]
+pub fn parametric_curve_samples(
+    curve: &leyline_core::ParametricCurve,
+    samples: usize,
+) -> Vec<leyline_core::CurvePoint> {
+    let table = tone_curve::v1::build_curve_lut(&parametric_curve::v1::control_points(curve));
+    let last = samples.max(2) - 1;
+    (0..=last)
+        .map(|i| {
+            let x = i as f32 / last as f32;
+            leyline_core::CurvePoint {
+                x: f64::from(x),
+                y: f64::from(tone_curve::v1::curve_lookup(&table, x)),
+            }
+        })
+        .collect()
 }
 
 /// Stages this engine implements. In `cfg(test)` builds it also carries the

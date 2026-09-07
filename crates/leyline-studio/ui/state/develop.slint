@@ -59,6 +59,19 @@ export global DevelopState {
     // settings: line commands and marker positions, both already in the
     // canvas' own pixel space (`develop::curve_layout`).
     in property <string> dev-curve-path;
+    // The parametric curve, sampled by Rust from the very table the stage
+    // renders through (ADR 0137 §4) — what is drawn and what is rendered
+    // cannot drift. Same canvas space as `dev-curve-path`.
+    in property <string> dev-parametric-path;
+    // Which of the two curves the Tone Curve group shows: "point" or
+    // "region". A view state, not a setting — both curves apply whichever
+    // one is on screen.
+    in-out property <string> dev-curve-mode: "point";
+    // A split dragged to a new position, in percent of the tonal axis:
+    // "shadow", "midtone" or "highlight", then the value. Previews while it
+    // moves and commits on release, like every other drag (ADR 0074 §1).
+    callback develop-preview-split(string, int);
+    callback develop-set-split(string, int);
     in property <[CurveMarker]> dev-curve-points;
     in property <int> dev-spot-count;
     // Defaults applied to the *next* placed spot — dialog-local text

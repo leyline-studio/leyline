@@ -405,6 +405,27 @@ fn camera_profile(settings: Settings) -> Settings {
     }
 }
 
+/// The parametric curve (ADR 0137) — a **new** case, never an edit of
+/// `tone_curve`, whose fragment is frozen with the entry citing it.
+///
+/// Every region off neutral and the splits moved, so the case exercises both
+/// halves of the control: a case with neutral splits would prove the six
+/// control points are built and say nothing about where they sit.
+fn parametric_curve(settings: Settings) -> Settings {
+    Settings {
+        parametric_curve: leyline_core::ParametricCurve {
+            shadows: 35,
+            darks: -20,
+            lights: 25,
+            highlights: -40,
+            shadow_split: 20,
+            midtone_split: 55,
+            highlight_split: 82,
+        },
+        ..settings
+    }
+}
+
 fn tone_curve(settings: Settings) -> Settings {
     Settings {
         tone_curve: ToneCurve {
@@ -811,6 +832,7 @@ fn cases() -> Vec<(String, Case)> {
         ("defringe", defringe(base.clone())),
         ("reshape", reshape(base.clone())),
         ("camera_profile", camera_profile(base.clone())),
+        ("parametric_curve", parametric_curve(base.clone())),
         ("tone_curve", tone_curve(base.clone())),
         ("tone_curve_channels", tone_curve_channels(base.clone())),
         ("spots", spots(base.clone())),

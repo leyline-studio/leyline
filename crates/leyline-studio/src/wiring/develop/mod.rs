@@ -200,6 +200,9 @@ pub(crate) fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<()
         CURVE_CANVAS_SIZE,
     );
     DevelopState::get(window).set_dev_curve_path(SharedString::from(path));
+    DevelopState::get(window).set_dev_parametric_path(SharedString::from(
+        develop::parametric_layout(&settings.parametric_curve, CURVE_CANVAS_SIZE),
+    ));
     DevelopState::get(window).set_dev_curve_points(ModelRc::from(Rc::new(VecModel::from(
         markers
             .into_iter()

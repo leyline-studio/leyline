@@ -91,6 +91,10 @@ pub enum Param {
     /// Defringe (ADR 0113), the whole struct as one commit unit like
     /// [`Param::LensCorrection`] beside it.
     Defringe,
+    /// The parametric tone curve (ADR 0137): the whole struct as one commit
+    /// unit, like [`Param::ToneCurve`] beside it — four regions and three
+    /// splits are one decision about the tone of a photograph.
+    ParametricCurve,
     /// The whole list of reshape handles (ADR 0109), like
     /// [`Param::SpotRemoval`] and [`Param::RedEye`] beside it.
     Reshape,
@@ -157,6 +161,8 @@ pub enum Value {
     LensCorrection(LensCorrection),
     /// For [`Param::Defringe`].
     Defringe(Defringe),
+    /// For [`Param::ParametricCurve`].
+    ParametricCurve(leyline_core::ParametricCurve),
     /// For [`Param::Reshape`].
     Reshape(Vec<ReshapePoint>),
     /// For [`Param::HslBand`].
@@ -501,6 +507,7 @@ pub(crate) fn apply(settings: &mut Settings, param: Param, value: Value) -> Resu
         (Param::Saturation, Value::Int(v)) => settings.saturation = v,
         (Param::Monochrome, Value::Bool(v)) => settings.monochrome = v,
         (Param::ToneCurve, Value::ToneCurve(v)) => settings.tone_curve = v,
+        (Param::ParametricCurve, Value::ParametricCurve(v)) => settings.parametric_curve = v,
         (Param::SpotRemoval, Value::SpotRemoval(v)) => settings.spot_removal = v,
         (Param::RedEye, Value::RedEye(v)) => settings.red_eye = v,
         (Param::LocalAdjustment(index), Value::LocalAdjustment(v)) => match v {

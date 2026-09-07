@@ -3871,3 +3871,39 @@ msgstr "Diagonales    O"
 msgctxt "DevelopPanel"
 msgid "Grid    O"
 msgstr "Grille    O"
+
+msgctxt "DevelopPanel"
+msgid "Point"
+msgstr "Points"
+
+msgctxt "DevelopPanel"
+msgid "Region"
+msgstr "Régions"
+
+msgctxt "DevelopPanel"
+msgid "Drag the three markers to say where each region begins."
+msgstr "Tirez les trois repères pour dire où commence chaque région."
+
+msgctxt "DevelopPanel"
+msgid "Lights"
+msgstr "Clairs"
+
+msgctxt "DevelopPanel"
+msgid "Darks"
+msgstr "Sombres"
+
+msgctxt "DevelopPanel"
+msgid "Lifts the brightest region, between the last marker and white."
+msgstr "Relève la région la plus claire, entre le dernier repère et le blanc."
+
+msgctxt "DevelopPanel"
+msgid "Lifts the region between the second and third markers."
+msgstr "Relève la région entre le deuxième et le troisième repère."
+
+msgctxt "DevelopPanel"
+msgid "Lifts the region between the first and second markers."
+msgstr "Relève la région entre le premier et le deuxième repère."
+
+msgctxt "DevelopPanel"
+msgid "Lifts the darkest region, between black and the first marker."
+msgstr "Relève la région la plus sombre, entre le noir et le premier repère."
