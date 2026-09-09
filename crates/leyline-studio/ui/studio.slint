@@ -542,7 +542,9 @@ export component StudioWindow inherits Window {
         TetherBar { }
 
         // Modal overlay: whichever dialog is open, over the view above.
-        DialogOverlay { }
+        DialogOverlay {
+            window-height: root.height;
+        }
     }
 
     menubar := MenuBar { }

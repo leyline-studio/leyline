@@ -27,6 +27,12 @@ import { ReportDialog } from "../dialogs/report.slint";
 import { RootsDialog } from "../dialogs/roots.slint";
 
 export component DialogOverlay inherits Rectangle {
+        // The window's height, handed down rather than read here: this
+        // component's own `height` is whatever the element tree above it
+        // gives it, and what a dialog must fit inside is the window
+        // (ADR 0138 §1).
+        in property <length> window-height;
+
         visible: DialogState.dialog != "";
 
         // Every dialog opens clean. Without this, a second import shows the
@@ -63,79 +69,126 @@ export component DialogOverlay inherits Rectangle {
             }
         }
 
+        // Fixed width, and every dialog is written to fit it: a card that
+        // widened to its content would set its own measure from whichever
+        // sentence happens to be longest — measured, that turns the tether
+        // dialog into one 505px line and the report dialog into a 690px one,
+        // and no two dialogs the same width. What must not overflow it is
+        // therefore a *row*, and a row that does not fit is split by hand
+        // (ADR 0138 §2), the way `SettingsGroupChips` already is.
         Rectangle {
             width: 480px;
             background: #262626;
             border-radius: 8px;
             border-width: 1px;
             border-color: #3a3a3a;
-            height: body.preferred-height;
+            // Never taller than the window it is centred in: past that the
+            // card grows out through the top and the bottom at once, and
+            // what leaves by the top is the title (ADR 0138 §1).
+            height: min(body.preferred-height, root.window-height - 80px);
+            // With the height capped, the overflow has to go somewhere, and
+            // `clip` is what keeps it inside the frame rather than painted
+            // over the application around it.
+            clip: true;
             TouchArea { }
 
-            body := VerticalLayout {
-                padding: 20px;
-                spacing: 12px;
+            // Vertical only: `viewport-width` follows the card so the text
+            // inside still wraps to the card's width rather than laying
+            // itself out on one line the reader would have to scroll to.
+            scroll := Flickable {
+                width: 100%;
+                height: 100%;
+                viewport-width: self.width;
+                viewport-height: body.preferred-height;
 
-                if DialogState.dialog == "import": ImportDialog { }
+                body := VerticalLayout {
+                    width: parent.width;
+                    padding: 20px;
+                    spacing: 12px;
 
-                if DialogState.dialog == "export": ExportDialog { }
+                    // The one dialog whose height is not decided by its
+                    // own content: it is handed the room the card has, so
+                    // its contact sheet can give some of it back
+                    // (ADR 0138 §4). 80px is the margin the card keeps
+                    // around itself, 40px its own padding.
+                    if DialogState.dialog == "import": ImportDialog {
+                        body-space: root.window-height - 80px - 40px;
+                    }
 
-                if DialogState.dialog == "print": PrintDialog { }
+                    if DialogState.dialog == "export": ExportDialog { }
 
-                if DialogState.dialog == "contact-sheet": ContactSheetDialog { }
+                    if DialogState.dialog == "print": PrintDialog { }
 
-                if DialogState.dialog == "tether": TetherDialog { }
+                    if DialogState.dialog == "contact-sheet": ContactSheetDialog { }
 
-                if DialogState.dialog == "watch": WatchDialog { }
-                if DialogState.dialog == "report": ReportDialog { }
-                if DialogState.dialog == "roots": RootsDialog { }
+                    if DialogState.dialog == "tether": TetherDialog { }
 
-                if DialogState.dialog == "collection": CollectionDialog { }
-                if DialogState.dialog == "rename": RenameDialog { }
+                    if DialogState.dialog == "watch": WatchDialog { }
+                    if DialogState.dialog == "report": ReportDialog { }
+                    if DialogState.dialog == "roots": RootsDialog { }
 
-                // Managing the tree itself (`docs/catalog.md` §24): each
-                // opens from the sidebar's context menu, after Rust has
-                // filled in what only the catalog knows.
-                if DialogState.dialog == "collection-rename": RenameCollectionDialog { }
+                    if DialogState.dialog == "collection": CollectionDialog { }
+                    if DialogState.dialog == "rename": RenameDialog { }
 
-                if DialogState.dialog == "collection-move": MoveCollectionDialog { }
+                    // Managing the tree itself (`docs/catalog.md` §24): each
+                    // opens from the sidebar's context menu, after Rust has
+                    // filled in what only the catalog knows.
+                    if DialogState.dialog == "collection-rename": RenameCollectionDialog { }
 
-                if DialogState.dialog == "collection-delete": DeleteCollectionDialog { }
+                    if DialogState.dialog == "collection-move": MoveCollectionDialog { }
 
-                if DialogState.dialog == "confirm": ConfirmDialog { }
+                    if DialogState.dialog == "collection-delete": DeleteCollectionDialog { }
 
-                if DialogState.dialog == "preset": PresetDialog { }
-                if DialogState.dialog == "copy-settings": CopySettingsDialog { }
-                if DialogState.dialog == "keyword-rename": RenameKeywordDialog { }
-                if DialogState.dialog == "keyword-delete": DeleteKeywordDialog { }
+                    if DialogState.dialog == "confirm": ConfirmDialog { }
 
-                // File ▸ Preferences… (ADR 0078), and the two dialogs of
-                // the update decision it gates (ADR 0077).
-                if DialogState.dialog == "preferences": PreferencesDialog { }
+                    if DialogState.dialog == "preset": PresetDialog { }
+                    if DialogState.dialog == "copy-settings": CopySettingsDialog { }
+                    if DialogState.dialog == "keyword-rename": RenameKeywordDialog { }
+                    if DialogState.dialog == "keyword-delete": DeleteKeywordDialog { }
 
-                if DialogState.dialog == "update-consent": UpdateConsentDialog { }
+                    // File ▸ Preferences… (ADR 0078), and the two dialogs of
+                    // the update decision it gates (ADR 0077).
+                    if DialogState.dialog == "preferences": PreferencesDialog { }
 
-                if DialogState.dialog == "update": UpdateDialog { }
+                    if DialogState.dialog == "update-consent": UpdateConsentDialog { }
 
-                // Help ▸ Keyboard Shortcuts…: the shortcut list already
-                // in this file, made discoverable outside develop mode
-                // too. Designing a dedicated panel is out of scope for
-                // ADR 0020 — this is the minimal read-only stand-in.
-                if DialogState.dialog == "shortcuts": ShortcutsDialog { }
+                    if DialogState.dialog == "update": UpdateDialog { }
 
-                if DialogState.dialog == "about": AboutDialog { }
+                    // Help ▸ Keyboard Shortcuts…: the shortcut list already
+                    // in this file, made discoverable outside develop mode
+                    // too. Designing a dedicated panel is out of scope for
+                    // ADR 0020 — this is the minimal read-only stand-in.
+                    if DialogState.dialog == "shortcuts": ShortcutsDialog { }
 
-                if DialogState.job-progress >= 0: ProgressBar {
-                    value: DialogState.job-progress;
-                    caption: DialogState.job-caption;
+                    if DialogState.dialog == "about": AboutDialog { }
+
+                    if DialogState.job-progress >= 0: ProgressBar {
+                        value: DialogState.job-progress;
+                        caption: DialogState.job-caption;
+                    }
+
+                    if DialogState.dialog-result != "": Text {
+                        text: DialogState.dialog-result;
+                        color: #d8b23c;
+                        font-size: 12px;
+                        wrap: word-wrap;
+                    }
                 }
+            }
 
-                if DialogState.dialog-result != "": Text {
-                    text: DialogState.dialog-result;
-                    color: #d8b23c;
-                    font-size: 12px;
-                    wrap: word-wrap;
-                }
+            // The one sign that the dialog goes on past the bottom of the
+            // card. It shows itself only when it has something to say, and
+            // it is a mark rather than a handle: the wheel is what scrolls
+            // here — grabbing a 3px ribbon is the gesture the situation is
+            // least able to serve (ADR 0125 §3 refused the same handle in a
+            // toolbar for the same reason).
+            if scroll.viewport-height > scroll.height: Rectangle {
+                x: parent.width - 8px;
+                y: 4px + (scroll.height - 8px) * (-scroll.viewport-y / scroll.viewport-height);
+                width: 3px;
+                height: max(24px, (scroll.height - 8px) * scroll.height / scroll.viewport-height);
+                border-radius: 1.5px;
+                background: #6f6f6f;
             }
         }
 }

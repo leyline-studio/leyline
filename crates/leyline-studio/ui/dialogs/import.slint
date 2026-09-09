@@ -8,7 +8,29 @@ import { DialogState } from "../state/dialog.slint";
 import { FilterChip } from "../widgets/controls.slint";
 
 export component ImportDialog inherits VerticalLayout {
+    // How much height the card can give this dialog, handed down by the
+    // frame (ADR 0138 §4). The contact sheet below is the one part of the
+    // dialog that can be any height at all, so it is the part that yields:
+    // without this it keeps its own 360px and pushes the buttons — the
+    // *point* of the dialog — below the bottom of the card.
+    in property <length> body-space;
+
+    // What the contact sheet below is allowed to take: six rows when the
+    // card has room for six, whatever is left when it has not, and never
+    // less than two. The 265px is measured on the built dialog — 190px for
+    // everything above and below the list, 40px for its own heading and the
+    // gaps around it, 35px for the result line the frame adds underneath
+    // once a scan has run.
+    //
+    // Written as `max(min(…))` rather than `clamp`: Slint's `clamp` takes
+    // the **value first** — `clamp(60px, rows * 60px, room)` reads like a
+    // bound and is not one, and it silently returned a list taller than the
+    // card (ADR 0138 §4).
+    property <length> sheet-height: max(120px,
+        min(DialogState.import-candidates.length * 60px, root.body-space - 265px));
+
     spacing: 12px;
+
     Text {
         text: @tr("Import photos");
         color: #f0f0f0;
@@ -48,6 +70,12 @@ export component ImportDialog inherits VerticalLayout {
             }
         }
     }
+    // Two rows and not one: the five chips are 640px of French in a 440px
+    // card, and a `HorizontalLayout` that cannot fit its children does not
+    // shrink them, it overflows to the right — out of the card and off the
+    // window (ADR 0138 §2, the same mechanism ADR 0125 §1 records for the
+    // develop toolbar). The split is also the reading: what the import will
+    // do, then what looking at the folder first would cost.
     HorizontalLayout {
         spacing: 8px;
         FilterChip {
@@ -76,19 +104,25 @@ export component ImportDialog inherits VerticalLayout {
         Rectangle {
             horizontal-stretch: 1;
         }
-        // Looking before taking (ADR 0065): fills the list below without
-        // writing anything, so the choice is made on what is there rather
-        // than on a folder name.
-        // Exactness costs a full read of every file, so it is asked for
-        // (ADR 0095 §2) — and it is what marks a copy that was renamed.
-        if !DialogState.job-done && DialogState.job-progress < 0: FilterChip {
+    }
+    // Looking before taking (ADR 0065): fills the list below without
+    // writing anything, so the choice is made on what is there rather
+    // than on a folder name.
+    // Exactness costs a full read of every file, so it is asked for
+    // (ADR 0095 §2) — and it is what marks a copy that was renamed.
+    if !DialogState.job-done && DialogState.job-progress < 0: HorizontalLayout {
+        spacing: 8px;
+        Rectangle {
+            horizontal-stretch: 1;
+        }
+        FilterChip {
             text: @tr("Exact (reads every file)");
             active: DialogState.import-exact;
             clicked => {
                 DialogState.import-exact = !DialogState.import-exact;
             }
         }
-        if !DialogState.job-done && DialogState.job-progress < 0: FilterChip {
+        FilterChip {
             text: DialogState.import-scanned ? @tr("Rescan") : @tr("Look first");
             active: false;
             clicked => {
@@ -132,9 +166,9 @@ export component ImportDialog inherits VerticalLayout {
         }
 
         Flickable {
-            // Tall enough for six lines; longer cards scroll rather than
-            // push the buttons off the bottom of the window.
-            height: min(DialogState.import-candidates.length * 60px, 360px);
+            // Longer lists scroll here rather than pushing the buttons — the
+            // point of the dialog — past the bottom of the card.
+            height: root.sheet-height;
             viewport-height: DialogState.import-candidates.length * 60px;
             for row[i] in DialogState.import-candidates: Rectangle {
                 y: i * 60px;

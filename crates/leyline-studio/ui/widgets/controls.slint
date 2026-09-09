@@ -666,32 +666,42 @@ export component SettingsGroupChips inherits VerticalLayout {
 
     spacing: 6px;
 
+    // Three per row, and the number is measured rather than chosen: in
+    // French the widest three — « Courbe des tonalités », « Mélangeur TSL »,
+    // « Étalonnage couleur » — come to 409px of the 440px a dialog leaves
+    // between its paddings, and a fourth would put the row through the card's
+    // right border (ADR 0138 §3). It was four per row until that measurement
+    // was taken on the translated build rather than the English one, where
+    // « LUT créative » ended exactly on the border and « Retouches locales »
+    // had already run into it once before.
     HorizontalLayout {
         spacing: 6px;
         GroupChip { bit: 0; label: @tr("White balance"); mask: root.mask; toggled(b) => { root.toggled(b); } }
         GroupChip { bit: 1; label: @tr("Tone"); mask: root.mask; toggled(b) => { root.toggled(b); } }
         GroupChip { bit: 2; label: @tr("Presence"); mask: root.mask; toggled(b) => { root.toggled(b); } }
-        GroupChip { bit: 3; label: @tr("Tone curve"); mask: root.mask; toggled(b) => { root.toggled(b); } }
         Rectangle { horizontal-stretch: 1; }
     }
     HorizontalLayout {
         spacing: 6px;
+        GroupChip { bit: 3; label: @tr("Tone curve"); mask: root.mask; toggled(b) => { root.toggled(b); } }
         GroupChip { bit: 4; label: @tr("Color mixer"); mask: root.mask; toggled(b) => { root.toggled(b); } }
         GroupChip { bit: 5; label: @tr("Color grading"); mask: root.mask; toggled(b) => { root.toggled(b); } }
-        GroupChip { bit: 6; label: @tr("Camera profile"); mask: root.mask; toggled(b) => { root.toggled(b); } }
-        GroupChip { bit: 7; label: @tr("Creative LUT"); mask: root.mask; toggled(b) => { root.toggled(b); } }
         Rectangle { horizontal-stretch: 1; }
     }
     HorizontalLayout {
         spacing: 6px;
+        GroupChip { bit: 6; label: @tr("Camera profile"); mask: root.mask; toggled(b) => { root.toggled(b); } }
+        GroupChip { bit: 7; label: @tr("Creative LUT"); mask: root.mask; toggled(b) => { root.toggled(b); } }
         GroupChip { bit: 8; label: @tr("Effects"); mask: root.mask; toggled(b) => { root.toggled(b); } }
+        Rectangle { horizontal-stretch: 1; }
+    }
+    HorizontalLayout {
+        spacing: 6px;
         GroupChip { bit: 9; label: @tr("Lens correction"); mask: root.mask; toggled(b) => { root.toggled(b); } }
         GroupChip { bit: 10; label: @tr("Detail"); mask: root.mask; toggled(b) => { root.toggled(b); } }
         GroupChip { bit: 11; label: @tr("Rendering"); mask: root.mask; toggled(b) => { root.toggled(b); } }
         Rectangle { horizontal-stretch: 1; }
     }
-    // Three on the last two rows and not five on one: measured on the built
-    // dialog, "Local adjustments" ran into its right edge.
     HorizontalLayout {
         spacing: 6px;
         GroupChip { bit: 12; label: @tr("Geometry"); mask: root.mask; toggled(b) => { root.toggled(b); } }

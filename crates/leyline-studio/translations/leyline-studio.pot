@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2026-09-07 22:00+0000\n"
+"POT-Creation-Date: 2026-09-09 13:26+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -401,95 +401,95 @@ msgctxt "ExportDialog"
 msgid "Export"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/import.slint:13
+#: crates/leyline-studio/ui/dialogs/import.slint:35
 msgctxt "ImportDialog"
 msgid "Import photos"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/import.slint:19
+#: crates/leyline-studio/ui/dialogs/import.slint:41
 msgctxt "ImportDialog"
 msgid "Source folder (absolute path)"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/import.slint:44
+#: crates/leyline-studio/ui/dialogs/import.slint:66
 msgctxt "ImportDialog"
 msgid "Browse…"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/import.slint:54
+#: crates/leyline-studio/ui/dialogs/import.slint:82
 msgctxt "ImportDialog"
 msgid "Copy into library"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/import.slint:61
+#: crates/leyline-studio/ui/dialogs/import.slint:89
 msgctxt "ImportDialog"
 msgid "Recursive"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/import.slint:70
+#: crates/leyline-studio/ui/dialogs/import.slint:98
 msgctxt "ImportDialog"
 msgid "Pair RAW+JPEG"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/import.slint:85
+#: crates/leyline-studio/ui/dialogs/import.slint:119
 msgctxt "ImportDialog"
 msgid "Exact (reads every file)"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/import.slint:92
+#: crates/leyline-studio/ui/dialogs/import.slint:126
 msgctxt "ImportDialog"
 msgid "Rescan"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/import.slint:92
+#: crates/leyline-studio/ui/dialogs/import.slint:126
 msgctxt "ImportDialog"
 msgid "Look first"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/import.slint:109
+#: crates/leyline-studio/ui/dialogs/import.slint:143
 msgctxt "ImportDialog"
 msgid "Nothing importable here."
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/import.slint:110
+#: crates/leyline-studio/ui/dialogs/import.slint:144
 msgctxt "ImportDialog"
 msgid "{} of {} chosen"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/import.slint:119
+#: crates/leyline-studio/ui/dialogs/import.slint:153
 msgctxt "ImportDialog"
 msgid "All"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/import.slint:126
+#: crates/leyline-studio/ui/dialogs/import.slint:160
 msgctxt "ImportDialog"
 msgid "None"
 msgstr ""
 
 #. already in the library (ADR 0065 §3).
-#: crates/leyline-studio/ui/dialogs/import.slint:171
+#: crates/leyline-studio/ui/dialogs/import.slint:205
 msgctxt "ImportDialog"
 msgid "already imported · {}"
 msgstr ""
 
 #. thing left to do.
-#: crates/leyline-studio/ui/dialogs/import.slint:203
+#: crates/leyline-studio/ui/dialogs/import.slint:237
 msgctxt "ImportDialog"
 msgid "Close"
 msgstr ""
 
 #. thing left to do.
-#: crates/leyline-studio/ui/dialogs/import.slint:203
+#: crates/leyline-studio/ui/dialogs/import.slint:237
 msgctxt "ImportDialog"
 msgid "Cancel"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/import.slint:217
+#: crates/leyline-studio/ui/dialogs/import.slint:251
 msgctxt "ImportDialog"
 msgid "Import {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/import.slint:218
+#: crates/leyline-studio/ui/dialogs/import.slint:252
 msgctxt "ImportDialog"
 msgid "Import"
 msgstr ""
@@ -3924,93 +3924,93 @@ msgctxt "ViewModeChips"
 msgid "Loupe"
 msgstr ""
 
-#: crates/leyline-studio/ui/widgets/controls.slint:671
+#: crates/leyline-studio/ui/widgets/controls.slint:679
 msgctxt "SettingsGroupChips"
 msgid "White balance"
 msgstr ""
 
-#: crates/leyline-studio/ui/widgets/controls.slint:672
+#: crates/leyline-studio/ui/widgets/controls.slint:680
 msgctxt "SettingsGroupChips"
 msgid "Tone"
 msgstr ""
 
-#: crates/leyline-studio/ui/widgets/controls.slint:673
+#: crates/leyline-studio/ui/widgets/controls.slint:681
 msgctxt "SettingsGroupChips"
 msgid "Presence"
 msgstr ""
 
-#: crates/leyline-studio/ui/widgets/controls.slint:674
+#: crates/leyline-studio/ui/widgets/controls.slint:686
 msgctxt "SettingsGroupChips"
 msgid "Tone curve"
 msgstr ""
 
-#: crates/leyline-studio/ui/widgets/controls.slint:679
+#: crates/leyline-studio/ui/widgets/controls.slint:687
 msgctxt "SettingsGroupChips"
 msgid "Color mixer"
 msgstr ""
 
-#: crates/leyline-studio/ui/widgets/controls.slint:680
+#: crates/leyline-studio/ui/widgets/controls.slint:688
 msgctxt "SettingsGroupChips"
 msgid "Color grading"
 msgstr ""
 
-#: crates/leyline-studio/ui/widgets/controls.slint:681
+#: crates/leyline-studio/ui/widgets/controls.slint:693
 msgctxt "SettingsGroupChips"
 msgid "Camera profile"
 msgstr ""
 
-#: crates/leyline-studio/ui/widgets/controls.slint:682
+#: crates/leyline-studio/ui/widgets/controls.slint:694
 msgctxt "SettingsGroupChips"
 msgid "Creative LUT"
 msgstr ""
 
-#: crates/leyline-studio/ui/widgets/controls.slint:687
+#: crates/leyline-studio/ui/widgets/controls.slint:695
 msgctxt "SettingsGroupChips"
 msgid "Effects"
 msgstr ""
 
-#: crates/leyline-studio/ui/widgets/controls.slint:688
+#: crates/leyline-studio/ui/widgets/controls.slint:700
 msgctxt "SettingsGroupChips"
 msgid "Lens correction"
 msgstr ""
 
-#: crates/leyline-studio/ui/widgets/controls.slint:689
+#: crates/leyline-studio/ui/widgets/controls.slint:701
 msgctxt "SettingsGroupChips"
 msgid "Detail"
 msgstr ""
 
-#: crates/leyline-studio/ui/widgets/controls.slint:690
+#: crates/leyline-studio/ui/widgets/controls.slint:702
 msgctxt "SettingsGroupChips"
 msgid "Rendering"
 msgstr ""
 
-#: crates/leyline-studio/ui/widgets/controls.slint:697
+#: crates/leyline-studio/ui/widgets/controls.slint:707
 msgctxt "SettingsGroupChips"
 msgid "Geometry"
 msgstr ""
 
-#: crates/leyline-studio/ui/widgets/controls.slint:698
+#: crates/leyline-studio/ui/widgets/controls.slint:708
 msgctxt "SettingsGroupChips"
 msgid "Reshape"
 msgstr ""
 
-#: crates/leyline-studio/ui/widgets/controls.slint:699
+#: crates/leyline-studio/ui/widgets/controls.slint:709
 msgctxt "SettingsGroupChips"
 msgid "Spot removal"
 msgstr ""
 
-#: crates/leyline-studio/ui/widgets/controls.slint:704
+#: crates/leyline-studio/ui/widgets/controls.slint:714
 msgctxt "SettingsGroupChips"
 msgid "Red eye"
 msgstr ""
 
-#: crates/leyline-studio/ui/widgets/controls.slint:705
+#: crates/leyline-studio/ui/widgets/controls.slint:715
 msgctxt "SettingsGroupChips"
 msgid "Local adjustments"
 msgstr ""
 
 #. uses is the one known to render.
-#: crates/leyline-studio/ui/widgets/controls.slint:729
+#: crates/leyline-studio/ui/widgets/controls.slint:739
 msgctxt "AdvanceChip"
 msgid "Advance ▸"
 msgstr ""
