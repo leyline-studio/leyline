@@ -943,6 +943,27 @@ export component BrowserPanel inherits HorizontalLayout {
                             color: #7a7a7a;
                             font-size: 9px;
                         }
+                        // What the assistant proposes for this frame, and why
+                        // (ADR 0145 §1). Over the thumbnail's foot rather than
+                        // in a corner: it is a *sentence*, not a glyph, and it
+                        // is only there while a proposal is under review.
+                        if cell.proposal != "": Rectangle {
+                            x: 6px;
+                            y: parent.height - 38px;
+                            width: proposal-text.preferred-width + 12px;
+                            height: 16px;
+                            border-radius: 8px;
+                            background: cell.proposal-keep ? #2f4f6fe0 : #6f4a2ae0;
+                            proposal-text := Text {
+                                text: cell.proposal;
+                                color: #e6e6e6;
+                                font-size: 10px;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                                width: 100%;
+                                height: 100%;
+                            }
+                        }
                         // More than one development of this photo exists
                         // (ADR 0094 §1). The grid still shows one cell per
                         // photo; the badge is how a branch announces itself,

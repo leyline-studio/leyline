@@ -4379,3 +4379,23 @@ msgstr ""
 "Le filtre « {} » ne peut pas être conservé : une collection dynamique connaît "
 "la note, le boîtier, les mots-clés et le drapeau de sélection, et rien "
 "d'autre."
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "sharpest of the burst"
+msgstr "la plus nette de la rafale"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "less sharp"
+msgstr "moins nette"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "blown out"
+msgstr "sur-exposée"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "black"
+msgstr "noire"

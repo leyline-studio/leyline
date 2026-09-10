@@ -173,6 +173,25 @@ pub(crate) fn refresh_multi_selected_cells(app: &App, window: &StudioWindow) {
     }
 }
 
+/// The assistant's verdict on one frame, in words (ADR 0145 §1).
+///
+/// A rejection says **what was measured**, never « rejected »: the proposal
+/// writes nothing, and a photographer accepts or ignores it on the strength
+/// of the reason. `Keep` has no words — most photographs are keepers, and a
+/// badge on nearly every cell says nothing at all.
+fn verdict_words(window: &StudioWindow, verdict: leyline_sdk::Verdict) -> SharedString {
+    let tr = Tr::get(window);
+    match verdict {
+        leyline_sdk::Verdict::Keep => SharedString::default(),
+        leyline_sdk::Verdict::Pick => tr.invoke_cull_sharpest(),
+        leyline_sdk::Verdict::Reject(leyline_sdk::RejectReason::Softer { .. }) => {
+            tr.invoke_cull_softer()
+        }
+        leyline_sdk::Verdict::Reject(leyline_sdk::RejectReason::Blown) => tr.invoke_cull_blown(),
+        leyline_sdk::Verdict::Reject(leyline_sdk::RejectReason::Black) => tr.invoke_cull_black(),
+    }
+}
+
 /// Fetches the window of rows serving the current viewport and rebuilds
 /// the cell model from it (virtual scrolling: the rest of the grid only
 /// exists as the scrollbar's extent).
@@ -206,6 +225,15 @@ pub(crate) fn load_window(app: &mut App, window: &StudioWindow) -> Result<(), St
         if thumbnail.is_none() {
             missing.push(index);
         }
+        // What the assisted culling says about this frame, if a proposal is
+        // under review (ADR 0145 §1). Read from the proposal the window
+        // holds — nothing of it is in the catalog, by ADR 0084 §2.
+        let entry = app
+            .proposal
+            .as_ref()
+            .and_then(|proposal| proposal.entries.iter().find(|e| e.asset == item.asset_id));
+        let keeper = entry.is_some_and(|e| e.verdict == leyline_sdk::Verdict::Pick);
+        let verdict = entry.map(|e| verdict_words(window, e.verdict));
         cells.push(Cell {
             thumbnail: thumbnail.unwrap_or_default(),
             filename: SharedString::from(item.filename.as_str()),
@@ -219,6 +247,8 @@ pub(crate) fn load_window(app: &mut App, window: &StudioWindow) -> Result<(), St
             paired: item.paired,
             version_count: i32::try_from(item.version_count).unwrap_or(1),
             offline: !offline.is_empty() && offline.contains(&item.root_id),
+            proposal: verdict.clone().unwrap_or_default(),
+            proposal_keep: keeper,
         });
     }
     let (visible, above): (VecDeque<usize>, VecDeque<usize>) = missing

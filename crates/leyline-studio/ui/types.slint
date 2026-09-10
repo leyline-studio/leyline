@@ -34,6 +34,14 @@ export struct Cell {
     // How many develop versions the asset carries (ADR 0094 §1). Above one,
     // the cell says so — the grid still shows one cell per photo.
     version-count: int,
+    // What the assisted culling proposes for this photograph, in words and
+    // already translated (ADR 0145): « La plus nette », « Moins nette »,
+    // « Sur-exposée », « Noire ». Empty when no proposal is under review —
+    // which is nearly always.
+    proposal: string,
+    // Whether that proposal is the *keeper* of its burst rather than a
+    // rejection: the two read differently and must not look alike.
+    proposal-keep: bool,
     // The volume holding this photograph is not plugged in (ADR 0085 §5).
     // **Offline, not missing**: the cell keeps its thumbnail, its rating and
     // its place — what it cannot do is give up its pixels.
@@ -766,6 +774,21 @@ export global Tr {
     }
     public pure function culling-proposal(rejects: int, bursts: int) -> string {
         return @tr("{} photo proposed for rejection, in {} burst — nothing written yet: reject them with X, or Library ▸ Discard Proposal." | "{} photos proposed for rejection, in {} bursts — nothing written yet: reject them with X, or Library ▸ Discard Proposal." % rejects, rejects, bursts);
+    }
+    // What the assistant found in one photograph (ADR 0145 §1). Shown on
+    // the cell itself, because a proposal one cannot question is one nobody
+    // should accept.
+    public pure function cull-sharpest() -> string {
+        return @tr("sharpest of the burst");
+    }
+    public pure function cull-softer() -> string {
+        return @tr("less sharp");
+    }
+    public pure function cull-blown() -> string {
+        return @tr("blown out");
+    }
+    public pure function cull-black() -> string {
+        return @tr("black");
     }
     public pure function culling-found-nothing() -> string {
         return @tr("Nothing to propose: no burst, and nothing technically wrong.");
