@@ -281,6 +281,19 @@ export component StudioWindow inherits Window {
                 DevelopState.paste-settings();
                 return accept;
             }
+            // Select all / select none, on the library's keys (ADR 0141 §1)
+            // and only where a selection means something: Develop shows one
+            // photograph at a time.
+            if (!DevelopState.develop-mode && event.modifiers.control
+                && (event.text == "a" || event.text == "A")) {
+                GridState.select-all();
+                return accept;
+            }
+            if (!DevelopState.develop-mode && event.modifiers.control
+                && (event.text == "d" || event.text == "D")) {
+                GridState.select-none();
+                return accept;
+            }
             // `Ctrl+Z` means "undo here" (ADR 0129 §3): in Develop it walks
             // the revision graph, in the library it steps the edit stack.
             // Placed before the develop branch, and guarded by it, so the

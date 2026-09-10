@@ -416,6 +416,7 @@ fn run() -> Result<(), Startup> {
         cull_job: None,
         reprocess_job: None,
         task_job: None,
+        pending_reload: false,
         proposal: None,
         preview_jobs: HashSet::new(),
         tether_connected: false,

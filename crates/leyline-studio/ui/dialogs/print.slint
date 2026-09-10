@@ -9,7 +9,9 @@ import { FilterChip } from "../widgets/controls.slint";
 export component PrintDialog inherits VerticalLayout {
     spacing: 12px;
     Text {
-        text: @tr("Print selected photo");
+        text: DialogState.print-photo-count > 1
+            ? @tr("Print {} selected photos", DialogState.print-photo-count)
+            : @tr("Print selected photo");
         color: #f0f0f0;
         font-size: 15px;
         font-weight: 600;

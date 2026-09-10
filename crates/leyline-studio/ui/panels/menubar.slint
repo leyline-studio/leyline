@@ -225,6 +225,21 @@ export component MenuBar inherits Rectangle {
             }
             MenuSep { }
             MenuRow {
+                title: @tr("Select All    Ctrl+A");
+                activated => {
+                    GridState.select-all();
+                    root.open-menu = "";
+                }
+            }
+            MenuRow {
+                title: @tr("Select None    Ctrl+D");
+                activated => {
+                    GridState.select-none();
+                    root.open-menu = "";
+                }
+            }
+            MenuSep { }
+            MenuRow {
                 title: @tr("New Collection…    Ctrl+N");
                 activated => {
                     DialogState.dialog-result = "";

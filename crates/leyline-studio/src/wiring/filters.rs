@@ -4,9 +4,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::app::{
-    App, SORTS, item_at, report_error, selected_indices, selected_versions, sort_key,
-};
+use crate::app::{App, SORTS, item_at, report_error, selected_items, selected_versions, sort_key};
 use crate::classify;
 use crate::classify::Action;
 use crate::preferences::SharedPreferences;
@@ -131,16 +129,19 @@ fn next_to_class(on: bool, multi: usize, elsewhere: bool, focused: i32, total: i
 }
 
 /// The classement of every selected row, as the grid currently shows it.
+///
+/// Through `selected_items`, so it covers the same photographs the action
+/// does: with `Ctrl+A` the selection reaches past the loaded window
+/// (ADR 0141 §2), and a snapshot that stopped at the window would undo forty
+/// photographs out of thirty-eight thousand — silently, which is the worst
+/// way for an undo to be wrong.
 fn classement_of(
     app: &App,
     focused: i32,
 ) -> Vec<(VersionId, Option<u8>, Option<ColorLabel>, PickState)> {
-    selected_indices(app, focused)
+    selected_items(app, focused)
         .into_iter()
-        .filter_map(|index| {
-            let item = item_at(app, i32::try_from(index).ok()?)?;
-            Some((item.version_id, item.rating, item.color_label, item.pick))
-        })
+        .map(|item| (item.version_id, item.rating, item.color_label, item.pick))
         .collect()
 }
 

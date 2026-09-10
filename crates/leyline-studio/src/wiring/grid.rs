@@ -53,8 +53,42 @@ pub(crate) fn wire_select(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 let mut app = app.borrow_mut();
                 app.multi_selected.clear();
                 refresh_multi_selected_cells(&app, &window);
+                refresh_status_line(&app, &window);
             }
             show_details(&mut app.borrow_mut(), &window, index);
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        GridState::get(window).on_select_all(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            // Every row the *query* matches, not every row the window
+            // loaded (ADR 0141 §1): the count under the grid is what this
+            // selects, filters included.
+            app.multi_selected = (0..usize::try_from(app.total).unwrap_or(usize::MAX)).collect();
+            // A grid with nothing in it has nothing to focus either.
+            if GridState::get(&window).get_selected() < 0 && app.total > 0 {
+                GridState::get(&window).set_selected(0);
+            }
+            refresh_multi_selected_cells(&app, &window);
+            refresh_status_line(&app, &window);
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        GridState::get(window).on_select_none(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let mut app = app.borrow_mut();
+            app.multi_selected.clear();
+            refresh_multi_selected_cells(&app, &window);
+            refresh_status_line(&app, &window);
         });
     }
     {
@@ -88,11 +122,29 @@ pub(crate) fn wire_select(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                     app.multi_selected.clear();
                 }
                 refresh_multi_selected_cells(&app, &window);
+                refresh_status_line(&app, &window);
             }
             GridState::get(&window).set_selected(index);
             show_details(&mut app.borrow_mut(), &window, index);
         });
     }
+}
+
+/// What the line under the filter bar says: how many photographs the grid
+/// holds, and — when several are selected — how many of them a batch action
+/// would act on (ADR 0141 §3).
+///
+/// Said there rather than in a bar of its own: it is the same sentence, one
+/// clause longer, and the place a photographer already looks to know how
+/// many photographs are in front of them.
+pub(crate) fn refresh_status_line(app: &App, window: &StudioWindow) {
+    let total = i32::try_from(app.total).unwrap_or(i32::MAX);
+    let tr = Tr::get(window);
+    let line = match i32::try_from(app.multi_selected.len()).unwrap_or(i32::MAX) {
+        selected if selected > 1 => tr.invoke_photo_selection(selected, total),
+        _ => tr.invoke_photo_count(total),
+    };
+    LibraryState::get(window).set_status_line(line);
 }
 
 /// Re-marks every loaded cell's `multi-selected` flag from
@@ -211,7 +263,7 @@ pub(crate) fn reload(app: &mut App, window: &StudioWindow) -> Result<(), String>
     // An empty grid means two different things, and only the query knows
     // which: nothing imported yet, or criteria matching nothing (ADR 0054 §1).
     GridState::get(window).set_narrowed(app.query.narrows());
-    LibraryState::get(window).set_status_line(Tr::get(window).invoke_photo_count(total));
+    refresh_status_line(app, window);
     load_window(app, window)?;
 
     let selected = keep

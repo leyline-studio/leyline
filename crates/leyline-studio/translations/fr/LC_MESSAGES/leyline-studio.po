@@ -4119,3 +4119,28 @@ msgstr "Hauteur"
 msgctxt "Tr"
 msgid "Original"
 msgstr "Original"
+
+#: crates/leyline-studio/ui/dialogs/print.slint
+msgctxt "PrintDialog"
+msgid "Print {} selected photos"
+msgstr "Imprimer les {} photos sélectionnées"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "{} of {} photos selected"
+msgstr "{} photos sélectionnées sur {}"
+
+#: crates/leyline-studio/ui
+msgctxt "ShortcutsDialog"
+msgid "Select all / none"
+msgstr "Tout sélectionner / rien"
+
+#: crates/leyline-studio/ui
+msgctxt "MenuBar"
+msgid "Select All    Ctrl+A"
+msgstr "Tout sélectionner    Ctrl+A"
+
+#: crates/leyline-studio/ui
+msgctxt "MenuBar"
+msgid "Select None    Ctrl+D"
+msgstr "Ne rien sélectionner    Ctrl+D"

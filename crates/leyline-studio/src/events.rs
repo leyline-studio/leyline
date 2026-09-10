@@ -40,6 +40,14 @@ pub(crate) fn event_pump(app: &Rc<RefCell<App>>, window: &StudioWindow) -> Timer
         while let Ok(event) = app.events.try_recv() {
             handle_event(&mut app, &window, event);
         }
+        // One reload for the whole batch of events just drained, not one per
+        // event (ADR 0141 §5).
+        if app.pending_reload {
+            app.pending_reload = false;
+            if let Err(error) = reload(&mut app, &window) {
+                report_error(&window, &error);
+            }
+        }
         dispatch_thumbnails(&mut app);
     });
     timer
@@ -409,11 +417,12 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
             // view refreshes itself on every commit, the grid isn't visible,
             // and `on_exit_develop` reloads it unconditionally on the way
             // back out.
-            if app.develop.is_none()
-                && app.items.iter().any(|item| item.version_id == version_id)
-                && let Err(error) = reload(app, window)
-            {
-                report_error(window, &error);
+            //
+            // Asked for rather than done here (ADR 0141 §5): a batch action
+            // sends one of these per photograph, and the pump does the
+            // reload once for the whole drain.
+            if app.develop.is_none() && app.items.iter().any(|item| item.version_id == version_id) {
+                app.pending_reload = true;
             }
         }
         Event::AssetsAdded { ref asset_ids } => {
@@ -444,10 +453,8 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
             // New assets — our own import, or another writer's — can change
             // both the total count and the visible window; skip while
             // develop is open for the same reason as `VersionChanged`.
-            if app.develop.is_none()
-                && let Err(error) = reload(app, window)
-            {
-                report_error(window, &error);
+            if app.develop.is_none() {
+                app.pending_reload = true;
             }
             // Newly imported photos can bring a body or a lens the library
             // had never seen (ADR 0064 §3).

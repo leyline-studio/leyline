@@ -7,7 +7,7 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use crate::app::{App, item_at, report_error};
+use crate::app::{App, report_error};
 use crate::ui::{DialogState, GridState, StudioWindow, Tr};
 use leyline_sdk::{
     Margins, Orientation, PaperSize, PrintRecipe, PrintRequest, PrintSettings, RenderingIntent,
@@ -58,6 +58,13 @@ pub(crate) fn wire_print(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                     return;
                 }
             };
+            DialogState::get(&window).set_print_photo_count(
+                i32::try_from(
+                    crate::app::selected_versions(&app, GridState::get(&window).get_selected())
+                        .len(),
+                )
+                .unwrap_or(0),
+            );
             let names: Vec<SharedString> = presets
                 .iter()
                 .map(|preset| SharedString::from(preset.name.as_str()))
@@ -95,13 +102,16 @@ pub(crate) fn wire_print(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                     return;
                 };
                 let mut app = app.borrow_mut();
-                let Some(version) = item_at(&app, GridState::get(&window).get_selected())
-                    .map(|item| item.version_id)
-                else {
+                // The whole selection, like an export (ADR 0141 §4): the
+                // engine has taken a list of versions since ADR 0036, and
+                // the dialog was handing it one.
+                let versions =
+                    crate::app::selected_versions(&app, GridState::get(&window).get_selected());
+                if versions.is_empty() {
                     DialogState::get(&window)
                         .set_dialog_result(Tr::get(&window).invoke_select_photo_first());
                     return;
-                };
+                }
                 if destination.is_empty() {
                     DialogState::get(&window)
                         .set_dialog_result(Tr::get(&window).invoke_enter_destination_folder());
@@ -143,7 +153,7 @@ pub(crate) fn wire_print(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                     }
                 };
                 let job = app.library.print_async(PrintRequest {
-                    versions: vec![version],
+                    versions,
                     recipe,
                     destination_dir,
                     copies,

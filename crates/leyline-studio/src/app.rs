@@ -279,6 +279,12 @@ pub(crate) struct App {
     /// The job the task bar is showing, and the one its Cancel acts on
     /// (ADR 0139 §4).
     pub(crate) task_job: Option<JobId>,
+    /// Set by an event that invalidates the grid, cleared by the one reload
+    /// the pump then does for the whole batch (ADR 0141 §5). A rating
+    /// applied to sixty photographs emits sixty `VersionChanged`, and
+    /// reloading once per event was sixty reloads — each of them re-reading
+    /// the catalog and re-requesting every visible thumbnail.
+    pub(crate) pending_reload: bool,
     /// The proposal currently under review, and **nowhere else**: it lives
     /// here and dies with the window. ADR 0084 §2 refuses to persist it —
     /// a second, unversioned source of truth about a photo's status is
@@ -435,15 +441,55 @@ pub(crate) fn selected_indices(app: &App, focused: i32) -> Vec<usize> {
     }
 }
 
-/// The version ids of [`selected_indices`], silently dropping any index that
-/// has since scrolled out of the loaded window (see [`App::multi_selected`]).
-pub(crate) fn selected_versions(app: &App, focused: i32) -> Vec<VersionId> {
-    selected_indices(app, focused)
+/// The catalog rows a batch action should act on.
+///
+/// Rows inside the loaded window are read from it. The others — a selection
+/// made with `Ctrl+A` names tens of thousands of rows the window never
+/// loaded (ADR 0141 §2) — are fetched with **one** grid query over the span
+/// they cover, under the query the grid is showing, so a selection means the
+/// same photographs the eye was looking at.
+///
+/// A failing query drops those rows rather than failing the action: what is
+/// on screen still works, which is the behaviour this had before the
+/// selection could leave the window at all.
+pub(crate) fn selected_items(app: &App, focused: i32) -> Vec<GridItem> {
+    let indices = selected_indices(app, focused);
+    let loaded = app.window_start..app.window_start + app.items.len();
+    // `indices` arrives sorted — a `BTreeSet`, or a single index — so the
+    // span below is the tightest one covering what is missing.
+    let outside: Vec<usize> = indices
+        .iter()
+        .copied()
+        .filter(|index| !loaded.contains(index))
+        .collect();
+    let mut fetched: std::collections::HashMap<usize, GridItem> = std::collections::HashMap::new();
+    if let (Some(&first), Some(&last)) = (outside.first(), outside.last()) {
+        let query = GridQuery {
+            range: u32::try_from(first).unwrap_or(u32::MAX)
+                ..u32::try_from(last.saturating_add(1)).unwrap_or(u32::MAX),
+            ..app.query.clone()
+        };
+        if let Ok(rows) = app.library.catalog().grid(&query) {
+            for (offset, row) in rows.into_iter().enumerate() {
+                fetched.insert(first + offset, row);
+            }
+        }
+    }
+    indices
         .into_iter()
-        .filter_map(|index| {
-            let signed = i32::try_from(index).ok()?;
-            item_at(app, signed).map(|item| item.version_id)
+        .filter_map(|index| match loaded.contains(&index) {
+            true => app.items.get(index - app.window_start).cloned(),
+            false => fetched.remove(&index),
         })
+        .collect()
+}
+
+/// The version ids of [`selected_indices`], fetched from the catalog when the
+/// selection reaches past the loaded window.
+pub(crate) fn selected_versions(app: &App, focused: i32) -> Vec<VersionId> {
+    selected_items(app, focused)
+        .into_iter()
+        .map(|item| item.version_id)
         .collect()
 }
 
@@ -453,13 +499,8 @@ pub(crate) fn selected_versions(app: &App, focused: i32) -> Vec<VersionId> {
 /// photo must not ask the engine to remove it twice.
 pub(crate) fn selected_assets(app: &App, focused: i32) -> Vec<leyline_sdk::AssetId> {
     let mut assets = Vec::new();
-    for index in selected_indices(app, focused) {
-        let Ok(signed) = i32::try_from(index) else {
-            continue;
-        };
-        if let Some(item) = item_at(app, signed)
-            && !assets.contains(&item.asset_id)
-        {
+    for item in selected_items(app, focused) {
+        if !assets.contains(&item.asset_id) {
             assets.push(item.asset_id);
         }
     }

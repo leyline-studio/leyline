@@ -481,6 +481,12 @@ export global Tr {
     public pure function photo-count(n: int) -> string {
         return @tr("{} photo" | "{} photos" % n, n);
     }
+    // Said instead of the count above while several photographs are
+    // selected (ADR 0141 §3): what a batch action would act on, and out of
+    // how many.
+    public pure function photo-selection(selected: int, total: int) -> string {
+        return @tr("{} of {} photos selected", selected, total);
+    }
     public pure function importing-progress(done: int, total: int) -> string {
         return @tr("Importing {}/{}…", done, total);
     }

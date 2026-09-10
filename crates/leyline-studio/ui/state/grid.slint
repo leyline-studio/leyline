@@ -28,6 +28,12 @@ export global GridState {
     // the one place the selection changes; read by the label under a drag
     // (ADR 0130 §1), which has to say *how many* before the drop.
     in property <int> selection-size;
+    // Everything the grid is currently showing — the filter's answer, not
+    // the library's (ADR 0141 §1). Rows the virtual window never loaded are
+    // part of it: what the selection names is the query, not the screen.
+    callback select-all();
+    // Back to the one focused photograph.
+    callback select-none();
     callback classify(string);
     // Drops every criterion at once and shows the whole library again: the
     // way out of a grid narrowed to nothing, where no single chip is the one

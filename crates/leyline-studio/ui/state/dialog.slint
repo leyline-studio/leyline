@@ -88,6 +88,10 @@ export global DialogState {
     // How many photos `run-export` will act on — the multi-selection when
     // there is one, otherwise 1 for the lone focused photo.
     in-out property <int> export-photo-count: 1;
+    // The same for a print: how many photographs the selection holds
+    // (ADR 0141 §4). A print used to take the focused one and ignore the
+    // rest, which is the one thing a selection must never mean.
+    in-out property <int> print-photo-count: 1;
     in-out property <int> export-format: 0;
     in-out property <string> export-quality-text: "90";
     // AVIF encoder effort, 1 to 10 (ADR 0067). Only shown, and only read,
