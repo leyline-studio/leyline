@@ -22,6 +22,7 @@ mod app;
 mod classify;
 mod develop;
 mod events;
+mod file_drop;
 mod format;
 mod groups;
 // Test-only: the debt list of ADR 0133 §4 and the test that counts it.
@@ -294,6 +295,23 @@ fn show_startup_error(reason: &str, path: Option<&Path>) {
 }
 
 fn run() -> Result<(), Startup> {
+    // Files dragged from the desktop onto the window (ADR 0146 §4). The
+    // handler goes on the backend, and a backend may only be chosen before
+    // the first window exists — which is why this is the first thing `run`
+    // does, ahead even of opening the library.
+    //
+    // Best-effort, like everything else on the launch path (ADR 0122 §5): a
+    // selector that fails leaves Studio behaving exactly as every build
+    // before this one, minus the drop.
+    let drops = Rc::new(file_drop::FileDrops::default());
+    if let Err(error) = slint::BackendSelector::new()
+        .with_winit_custom_application_handler(file_drop::DropHandler::new(&drops))
+        .select()
+    {
+        // Printed, not fatal: this is the one line that tells a developer
+        // running from a terminal why a drop does nothing.
+        eprintln!("warning: files cannot be dropped onto the window: {error}");
+    }
     // No argument: this is how a GUI shortcut launches Studio (the Windows
     // installer's Start Menu entry, the Linux AppImage, double-clicking the
     // macOS .app) — none of those attach a console, so the old
@@ -408,6 +426,7 @@ fn run() -> Result<(), Startup> {
         import_job: None,
         scan_job: None,
         candidates: Vec::new(),
+        drop_picks: Vec::new(),
         candidate_source: std::path::PathBuf::new(),
         export_job: None,
         print_job: None,
@@ -539,6 +558,7 @@ fn run() -> Result<(), Startup> {
     wire_tether(&app, &window);
     wire_views(&app, &window);
     wire_jobs(&app, &window);
+    wiring::dialogs::import::wire_file_drop(&app, &window, &drops);
     {
         // Scrolling or resizing moves the visible window: fetch the matching
         // rows from the catalog when the loaded window no longer covers it.

@@ -119,6 +119,18 @@ export global PreferencesState {
     // stored per installation and not per library.
     in-out property <int> thumbnail-size: 176;
     callback remember-thumbnail-size(int);
+    // The range that size may take, declared once (ADR 0146 §5): the grid's
+    // own slider reads it, and so does View ▸ Vignettes plus grandes. Two
+    // surfaces changing one number must not disagree about its bounds.
+    out property <int> thumbnail-size-min: 110;
+    out property <int> thumbnail-size-max: 320;
+    // One step of `+` / `-`, clamped. 24px is about eight steps across the
+    // range — few enough that the key is worth pressing, many enough that
+    // it lands where the slider would.
+    public function step-thumbnail-size(by: int) {
+        self.remember-thumbnail-size(clamp(self.thumbnail-size + by,
+            self.thumbnail-size-min, self.thumbnail-size-max));
+    }
     // Whether the side panels were folded **by hand**. Only the manual fold:
     // below the narrow threshold the fold is a constraint (ADR 0125), and
     // storing a constraint as a decision would fold a wide window tomorrow

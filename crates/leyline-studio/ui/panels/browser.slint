@@ -66,6 +66,14 @@ export component BrowserPanel inherits HorizontalLayout {
     // (ADR 0136 §5): Rust holds the value, the slider reports a new one, and
     // the binding brings it back.
     property <length> cell-size: PreferencesState.thumbnail-size * 1px;
+    // The cell is **taller** than it is wide (ADR 0146 §2): the name and the
+    // stars take a row at its foot, and the photograph above them has to be
+    // able to occupy a square — that is what gives a portrait frame and a
+    // landscape one the same long edge, and the row a baseline. Squaring the
+    // cell instead would have shrunk every landscape thumbnail to the height
+    // a portrait could reach, which fixes the rhythm by taking something
+    // away. 20px is the foot: 14px of text and the 6px above it.
+    property <length> cell-h: root.cell-size + 20px;
 
     // Moves the selection to `index` and scrolls it into view.
     //
@@ -87,10 +95,10 @@ export component BrowserPanel inherits HorizontalLayout {
         if (index < 0) {
             return;
         }
-        if (Math.floor(index / flick.columns) * root.cell-size < -flick.viewport-y) {
-            flick.viewport-y = -Math.floor(index / flick.columns) * root.cell-size;
-        } else if ((Math.floor(index / flick.columns) + 1) * root.cell-size > -flick.viewport-y + flick.height) {
-            flick.viewport-y = flick.height - (Math.floor(index / flick.columns) + 1) * root.cell-size;
+        if (Math.floor(index / flick.columns) * root.cell-h < -flick.viewport-y) {
+            flick.viewport-y = -Math.floor(index / flick.columns) * root.cell-h;
+        } else if ((Math.floor(index / flick.columns) + 1) * root.cell-h > -flick.viewport-y + flick.height) {
+            flick.viewport-y = flick.height - (Math.floor(index / flick.columns) + 1) * root.cell-h;
         }
     }
 
@@ -847,9 +855,9 @@ export component BrowserPanel inherits HorizontalLayout {
                 // Virtual scrolling: only the loaded window has cells, but
                 // the viewport spans the whole grid; scrolling or resizing
                 // asks Rust for the matching window.
-                property <int> first-cell: Math.floor(-self.viewport-y / root.cell-size) * self.columns;
-                property <int> visible-cells: (Math.ceil(self.height / root.cell-size) + 1) * self.columns;
-                viewport-height: Math.ceil(GridState.total-cells / self.columns) * root.cell-size;
+                property <int> first-cell: Math.floor(-self.viewport-y / root.cell-h) * self.columns;
+                property <int> visible-cells: (Math.ceil(self.height / root.cell-h) + 1) * self.columns;
+                viewport-height: Math.ceil(GridState.total-cells / self.columns) * root.cell-h;
                 changed first-cell => {
                     GridState.viewport-moved(self.first-cell, self.visible-cells);
                 }
@@ -859,9 +867,9 @@ export component BrowserPanel inherits HorizontalLayout {
 
                 for cell[i] in GridState.cells: Rectangle {
                     x: Math.mod(GridState.window-start + i, flick.columns) * root.cell-size;
-                    y: Math.floor((GridState.window-start + i) / flick.columns) * root.cell-size;
+                    y: Math.floor((GridState.window-start + i) / flick.columns) * root.cell-h;
                     width: root.cell-size;
-                    height: root.cell-size;
+                    height: root.cell-h;
 
                     Rectangle {
                         x: 4px;
@@ -877,10 +885,28 @@ export component BrowserPanel inherits HorizontalLayout {
                             padding: 6px;
                             spacing: 4px;
 
-                            Image {
-                                source: cell.thumbnail;
-                                image-fit: contain;
+                            // One rhythm for the grid (ADR 0146 §2). The
+                            // cell is square, the image area under it is
+                            // not — the name and stars take the foot — so
+                            // `image-fit: contain` alone drew a portrait
+                            // frame a third taller than its landscape
+                            // neighbours, and a row of mixed orientations
+                            // had no baseline. Fitted into the largest
+                            // square the area holds, both orientations get
+                            // the same long edge, which is the rule of the
+                            // contact sheet a grid is a picture of.
+                            Rectangle {
                                 vertical-stretch: 1;
+                                Image {
+                                    source: cell.thumbnail;
+                                    image-fit: contain;
+                                    width: min(parent.width, parent.height);
+                                    height: self.width;
+                                    // A `Rectangle` is not a layout: without
+                                    // these two the square sits top-left.
+                                    x: (parent.width - self.width) / 2;
+                                    y: (parent.height - self.height) / 2;
+                                }
                             }
                             HorizontalLayout {
                                 spacing: 4px;
@@ -1313,8 +1339,8 @@ export component BrowserPanel inherits HorizontalLayout {
                     vertical-alignment: center;
                 }
                 MiniSlider {
-                    minimum: 110;
-                    maximum: 320;
+                    minimum: PreferencesState.thumbnail-size-min;
+                    maximum: PreferencesState.thumbnail-size-max;
                     value: root.cell-size / 1px;
                     edited(v) => {
                         PreferencesState.remember-thumbnail-size(v);

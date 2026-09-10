@@ -95,7 +95,9 @@ pub fn dimensions(width: Option<u32>, height: Option<u32>) -> String {
 
 /// The one-line exposure summary: `ISO 100 · 1/3200 s · f/5.6 · 70 mm`.
 ///
-/// Absent values are simply skipped; all absent gives an empty string.
+/// Absent values are simply skipped; all absent gives `—`, like every other
+/// row of the detail panel (ADR 0146 §1). A blank row reads as a defect in
+/// the layout, a dash reads as an answer.
 pub fn exposure_line(meta: &Metadata) -> String {
     let mut parts = Vec::new();
     if let Some(value) = meta.iso {
@@ -109,6 +111,9 @@ pub fn exposure_line(meta: &Metadata) -> String {
     }
     if let Some(value) = meta.focal_length {
         parts.push(focal(value));
+    }
+    if parts.is_empty() {
+        return "—".to_owned();
     }
     parts.join(" · ")
 }
@@ -195,7 +200,8 @@ mod tests {
     #[test]
     fn joins_the_exposure_line_from_present_values() {
         let mut meta = Metadata::default();
-        assert_eq!(exposure_line(&meta), "");
+        // Nothing to say is said, like every other row (ADR 0146 §1).
+        assert_eq!(exposure_line(&meta), "—");
         meta.iso = Some(100);
         meta.shutter = Some(rational(1, 3200));
         meta.focal_length = Some(rational(70, 1));

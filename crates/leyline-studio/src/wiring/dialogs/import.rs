@@ -10,8 +10,9 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use crate::app::App;
+use crate::file_drop::{FileDrops, drop_target};
 use crate::format;
-use crate::ui::{CandidateRow, DialogState, StudioWindow, Tr};
+use crate::ui::{CandidateRow, DialogState, LibraryState, StudioWindow, Tr};
 use leyline_sdk::{ImportCandidate, ImportOptions, ScanOptions};
 use slint::{ComponentHandle, Global, ModelRc, SharedString, VecModel};
 
@@ -143,6 +144,57 @@ pub(crate) fn wire_import(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     }
 }
 
+/// Wires what a drop on the window does (ADR 0146 §4).
+///
+/// It opens this dialog and never imports: nothing is written by a gesture a
+/// pointer can make by accident, which is the rule ADR 0065 built the dialog
+/// for in the first place.
+pub(crate) fn wire_file_drop(app: &Rc<RefCell<App>>, window: &StudioWindow, drops: &Rc<FileDrops>) {
+    let app = Rc::clone(app);
+    let dropped = window.as_weak();
+    let hovered = window.as_weak();
+    drops.on_drop(
+        move |paths| {
+            let Some(window) = dropped.upgrade() else {
+                return;
+            };
+            // The only part that asks the filesystem anything: which of the
+            // dropped paths are folders.
+            let (dirs, files): (Vec<PathBuf>, Vec<PathBuf>) =
+                paths.into_iter().partition(|path| path.is_dir());
+            let Some(target) = drop_target(&dirs, &files) else {
+                return;
+            };
+            let source = SharedString::from(target.source.to_string_lossy().as_ref());
+            let dialog = DialogState::get(&window);
+            dialog.set_dialog_result(SharedString::default());
+            dialog.set_import_source_text(source.clone());
+            dialog.set_dialog(SharedString::from("import"));
+            if target.picks.is_empty() {
+                // One folder was dropped, and the folder is the answer: the
+                // dialog stays in its "import this folder" mode.
+                return;
+            }
+            // Anything else has to be looked at before it can be ticked. The
+            // two switches are the dialog's own, not this gesture's — a drop
+            // does not decide whether the scan recurses.
+            dialog.invoke_scan_import(
+                source,
+                dialog.get_import_recursive(),
+                dialog.get_import_exact(),
+            );
+            // After the call, not before: `scan-import` clears the previous
+            // list, and clearing is where a stale set of ticks would die.
+            app.borrow_mut().drop_picks = target.picks;
+        },
+        move |hovering| {
+            if let Some(window) = hovered.upgrade() {
+                LibraryState::get(&window).set_file_drop_hovering(hovering);
+            }
+        },
+    );
+}
+
 /// Shows what a finished scan found, each line ticked unless the library
 /// looks like it already holds it (ADR 0065 §3).
 pub(crate) fn show_candidates(
@@ -150,10 +202,15 @@ pub(crate) fn show_candidates(
     window: &StudioWindow,
     candidates: Vec<ImportCandidate>,
 ) {
+    // What a drop asked for, and only for the scan it started (ADR 0146 §4):
+    // taken here, so a scan someone runs by hand afterwards ticks everything
+    // it finds, as it always has.
+    let picks = std::mem::take(&mut app.drop_picks);
     app.candidates = candidates
         .into_iter()
         .map(|candidate| {
-            let selected = !candidate.already_imported;
+            let selected = !candidate.already_imported
+                && (picks.is_empty() || crate::file_drop::is_picked(&candidate.path, &picks));
             (candidate, selected)
         })
         .collect();

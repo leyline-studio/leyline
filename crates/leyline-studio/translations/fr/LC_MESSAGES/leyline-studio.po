@@ -4399,3 +4399,65 @@ msgstr "sur-exposée"
 msgctxt "Tr"
 msgid "black"
 msgstr "noire"
+
+#: crates/leyline-studio/ui/dialogs/shortcuts.slint:60
+msgctxt "ShortcutsDialog"
+msgid "Full screen"
+msgstr "Plein écran"
+
+#: crates/leyline-studio/ui/dialogs/shortcuts.slint:144
+msgctxt "ShortcutsDialog"
+msgid "Larger / smaller thumbnails"
+msgstr "Vignettes plus grandes / plus petites"
+
+#: crates/leyline-studio/ui/panels/menubar.slint:731
+msgctxt "MenuBar"
+msgid "Full screen    F"
+msgstr "Plein écran    F"
+
+#: crates/leyline-studio/ui/panels/menubar.slint:739
+msgctxt "MenuBar"
+msgid "Fold the panels    Tab"
+msgstr "Replier les panneaux    Tab"
+
+#: crates/leyline-studio/ui/panels/menubar.slint:747
+msgctxt "MenuBar"
+msgid "Fold everything    Shift+Tab"
+msgstr "Tout replier    Maj+Tab"
+
+#: crates/leyline-studio/ui/panels/menubar.slint:756
+msgctxt "MenuBar"
+msgid "Larger thumbnails    +"
+msgstr "Vignettes plus grandes    +"
+
+#: crates/leyline-studio/ui/panels/menubar.slint:765
+msgctxt "MenuBar"
+msgid "Smaller thumbnails    -"
+msgstr "Vignettes plus petites    -"
+
+#: crates/leyline-studio/ui/panels/menubar.slint:774
+msgctxt "MenuBar"
+msgid "Zoom to 100%    Z"
+msgstr "Zoom 100 %    Z"
+
+#: crates/leyline-studio/ui/panels/survey.slint:58
+msgctxt "SurveyPanel"
+msgid "{} photos compared · ✕ drops one"
+msgstr "{} photos comparées · ✕ en retire une"
+
+#: crates/leyline-studio/ui/panels/survey.slint:59
+msgctxt "SurveyPanel"
+msgid ""
+"One photo only: survey compares a selection — press G, then Ctrl+click to "
+"add more."
+msgstr "Une seule photo : la mosaïque compare une sélection — G, puis Ctrl+clic pour en ajouter."
+
+#: crates/leyline-studio/ui/studio.slint:651
+msgctxt "StudioWindow"
+msgid "Drop to import"
+msgstr "Déposer pour importer"
+
+#: crates/leyline-studio/ui/studio.slint:659
+msgctxt "StudioWindow"
+msgid "The import dialog opens — nothing is imported until you say so."
+msgstr "Le dialogue d'import s'ouvre — rien n'est importé sans votre accord."

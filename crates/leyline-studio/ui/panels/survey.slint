@@ -48,8 +48,15 @@ export component SurveyPanel inherits VerticalLayout {
                 DevelopState.enter-develop();
             }
         }
+        // What this view is, said in the count (ADR 0146 §3). With one
+        // photograph the survey is a loupe with a filename — the ✕ that
+        // makes it a funnel only appears above two, and there is no
+        // filmstrip here to add a second from — so the line stops
+        // describing a gesture nobody can make and says the way out.
         Text {
-            text: @tr("Click ✕ to drop a photo from the selection");
+            text: GridState.survey-cells.length > 1
+                ? @tr("{} photos compared · ✕ drops one", GridState.survey-cells.length)
+                : @tr("One photo only: survey compares a selection — press G, then Ctrl+click to add more.");
             color: #7a7a7a;
             font-size: 11px;
             vertical-alignment: center;

@@ -29,6 +29,20 @@ export component MenuBar inherits Rectangle {
     // "develop-menu"/"view"/"help". `in-out` because the window's Escape
     // handler closes it.
     in-out property <string> open-menu: "";
+    // What the window owns and the View menu shows (ADR 0146 §5). Full
+    // screen and the two folds are window state, and this bar has no way
+    // up on its own: it takes them as inputs and reports the click.
+    in property <bool> full-screen;
+    in property <bool> panels-folded;
+    in property <bool> chrome-folded;
+    callback toggle-full-screen();
+    callback fold-panels();
+    callback fold-everything();
+    callback zoom-to-100();
+    // The library grid, and nothing else: the only place a thumbnail has a
+    // size. Written here rather than repeated on two rows.
+    property <bool> in-grid: !DevelopState.develop-mode && !MapState.map-mode
+        && !GridState.loupe-mode && !GridState.compare-mode && !GridState.survey-mode;
     // The inline-expand submenus are independent booleans since at most one
     // of each is ever meaningfully open at a time.
     property <bool> rate-submenu-open: false;
@@ -704,6 +718,64 @@ export component MenuBar inherits Rectangle {
                     }
                     GridState.loupe-mode = false;
                     MapState.enter-map();
+                    root.open-menu = "";
+                }
+            }
+            // Above this line, the six places one can be; below it, what one
+            // does to whichever one is on screen (ADR 0146 §5). Four of the
+            // five existed only as keys on the shortcut card, which is to
+            // say they were learnable by someone who already knew about
+            // them — a menu is where a keyboard is read.
+            MenuSep { }
+            MenuToggleRow {
+                title: @tr("Full screen    F");
+                checked: root.full-screen;
+                activated => {
+                    root.toggle-full-screen();
+                    root.open-menu = "";
+                }
+            }
+            MenuToggleRow {
+                title: @tr("Fold the panels    Tab");
+                checked: root.panels-folded;
+                activated => {
+                    root.fold-panels();
+                    root.open-menu = "";
+                }
+            }
+            MenuToggleRow {
+                title: @tr("Fold everything    Shift+Tab");
+                checked: root.chrome-folded;
+                activated => {
+                    root.fold-everything();
+                    root.open-menu = "";
+                }
+            }
+            MenuSep { }
+            MenuRow {
+                title: @tr("Larger thumbnails    +");
+                enabled: root.in-grid
+                    && PreferencesState.thumbnail-size < PreferencesState.thumbnail-size-max;
+                activated => {
+                    PreferencesState.step-thumbnail-size(24);
+                    root.open-menu = "";
+                }
+            }
+            MenuRow {
+                title: @tr("Smaller thumbnails    -");
+                enabled: root.in-grid
+                    && PreferencesState.thumbnail-size > PreferencesState.thumbnail-size-min;
+                activated => {
+                    PreferencesState.step-thumbnail-size(-24);
+                    root.open-menu = "";
+                }
+            }
+            MenuRow {
+                title: @tr("Zoom to 100%    Z");
+                enabled: DevelopState.develop-mode || GridState.loupe-mode
+                    || GridState.compare-mode;
+                activated => {
+                    root.zoom-to-100();
                     root.open-menu = "";
                 }
             }

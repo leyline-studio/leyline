@@ -464,7 +464,7 @@ pub(crate) fn show_details(app: &mut App, window: &StudioWindow, index: i32) {
         ),
     ));
     DetailState::get(window).set_detail_exposure(SharedString::from(
-        meta.map_or_else(String::new, format::exposure_line),
+        meta.map_or_else(|| "—".to_owned(), format::exposure_line),
     ));
     // A paired photo says so, and names the file (ADR 0079 §6): the JPEG
     // left the grid, it did not leave the library, and the one place that

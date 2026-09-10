@@ -121,6 +121,19 @@ export component StudioWindow inherits Window {
     // `narrow-threshold` is a constraint, not a decision.
     property <bool> side-panels-hidden: PreferencesState.panels-folded;
     property <bool> chrome-hidden: false;
+    // `Tab`, `Maj+Tab` and the two View rows that do the same thing
+    // (ADR 0146 §5) share one implementation: a menu and a key that fold
+    // panels differently would be two features wearing one name.
+    public function fold-panels() {
+        root.side-panels-hidden = !root.side-panels-hidden;
+        if (!root.side-panels-hidden) {
+            root.chrome-hidden = false;
+        }
+    }
+    public function fold-everything() {
+        root.chrome-hidden = !root.chrome-hidden;
+        root.side-panels-hidden = root.chrome-hidden;
+    }
     // Below this width the side panels fold on their own, and the fold is a
     // constraint rather than a preference: the sidebar and the detail panel
     // are 500px of fixed width between them, and the filter bar cannot
@@ -229,6 +242,14 @@ export component StudioWindow inherits Window {
                 }
                 return accept;
             }
+            // Full screen (ADR 0146 §5), before the map branch below
+            // because that branch swallows every key it does not know:
+            // `F` is one of the three gestures that work in every module,
+            // with the two folds under it.
+            if (event.text == "f" || event.text == "F") {
+                root.full-screen = !root.full-screen;
+                return accept;
+            }
             if (MapState.map-mode) {
                 if (event.text == "m" || event.text == "M" || event.text == Key.Escape) {
                     MapState.exit-map();
@@ -247,13 +268,9 @@ export component StudioWindow inherits Window {
                 // Shift+Tab arrives as `Backtab` on some platforms with the
                 // modifier already consumed, so the key itself counts too.
                 if (event.modifiers.shift || event.text == Key.Backtab) {
-                    root.chrome-hidden = !root.chrome-hidden;
-                    root.side-panels-hidden = root.chrome-hidden;
+                    root.fold-everything();
                 } else {
-                    root.side-panels-hidden = !root.side-panels-hidden;
-                    if (!root.side-panels-hidden) {
-                        root.chrome-hidden = false;
-                    }
+                    root.fold-panels();
                 }
                 return accept;
             }
@@ -423,6 +440,18 @@ export component StudioWindow inherits Window {
                 GridState.classify(event.text);
                 return accept;
             }
+            // Grid thumbnail size (ADR 0146 §5), on the pair of keys
+            // Lightroom puts it. Not in the loupe: there is one photograph
+            // there and no thumbnail to size. `=` and `_` count too — they
+            // are the unshifted keys a hand actually hits.
+            if (!GridState.loupe-mode && (event.text == "+" || event.text == "=")) {
+                PreferencesState.step-thumbnail-size(24);
+                return accept;
+            }
+            if (!GridState.loupe-mode && (event.text == "-" || event.text == "_")) {
+                PreferencesState.step-thumbnail-size(-24);
+                return accept;
+            }
             // `C` and `N` are the Lightroom keys for these two views; both
             // leave the loupe behind, since three ways of looking at once is
             // none (ADR 0057 §1).
@@ -571,7 +600,69 @@ export component StudioWindow inherits Window {
         TaskBar { }
     }
 
-    menubar := MenuBar { }
+    menubar := MenuBar {
+        // The window owns full screen and the folds; the bar reports the
+        // click (ADR 0146 §5). `zoom-to-100` is dispatched here for the
+        // same reason `Z` is: only the window knows which of the three
+        // viewers is on screen.
+        full-screen: root.full-screen;
+        panels-folded: root.side-panels-hidden;
+        chrome-folded: root.chrome-hidden;
+        toggle-full-screen => {
+            root.full-screen = !root.full-screen;
+        }
+        fold-panels => {
+            root.fold-panels();
+        }
+        fold-everything => {
+            root.fold-everything();
+        }
+        zoom-to-100 => {
+            if (DevelopState.develop-mode) {
+                develop.dev-zoomed = !develop.dev-zoomed;
+            } else if (GridState.compare-mode) {
+                compare.zoomed = !compare.zoomed;
+            } else if (GridState.loupe-mode) {
+                loupe.zoomed = !loupe.zoomed;
+            }
+        }
+    }
+
+    // Files dragged in from the desktop (ADR 0146 §4), over everything
+    // including the menu bar: it is the whole window that accepts them, and
+    // saying so anywhere smaller would be a lie about where to let go.
+    if LibraryState.file-drop-hovering: Rectangle {
+        background: #0b0b0bcc;
+
+        Rectangle {
+            x: 24px;
+            y: 24px;
+            width: parent.width - 48px;
+            height: parent.height - 48px;
+            background: transparent;
+            border-width: 2px;
+            border-color: #6fa8dc;
+            border-radius: 10px;
+        }
+        VerticalLayout {
+            alignment: center;
+            spacing: 6px;
+            Text {
+                text: @tr("Drop to import");
+                color: #f0f0f0;
+                font-size: 20px;
+                horizontal-alignment: center;
+            }
+            // The promise of ADR 0065, repeated where the gesture is made:
+            // a drop opens the dialog and writes nothing.
+            Text {
+                text: @tr("The import dialog opens — nothing is imported until you say so.");
+                color: #9a9a9a;
+                font-size: 12px;
+                horizontal-alignment: center;
+            }
+        }
+    }
 
     // What is under the pointer while photographs are being dragged
     // (ADR 0130 §1). Drawn by the window for the same reason the hint is:

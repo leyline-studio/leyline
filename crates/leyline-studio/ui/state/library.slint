@@ -22,6 +22,11 @@ export global LibraryState {
     // report.
     in property <string> build-details;
     in property <string> status-line;
+    // Files are being dragged over the window from the desktop
+    // (ADR 0146 §4). Written by the winit handler, read by the overlay the
+    // window draws: a gesture that shows nothing until it is finished is one
+    // people abandon halfway.
+    in property <bool> file-drop-hovering;
     // Paths of other libraries opened before, most recent first (never
     // includes the currently open one) — File ▸ Open Recent.
     in property <[string]> recent-libraries;

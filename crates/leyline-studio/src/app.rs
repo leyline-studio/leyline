@@ -260,6 +260,10 @@ pub(crate) struct App {
     /// The folder those candidates came from — what an import of a chosen
     /// list needs to place the files under `Photos/`.
     pub(crate) candidate_source: std::path::PathBuf,
+    /// What a drop on the window asked to be ticked (ADR 0146 §4), consumed
+    /// by the scan it started. Empty every other time, which is every scan
+    /// someone ran by hand.
+    pub(crate) drop_picks: Vec<std::path::PathBuf>,
     /// The export job the dialog is waiting on, when one runs.
     pub(crate) export_job: Option<JobId>,
     /// The print job the dialog is waiting on, when one runs (ADR 0036).

@@ -56,6 +56,10 @@ export component ShortcutsDialog inherits VerticalLayout {
             what: @tr("Fold the panels / fold everything");
         }
         Shortcut {
+            keys: "F";
+            what: @tr("Full screen");
+        }
+        Shortcut {
             keys: "Ctrl+E";
             what: @tr("Export");
         }
@@ -134,6 +138,10 @@ export component ShortcutsDialog inherits VerticalLayout {
         Shortcut {
             keys: "P / X / U";
             what: @tr("Pick / reject / clear");
+        }
+        Shortcut {
+            keys: "+ / -";
+            what: @tr("Larger / smaller thumbnails");
         }
 
         Section {
