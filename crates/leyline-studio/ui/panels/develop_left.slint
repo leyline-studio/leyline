@@ -193,7 +193,11 @@ export component DevelopLeftPanel inherits Rectangle {
             // (`checkout-history-row`).
             if root.expand-history: VerticalLayout {
                 for entry[index] in DevelopState.dev-history: touch := TouchArea {
-                    height: 26px;
+                    // Two lines since ADR 0142 §2: what the revision changed,
+                    // and under it, smaller, when it was made. On one line the
+                    // 230px column showed « 2026-09-10 13:02 · Exposition, … »
+                    // — the date in full and the answer cut off.
+                    height: 34px;
                     clicked => {
                         DevelopState.checkout-history-row(index);
                     }
@@ -202,15 +206,26 @@ export component DevelopLeftPanel inherits Rectangle {
                         height: 100%;
                         background: index == DevelopState.dev-history-current ? #2f4f6f : (touch.has-hover ? #2a2a2a : transparent);
                         border-radius: 4px;
-                        Text {
-                            x: 8px;
-                            width: parent.width - 16px;
-                            text: index == DevelopState.dev-history-current ? @tr("{} (current)", entry) : entry;
-                            color: #d0d0d0;
-                            font-size: 12px;
-                            vertical-alignment: center;
-                            height: 100%;
-                            overflow: elide;
+                        VerticalLayout {
+                            padding-left: 8px;
+                            padding-right: 8px;
+                            padding-top: 3px;
+                            padding-bottom: 3px;
+                            spacing: 0px;
+                            Text {
+                                text: index == DevelopState.dev-history-current
+                                    ? @tr("{} (current)", entry.what)
+                                    : entry.what;
+                                color: #d0d0d0;
+                                font-size: 12px;
+                                overflow: elide;
+                            }
+                            Text {
+                                text: entry.when;
+                                color: #7a7a7a;
+                                font-size: 10px;
+                                overflow: elide;
+                            }
                         }
                     }
                 }

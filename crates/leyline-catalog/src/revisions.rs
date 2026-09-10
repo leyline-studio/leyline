@@ -28,6 +28,11 @@ pub struct RevisionRow {
     /// Creation time, UTC Unix epoch milliseconds. Never touched by an
     /// amendment: amending coalesces into the original intention.
     pub created_at: i64,
+    /// The preset that produced this revision, when one did (ADR 0058 §5).
+    /// Stored since that ADR and read since [ADR 0142](../../docs/adr/0142-a-history-that-says-what-changed.md):
+    /// « this photograph took the Portrait preset » is the one thing about a
+    /// revision that a list of changed settings cannot say.
+    pub from_preset: Option<PresetId>,
 }
 
 /// Result of a successful head amendment.
@@ -289,7 +294,7 @@ impl Catalog {
     pub fn revision(&self, revision: RevisionId) -> Result<RevisionRow> {
         self.conn
             .query_row(
-                "SELECT asset_id, parent_revision_id, settings_json, created_at
+                "SELECT asset_id, parent_revision_id, settings_json, created_at, from_preset_id
                  FROM develop_revisions WHERE id = ?1",
                 [revision.get()],
                 |row| {
@@ -301,6 +306,9 @@ impl Catalog {
                             .map(RevisionId::new),
                         settings_json: row.get("settings_json")?,
                         created_at: row.get("created_at")?,
+                        from_preset: row
+                            .get::<_, Option<i64>>("from_preset_id")?
+                            .map(PresetId::new),
                     })
                 },
             )
@@ -324,7 +332,8 @@ impl Catalog {
                      FROM develop_revisions r JOIN chain ON r.id = chain.id
                      WHERE r.parent_revision_id IS NOT NULL
                  )
-                 SELECT r.id, r.asset_id, r.parent_revision_id, r.settings_json, r.created_at
+                 SELECT r.id, r.asset_id, r.parent_revision_id, r.settings_json, r.created_at,
+                        r.from_preset_id
                  FROM chain JOIN develop_revisions r ON r.id = chain.id",
             )
             .map_err(db_err)?;
@@ -338,6 +347,9 @@ impl Catalog {
                         .map(RevisionId::new),
                     settings_json: row.get("settings_json")?,
                     created_at: row.get("created_at")?,
+                    from_preset: row
+                        .get::<_, Option<i64>>("from_preset_id")?
+                        .map(PresetId::new),
                 })
             })
             .map_err(db_err)?;

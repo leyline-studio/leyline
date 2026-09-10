@@ -1682,18 +1682,36 @@ fn history(args: &[String]) -> Result<(), String> {
         .catalog()
         .version_history(version)
         .map_err(|e| e.to_string())?;
-    for (index, row) in chain.iter().enumerate() {
+    // What a revision changed is only sayable against the one before it
+    // (ADR 0142 §2), so the chain is read backwards to build the lines — and
+    // printed head first, the order `version_history` documents and the
+    // order a `HEAD` marker on the first line means.
+    let parsed: Vec<Settings> = chain
+        .iter()
+        .map(|row| Settings::parse(&row.settings_json).map_err(|e| e.to_string()))
+        .collect::<Result<_, _>>()?;
+    for (index, (row, settings)) in chain.iter().zip(&parsed).enumerate() {
         let marker = if index == 0 { "HEAD" } else { "    " };
-        let settings = Settings::parse(&row.settings_json).map_err(|e| e.to_string())?;
         let stages = settings
             .stages
             .iter()
             .map(|(name, version)| format!("{name}:{version}"))
             .collect::<Vec<_>>()
             .join(" ");
+        let changed = match parsed.get(index + 1) {
+            None => "import".to_owned(),
+            Some(before) => {
+                let keys = leyline_sdk::changed_settings(before, settings);
+                if keys.is_empty() {
+                    "no change".to_owned()
+                } else {
+                    keys.join(" ")
+                }
+            }
+        };
         println!(
-            "{marker} r{:<6} exposure {:+.2}  contrast {:+}  (schema {}, stages [{stages}])",
-            row.revision, settings.exposure, settings.contrast, settings.schema
+            "{marker} r{:<6} {changed}  (schema {}, stages [{stages}])",
+            row.revision, settings.schema
         );
     }
     Ok(())

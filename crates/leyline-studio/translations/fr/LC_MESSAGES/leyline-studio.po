@@ -4144,3 +4144,133 @@ msgstr "Tout sélectionner    Ctrl+A"
 msgctxt "MenuBar"
 msgid "Select None    Ctrl+D"
 msgstr "Ne rien sélectionner    Ctrl+D"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "Reprocessed"
+msgstr "Retraitement"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "Camera profile"
+msgstr "Profil d'appareil"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "Creative LUT"
+msgstr "LUT créative"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "Clarity"
+msgstr "Clarté"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "Texture"
+msgstr "Texture"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "Dehaze"
+msgstr "Voile"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "Black and white"
+msgstr "Noir et blanc"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "Parametric curve"
+msgstr "Courbe par régions"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "Tone curve"
+msgstr "Courbe des tonalités"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "HSL mixer"
+msgstr "Mélangeur TSL"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "Color grading"
+msgstr "Étalonnage couleur"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "Spot removal"
+msgstr "Correction des taches"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "Reshape"
+msgstr "Remodeler"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "Red eye"
+msgstr "Yeux rouges"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "Local adjustments"
+msgstr "Retouches locales"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "Defringe"
+msgstr "Défrangeage"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "Highlight roll-off"
+msgstr "Récupération des hautes lumières"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "Highlight reconstruction"
+msgstr "Reconstruction des hautes lumières"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "Demosaic"
+msgstr "Dématriçage"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "Source colour space"
+msgstr "Espace de la source"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "Perspective"
+msgstr "Perspective"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "Vignette"
+msgstr "Vignettage"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "Grain"
+msgstr "Grain"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "Preset « {} »"
+msgstr "Preset « {} »"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "{} + {}"
+msgstr "{} + {}"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "No change"
+msgstr "Aucun changement"

@@ -16,6 +16,7 @@ mod contact_sheet;
 mod cull;
 mod decode_cache;
 mod derive;
+mod diff;
 mod downscale;
 mod events;
 mod exif;
@@ -52,6 +53,7 @@ pub use cull::{
     CullEntry, CullOptions, CullProposal, DEFAULT_BURST_DISTANCE, RejectReason, Verdict,
 };
 pub use decode_cache::DecodeCache;
+pub use diff::changed_settings;
 pub use events::{Event, JobResult};
 pub use export::{
     ExportRecipe, ExportReport, ExportRequest, ExportedVersion, FailedExport, export_batch,

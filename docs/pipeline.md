@@ -303,6 +303,7 @@ Neutral values of schema 1:
 | `clarity`, `texture`, `dehaze` | 0 |
 | `hsl` | absent — 8 bands at `{ "hue": 0, "saturation": 0, "luminance": 0 }` |
 | `monochrome` | absent — `false` |
+| `source_encoding` | absent — `"srgb"`, the decoder's own space; a derived asset ([ADR 0107](adr/0107-derived-assets-and-the-pixel-socket.md)) carries `"linear_workspace"` instead |
 | `color_grading` | absent — each zone at `{ "hue": 0, "saturation": 0, "luminance": 0 }`, `balance`/`blending` at 0 |
 | `lens_correction` | `{ "enabled": false, "profile": "auto", "tca_red": 0.0, "tca_blue": 0.0 }` |
 | `defringe` | `{ "purple": 0, "green": 0 }` |

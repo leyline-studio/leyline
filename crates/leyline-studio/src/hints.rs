@@ -50,6 +50,28 @@ const SELF_EVIDENT: &[&str] = &[
 mod tests {
     use super::*;
 
+    /// ADR 0142 §3 — the history names a change by turning a `settings_json`
+    /// key into a label, and a key with no branch would go on screen as a
+    /// raw identifier. `SETTINGS_KEYS` is the whole list, kept in step with
+    /// the format by `leyline-core`'s own test, so this one only has to ask
+    /// whether the panel's table covers it.
+    #[test]
+    fn every_settings_key_has_a_label() {
+        let source = include_str!("../ui/types.slint");
+        let unlabelled: Vec<&str> = leyline_sdk::SETTINGS_KEYS
+            .iter()
+            .copied()
+            // `schema` is the document's version, never reported as a change.
+            .filter(|key| *key != "schema")
+            .filter(|key| !source.contains(&format!("key == \"{key}\"")))
+            .collect();
+        assert!(
+            unlabelled.is_empty(),
+            "these settings keys have no label in `Tr.setting-label`, so the \
+             history would show them raw (ADR 0142 §3):\n  {unlabelled:?}"
+        );
+    }
+
     /// One `EditSlider` as the source declares it.
     struct Slider {
         line: usize,

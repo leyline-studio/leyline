@@ -30,7 +30,7 @@ use crate::app::{App, report_error};
 use crate::develop;
 use crate::format;
 use crate::models::{CURVE_CANVAS_SIZE, dev_model};
-use crate::ui::{CurveMarker, DevelopState, MaskState, StudioWindow, Tr};
+use crate::ui::{CurveMarker, DevelopState, HistoryRow, MaskState, StudioWindow, Tr};
 use leyline_sdk::{AssetId, PreviewKind, VersionId};
 use slint::{Global, ModelRc, SharedString, VecModel};
 
@@ -178,11 +178,7 @@ pub(crate) fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<()
     }
     app.dev_history.sort_by_key(|row| row.created_at);
     let current = history.first().map(|row| row.revision);
-    let rows: Vec<SharedString> = app
-        .dev_history
-        .iter()
-        .map(|row| SharedString::from(format::capture_date(row.created_at)))
-        .collect();
+    let rows: Vec<HistoryRow> = history_rows(app, window);
     DevelopState::get(window).set_dev_history(ModelRc::from(Rc::new(VecModel::from(rows))));
     DevelopState::get(window).set_dev_history_current(
         i32::try_from(
@@ -300,6 +296,98 @@ pub(crate) fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<()
 /// leaves all four empty: the panel then shows no row at all rather than a
 /// line of dashes. A read failure is treated the same way — the capture strip
 /// is an aid, never a reason to fail refreshing the view.
+/// The history panel's lines: **what changed**, and when (ADR 0142 §2).
+///
+/// Two strings and not one sentence: the left column is 230px wide, and a
+/// date and a list of settings on one line meant « Exposition, … » —
+/// measured on the built panel, which is where the date moved to a second,
+/// smaller line under the change it dates.
+///
+/// The what is computed here rather than stored: every revision carries its
+/// complete settings, so the difference with its parent is a comparison, and
+/// a column in the catalog would be a second copy of an answer the data
+/// already holds.
+fn history_rows(app: &App, window: &StudioWindow) -> Vec<HistoryRow> {
+    // How many changed settings a line names before it starts counting: two
+    // fit the panel's width at the sizes French produces, and « Exposition,
+    // Contraste + 3 » says more than six labels nobody can read.
+    const NAMED: usize = 2;
+    let tr = Tr::get(window);
+    // Each revision is compared with **its parent**, found by id rather than
+    // by position: two revisions can share a timestamp — an amendment lands
+    // on the same second as what it amends — and a list sorted by time is
+    // then in an order the graph does not agree with (ADR 0142 §2).
+    let settings: std::collections::HashMap<_, _> = app
+        .dev_history
+        .iter()
+        .filter_map(|row| {
+            leyline_sdk::Settings::parse(&row.settings_json)
+                .ok()
+                .map(|parsed| (row.revision, parsed))
+        })
+        .collect();
+    app.dev_history
+        .iter()
+        .map(|row| {
+            let parent = row.parent.and_then(|parent| settings.get(&parent));
+            let what = match (row.from_preset, parent, settings.get(&row.revision)) {
+                // A preset names itself: twenty settings moved at once, and
+                // "which twenty" is not what the photographer asked for.
+                (Some(preset), _, _) => app
+                    .dev_presets
+                    .iter()
+                    .find(|stored| stored.preset == preset)
+                    .map(|stored| {
+                        tr.invoke_history_preset(SharedString::from(stored.name.as_str()))
+                    })
+                    .unwrap_or_else(|| tr.invoke_history_nothing()),
+                (None, None, _) => tr.invoke_history_import(),
+                (None, Some(before), Some(after)) => {
+                    let mut changed = leyline_sdk::changed_settings(before, after);
+                    // `stages` moves whenever a stage becomes *active* —
+                    // editing the exposure adds `gains` to the map — so it
+                    // only means "reprocessed" when it moved **alone**
+                    // (ADR 0142 §2). Saying « Exposition, Retraitement » for
+                    // one slider would be true of the document and false
+                    // about what happened.
+                    if changed.len() > 1 {
+                        changed.retain(|key| key != "stages");
+                    }
+                    let mut named: Vec<SharedString> = changed
+                        .iter()
+                        .take(NAMED)
+                        .map(|key| tr.invoke_setting_label(SharedString::from(key.as_str())))
+                        .collect();
+                    // Sorted in the *display* language: the engine answers in
+                    // key order, which is alphabetical in English and
+                    // arbitrary to a French reader (ADR 0142 §1).
+                    named.sort();
+                    let shown = SharedString::from(
+                        named
+                            .iter()
+                            .map(SharedString::as_str)
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                    );
+                    match changed.len() {
+                        0 => tr.invoke_history_nothing(),
+                        n if n > NAMED => tr.invoke_history_more(
+                            shown,
+                            i32::try_from(n - NAMED).unwrap_or(i32::MAX),
+                        ),
+                        _ => shown,
+                    }
+                }
+                _ => tr.invoke_history_nothing(),
+            };
+            HistoryRow {
+                what,
+                when: SharedString::from(format::capture_date(row.created_at)),
+            }
+        })
+        .collect()
+}
+
 /// A version's name as the interface shows it.
 ///
 /// One special case, and it is ours: the catalog writes `Default` itself

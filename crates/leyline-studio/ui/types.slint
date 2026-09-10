@@ -132,6 +132,14 @@ export struct SurveyCell {
 //
 // The picture is the preview the camera itself wrote inside the file — no
 // asset exists yet, so there is nothing else it could be.
+// One line of the develop history (ADR 0142 §2): what the revision changed,
+// and when it was made. Two fields rather than one sentence — the panel is
+// 230px wide, and the date belongs on its own smaller line.
+export struct HistoryRow {
+    what: string,
+    when: string,
+}
+
 export struct CandidateRow {
     filename: string,
     // Body and size, in one already-formatted line: Rust formats, the panel
@@ -446,6 +454,127 @@ export global Tr {
         }
         return id;
     }
+    // What a `settings_json` key is called on screen (ADR 0142 §3).
+    // The keys come from the engine — `changed_settings` names what one
+    // revision holds differently from the one before it — and the words
+    // live here, where the extractor can see them, exactly like
+    // `preset-field` above. A key with no branch shows itself raw, which
+    // is what a document written by a *newer* version round-trips
+    // through (`docs/pipeline.md` §3.4).
+    public pure function setting-label(key: string) -> string {
+        if (key == "stages") {
+            return @tr("Reprocessed");
+        }
+        if (key == "camera_profile") {
+            return @tr("Camera profile");
+        }
+        if (key == "lut") {
+            return @tr("Creative LUT");
+        }
+        if (key == "white_balance") {
+            return @tr("White balance");
+        }
+        if (key == "exposure") {
+            return @tr("Exposure");
+        }
+        if (key == "contrast") {
+            return @tr("Contrast");
+        }
+        if (key == "highlights") {
+            return @tr("Highlights");
+        }
+        if (key == "shadows") {
+            return @tr("Shadows");
+        }
+        if (key == "whites") {
+            return @tr("Whites");
+        }
+        if (key == "blacks") {
+            return @tr("Blacks");
+        }
+        if (key == "clarity") {
+            return @tr("Clarity");
+        }
+        if (key == "texture") {
+            return @tr("Texture");
+        }
+        if (key == "dehaze") {
+            return @tr("Dehaze");
+        }
+        if (key == "vibrance") {
+            return @tr("Vibrance");
+        }
+        if (key == "saturation") {
+            return @tr("Saturation");
+        }
+        if (key == "monochrome") {
+            return @tr("Black and white");
+        }
+        if (key == "parametric_curve") {
+            return @tr("Parametric curve");
+        }
+        if (key == "tone_curve") {
+            return @tr("Tone curve");
+        }
+        if (key == "hsl") {
+            return @tr("HSL mixer");
+        }
+        if (key == "color_grading") {
+            return @tr("Color grading");
+        }
+        if (key == "spot_removal") {
+            return @tr("Spot removal");
+        }
+        if (key == "reshape") {
+            return @tr("Reshape");
+        }
+        if (key == "red_eye") {
+            return @tr("Red eye");
+        }
+        if (key == "local_adjustments") {
+            return @tr("Local adjustments");
+        }
+        if (key == "lens_correction") {
+            return @tr("Lens correction");
+        }
+        if (key == "noise_reduction") {
+            return @tr("Noise reduction");
+        }
+        if (key == "sharpening") {
+            return @tr("Sharpening");
+        }
+        if (key == "defringe") {
+            return @tr("Defringe");
+        }
+        if (key == "output_rendering") {
+            return @tr("Highlight roll-off");
+        }
+        if (key == "highlight_reconstruction") {
+            return @tr("Highlight reconstruction");
+        }
+        if (key == "demosaic") {
+            return @tr("Demosaic");
+        }
+        if (key == "source_encoding") {
+            return @tr("Source colour space");
+        }
+        if (key == "rotation") {
+            return @tr("Rotation");
+        }
+        if (key == "perspective") {
+            return @tr("Perspective");
+        }
+        if (key == "crop") {
+            return @tr("Crop");
+        }
+        if (key == "vignette") {
+            return @tr("Vignette");
+        }
+        if (key == "grain") {
+            return @tr("Grain");
+        }
+        return key;
+    }
     // The first row of the camera-profile browser (ADR 0089 §2): a real
     // choice, not an empty state.
     public pure function no-camera-profile() -> string {
@@ -659,6 +788,27 @@ export global Tr {
     // version name this software wrote rather than a photographer.
     public pure function version-default() -> string {
         return @tr("Original");
+    }
+    // The first revision of a photograph: nothing changed *from*, it is
+    // where the history starts (ADR 0142 §2).
+    public pure function history-import() -> string {
+        return @tr("Import");
+    }
+    // A revision a preset produced, named by the preset rather than by the
+    // twenty settings it moved (ADR 0142 §2).
+    public pure function history-preset(name: string) -> string {
+        return @tr("Preset « {} »", name);
+    }
+    // More changed settings than a row can carry: the first ones, then how
+    // many are left.
+    public pure function history-more(shown: string, rest: int) -> string {
+        return @tr("{} + {}", shown, rest);
+    }
+    // A revision whose settings are identical to its parent's — an amendment
+    // that landed back on the same values, say. Rare, and better said than
+    // shown as an empty line.
+    public pure function history-nothing() -> string {
+        return @tr("No change");
     }
     public pure function scan-found(n: int) -> string {
         return @tr("{} photo found." | "{} photos found." % n, n);

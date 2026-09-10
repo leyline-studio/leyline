@@ -10,7 +10,7 @@
 // click. None of those cross to Rust, so they stay private to the develop
 // panel.
 
-import { CurveMarker, DevSettings, KeystoneGuide, PresetRow, ProfileRow } from "../types.slint";
+import { CurveMarker, DevSettings, HistoryRow, KeystoneGuide, PresetRow, ProfileRow } from "../types.slint";
 export global DevelopState {
     // Develop view state, mirrored from Rust.
     in property <bool> develop-mode;
@@ -222,7 +222,7 @@ export global DevelopState {
     // pointer (ADR 0008).
     callback switch-version(int);
     callback create-version();
-    in property <[string]> dev-history;
+    in property <[HistoryRow]> dev-history;
     // Index within `dev-history` of the currently-checked-out revision —
     // not always 0: the list is stable across a jump (see the Rust-side
     // `dev_history` field doc), so "current" moves within it instead of

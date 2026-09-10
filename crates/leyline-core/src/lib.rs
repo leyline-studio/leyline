@@ -23,8 +23,8 @@ pub use settings::{
     CurvePoint, Defringe, Demosaic, Grain, HighlightReconstruction, HslBand, LensCorrection,
     LocalAdjustment, LocalAdjustmentValues, LuminanceRange, Lut, Mask, NoiseReduction,
     OutputRendering, ParametricCurve, Perspective, Point, PresetSettings, RangeMask, RedEye,
-    ReshapePoint, Settings, SettingsGroup, Sharpening, SourceEncoding, SpotRemoval, StageVersions,
-    ToneCurve, Vignette, WHITE_BALANCE_PRESETS, WhiteBalance, WhiteBalancePreset,
+    ReshapePoint, SETTINGS_KEYS, Settings, SettingsGroup, Sharpening, SourceEncoding, SpotRemoval,
+    StageVersions, ToneCurve, Vignette, WHITE_BALANCE_PRESETS, WhiteBalance, WhiteBalancePreset,
 };
 pub use tether::{CameraSetting, CameraSettings, TetherSetting};
 pub use types::{CollectionType, ColorLabel, MediaType, PickState, PreviewKind, PreviewOrigin};

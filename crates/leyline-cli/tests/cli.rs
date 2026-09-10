@@ -1266,7 +1266,11 @@ fn defringe_takes_two_amounts_and_pins_its_own_stage() {
     );
     let history = stdout(&run(&["history", &root, "1"]));
     let head = history.lines().next().unwrap_or_default();
-    assert!(!head.contains("defringe"), "{head}");
+    // The **stage list**, not the whole line: since ADR 0142 the line also
+    // names what the revision changed, and "defringe, back to neutral" is
+    // exactly what this revision changed.
+    let stages = head.split("stages [").nth(1).unwrap_or_default();
+    assert!(!stages.contains("defringe"), "{head}");
 
     // Out of range is refused by name, not clamped in silence.
     let out = run(&["develop", &root, "1", "defringe", "140"]);

@@ -2088,6 +2088,60 @@ pub enum SettingsGroup {
 /// A named, partial jeu of develop settings (`docs/presets.md` §3.2,
 /// `preset_json`), unlike [`Settings`] which is always complete.
 ///
+/// Every key a `settings_json` document can carry (`docs/pipeline.md` §3.2),
+/// sorted as the serialized document sorts them.
+///
+/// Except the ones from a future version: [`Settings::extra`] is flattened,
+/// so what it round-trips appears at the top level under names this version
+/// has never heard of (§3.4).
+///
+/// Published because a client that *names* a change needs the whole list to
+/// name it from (ADR 0142 §3): the develop history turns keys into labels,
+/// and a key with no label would go on screen as a raw identifier. Kept
+/// honest by `every_settings_key_is_named_in_the_pipeline_specification`,
+/// which builds a settings value with every field off its neutral and
+/// compares what it serializes with this list.
+pub const SETTINGS_KEYS: &[&str] = &[
+    "blacks",
+    "camera_profile",
+    "clarity",
+    "color_grading",
+    "contrast",
+    "crop",
+    "defringe",
+    "dehaze",
+    "demosaic",
+    "exposure",
+    "grain",
+    "highlight_reconstruction",
+    "highlights",
+    "hsl",
+    "lens_correction",
+    "local_adjustments",
+    "lut",
+    "monochrome",
+    "noise_reduction",
+    "output_rendering",
+    "parametric_curve",
+    "perspective",
+    "red_eye",
+    "reshape",
+    "rotation",
+    "saturation",
+    "schema",
+    "shadows",
+    "sharpening",
+    "source_encoding",
+    "spot_removal",
+    "stages",
+    "texture",
+    "tone_curve",
+    "vibrance",
+    "vignette",
+    "white_balance",
+    "whites",
+];
+
 /// A field is `Some` if and only if its [`SettingsGroup`] is in `groups` —
 /// that list is the source of truth for what the preset touches; an absent
 /// field means "leave untouched", never "neutral value" (the opposite rule
@@ -3633,6 +3687,28 @@ mod specification {
         // Everything set away from neutral, so nothing is skipped by
         // `skip_serializing_if` — the whole surface, in one document.
         let all = Settings {
+            // The six fields the first version of this list did not move off
+            // their neutral, found the day `SETTINGS_KEYS` was compared with
+            // what this actually serializes (ADR 0142 §3) — the same way
+            // `demosaic` was found before them.
+            stages: StageVersions::from([("input".to_owned(), 2)]),
+            monochrome: true,
+            parametric_curve: ParametricCurve {
+                shadows: 10,
+                ..ParametricCurve::default()
+            },
+            red_eye: vec![RedEye {
+                center: Point { x: 0.5, y: 0.5 },
+                radius: 0.05,
+                feather: 0.4,
+                darken: 0.8,
+            }],
+            source_encoding: SourceEncoding::LinearWorkspace,
+            // `extra` stays empty: it is `#[serde(flatten)]`, so it has no
+            // key of its own — what it holds is spliced in at the top level
+            // (§3.4's round-trip of a key from a future version), and a
+            // client meeting one of those shows it raw, which is honest.
+
             // Every field that `skip_serializing_if` can drop, pushed off its
             // neutral value — the first version of this test left `demosaic`
             // at its default and therefore did not notice it was serializing
@@ -3696,6 +3772,15 @@ mod specification {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/pipeline.md");
         let spec = std::fs::read_to_string(&path)
             .unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
+
+        // The published list and the format itself, in step (ADR 0142 §3).
+        let serialized: Vec<&str> = document.keys().map(String::as_str).collect();
+        assert_eq!(
+            serialized, SETTINGS_KEYS,
+            "SETTINGS_KEYS and what a full settings value serializes to have \
+             drifted apart — a client labelling a change would meet a key it \
+             has never heard of"
+        );
 
         let unlisted: Vec<&String> = document
             .keys()
