@@ -4,6 +4,7 @@
 // Each dialog is its own file under `ui/dialogs/`; this component only
 // decides which one is mounted and gives them a common frame.
 
+import { CollectionState } from "../state/collection.slint";
 import { DialogState } from "../state/dialog.slint";
 import { PreferencesState } from "../state/preferences.slint";
 import { ProgressBar } from "../widgets/controls.slint";
@@ -58,6 +59,12 @@ export component DialogOverlay inherits Rectangle {
             // Same reason for the import contact sheet (ADR 0065 §5): a
             // list of what some other folder held, still ticked, is worse
             // than no list — the dialog reopens meaning "this folder".
+            // The dynamic-collection summary is read from the grid's query,
+            // so it is computed when the dialog opens and not before
+            // (ADR 0143 §1).
+            if (root.open-dialog == "collection") {
+                CollectionState.prepare-new-collection();
+            }
             DialogState.import-candidates = [];
             DialogState.import-scanned = false;
             DialogState.import-chosen = 0;

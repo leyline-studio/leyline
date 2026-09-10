@@ -196,6 +196,29 @@ impl Catalog {
         Ok(u32::try_from(doomed.len()).unwrap_or(u32::MAX))
     }
 
+    /// The rules of a smart collection, or `None` for a manual one
+    /// (ADR 0143 §3).
+    ///
+    /// Published because a rule nobody can read after the fact leaves a
+    /// collection whose contents have no explanation: the interface shows
+    /// them beside the count.
+    pub fn smart_rules(&self, collection: CollectionId) -> Result<Option<SmartRules>> {
+        let json: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT rules_json FROM collections WHERE id = ?1 AND collection_type = 1",
+                [collection.get()],
+                |row| row.get(0),
+            )
+            .or_else(|e| match e {
+                rusqlite::Error::QueryReturnedNoRows => {
+                    require_collection(&self.conn, collection).map(|()| None)
+                }
+                other => Err(db_err(other)),
+            })?;
+        json.map(|json| SmartRules::parse(&json)).transpose()
+    }
+
     /// Creates a smart collection under `parent` (or at the root): its
     /// members come from the rules, evaluated by the grid query.
     pub fn create_smart_collection(

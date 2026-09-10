@@ -15,6 +15,35 @@ export component CollectionDialog inherits VerticalLayout {
         font-size: 15px;
         font-weight: 600;
     }
+    // Which kind (ADR 0143 §1). A dynamic collection is not a second way of
+    // grouping: it is *this filter*, kept — so the choice is made here,
+    // where the filter is still on screen behind the dialog.
+    HorizontalLayout {
+        spacing: 8px;
+        FilterChip {
+            text: @tr("Manual");
+            active: !CollectionState.new-collection-smart;
+            clicked => {
+                CollectionState.new-collection-smart = false;
+            }
+        }
+        FilterChip {
+            text: @tr("Dynamic — the current filter");
+            active: CollectionState.new-collection-smart;
+            clicked => {
+                CollectionState.new-collection-smart = true;
+            }
+        }
+        Rectangle {
+            horizontal-stretch: 1;
+        }
+    }
+    if CollectionState.new-collection-smart: Text {
+        text: CollectionState.smart-summary;
+        color: CollectionState.smart-refused ? #d08a6a : #9a9a9a;
+        font-size: 11px;
+        wrap: word-wrap;
+    }
     Text {
         text: @tr("Name");
         color: #9a9a9a;
@@ -49,8 +78,11 @@ export component CollectionDialog inherits VerticalLayout {
         FilterChip {
             text: @tr("Create");
             active: true;
+            // A filter this engine cannot express as rules is refused before
+            // the click, not after (ADR 0143 §2).
+            enabled: !CollectionState.new-collection-smart || !CollectionState.smart-refused;
             clicked => {
-                CollectionState.run-new-collection(collection-name.text);
+                CollectionState.run-new-collection(collection-name.text, CollectionState.new-collection-smart);
             }
         }
     }

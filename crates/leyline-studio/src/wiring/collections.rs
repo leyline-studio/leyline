@@ -4,11 +4,16 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::app::{App, item_at, report_error, selected_versions};
-use crate::ui::{CollectionState, DialogState, FolderState, GridState, StudioWindow, Tr};
+use crate::ui::{
+    CollectionState, DialogState, FolderState, GridState, LibraryState, StudioWindow, Tr,
+};
 use crate::undo::{Edit, Snapshot};
 use crate::wiring::grid::reload;
 use crate::wiring::library::refresh_undo;
-use leyline_sdk::{CollectionId, CollectionNode, CollectionType};
+use leyline_sdk::{
+    CollectionId, CollectionNode, CollectionType, KeywordId, KeywordNode, PickState, RatingRule,
+    SmartRules,
+};
 use slint::{ComponentHandle, Global, Model, ModelRc, SharedString, VecModel};
 
 /// Connects the collections sidebar and its creation dialog.
@@ -37,13 +42,60 @@ pub(crate) fn wire_collections(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             app.query.collection = picked;
             if let Err(error) = reload(&mut app, &window) {
                 report_error(&window, &error);
+                return;
+            }
+            // A dynamic collection says what it holds, and it is the only
+            // place it says it (ADR 0143 §3): the rules were shown once, in
+            // the dialog that made it, and a collection whose contents come
+            // from a rule nobody can read afterwards is a black box.
+            if let Some(id) = picked
+                && let Ok(Some(rules)) = app.library.smart_rules(id)
+            {
+                let line = LibraryState::get(&window).get_status_line();
+                if let Some(parts) = rule_parts(&window, &rules) {
+                    LibraryState::get(&window)
+                        .set_status_line(SharedString::from(format!("{line}  ·  {parts}")));
+                }
             }
         });
     }
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
-        CollectionState::get(window).on_run_new_collection(move |name| {
+        CollectionState::get(window).on_prepare_new_collection(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let app = app.borrow();
+            let state = CollectionState::get(&window);
+            // Every dialog opens on « Manual »: a dynamic collection is the
+            // deliberate answer, never the one a distracted Enter produces.
+            state.set_new_collection_smart(false);
+            match smart_rules_from_query(&app) {
+                Ok(rules) => {
+                    // No criterion at all is refused too: a dynamic
+                    // collection holding the whole library is a second name
+                    // for « Toutes les photos ».
+                    let empty = rules.rating.is_none()
+                        && rules.camera.is_none()
+                        && rules.keywords.is_empty()
+                        && rules.pick.is_none();
+                    state.set_smart_summary(describe_rules(&window, &rules));
+                    state.set_smart_refused(empty);
+                }
+                Err(criterion) => {
+                    state.set_smart_summary(Tr::get(&window).invoke_smart_refused(
+                        Tr::get(&window).invoke_smart_criterion(SharedString::from(criterion)),
+                    ));
+                    state.set_smart_refused(true);
+                }
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        CollectionState::get(window).on_run_new_collection(move |name, smart| {
             let Some(window) = handle.upgrade() else {
                 return;
             };
@@ -53,9 +105,21 @@ pub(crate) fn wire_collections(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 return;
             }
             let mut app = app.borrow_mut();
-            let created = app
-                .library
-                .create_collection(None, name)
+            let made = if smart {
+                match smart_rules_from_query(&app) {
+                    Ok(rules) => app.library.create_smart_collection(None, name, &rules),
+                    // The button is disabled in that case, so this is the
+                    // race where the filter changed under an open dialog.
+                    Err(_) => {
+                        DialogState::get(&window)
+                            .set_dialog_result(CollectionState::get(&window).get_smart_summary());
+                        return;
+                    }
+                }
+            } else {
+                app.library.create_collection(None, name)
+            };
+            let created = made
                 .map_err(|e| e.to_string())
                 .and_then(|_| refresh_collections(&mut app, &window));
             match created {
@@ -410,6 +474,132 @@ pub(crate) fn refresh_collections(app: &mut App, window: &StudioWindow) -> Resul
         .collect();
     CollectionState::get(window).set_collections(ModelRc::from(Rc::new(VecModel::from(rows))));
     Ok(())
+}
+
+/// What a dynamic collection built from the grid's current filter would
+/// remember — or the first criterion that cannot be kept (ADR 0143).
+///
+/// Refusal by name rather than a silent drop: a collection that means
+/// something *wider* than the filter it was saved from would answer with
+/// photographs the photographer never asked for, and would look right while
+/// doing it. The same rule the pipeline applies to a setting a pinned stage
+/// version cannot express.
+fn smart_rules_from_query(app: &App) -> Result<SmartRules, &'static str> {
+    let query = &app.query;
+    if query.color_label.is_some() {
+        return Err("color");
+    }
+    if query.lens.is_some() {
+        return Err("lens");
+    }
+    if query.iso.min.is_some() || query.iso.max.is_some() {
+        return Err("iso");
+    }
+    if query.aperture.min.is_some() || query.aperture.max.is_some() {
+        return Err("aperture");
+    }
+    if query.focal_length.min.is_some() || query.focal_length.max.is_some() {
+        return Err("focal");
+    }
+    if query.shutter_speed.min.is_some() || query.shutter_speed.max.is_some() {
+        return Err("shutter");
+    }
+    if query.text.is_some() {
+        return Err("text");
+    }
+    if query.capture_range.is_some() {
+        return Err("date");
+    }
+    if query.folder.is_some() {
+        return Err("folder");
+    }
+    if query.collection.is_some() {
+        return Err("collection");
+    }
+    // « Not flagged as a pick » covers rejected *and* unflagged, so neither
+    // of those two filters has an equivalent here — where `Pick` has one
+    // exactly.
+    let pick = match query.pick {
+        None => None,
+        Some(PickState::Pick) => Some(true),
+        Some(PickState::Reject) => return Err("rejected"),
+        Some(PickState::None) => return Err("unflagged"),
+    };
+    // The rules name keywords by **path**, not by id: a rule outlives a
+    // rename of the row it points at only if it says what it means
+    // (`docs/catalog.md` §26).
+    let mut keywords = Vec::new();
+    if !query.keywords.is_empty() {
+        let Ok(tree) = app.library.catalog().keyword_tree() else {
+            return Err("keyword");
+        };
+        for id in &query.keywords {
+            match keyword_path(&tree, *id) {
+                Some(path) => keywords.push(path),
+                None => return Err("keyword"),
+            }
+        }
+    }
+    Ok(SmartRules {
+        rating: query.rating_at_least.map(|gte| RatingRule { gte }),
+        camera: query.camera.clone(),
+        keywords,
+        pick,
+        extra: serde_json::Map::new(),
+    })
+}
+
+/// A keyword's full path, found in the tree the panel already reads.
+fn keyword_path(nodes: &[KeywordNode], id: KeywordId) -> Option<String> {
+    for node in nodes {
+        if node.keyword == id {
+            return Some(node.path.clone());
+        }
+        if let Some(found) = keyword_path(&node.children, id) {
+            return Some(found);
+        }
+    }
+    None
+}
+
+/// The criteria in words, or `None` when the rules hold nothing at all.
+///
+/// Two callers, two framings: the dialog wraps this in a sentence about what
+/// the collection *will* hold, the status line shows it beside the count of
+/// what it *does* hold (ADR 0143 §1, §3).
+fn rule_parts(window: &StudioWindow, rules: &SmartRules) -> Option<SharedString> {
+    let tr = Tr::get(window);
+    let mut parts: Vec<SharedString> = Vec::new();
+    if let Some(rating) = rules.rating {
+        parts.push(tr.invoke_smart_rule_rating(i32::from(rating.gte)));
+    }
+    if let Some(camera) = &rules.camera {
+        parts.push(tr.invoke_smart_rule_camera(SharedString::from(camera.as_str())));
+    }
+    for keyword in &rules.keywords {
+        parts.push(tr.invoke_smart_rule_keyword(SharedString::from(keyword.as_str())));
+    }
+    if rules.pick == Some(true) {
+        parts.push(tr.invoke_smart_rule_pick());
+    }
+    (!parts.is_empty()).then(|| {
+        SharedString::from(
+            parts
+                .iter()
+                .map(SharedString::as_str)
+                .collect::<Vec<_>>()
+                .join(", "),
+        )
+    })
+}
+
+/// The sentence the dialog shows under the « Dynamic » chip.
+fn describe_rules(window: &StudioWindow, rules: &SmartRules) -> SharedString {
+    let tr = Tr::get(window);
+    match rule_parts(window, rules) {
+        Some(parts) => tr.invoke_smart_rules_are(parts),
+        None => tr.invoke_smart_rules_empty(),
+    }
 }
 
 /// Flattens the collection tree into `(id, name, depth, smart)` sidebar

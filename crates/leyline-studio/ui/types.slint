@@ -810,6 +810,71 @@ export global Tr {
     public pure function history-nothing() -> string {
         return @tr("No change");
     }
+    // What a dynamic collection would remember, assembled by Rust from the
+    // criteria the grid's query carries (ADR 0143 §1).
+    public pure function smart-rule-rating(stars: int) -> string {
+        return @tr("rated {} or more", stars);
+    }
+    public pure function smart-rule-camera(name: string) -> string {
+        return @tr("shot with {}", name);
+    }
+    public pure function smart-rule-keyword(path: string) -> string {
+        return @tr("keyword {}", path);
+    }
+    public pure function smart-rule-pick() -> string {
+        return @tr("flagged as picks");
+    }
+    public pure function smart-rules-are(rules: string) -> string {
+        return @tr("It will always hold the photos {}.", rules);
+    }
+    public pure function smart-rules-empty() -> string {
+        return @tr("No filter is on: this would hold the whole library. Narrow the grid first.");
+    }
+    // A criterion the rules cannot express (ADR 0143 §2). Refused by name
+    // rather than dropped: a collection that quietly means something wider
+    // than the filter it was saved from is worse than no collection.
+    public pure function smart-refused(criterion: string) -> string {
+        return @tr("The « {} » filter cannot be kept: a dynamic collection knows the rating, the camera, keywords and the pick flag, and nothing else.", criterion);
+    }
+    public pure function smart-criterion(id: string) -> string {
+        if (id == "color") {
+            return @tr("colour label");
+        }
+        if (id == "lens") {
+            return @tr("lens");
+        }
+        if (id == "iso") {
+            return @tr("ISO");
+        }
+        if (id == "aperture") {
+            return @tr("aperture");
+        }
+        if (id == "focal") {
+            return @tr("focal length");
+        }
+        if (id == "shutter") {
+            return @tr("shutter speed");
+        }
+        if (id == "text") {
+            return @tr("search");
+        }
+        if (id == "date") {
+            return @tr("capture date");
+        }
+        if (id == "folder") {
+            return @tr("folder");
+        }
+        if (id == "collection") {
+            return @tr("collection");
+        }
+        if (id == "rejected") {
+            return @tr("rejected");
+        }
+        if (id == "unflagged") {
+            return @tr("no flag");
+        }
+        return id;
+    }
     public pure function scan-found(n: int) -> string {
         return @tr("{} photo found." | "{} photos found." % n, n);
     }

@@ -834,6 +834,12 @@ impl Library {
             .create_smart_collection(parent, name, rules)
     }
 
+    /// The rules of a smart collection, or `None` for a manual one
+    /// (ADR 0143 §3).
+    pub fn smart_rules(&self, collection: CollectionId) -> Result<Option<SmartRules>> {
+        self.catalog().smart_rules(collection)
+    }
+
     /// Adds versions to a manual collection (§9).
     pub fn add_to_collection(&self, id: CollectionId, versions: &[VersionId]) -> Result<()> {
         self.catalog_mut().add_to_collection(id, versions)

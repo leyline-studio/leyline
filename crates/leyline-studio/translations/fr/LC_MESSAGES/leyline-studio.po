@@ -4274,3 +4274,108 @@ msgstr "{} + {}"
 msgctxt "Tr"
 msgid "No change"
 msgstr "Aucun changement"
+
+#: crates/leyline-studio/ui
+msgctxt "CollectionDialog"
+msgid "Manual"
+msgstr "Manuelle"
+
+#: crates/leyline-studio/ui
+msgctxt "CollectionDialog"
+msgid "Dynamic — the current filter"
+msgstr "Dynamique — le filtre actuel"
+
+#: crates/leyline-studio/ui
+msgctxt "Tr"
+msgid "rated {} or more"
+msgstr "notées {} ou plus"
+
+#: crates/leyline-studio/ui
+msgctxt "Tr"
+msgid "shot with {}"
+msgstr "prises avec {}"
+
+#: crates/leyline-studio/ui
+msgctxt "Tr"
+msgid "keyword {}"
+msgstr "portant le mot-clé {}"
+
+#: crates/leyline-studio/ui
+msgctxt "Tr"
+msgid "flagged as picks"
+msgstr "sélectionnées"
+
+#: crates/leyline-studio/ui
+msgctxt "Tr"
+msgid "It will always hold the photos {}."
+msgstr "Elle contiendra toujours les photos {}."
+
+#: crates/leyline-studio/ui
+msgctxt "Tr"
+msgid "colour label"
+msgstr "étiquette de couleur"
+
+#: crates/leyline-studio/ui
+msgctxt "Tr"
+msgid "lens"
+msgstr "objectif"
+
+#: crates/leyline-studio/ui
+msgctxt "Tr"
+msgid "aperture"
+msgstr "ouverture"
+
+#: crates/leyline-studio/ui
+msgctxt "Tr"
+msgid "focal length"
+msgstr "focale"
+
+#: crates/leyline-studio/ui
+msgctxt "Tr"
+msgid "shutter speed"
+msgstr "vitesse"
+
+#: crates/leyline-studio/ui
+msgctxt "Tr"
+msgid "search"
+msgstr "recherche"
+
+#: crates/leyline-studio/ui
+msgctxt "Tr"
+msgid "capture date"
+msgstr "date de prise de vue"
+
+#: crates/leyline-studio/ui
+msgctxt "Tr"
+msgid "folder"
+msgstr "dossier"
+
+#: crates/leyline-studio/ui
+msgctxt "Tr"
+msgid "collection"
+msgstr "collection"
+
+#: crates/leyline-studio/ui
+msgctxt "Tr"
+msgid "rejected"
+msgstr "rejetées"
+
+#: crates/leyline-studio/ui
+msgctxt "Tr"
+msgid "no flag"
+msgstr "sans drapeau"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "No filter is on: this would hold the whole library. Narrow the grid first."
+msgstr "Aucun filtre n'est actif : elle contiendrait toute la bibliothèque. Restreignez d'abord la grille."
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid ""
+"The « {} » filter cannot be kept: a dynamic collection knows the rating, the "
+"camera, keywords and the pick flag, and nothing else."
+msgstr ""
+"Le filtre « {} » ne peut pas être conservé : une collection dynamique connaît "
+"la note, le boîtier, les mots-clés et le drapeau de sélection, et rien "
+"d'autre."

@@ -15,7 +15,20 @@ export global CollectionState {
     in property <[CollectionRow]> collections;
     in-out property <int> active-collection: -1;
     callback select-collection(int);
-    callback run-new-collection(string);
+    // Whether the dialog is creating a **dynamic** collection — one that
+    // holds whatever the current filter answers, rather than the
+    // photographs one drops into it (ADR 0143).
+    in-out property <bool> new-collection-smart: false;
+    // What the dynamic collection would remember, in words, or why the
+    // current filter cannot be saved as one. Written by Rust when the
+    // dialog opens: the criteria are the query's, and the query is Rust's.
+    in-out property <string> smart-summary;
+    // Set when `smart-summary` is a refusal rather than a description.
+    in-out property <bool> smart-refused: false;
+    // Asked when the dialog opens: Rust reads the grid's query and says
+    // what a dynamic collection would remember, or why it cannot (ADR 0143).
+    callback prepare-new-collection();
+    callback run-new-collection(string, bool);
     callback add-to-collection();
     callback remove-from-collection();
     // Photographs dropped on a collection row (ADR 0130 §1): the grid cell
