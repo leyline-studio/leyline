@@ -102,7 +102,7 @@ export component ContactSheetDialog inherits VerticalLayout {
         HorizontalLayout {
             spacing: 8px;
             alignment: start;
-            for name[i] in ["Portrait", "Landscape"]: FilterChip {
+            for name[i] in [@tr("Portrait"), @tr("Landscape")]: FilterChip {
                 text: name;
                 active: DialogState.sheet-orientation == i;
                 clicked => {
@@ -204,7 +204,7 @@ export component ContactSheetDialog inherits VerticalLayout {
         HorizontalLayout {
             spacing: 8px;
             alignment: start;
-            for name[i] in ["Perceptual", "Relative", "Saturation", "Absolute"]: FilterChip {
+            for name[i] in [@tr("Perceptual"), @tr("Relative"), @tr("Saturation"), @tr("Absolute")]: FilterChip {
                 text: name;
                 active: DialogState.sheet-intent == i;
                 clicked => {

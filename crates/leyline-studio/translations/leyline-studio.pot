@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2026-09-09 13:26+0000\n"
+"POT-Creation-Date: 2026-09-10 06:51+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -158,6 +158,16 @@ msgctxt "ContactSheetDialog"
 msgid "Orientation"
 msgstr ""
 
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:105
+msgctxt "ContactSheetDialog"
+msgid "Portrait"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:105
+msgctxt "ContactSheetDialog"
+msgid "Landscape"
+msgstr ""
+
 #: crates/leyline-studio/ui/dialogs/contact_sheet.slint:116
 msgctxt "ContactSheetDialog"
 msgid "Columns"
@@ -216,6 +226,26 @@ msgstr ""
 #: crates/leyline-studio/ui/dialogs/contact_sheet.slint:200
 msgctxt "ContactSheetDialog"
 msgid "Rendering intent"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:207
+msgctxt "ContactSheetDialog"
+msgid "Perceptual"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:207
+msgctxt "ContactSheetDialog"
+msgid "Relative"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:207
+msgctxt "ContactSheetDialog"
+msgid "Saturation"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:207
+msgctxt "ContactSheetDialog"
+msgid "Absolute"
 msgstr ""
 
 #: crates/leyline-studio/ui/dialogs/contact_sheet.slint:218
@@ -681,6 +711,16 @@ msgctxt "PrintDialog"
 msgid "Orientation"
 msgstr ""
 
+#: crates/leyline-studio/ui/dialogs/print.slint:66
+msgctxt "PrintDialog"
+msgid "Portrait"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/print.slint:66
+msgctxt "PrintDialog"
+msgid "Landscape"
+msgstr ""
+
 #: crates/leyline-studio/ui/dialogs/print.slint:80
 msgctxt "PrintDialog"
 msgid "Margins (mm, all sides)"
@@ -704,6 +744,26 @@ msgstr ""
 #: crates/leyline-studio/ui/dialogs/print.slint:163
 msgctxt "PrintDialog"
 msgid "Rendering intent"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/print.slint:170
+msgctxt "PrintDialog"
+msgid "Perceptual"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/print.slint:170
+msgctxt "PrintDialog"
+msgid "Relative"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/print.slint:170
+msgctxt "PrintDialog"
+msgid "Saturation"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/print.slint:170
+msgctxt "PrintDialog"
+msgid "Absolute"
 msgstr ""
 
 #: crates/leyline-studio/ui/dialogs/print.slint:184

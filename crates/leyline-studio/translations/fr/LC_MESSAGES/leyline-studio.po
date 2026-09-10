@@ -157,6 +157,16 @@ msgctxt "ContactSheetDialog"
 msgid "Orientation"
 msgstr "Orientation"
 
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:105
+msgctxt "ContactSheetDialog"
+msgid "Portrait"
+msgstr "Portrait"
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:105
+msgctxt "ContactSheetDialog"
+msgid "Landscape"
+msgstr "Paysage"
+
 #: crates/leyline-studio/ui/dialogs/contact_sheet.slint:116
 msgctxt "ContactSheetDialog"
 msgid "Columns"
@@ -216,6 +226,26 @@ msgstr "Parcourir…"
 msgctxt "ContactSheetDialog"
 msgid "Rendering intent"
 msgstr "Intention de rendu"
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:207
+msgctxt "ContactSheetDialog"
+msgid "Perceptual"
+msgstr "Perceptuel"
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:207
+msgctxt "ContactSheetDialog"
+msgid "Relative"
+msgstr "Relatif"
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:207
+msgctxt "ContactSheetDialog"
+msgid "Saturation"
+msgstr "Saturation"
+
+#: crates/leyline-studio/ui/dialogs/contact_sheet.slint:207
+msgctxt "ContactSheetDialog"
+msgid "Absolute"
+msgstr "Absolu"
 
 #: crates/leyline-studio/ui/dialogs/contact_sheet.slint:218
 msgctxt "ContactSheetDialog"
@@ -630,6 +660,16 @@ msgctxt "PrintDialog"
 msgid "Orientation"
 msgstr "Orientation"
 
+#: crates/leyline-studio/ui/dialogs/print.slint:66
+msgctxt "PrintDialog"
+msgid "Portrait"
+msgstr "Portrait"
+
+#: crates/leyline-studio/ui/dialogs/print.slint:66
+msgctxt "PrintDialog"
+msgid "Landscape"
+msgstr "Paysage"
+
 #: crates/leyline-studio/ui/dialogs/print.slint:80
 msgctxt "PrintDialog"
 msgid "Margins (mm, all sides)"
@@ -654,6 +694,26 @@ msgstr "Parcourir…"
 msgctxt "PrintDialog"
 msgid "Rendering intent"
 msgstr "Intention de rendu"
+
+#: crates/leyline-studio/ui/dialogs/print.slint:170
+msgctxt "PrintDialog"
+msgid "Perceptual"
+msgstr "Perceptuel"
+
+#: crates/leyline-studio/ui/dialogs/print.slint:170
+msgctxt "PrintDialog"
+msgid "Relative"
+msgstr "Relatif"
+
+#: crates/leyline-studio/ui/dialogs/print.slint:170
+msgctxt "PrintDialog"
+msgid "Saturation"
+msgstr "Saturation"
+
+#: crates/leyline-studio/ui/dialogs/print.slint:170
+msgctxt "PrintDialog"
+msgid "Absolute"
+msgstr "Absolu"
 
 #: crates/leyline-studio/ui/dialogs/print.slint:184
 msgctxt "PrintDialog"
