@@ -4034,3 +4034,88 @@ msgstr "Relève la région entre le premier et le deuxième repère."
 msgctxt "DevelopPanel"
 msgid "Lifts the darkest region, between black and the first marker."
 msgstr "Relève la région la plus sombre, entre le noir et le premier repère."
+
+#: crates/leyline-studio/ui/panels/develop.slint
+msgctxt "DevelopPanel"
+msgid "Roll-off"
+msgstr "Récupération"
+
+#: crates/leyline-studio/ui/panels/develop.slint
+msgctxt "DevelopPanel"
+msgid "Noise reduction"
+msgstr "Réduction du bruit"
+
+#: crates/leyline-studio/ui/panels/develop.slint
+msgctxt "DevelopPanel"
+msgid "Sharpening"
+msgstr "Netteté"
+
+#: crates/leyline-studio/ui/panels/develop.slint
+msgctxt "DevelopPanel"
+msgid "Radius"
+msgstr "Rayon"
+
+#: crates/leyline-studio/ui/panels/develop.slint
+msgctxt "DevelopPanel"
+msgid "Masking"
+msgstr "Masquage"
+
+#: crates/leyline-studio/ui/panels/develop.slint
+msgctxt "DevelopPanel"
+msgid "Defringe"
+msgstr "Défrangeage"
+
+#: crates/leyline-studio/ui/panels/develop.slint
+msgctxt "DevelopPanel"
+msgid "From"
+msgstr "À partir de"
+
+#: crates/leyline-studio/ui/panels/develop.slint
+msgctxt "DevelopPanel"
+msgid "To"
+msgstr "Jusqu'à"
+
+#: crates/leyline-studio/ui/panels/develop.slint
+msgctxt "DevelopPanel"
+msgid "Softness"
+msgstr "Douceur"
+
+#: crates/leyline-studio/ui/panels/develop.slint
+msgctxt "DevelopPanel"
+msgid "Width"
+msgstr "Largeur"
+
+#: crates/leyline-studio/ui/panels/develop.slint
+msgctxt "DevelopPanel"
+msgid "Perspective"
+msgstr "Perspective"
+
+#: crates/leyline-studio/ui/panels/develop.slint
+msgctxt "DevelopPanel"
+msgid "Vertical"
+msgstr "Verticale"
+
+#: crates/leyline-studio/ui/panels/develop.slint
+msgctxt "DevelopPanel"
+msgid "Horizontal"
+msgstr "Horizontale"
+
+#: crates/leyline-studio/ui/panels/develop.slint
+msgctxt "DevelopPanel"
+msgid "Left"
+msgstr "Gauche"
+
+#: crates/leyline-studio/ui/panels/develop.slint
+msgctxt "DevelopPanel"
+msgid "Top"
+msgstr "Haut"
+
+#: crates/leyline-studio/ui/panels/develop.slint
+msgctxt "DevelopPanel"
+msgid "Height"
+msgstr "Hauteur"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "Original"
+msgstr "Original"

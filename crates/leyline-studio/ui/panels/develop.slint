@@ -1623,7 +1623,10 @@ export component DevelopPanel inherits HorizontalLayout {
         }
 
         if !root.side-panels-hidden: Rectangle {
-            width: 300px;
+            // 320px since ADR 0140 §1: the label column needed twenty
+            // pixels it could not take from the track without spending the
+            // precision ADR 0126 bought, so the panel pays instead.
+            width: 320px;
             background: #212121;
 
             Flickable {
@@ -2194,7 +2197,7 @@ export component DevelopPanel inherits HorizontalLayout {
                         // is: Full mode, after the sequence rather than inside
                         // it (ADR 0054 §2).
                         if !root.basic-mode: EditSlider {
-                            label: @tr("Highlight roll-off");
+                            label: @tr("Roll-off");
                             hint: @tr("How gently the brightest tones reach white. Higher keeps a bright sky a sky instead of a white shape.");
                             minimum: 0;
                             maximum: 100;
@@ -2492,8 +2495,16 @@ export component DevelopPanel inherits HorizontalLayout {
                     }
                     if root.expand-detail: VerticalLayout {
                         spacing: 12px;
+                        // Sub-headings rather than a prefix on every label
+                        // (ADR 0140 §2): « Réduction du bruit — luminance »
+                        // does not fit a label column at any width worth
+                        // having, and the group heading carries the word
+                        // once instead of five times.
+                        SubHeading {
+                            label: @tr("Noise reduction");
+                        }
                         EditSlider {
-                            label: @tr("Luminance NR");
+                            label: @tr("Luminance");
                             hint: @tr("Noise reduction on brightness — the grain. Too much turns detail into plastic.");
                             minimum: 0;
                             maximum: 100;
@@ -2506,7 +2517,7 @@ export component DevelopPanel inherits HorizontalLayout {
                             }
                         }
                         EditSlider {
-                            label: @tr("Color NR");
+                            label: @tr("Color");
                             hint: @tr("Noise reduction on colour — the coloured speckle. Costs far less detail than luminance does.");
                             minimum: 0;
                             maximum: 100;
@@ -2518,8 +2529,11 @@ export component DevelopPanel inherits HorizontalLayout {
                                 DevelopState.develop-preview("nr-color", v);
                             }
                         }
+                        SubHeading {
+                            label: @tr("Sharpening");
+                        }
                         EditSlider {
-                            label: @tr("Sharpen amount");
+                            label: @tr("Amount");
                             minimum: 0;
                             maximum: 100;
                             value: DevelopState.dev.sharpen-amount;
@@ -2531,7 +2545,7 @@ export component DevelopPanel inherits HorizontalLayout {
                             }
                         }
                         EditSlider {
-                            label: @tr("Sharpen radius");
+                            label: @tr("Radius");
                             hint: @tr("How wide an edge the sharpening works on. Small for fine detail, larger for a soft image.");
                             minimum: 0.5;
                             maximum: 3;
@@ -2550,7 +2564,7 @@ export component DevelopPanel inherits HorizontalLayout {
                         // apart. Full mode only, beside the two sliders it
                         // modulates.
                         if !root.basic-mode: EditSlider {
-                            label: @tr("Sharpen masking");
+                            label: @tr("Masking");
                             hint: @tr("Keeps the sharpening on the edges and off the flat areas, so a sky stays smooth.");
                             minimum: 0;
                             maximum: 100;
@@ -3864,8 +3878,11 @@ export component DevelopPanel inherits HorizontalLayout {
                                     MaskState.preview-mask(MaskState.selected-mask, "sharpness", v);
                                 }
                             }
+                            SubHeading {
+                                label: @tr("Noise reduction");
+                            }
                             EditSlider {
-                                label: @tr("Luminance noise");
+                                label: @tr("Luminance");
                                 hint: @tr("Noise reduction on brightness — the grain. Too much turns detail into plastic.");
                                 minimum: 0;
                                 maximum: 100;
@@ -3878,7 +3895,7 @@ export component DevelopPanel inherits HorizontalLayout {
                                 }
                             }
                             EditSlider {
-                                label: @tr("Color noise");
+                                label: @tr("Color");
                                 hint: @tr("Noise reduction on colour — the coloured speckle. Costs far less detail than luminance does.");
                                 minimum: 0;
                                 maximum: 100;
@@ -3891,8 +3908,11 @@ export component DevelopPanel inherits HorizontalLayout {
                                 }
                             }
 
+                            SubHeading {
+                                label: @tr("Defringe");
+                            }
                             EditSlider {
-                                label: @tr("Defringe purple");
+                                label: @tr("Purple");
                                 hint: @tr("Removes purple fringes along high-contrast edges.");
                                 minimum: 0;
                                 maximum: 100;
@@ -3907,7 +3927,7 @@ export component DevelopPanel inherits HorizontalLayout {
                                 }
                             }
                             EditSlider {
-                                label: @tr("Defringe green");
+                                label: @tr("Green");
                                 hint: @tr("Removes green fringes along high-contrast edges.");
                                 minimum: 0;
                                 maximum: 100;
@@ -3976,7 +3996,7 @@ export component DevelopPanel inherits HorizontalLayout {
                                 }
                             }
                             if editor.sel.range-luminance-on: EditSlider {
-                                label: @tr("Range from");
+                                label: @tr("From");
                                 hint: @tr("The mask acts only on tones brighter than this.");
                                 minimum: 0;
                                 maximum: 100;
@@ -3989,7 +4009,7 @@ export component DevelopPanel inherits HorizontalLayout {
                                 }
                             }
                             if editor.sel.range-luminance-on: EditSlider {
-                                label: @tr("Range to");
+                                label: @tr("To");
                                 hint: @tr("The mask acts only on tones darker than this.");
                                 minimum: 0;
                                 maximum: 100;
@@ -4002,7 +4022,7 @@ export component DevelopPanel inherits HorizontalLayout {
                                 }
                             }
                             if editor.sel.range-luminance-on: EditSlider {
-                                label: @tr("Range softness");
+                                label: @tr("Softness");
                                 hint: @tr("How gradually the mask fades outside that band of brightness.");
                                 minimum: 0;
                                 maximum: 100;
@@ -4042,7 +4062,7 @@ export component DevelopPanel inherits HorizontalLayout {
                                 }
                             }
                             if editor.sel.range-color-on: EditSlider {
-                                label: @tr("Hue width");
+                                label: @tr("Width");
                                 hint: @tr("How far either side of the chosen hue the mask reaches.");
                                 minimum: 1;
                                 maximum: 180;
@@ -4055,7 +4075,7 @@ export component DevelopPanel inherits HorizontalLayout {
                                 }
                             }
                             if editor.sel.range-color-on: EditSlider {
-                                label: @tr("Hue softness");
+                                label: @tr("Softness");
                                 hint: @tr("How gradually the mask fades outside that band of hues.");
                                 minimum: 0;
                                 maximum: 180;
@@ -4177,8 +4197,11 @@ export component DevelopPanel inherits HorizontalLayout {
                         }
                         // Perspective (ADR 0052): between rotation and crop
                         // in the panel exactly as in the pipeline.
+                        SubHeading {
+                            label: @tr("Perspective");
+                        }
                         EditSlider {
-                            label: @tr("Vertical perspective");
+                            label: @tr("Vertical");
                             hint: @tr("Straightens converging verticals — a building that leans away.");
                             minimum: -100;
                             maximum: 100;
@@ -4191,7 +4214,7 @@ export component DevelopPanel inherits HorizontalLayout {
                             }
                         }
                         EditSlider {
-                            label: @tr("Horizontal perspective");
+                            label: @tr("Horizontal");
                             hint: @tr("Straightens converging horizontals — a wall taken from an angle.");
                             minimum: -100;
                             maximum: 100;
@@ -4237,8 +4260,11 @@ export component DevelopPanel inherits HorizontalLayout {
                             wrap: word-wrap;
                         }
 
+                        SubHeading {
+                            label: @tr("Crop");
+                        }
                         EditSlider {
-                            label: @tr("Crop left");
+                            label: @tr("Left");
                             minimum: 0;
                             maximum: 100;
                             value: DevelopState.dev.crop-left;
@@ -4250,7 +4276,7 @@ export component DevelopPanel inherits HorizontalLayout {
                             }
                         }
                         EditSlider {
-                            label: @tr("Crop top");
+                            label: @tr("Top");
                             minimum: 0;
                             maximum: 100;
                             value: DevelopState.dev.crop-top;
@@ -4262,7 +4288,7 @@ export component DevelopPanel inherits HorizontalLayout {
                             }
                         }
                         EditSlider {
-                            label: @tr("Crop width");
+                            label: @tr("Width");
                             minimum: 1;
                             maximum: 100;
                             value: DevelopState.dev.crop-width;
@@ -4274,7 +4300,7 @@ export component DevelopPanel inherits HorizontalLayout {
                             }
                         }
                         EditSlider {
-                            label: @tr("Crop height");
+                            label: @tr("Height");
                             minimum: 1;
                             maximum: 100;
                             value: DevelopState.dev.crop-height;

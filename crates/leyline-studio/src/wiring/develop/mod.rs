@@ -30,7 +30,7 @@ use crate::app::{App, report_error};
 use crate::develop;
 use crate::format;
 use crate::models::{CURVE_CANVAS_SIZE, dev_model};
-use crate::ui::{CurveMarker, DevelopState, MaskState, StudioWindow};
+use crate::ui::{CurveMarker, DevelopState, MaskState, StudioWindow, Tr};
 use leyline_sdk::{AssetId, PreviewKind, VersionId};
 use slint::{Global, ModelRc, SharedString, VecModel};
 
@@ -149,7 +149,7 @@ pub(crate) fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<()
     if let Ok(versions) = app.library.catalog().versions(asset) {
         let names: Vec<SharedString> = versions
             .iter()
-            .map(|info| SharedString::from(info.name.as_str()))
+            .map(|info| version_name(window, &info.name))
             .collect();
         DevelopState::get(window).set_dev_version_current(
             i32::try_from(
@@ -300,6 +300,22 @@ pub(crate) fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<()
 /// leaves all four empty: the panel then shows no row at all rather than a
 /// line of dashes. A read failure is treated the same way — the capture strip
 /// is an aid, never a reason to fail refreshing the view.
+/// A version's name as the interface shows it.
+///
+/// One special case, and it is ours: the catalog writes `Default` itself
+/// when an asset is registered (`leyline-catalog/src/assets.rs`), so it is
+/// not a name a photographer chose — it is a word this software wrote in
+/// English into every library, and a French interface has no business
+/// showing it (ADR 0140 §3). Every other name is shown exactly as typed,
+/// translated by nobody.
+fn version_name(window: &StudioWindow, stored: &str) -> SharedString {
+    if stored == "Default" {
+        Tr::get(window).invoke_version_default()
+    } else {
+        SharedString::from(stored)
+    }
+}
+
 fn show_capture_info(app: &mut App, window: &StudioWindow, asset: AssetId) {
     let meta = app
         .library

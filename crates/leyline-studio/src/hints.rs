@@ -10,6 +10,11 @@
 
 /// Labels whose own word says what the slider does (ADR 0133 §1).
 ///
+/// Judged **with the sub-heading above them** since ADR 0140 §2: a label
+/// short enough to fit its column often owes half its meaning to the
+/// heading — `Amount` under « Netteté » is sharpening's amount, and the
+/// list below reads in that company, not in isolation.
+///
 /// The test to apply before adding one: *could a photographer say what moving
 /// this will do, from the label alone, before moving it?* And the second
 /// clause — a label is judged **in the company it keeps**, which is why
@@ -21,16 +26,24 @@ const SELF_EVIDENT: &[&str] = &[
     "Saturation",
     "Hue",
     "Luminance",
-    "Amount",
-    "Size",
     "Strength",
     "Opacity",
     "Rotation",
-    "Sharpen amount",
-    "Crop left",
-    "Crop top",
-    "Crop width",
-    "Crop height",
+    "Tone ▸ Exposure",
+    "Tone ▸ Contrast",
+    "Presence ▸ Saturation",
+    "Vignette ▸ Amount",
+    "Grain ▸ Amount",
+    "Grain ▸ Size",
+    // The four crop numbers, labelled by their edge alone under the
+    // « Recadrage » sub-heading (ADR 0140 §2). Written with the heading
+    // because that is what makes them plain: `Left` on its own would be a
+    // question, `Crop ▸ Left` is not.
+    "Crop ▸ Left",
+    "Crop ▸ Top",
+    "Crop ▸ Width",
+    "Crop ▸ Height",
+    "Sharpening ▸ Amount",
 ];
 
 #[cfg(test)]
@@ -40,6 +53,9 @@ mod tests {
     /// One `EditSlider` as the source declares it.
     struct Slider {
         line: usize,
+        /// The label, prefixed by the sub-heading in scope when there is
+        /// one — `Crop ▸ Left` — because that is how a reader meets it
+        /// (ADR 0140 §2).
         label: String,
         hinted: bool,
     }
@@ -54,8 +70,31 @@ mod tests {
         let source = include_str!("../ui/panels/develop.slint");
         let lines: Vec<&str> = source.lines().collect();
         let mut found = Vec::new();
+        // The sub-heading a slider sits under, if any. It survives until the
+        // next sub-heading or the next group — the same scope the eye gives
+        // it.
+        let mut heading: Option<String> = None;
         for (index, line) in lines.iter().enumerate() {
-            if !line.trim_end().ends_with("EditSlider {") {
+            let trimmed = line.trim_end();
+            if trimmed.ends_with("SubHeading {") {
+                heading = lines
+                    .get(index + 1)
+                    .and_then(|l| translated(l, "label"))
+                    .or(heading.take());
+                continue;
+            }
+            if trimmed.ends_with("GroupHeader {") {
+                heading = None;
+                continue;
+            }
+            // A conditional block is a new context: the mask editor's
+            // « Luminance range » and « Color range » open one each, and a
+            // heading that leaked into them would name the wrong section.
+            if trimmed.trim_start().starts_with("if ") && trimmed.ends_with('{') {
+                heading = None;
+                continue;
+            }
+            if !trimmed.ends_with("EditSlider {") {
                 continue;
             }
             // The label is the first `label:` after the opening brace, and
@@ -67,7 +106,10 @@ mod tests {
             };
             found.push(Slider {
                 line: index + 1,
-                label,
+                label: match &heading {
+                    Some(heading) => format!("{heading} \u{25b8} {label}"),
+                    None => label,
+                },
                 hinted: window.iter().any(|l| translated(l, "hint").is_some()),
             });
         }

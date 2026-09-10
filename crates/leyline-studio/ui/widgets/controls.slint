@@ -819,7 +819,12 @@ export component EditSlider inherits HorizontalLayout {
     // that appeared in the middle of aiming is the one ADR 0127 §3 refuses.
     // Pointing at the word one does not understand *is* the question.
     Rectangle {
-        width: 88px;
+        // 108px and not 88: measured on the built binary **in French**, a
+        // column of 88 truncated twenty of the panel's fifty-five labels
+        // (ADR 0140 §1). The twenty extra pixels come from the panel, not
+        // from the track — the track keeps the 118px ADR 0126 measured its
+        // precision against.
+        width: 108px;
         Text {
             // Right-aligned against the track, fixed width: the labels line
             // up as a column, and the tracks all start at the same x.

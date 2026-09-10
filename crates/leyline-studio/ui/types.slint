@@ -648,6 +648,12 @@ export global Tr {
     public pure function scanning-ellipsis() -> string {
         return @tr("Looking at what is there…");
     }
+    // The name the catalog writes for the first version of every asset
+    // (ADR 0140 §3). Translated here and nowhere else: it is the one
+    // version name this software wrote rather than a photographer.
+    public pure function version-default() -> string {
+        return @tr("Original");
+    }
     public pure function scan-found(n: int) -> string {
         return @tr("{} photo found." | "{} photos found." % n, n);
     }
