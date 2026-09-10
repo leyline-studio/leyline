@@ -622,6 +622,7 @@ fn select(
     let mut files = Vec::new();
     for name in chosen {
         let found = candidates
+            .candidates
             .iter()
             .find(|candidate| candidate.filename == *name)
             .ok_or_else(|| format!("--only {name:?}: no such file under {}", source.display()))?;
@@ -650,10 +651,10 @@ fn scan(args: &[String]) -> Result<(), String> {
             |done, total| eprint!("\rscanning {done}/{total}"),
         )
         .map_err(|e| e.to_string())?;
-    if !candidates.is_empty() {
+    if !candidates.candidates.is_empty() {
         eprintln!();
     }
-    for candidate in &candidates {
+    for candidate in &candidates.candidates {
         println!(
             "{} {:<24} {:>10} {} {}",
             // The mark is the point of the listing: it says which ones
@@ -670,10 +671,14 @@ fn scan(args: &[String]) -> Result<(), String> {
             println!("    ↳ same content as asset {asset}");
         }
     }
-    let already = candidates.iter().filter(|c| c.already_imported).count();
+    let already = candidates
+        .candidates
+        .iter()
+        .filter(|c| c.already_imported)
+        .count();
     println!(
         "{} candidate(s), {already} already in the library",
-        candidates.len()
+        candidates.candidates.len()
     );
     Ok(())
 }

@@ -15,6 +15,8 @@ use leyline_core::{
 
 use crate::session::{EditSession, Param, Value};
 
+use crate::flow::Flow;
+
 /// Outcome of one preset application batch — same shape as [`crate::ExportReport`].
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct PresetApplyReport {
@@ -22,6 +24,10 @@ pub struct PresetApplyReport {
     pub applied: Vec<VersionId>,
     /// Versions left untouched, with the human-readable reason.
     pub failed: Vec<FailedApply>,
+    /// Whether the batch stopped before the end of its list (ADR 0139).
+    /// Everything it names was done; every version it does not was never
+    /// reached.
+    pub cancelled: bool,
 }
 
 /// One version a preset batch could not apply to.
@@ -57,11 +63,11 @@ pub fn capture(
 /// One failing version does not stop the batch; `progress` receives
 /// `(done, total)` after each version, the batching contract of
 /// `docs/engine-api.md` §3.1.
-pub fn apply_batch(
+pub fn apply_batch<F: Into<Flow>>(
     catalog: &mut Catalog,
     preset: &PresetSettings,
     versions: &[VersionId],
-    progress: impl FnMut(u64, u64),
+    progress: impl FnMut(u64, u64) -> F,
 ) -> PresetApplyReport {
     apply_batch_from(catalog, preset, None, versions, progress)
 }
@@ -73,12 +79,12 @@ pub fn apply_batch(
 /// pasted settings, or a preset applied from a file. Provenance names a
 /// catalog row, and inventing one for something that has none would be worse
 /// than saying nothing.
-pub fn apply_batch_from(
+pub fn apply_batch_from<F: Into<Flow>>(
     catalog: &mut Catalog,
     preset: &PresetSettings,
     from_preset: Option<(PresetId, u32)>,
     versions: &[VersionId],
-    mut progress: impl FnMut(u64, u64),
+    mut progress: impl FnMut(u64, u64) -> F,
 ) -> PresetApplyReport {
     let values = param_values(preset);
     let total = versions.len() as u64;
@@ -91,7 +97,10 @@ pub fn apply_batch_from(
                 reason: error.to_string(),
             }),
         }
-        progress(done as u64 + 1, total);
+        if progress(done as u64 + 1, total).into().stops() {
+            report.cancelled = true;
+            break;
+        }
     }
     report
 }

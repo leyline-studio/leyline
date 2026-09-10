@@ -73,6 +73,7 @@ use wiring::dialogs::wire_dialogs;
 use wiring::filters::{refresh_shot_facets, wire_classify, wire_filters};
 use wiring::folders::{refresh_folders, wire_folders};
 use wiring::grid::{load_window, reload, wire_select};
+use wiring::jobs::wire_jobs;
 use wiring::keywords::{refresh_keyword_panel, wire_keyword_panel, wire_keywords};
 use wiring::library::{wire_culling, wire_library, wire_processors, wire_undo};
 use wiring::map::wire_map;
@@ -413,6 +414,8 @@ fn run() -> Result<(), Startup> {
         sheet_job: None,
         derive_job: None,
         cull_job: None,
+        reprocess_job: None,
+        task_job: None,
         proposal: None,
         preview_jobs: HashSet::new(),
         tether_connected: false,
@@ -534,6 +537,7 @@ fn run() -> Result<(), Startup> {
     wire_map(&app, &window);
     wire_tether(&app, &window);
     wire_views(&app, &window);
+    wire_jobs(&app, &window);
     {
         // Scrolling or resizing moves the visible window: fetch the matching
         // rows from the catalog when the loaded window no longer covers it.

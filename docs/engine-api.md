@@ -71,6 +71,7 @@ pub enum JobResult {
     Import(ImportReport),   // per-file failures included in the report
     Export(ExportReport),   // per-version failures included in the report
     Preset(PresetApplyReport), // per-version failures included in the report
+    Scan(ScanReport),       // what a scan found, and whether it reached the end
     Preview(PreviewFile),
     Failed(String),         // the job failed before producing anything at all
 }
@@ -86,11 +87,21 @@ pub enum JobResult {
 * `WatchStarted`/`WatchStopped` follow the same principle for `watch_start`/`watch_stop` (§6ter, `docs/adr/0039-watched-folder-import.md`): each file that stabilises in the watched folder notifies through `AssetsAdded`.
 * **Delivered state**: `subscribe` and the `import_async`, `preview_async`, `export_async` jobs emit `JobProgress`, `AssetsAdded`, `PreviewReady` and `JobFinished`. The façade's writes notify: classification (§8) → one `VersionChanged` per version in the batch; keywords (§8) → `AssetsChanged` with the batch; removing assets (ADR 0060, `remove_assets`/`delete_assets`) → `AssetsRemoved` with the ones that actually existed; every history write of an edit session (§10.1 — commit, amendment, undo, redo) → `VersionChanged`. Applying a preset (§10.3) notifies nothing more: it is one session commit per targeted version, hence the same `VersionChanged` as §10.1, carried by the `apply_preset_async` job. A client that writes through `catalog_mut()` directly bypasses the notifications: go through the façade. `close()` (§5) emits `LibraryClosed` to every subscriber of the shared stream; the other clones of the `Library` stay usable — only the catalog connection closes, and only when the last clone is dropped.
 
+## 3.2bis Cancelling a job
+
+A batch is asked to stop with `library.cancel_job(job_id)` ([ADR 0139](adr/0139-cancelling-a-batch.md)).
+
+* It stops **between two units of work**, never inside one: the photograph being imported is finished, the file being written is closed, and only then does the batch end. Nothing is undone — what is imported stays imported, what is exported stays on disk.
+* A cancelled job ends with the ordinary `JobFinished`, and its report carries `cancelled: true` alongside everything it did manage: `ImportReport`, `ExportReport`, `PrintReport`, `PresetApplyReport`, `ReprocessReport` and `ScanReport`. There is no `Cancelled` variant, because a stopped batch is not a failed one — it produced exactly what its report says.
+* `cancel_job` on a job that has already ended, or on an id that never existed, does nothing: a client clicking as a batch finishes is the ordinary race, not an error. A cancellation never outlives its job.
+* **Which jobs listen**: `import_async`, `import_files_async`, `scan_import_async`, `export_async`, `print_async`, `apply_preset_async`, `reprocess_async`. Not `contact_sheet_async` (one PDF: half of one is nothing to keep) nor `cull_async` (a proposal that covered part of a shoot would say "reject these" while staying silent about the rest); `preview_async` is one photograph and ends before a click could reach it.
+* The synchronous cores take the same decision through their `progress` callback, whose answer is a `Flow`: a caller that returns `()` — `|_, _| {}`, as most do — carries on for ever, and one that returns `Flow::Stop` ends the batch at that checkpoint.
+
 ## 3.3 Threading
 
 * `Library` is `Send + Sync` and clones at no cost (an internal `Arc`). Every clone shares the same catalog and the same event stream.
 * Catalog accesses go through guards (`catalog()` / `catalog_mut()`) that hold the internal lock: one operation, then release — never hold a guard across another call into the `Library` (an edit session holds the guard for its lifetime, and that is deliberate: nothing else mutates during editing).
-* Every `*_async` job (`import_async`, `preview_async`, `export_async`, `export_with_preset_async`, `apply_preset_async`, `reprocess_async`) runs on a shared, bounded job pool (a fixed set of dedicated threads, sized to `available_parallelism()` capped at 16, one pool per `Library`) rather than on a dedicated thread per call: job concurrency has a ceiling imposed by the engine, whatever the client's behaviour — beyond the ceiling, further jobs queue. That pool is deliberately distinct from the global rayon pool used for pixel rendering (§10, `pixels.rs`, `process1..5.rs`): sharing one rayon pool between job dispatch and the `par_iter`/`join` work internal to rendering would expose work stealing to recruiting a job's thread to run *another* job while it still holds the catalog mutex — a non-reentrant lock, hence a deadlock. The job pool belongs to the same internal `Arc` as the catalog: its threads run as long as a clone of the `Library` exists and stop by themselves when the last one disappears; jobs in progress or queued are neither cancelled nor interrupted by `close()`.
+* Every `*_async` job (`import_async`, `preview_async`, `export_async`, `export_with_preset_async`, `apply_preset_async`, `reprocess_async`) runs on a shared, bounded job pool (a fixed set of dedicated threads, sized to `available_parallelism()` capped at 16, one pool per `Library`) rather than on a dedicated thread per call: job concurrency has a ceiling imposed by the engine, whatever the client's behaviour — beyond the ceiling, further jobs queue. That pool is deliberately distinct from the global rayon pool used for pixel rendering (§10, `pixels.rs`, `process1..5.rs`): sharing one rayon pool between job dispatch and the `par_iter`/`join` work internal to rendering would expose work stealing to recruiting a job's thread to run *another* job while it still holds the catalog mutex — a non-reentrant lock, hence a deadlock. The job pool belongs to the same internal `Arc` as the catalog: its threads run as long as a clone of the `Library` exists and stop by themselves when the last one disappears; jobs in progress or queued are neither cancelled nor interrupted by `close()` — the only way to end one early is `cancel_job` (§3.2bis).
 * Catalog writes are serialised internally; the client has no ordering constraint to respect.
 
 ---

@@ -14,6 +14,8 @@ use leyline_preview::Rgb8;
 
 use crate::render;
 
+use crate::flow::Flow;
+
 /// The recipe an [`ExportRequest`] drives an export with: either an ad-hoc
 /// set of settings, or a stored preset resolved (and journaled by id)
 /// at export time.
@@ -254,6 +256,10 @@ pub struct ExportReport {
     pub exported: Vec<ExportedVersion>,
     /// Versions left unexported, with reasons.
     pub failed: Vec<FailedExport>,
+    /// Whether the batch stopped before the end of its list (ADR 0139).
+    /// A version named by neither list above was never begun — the batch
+    /// stops between photographs, never inside a file being written.
+    pub cancelled: bool,
 }
 
 /// Exports several versions into `destination_dir` with one recipe.
@@ -264,14 +270,14 @@ pub struct ExportReport {
 /// exports-never-overwrite rule applies inside a batch too. `progress`
 /// receives `(done, total)` after each version, the batching contract of
 /// `docs/engine-api.md` §12.
-pub fn export_batch(
+pub fn export_batch<F: Into<Flow>>(
     catalog: &mut Catalog,
     library_root: &Path,
     versions: &[VersionId],
     settings: &ExportSettings,
     preset: Option<ExportPresetId>,
     destination_dir: &Path,
-    mut progress: impl FnMut(u64, u64),
+    mut progress: impl FnMut(u64, u64) -> F,
 ) -> Result<ExportReport> {
     settings.validate().map_err(export_err)?;
     let total = versions.len() as u64;
@@ -291,7 +297,10 @@ pub fn export_batch(
                 reason: error.to_string(),
             }),
         }
-        progress(done as u64 + 1, total);
+        if progress(done as u64 + 1, total).into().stops() {
+            report.cancelled = true;
+            break;
+        }
     }
     Ok(report)
 }

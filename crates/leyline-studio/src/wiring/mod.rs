@@ -11,6 +11,7 @@ pub(crate) mod dialogs;
 pub(crate) mod filters;
 pub(crate) mod folders;
 pub(crate) mod grid;
+pub(crate) mod jobs;
 pub(crate) mod keywords;
 pub(crate) mod library;
 pub(crate) mod map;

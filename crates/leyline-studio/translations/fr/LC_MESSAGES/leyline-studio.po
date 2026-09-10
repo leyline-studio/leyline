@@ -3330,6 +3330,73 @@ msgctxt "Tr"
 msgid "Select a photo first."
 msgstr "Sélectionnez d'abord une photo."
 
+#: crates/leyline-studio/ui/types.slint:658
+msgctxt "Tr"
+msgid "{} photo found before you stopped the scan."
+msgid_plural "{} photos found before you stopped the scan."
+msgstr[0] "{} photo trouvée avant que vous n'arrêtiez l'analyse."
+msgstr[1] "{} photos trouvées avant que vous n'arrêtiez l'analyse."
+
+#: crates/leyline-studio/ui/types.slint:662
+msgctxt "Tr"
+msgid "Import"
+msgstr "Import"
+
+#: crates/leyline-studio/ui/types.slint:665
+msgctxt "Tr"
+msgid "Looking at the folder"
+msgstr "Analyse du dossier"
+
+#: crates/leyline-studio/ui/types.slint:668
+msgctxt "Tr"
+msgid "Export"
+msgstr "Export"
+
+#: crates/leyline-studio/ui/types.slint:671
+msgctxt "Tr"
+msgid "Printing"
+msgstr "Impression"
+
+#: crates/leyline-studio/ui/types.slint:674
+msgctxt "Tr"
+msgid "Contact sheet"
+msgstr "Planche contact"
+
+#: crates/leyline-studio/ui/types.slint:677
+msgctxt "Tr"
+msgid "Reprocessing"
+msgstr "Retraitement"
+
+#: crates/leyline-studio/ui/types.slint:680
+msgctxt "Tr"
+msgid "Assisted culling"
+msgstr "Tri assisté"
+
+#: crates/leyline-studio/ui/types.slint:685
+msgctxt "Tr"
+msgid " — stopped; what was done is kept."
+msgstr " — arrêté ; ce qui a été fait est conservé."
+
+#: crates/leyline-studio/ui/panels/task_bar.slint:59
+msgctxt "TaskBar"
+msgid "{} / {}"
+msgstr "{} / {}"
+
+#: crates/leyline-studio/ui/panels/task_bar.slint:60
+msgctxt "TaskBar"
+msgid "in progress…"
+msgstr "en cours…"
+
+#: crates/leyline-studio/ui/panels/task_bar.slint:73
+msgctxt "TaskBar"
+msgid "Stopping…"
+msgstr "Arrêt en cours…"
+
+#: crates/leyline-studio/ui/panels/task_bar.slint:73
+msgctxt "TaskBar"
+msgid "Cancel"
+msgstr "Annuler"
+
 #: crates/leyline-studio/ui/types.slint:628
 msgctxt "Tr"
 msgid "Enter a destination folder."

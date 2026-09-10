@@ -220,33 +220,36 @@ pub(crate) fn reprocess_current(app: &mut App, window: &StudioWindow) {
 /// Migrates every version in the library to the engine's current stage
 /// versions (`docs/engine-api.md` §10.4), regardless of the active grid
 /// filter.
-/// Reprocessing only rewrites `settings_json` — no pixels render during the
-/// call — so this runs synchronously rather than as a tracked job, the same
-/// way classement writes do.
+///
+/// A **job**, since ADR 0139 §5. It was a synchronous call on the argument
+/// that reprocessing renders no pixels — true, and beside the point at the
+/// only scale that matters: one revision written per photograph over a
+/// library of tens of thousands is minutes of frozen window, with no count,
+/// no bar and no way out. What the argument does buy is that stopping it
+/// costs nothing — every photograph already migrated stays migrated, and
+/// the rest are simply still on their old stage versions, which is what
+/// they were this morning.
 pub(crate) fn reprocess_library(app: &mut App, window: &StudioWindow) {
     let query = GridQuery::default();
-    let outcome = (|| {
+    let versions = (|| {
         let count = app.library.catalog().count(&query)?;
         let all = GridQuery {
             range: 0..u32::try_from(count).unwrap_or(u32::MAX),
             ..query
         };
-        let versions: Vec<VersionId> = app
-            .library
-            .catalog()
-            .grid(&all)?
-            .into_iter()
-            .map(|item| item.version_id)
-            .collect();
-        app.library.reprocess(&versions, |_, _| {})
+        Ok::<Vec<VersionId>, leyline_sdk::LeylineError>(
+            app.library
+                .catalog()
+                .grid(&all)?
+                .into_iter()
+                .map(|item| item.version_id)
+                .collect(),
+        )
     })();
-    match outcome {
-        Ok(report) => {
-            LibraryState::get(window).set_status_line(Tr::get(window).invoke_reprocessed(
-                i32::try_from(report.reprocessed.len()).unwrap_or(i32::MAX),
-                i32::try_from(report.already_current.len()).unwrap_or(i32::MAX),
-                i32::try_from(report.failed.len()).unwrap_or(i32::MAX),
-            ));
+    match versions {
+        Ok(versions) => {
+            app.reprocess_job = Some(app.library.reprocess_async(versions));
+            LibraryState::get(window).set_status_line(Tr::get(window).invoke_task_reprocess());
         }
         Err(error) => report_error(window, &error.to_string()),
     }

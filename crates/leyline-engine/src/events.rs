@@ -17,7 +17,7 @@ use crate::presets::PresetApplyReport;
 use crate::preview::PreviewFile;
 use crate::print::PrintReport;
 use crate::reprocess::ReprocessReport;
-use crate::scan::ImportCandidate;
+use crate::scan::ScanReport;
 
 /// A notification from the engine (`docs/engine-api.md` §3.2).
 #[derive(Debug, Clone, PartialEq)]
@@ -129,8 +129,9 @@ pub enum JobResult {
     /// A contact sheet was written (empty cells reported inside, ADR 0110).
     ContactSheet(ContactSheetReport),
     /// An import scan completed: what the source holds, nothing written
-    /// (ADR 0065 §1).
-    Scan(Vec<ImportCandidate>),
+    /// (ADR 0065 §1). The report says whether the walk reached the end of
+    /// the folder or was stopped on the way (ADR 0139 §3).
+    Scan(ScanReport),
     /// A derivation completed: the asset an external processor's answer
     /// was filed as (ADR 0107).
     Derive(AssetId),

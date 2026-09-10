@@ -224,6 +224,8 @@ pub struct PrintReport {
     pub printed: Vec<PrintedVersion>,
     /// Versions left unprinted, with reasons.
     pub failed: Vec<FailedPrint>,
+    /// Whether the batch stopped before the end of its list (ADR 0139).
+    pub cancelled: bool,
 }
 
 /// Maps encoder errors onto the platform error type.

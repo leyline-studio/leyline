@@ -651,6 +651,39 @@ export global Tr {
     public pure function scan-found(n: int) -> string {
         return @tr("{} photo found." | "{} photos found." % n, n);
     }
+    // Said instead of the line above when the walk was stopped on the way
+    // (ADR 0139 §3): a partial list looks exactly like a complete one, and
+    // « 412 photos found » would be a claim about the folder that is false.
+    public pure function scan-stopped(n: int) -> string {
+        return @tr("{} photo found before you stopped the scan." | "{} photos found before you stopped the scan." % n, n);
+    }
+    // What the corner of the window calls each kind of batch (ADR 0139 §4).
+    public pure function task-import() -> string {
+        return @tr("Import");
+    }
+    public pure function task-scan() -> string {
+        return @tr("Looking at the folder");
+    }
+    public pure function task-export() -> string {
+        return @tr("Export");
+    }
+    public pure function task-print() -> string {
+        return @tr("Printing");
+    }
+    public pure function task-sheet() -> string {
+        return @tr("Contact sheet");
+    }
+    public pure function task-reprocess() -> string {
+        return @tr("Reprocessing");
+    }
+    public pure function task-cull() -> string {
+        return @tr("Assisted culling");
+    }
+    // Added to a batch's own summary when it did not reach the end of its
+    // list. What it did is kept, and that is the half worth saying first.
+    public pure function stopped-suffix() -> string {
+        return @tr(" — stopped; what was done is kept.");
+    }
     public pure function select-photo-first() -> string {
         return @tr("Select a photo first.");
     }

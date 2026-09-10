@@ -1,0 +1,30 @@
+// The long job the window is watching, and the way to stop it (ADR 0139 §4).
+//
+// One job at a time on purpose: what this state answers is "what is the
+// application busy with, and can I stop it", and that question has one
+// answer. A second batch started while a first runs takes the bar over —
+// the older one keeps running and keeps its own dialog, it simply stops
+// being the thing the corner of the window reports.
+export global JobsState {
+    // Whether a batch is running. Everything below is meaningless when this
+    // is false, and the bar is not mounted at all.
+    in-out property <bool> running: false;
+    // What kind of work it is, already translated by Rust: "Import",
+    // "Export"… The bar shows it as-is.
+    in-out property <string> label;
+    // Units done and units expected. `total` is 0 for a job that cannot
+    // count its work in advance, and the bar then shows no proportion.
+    in-out property <int> done;
+    in-out property <int> total;
+    // Whether this kind of job listens for a cancellation at all
+    // (ADR 0139 §3): a contact sheet and a culling proposal do not, and a
+    // button that did nothing would be worse than no button.
+    in-out property <bool> cancellable: true;
+    // Set the moment the cancellation is asked for, cleared when the job
+    // ends. The batch stops at its next checkpoint, not at the click, and
+    // this is what says so rather than leaving the button looking ignored.
+    in-out property <bool> cancelling: false;
+
+    // Asks the engine to stop the job at its next checkpoint.
+    callback cancel();
+}

@@ -17,6 +17,8 @@ use leyline_catalog::Catalog;
 use leyline_core::{AssetId, MediaType, Result};
 use leyline_raw::{RawImage, ThumbnailKind};
 
+use crate::flow::Flow;
+
 /// Longest edge of a candidate's thumbnail, in pixels. Enough for a contact
 /// sheet on a high-density display, small enough that a whole card's worth
 /// fits in memory while the choice is being made.
@@ -90,17 +92,31 @@ pub struct ImportCandidate {
     pub thumbnail: Option<Vec<u8>>,
 }
 
+/// What a scan found, and whether it reached the end of the folder.
+///
+/// The flag matters more here than in a report of work done: a partial list
+/// looks exactly like a complete one, and a client that showed « 412 photos »
+/// after a scan the user stopped would be stating a fact about the folder
+/// that is not true (ADR 0139 §3).
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct ScanReport {
+    /// What an import would take, in folder order.
+    pub candidates: Vec<ImportCandidate>,
+    /// Whether the walk was stopped before the end of the folder.
+    pub cancelled: bool,
+}
+
 /// Lists what an import of `source` would take (ADR 0065 §1).
 ///
 /// `progress` is called after each candidate with `(done, total)`, like the
 /// import itself (`docs/engine-api.md` §6) — extracting previews takes long
 /// enough on a full card to be worth reporting.
-pub fn scan(
+pub fn scan<F: Into<Flow>>(
     catalog: &Catalog,
     source: &Path,
     options: &ScanOptions,
-    mut progress: impl FnMut(u64, u64),
-) -> Result<Vec<ImportCandidate>> {
+    mut progress: impl FnMut(u64, u64) -> F,
+) -> Result<ScanReport> {
     let files = crate::import::collect_files(source, options.recursive)?;
     // One query instead of one per candidate: the comparison is against the
     // whole library, and a per-file lookup would scan `assets` on a column
@@ -108,7 +124,7 @@ pub fn scan(
     let known: HashSet<(String, u64)> = catalog.asset_names_and_sizes()?.into_iter().collect();
 
     let total = files.len() as u64;
-    let mut candidates = Vec::new();
+    let mut report = ScanReport::default();
     for (done, path) in files.iter().enumerate() {
         if let Some(mut candidate) = describe(path, options.thumbnails, &known) {
             // The fingerprint, when it was asked for: the same question the
@@ -120,11 +136,14 @@ pub fn scan(
                     candidate.already_imported = candidate.duplicate_of.is_some();
                 }
             }
-            candidates.push(candidate);
+            report.candidates.push(candidate);
         }
-        progress(done as u64 + 1, total);
+        if progress(done as u64 + 1, total).into().stops() {
+            report.cancelled = true;
+            break;
+        }
     }
-    Ok(candidates)
+    Ok(report)
 }
 
 /// Describes one file, or `None` when an import would not take it at all —

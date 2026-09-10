@@ -46,7 +46,8 @@ fn a_scan_describes_what_an_import_would_take_and_writes_nothing() {
     let candidates = scan(&catalog, &shoot, &LOOK, |done, total| {
         steps.push((done, total));
     })
-    .unwrap();
+    .unwrap()
+    .candidates;
 
     // The text file is enumerated — it is what `total` counts — but never
     // described: an import would not take it either.
@@ -87,7 +88,7 @@ fn a_scan_can_be_asked_for_nothing_but_the_facts() {
         thumbnails: false,
         exact: false,
     };
-    let candidates = scan(&catalog, &shoot, &flat, |_, _| {}).unwrap();
+    let candidates = scan(&catalog, &shoot, &flat, |_, _| {}).unwrap().candidates;
     assert_eq!(candidates.len(), 1);
     assert_eq!(candidates[0].filename, "a.png");
     assert_eq!(candidates[0].thumbnail, None);
@@ -110,7 +111,7 @@ fn an_already_imported_file_is_marked_but_still_offered() {
     )
     .unwrap();
 
-    let candidates = scan(&catalog, &shoot, &LOOK, |_, _| {}).unwrap();
+    let candidates = scan(&catalog, &shoot, &LOOK, |_, _| {}).unwrap().candidates;
     let marked: Vec<_> = candidates
         .iter()
         .map(|c| (c.filename.as_str(), c.already_imported))
@@ -166,7 +167,9 @@ fn an_exact_scan_sees_the_renamed_copy_the_hint_misses() {
 
     // The default hint compares names and sizes, so it sees nothing —
     // and the import would nevertheless refuse the file.
-    let hinted = scan(&catalog, &elsewhere, &LOOK, |_, _| {}).unwrap();
+    let hinted = scan(&catalog, &elsewhere, &LOOK, |_, _| {})
+        .unwrap()
+        .candidates;
     assert_eq!(hinted.len(), 1);
     assert!(!hinted[0].already_imported, "the hint cannot see a rename");
     assert_eq!(hinted[0].duplicate_of, None, "and never names an asset");
@@ -175,7 +178,9 @@ fn an_exact_scan_sees_the_renamed_copy_the_hint_misses() {
         exact: true,
         ..LOOK
     };
-    let seen = scan(&catalog, &elsewhere, &exact, |_, _| {}).unwrap();
+    let seen = scan(&catalog, &elsewhere, &exact, |_, _| {})
+        .unwrap()
+        .candidates;
     assert!(seen[0].already_imported, "the fingerprint sees it");
     assert_eq!(
         seen[0].duplicate_of,
@@ -198,7 +203,9 @@ fn an_exact_scan_sees_the_renamed_copy_the_hint_misses() {
 
     // A genuinely new file is still offered under --exact.
     png(&elsewhere.join("other.png"), 5, 5);
-    let seen = scan(&catalog, &elsewhere, &exact, |_, _| {}).unwrap();
+    let seen = scan(&catalog, &elsewhere, &exact, |_, _| {})
+        .unwrap()
+        .candidates;
     let other = seen
         .iter()
         .find(|c| c.filename == "other.png")
@@ -270,7 +277,9 @@ fn a_raw_candidate_shows_the_preview_its_camera_wrote() {
     let dir = tempfile::tempdir().unwrap();
     let (catalog, _root) = library(&dir);
 
-    let candidates = scan(&catalog, &source, &LOOK, |_, _| {}).unwrap();
+    let candidates = scan(&catalog, &source, &LOOK, |_, _| {})
+        .unwrap()
+        .candidates;
     assert_eq!(candidates.len(), 1);
     let candidate = &candidates[0];
     assert!(candidate.camera.is_some(), "a RAW file names its body");

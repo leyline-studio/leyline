@@ -1,0 +1,81 @@
+// What the application is busy with, and the way to stop it (ADR 0139 §4).
+//
+// Drawn by the window rather than by whoever started the job, for the reason
+// the tether bar is (ADR 0087 §7): a batch outlives the dialog that launched
+// it and every view switch, so its progress cannot live inside a modal that
+// closing makes disappear. Bottom **right**, because bottom centre is the
+// tether bar's and the two can be up at once.
+
+import { JobsState } from "../state/jobs.slint";
+import { FilterChip } from "../widgets/controls.slint";
+
+export component TaskBar inherits Rectangle {
+    // No geometry and no input of its own when nothing runs: the bar must
+    // not eat clicks meant for the module under it.
+    visible: JobsState.running;
+
+    bar := Rectangle {
+        x: parent.width - self.width - 24px;
+        y: parent.height - self.height - 24px;
+        width: row.preferred-width;
+        height: 44px;
+        background: #1c1c1cf0;
+        border-radius: 8px;
+        border-width: 1px;
+        border-color: #3a3a3a;
+
+        // The proportion, drawn along the bottom edge of the pill rather
+        // than as a bar of its own: at this size a second rectangle is
+        // noise, and what the eye wants is "how far along", not a number it
+        // has to read. Absent when the job cannot count its work.
+        if JobsState.total > 0: Rectangle {
+            x: 1px;
+            y: parent.height - 4px;
+            width: (parent.width - 2px) * min(1.0, JobsState.done / max(1, JobsState.total));
+            height: 3px;
+            background: #6fa8dc;
+            border-radius: 1.5px;
+        }
+
+        row := HorizontalLayout {
+            padding-left: 14px;
+            padding-right: 10px;
+            padding-top: 8px;
+            padding-bottom: 8px;
+            spacing: 10px;
+            alignment: start;
+
+            VerticalLayout {
+                spacing: 1px;
+                alignment: center;
+                Text {
+                    text: JobsState.label;
+                    color: #e6e6e6;
+                    font-size: 12px;
+                    font-weight: 600;
+                }
+                Text {
+                    text: JobsState.total > 0
+                        ? @tr("{} / {}", JobsState.done, JobsState.total)
+                        : @tr("in progress…");
+                    color: #9a9a9a;
+                    font-size: 11px;
+                }
+            }
+
+            if JobsState.cancellable: FilterChip {
+                y: (parent.height - self.height) / 2;
+                // Says what is happening rather than what was asked: the
+                // batch stops between two photographs, and a button that
+                // still read "Cancel" after the click would look ignored
+                // for as long as the current file takes.
+                text: JobsState.cancelling ? @tr("Stopping…") : @tr("Cancel");
+                active: false;
+                enabled: !JobsState.cancelling;
+                clicked => {
+                    JobsState.cancel();
+                }
+            }
+        }
+    }
+}

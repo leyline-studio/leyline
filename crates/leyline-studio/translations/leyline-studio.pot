@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2026-09-10 06:51+0000\n"
+"POT-Creation-Date: 2026-09-10 14:16+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -3465,6 +3465,28 @@ msgctxt "SurveyPanel"
 msgid "Click ✕ to drop a photo from the selection"
 msgstr ""
 
+#: crates/leyline-studio/ui/panels/task_bar.slint:59
+msgctxt "TaskBar"
+msgid "{} / {}"
+msgstr ""
+
+#: crates/leyline-studio/ui/panels/task_bar.slint:60
+msgctxt "TaskBar"
+msgid "in progress…"
+msgstr ""
+
+#. for as long as the current file takes.
+#: crates/leyline-studio/ui/panels/task_bar.slint:72
+msgctxt "TaskBar"
+msgid "Stopping…"
+msgstr ""
+
+#. for as long as the current file takes.
+#: crates/leyline-studio/ui/panels/task_bar.slint:72
+msgctxt "TaskBar"
+msgid "Cancel"
+msgstr ""
+
 #: crates/leyline-studio/ui/panels/tether.slint:168
 msgctxt "TetherBar"
 msgid "Camera"
@@ -3890,76 +3912,123 @@ msgid_plural "{} photos found."
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/leyline-studio/ui/types.slint:655
-msgctxt "Tr"
-msgid "Select a photo first."
-msgstr ""
-
 #: crates/leyline-studio/ui/types.slint:658
 msgctxt "Tr"
-msgid "Enter a destination folder."
+msgid "{} photo found before you stopped the scan."
+msgid_plural "{} photos found before you stopped the scan."
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/leyline-studio/ui/types.slint:662
+msgctxt "Tr"
+msgid "Import"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:661
+#: crates/leyline-studio/ui/types.slint:665
 msgctxt "Tr"
-msgid "Exporting…"
-msgstr ""
-
-#: crates/leyline-studio/ui/types.slint:664
-msgctxt "Tr"
-msgid "Enter a name."
+msgid "Looking at the folder"
 msgstr ""
 
 #: crates/leyline-studio/ui/types.slint:668
 msgctxt "Tr"
-msgid "Top level"
+msgid "Export"
 msgstr ""
 
 #: crates/leyline-studio/ui/types.slint:671
 msgctxt "Tr"
-msgid "Creation failed: {}"
+msgid "Printing"
 msgstr ""
 
 #: crates/leyline-studio/ui/types.slint:674
 msgctxt "Tr"
-msgid "Open a photo in develop first."
+msgid "Contact sheet"
 msgstr ""
 
 #: crates/leyline-studio/ui/types.slint:677
 msgctxt "Tr"
+msgid "Reprocessing"
+msgstr ""
+
+#: crates/leyline-studio/ui/types.slint:680
+msgctxt "Tr"
+msgid "Assisted culling"
+msgstr ""
+
+#: crates/leyline-studio/ui/types.slint:685
+msgctxt "Tr"
+msgid " — stopped; what was done is kept."
+msgstr ""
+
+#: crates/leyline-studio/ui/types.slint:688
+msgctxt "Tr"
+msgid "Select a photo first."
+msgstr ""
+
+#: crates/leyline-studio/ui/types.slint:691
+msgctxt "Tr"
+msgid "Enter a destination folder."
+msgstr ""
+
+#: crates/leyline-studio/ui/types.slint:694
+msgctxt "Tr"
+msgid "Exporting…"
+msgstr ""
+
+#: crates/leyline-studio/ui/types.slint:697
+msgctxt "Tr"
+msgid "Enter a name."
+msgstr ""
+
+#: crates/leyline-studio/ui/types.slint:701
+msgctxt "Tr"
+msgid "Top level"
+msgstr ""
+
+#: crates/leyline-studio/ui/types.slint:704
+msgctxt "Tr"
+msgid "Creation failed: {}"
+msgstr ""
+
+#: crates/leyline-studio/ui/types.slint:707
+msgctxt "Tr"
+msgid "Open a photo in develop first."
+msgstr ""
+
+#: crates/leyline-studio/ui/types.slint:710
+msgctxt "Tr"
 msgid "Pick at least one group."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:684
+#: crates/leyline-studio/ui/types.slint:717
 msgctxt "Tr"
 msgid "Delete “{}”, and remove it from {} photo?"
 msgid_plural "Delete “{}”, and remove it from {} photos?"
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/leyline-studio/ui/types.slint:687
+#: crates/leyline-studio/ui/types.slint:720
 msgctxt "Tr"
 msgid ""
 "“{}” still has keywords under it. Delete those first — one deletes leaves, "
 "upward, so nothing disappears unseen."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:690
+#: crates/leyline-studio/ui/types.slint:723
 msgctxt "Tr"
 msgid "Save failed: {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:693
+#: crates/leyline-studio/ui/types.slint:726
 msgctxt "Tr"
 msgid "Error: {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:696
+#: crates/leyline-studio/ui/types.slint:729
 msgctxt "Tr"
 msgid "Select a collection in the sidebar first."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:699
+#: crates/leyline-studio/ui/types.slint:732
 msgctxt "Tr"
 msgid "Preset saved."
 msgstr ""

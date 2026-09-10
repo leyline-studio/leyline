@@ -13,6 +13,7 @@ import { FolderState } from "state/folder.slint";
 import { DetailState } from "state/detail.slint";
 import { DevelopState } from "state/develop.slint";
 import { DialogState } from "state/dialog.slint";
+import { JobsState } from "state/jobs.slint";
 import { FilterState } from "state/filter.slint";
 import { GridState } from "state/grid.slint";
 import { KeywordState } from "state/keyword.slint";
@@ -24,6 +25,7 @@ import { TetherState } from "state/tether.slint";
 import { BrowserPanel } from "panels/browser.slint";
 import { DevelopPanel } from "panels/develop.slint";
 import { DialogOverlay } from "panels/dialogs.slint";
+import { TaskBar } from "panels/task_bar.slint";
 import { DragState } from "state/drag.slint";
 import { HintState } from "state/hint.slint";
 import { ComparePanel } from "panels/compare.slint";
@@ -55,6 +57,7 @@ export {
     FolderState,
     GridState,
     HslBandValues,
+    JobsState,
     KeywordRow,
     KeywordState,
     LibraryState,
@@ -545,6 +548,14 @@ export component StudioWindow inherits Window {
         DialogOverlay {
             window-height: root.height;
         }
+
+        // What a long batch is doing, over every module **and over the
+        // modal overlay** (ADR 0139 §4). Above and not below, measured on
+        // the built binary: the overlay covers the whole window and closes
+        // its dialog on any click outside the card, so a bar drawn under it
+        // showed through the dim while its Cancel button dismissed the
+        // dialog instead of stopping the job.
+        TaskBar { }
     }
 
     menubar := MenuBar { }

@@ -770,12 +770,13 @@ fn a_scan_job_reports_what_is_there_and_announces_nothing_else() {
     );
     match received.last() {
         Some(Event::JobFinished {
-            result: JobResult::Scan(candidates),
+            result: JobResult::Scan(report),
             ..
         }) => {
-            assert_eq!(candidates.len(), 1);
-            assert_eq!(candidates[0].filename, "a.png");
-            assert!(candidates[0].thumbnail.is_some());
+            assert_eq!(report.candidates.len(), 1);
+            assert_eq!(report.candidates[0].filename, "a.png");
+            assert!(report.candidates[0].thumbnail.is_some());
+            assert!(!report.cancelled, "nobody stopped this scan");
         }
         other => panic!("expected a scan JobFinished, got {other:?}"),
     }
@@ -838,4 +839,141 @@ fn a_selective_import_job_takes_only_the_chosen_files() {
         }
         other => panic!("expected an import JobFinished, got {other:?}"),
     }
+}
+
+/// ADR 0139 §1: a cancelled import stops at the next checkpoint, keeps what
+/// it has already filed, and says so in its report.
+#[test]
+fn a_cancelled_import_keeps_what_it_had_already_filed() {
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::create(&dir.path().join("Library"), "Stop").unwrap();
+    let events = library.subscribe();
+
+    let source = dir.path().join("Shoot");
+    std::fs::create_dir(&source).unwrap();
+    // Enough files that a cancellation on the first checkpoint cannot
+    // coincide with the end of the batch — distinct pixels so no two are
+    // taken for duplicates of each other.
+    for index in 0..12u8 {
+        image::save_buffer(
+            source.join(format!("{index:02}.png")),
+            &[index; 4 * 2 * 3],
+            4,
+            2,
+            image::ExtendedColorType::Rgb8,
+        )
+        .unwrap();
+    }
+
+    let job = library.import_async(
+        &source,
+        &ImportOptions {
+            copy_files: true,
+            recursive: false,
+            pair_companions: true,
+            thumbnails: false,
+        },
+    );
+    // Asked for the moment the first file lands, which is the earliest a
+    // client could ever ask: the batch is then provably between two files.
+    let mut cancelled = false;
+    let report;
+    loop {
+        let event = events
+            .recv_timeout(Duration::from_secs(30))
+            .expect("the job must finish");
+        match event {
+            Event::JobProgress { job_id, .. } if job_id == job && !cancelled => {
+                library.cancel_job(job);
+                cancelled = true;
+            }
+            Event::JobFinished { job_id, result } if job_id == job => {
+                report = result;
+                break;
+            }
+            _ => {}
+        }
+    }
+
+    let JobResult::Import(report) = report else {
+        panic!("an import job reports an import");
+    };
+    assert!(report.cancelled, "the report says the batch was stopped");
+    assert!(
+        !report.imported.is_empty(),
+        "what was imported before the stop is kept"
+    );
+    assert!(
+        report.imported.len() < 12,
+        "and the batch really did stop early: {} of 12",
+        report.imported.len()
+    );
+    // What it kept is in the catalog, exactly as an uninterrupted import
+    // would have left it — nothing is rolled back.
+    assert_eq!(
+        library
+            .catalog()
+            .count(&leyline_catalog::GridQuery::default())
+            .unwrap(),
+        report.imported.len() as u64,
+    );
+}
+
+/// Cancelling a job that has already ended is the ordinary race a client
+/// runs when it clicks as the batch finishes: it does nothing, and it must
+/// not leak onto the next job (ADR 0139 §1).
+#[test]
+fn a_cancellation_does_not_outlive_its_job() {
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::create(&dir.path().join("Library"), "Race").unwrap();
+    let events = library.subscribe();
+
+    let source = dir.path().join("Shoot");
+    std::fs::create_dir(&source).unwrap();
+    sample_png(&source.join("a.png"));
+
+    let first = library.import_async(
+        &source,
+        &ImportOptions {
+            copy_files: true,
+            recursive: false,
+            pair_companions: true,
+            thumbnails: false,
+        },
+    );
+    drain_until_finished(&events, first);
+    // Late: the job it names is over.
+    library.cancel_job(first);
+
+    let second_source = dir.path().join("Second");
+    std::fs::create_dir(&second_source).unwrap();
+    for index in 0..4u8 {
+        image::save_buffer(
+            second_source.join(format!("{index}.png")),
+            &[index + 100; 4 * 2 * 3],
+            4,
+            2,
+            image::ExtendedColorType::Rgb8,
+        )
+        .unwrap();
+    }
+    let second = library.import_async(
+        &second_source,
+        &ImportOptions {
+            copy_files: true,
+            recursive: false,
+            pair_companions: true,
+            thumbnails: false,
+        },
+    );
+    let events = drain_until_finished(&events, second);
+    let Some(Event::JobFinished {
+        result: JobResult::Import(report),
+        ..
+    }) = events.last()
+    else {
+        panic!("the second import must finish with its report");
+    };
+    assert!(!report.cancelled, "the stale cancellation touched nothing");
+    assert_eq!(report.imported.len(), 4);
 }

@@ -14,9 +14,10 @@ use crate::ui::{DialogState, GridState, LibraryState, StudioWindow, TetherState,
 use crate::wiring::filters::refresh_shot_facets;
 use crate::wiring::folders::refresh_folders;
 use crate::wiring::grid::{reload, show_details};
+use crate::wiring::jobs::{Task, finish_task, show_task};
 use crate::wiring::map::refresh_map_pins;
 use crate::wiring::tether::{refresh_live_frame, refresh_tether};
-use leyline_sdk::{AssetId, Event, JobResult, PreviewKind};
+use leyline_sdk::{AssetId, Event, JobId, JobResult, PreviewKind};
 use slint::{ComponentHandle, Global, Model, SharedString, Timer, TimerMode};
 
 /// Starts the timer that pumps engine events into the UI — job progress,
@@ -44,6 +45,38 @@ pub(crate) fn event_pump(app: &Rc<RefCell<App>>, window: &StudioWindow) -> Timer
     timer
 }
 
+/// Appends "stopped; what was done is kept" to a batch's summary when it
+/// did not reach the end of its list (ADR 0139 §4). The summary itself
+/// already names what was done, which is the half that matters first.
+fn with_stop(window: &StudioWindow, message: SharedString, cancelled: bool) -> SharedString {
+    if cancelled {
+        SharedString::from(format!(
+            "{message}{}",
+            Tr::get(window).invoke_stopped_suffix()
+        ))
+    } else {
+        message
+    }
+}
+
+/// Which kind of batch a job id belongs to, or `None` for the jobs the bar
+/// says nothing about — a thumbnail render, a derivation.
+fn task_of(app: &App, job: JobId) -> Option<Task> {
+    let known = [
+        (app.import_job, Task::Import),
+        (app.scan_job, Task::Scan),
+        (app.export_job, Task::Export),
+        (app.print_job, Task::Print),
+        (app.sheet_job, Task::ContactSheet),
+        (app.reprocess_job, Task::Reprocess),
+        (app.cull_job, Task::Cull),
+    ];
+    known
+        .into_iter()
+        .find(|(id, _)| *id == Some(job))
+        .map(|(_, task)| task)
+}
+
 /// Reacts to one engine event on the UI thread.
 pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
     match event {
@@ -63,6 +96,7 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
             done,
             total,
         } => {
+            let (done_u64, total_u64) = (done, total);
             let done = i32::try_from(done).unwrap_or(i32::MAX);
             let total = i32::try_from(total).unwrap_or(i32::MAX);
             // The bar and the count say the same thing in two registers: a
@@ -89,6 +123,11 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
                 LibraryState::get(window)
                     .set_status_line(Tr::get(window).invoke_culling_progress(done, total));
             }
+            // The corner of the window, whatever started the job and
+            // whether or not its dialog is still open (ADR 0139 §4).
+            if let Some(task) = task_of(app, job_id) {
+                show_task(app, window, job_id, task, done_u64, total_u64);
+            }
             if app.import_job == Some(job_id) {
                 DialogState::get(window)
                     .set_dialog_result(Tr::get(window).invoke_importing_progress(done, total));
@@ -104,6 +143,7 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
             }
         }
         Event::JobFinished { job_id, result } => {
+            finish_task(app, window, job_id);
             // Whatever the outcome, the dialog stops waiting: the bar reads
             // full and the way out is spelled out rather than guessed at.
             if app.import_job == Some(job_id)
@@ -122,12 +162,20 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
                 // not an outcome to announce (ADR 0065 §1).
                 app.scan_job = None;
                 match result {
-                    JobResult::Scan(candidates) => {
-                        let found = candidates.len();
-                        crate::wiring::dialogs::import::show_candidates(app, window, candidates);
-                        DialogState::get(window).set_dialog_result(
-                            Tr::get(window).invoke_scan_found(i32::try_from(found).unwrap_or(0)),
+                    JobResult::Scan(report) => {
+                        let found = i32::try_from(report.candidates.len()).unwrap_or(i32::MAX);
+                        let stopped = report.cancelled;
+                        crate::wiring::dialogs::import::show_candidates(
+                            app,
+                            window,
+                            report.candidates,
                         );
+                        let tr = Tr::get(window);
+                        DialogState::get(window).set_dialog_result(if stopped {
+                            tr.invoke_scan_stopped(found)
+                        } else {
+                            tr.invoke_scan_found(found)
+                        });
                     }
                     JobResult::Failed(reason) => {
                         DialogState::get(window)
@@ -140,14 +188,15 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
                 DialogState::get(window).set_dialog_result(match result {
                     JobResult::Import(report) => {
                         let imported = i32::try_from(report.imported.len()).unwrap_or(i32::MAX);
-                        match report.skipped.first() {
+                        let summary = match report.skipped.first() {
                             None => Tr::get(window).invoke_imported(imported),
                             Some(first) => Tr::get(window).invoke_imported_with_skips(
                                 imported,
                                 i32::try_from(report.skipped.len()).unwrap_or(i32::MAX),
                                 SharedString::from(first.reason.as_str()),
                             ),
-                        }
+                        };
+                        with_stop(window, summary, report.cancelled)
                     }
                     JobResult::Failed(reason) => {
                         Tr::get(window).invoke_import_failed(SharedString::from(reason))
@@ -165,14 +214,17 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
             } else if app.export_job == Some(job_id) {
                 app.export_job = None;
                 DialogState::get(window).set_dialog_result(match result {
-                    JobResult::Export(report) => match export_outcome(&report) {
-                        BatchOutcome::Done(path) => Tr::get(window)
-                            .invoke_exported_to(SharedString::from(path.display().to_string())),
-                        BatchOutcome::Failed(reason) => {
-                            Tr::get(window).invoke_export_failed(SharedString::from(reason))
-                        }
-                        BatchOutcome::Nothing => Tr::get(window).invoke_nothing_to_export(),
-                    },
+                    JobResult::Export(report) => {
+                        let summary = match export_outcome(&report) {
+                            BatchOutcome::Done(path) => Tr::get(window)
+                                .invoke_exported_to(SharedString::from(path.display().to_string())),
+                            BatchOutcome::Failed(reason) => {
+                                Tr::get(window).invoke_export_failed(SharedString::from(reason))
+                            }
+                            BatchOutcome::Nothing => Tr::get(window).invoke_nothing_to_export(),
+                        };
+                        with_stop(window, summary, report.cancelled)
+                    }
                     JobResult::Failed(reason) => {
                         Tr::get(window).invoke_export_failed(SharedString::from(reason))
                     }
@@ -181,14 +233,17 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
             } else if app.print_job == Some(job_id) {
                 app.print_job = None;
                 DialogState::get(window).set_dialog_result(match result {
-                    JobResult::Print(report) => match print_outcome(&report) {
-                        BatchOutcome::Done(path) => Tr::get(window)
-                            .invoke_printed_to(SharedString::from(path.display().to_string())),
-                        BatchOutcome::Failed(reason) => {
-                            Tr::get(window).invoke_print_failed(SharedString::from(reason))
-                        }
-                        BatchOutcome::Nothing => Tr::get(window).invoke_nothing_to_print(),
-                    },
+                    JobResult::Print(report) => {
+                        let summary = match print_outcome(&report) {
+                            BatchOutcome::Done(path) => Tr::get(window)
+                                .invoke_printed_to(SharedString::from(path.display().to_string())),
+                            BatchOutcome::Failed(reason) => {
+                                Tr::get(window).invoke_print_failed(SharedString::from(reason))
+                            }
+                            BatchOutcome::Nothing => Tr::get(window).invoke_nothing_to_print(),
+                        };
+                        with_stop(window, summary, report.cancelled)
+                    }
                     JobResult::Failed(reason) => {
                         Tr::get(window).invoke_print_failed(SharedString::from(reason))
                     }
@@ -219,6 +274,27 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
                     }
                     _ => return,
                 });
+            } else if app.reprocess_job == Some(job_id) {
+                // The status line and not a dialog: reprocessing has no
+                // dialog of its own, and the window stayed usable while it
+                // ran (ADR 0139 §5).
+                app.reprocess_job = None;
+                match result {
+                    JobResult::Reprocess(report) => {
+                        let summary = Tr::get(window).invoke_reprocessed(
+                            i32::try_from(report.reprocessed.len()).unwrap_or(i32::MAX),
+                            i32::try_from(report.already_current.len()).unwrap_or(i32::MAX),
+                            i32::try_from(report.failed.len()).unwrap_or(i32::MAX),
+                        );
+                        LibraryState::get(window).set_status_line(with_stop(
+                            window,
+                            summary,
+                            report.cancelled,
+                        ));
+                    }
+                    JobResult::Failed(reason) => report_error(window, &reason),
+                    _ => {}
+                }
             } else if app.cull_job == Some(job_id) {
                 app.cull_job = None;
                 match result {

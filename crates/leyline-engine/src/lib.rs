@@ -20,6 +20,7 @@ mod downscale;
 mod events;
 mod exif;
 mod export;
+mod flow;
 mod import;
 mod keystone;
 mod library;
@@ -56,6 +57,7 @@ pub use export::{
     ExportRecipe, ExportReport, ExportRequest, ExportedVersion, FailedExport, export_batch,
     export_version,
 };
+pub use flow::Flow;
 pub use import::{ImportOptions, ImportReport, ImportedFile, SkippedFile, import, import_files};
 pub use keystone::{GuideLine, KeystoneSolution, MIN_GUIDES as KEYSTONE_MIN_GUIDES};
 pub use leyline_catalog::{LIBRARY_ROOT, Root};
@@ -79,7 +81,7 @@ pub use print::{FailedPrint, PrintRecipe, PrintReport, PrintRequest, PrintedVers
 pub use rename::{FailedRename, RenameReport, RenamedAsset};
 pub use render::{LensShot, Rendered, SensorShot, lens_shot, render, render_scaled, sensor_shot};
 pub use reprocess::{FailedReprocess, ReprocessReport, reprocess_batch};
-pub use scan::{ImportCandidate, ScanOptions, scan};
+pub use scan::{ImportCandidate, ScanOptions, ScanReport, scan};
 pub use session::{DEFAULT_AMEND_WINDOW, EditSession, Param, Value};
 pub use stages::parametric_curve_samples;
 pub use stages::{Source, SourceColor, neutral_settings};

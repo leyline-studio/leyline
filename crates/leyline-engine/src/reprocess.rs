@@ -11,6 +11,8 @@ use leyline_core::VersionId;
 
 use crate::session::EditSession;
 
+use crate::flow::Flow;
+
 /// Outcome of one reprocess batch — same shape as [`crate::PresetApplyReport`].
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ReprocessReport {
@@ -22,6 +24,10 @@ pub struct ReprocessReport {
     pub already_current: Vec<VersionId>,
     /// Versions left unchanged, with the human-readable reason.
     pub failed: Vec<FailedReprocess>,
+    /// Whether the batch stopped before the end of its list (ADR 0139).
+    /// Everything it names was done; every version it does not was never
+    /// reached.
+    pub cancelled: bool,
 }
 
 /// One version a reprocess batch could not migrate.
@@ -37,10 +43,10 @@ pub struct FailedReprocess {
 /// one new revision, when needed) per version. One failing version does not
 /// stop the batch; `progress` receives `(done, total)` after each version,
 /// the batching contract of `docs/engine-api.md` §3.1.
-pub fn reprocess_batch(
+pub fn reprocess_batch<F: Into<Flow>>(
     catalog: &mut Catalog,
     versions: &[VersionId],
-    mut progress: impl FnMut(u64, u64),
+    mut progress: impl FnMut(u64, u64) -> F,
 ) -> ReprocessReport {
     let total = versions.len() as u64;
     let mut report = ReprocessReport::default();
@@ -53,7 +59,10 @@ pub fn reprocess_batch(
                 reason: error.to_string(),
             }),
         }
-        progress(done as u64 + 1, total);
+        if progress(done as u64 + 1, total).into().stops() {
+            report.cancelled = true;
+            break;
+        }
     }
     report
 }

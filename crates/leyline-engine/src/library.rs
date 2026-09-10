@@ -13,6 +13,7 @@
 //! writes are serialized by an internal lock; clients have no ordering
 //! constraint to respect.
 
+use std::collections::HashSet;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -38,6 +39,7 @@ use crate::cull::{CullOptions, CullProposal};
 use crate::decode_cache::DecodeCache;
 use crate::events::{Event, JobResult};
 use crate::export::{ExportReport, ExportRequest};
+use crate::flow::Flow;
 use crate::import::{ImportOptions, ImportReport, ImportedFile};
 use crate::keystone::{GuideLine, KeystoneSolution};
 use crate::presets::PresetApplyReport;
@@ -45,7 +47,7 @@ use crate::preview::{Preview, PreviewFile};
 use crate::print::{PrintRecipe, PrintReport, PrintRequest};
 use crate::rename::{RenameReport, move_sidecars};
 use crate::reprocess::ReprocessReport;
-use crate::scan::{ImportCandidate, ScanOptions};
+use crate::scan::{ScanOptions, ScanReport};
 use crate::session::EditSession;
 use crate::wb::RangeSample;
 
@@ -128,6 +130,10 @@ struct Inner {
     subscribers: Mutex<Vec<Sender<Event>>>,
     /// Next job id, unique within this process.
     next_job: AtomicU64,
+    /// Jobs a client has asked to stop (ADR 0139). A job id enters this set
+    /// when [`Library::cancel_job`] is called and leaves it when the job
+    /// ends, so the set holds at most the handful of batches in flight.
+    cancelled_jobs: Mutex<HashSet<JobId>>,
     /// The running tether session (`docs/adr/0038`), if any. One camera at
     /// a time per library — connecting while this is `Some` is refused.
     #[cfg(feature = "tether")]
@@ -377,6 +383,7 @@ impl Library {
                 watch: Mutex::new(None),
                 map_pack: Mutex::new(None),
                 next_job: AtomicU64::new(1),
+                cancelled_jobs: Mutex::new(HashSet::new()),
                 jobs: job_tx,
             }),
         }
@@ -555,6 +562,52 @@ impl Library {
     /// A process-unique id for a new job.
     fn new_job(&self) -> JobId {
         JobId::new(self.inner.next_job.fetch_add(1, Ordering::Relaxed))
+    }
+
+    /// Asks a running job to stop at its next checkpoint (ADR 0139).
+    ///
+    /// Takes effect **between two units of work**, never inside one: the
+    /// photograph being imported finishes being imported, the file being
+    /// written finishes being written, and the batch then ends with the
+    /// ordinary `JobFinished` whose report carries `cancelled: true` and
+    /// names everything that was done. Nothing is undone.
+    ///
+    /// Cancelling a job that has already ended, or one that never existed,
+    /// does nothing — a client racing a finishing batch is the normal case,
+    /// not an error. Not every job listens: a contact sheet and a culling
+    /// proposal are single answers rather than batches of work kept, and
+    /// [`docs/adr/0139`] records why they are left out.
+    pub fn cancel_job(&self, job: JobId) {
+        lock(&self.inner.cancelled_jobs).insert(job);
+    }
+
+    /// The progress callback a cancellable `*_async` wrapper hands to its
+    /// synchronous core: it reports, then answers whether to carry on.
+    fn job_progress(&self, job: JobId) -> impl FnMut(u64, u64) -> Flow + use<> {
+        let library = self.clone();
+        move |done, total| {
+            library.emit(Event::JobProgress {
+                job_id: job,
+                done,
+                total,
+            });
+            if lock(&library.inner.cancelled_jobs).contains(&job) {
+                Flow::Stop
+            } else {
+                Flow::Continue
+            }
+        }
+    }
+
+    /// Ends a job: forgets any cancellation asked of it, then announces the
+    /// outcome. The order matters — a client that hears `JobFinished` and
+    /// immediately starts another job must not inherit this one's flag.
+    fn finish_job(&self, job: JobId, result: JobResult) {
+        lock(&self.inner.cancelled_jobs).remove(&job);
+        self.emit(Event::JobFinished {
+            job_id: job,
+            result,
+        });
     }
 
     /// Read access to the catalog: grid queries, trees, histories.
@@ -849,11 +902,11 @@ impl Library {
     /// the existing lazy path (`cached_preview` + `preview_async`) picks it
     /// up the first time it needs to be displayed, exactly as before this
     /// step existed.
-    pub fn import(
+    pub fn import<F: Into<Flow>>(
         &self,
         source: &Path,
         options: &ImportOptions,
-        progress: impl FnMut(u64, u64),
+        progress: impl FnMut(u64, u64) -> F,
     ) -> Result<ImportReport> {
         let report = {
             let mut catalog = lock(&self.inner.catalog);
@@ -871,12 +924,12 @@ impl Library {
     ///
     /// Same pipeline, same report, same thumbnail pass; a file outside
     /// `source` is skipped, never filed at random.
-    pub fn import_files(
+    pub fn import_files<F: Into<Flow>>(
         &self,
         source: &Path,
         files: &[PathBuf],
         options: &ImportOptions,
-        progress: impl FnMut(u64, u64),
+        progress: impl FnMut(u64, u64) -> F,
     ) -> Result<ImportReport> {
         let report = {
             let mut catalog = lock(&self.inner.catalog);
@@ -901,12 +954,12 @@ impl Library {
     ///
     /// Reads headers only. Prefer [`Library::scan_import_async`] from an
     /// interactive client: a full card is hundreds of files.
-    pub fn scan_import(
+    pub fn scan_import<F: Into<Flow>>(
         &self,
         source: &Path,
         options: &ScanOptions,
-        progress: impl FnMut(u64, u64),
-    ) -> Result<Vec<ImportCandidate>> {
+        progress: impl FnMut(u64, u64) -> F,
+    ) -> Result<ScanReport> {
         let catalog = lock(&self.inner.catalog);
         crate::scan::scan(&catalog, source, options, progress)
     }
@@ -922,21 +975,12 @@ impl Library {
         let source = source.to_owned();
         let options = options.clone();
         self.spawn_job(move || {
-            let scanned = library.scan_import(&source, &options, |done, total| {
-                library.emit(Event::JobProgress {
-                    job_id: job,
-                    done,
-                    total,
-                });
-            });
+            let scanned = library.scan_import(&source, &options, library.job_progress(job));
             let result = match scanned {
-                Ok(candidates) => JobResult::Scan(candidates),
+                Ok(report) => JobResult::Scan(report),
                 Err(error) => JobResult::Failed(error.to_string()),
             };
-            library.emit(Event::JobFinished {
-                job_id: job,
-                result,
-            });
+            library.finish_job(job, result);
         });
         job
     }
@@ -1029,13 +1073,7 @@ impl Library {
         let source = source.to_owned();
         let options = *options;
         self.spawn_job(move || {
-            let progress = |done, total| {
-                library.emit(Event::JobProgress {
-                    job_id: job,
-                    done,
-                    total,
-                });
-            };
+            let progress = library.job_progress(job);
             let imported = match &files {
                 None => library.import(&source, &options, progress),
                 Some(files) => library.import_files(&source, files, &options, progress),
@@ -1054,10 +1092,7 @@ impl Library {
                 }
                 Err(error) => JobResult::Failed(error.to_string()),
             };
-            library.emit(Event::JobFinished {
-                job_id: job,
-                result,
-            });
+            library.finish_job(job, result);
         });
         job
     }
@@ -1659,10 +1694,7 @@ impl Library {
                 }
                 Err(error) => JobResult::Failed(error.to_string()),
             };
-            library.emit(Event::JobFinished {
-                job_id: job,
-                result,
-            });
+            library.finish_job(job, result);
         });
         job
     }
@@ -1730,10 +1762,10 @@ impl Library {
     /// [`ExportRecipe::Preset`] is resolved once, up front, under its own
     /// short lock — a preset edited mid-request does not retroactively
     /// change versions already exported.
-    pub fn export(
+    pub fn export<F: Into<Flow>>(
         &self,
         request: &ExportRequest,
-        progress: impl FnMut(u64, u64),
+        progress: impl FnMut(u64, u64) -> F,
     ) -> Result<ExportReport> {
         let (settings, preset) = self.resolve_export_recipe(&request.recipe)?;
         settings.validate().map_err(crate::export::export_err)?;
@@ -1800,13 +1832,13 @@ impl Library {
     /// §3.1). Pixel-level `par_iter` inside each render keeps using rayon's
     /// global pool — that nesting is precisely why four photos are enough to
     /// fill sixteen cores.
-    fn run_export_batch(
+    fn run_export_batch<F: Into<Flow>>(
         &self,
         planned: Vec<(VersionId, PlannedExport)>,
         settings: &ExportSettings,
         preset: Option<ExportPresetId>,
         in_flight: usize,
-        mut progress: impl FnMut(u64, u64),
+        mut progress: impl FnMut(u64, u64) -> F,
     ) -> Result<ExportReport> {
         let total = planned.len() as u64;
         // One slot per version, filled in place, so the report keeps request
@@ -1816,14 +1848,22 @@ impl Library {
             .map(|_| std::sync::Mutex::new(None))
             .collect();
         let next = std::sync::atomic::AtomicUsize::new(0);
+        // Set by the progress loop below when the caller asks to stop, read
+        // by every worker before it picks up its next photograph
+        // (ADR 0139 §2): a batch of four in flight therefore ends after at
+        // most four more files, each of them whole.
+        let cancelled = std::sync::atomic::AtomicBool::new(false);
         let (done_tx, done_rx) = std::sync::mpsc::channel::<()>();
 
         std::thread::scope(|scope| {
             for _ in 0..in_flight {
-                let (next, outcomes, planned) = (&next, &outcomes, &planned);
+                let (next, outcomes, planned, cancelled) = (&next, &outcomes, &planned, &cancelled);
                 let done_tx = done_tx.clone();
                 scope.spawn(move || {
                     loop {
+                        if cancelled.load(std::sync::atomic::Ordering::Relaxed) {
+                            return;
+                        }
                         let index = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                         let Some((_, planned)) = planned.get(index) else {
                             return;
@@ -1857,11 +1897,16 @@ impl Library {
             let mut done = 0;
             while done_rx.recv().is_ok() {
                 done += 1;
-                progress(done, total);
+                if progress(done, total).into().stops() {
+                    cancelled.store(true, std::sync::atomic::Ordering::Relaxed);
+                }
             }
         });
 
-        let mut report = ExportReport::default();
+        let mut report = ExportReport {
+            cancelled: cancelled.load(std::sync::atomic::Ordering::Relaxed),
+            ..ExportReport::default()
+        };
         for ((version, _), outcome) in planned.iter().zip(outcomes) {
             match outcome.into_inner().unwrap_or_else(|e| e.into_inner()) {
                 Some(Ok(path)) => report.exported.push(crate::export::ExportedVersion {
@@ -1872,7 +1917,11 @@ impl Library {
                     version: *version,
                     reason,
                 }),
-                None => unreachable!("every slot is filled before the scope ends"),
+                // Empty only once the batch has been cancelled: a worker
+                // that stops leaves every photograph after it untouched,
+                // and an untouched photograph is neither an export nor a
+                // failure — it is simply not in the report.
+                None => debug_assert!(report.cancelled, "an unfilled slot outside a cancellation"),
             }
         }
         Ok(report)
@@ -1886,24 +1935,12 @@ impl Library {
         let job = self.new_job();
         let library = self.clone();
         self.spawn_job(move || {
-            let exported = library.export(&request, {
-                let library = library.clone();
-                move |done, total| {
-                    library.emit(Event::JobProgress {
-                        job_id: job,
-                        done,
-                        total,
-                    });
-                }
-            });
+            let exported = library.export(&request, library.job_progress(job));
             let result = match exported {
                 Ok(report) => JobResult::Export(report),
                 Err(error) => JobResult::Failed(error.to_string()),
             };
-            library.emit(Event::JobFinished {
-                job_id: job,
-                result,
-            });
+            library.finish_job(job, result);
         });
         job
     }
@@ -1948,10 +1985,10 @@ impl Library {
     /// version doesn't stop the batch, and a [`PrintRecipe::Preset`] is
     /// resolved once up front. Unlike export there is no journal step: a
     /// print has no history table (ADR 0036).
-    pub fn print(
+    pub fn print<F: Into<Flow>>(
         &self,
         request: &PrintRequest,
-        mut progress: impl FnMut(u64, u64),
+        mut progress: impl FnMut(u64, u64) -> F,
     ) -> Result<PrintReport> {
         let settings = self.resolve_print_recipe(&request.recipe)?;
         settings.validate().map_err(crate::print::print_err)?;
@@ -1967,7 +2004,10 @@ impl Library {
                     reason: error.to_string(),
                 }),
             }
-            progress(done as u64 + 1, total);
+            if progress(done as u64 + 1, total).into().stops() {
+                report.cancelled = true;
+                break;
+            }
         }
         Ok(report)
     }
@@ -1979,24 +2019,12 @@ impl Library {
         let job = self.new_job();
         let library = self.clone();
         self.spawn_job(move || {
-            let printed = library.print(&request, {
-                let library = library.clone();
-                move |done, total| {
-                    library.emit(Event::JobProgress {
-                        job_id: job,
-                        done,
-                        total,
-                    });
-                }
-            });
+            let printed = library.print(&request, library.job_progress(job));
             let result = match printed {
                 Ok(report) => JobResult::Print(report),
                 Err(error) => JobResult::Failed(error.to_string()),
             };
-            library.emit(Event::JobFinished {
-                job_id: job,
-                result,
-            });
+            library.finish_job(job, result);
         });
         job
     }
@@ -2217,10 +2245,7 @@ impl Library {
                 Ok(report) => JobResult::ContactSheet(report),
                 Err(error) => JobResult::Failed(error.to_string()),
             };
-            library.emit(Event::JobFinished {
-                job_id: job,
-                result,
-            });
+            library.finish_job(job, result);
         });
         job
     }
@@ -2319,11 +2344,11 @@ impl Library {
     /// the "paste settings" half of copy/paste, sharing
     /// [`Library::apply_preset`]'s mechanics without requiring the fields be
     /// stored as a named preset first.
-    pub fn apply_settings(
+    pub fn apply_settings<F: Into<Flow>>(
         &self,
         settings: &PresetSettings,
         versions: &[VersionId],
-        mut progress: impl FnMut(u64, u64),
+        mut progress: impl FnMut(u64, u64) -> F,
     ) -> Result<PresetApplyReport> {
         let mut catalog = lock(&self.inner.catalog);
         let report = crate::presets::apply_batch(&mut catalog, settings, versions, &mut progress);
@@ -2362,11 +2387,11 @@ impl Library {
     /// core. One fresh `EditSession` per version, so one `VersionChanged`
     /// per success — prefer [`Library::apply_preset_async`] from
     /// interactive clients.
-    pub fn apply_preset(
+    pub fn apply_preset<F: Into<Flow>>(
         &self,
         preset: PresetId,
         versions: &[VersionId],
-        mut progress: impl FnMut(u64, u64),
+        mut progress: impl FnMut(u64, u64) -> F,
     ) -> Result<PresetApplyReport> {
         let stored = self.catalog().preset(preset)?;
         let fields = PresetSettings::parse(&stored.preset_json)?;
@@ -2454,24 +2479,12 @@ impl Library {
         let job = self.new_job();
         let library = self.clone();
         self.spawn_job(move || {
-            let applied = library.apply_preset(preset, &versions, {
-                let library = library.clone();
-                move |done, total| {
-                    library.emit(Event::JobProgress {
-                        job_id: job,
-                        done,
-                        total,
-                    });
-                }
-            });
+            let applied = library.apply_preset(preset, &versions, library.job_progress(job));
             let result = match applied {
                 Ok(report) => JobResult::Preset(report),
                 Err(error) => JobResult::Failed(error.to_string()),
             };
-            library.emit(Event::JobFinished {
-                job_id: job,
-                result,
-            });
+            library.finish_job(job, result);
         });
         job
     }
@@ -2481,10 +2494,10 @@ impl Library {
     /// synchronous core. One fresh `EditSession` per version, so one
     /// `VersionChanged` per migration — prefer [`Library::reprocess_async`]
     /// from interactive clients.
-    pub fn reprocess(
+    pub fn reprocess<F: Into<Flow>>(
         &self,
         versions: &[VersionId],
-        mut progress: impl FnMut(u64, u64),
+        mut progress: impl FnMut(u64, u64) -> F,
     ) -> Result<ReprocessReport> {
         let mut catalog = lock(&self.inner.catalog);
         let report = crate::reprocess::reprocess_batch(&mut catalog, versions, &mut progress);
@@ -2506,24 +2519,12 @@ impl Library {
         let job = self.new_job();
         let library = self.clone();
         self.spawn_job(move || {
-            let migrated = library.reprocess(&versions, {
-                let library = library.clone();
-                move |done, total| {
-                    library.emit(Event::JobProgress {
-                        job_id: job,
-                        done,
-                        total,
-                    });
-                }
-            });
+            let migrated = library.reprocess(&versions, library.job_progress(job));
             let result = match migrated {
                 Ok(report) => JobResult::Reprocess(report),
                 Err(error) => JobResult::Failed(error.to_string()),
             };
-            library.emit(Event::JobFinished {
-                job_id: job,
-                result,
-            });
+            library.finish_job(job, result);
         });
         job
     }
@@ -3124,10 +3125,7 @@ impl Library {
                 Ok(proposal) => JobResult::Cull(Box::new(proposal)),
                 Err(error) => JobResult::Failed(error.to_string()),
             };
-            library.emit(Event::JobFinished {
-                job_id: job,
-                result,
-            });
+            library.finish_job(job, result);
         });
         job
     }
@@ -3161,10 +3159,7 @@ impl Library {
                 Ok(asset) => JobResult::Derive(asset),
                 Err(error) => JobResult::Failed(error.to_string()),
             };
-            library.emit(Event::JobFinished {
-                job_id: job,
-                result,
-            });
+            library.finish_job(job, result);
         });
         job
     }

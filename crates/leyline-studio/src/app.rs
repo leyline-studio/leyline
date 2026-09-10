@@ -272,6 +272,13 @@ pub(crate) struct App {
     pub(crate) derive_job: Option<JobId>,
     /// The culling run in flight, when one is (ADR 0084).
     pub(crate) cull_job: Option<JobId>,
+    /// The library-wide reprocess in flight, when one is (ADR 0139 §5).
+    /// A job and not a call: it walks every photograph of the library, and
+    /// it used to do so on the UI thread.
+    pub(crate) reprocess_job: Option<JobId>,
+    /// The job the task bar is showing, and the one its Cancel acts on
+    /// (ADR 0139 §4).
+    pub(crate) task_job: Option<JobId>,
     /// The proposal currently under review, and **nowhere else**: it lives
     /// here and dies with the window. ADR 0084 §2 refuses to persist it —
     /// a second, unversioned source of truth about a photo's status is

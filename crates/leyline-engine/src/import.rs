@@ -18,6 +18,8 @@ use leyline_catalog::{
 use leyline_core::{LeylineError, MediaType, Result};
 use leyline_raw::RawMetadata;
 
+use crate::flow::Flow;
+
 /// Import options (`docs/engine-api.md` §6).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ImportOptions {
@@ -67,18 +69,23 @@ pub struct ImportReport {
     pub imported: Vec<ImportedFile>,
     /// Files left aside, with reasons.
     pub skipped: Vec<SkippedFile>,
+    /// Whether the batch was stopped before the end of its list
+    /// (ADR 0139). The two lists above are then what it managed, and every
+    /// file they do not name was never touched.
+    pub cancelled: bool,
 }
 
 /// Imports `source` (a file or a directory) into the library.
 ///
 /// `progress` is called after each candidate file with `(done, total)` —
-/// the batching contract of `docs/engine-api.md` §6.
-pub fn import(
+/// the batching contract of `docs/engine-api.md` §6 — and what it answers
+/// says whether the import goes on (ADR 0139).
+pub fn import<F: Into<Flow>>(
     catalog: &mut Catalog,
     library_root: &Path,
     source: &Path,
     options: &ImportOptions,
-    progress: impl FnMut(u64, u64),
+    progress: impl FnMut(u64, u64) -> F,
 ) -> Result<ImportReport> {
     let files = collect_files(source, options.recursive)?;
     import_files(catalog, library_root, source, &files, options, progress)
@@ -90,13 +97,13 @@ pub fn import(
 /// runs once it has enumerated the folder. A file outside `source` is
 /// skipped rather than filed somewhere arbitrary: `source` is what gives a
 /// copied file its place under `Photos/`.
-pub fn import_files(
+pub fn import_files<F: Into<Flow>>(
     catalog: &mut Catalog,
     library_root: &Path,
     source: &Path,
     files: &[PathBuf],
     options: &ImportOptions,
-    mut progress: impl FnMut(u64, u64),
+    mut progress: impl FnMut(u64, u64) -> F,
 ) -> Result<ImportReport> {
     let total = files.len() as u64;
     let mut report = ImportReport::default();
@@ -121,7 +128,13 @@ pub fn import_files(
                 reason,
             }),
         }
-        progress(done as u64 + 1, total);
+        // Between two files and not inside one: what the checkpoint is for
+        // (ADR 0139 §1). The file just imported is in the catalog, its copy
+        // is complete, and the next one has not been opened.
+        if progress(done as u64 + 1, total).into().stops() {
+            report.cancelled = true;
+            break;
+        }
     }
     Ok(report)
 }
