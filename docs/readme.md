@@ -54,7 +54,7 @@ The rest of the work is robustness, performance and polish, not missing features
 
 4. [`contributing.md`](contributing.md) — style, commits, licence, CLA, and the procedure for adding or fixing a render stage.
 5. [`pipeline.md`](pipeline.md) — the render contract. To be read **before** touching the engine: it defines what a stage version is and what the project promises about the reproducibility of a render (§5).
-6. [`adr/`](adr/README.md) — 143 structural decisions, each with its context, its rejected alternatives and its consequences. That is where the *why* of almost everything surprising in the code lives.
+6. [`adr/`](adr/README.md) — 144 structural decisions, each with its context, its rejected alternatives and its consequences. That is where the *why* of almost everything surprising in the code lives.
 
 **To integrate the engine** — [`engine-api.md`](engine-api.md), then the `leyline-sdk` crate, which is the stable public surface.
 

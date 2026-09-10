@@ -12,7 +12,7 @@ use leyline_core::Result;
 /// Migration scripts: index `n` migrates the database to `user_version` `n + 1`.
 const MIGRATIONS: &[&str] = &[
     SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8,
-    SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12,
+    SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13,
 ];
 
 /// The schema version produced by the newest migration.
@@ -669,4 +669,52 @@ CREATE TABLE contact_sheet_presets (
     settings_json TEXT NOT NULL,
     created_at INTEGER NOT NULL
 );
+";
+
+/// §30 The search index learns the four things a photographer types that it
+/// could not answer (ADR 0144): the title and the caption they wrote, and the
+/// body, the lens and the day the file itself carries.
+///
+/// The table is **dropped and refilled** rather than altered: FTS5 has no
+/// `ALTER TABLE ADD COLUMN`, and `search_index` is a cache that
+/// `docs/catalog.md` §30 says regenerates from the source tables whenever
+/// there is doubt. So the migration is exactly that regeneration.
+const SCHEMA_V13: &str = "
+DROP TABLE search_index;
+
+CREATE VIRTUAL TABLE search_index USING fts5(
+    asset_id UNINDEXED,
+    filename,
+    keywords,
+    artist,
+    copyright,
+    title,
+    caption,
+    camera,
+    lens,
+    captured,
+    tokenize = \"unicode61 remove_diacritics 2\"
+);
+
+INSERT INTO search_index (asset_id, filename, keywords, artist, copyright,
+                          title, caption, camera, lens, captured)
+SELECT a.id,
+       a.filename,
+       COALESCE((SELECT group_concat(k.path, ' ')
+                 FROM asset_keywords ak JOIN keywords k ON k.id = ak.keyword_id
+                 WHERE ak.asset_id = a.id), ''),
+       COALESCE(d.creator, m.artist, ''),
+       COALESCE(d.copyright, m.copyright, ''),
+       COALESCE(d.title, ''),
+       COALESCE(d.caption, ''),
+       COALESCE(TRIM(COALESCE(c.manufacturer, '') || ' ' || c.model), ''),
+       COALESCE(TRIM(COALESCE(l.manufacturer, '') || ' ' || l.model), ''),
+       COALESCE(strftime('%Y-%m-%d',
+                (a.capture_date + COALESCE(a.capture_offset_minutes, 0) * 60000) / 1000,
+                'unixepoch'), '')
+FROM assets a
+LEFT JOIN metadata m ON m.asset_id = a.id
+LEFT JOIN asset_descriptions d ON d.asset_id = a.id
+LEFT JOIN cameras c ON c.id = m.camera_id
+LEFT JOIN lenses l ON l.id = m.lens_id;
 ";

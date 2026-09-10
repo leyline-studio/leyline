@@ -1520,14 +1520,25 @@ CREATE VIRTUAL TABLE search_index USING fts5(
 
     copyright,
 
+    title,
+
+    caption,
+
+    camera,
+
+    lens,
+
+    captured,
+
     tokenize = "unicode61 remove_diacritics 2"
 
 );
 ```
 
 * `remove_diacritics 2`: "héron" and "heron" give the same result.
-* The content is maintained by the engine on every modification (import, keywords, metadata).
-* `search_index` is rebuildable at any moment from the source tables: in case of doubt, it regenerates like a cache.
+* The content is maintained by the engine on every modification (import, keywords, descriptions, metadata).
+* `search_index` is rebuildable at any moment from the source tables: in case of doubt, it regenerates like a cache. Migration v13 ([ADR 0144](adr/0144-one-search-box.md)) is exactly that regeneration: FTS5 has no `ALTER TABLE ADD COLUMN`, so the table is dropped and refilled.
+* `title` and `caption` come from `asset_descriptions` — what somebody **wrote** ([ADR 0099](adr/0099-authored-descriptions.md)); `camera` and `lens` are named the way the shot filters name them ([ADR 0064](adr/0064-metadata-filters.md) §2), so one vocabulary answers both; `captured` is the **local** day (`capture_date` plus `capture_offset_minutes`, §13), written `YYYY-MM-DD` so that the tokenizer turns it into a year, a month and a day one can type.
 * Future annotations and captions (§38) will be added as plain FTS columns.
 
 ---

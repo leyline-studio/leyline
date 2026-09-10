@@ -164,6 +164,9 @@ impl Catalog {
             ],
         )
         .map_err(db_err)?;
+        // The body and the lens the file names, in the vocabulary the shot
+        // filters already use (ADR 0144 §2).
+        crate::search::refresh_asset_gear(&tx, asset)?;
         tx.commit().map_err(db_err)?;
         Ok(())
     }
