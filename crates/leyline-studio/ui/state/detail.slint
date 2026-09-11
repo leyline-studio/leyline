@@ -27,6 +27,12 @@ export global DetailState {
     in-out property <string> written-caption;
     in-out property <string> written-creator;
     in-out property <string> written-copyright;
+    // What the file says about those last two (ADR 0147 §1), as the
+    // sentence the empty box shows — assembled by Rust like every other
+    // string here. Empty when the file says nothing, and the box is then
+    // plainly empty.
+    in property <string> file-creator-hint;
+    in property <string> file-copyright-hint;
     // Field name ("title", "caption", …) and its new value, on commit.
     callback write-description(string, string);
     // Tags **the whole selection** since ADR 0134 §1 — the multi-selection

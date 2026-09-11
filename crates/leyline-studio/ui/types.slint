@@ -643,6 +643,12 @@ export global Tr {
     public pure function imported-with-skips(n: int, skipped: int, reason: string) -> string {
         return @tr("{} imported, {} skipped ({}).", n, skipped, reason);
     }
+    // The grey line an empty Creator or Copyright box shows (ADR 0147 §2):
+    // what the file already says, which is also what the export will write
+    // if nobody types anything.
+    public pure function from-the-file(value: string) -> string {
+        return @tr("{} — from the file", value);
+    }
     public pure function exported-to(path: string) -> string {
         return @tr("Exported to {}.", path);
     }

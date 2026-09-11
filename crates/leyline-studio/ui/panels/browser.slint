@@ -1417,14 +1417,25 @@ export component BrowserPanel inherits HorizontalLayout {
                         font-weight: 600;
                     }
                     for field in [
-                        { key: "title", label: @tr("Title"), value: DetailState.written-title },
-                        { key: "caption", label: @tr("Caption"), value: DetailState.written-caption },
-                        { key: "creator", label: @tr("Creator"), value: DetailState.written-creator },
-                        { key: "copyright", label: @tr("Copyright"), value: DetailState.written-copyright },
+                        { key: "title", label: @tr("Title"), value: DetailState.written-title, hint: "" },
+                        { key: "caption", label: @tr("Caption"), value: DetailState.written-caption, hint: "" },
+                        // Only these two have a file equivalent worth
+                        // showing (ADR 0147 §1): no EXIF tag means what a
+                        // title or a caption means.
+                        { key: "creator", label: @tr("Creator"), value: DetailState.written-creator,
+                          hint: DetailState.file-creator-hint },
+                        { key: "copyright", label: @tr("Copyright"), value: DetailState.written-copyright,
+                          hint: DetailState.file-copyright-hint },
                     ]: HorizontalLayout {
-                        spacing: 6px;
+                        // 72px and 8px, which is what `DetailRow` uses for
+                        // every row above: these four were 90px and 6px, so
+                        // the labels of one block did not line up with the
+                        // labels of the other, and the field was 20px
+                        // narrower than it could be (ADR 0147 §1 needs the
+                        // room for its hint).
+                        spacing: 8px;
                         Text {
-                            width: 90px;
+                            width: 72px;
                             text: field.label;
                             color: #9a9a9a;
                             font-size: 12px;
@@ -1437,6 +1448,23 @@ export component BrowserPanel inherits HorizontalLayout {
                             border-radius: 4px;
                             border-width: 1px;
                             border-color: written-input.has-focus ? #6fa8dc : #333333;
+                            // What the file says, while nobody has written
+                            // anything (ADR 0147 §1). A hint and never a
+                            // value: nothing is stored, and it is what the
+                            // export would write on its own. Declared
+                            // before the input so the input paints over it,
+                            // and it carries no `TouchArea` — a click goes
+                            // through to the field underneath.
+                            if field.hint != "" && written-input.text == "": Text {
+                                x: 8px;
+                                width: parent.width - 16px;
+                                height: 100%;
+                                text: field.hint;
+                                color: #6a6a6a;
+                                font-size: 12px;
+                                vertical-alignment: center;
+                                overflow: elide;
+                            }
                             written-input := TextInput {
                                 x: 8px;
                                 width: parent.width - 16px;

@@ -4461,3 +4461,8 @@ msgstr "Déposer pour importer"
 msgctxt "StudioWindow"
 msgid "The import dialog opens — nothing is imported until you say so."
 msgstr "Le dialogue d'import s'ouvre — rien n'est importé sans votre accord."
+
+#: crates/leyline-studio/ui/types.slint:650
+msgctxt "Tr"
+msgid "{} — from the file"
+msgstr "{} — du fichier"

@@ -490,4 +490,42 @@ pub(crate) fn show_details(app: &mut App, window: &StudioWindow, index: i32) {
     state.set_written_caption(SharedString::from(written.caption.unwrap_or_default()));
     state.set_written_creator(SharedString::from(written.creator.unwrap_or_default()));
     state.set_written_copyright(SharedString::from(written.copyright.unwrap_or_default()));
+    // And what the file already said about those two (ADR 0147 §1). A hint
+    // for the empty box, never a value: this is what the export writes to
+    // `dc:creator` when nobody has written anything, so the box stops being
+    // silent about a fallback that already exists.
+    let tr = Tr::get(window);
+    state.set_file_creator_hint(file_hint(&tr, meta.and_then(|m| m.artist.as_deref())));
+    state.set_file_copyright_hint(file_hint(&tr, meta.and_then(|m| m.copyright.as_deref())));
+}
+
+/// What a file says about an authored field, as the sentence its empty box
+/// shows (ADR 0147 §1) — nothing at all when the file says nothing.
+fn file_hint(tr: &Tr, value: Option<&str>) -> SharedString {
+    match said(value) {
+        Some(value) => tr.invoke_from_the_file(SharedString::from(value)),
+        None => SharedString::default(),
+    }
+}
+
+/// Whether a tag says anything. EXIF text fields are routinely padded with
+/// spaces by the body that wrote them, and a hint reading « — d'après le
+/// fichier » with nothing in front of it is worse than no hint.
+fn said(value: Option<&str>) -> Option<&str> {
+    value.map(str::trim).filter(|value| !value.is_empty())
+}
+
+#[cfg(test)]
+mod hint_tests {
+    use super::said;
+
+    #[test]
+    fn a_tag_of_spaces_says_nothing() {
+        assert_eq!(said(Some("Blackmorth")), Some("Blackmorth"));
+        assert_eq!(said(Some("  Blackmorth  ")), Some("Blackmorth"));
+        // What a body writes when its owner never filled the field in.
+        assert_eq!(said(Some("      ")), None);
+        assert_eq!(said(Some("")), None);
+        assert_eq!(said(None), None);
+    }
 }
