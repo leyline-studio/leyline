@@ -59,6 +59,7 @@ pub(crate) fn read_exif(path: &Path) -> Option<ExifFacts> {
 /// `None` when it yields nothing at all, so that an empty metadata row is
 /// never written for a file that had nothing to say.
 fn facts(exif: &Exif) -> Option<ExifFacts> {
+    let fix = gps_fix(exif);
     let metadata = Metadata {
         camera: camera(exif),
         lens: lens(exif),
@@ -82,8 +83,8 @@ fn facts(exif: &Exif) -> Option<ExifFacts> {
             .filter(|value| *value <= 1)
             .map(|value| value as u16),
         color_space: color_space(exif),
-        gps_latitude: coordinate(exif, Tag::GPSLatitude, Tag::GPSLatitudeRef, 90.0),
-        gps_longitude: coordinate(exif, Tag::GPSLongitude, Tag::GPSLongitudeRef, 180.0),
+        gps_latitude: fix.map(|(latitude, _)| latitude),
+        gps_longitude: fix.map(|(_, longitude)| longitude),
         gps_altitude: altitude(exif),
         artist: text(exif, Tag::Artist),
         copyright: text(exif, Tag::Copyright),
@@ -265,6 +266,18 @@ fn coordinate(exif: &Exif, value_tag: Tag, ref_tag: Tag, limit: f64) -> Option<f
     // it outright; dropping it here keeps one bad tag from costing the photo
     // its whole metadata row.
     (value.is_finite() && value.abs() <= limit).then_some(value)
+}
+
+/// The position the file claims, or `None` when it claims none.
+///
+/// The rule itself is `leyline_catalog::gps_fix` (ADR 0150 §1), shared with
+/// the RAW path: zero and zero is a body with no receiver, not the Gulf of
+/// Guinea.
+fn gps_fix(exif: &Exif) -> Option<(f64, f64)> {
+    leyline_catalog::gps_fix(
+        coordinate(exif, Tag::GPSLatitude, Tag::GPSLatitudeRef, 90.0),
+        coordinate(exif, Tag::GPSLongitude, Tag::GPSLongitudeRef, 180.0),
+    )
 }
 
 /// GPS altitude in meters, negative below sea level.
@@ -634,6 +647,44 @@ mod tests {
             coordinate(&exif, Tag::GPSLatitude, Tag::GPSLatitudeRef, 90.0),
             None
         );
+    }
+
+    /// ADR 0150 §1: a body with no receiver writes a zeroed GPS block, and
+    /// read literally that is a fix in the Gulf of Guinea. 2 997 rows of the
+    /// reference library sat there.
+    #[test]
+    fn a_zeroed_gps_block_is_no_position_at_all() {
+        let exif = read(
+            &[],
+            &[],
+            &[
+                (0x0001, TestValue::Ascii("N")),
+                (0x0002, TestValue::Rational(&[(0, 1), (0, 1), (0, 1)])),
+                (0x0003, TestValue::Ascii("E")),
+                (0x0004, TestValue::Rational(&[(0, 1), (0, 1), (0, 1)])),
+            ],
+        );
+        assert_eq!(gps_fix(&exif), None);
+    }
+
+    /// And only the pair: a photograph on the equator keeps its position,
+    /// which is the distinction the measurement supports — not one of those
+    /// 2 997 rows zeroed a single coordinate.
+    #[test]
+    fn a_photograph_on_the_equator_keeps_its_position() {
+        let exif = read(
+            &[],
+            &[],
+            &[
+                (0x0001, TestValue::Ascii("N")),
+                (0x0002, TestValue::Rational(&[(0, 1), (0, 1), (0, 1)])),
+                (0x0003, TestValue::Ascii("E")),
+                (0x0004, TestValue::Rational(&[(32, 1), (30, 1), (0, 1)])),
+            ],
+        );
+        let (latitude, longitude) = gps_fix(&exif).expect("a fix on the equator");
+        assert_eq!(latitude, 0.0);
+        assert!((longitude - 32.5).abs() < 1e-9);
     }
 
     #[test]

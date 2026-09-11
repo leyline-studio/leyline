@@ -517,6 +517,7 @@ fn exif_metadata(raw: &RawMetadata) -> Metadata {
             mount: None,
         }),
     };
+    let fix = leyline_catalog::gps_fix(raw.gps_latitude, raw.gps_longitude);
     Metadata {
         camera,
         lens,
@@ -524,8 +525,10 @@ fn exif_metadata(raw: &RawMetadata) -> Metadata {
         shutter: raw.shutter_s.and_then(shutter_rational),
         aperture: raw.aperture_f.map(|f| tenths(f64::from(f))),
         focal_length: raw.focal_mm.map(|mm| tenths(f64::from(mm))),
-        gps_latitude: raw.gps_latitude,
-        gps_longitude: raw.gps_longitude,
+        // The path 2 995 of the 2 997 phantom fixes came through: LibRaw
+        // reports a parsed GPS block, zeros and all (ADR 0150 §1).
+        gps_latitude: fix.map(|(latitude, _)| latitude),
+        gps_longitude: fix.map(|(_, longitude)| longitude),
         gps_altitude: raw.gps_altitude,
         ..Metadata::default()
     }

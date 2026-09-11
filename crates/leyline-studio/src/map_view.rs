@@ -58,6 +58,65 @@ pub fn normalize_zoom_range(min_zoom: Option<u8>, max_zoom: Option<u8>) -> (u8, 
     (min.min(MAX_ZOOM), max.min(MAX_ZOOM))
 }
 
+/// The smallest lon/lat rectangle containing a set of pins (ADR 0150 §2).
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Bounds {
+    west: f64,
+    east: f64,
+    south: f64,
+    north: f64,
+}
+
+impl Bounds {
+    /// `None` for an empty set — there is no rectangle around nothing.
+    fn around(pins: &[MapPin]) -> Option<Bounds> {
+        let (first, rest) = pins.split_first()?;
+        let mut bounds = Bounds {
+            west: first.longitude,
+            east: first.longitude,
+            south: first.latitude,
+            north: first.latitude,
+        };
+        for pin in rest {
+            bounds.west = bounds.west.min(pin.longitude);
+            bounds.east = bounds.east.max(pin.longitude);
+            bounds.south = bounds.south.min(pin.latitude);
+            bounds.north = bounds.north.max(pin.latitude);
+        }
+        Some(bounds)
+    }
+
+    fn center_lon(&self) -> f64 {
+        (self.west + self.east) / 2.0
+    }
+
+    fn center_lat(&self) -> f64 {
+        (self.south + self.north) / 2.0
+    }
+
+    /// The closest zoom whose viewport still holds the whole rectangle.
+    ///
+    /// Found by trying each level from `max` down — twenty iterations of a
+    /// projection the renderer runs per tile anyway — rather than by
+    /// inverting it: the viewport is in pixels, the box is in degrees, and
+    /// Mercator makes the relation between them depend on the latitude. A
+    /// loop over twenty integers is the obviously-correct version of that.
+    fn zoom_that_fits(&self, canvas: (u32, u32), min: u8, max: u8) -> u8 {
+        // A layout can report zero before its first real pass; the renderer
+        // floors the canvas the same way rather than dividing by it.
+        let width = f64::from(canvas.0.max(MIN_CANVAS));
+        let height = f64::from(canvas.1.max(MIN_CANVAS));
+        for zoom in (min..=max).rev() {
+            let (x0, y0) = lonlat_to_pixel(self.west, self.north, zoom);
+            let (x1, y1) = lonlat_to_pixel(self.east, self.south, zoom);
+            if (x1 - x0).abs() <= width && (y1 - y0).abs() <= height {
+                return zoom;
+            }
+        }
+        min
+    }
+}
+
 /// Pan/zoom state of the map view: purely local UI state, never mirrored
 /// to the catalog, reset every time the map is opened.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -71,28 +130,45 @@ pub struct View {
 }
 
 impl View {
-    /// Centers on the mean of `pins` at a reasonably close-in zoom, or a
-    /// neutral whole-world view when there are no pins yet.
+    /// Where the map opens (ADR 0150 §2): on `focus` when the photograph one
+    /// was looking at has a position, otherwise framing every pin.
+    ///
+    /// It used to open on the **mean** of the pins, and a mean is not a
+    /// place: measured on a real library, the mean of 9 626 pins scattered
+    /// over France and Belgium is in Algeria, at a zoom close enough to show
+    /// nothing. Averaging Paris and Brussels gives a point in neither.
     ///
     /// `min`/`max` are the active pack's normalized zoom range
-    /// ([`normalize_zoom_range`]): the preferred zoom is clamped into it,
+    /// ([`normalize_zoom_range`]): the chosen zoom is clamped into it,
     /// because opening at a level the pack has no tiles for renders a
     /// blank base map with no hint that zooming out would fix it.
-    pub fn initial(pins: &[MapPin], min: u8, max: u8) -> View {
-        if pins.is_empty() {
+    pub fn initial(
+        pins: &[MapPin],
+        focus: Option<&MapPin>,
+        canvas: (u32, u32),
+        min: u8,
+        max: u8,
+    ) -> View {
+        // The photograph one came from, when it is on the map at all: the
+        // street rather than the region.
+        if let Some(pin) = focus {
+            return View {
+                zoom: 14.clamp(min, max),
+                center_lon: pin.longitude,
+                center_lat: pin.latitude,
+            };
+        }
+        let Some(bounds) = Bounds::around(pins) else {
             return View {
                 zoom: 2.clamp(min, max),
                 center_lon: 0.0,
                 center_lat: 20.0,
             };
-        }
-        let count = pins.len() as f64;
-        let center_lon = pins.iter().map(|p| p.longitude).sum::<f64>() / count;
-        let center_lat = pins.iter().map(|p| p.latitude).sum::<f64>() / count;
+        };
         View {
-            zoom: 10.clamp(min, max),
-            center_lon,
-            center_lat,
+            zoom: bounds.zoom_that_fits(canvas, min, max),
+            center_lon: bounds.center_lon(),
+            center_lat: bounds.center_lat(),
         }
     }
 
@@ -347,51 +423,77 @@ mod tests {
 
     #[test]
     fn the_initial_view_never_opens_deeper_than_the_pack_goes() {
-        // A pack that stops at zoom 3 opened at the preferred zoom 10
+        // A pack that stops at zoom 3 opened on a photograph at zoom 14
         // would render flat fill with no hint that zooming out fixes it.
-        let pins = vec![MapPin {
-            version_id: VersionId::new(1),
-            asset_id: leyline_sdk::AssetId::new(1),
-            latitude: 48.8566,
-            longitude: 2.3522,
-        }];
-        assert_eq!(View::initial(&pins, 0, 3).zoom, 3);
-        assert_eq!(View::initial(&[], 5, 12).zoom, 5);
-        assert_eq!(View::initial(&pins, 0, 19).zoom, 10);
+        let pins = vec![pin(1, 48.8566, 2.3522)];
+        assert_eq!(View::initial(&pins, pins.first(), SIZE, 0, 3).zoom, 3);
+        assert_eq!(View::initial(&[], None, SIZE, 5, 12).zoom, 5);
+        assert_eq!(View::initial(&pins, pins.first(), SIZE, 0, 19).zoom, 14);
     }
 
     #[test]
     fn initial_view_with_no_pins_is_a_neutral_world_view() {
-        let view = View::initial(&[], 0, 19);
+        let view = View::initial(&[], None, SIZE, 0, 19);
         assert_eq!(view.center_lon, 0.0);
     }
 
+    /// ADR 0150 §2: arriving from a photograph opens on *that* photograph,
+    /// not on a point computed from every other one.
     #[test]
-    fn initial_view_centers_on_the_mean_of_the_pins() {
-        let pins = vec![
-            MapPin {
-                version_id: VersionId::new(1),
-                asset_id: leyline_sdk::AssetId::new(1),
-                latitude: 10.0,
-                longitude: 10.0,
-            },
-            MapPin {
-                version_id: VersionId::new(2),
-                asset_id: leyline_sdk::AssetId::new(2),
-                latitude: 20.0,
-                longitude: 30.0,
-            },
-        ];
-        let view = View::initial(&pins, 0, 19);
+    fn initial_view_opens_on_the_photograph_one_came_from() {
+        let pins = vec![pin(1, 48.8566, 2.3522), pin(2, -33.8688, 151.2093)];
+        let view = View::initial(&pins, pins.last(), SIZE, 0, 19);
+        assert_eq!(view.center_lat, -33.8688);
+        assert_eq!(view.center_lon, 151.2093);
+    }
+
+    /// And without one, it frames them all — where the mean it used to take
+    /// would have landed in the Indian Ocean, with neither pin in sight.
+    #[test]
+    fn initial_view_frames_every_pin_when_it_came_from_none() {
+        let pins = vec![pin(1, 10.0, 10.0), pin(2, 20.0, 30.0)];
+        let view = View::initial(&pins, None, SIZE, 0, 19);
         assert_eq!(view.center_lat, 15.0);
         assert_eq!(view.center_lon, 20.0);
+
+        // The two are 20° of longitude apart, which no close zoom can hold
+        // on a canvas this size — and the zoom chosen is the closest that
+        // can.
+        let bounds = Bounds::around(&pins).unwrap();
+        assert!(view.zoom < 10);
+        assert!(bounds.zoom_that_fits(SIZE, 0, 19) == view.zoom);
+        let (x0, _) = lonlat_to_pixel(bounds.west, bounds.north, view.zoom);
+        let (x1, _) = lonlat_to_pixel(bounds.east, bounds.south, view.zoom);
+        assert!(x1 - x0 <= f64::from(SIZE.0));
+        // One level closer would not fit: this is the *closest* that does.
+        let (tx0, _) = lonlat_to_pixel(bounds.west, bounds.north, view.zoom + 1);
+        let (tx1, _) = lonlat_to_pixel(bounds.east, bounds.south, view.zoom + 1);
+        assert!(tx1 - tx0 > f64::from(SIZE.0));
+    }
+
+    /// A single pin has no extent, so every zoom "fits" it and the closest
+    /// wins — which is the right answer and worth pinning down, since the
+    /// loop reads from `max` downwards.
+    #[test]
+    fn a_lone_pin_frames_at_the_closest_zoom_the_pack_has() {
+        let pins = vec![pin(1, 48.8566, 2.3522)];
+        assert_eq!(View::initial(&pins, None, SIZE, 0, 12).zoom, 12);
+    }
+
+    fn pin(id: i64, latitude: f64, longitude: f64) -> MapPin {
+        MapPin {
+            version_id: VersionId::new(id),
+            asset_id: leyline_sdk::AssetId::new(id),
+            latitude,
+            longitude,
+        }
     }
 
     #[test]
     fn render_produces_a_canvas_of_the_asked_size_even_without_a_pack() {
         let dir = tempfile::tempdir().unwrap();
         let library = Library::create(&dir.path().join("Library"), "MapView").unwrap();
-        let view = View::initial(&[], 0, 19);
+        let view = View::initial(&[], None, SIZE, 0, 19);
 
         // The canvas follows the window, so the size is an argument, not a
         // constant: whatever the layout reports is what comes back.

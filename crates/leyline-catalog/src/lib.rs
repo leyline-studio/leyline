@@ -39,7 +39,7 @@ pub use folders::FolderNode;
 pub use grid::{GRID_COLUMNS, GridItem, GridQuery, ShotRange, Sort};
 pub use keywords::KeywordNode;
 pub use map::MapPin;
-pub use metadata::{CameraInfo, LensInfo, Metadata, Rational, ShotFacets};
+pub use metadata::{CameraInfo, LensInfo, Metadata, Rational, ShotFacets, gps_fix};
 pub use pairs::Pairing;
 pub use presets::{Preset, PresetFolder};
 pub use previews::{NewPreview, PreviewRow};

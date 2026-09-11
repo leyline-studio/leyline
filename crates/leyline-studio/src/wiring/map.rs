@@ -5,9 +5,9 @@ use std::rc::Rc;
 
 use crate::app::{App, MapSession, report_error};
 use crate::map_view;
-use crate::ui::{DevelopState, MapState, StudioWindow};
+use crate::ui::{DevelopState, GridState, MapState, StudioWindow};
 use crate::wiring::develop::{enter_develop_for, refresh_develop};
-use leyline_sdk::{Library, MapPin, Param, Value};
+use leyline_sdk::{Library, MapPin, Param, Value, VersionId};
 use slint::{ComponentHandle, Global, ModelRc, SharedString, VecModel};
 
 /// Wires the GPS map view (`docs/adr/0040-gps-map-view.md`): enter/exit,
@@ -30,7 +30,11 @@ pub(crate) fn wire_map(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 Err(error) => (Vec::new(), Some(error.to_string())),
             };
             let canvas = app.map_canvas;
-            app.map = Some(new_map_session(pins, &app.library, canvas));
+            // Opening the map from a photograph opens it *on* that
+            // photograph (ADR 0150 §2).
+            let focus = crate::app::item_at(&app, GridState::get(&window).get_selected())
+                .map(|item| item.version_id);
+            app.map = Some(new_map_session(pins, &app.library, canvas, focus));
             let unsupported = apply_pack_info(&app, &window);
             MapState::get(&window).set_map_status(SharedString::from(
                 status.or(unsupported).unwrap_or_default(),
@@ -182,7 +186,10 @@ pub(crate) fn wire_map(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                         .map(|state| std::mem::take(&mut state.pins))
                         .unwrap_or_default();
                     let canvas = app.map_canvas;
-                    app.map = Some(new_map_session(pins, &app.library, canvas));
+                    // No focus here: importing a pack is not arriving from a
+                    // photograph, and the view it rebuilds should frame what
+                    // the new pack can actually show.
+                    app.map = Some(new_map_session(pins, &app.library, canvas, None));
                     render_map(&mut app, &window);
                 }
                 Err(error) => {
@@ -261,6 +268,7 @@ pub(crate) fn new_map_session(
     pins: Vec<MapPin>,
     library: &Library,
     canvas: (u32, u32),
+    focus: Option<VersionId>,
 ) -> MapSession {
     let info = library.map_pack_info().ok().flatten();
     // MBTiles metadata is whatever the pack's author wrote: normalize it
@@ -270,8 +278,11 @@ pub(crate) fn new_map_session(
         info.as_ref().and_then(|i| i.min_zoom),
         info.as_ref().and_then(|i| i.max_zoom),
     );
+    // The photograph one was looking at, when it has a position at all
+    // (ADR 0150 §2).
+    let focus = focus.and_then(|version| pins.iter().find(|pin| pin.version_id == version));
     MapSession {
-        view: map_view::View::initial(&pins, min_zoom, max_zoom),
+        view: map_view::View::initial(&pins, focus, canvas, min_zoom, max_zoom),
         pins,
         min_zoom,
         max_zoom,

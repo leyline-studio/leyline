@@ -34,7 +34,8 @@ impl Catalog {
                  JOIN develop_versions v ON v.id = c.version_id
                  JOIN assets a ON a.id = c.asset_id
                  JOIN metadata m ON m.asset_id = a.id
-                 WHERE m.gps_latitude IS NOT NULL AND m.gps_longitude IS NOT NULL",
+                 WHERE m.gps_latitude IS NOT NULL AND m.gps_longitude IS NOT NULL
+                   AND NOT (m.gps_latitude = 0 AND m.gps_longitude = 0)",
             )
             .map_err(db_err)?;
         let rows = stmt

@@ -46,6 +46,30 @@ pub struct LensInfo {
     pub mount: Option<String>,
 }
 
+/// The position a file claims, or `None` when it claims none (ADR 0150 §1).
+///
+/// **Zero and zero is not a position.** A body with no GPS receiver still
+/// writes a GPS block, filled with zeros and a valid `N`/`E` reference, and
+/// read literally that is a fix in the Gulf of Guinea. Counted on a
+/// 38 389-photograph library: 2 997 of the 9 626 geotagged rows sat at exactly
+/// 0, 0 — 2 995 of them `.CR2` from an EOS 5D Mark IV, a body with no receiver
+/// at all.
+///
+/// Only **both** coordinates at zero. Not one of those 2 997 rows zeroed a
+/// single coordinate, which is what says these are absences rather than
+/// positions: a real fix lands on the equator or on the meridian by accident,
+/// never on both at once. A photograph taken on either keeps its position.
+///
+/// Here rather than in either reader, because both paths reach this crate —
+/// LibRaw fills the RAW one, `exif` the rest — and one rule cannot live in
+/// two places and stay one rule. [`Catalog::map_pins`] applies the same test
+/// to rows written before it existed.
+#[must_use]
+pub fn gps_fix(latitude: Option<f64>, longitude: Option<f64>) -> Option<(f64, f64)> {
+    let (latitude, longitude) = (latitude?, longitude?);
+    (latitude != 0.0 || longitude != 0.0).then_some((latitude, longitude))
+}
+
 /// Complete EXIF metadata of one asset (§13). Every field optional: EXIF is
 /// best-effort by nature.
 #[derive(Debug, Clone, PartialEq, Default)]
