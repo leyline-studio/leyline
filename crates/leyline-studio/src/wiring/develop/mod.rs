@@ -180,15 +180,18 @@ pub(crate) fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<()
     let current = history.first().map(|row| row.revision);
     let rows: Vec<HistoryRow> = history_rows(app, window);
     DevelopState::get(window).set_dev_history(ModelRc::from(Rc::new(VecModel::from(rows))));
-    DevelopState::get(window).set_dev_history_current(
-        i32::try_from(
-            app.dev_history
-                .iter()
-                .position(|row| Some(row.revision) == current)
-                .unwrap_or(0),
-        )
-        .unwrap_or(0),
-    );
+    let at = app
+        .dev_history
+        .iter()
+        .position(|row| Some(row.revision) == current)
+        .unwrap_or(0);
+    DevelopState::get(window).set_dev_history_current(i32::try_from(at).unwrap_or(0));
+    // What the way back and the way forward are allowed to do (ADR 0149 §2).
+    // Off the same list the panel draws, oldest first: an earlier revision
+    // exists above index 0, and a later one exists while a row follows the
+    // head — which `App::dev_history` keeps after an undo, on purpose.
+    DevelopState::get(window).set_dev_can_undo(at > 0);
+    DevelopState::get(window).set_dev_can_redo(at + 1 < app.dev_history.len());
     // The canvas shows whichever of the four curves is selected (ADR 0098 §4).
     let channel = DevelopState::get(window).get_dev_curve_channel();
     let (path, markers) = develop::curve_layout(

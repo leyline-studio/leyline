@@ -4542,3 +4542,13 @@ msgstr "A–Z"
 msgctxt "Tr"
 msgid "Z–A"
 msgstr "Z–A"
+
+#: crates/leyline-studio/ui/panels/develop.slint:558
+msgctxt "DevelopPanel"
+msgid "Undo (Ctrl+Z)"
+msgstr "Annuler (Ctrl+Z)"
+
+#: crates/leyline-studio/ui/panels/develop.slint:567
+msgctxt "DevelopPanel"
+msgid "Redo (Ctrl+Y)"
+msgstr "Rétablir (Ctrl+Y)"

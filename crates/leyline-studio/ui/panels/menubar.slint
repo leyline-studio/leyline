@@ -564,8 +564,12 @@ export component MenuBar inherits Rectangle {
         if root.open-menu == "develop-menu" && DevelopState.develop-mode: MenuDropdown {
             x: menus.x + develop-label.x;
             y: 28px;
+            // Guarded since ADR 0149 §2: `EditSession::undo` answers
+            // `Ok(None)` at the first revision, so an ungarded row was one
+            // a photographer could click to no effect and no message.
             MenuRow {
                 title: @tr("Undo    Ctrl+Z");
+                enabled: DevelopState.dev-can-undo;
                 activated => {
                     DevelopState.develop-undo();
                     root.open-menu = "";
@@ -573,6 +577,7 @@ export component MenuBar inherits Rectangle {
             }
             MenuRow {
                 title: @tr("Redo    Ctrl+Y");
+                enabled: DevelopState.dev-can-redo;
                 activated => {
                     DevelopState.develop-redo();
                     root.open-menu = "";

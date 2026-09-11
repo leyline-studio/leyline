@@ -204,6 +204,13 @@ export global DevelopState {
     callback develop-spot-reset();
     callback develop-undo();
     callback develop-redo();
+    // Whether either of those has anywhere to go (ADR 0149 §2), read off
+    // the history list below: something to undo when the head is not the
+    // first revision, something to redo when a row follows it. The toolbar
+    // chips and the two menu rows take the same guard, so nothing on screen
+    // offers a move the panel says does not exist.
+    in property <bool> dev-can-undo;
+    in property <bool> dev-can-redo;
     callback develop-reprocess();
     callback reprocess-library();
     // Library::reprocess (§10.4) scoped to the currently selected photo —

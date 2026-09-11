@@ -544,6 +544,32 @@ export component DevelopPanel inherits HorizontalLayout {
                     width: self.preferred-width;
                     height: 100%;
                     spacing: 6px;
+                    // The way back, first in the row and separated from what
+                    // follows (ADR 0149 §1): these two are actions, the
+                    // chips after them are tools. Glyphs rather than words —
+                    // « Annuler » and « Rétablir » cost about 140px in a row
+                    // that already scrolls on a narrow window — and a chip
+                    // whose label is a glyph says what it is on hover
+                    // (ADR 0127 §1), shortcut included.
+                    FilterChip {
+                        text: "↶";
+                        active: false;
+                        enabled: DevelopState.dev-can-undo;
+                        hint: @tr("Undo (Ctrl+Z)");
+                        clicked => {
+                            DevelopState.develop-undo();
+                        }
+                    }
+                    FilterChip {
+                        text: "↷";
+                        active: false;
+                        enabled: DevelopState.dev-can-redo;
+                        hint: @tr("Redo (Ctrl+Y)");
+                        clicked => {
+                            DevelopState.develop-redo();
+                        }
+                    }
+                    ToolSeparator { }
                     FilterChip {
                         text: @tr("Select");
                         active: root.active-tool == "select";
