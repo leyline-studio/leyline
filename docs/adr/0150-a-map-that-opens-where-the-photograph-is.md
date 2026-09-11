@@ -8,24 +8,35 @@ Opening the Map view on the reference library shows the Sahara, with a dense
 cluster of pins in the Gulf of Guinea and the photographs nowhere in sight. Two
 independent defects, and they compound.
 
-**A camera with no GPS receiver claims to be at 0°N 0°E.** A body that cannot
-know where it is still writes a GPS block, filled with zeros, and `exif.rs`
-reads `0/1, 0/1, 0/1` with a valid `N`/`E` reference as a perfectly good fix.
-Counted in the reference library (`G:\Mes images`, 38 389 photographs):
+**A camera writes its GPS block whether or not it has a fix.** Read literally,
+a block of zeros carrying a valid `N`/`E` reference is a position in the Gulf of
+Guinea, and `exif.rs` and LibRaw both read it that way. Counted in the reference
+library (`G:\Mes images`, 38 389 photographs):
 
 | | |
 |---|---|
 | geotagged | 9 626 |
 | at exactly 0, 0 | **2 997** (31 %) |
-| of which, from a Canon EOS 5D Mark IV | 2 995 |
-| of which, `.CR2` | 2 995 |
+| of which, `.CR2` from a Canon EOS 5D Mark IV | 2 995 |
 | rows with only *one* coordinate at zero | **0** |
 
-The 5D Mark IV has no GPS receiver. Not one row zeroes a single coordinate,
-which is what says these are absences rather than positions: a real fix lands on
-the meridian or the equator by accident, never on both at once. And 2 995 of the
-2 997 are `.CR2`, which is to say they came through **LibRaw**, not the EXIF
-reader — so the rule has to sit where both paths meet, or it is two rules.
+And that same body, in that same library:
+
+| Canon EOS 5D Mark IV | |
+|---|---|
+| real positions | **3 484** |
+| at exactly 0, 0 | 2 995 |
+| no GPS block at all | 3 850 |
+
+The receiver works — it recorded 3 484 positions. The zeros are the frames it
+never locked onto anything: switched off, or on and still searching. One body,
+one library, three different answers, and one of the three is impossible.
+
+Not one row zeroes a single coordinate, which is what says these are absences
+rather than positions: a real fix lands on the meridian or the equator by
+accident, never on both at once. And 2 995 of the 2 997 are `.CR2`, which is to
+say they came through **LibRaw**, not the EXIF reader — so the rule has to sit
+where both paths meet, or it is two rules.
 
 **And the view opens on the mean of every pin.** A mean is not a place. The
 measured mean of those 9 626 pins is 32.62 N, 1.98 E — Algeria — and even with
@@ -56,6 +67,11 @@ replaced wholesale on every re-read ([ADR 0099](0099-authored-descriptions.md)
 The loss is a photograph genuinely taken within a few metres of 0, 0, in the
 Gulf of Guinea. Set against 2 997 photographs of Belgium and the Île-de-France
 claiming to be there, it is not a close call.
+
+*Corrected after review:* this ADR first said the 5D Mark IV has no GPS
+receiver. It has one, and the table above — 3 484 real positions from that very
+body — is what refutes it. The decision does not move; its reason does, and the
+measured version is the stronger one.
 
 ### 2. The map opens where the photograph is
 

@@ -48,17 +48,18 @@ pub struct LensInfo {
 
 /// The position a file claims, or `None` when it claims none (ADR 0150 §1).
 ///
-/// **Zero and zero is not a position.** A body with no GPS receiver still
-/// writes a GPS block, filled with zeros and a valid `N`/`E` reference, and
-/// read literally that is a fix in the Gulf of Guinea. Counted on a
-/// 38 389-photograph library: 2 997 of the 9 626 geotagged rows sat at exactly
-/// 0, 0 — 2 995 of them `.CR2` from an EOS 5D Mark IV, a body with no receiver
-/// at all.
+/// **Zero and zero is not a position.** A camera writes its GPS block whether
+/// or not it has a fix, and read literally a block of zeros with a valid
+/// `N`/`E` reference is a position in the Gulf of Guinea. Counted on a
+/// 38 389-photograph library, all three from the same EOS 5D Mark IV: 3 484
+/// real positions, **2 995 frames at exactly 0, 0**, and 3 850 with no GPS
+/// block at all. The receiver works; the zeros are the frames it never
+/// locked onto anything.
 ///
-/// Only **both** coordinates at zero. Not one of those 2 997 rows zeroed a
-/// single coordinate, which is what says these are absences rather than
-/// positions: a real fix lands on the equator or on the meridian by accident,
-/// never on both at once. A photograph taken on either keeps its position.
+/// Only **both** coordinates at zero. Not one of those rows zeroed a single
+/// coordinate, which is what says these are absences rather than positions: a
+/// real fix lands on the equator or on the meridian by accident, never on
+/// both at once. A photograph taken on either keeps its position.
 ///
 /// Here rather than in either reader, because both paths reach this crate —
 /// LibRaw fills the RAW one, `exif` the rest — and one rule cannot live in

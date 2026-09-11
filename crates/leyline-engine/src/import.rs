@@ -526,7 +526,7 @@ fn exif_metadata(raw: &RawMetadata) -> Metadata {
         aperture: raw.aperture_f.map(|f| tenths(f64::from(f))),
         focal_length: raw.focal_mm.map(|mm| tenths(f64::from(mm))),
         // The path 2 995 of the 2 997 phantom fixes came through: LibRaw
-        // reports a parsed GPS block, zeros and all (ADR 0150 §1).
+        // reports the GPS block as parsed, zeros and all (ADR 0150 §1).
         gps_latitude: fix.map(|(latitude, _)| latitude),
         gps_longitude: fix.map(|(_, longitude)| longitude),
         gps_altitude: raw.gps_altitude,

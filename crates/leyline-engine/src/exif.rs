@@ -271,8 +271,8 @@ fn coordinate(exif: &Exif, value_tag: Tag, ref_tag: Tag, limit: f64) -> Option<f
 /// The position the file claims, or `None` when it claims none.
 ///
 /// The rule itself is `leyline_catalog::gps_fix` (ADR 0150 §1), shared with
-/// the RAW path: zero and zero is a body with no receiver, not the Gulf of
-/// Guinea.
+/// the RAW path: zero and zero is a receiver that never locked, not the Gulf
+/// of Guinea.
 fn gps_fix(exif: &Exif) -> Option<(f64, f64)> {
     leyline_catalog::gps_fix(
         coordinate(exif, Tag::GPSLatitude, Tag::GPSLatitudeRef, 90.0),
@@ -649,9 +649,9 @@ mod tests {
         );
     }
 
-    /// ADR 0150 §1: a body with no receiver writes a zeroed GPS block, and
-    /// read literally that is a fix in the Gulf of Guinea. 2 997 rows of the
-    /// reference library sat there.
+    /// ADR 0150 §1: a camera writes its GPS block with or without a fix, and
+    /// read literally a block of zeros is a position in the Gulf of Guinea.
+    /// 2 997 rows of the reference library sat there.
     #[test]
     fn a_zeroed_gps_block_is_no_position_at_all() {
         let exif = read(
@@ -670,6 +670,7 @@ mod tests {
     /// And only the pair: a photograph on the equator keeps its position,
     /// which is the distinction the measurement supports — not one of those
     /// 2 997 rows zeroed a single coordinate.
+    ///
     #[test]
     fn a_photograph_on_the_equator_keeps_its_position() {
         let exif = read(
