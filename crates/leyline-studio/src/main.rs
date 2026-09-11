@@ -60,7 +60,7 @@ use library::{
     default_library_dir, load_recent_libraries, open_or_create_library, recent_libraries_path,
     record_recent_library, save_recent_libraries,
 };
-use models::{label_color, sort_label};
+use models::label_color;
 use preferences::{PreferencesFile, preferences_path, record_launch};
 use ui::{FilterState, GridState, LibraryState, StudioWindow};
 use wiring::collections::{refresh_collections, wire_collection_management, wire_collections};
@@ -495,8 +495,7 @@ fn run() -> Result<(), Startup> {
     )));
     FilterState::get(&window).set_filter_label(-1);
     FilterState::get(&window).set_filter_pick(-1);
-    FilterState::get(&window)
-        .set_sort_label(SharedString::from(sort_label(GridQuery::default().sort)));
+    wiring::filters::publish_sort(&window, GridQuery::default().sort);
 
     // The sort the window was last left in (ADR 0136 §5). Restored before
     // the first `reload`, so the grid is never drawn in one order and then
@@ -513,7 +512,7 @@ fn run() -> Result<(), Startup> {
         if let Some(sort) = stored.as_deref().and_then(app::sort_from_key) {
             let mut app = app.borrow_mut();
             app.query.sort = sort;
-            FilterState::get(&window).set_sort_label(SharedString::from(sort_label(sort)));
+            wiring::filters::publish_sort(&window, sort);
         }
     }
     let palette: Vec<slint::Color> = (0..5)

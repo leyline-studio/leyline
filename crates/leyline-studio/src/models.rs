@@ -5,8 +5,7 @@
 
 use std::rc::Rc;
 
-use crate::app::SORTS;
-use leyline_sdk::{ColorLabel, ExportReport, PrintReport, Settings, Sort};
+use leyline_sdk::{ColorLabel, ExportReport, PrintReport, Settings};
 use slint::{ModelRc, SharedString, VecModel};
 
 /// What a finished export or print batch amounts to, before it is worded.
@@ -393,14 +392,6 @@ pub(crate) fn zone_model(
         saturation: zone.saturation as f32,
         luminance: zone.luminance as f32,
     }
-}
-
-/// The label shown on the sort button for a sort order.
-pub(crate) fn sort_label(sort: Sort) -> &'static str {
-    SORTS
-        .iter()
-        .find(|(candidate, _)| *candidate == sort)
-        .map_or(SORTS[0].1, |(_, label)| label)
 }
 
 /// The dot color of a catalog color label.

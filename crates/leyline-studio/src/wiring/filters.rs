@@ -4,7 +4,10 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::app::{App, SORTS, item_at, report_error, selected_items, selected_versions, sort_key};
+use crate::app::{
+    App, item_at, report_error, selected_items, selected_versions, sort_from_parts, sort_key,
+    sort_parts,
+};
 use crate::classify;
 use crate::classify::Action;
 use crate::preferences::SharedPreferences;
@@ -363,21 +366,27 @@ pub(crate) fn wire_filters(
         let app = Rc::clone(app);
         let handle = window.as_weak();
         let preferences = preferences.clone();
-        FilterState::get(window).on_cycle_sort(move || {
+        FilterState::get(window).on_choose_sort(move |key, ascending| {
             let Some(window) = handle.upgrade() else {
                 return;
             };
+            // A key this build does not know is not an error and not a
+            // reason to reorder anything: nothing happens (ADR 0148 §2).
+            let Some(sort) = sort_from_parts(key, ascending) else {
+                return;
+            };
             let mut app = app.borrow_mut();
-            let next = SORTS
-                .iter()
-                .position(|(sort, _)| *sort == app.query.sort)
-                .map_or(0, |i| (i + 1) % SORTS.len());
-            app.query.sort = SORTS[next].0;
-            FilterState::get(&window).set_sort_label(SharedString::from(SORTS[next].1));
+            if app.query.sort == sort {
+                // Clicking the chip that is already lit reloads a grid that
+                // would come back identical.
+                return;
+            }
+            app.query.sort = sort;
+            publish_sort(&window, sort);
             // Remembered across launches (ADR 0136 §5), by name. Silent on a
             // write failure, like every other remembered view setting.
             let _ = with_preferences(&preferences, |file| {
-                file.update(|values| values.sort = Some(sort_key(SORTS[next].0).to_owned()))
+                file.update(|values| values.sort = Some(sort_key(sort).to_owned()))
             });
             on_error(&window, reload(&mut app, &window));
         });
@@ -433,6 +442,14 @@ fn shot_count(query: &GridQuery) -> i32 {
     let discrete = i32::from(query.camera.is_some()) + i32::from(query.lens.is_some());
     let continuous = ranges.iter().filter(|r| !r.is_unbounded()).count();
     discrete + i32::try_from(continuous).unwrap_or(0)
+}
+
+/// Mirrors an order into the two answers the filter bar shows (ADR 0148 §1).
+pub(crate) fn publish_sort(window: &StudioWindow, sort: leyline_sdk::Sort) {
+    let (key, ascending) = sort_parts(sort);
+    let state = FilterState::get(window);
+    state.set_sort_key(key);
+    state.set_sort_ascending(ascending);
 }
 
 #[cfg(test)]

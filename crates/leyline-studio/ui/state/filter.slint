@@ -11,12 +11,18 @@ export global FilterState {
     in property <int> filter-pick; // -1 = off, else PickState encoding
     // Active keyword filter's full path, or "" when off.
     in property <string> filter-keyword-label;
-    in property <string> sort-label;
+    // The grid's order, as the two questions the bar asks (ADR 0148 §1):
+    // what to order by — 0 capture date, 1 file name, 2 import date,
+    // 3 rating — and which way. Mirrors of the `Sort` Rust holds; the words
+    // are `Tr.sort-name` and `Tr.sort-direction`, because a label built in
+    // Rust is a label no `.pot` ever learns about (ADR 0148 §2).
+    in property <int> sort-key;
+    in property <bool> sort-ascending;
     in property <[color]> label-colors;
     callback rating-filter(int);
     callback label-filter(int);
     callback pick-filter(int);
-    callback cycle-sort();
+    callback choose-sort(int, bool);
     // Toggles the grid filter to the keyword at an index of
     // `detail-keywords` (its descendants included); clicking the active
     // one turns the filter off.

@@ -17,16 +17,20 @@ use leyline_sdk::{
 };
 use slint::{Global, SharedString, Timer, VecModel};
 
-/// Sort orders the header button cycles through, with their labels.
-pub(crate) const SORTS: [(Sort, &str); 8] = [
-    (Sort::CaptureDate { ascending: false }, "capture ↓"),
-    (Sort::CaptureDate { ascending: true }, "capture ↑"),
-    (Sort::Filename { ascending: true }, "filename A–Z"),
-    (Sort::Filename { ascending: false }, "filename Z–A"),
-    (Sort::ImportedAt { ascending: false }, "imported ↓"),
-    (Sort::ImportedAt { ascending: true }, "imported ↑"),
-    (Sort::Rating { ascending: false }, "rating ↓"),
-    (Sort::Rating { ascending: true }, "rating ↑"),
+/// The orders the filter bar offers (ADR 0148 §1).
+///
+/// Bare orders and no labels: the words belong to the interface, which
+/// translates them (`Tr.sort-name`). They carried English prose here until
+/// ADR 0148 §2, and a French window said « Tri : filename A–Z ».
+pub(crate) const SORTS: [Sort; 8] = [
+    Sort::CaptureDate { ascending: false },
+    Sort::CaptureDate { ascending: true },
+    Sort::Filename { ascending: true },
+    Sort::Filename { ascending: false },
+    Sort::ImportedAt { ascending: false },
+    Sort::ImportedAt { ascending: true },
+    Sort::Rating { ascending: false },
+    Sort::Rating { ascending: true },
 ];
 
 /// The stable name of a sort order, for `preferences.json` (ADR 0136 §5).
@@ -55,10 +59,63 @@ pub(crate) fn sort_key(sort: Sort) -> &'static str {
 /// not know — a preferences file written by a version with one more sort is
 /// not an error, it is simply an order this binary cannot restore.
 pub(crate) fn sort_from_key(key: &str) -> Option<Sort> {
-    SORTS
-        .iter()
-        .map(|(sort, _)| *sort)
-        .find(|sort| sort_key(*sort) == key)
+    SORTS.iter().copied().find(|sort| sort_key(*sort) == key)
+}
+
+/// An order as the two things the filter bar asks about (ADR 0148 §1): what
+/// to order by, and which way.
+///
+/// The key is an index the interface turns into a word — 0 capture date,
+/// 1 file name, 2 import date, 3 rating. `CollectionOrder` is none of them
+/// (Studio never sets it, and a collection's own order is a property of that
+/// view) and falls back to the default, as every other reader of an
+/// unexpected sort here does.
+pub(crate) fn sort_parts(sort: Sort) -> (i32, bool) {
+    match sort {
+        Sort::CaptureDate { ascending } => (0, ascending),
+        Sort::Filename { ascending } => (1, ascending),
+        Sort::ImportedAt { ascending } => (2, ascending),
+        Sort::Rating { ascending } => (3, ascending),
+        Sort::CollectionOrder => sort_parts(SORTS[0]),
+    }
+}
+
+/// The order those two answers name, or `None` for a key no build of this
+/// interface sends.
+pub(crate) fn sort_from_parts(key: i32, ascending: bool) -> Option<Sort> {
+    Some(match key {
+        0 => Sort::CaptureDate { ascending },
+        1 => Sort::Filename { ascending },
+        2 => Sort::ImportedAt { ascending },
+        3 => Sort::Rating { ascending },
+        _ => return None,
+    })
+}
+
+#[cfg(test)]
+mod sort_tests {
+    use super::{SORTS, sort_from_key, sort_from_parts, sort_key, sort_parts};
+
+    /// Every order the bar offers survives the round trip through the two
+    /// answers the strip collects — which is what makes eight orders
+    /// reachable from four chips and two.
+    #[test]
+    fn every_order_round_trips_through_its_two_answers() {
+        for sort in SORTS {
+            let (key, ascending) = sort_parts(sort);
+            assert_eq!(sort_from_parts(key, ascending), Some(sort));
+        }
+        assert_eq!(sort_from_parts(4, true), None);
+    }
+
+    /// And through the name `preferences.json` stores, which ADR 0148 §2
+    /// leaves untouched precisely so no file needs migrating.
+    #[test]
+    fn every_order_round_trips_through_its_stored_name() {
+        for sort in SORTS {
+            assert_eq!(sort_from_key(sort_key(sort)), Some(sort));
+        }
+    }
 }
 
 /// Cells kept loaded beyond each edge of the visible window; a new window

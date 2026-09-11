@@ -9,7 +9,7 @@
 // bug documented above `menu-row` in `studio.slint` is about, so nothing
 // here may gain a position or size override.
 
-import { Cell, CollectionRow, FolderRow } from "../types.slint";
+import { Cell, CollectionRow, FolderRow, Tr } from "../types.slint";
 import { CollectionState } from "../state/collection.slint";
 import { FolderState } from "../state/folder.slint";
 import { LibraryState } from "../state/library.slint";
@@ -58,6 +58,8 @@ export component BrowserPanel inherits HorizontalLayout {
     // Panel-private: what is folded is a way of looking, not a filter, and
     // Rust has no use for it.
     property <bool> shot-panel-open: false;
+    // The sort strip of ADR 0148 §1, open only while one is choosing.
+    property <bool> sort-panel-open: false;
 
     // Thumbnail size (ADR 0055 §3), driven by the toolbar slider under the
     // grid. Panel-private and never stored: it is how one is looking right
@@ -660,11 +662,71 @@ export component BrowserPanel inherits HorizontalLayout {
                     horizontal-stretch: 1;
                 }
 
+                // The order, and the way to change it (ADR 0148 §1). The
+                // chip used to advance through eight orders on click, so
+                // reaching one cost up to seven reloads and the other seven
+                // were never visible. It now opens the strip below, where
+                // the two questions are asked once each.
                 FilterChip {
-                    text: @tr("Sort: {}", FilterState.sort-label);
-                    active: false;
+                    text: @tr("Sort: {} {}",
+                        Tr.sort-name(FilterState.sort-key),
+                        Tr.sort-direction-short(FilterState.sort-key, FilterState.sort-ascending));
+                    active: sort-panel-open;
                     clicked => {
-                        FilterState.cycle-sort();
+                        sort-panel-open = !sort-panel-open;
+                    }
+                }
+            }
+
+            // Under the bar and not in a popup of its own, for the reason
+            // the shot filters are (ADR 0064 §5): it orders the same grid
+            // the chips above narrow, so it belongs under them.
+            if sort-panel-open: VerticalLayout {
+                spacing: 6px;
+
+                HorizontalLayout {
+                    spacing: 6px;
+                    alignment: start;
+                    Text {
+                        // 56px rather than the shot panel's 44: « Critère »
+                        // does not fit in 44, and the two rows of this strip
+                        // line up with each other rather than with a panel
+                        // that is not open at the same time.
+                        text: @tr("By");
+                        color: #9a9a9a;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                        width: 56px;
+                    }
+                    for key[k] in 4: FilterChip {
+                        text: Tr.sort-name(k);
+                        active: FilterState.sort-key == k;
+                        clicked => {
+                            // Changing the key keeps the direction, and the
+                            // other way round: two questions, answered one
+                            // at a time.
+                            FilterState.choose-sort(k, FilterState.sort-ascending);
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 6px;
+                    alignment: start;
+                    Text {
+                        text: @tr("Order");
+                        color: #9a9a9a;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                        width: 56px;
+                    }
+                    for way[w] in 2: FilterChip {
+                        // Both ends, in words, for the key in force.
+                        text: Tr.sort-direction(FilterState.sort-key, w == 0);
+                        active: FilterState.sort-ascending == (w == 0);
+                        clicked => {
+                            FilterState.choose-sort(FilterState.sort-key, w == 0);
+                        }
                     }
                 }
             }

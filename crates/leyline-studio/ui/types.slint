@@ -643,6 +643,39 @@ export global Tr {
     public pure function imported-with-skips(n: int, skipped: int, reason: string) -> string {
         return @tr("{} imported, {} skipped ({}).", n, skipped, reason);
     }
+    // What the grid is ordered by (ADR 0148 §2). Four keys, and for each of
+    // them two ends said in words: `↑` on a date, on a name and on a rating
+    // mean three different things, and the reader should not have to guess
+    // which.
+    public pure function sort-name(key: int) -> string {
+        if (key == 0) {
+            return @tr("Capture date");
+        }
+        if (key == 1) {
+            return @tr("File name");
+        }
+        if (key == 2) {
+            return @tr("Import date");
+        }
+        return @tr("Rating");
+    }
+    public pure function sort-direction(key: int, ascending: bool) -> string {
+        if (key == 1) {
+            return ascending ? @tr("A → Z") : @tr("Z → A");
+        }
+        if (key == 3) {
+            return ascending ? @tr("lowest rated first") : @tr("highest rated first");
+        }
+        return ascending ? @tr("oldest first") : @tr("newest first");
+    }
+    // The same thing short enough to sit in the bar, where it is a reminder
+    // of a state next to a control that explains itself when opened.
+    public pure function sort-direction-short(key: int, ascending: bool) -> string {
+        if (key == 1) {
+            return ascending ? @tr("A–Z") : @tr("Z–A");
+        }
+        return ascending ? "↑" : "↓";
+    }
     // The grey line an empty Creator or Copyright box shows (ADR 0147 §2):
     // what the file already says, which is also what the export will write
     // if nobody types anything.

@@ -4466,3 +4466,79 @@ msgstr "Le dialogue d'import s'ouvre — rien n'est importé sans votre accord."
 msgctxt "Tr"
 msgid "{} — from the file"
 msgstr "{} — du fichier"
+
+#: crates/leyline-studio/ui/panels/browser.slint:671
+msgctxt "BrowserPanel"
+msgid "Sort: {} {}"
+msgstr "Tri : {} {}"
+
+#. that is not open at the same time.
+#: crates/leyline-studio/ui/panels/browser.slint:695
+msgctxt "BrowserPanel"
+msgid "By"
+msgstr "Critère"
+
+#: crates/leyline-studio/ui/panels/browser.slint:717
+msgctxt "BrowserPanel"
+msgid "Order"
+msgstr "Sens"
+
+#: crates/leyline-studio/ui/types.slint:652
+msgctxt "Tr"
+msgid "Capture date"
+msgstr "Date de prise de vue"
+
+#: crates/leyline-studio/ui/types.slint:655
+msgctxt "Tr"
+msgid "File name"
+msgstr "Nom de fichier"
+
+#: crates/leyline-studio/ui/types.slint:658
+msgctxt "Tr"
+msgid "Import date"
+msgstr "Date d'import"
+
+#: crates/leyline-studio/ui/types.slint:660
+msgctxt "Tr"
+msgid "Rating"
+msgstr "Note"
+
+#: crates/leyline-studio/ui/types.slint:664
+msgctxt "Tr"
+msgid "A → Z"
+msgstr "A → Z"
+
+#: crates/leyline-studio/ui/types.slint:664
+msgctxt "Tr"
+msgid "Z → A"
+msgstr "Z → A"
+
+#: crates/leyline-studio/ui/types.slint:667
+msgctxt "Tr"
+msgid "lowest rated first"
+msgstr "des moins notées"
+
+#: crates/leyline-studio/ui/types.slint:667
+msgctxt "Tr"
+msgid "highest rated first"
+msgstr "des mieux notées"
+
+#: crates/leyline-studio/ui/types.slint:669
+msgctxt "Tr"
+msgid "oldest first"
+msgstr "des plus anciennes"
+
+#: crates/leyline-studio/ui/types.slint:669
+msgctxt "Tr"
+msgid "newest first"
+msgstr "des plus récentes"
+
+#: crates/leyline-studio/ui/types.slint:675
+msgctxt "Tr"
+msgid "A–Z"
+msgstr "A–Z"
+
+#: crates/leyline-studio/ui/types.slint:675
+msgctxt "Tr"
+msgid "Z–A"
+msgstr "Z–A"
