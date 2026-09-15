@@ -304,7 +304,7 @@ mod tests {
     fn facts() -> ReportFacts {
         ReportFacts {
             build_details: "Version 0.1.0\nCommit abc1234\nTarget x86_64\nrustc 1.97.1\nLibRaw \
-                            0.21.4"
+                            0.22.2"
                 .to_owned(),
             library_path: "/home/someone/Pictures/Library".to_owned(),
             schema_version: Some(11),

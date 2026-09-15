@@ -1,8 +1,8 @@
 {
   "blake3:152f37165737dc333df44d8033d0da116a3b77c78207bd4675393b375d47803e": {
     "bits": 8,
-    "decoder": "0.21.2-Release",
-    "digest": "blake3:3e47a42aef4d18d1ef495bf4b467e3674462aa997f7b5e30641c6f3f0c60d34f",
+    "decoder": "0.22.2-Release",
+    "digest": "blake3:78e266425cecfe81a851f6e523b47838336dc279f7d347fdea47d8958659ef31",
     "height": 2592,
     "width": 3888
   },
@@ -15,8 +15,8 @@
   },
   "blake3:5893a3242cf7cfece554cf49639a3ecf0316a006976213af6c1899382bcbf861": {
     "bits": 8,
-    "decoder": "0.21.2-Release",
-    "digest": "blake3:02bb1875f066ffb47d75efd6c71f3e13c0ea9a71fb57976acd68c24ae585951d",
+    "decoder": "0.22.2-Release",
+    "digest": "blake3:43883a8e6ad2464a73868419b2ab5562cbb7911f1bae1d458761b33f80c786c4",
     "height": 4000,
     "width": 3000
   },
@@ -29,15 +29,15 @@
   },
   "blake3:bcdc3d410508076c5a4e33c568ca3078683c734818a1e5da35367864a7c77140": {
     "bits": 8,
-    "decoder": "0.21.2-Release",
-    "digest": "blake3:faaf1ecae2c40b380194cb5bcd9c66460fcb21267c3246d77a3cdfdabdf55f53",
+    "decoder": "0.22.2-Release",
+    "digest": "blake3:cb4fa609c70c4e1570aefab3ede9ff791f84e035bf2838e2667a887871546ca1",
     "height": 4502,
     "width": 6744
   },
   "blake3:d3a718a42ba7189314cbc0bcd1dfcfc1fbb30612c9d5bd3e985b697dbc671d1e": {
     "bits": 8,
-    "decoder": "0.21.2-Release",
-    "digest": "blake3:136df2374bd9b606617f3969ed2910693a0068d0ec85fbe5c5d60bfda6706761",
+    "decoder": "0.22.2-Release",
+    "digest": "blake3:7a8b6703f79290404fd94bdcb2dd39345696f01f184adbfffe7a4b2bf3dba3d4",
     "height": 4502,
     "width": 6744
   },
@@ -57,15 +57,15 @@
   },
   "blake3:e98ba16da9339bd6fee09b13b9190ff072e62f04b0d76d4f5e97d3a269dbe3fb": {
     "bits": 8,
-    "decoder": "0.21.2-Release",
-    "digest": "blake3:bf52794261416b33f5a8dd7226e11d023d9dc446b5cd9b704301448297ed9a95",
+    "decoder": "0.22.2-Release",
+    "digest": "blake3:d7c3590365cf56b84b1543569a267871ff38745cdc3ebd2a4ae09c362c232111",
     "height": 3000,
     "width": 4000
   },
   "blake3:fc90ee40dc63a64d76b31a14da62efdb3c6211183fee687821e07984efe07819": {
     "bits": 8,
-    "decoder": "0.21.2-Release",
-    "digest": "blake3:bc35e7176438dd7921010bea68b0c1082387885bd435a53960df8ed470fa240b",
+    "decoder": "0.22.2-Release",
+    "digest": "blake3:3a6db4a9e59f6585396b3049fae633e4cb4fe3338dcfb6e577c7375f7da8453a",
     "height": 2592,
     "width": 3888
   }

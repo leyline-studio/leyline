@@ -18,19 +18,20 @@ cd "$repo_root"
 # not a defensible answer for something we hand to someone else.
 #
 # Build the prefix once:
-#   curl -sLO https://github.com/LibRaw/LibRaw/archive/refs/tags/0.21.4.tar.gz
-#   tar xzf 0.21.4.tar.gz && cd LibRaw-0.21.4
+#   curl -sLO https://github.com/LibRaw/LibRaw/archive/refs/tags/0.22.2.tar.gz
+#   tar xzf 0.22.2.tar.gz && cd LibRaw-0.22.2
 #   autoreconf -fiv
 #   ./configure --prefix=/opt/leyline/libraw-linux --disable-examples \
 #               --disable-static --enable-shared
 #   make -j"$(nproc)" && make install
 #
-# `LD_LIBRARY_PATH` matters as much as `PKG_CONFIG_PATH` here: 0.21.2 and
-# 0.21.4 share the soname `libraw_r.so.23`, so without it the linker would
-# take the pinned headers and the loader would still hand the AppImage
-# bundler the system library — a silent mismatch that only shows up as a
-# version string in the About dialog.
-LIBRAW_VERSION="${LIBRAW_VERSION:-0.21.4}"
+# `LD_LIBRARY_PATH` matters as much as `PKG_CONFIG_PATH` here. The pinned
+# library is `libraw_r.so.25`; Ubuntu's 0.21.2 is `.so.23`, so without it the
+# AppImage bundler cannot resolve the pinned one at all. Worse is the machine
+# whose distribution ships another 0.22.x: the two share the soname, and the
+# loader would hand the bundler the system library — a silent mismatch that
+# only shows up as a version string in the About dialog.
+LIBRAW_VERSION="${LIBRAW_VERSION:-0.22.2}"
 LIBRAW_LINUX_PREFIX="${LIBRAW_LINUX_PREFIX:-/opt/leyline/libraw-linux}"
 if [[ ! -f "$LIBRAW_LINUX_PREFIX/lib/pkgconfig/libraw_r.pc" ]]; then
     echo "error: no pinned LibRaw at $LIBRAW_LINUX_PREFIX" >&2
@@ -53,6 +54,27 @@ export LD_LIBRARY_PATH="$LIBRAW_LINUX_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_
 # the AppImage therefore gets a named refusal on a `.heic`; someone running a
 # distribution's package, or a build from source, reads it with the libheif
 # their system already provides.
+#
+# `RUSTFLAGS` puts the pinned prefix first on the *link* line, and
+# `PKG_CONFIG_PATH` alone does not: `lcms2-sys` adds `-L /usr/lib/x86_64-linux-gnu`
+# on its own, and on a machine that also has `libraw-dev` the linker resolves
+# `-lraw_r` there first. With 0.21.4 the two libraries shared soname 23, so it
+# never showed; with 0.22.2 the AppImage came out carrying the system 0.21.2
+# (ADR 0086 §7). Setting it changes cargo's fingerprint, so the first run
+# after this rebuilds everything once.
+export RUSTFLAGS="-L native=$LIBRAW_LINUX_PREFIX/lib${RUSTFLAGS:+ $RUSTFLAGS}"
 cargo build --release -p leyline-studio \
     --no-default-features --features tether,bundled-basemap
+
+# And the soname the binary asks for has to exist in the prefix, checked
+# rather than trusted: nothing failed the one time it did not.
+linked="$(readelf -d target/release/leyline-studio \
+    | sed -n 's/.*(NEEDED).*\[\(libraw_r\.so\.[0-9]*\)\].*/\1/p')"
+if [[ -z "$linked" || ! -e "$LIBRAW_LINUX_PREFIX/lib/$linked" ]]; then
+    echo "error: target/release/leyline-studio links '${linked:-no libraw_r}'," >&2
+    echo "       which the pinned prefix $LIBRAW_LINUX_PREFIX does not provide." >&2
+    echo "       Another LibRaw came first on the link line (see RUSTFLAGS above)." >&2
+    exit 1
+fi
+
 cargo packager --release -p leyline-studio -f appimage "$@"

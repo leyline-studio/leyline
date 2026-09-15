@@ -95,7 +95,7 @@ icons = [
 # LibRaw is always dynamically linked (ADR 0004, LGPL substitution
 # obligation) — on Linux the .so is a system package the user already has
 # (or installs alongside Leyline), but Windows has no equivalent convention,
-# so `libraw_r-23.dll` must ship next to the exe. It's a build artifact of
+# so `libraw_r-25.dll` must ship next to the exe. It's a build artifact of
 # the cross-compile (see `packaging/windows/build-nsis.sh`), not committed —
 # `packaging/windows/vendor/` is gitignored and populated right before
 # packaging. This `resources` entry is consumed by the nsis/wix/app

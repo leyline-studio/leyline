@@ -133,11 +133,12 @@ Left open when this ADR was first written, and closed two days later because
 the first alpha made it concrete: one tester on Windows, one on Linux, and no
 answer to "should we expect the same pixels?".
 
-**Every deliverable now carries LibRaw 0.21.4, built from source.** The
-Windows installer bundles the cross-built `libraw_r-23.dll`; the AppImage
-bundles the matching `.so` from a pinned prefix, and both packaging scripts
-refuse to run without it. All three CI legs build that same tag rather than
-installing one, which is what the pin is for: left to the package managers
+**Every deliverable now carries LibRaw 0.21.4, built from source** (0.22.2
+since §7). The Windows installer bundles the cross-built `libraw_r-23.dll`
+(`-25` since §7); the AppImage bundles the matching `.so` from a pinned
+prefix, and both packaging scripts refuse to run without it. All three CI
+legs build that same tag rather than installing one, which is what the pin
+is for: left to the package managers
 the same release carried **three** decoders — Ubuntu 0.21.2, the pinned
 Windows 0.21.4, and Homebrew **0.22.2**, a different *minor* version that
 would have failed §3's guard on the macOS leg the moment it ran.
@@ -160,6 +161,77 @@ their shape, and reports the decoder as context. A guard that cannot tell its
 own two failure modes apart is worse than no guard: it teaches people to
 re-bless on sight.
 
+### 7. The pin moves to 0.22.2 — **2026-09-15**
+
+The pin was a version, not a promise to stay on it, and 0.21.4 had stopped
+being a defensible one. LibRaw 0.22.1 (2026-04) fixed a series of reported
+vulnerabilities — integer overflows in the floating-point DNG loader and the
+X3F decoder among them (TALOS-2026-2330, -2331, -2358, -2359, -2363 and
+-2364) — and 0.22.2 (2026-07) a further set: buffer overruns, a stack memory
+exposure, unbounded parser recursion. Those are the
+paths a photographer's files take at import, and the 0.21 branch does not
+carry them: its last release, 0.21.5, predates them.
+
+**Every deliverable now carries 0.22.2, built from the same tag on the three
+legs.** The library's own ABI number moved with it: `libraw_r.so.25`,
+`libraw_r-25.dll`, `libraw_r.25.dylib`, where 0.21.x was 23. The Windows
+DLL's imports are unchanged (`zlib1`, `libgcc_s_seh-1`, `libstdc++-6`), so
+the installer bundles the same set. The C shim built unchanged.
+
+What moving costs was measured rather than assumed, through §4's manifest.
+The tenth pinned file — a 5D Mark IV CR2 — could not be found again in the
+corpus; the other nine were decoded with 0.22.2 against the digests recorded
+on 0.21.2, then compared pixel by pixel with 0.21.4:
+
+| File | Pixels that differ | Largest difference |
+|---|---|---|
+| three 60D CR2s | 0 | — |
+| 60D CR2 | 35 of 10,077,696 | 1 level |
+| 60D CR2 | 254 of 10,077,696 | 1 level |
+| 5D Mark IV CR2 | 512 of 30,361,488 | 7 levels |
+| 5D Mark IV CR2 | 2,498 of 30,361,488 | 6 levels |
+| DNG | 186 of 12,000,000 | 12 levels |
+| DNG | 499 of 12,000,000 | 6 levels |
+
+8-bit sRGB output, levels out of 255. The differing pixels are scattered
+through the frame rather than on its borders, and no channel's mean moves.
+Not the same bytes, then — §5.1 is broken exactly as §1 says it can be, and
+said so here — but the same image. Nothing in the 0.22 changelog touches
+colour matrices, demosaicing or white levels for these bodies; the cause of
+the scattered pixels was not traced, and this ADR does not claim one.
+
+The six entries that moved were re-recorded on 0.22.2, which is the decoder
+the manifest now describes; the three identical ones and the unfound tenth
+keep their 0.21.2 provenance, which is still true of their pixels.
+
+Two consequences for §3's set. **0.21.4 leaves it**: no leg builds it any
+more, and a machine still holding that prefix should hear about it. **0.21.2
+stays**, for §6's reason — it is what `apt install libraw-dev` gives a
+contributor — but now with its cost written beside it: a test run on 0.21.2
+validates the code, not the shipped pixels, and `make test-raw` on it reports
+the six files above.
+
+**The move itself nearly shipped the wrong decoder, silently.** The first
+AppImage built on 0.22.2 carried `libraw_r.so.23` — the *system's* 0.21.2 —
+in a package meant to carry the pin, and nothing failed; it was found by
+listing what the AppImage contained. The cause is the link line, reproduced
+on a two-dependency crate: `PKG_CONFIG_PATH` puts the pinned prefix in
+`leyline-raw`'s search paths, but `lcms2-sys` adds `/usr/lib/x86_64-linux-gnu`
+on its own, and on a machine that also has `libraw-dev` installed the linker
+resolves `-lraw_r` there. The same crate linked with the prefix passed through
+`RUSTFLAGS` gets `.so.25` and reports 0.22.2. This was already true under
+0.21.4: both libraries had soname 23, so the bundler and the loader picked
+the pinned file by path and the About dialog said 0.21.4 — while the link
+had been made against the system one. CI runners have no `libraw-dev`, so
+their builds were not affected.
+
+Two guards follow. The Linux and macOS packaging scripts pass the pinned
+prefix through `RUSTFLAGS`, which puts it first on the link line. And the
+scripts that run here check, after building, that the soname the binary asks
+for (`readelf -d` on Linux, `objdump -p` on the Windows exe) is the one the
+pinned prefix provides, and refuse to package otherwise — the refusal that
+caught the second attempt, before `RUSTFLAGS` was added.
+
 ## Consequences
 
 * One new public function in `leyline-raw`, and the crate keeps its ADR 0004
@@ -168,9 +240,10 @@ re-bless on sight.
 * `make check` fails on any machine whose LibRaw is not among the accepted
   ones. That is the point, and it is a two-second fix for a contributor who
   accepts the change.
-* The release legs carry **one** decoder, LibRaw 0.21.4, built from source on
-  each (§6). Building it is now a prerequisite of packaging, like the mingw
-  prefix already was for Windows.
+* The release legs carry **one** decoder, built from source on each (§6) —
+  LibRaw 0.21.4 from 2026-08-30, 0.22.2 since 2026-09-15 (§7). Building it
+  is now a prerequisite of packaging, like the mingw prefix already was for
+  Windows.
 * `pipeline.md` §5.1 and §5.2 change, and `contributing.md` gains the blessing
   gesture beside the golden one.
 * Nothing about `settings_json`, stages or stage versions changes, so no

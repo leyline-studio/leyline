@@ -40,7 +40,8 @@ env:
   # minor version. LibRaw is what turns a RAW into pixels, and
   # `docs/pipeline.md` §5.1 counts it among the terms of the bit-for-bit
   # promise, so it is built from source here rather than installed.
-  LIBRAW_VERSION: 0.21.4
+  # 0.22.2 since 2026-09-15, for 0.22.1's security fixes (ADR 0086 §7).
+  LIBRAW_VERSION: 0.22.2
   # Same logic for the packaging chain: one cargo-packager, every leg.
   PACKAGER_VERSION: 0.11.8
 
@@ -80,8 +81,8 @@ jobs:
       - name: Install system dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          # No libraw: the pinned one is built below. Homebrew ships 0.22.2,
-          # a different minor version from the one the deliverables carry.
+          # No libraw: the pinned one is built below. Homebrew ships its own,
+          # on its own schedule, which is not a pin.
           brew install libgphoto2 libheif nasm
           # Homebrew's libraw_r.pc hardcodes `-lstdc++` in its Libs line
           # (LibRaw is C++), but current Xcode/macOS SDKs only ship libc++ —
@@ -97,8 +98,8 @@ jobs:
       # Same tag, same recipe, on both legs — this is what makes the decoder
       # one thing rather than whatever each runner's package manager offers.
       # `PKG_CONFIG_PATH` puts it ahead of anything else; `LD_LIBRARY_PATH`
-      # (`DYLD_*` on macOS) matters just as much, because 0.21.x releases
-      # share the soname `libraw_r.so.23` and the loader would otherwise be
+      # (`DYLD_*` on macOS) matters just as much, because 0.22.x releases
+      # share the soname `libraw_r.so.25` and the loader would otherwise be
       # free to pick a different copy at run time.
       - name: Cache the pinned LibRaw
         id: libraw-pin

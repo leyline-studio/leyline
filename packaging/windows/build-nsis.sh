@@ -38,8 +38,8 @@
 #    project shipping a separate (non-reentrant, static-only) Makefile.mingw
 #    that looks like the intended mingw path but isn't what leyline-raw
 #    needs:
-#      curl -sLO https://github.com/LibRaw/LibRaw/archive/refs/tags/0.21.4.tar.gz
-#      tar xzf 0.21.4.tar.gz && cd LibRaw-0.21.4
+#      curl -sLO https://github.com/LibRaw/LibRaw/archive/refs/tags/0.22.2.tar.gz
+#      tar xzf 0.22.2.tar.gz && cd LibRaw-0.22.2
 #      autoreconf -fiv
 #      export PKG_CONFIG_LIBDIR=/usr/x86_64-w64-mingw32/lib/pkgconfig  # zlib only; see below
 #      ./configure --host=x86_64-w64-mingw32 --prefix=<libraw-mingw-prefix> \
@@ -50,13 +50,13 @@
 #    (LibRaw's optional embedded-ICC-profile support isn't needed here;
 #    leyline-color does its own ICC handling independently via lcms2-sys).
 #    `apt install libz-mingw-w64-dev` provides the mingw zlib pkg-config
-#    file LibRaw's ./configure needs. This produces `libraw_r-23.dll` +
+#    file LibRaw's ./configure needs. This produces `libraw_r-25.dll` +
 #    `libraw_r.dll.a` + `libraw_r.pc` for the mingw target.
 #
 # 3. leyline-raw links libraw_r dynamically, so the built .exe needs
-#    `libraw_r-23.dll` next to it — plus every DLL that DLL itself was
+#    `libraw_r-25.dll` next to it — plus every DLL that DLL itself was
 #    linked against (check with
-#    `x86_64-w64-mingw32-objdump -p libraw_r-23.dll | grep 'DLL Name'`):
+#    `x86_64-w64-mingw32-objdump -p libraw_r-25.dll | grep 'DLL Name'`):
 #    `zlib1.dll` (LibRaw's real zlib dependency — `--disable-lcms` in point 2
 #    does NOT disable zlib), `libgcc_s_seh-1.dll`, `libstdc++-6.dll` (must be
 #    the "posix" thread-model variant — check with `update-alternatives
@@ -102,14 +102,14 @@ mkdir -p "$vendor_dir"
 cleanup() { rm -rf "$vendor_dir"; }
 trap cleanup EXIT
 
-# Populate the vendor DLLs this run needs. libraw_r-23.dll (and its
+# Populate the vendor DLLs this run needs. libraw_r-25.dll (and its
 # libraw_r.pc) must already exist from the manual cross-build described in
 # point 2 above — this script doesn't redo that autotools build itself, but it
 # defaults to where that build is kept on this machine so a repeat run needs
 # no environment set up at all. Override LIBRAW_MINGW_PREFIX to point
 # elsewhere.
 : "${LIBRAW_MINGW_PREFIX:=/opt/leyline/libraw-mingw}"
-if [[ ! -f "$LIBRAW_MINGW_PREFIX/bin/libraw_r-23.dll" ]]; then
+if [[ ! -f "$LIBRAW_MINGW_PREFIX/bin/libraw_r-25.dll" ]]; then
     echo "error: no cross-built LibRaw at $LIBRAW_MINGW_PREFIX" >&2
     echo "       rebuild it following point 2 of the header comment, or set" >&2
     echo "       LIBRAW_MINGW_PREFIX to where it already lives." >&2
@@ -123,7 +123,7 @@ fi
 # way to lose an hour on this build.
 export PKG_CONFIG_ALLOW_CROSS=1
 export PKG_CONFIG_LIBDIR="/usr/x86_64-w64-mingw32/lib/pkgconfig:$LIBRAW_MINGW_PREFIX/lib/pkgconfig"
-cp "$LIBRAW_MINGW_PREFIX/bin/libraw_r-23.dll" "$vendor_dir/"
+cp "$LIBRAW_MINGW_PREFIX/bin/libraw_r-25.dll" "$vendor_dir/"
 cp /usr/x86_64-w64-mingw32/lib/zlib1.dll "$vendor_dir/"
 # The runtime DLLs live under a versioned directory whose name is the mingw
 # gcc major (`10-posix` on jammy, `13-posix` on noble): resolved rather than
@@ -169,4 +169,18 @@ build_flags=(
 # cargo-packager does not build the binary itself here, it packages one that
 # already exists at the target path.
 cargo build "${build_flags[@]}"
+
+# The DLL the exe imports must be the one staged above. The Linux AppImage
+# once linked a different LibRaw than its pinned prefix without anything
+# failing (ADR 0086 §7); an installer carrying `-25` beside an exe asking for
+# `-23` would fail only on the tester's machine, so it is checked here too.
+imported="$(x86_64-w64-mingw32-objdump -p target/x86_64-pc-windows-gnu/release/leyline-studio.exe \
+    | sed -n 's/.*DLL Name: \(libraw_r-[0-9]*\.dll\).*/\1/p')"
+if [[ -z "$imported" || ! -e "$vendor_dir/$imported" ]]; then
+    echo "error: leyline-studio.exe imports '${imported:-no libraw_r}', which is not" >&2
+    echo "       the DLL staged from $LIBRAW_MINGW_PREFIX." >&2
+    echo "       The exe was linked against another LibRaw than the pinned prefix." >&2
+    exit 1
+fi
+
 cargo packager --release -p leyline-studio -f nsis --target x86_64-pc-windows-gnu "$@"

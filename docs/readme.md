@@ -36,7 +36,7 @@ What remains open:
 | Pixel processing (AI denoise, upscaling) | The **socket** is delivered ([ADR 0107](adr/0107-derived-assets-and-the-pixel-socket.md)): Studio hands an external processor the develop buffer and files what comes back as a **new photograph** carrying the original's development. No processor ships with Leyline, and none is needed to open, render or export what one produced |
 | Assisted culling | The half that needs no model is delivered ([ADR 0084](adr/0084-assisted-culling.md) §4): bursts grouped, the sharpest kept, black and blown frames named. It **proposes** — the grid narrows to what it proposes and nothing is written until the photographer applies it. Faces and learned judgement are the model half, and are not built |
 | First publication | No binary published, no version cut |
-| One decoder across the three deliverables | Windows cross-builds a pinned LibRaw, Linux and macOS install what their package manager offers. Each is now *accepted* explicitly and an unknown one fails `make check` ([ADR 0086](adr/0086-decoder-in-the-promise.md)), but they are not yet the same build — converging them needs a macOS machine |
+| One decoder across the three deliverables | All three build one pinned LibRaw (0.22.2) from source, and an unknown one fails `make check` ([ADR 0086](adr/0086-decoder-in-the-promise.md)). The macOS build has only ever run on the CI runner: running it on real Apple hardware needs a macOS machine |
 
 The rest of the work is robustness, performance and polish, not missing features.
 
