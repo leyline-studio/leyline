@@ -23,7 +23,7 @@ claimed otherwise.
 
 That limit met a real corpus on 2026-08-28:
 
-* **748 GB** of photographs under `G:\Mes images`, 52,099 files
+* **748 GB** of photographs on one data drive, 52,099 files
   ([ADR 0084](0084-assisted-culling.md) enumerated them);
 * a library on another volume with **157 GB** free — so copy mode cannot hold
   the collection, and never will;
@@ -83,7 +83,7 @@ The catalog stores identity. Where that identity currently sits on **this**
 machine is a hint, and hints live in `roots.json` beside `catalog.db`:
 
 ```json
-{ "3f2a…": "G:\\Mes images", "9c7b…": "/mnt/archive/2019" }
+{ "3f2a…": "D:\\Photos", "9c7b…": "/mnt/archive/2019" }
 ```
 
 Advisory in the strict sense: every hint is **verified by reading the marker**

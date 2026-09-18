@@ -11,7 +11,7 @@ independent defects, and they compound.
 **A camera writes its GPS block whether or not it has a fix.** Read literally,
 a block of zeros carrying a valid `N`/`E` reference is a position in the Gulf of
 Guinea, and `exif.rs` and LibRaw both read it that way. Counted in the reference
-library (`G:\Mes images`, 38 389 photographs):
+library (a real-world catalogue of 38 389 photographs):
 
 | | |
 |---|---|

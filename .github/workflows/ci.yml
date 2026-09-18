@@ -54,6 +54,11 @@ jobs:
         # On a pull request, Linux only — see the header.
         os: ${{ github.event_name == 'pull_request' && fromJSON('["ubuntu-latest"]') || fromJSON('["ubuntu-latest", "macos-latest"]') }}
     runs-on: ${{ matrix.os }}
+    env:
+      # Line tables are enough to read a panic's backtrace; full debug info
+      # is what filled the Linux runner's disk (see "Free disk space").
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
     steps:
       - uses: actions/checkout@v7
 
@@ -76,14 +81,27 @@ jobs:
         #
         # No libraw-dev: the pinned LibRaw is built below instead. Installing
         # it as well would only add a second copy for pkg-config to find.
-        run: sudo apt-get update && sudo apt-get install -y libgphoto2-dev libheif-dev nasm
+        run: sudo apt-get update && sudo apt-get install -y libgphoto2-dev libheif-dev nasm autoconf automake libtool
+
+      # The workspace's test binaries, with full debug info, outgrow the
+      # ~14 GB a hosted Ubuntu runner leaves free: the run of 2026-09-15 died
+      # with `ld` on a Bus error and "No space left on device". The
+      # preinstalled SDKs removed here (.NET, Android, GHC, CodeQL) are
+      # nothing this workspace uses, and together are most of the disk.
+      - name: Free disk space (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
 
       - name: Install system dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
           # No libraw: the pinned one is built below. Homebrew ships its own,
-          # on its own schedule, which is not a pin.
-          brew install libgphoto2 libheif nasm
+          # on its own schedule, which is not a pin. autoconf/automake/libtool:
+          # the LibRaw build starts with `autoreconf`, which macOS runners no
+          # longer carry — every tag from alpha.5 on failed there.
+          brew install libgphoto2 libheif nasm autoconf automake libtool
           # Homebrew's libraw_r.pc hardcodes `-lstdc++` in its Libs line
           # (LibRaw is C++), but current Xcode/macOS SDKs only ship libc++ —
           # there's no standalone libstdc++.dylib/.tbd anymore, so the
@@ -103,7 +121,7 @@ jobs:
       # free to pick a different copy at run time.
       - name: Cache the pinned LibRaw
         id: libraw-pin
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/libraw-prefix
           key: libraw-pin-${{ env.LIBRAW_VERSION }}-${{ runner.os }}
@@ -272,7 +290,7 @@ jobs:
         # `check` leg above — LibRaw is C++, its .pc says `-lstdc++`, and
         # current SDKs only ship libc++.
         run: |
-          brew install libgphoto2 libheif nasm
+          brew install libgphoto2 libheif nasm autoconf automake libtool
           mkdir -p "$HOME/lib-shim"
           ln -sf "$(xcrun --show-sdk-path)/usr/lib/libc++.tbd" "$HOME/lib-shim/libstdc++.tbd"
           echo "LIBRARY_PATH=$HOME/lib-shim:$LIBRARY_PATH" >> "$GITHUB_ENV"

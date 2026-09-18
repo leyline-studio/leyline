@@ -43,7 +43,7 @@ test: ## Run the whole test suite
 
 # Ignored by default because they need a real RAW file, which the repo does
 # not (and should not) carry. Point LEYLINE_TEST_RAW at one, e.g.
-# `make test-raw LEYLINE_TEST_RAW="/mnt/g/Mes images/IMG_1234.CR2"`.
+# `make test-raw LEYLINE_TEST_RAW=~/Pictures/IMG_1234.CR2`.
 test-raw: ## Run the ignored tests against a real RAW (needs LEYLINE_TEST_RAW)
 	@test -n "$(LEYLINE_TEST_RAW)" || { \
 		echo "error: set LEYLINE_TEST_RAW to a real RAW file"; exit 1; }
