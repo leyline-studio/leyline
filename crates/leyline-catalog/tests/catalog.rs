@@ -172,7 +172,7 @@ fn full_text_search_ignores_diacritics() {
 
     conn.execute(
         "INSERT INTO search_index (asset_id, filename, keywords, artist, copyright)
-         VALUES (1, 'IMG_0001.CR3', 'Nature/Birds/Héron', 'Quentin', '')",
+         VALUES (1, 'IMG_0001.CR3', 'Nature/Birds/Héron', 'Photographer', '')",
         [],
     )
     .unwrap();
