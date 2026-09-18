@@ -100,7 +100,7 @@ A sketch (an export recipe with a text watermark):
     "quality": 90,
     "max_edge": 2048,
     "watermark": {
-        "text": "© Your Name 2026",
+        "text": "© Quentin Boulard 2026",
         "font": "sans",
         "size": 3.0,
         "color": "#FFFFFF",
