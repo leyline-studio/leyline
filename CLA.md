@@ -10,9 +10,12 @@ contribution must be covered by this Agreement.
 By submitting a pull request (or any other contribution — patch, issue
 attachment with code, etc.) to this repository, you ("**You**") agree to
 the following terms for that contribution ("**Contribution**") as it
-relates to the Leyline project ("**the Project**", currently maintained by
-the repository owner at
+relates to the Leyline project ("**the Project**", hosted at
 [github.com/leyline-studio/leyline](https://github.com/leyline-studio/leyline)).
+The Project is created and maintained by **Quentin Boulard**, who holds its
+copyright; the licenses below are granted to him and to any successor he
+designates as maintainer of the Project, and "the Project" in them means
+that person.
 
 ## 1. You keep your copyright
 

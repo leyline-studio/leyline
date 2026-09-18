@@ -2,6 +2,7 @@
 name = "leyline-studio"
 description = "Leyline Studio desktop application."
 version.workspace = true
+authors.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -72,6 +73,8 @@ workspace = true
 [package.metadata.packager]
 product-name = "Leyline Studio"
 identifier = "org.leyline.studio"
+publisher = "Quentin Boulard"
+copyright = "Copyright (C) 2026 Quentin Boulard"
 homepage = "https://github.com/leyline-studio/leyline"
 license-file = "../../LICENSE"
 # Regenerated (plain downscale, source already a tight transparent-bg crop)

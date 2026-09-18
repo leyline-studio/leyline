@@ -2,6 +2,7 @@
 name = "leyline-core"
 description = "Shared types, identifiers and errors for the Leyline platform."
 version.workspace = true
+authors.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true

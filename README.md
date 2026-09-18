@@ -117,6 +117,8 @@ Contributions require signing the [CLA](CLA.md).
 
 ## License
 
+Copyright (C) 2026 Quentin Boulard.
+
 [GPL-3.0-only](LICENSE), with one [additional permission under section
 7](LICENSE-EXCEPTION.md) allowing Leyline to be combined with software under
 other terms — every part of Leyline itself stays GPL-3.0, and the permission

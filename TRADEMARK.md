@@ -1,6 +1,6 @@
 # Trademark Policy
 
-Le nom **« Leyline »**, le nom **« Leyline Studio »**, le logo et l'identité visuelle du projet sont des marques du projet Leyline.
+Le nom **« Leyline »**, le nom **« Leyline Studio »**, le logo et l'identité visuelle du projet sont des marques de **Quentin Boulard**, créateur et mainteneur du projet Leyline ; c'est lui qui accorde les permissions écrites mentionnées ci-dessous.
 
 Ils ne sont **pas** couverts par la licence GPL-3.0 du code.
 

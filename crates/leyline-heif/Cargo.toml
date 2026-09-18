@@ -2,6 +2,7 @@
 name = "leyline-heif"
 description = "HEIF/HEIC decoding through the system libheif."
 version.workspace = true
+authors.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true

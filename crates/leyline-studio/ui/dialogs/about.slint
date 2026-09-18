@@ -82,6 +82,14 @@ export component AboutDialog inherits VerticalLayout {
         font-size: 11px;
         wrap: word-wrap;
     }
+    // The copyright notice GPL-3.0 §5(d) asks an interactive program to
+    // display. Not translated: a name and a year read the same everywhere.
+    Text {
+        text: "© 2026 Quentin Boulard";
+        color: #9a9a9a;
+        font-size: 11px;
+        wrap: word-wrap;
+    }
     Text {
         text: @tr("Licensed under {}", "GPL-3.0-only");
         color: #9a9a9a;

@@ -2,6 +2,7 @@
 name = "leyline-derive"
 description = "Contract, discovery and invocation of external pixel processors."
 version.workspace = true
+authors.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
