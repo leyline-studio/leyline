@@ -408,6 +408,18 @@ export struct DevSettings {
 // instead of formatting the sentence itself; `slint-tr-extractor` picks up
 // the `@tr(...)` calls below exactly like any other UI string.
 export global Tr {
+    // Which user guide to open (ADR 0151 §3). The returned string is a
+    // language tag, not a sentence: `docs/guide/<tag>.html`, embedded in
+    // the binary. Translating it is what makes the guide follow the
+    // language the interface is *actually* showing — Slint has already
+    // resolved the stored preference, the system locale and the fallback
+    // to the source language by the time this is read, and a second
+    // resolution in Rust is a second resolution to keep in step. A tag
+    // with no guide of its own falls back to English.
+    public pure function guide-language() -> string {
+        return @tr("en");
+    }
+
     // The field names of a preset's summary line (ADR 0058 §3). Same
     // reason as `tether-setting` below: Rust assembles the sentence, and a
     // string built in Rust is a string no `.pot` ever learns about.
@@ -697,6 +709,12 @@ export global Tr {
     // Reporting a problem (ADR 0123): the folder is named, never sent.
     public pure function report-written(path: string) -> string {
         return @tr("Written to {} — look at it, then attach it wherever you like.", path);
+    }
+    // Help ▸ User Guide (ADR 0151 §2): the path is named for the same
+    // reason the report folder's is — the opener is best-effort, and a
+    // browser that will not start must leave something to copy.
+    public pure function guide-opened(path: string) -> string {
+        return @tr("User guide opened in your browser: {}", path);
     }
     public pure function system-language() -> string {
         return @tr("System language");

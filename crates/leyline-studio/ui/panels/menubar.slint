@@ -804,6 +804,16 @@ export component MenuBar inherits Rectangle {
             }
             MenuSep { }
             MenuRow {
+                // Above the card, because the card answers "which key" and
+                // the guide answers "why" (ADR 0151 §4): someone opening
+                // Help for the first time is looking for the second.
+                title: @tr("User Guide…");
+                activated => {
+                    LibraryState.open-guide();
+                    root.open-menu = "";
+                }
+            }
+            MenuRow {
                 title: @tr("Keyboard Shortcuts…");
                 activated => {
                     DialogState.dialog-result = "";

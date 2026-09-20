@@ -161,14 +161,10 @@ pub(crate) fn copy_attachment(dir: &Path, source: &Path, taken: &[String]) -> Op
 ///
 /// Best-effort and deliberately ignored: the dialog shows the path either way,
 /// so a file manager that will not start costs a copy-paste (ADR 0123 §2).
+/// Shared with the user guide (ADR 0151 §2), which opens a file the same way
+/// for the same reason — one platform triple, one place.
 fn reveal(path: &Path) {
-    #[cfg(target_os = "windows")]
-    let command = "explorer";
-    #[cfg(target_os = "macos")]
-    let command = "open";
-    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-    let command = "xdg-open";
-    let _ = std::process::Command::new(command).arg(path).spawn();
+    crate::guide::open_externally(path);
 }
 
 /// Writes the two texts.

@@ -39,6 +39,11 @@ export global LibraryState {
     // Stops the event loop — the menu bar's File ▸ Quit, equivalent to
     // closing the window from the OS chrome.
     callback quit();
+    // Help ▸ User Guide… (ADR 0151): writes the guide embedded in the
+    // binary into the cache directory and opens it in the browser. Here
+    // rather than on `DialogState` because it opens no dialog — it is an
+    // application verb, like the two above it.
+    callback open-guide();
     // Every operation an installed pixel processor offers, discovered once
     // at launch (ADR 0107 §7). Empty is the normal state, and then the
     // Photo menu shows no submenu at all — an operation that cannot run

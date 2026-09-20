@@ -2793,6 +2793,11 @@ msgctxt "MenuBar"
 msgid "Check for Updates…"
 msgstr "Rechercher des mises à jour…"
 
+#: crates/leyline-studio/ui/panels/menubar.slint:807
+msgctxt "MenuBar"
+msgid "User Guide…"
+msgstr "Guide de l'utilisateur…"
+
 #: crates/leyline-studio/ui/panels/menubar.slint:622
 msgctxt "MenuBar"
 msgid "Keyboard Shortcuts…"
@@ -3110,6 +3115,19 @@ msgstr "Rien à imprimer."
 msgctxt "Tr"
 msgid "Written to {} — look at it, then attach it wherever you like."
 msgstr "Écrit dans {} — regardez-le, puis joignez-le où vous voulez."
+
+#. The user guide's language tag (ADR 0151 §3): the name of the page to
+#. open, docs/guide/<tag>.html — not a sentence to translate but a file to
+#. point at. A language whose guide is not written keeps "en".
+#: crates/leyline-studio/ui/types.slint:415
+msgctxt "Tr"
+msgid "en"
+msgstr "fr"
+
+#: crates/leyline-studio/ui/types.slint:717
+msgctxt "Tr"
+msgid "User guide opened in your browser: {}"
+msgstr "Guide de l'utilisateur ouvert dans votre navigateur : {}"
 
 #: crates/leyline-studio/ui/types.slint:490
 msgctxt "Tr"

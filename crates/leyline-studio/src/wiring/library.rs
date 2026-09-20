@@ -4,18 +4,19 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use slint::{ComponentHandle, Global};
+use slint::{ComponentHandle, Global, SharedString};
 
 use crate::app::{App, report_error, selected_versions};
 use crate::library::relaunch_into;
 use crate::ui::{LibraryState, StudioWindow, Tr};
 
-/// Connects the import and export dialogs.
-/// Wires `LibraryState`: leaving the open library, and leaving the app.
+/// Wires `LibraryState`: leaving the open library, leaving the app, and
+/// opening the user guide.
 ///
-/// All three callbacks are terminal — they either stop the event loop or
-/// relaunch the process pointed at another library (`relaunch_into`) — so
-/// none of them touches `App`.
+/// None of them touches `App`. Three are terminal — they either stop the
+/// event loop or relaunch the process pointed at another library
+/// (`relaunch_into`); the fourth writes a file the binary already holds
+/// (ADR 0151) and never reads the catalog either.
 pub(crate) fn wire_library(window: &StudioWindow, other_recent_libraries: Vec<PathBuf>) {
     let state = LibraryState::get(window);
     // File ▸ Quit (ADR 0020): stops the event loop, the same outcome as
@@ -31,6 +32,26 @@ pub(crate) fn wire_library(window: &StudioWindow, other_recent_libraries: Vec<Pa
             };
             if let Some(folder) = rfd::FileDialog::new().pick_folder() {
                 relaunch_into(&window, &folder);
+            }
+        });
+    }
+    {
+        // Help ▸ User Guide… (ADR 0151): the page the binary carries, in
+        // the language the interface is showing, written out and handed to
+        // the browser. Not terminal like the three around it, and it
+        // touches no catalog either — a guide is a file, not a query.
+        let handle = window.as_weak();
+        state.on_open_guide(move || {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let tr = Tr::get(&window);
+            let tag = tr.invoke_guide_language();
+            match crate::guide::show(tag.as_str()) {
+                Ok(path) => LibraryState::get(&window).set_status_line(
+                    tr.invoke_guide_opened(SharedString::from(path.to_string_lossy().as_ref())),
+                ),
+                Err(reason) => report_error(&window, &reason),
             }
         });
     }

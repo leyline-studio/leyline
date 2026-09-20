@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Leyline Studio — Guide</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { margin: 0 auto; max-width: 42rem; padding: 2.5rem 1.25rem 6rem;
+         font: 16px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  h1 { font-size: 1.9rem; margin: 0 0 .25rem; }
+  h2 { font-size: 1.3rem; margin: 2.75rem 0 .5rem; padding-top: .75rem;
+       border-top: 1px solid rgba(128,128,128,.35); }
+  h3 { font-size: 1.05rem; margin: 1.5rem 0 .35rem; }
+  p, li { margin: .5rem 0; }
+  .lead { opacity: .75; margin-bottom: 2rem; }
+  kbd { font: .85em ui-monospace, monospace; border: 1px solid rgba(128,128,128,.5);
+        border-radius: 4px; padding: .05em .4em; white-space: nowrap; }
+  table { border-collapse: collapse; width: 100%; margin: .75rem 0; }
+  td, th { text-align: left; vertical-align: top; padding: .3rem .6rem .3rem 0;
+           border-bottom: 1px solid rgba(128,128,128,.25); }
+  .note { border-left: 3px solid rgba(128,128,128,.5); padding-left: .9rem; opacity: .9; }
+  nav ol { padding-left: 1.2rem; }
+  footer { margin-top: 4rem; opacity: .6; font-size: .9em; }
+</style>
+</head>
+<body>
+
+<h1>Leyline Studio</h1>
+<p class="lead">The photographer's guide. It reads in half an hour and answers,
+in order, the questions a first session asks.</p>
+
+<nav>
+<ol>
+  <li><a href="#model">What Leyline does with your files</a></li>
+  <li><a href="#first-hour">The first hour</a></li>
+  <li><a href="#culling">Culling</a></li>
+  <li><a href="#develop">Developing</a></li>
+  <li><a href="#output">Exporting and printing</a></li>
+  <li><a href="#organise">Organising and finding</a></li>
+  <li><a href="#trouble">When something goes wrong</a></li>
+  <li><a href="#keyboard">The keyboard</a></li>
+</ol>
+</nav>
+
+<h2 id="model">1. What Leyline does with your files</h2>
+
+<p>Three sentences, and the rest follows from them.</p>
+
+<p><strong>Your files are never modified.</strong> A RAW is read, never
+rewritten. No setting, no rating, no keyword is written into your photographs.
+What you do in Leyline lives in the library, beside them.</p>
+
+<p><strong>The library references; it does not contain.</strong> A library is a
+folder holding a catalog (a SQLite database), previews, and nothing else. At
+import you choose: <em>copy into the library</em>, and the files are filed under
+its <code>Photos/</code> folder; or leave them where they are, and the catalog
+references them in place.</p>
+
+<p><strong>A photograph can have several versions.</strong> A version is one
+development: the same file, a different rendering. Each has its own history, and
+you move between them without duplicating anything on disk.</p>
+
+<p class="note">A useful consequence: backing up the library folder backs up
+<em>all of your editing work</em>. The photographs themselves are wherever you
+put them — inside the library if you copied, on your own disk if you did not.</p>
+
+<h2 id="first-hour">2. The first hour</h2>
+
+<h3>Opening a library</h3>
+<p>On first launch Leyline creates one for you. To open another, or make a
+second: <em>File ▸ Open Library…</em>. The most recent ones are under
+<em>File ▸ Open Recent</em>. Several libraries is a legitimate choice — one per
+year, one per client — and they do not talk to each other.</p>
+
+<h3>Importing</h3>
+<p><em>File ▸ Import…</em> or <kbd>I</kbd>. Point at a folder, then three
+choices:</p>
+<ul>
+  <li><strong>Copy into library</strong> — files are filed under
+      <code>Photos/</code>. Clear it to reference them in place (a memory card:
+      copy; an already organised disk: reference).</li>
+  <li><strong>Recursive</strong> — descend into subfolders.</li>
+  <li><strong>Pair RAW+JPEG</strong> — the camera's JPEG is attached to its RAW
+      rather than taking a cell of its own.</li>
+</ul>
+<p><strong>Look first</strong> lists what an import would take, writing nothing:
+you tick what you want, and files the library already holds are marked.
+<em>Exact (reads every file)</em> compares fingerprints rather than names: it is
+slower, and it is what recognises a photograph that was renamed.</p>
+
+<h3>Watching a folder</h3>
+<p><em>File ▸ Auto Import</em>: anything that lands in the watched folder enters
+the library. Handy for an offload folder; the watch stops when you say so.</p>
+
+<h2 id="culling">3. Culling</h2>
+
+<p>In the grid: <kbd>1</kbd>…<kbd>5</kbd> for stars, <kbd>0</kbd> to clear them,
+<kbd>6</kbd>…<kbd>9</kbd> for colour labels, <kbd>P</kbd> to pick, <kbd>X</kbd>
+to reject, <kbd>U</kbd> to unflag. The top bar filters on all of it, and the
+<em>Shot</em> filter adds the body, the lens, ISO, aperture, focal length and
+shutter speed.</p>
+
+<p><kbd>Ctrl</kbd>+<kbd>A</kbd> selects everything the grid is showing — filter
+included — and <kbd>Ctrl</kbd>+<kbd>D</kbd> goes back to one photograph. The
+line under the filters always says how many photographs a batch action would
+touch.</p>
+
+<h3>Advancing after a rating</h3>
+<p>The <em>Advance</em> chip at the bottom moves to the next photograph as soon
+as a rating is given: a run is culled without touching the arrows.</p>
+
+<h3>Assisted culling</h3>
+<p><em>Library ▸ Assisted Culling…</em> measures the photographs and
+<strong>proposes</strong> rejections: bursts are grouped, the sharpest is
+marked, and black or blown frames are named. Every cell says why it is proposed.
+<strong>Nothing is written</strong>: you reject with <kbd>X</kbd> what you agree
+with, or you discard the proposal.</p>
+
+<h2 id="develop">4. Developing</h2>
+
+<p><kbd>D</kbd> opens develop on the selected photograph, <kbd>G</kbd> returns to
+the library, <kbd>E</kbd> shows the photograph large without opening develop.</p>
+
+<h3>The panel</h3>
+<p>On the right, the settings, grouped and foldable. Two levels:
+<strong>Basic</strong> shows the essentials, <strong>Full</strong> shows
+everything. On a slider: drag to set, hold <kbd>Shift</kbd> for five times finer,
+the wheel moves one notch, a double-click resets, and the number on the right can
+be typed. A group's <kbd>⟲</kbd> resets that group; <em>Reset All</em> returns
+the photograph to how it arrived.</p>
+
+<h3>What is saved, and when</h3>
+<p>Nothing asks you to save. An edit becomes a <strong>revision</strong> when you
+release the slider; successive moves of the same slider fold into one. The
+<em>History</em> panel on the left lists those revisions and says what each one
+changed: click one to go back to it. <kbd>Ctrl</kbd>+<kbd>Z</kbd> and
+<kbd>Ctrl</kbd>+<kbd>Y</kbd> walk the same path step by step.</p>
+
+<h3>Versions and presets</h3>
+<p><em>New version</em> makes a second development of the same photograph.
+<em>Presets</em> keep a look: <kbd>S</kbd> saves the current photograph's, and you
+choose what it carries. <kbd>Ctrl</kbd>+<kbd>C</kbd> and <kbd>Ctrl</kbd>+<kbd>V</kbd>
+copy settings from one photograph onto a whole selection;
+<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> chooses what the copy carries.</p>
+
+<h3>Reprocessing</h3>
+<p>Leyline's rendering is frozen per photograph: an image developed today will
+give the same pixels in ten years, even as the engine improves. To let an older
+photograph pick up an improvement, <strong>reprocess</strong> it: <kbd>R</kbd> for
+this one, <kbd>Shift</kbd>+<kbd>R</kbd> for the library. It creates a new
+revision — so it is undoable, and the old one stays in the history.</p>
+
+<h2 id="output">5. Exporting and printing</h2>
+
+<p><kbd>Ctrl</kbd>+<kbd>E</kbd> exports the selection: JPEG, PNG, TIFF, WebP or
+AVIF, quality, longest edge, watermark, destination folder. An export never
+overwrites an existing file. Export settings are kept as presets, like looks.</p>
+
+<p><kbd>Ctrl</kbd>+<kbd>P</kbd> prints the selection: paper, orientation,
+margins, DPI, destination ICC profile and rendering intent.
+<em>File ▸ Contact Sheet…</em> lays the selection out over one or more PDF pages,
+captions included.</p>
+
+<p>In develop, <em>Soft Proof</em> simulates a destination profile on screen,
+with an out-of-gamut warning. The triangles at the histogram's corners (and
+<kbd>J</kbd>) show what is clipped.</p>
+
+<h2 id="organise">6. Organising and finding</h2>
+
+<p><strong>Folders</strong>: what the disk holds, as it holds it.</p>
+
+<p><strong>Collections</strong>: groupings you make.
+<kbd>Ctrl</kbd>+<kbd>N</kbd> creates one; <kbd>B</kbd> adds the selection,
+<kbd>Shift</kbd>+<kbd>B</kbd> removes it. A collection can also be
+<strong>dynamic</strong>: it keeps the current filter (rating, camera, keywords,
+pick flag) and updates itself.</p>
+
+<p><strong>Keywords</strong>: a tree, in the right-hand panel. A keyword
+<code>Nature/Birds/Heron</code> also answers a search for <code>Nature</code>.</p>
+
+<p><strong>Search</strong>: the box in the filter bar searches the filename, the
+keywords, the title and caption you wrote, the creator, the rights, the camera,
+the lens and the capture date. Diacritics are ignored, and it searches while you
+type.</p>
+
+<p><strong>Map</strong>: <kbd>M</kbd> shows geotagged photographs on a bundled
+basemap. Like everything else, it works with no network.</p>
+
+<h2 id="trouble">7. When something goes wrong</h2>
+
+<h3>An offline root</h3>
+<p>If the photographs live on an external disk that is unplugged, Leyline says
+so: thumbnails, ratings and settings are still there, but the original pixels
+are not reachable. Plug the disk back in, or say where it went in
+<em>File ▸ Roots…</em>.</p>
+
+<h3>A long job</h3>
+<p>An import, an export or a reprocess shows in the bottom right of the window,
+with a <em>Cancel</em> button. It stops between two photographs: what is done
+stays done.</p>
+
+<h3>Reporting a problem</h3>
+<p><em>Help ▸ Report a Problem…</em> prepares a folder — your description, the
+version, the configuration, and a screenshot if you attach one. Leyline
+assembles it and opens it; <strong>nothing is sent</strong>: you pass it on
+wherever you want.</p>
+
+<h3>Updates</h3>
+<p>Leyline reaches the network only if you ask it to, to check that a newer
+version exists. Nothing about you or your photographs is transmitted, and an
+update always installs on a click. The choice lives in
+<em>File ▸ Preferences…</em>.</p>
+
+<h3>Where the files are</h3>
+<table>
+  <tr><th>What</th><th>Where</th></tr>
+  <tr><td>Catalog</td><td><code>&lt;library&gt;/catalog.db</code></td></tr>
+  <tr><td>Copied photographs</td><td><code>&lt;library&gt;/Photos/</code></td></tr>
+  <tr><td>Previews</td><td><code>&lt;library&gt;/Cache/</code> — deletable, regenerates</td></tr>
+  <tr><td>Preferences</td><td>your system's configuration folder</td></tr>
+</table>
+
+<h2 id="keyboard">8. The keyboard</h2>
+
+<table>
+  <tr><th>Everywhere</th><th></th></tr>
+  <tr><td><kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd></td><td>fold the panels</td></tr>
+  <tr><td><kbd>Ctrl</kbd>+<kbd>E</kbd> / <kbd>Ctrl</kbd>+<kbd>P</kbd></td><td>export / print</td></tr>
+  <tr><td><kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>Ctrl</kbd>+<kbd>V</kbd></td><td>copy / paste settings</td></tr>
+  <tr><th>Library</th><th></th></tr>
+  <tr><td><kbd>D</kbd> / <kbd>E</kbd> / <kbd>C</kbd> / <kbd>N</kbd> / <kbd>M</kbd></td><td>develop, loupe, compare, survey, map</td></tr>
+  <tr><td><kbd>I</kbd> / <kbd>T</kbd></td><td>import, tethered capture</td></tr>
+  <tr><td><kbd>Ctrl</kbd>+<kbd>A</kbd> / <kbd>Ctrl</kbd>+<kbd>D</kbd></td><td>select all / none</td></tr>
+  <tr><td><kbd>0</kbd>…<kbd>5</kbd>, <kbd>6</kbd>…<kbd>9</kbd>, <kbd>P</kbd>/<kbd>X</kbd>/<kbd>U</kbd></td><td>rating, label, flag</td></tr>
+  <tr><td><kbd>Ctrl</kbd>+<kbd>N</kbd>, <kbd>B</kbd>, <kbd>Shift</kbd>+<kbd>B</kbd></td><td>collection: create, add, remove</td></tr>
+  <tr><th>Develop</th><th></th></tr>
+  <tr><td><kbd>G</kbd> / <kbd>Esc</kbd></td><td>back to the library</td></tr>
+  <tr><td><kbd>\</kbd> / <kbd>J</kbd> / <kbd>Z</kbd></td><td>before/after, clipping alerts, 100 % zoom</td></tr>
+  <tr><td><kbd>S</kbd> / <kbd>R</kbd></td><td>save a preset, reprocess</td></tr>
+  <tr><td><kbd>←</kbd> / <kbd>→</kbd></td><td>previous / next photograph</td></tr>
+</table>
+
+<p>The complete list is in <em>Help ▸ Keyboard Shortcuts…</em>, always current
+because it is read from the application itself.</p>
+
+<footer>
+This guide ships with the application and describes the version you are running.
+Leyline works offline, with no account and no subscription; your files stay
+yours.
+</footer>
+
+</body>
+</html>

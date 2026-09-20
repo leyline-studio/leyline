@@ -54,7 +54,7 @@ The rest of the work is robustness, performance and polish, not missing features
 
 4. [`contributing.md`](contributing.md) — style, commits, licence, CLA, and the procedure for adding or fixing a render stage.
 5. [`pipeline.md`](pipeline.md) — the render contract. To be read **before** touching the engine: it defines what a stage version is and what the project promises about the reproducibility of a render (§5).
-6. [`adr/`](adr/README.md) — 150 structural decisions, each with its context, its rejected alternatives and its consequences. That is where the *why* of almost everything surprising in the code lives.
+6. [`adr/`](adr/README.md) — 151 structural decisions, each with its context, its rejected alternatives and its consequences. That is where the *why* of almost everything surprising in the code lives.
 
 **To integrate the engine** — [`engine-api.md`](engine-api.md), then the `leyline-sdk` crate, which is the stable public surface.
 
@@ -63,6 +63,8 @@ The rest of the work is robustness, performance and polish, not missing features
 ## Map of the documentation
 
 **Reading** documents are read end to end. **Reference** documents are consulted: you look for a precise answer in them, you do not read them linearly.
+
+One row below is neither: [`guide/`](guide/en.html) is the **user** guide, one self-contained HTML page per shipped language, embedded in Studio and opened from Help ▸ User Guide ([ADR 0151](adr/0151-a-guide-that-ships-with-the-binary.md)). Everything else in `docs/` is written for whoever builds Leyline; that is written for whoever uses it.
 
 | Document | Answers | Nature |
 |---|---|---|
@@ -80,6 +82,7 @@ The rest of the work is robustness, performance and polish, not missing features
 | [`v2-implementation-plan.md`](v2-implementation-plan.md) | Recommended sequencing of those features | Reference |
 | [`measured-findings.md`](measured-findings.md) | What was measured, what it changed, and what turned out to be wrong | Reference |
 | [`adr/`](adr/README.md) | Why one decision rather than another | Reference |
+| [`guide/`](guide/en.html) | What Leyline does with a photographer's files, and how to work in it | Reading, **for the user** |
 
 ---
 

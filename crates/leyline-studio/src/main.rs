@@ -25,6 +25,7 @@ mod events;
 mod file_drop;
 mod format;
 mod groups;
+mod guide;
 // Test-only: the debt list of ADR 0133 §4 and the test that counts it.
 #[cfg(test)]
 mod hints;

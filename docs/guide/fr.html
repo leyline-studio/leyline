@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Leyline Studio — Guide</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { margin: 0 auto; max-width: 42rem; padding: 2.5rem 1.25rem 6rem;
+         font: 16px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  h1 { font-size: 1.9rem; margin: 0 0 .25rem; }
+  h2 { font-size: 1.3rem; margin: 2.75rem 0 .5rem; padding-top: .75rem;
+       border-top: 1px solid rgba(128,128,128,.35); }
+  h3 { font-size: 1.05rem; margin: 1.5rem 0 .35rem; }
+  p, li { margin: .5rem 0; }
+  .lead { opacity: .75; margin-bottom: 2rem; }
+  kbd { font: .85em ui-monospace, monospace; border: 1px solid rgba(128,128,128,.5);
+        border-radius: 4px; padding: .05em .4em; white-space: nowrap; }
+  table { border-collapse: collapse; width: 100%; margin: .75rem 0; }
+  td, th { text-align: left; vertical-align: top; padding: .3rem .6rem .3rem 0;
+           border-bottom: 1px solid rgba(128,128,128,.25); }
+  .note { border-left: 3px solid rgba(128,128,128,.5); padding-left: .9rem; opacity: .9; }
+  nav ol { padding-left: 1.2rem; }
+  footer { margin-top: 4rem; opacity: .6; font-size: .9em; }
+</style>
+</head>
+<body>
+
+<h1>Leyline Studio</h1>
+<p class="lead">Le guide du photographe. Il se lit en une demi-heure et répond,
+dans l'ordre, aux questions que pose la première séance.</p>
+
+<nav>
+<ol>
+  <li><a href="#modele">Ce que Leyline fait de vos fichiers</a></li>
+  <li><a href="#premiere-heure">La première heure</a></li>
+  <li><a href="#trier">Trier</a></li>
+  <li><a href="#developper">Développer</a></li>
+  <li><a href="#sortir">Exporter, imprimer</a></li>
+  <li><a href="#organiser">Organiser et retrouver</a></li>
+  <li><a href="#quand-ca-cloche">Quand quelque chose cloche</a></li>
+  <li><a href="#clavier">Le clavier</a></li>
+</ol>
+</nav>
+
+<h2 id="modele">1. Ce que Leyline fait de vos fichiers</h2>
+
+<p>Trois phrases, et le reste en découle.</p>
+
+<p><strong>Vos fichiers ne sont jamais modifiés.</strong> Un RAW est lu, jamais
+réécrit. Aucun réglage, aucune note, aucun mot-clé n'est inscrit dans vos
+photos. Ce que vous faites dans Leyline vit dans la bibliothèque, à côté.</p>
+
+<p><strong>La bibliothèque référence, elle ne contient pas.</strong> Une
+bibliothèque est un dossier qui tient un catalogue (une base SQLite), des
+aperçus, et rien d'autre. À l'import, vous choisissez : <em>copier dans la
+bibliothèque</em>, et les fichiers sont rangés dans son dossier <code>Photos/</code> ;
+ou laisser les fichiers où ils sont, et le catalogue les référence sur place.</p>
+
+<p><strong>Une photo peut avoir plusieurs versions.</strong> Une version est un
+développement : le même fichier, un autre rendu. Chaque version a son propre
+historique, et l'on passe de l'une à l'autre sans rien dupliquer sur le disque.</p>
+
+<p class="note">Conséquence utile : sauvegarder le dossier de la bibliothèque
+sauvegarde <em>tout votre travail de retouche</em>. Les photos, elles, sont là où
+vous les avez mises — dans la bibliothèque si vous avez copié, sur votre disque
+sinon.</p>
+
+<h2 id="premiere-heure">2. La première heure</h2>
+
+<h3>Ouvrir une bibliothèque</h3>
+<p>Au premier lancement, Leyline en crée une pour vous. Pour en ouvrir une autre
+ou en créer une seconde : <em>Fichier ▸ Ouvrir une bibliothèque…</em>. Les
+dernières ouvertes sont sous <em>Fichier ▸ Ouvrir un élément récent</em>.
+Plusieurs bibliothèques sont un choix légitime — une par année, une par client —
+et elles ne communiquent pas entre elles.</p>
+
+<h3>Importer</h3>
+<p><em>Fichier ▸ Importer…</em> ou <kbd>I</kbd>. Indiquez un dossier, puis trois
+choix :</p>
+<ul>
+  <li><strong>Copier dans la bibliothèque</strong> — les fichiers sont rangés
+      sous <code>Photos/</code>. Décochez-le pour les référencer sur place
+      (carte mémoire : copiez ; disque déjà organisé : référencez).</li>
+  <li><strong>Récursif</strong> — descendre dans les sous-dossiers.</li>
+  <li><strong>Appairer RAW+JPEG</strong> — le JPEG du boîtier est attaché à son
+      RAW au lieu d'occuper une vignette de plus.</li>
+</ul>
+<p><strong>Regarder d'abord</strong> liste ce que l'import prendrait sans rien
+écrire : vous cochez ce que vous voulez, et les doublons déjà présents sont
+signalés. <em>Exact (lit chaque fichier)</em> compare les empreintes plutôt que
+les noms : c'est plus lent, et c'est ce qui reconnaît une photo renommée.</p>
+
+<h3>Surveiller un dossier</h3>
+<p><em>Fichier ▸ Import automatique</em> : tout fichier qui se pose dans le
+dossier surveillé entre dans la bibliothèque. Pratique pour un dossier de
+déchargement ; la surveillance s'arrête quand vous le dites.</p>
+
+<h2 id="trier">3. Trier</h2>
+
+<p>Dans la grille : <kbd>1</kbd>…<kbd>5</kbd> pour les étoiles, <kbd>0</kbd> pour
+les retirer, <kbd>6</kbd>…<kbd>9</kbd> pour les étiquettes de couleur,
+<kbd>P</kbd> sélectionner, <kbd>X</kbd> rejeter, <kbd>U</kbd> annuler le
+drapeau. La barre du haut filtre sur tout cela, et le filtre
+<em>Prise de vue</em> ajoute le boîtier, l'objectif, l'ISO, l'ouverture, la
+focale et la vitesse.</p>
+
+<p><kbd>Ctrl</kbd>+<kbd>A</kbd> sélectionne tout ce que la grille affiche —
+filtre compris — et <kbd>Ctrl</kbd>+<kbd>D</kbd> revient à une seule photo. La
+ligne sous les filtres dit toujours combien de photos une action par lot
+toucherait.</p>
+
+<h3>Avancer après la note</h3>
+<p>La pastille <em>Avance</em>, en bas, fait passer à la photo suivante dès
+qu'une note est donnée : on trie une série sans toucher aux flèches.</p>
+
+<h3>Le tri assisté</h3>
+<p><em>Bibliothèque ▸ Tri assisté…</em> mesure les photos et <strong>propose</strong>
+des rejets : les rafales sont regroupées, la plus nette est marquée, et les
+images noires ou brûlées sont nommées. Chaque vignette dit pourquoi elle est
+proposée. <strong>Rien n'est écrit</strong> : vous rejetez avec <kbd>X</kbd> ce
+que vous approuvez, ou vous abandonnez la proposition.</p>
+
+<h2 id="developper">4. Développer</h2>
+
+<p><kbd>D</kbd> ouvre le développement sur la photo sélectionnée, <kbd>G</kbd>
+revient à la bibliothèque, <kbd>E</kbd> montre la photo en grand sans ouvrir le
+développement.</p>
+
+<h3>Le panneau</h3>
+<p>À droite, les réglages, groupés et repliables. Deux niveaux :
+<strong>Basique</strong> montre l'essentiel, <strong>Complet</strong> montre
+tout. Sur un curseur : glisser règle, <kbd>Maj</kbd> enfoncé règle cinq fois
+plus finement, la molette avance d'un cran, un double-clic remet à zéro, et le
+nombre à droite s'écrit au clavier. Le <kbd>⟲</kbd> d'un groupe remet ce groupe
+à zéro ; <em>Tout réinitialiser</em> remet la photo à son état d'origine.</p>
+
+<h3>Ce qui est enregistré, et quand</h3>
+<p>Rien ne vous demande d'enregistrer. Une retouche devient une
+<strong>révision</strong> quand vous lâchez le curseur ; des réglages successifs
+du même curseur se fondent en une seule. Le panneau <em>Historique</em>, à
+gauche, liste ces révisions et dit ce que chacune a changé : cliquez-en une pour
+y retourner. <kbd>Ctrl</kbd>+<kbd>Z</kbd> et <kbd>Ctrl</kbd>+<kbd>Y</kbd> font
+le même chemin pas à pas.</p>
+
+<h3>Versions et presets</h3>
+<p><em>Nouvelle version</em> crée un second développement de la même photo. Les
+<em>presets</em> gardent un rendu : <kbd>S</kbd> enregistre celui de la photo
+courante, en choisissant ce qu'il emporte. <kbd>Ctrl</kbd>+<kbd>C</kbd> et
+<kbd>Ctrl</kbd>+<kbd>V</kbd> copient et collent des réglages d'une photo à une
+sélection entière ; <kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>C</kbd> choisit ce que
+la copie emporte.</p>
+
+<h3>Retraiter</h3>
+<p>Le rendu de Leyline est figé par photo : une image développée aujourd'hui
+rendra les mêmes pixels dans dix ans, même si le moteur progresse. Pour faire
+profiter une ancienne photo d'une amélioration, on la <strong>retraite</strong> :
+<kbd>R</kbd> pour celle-ci, <kbd>Maj</kbd>+<kbd>R</kbd> pour la bibliothèque.
+Cela crée une nouvelle révision — donc c'est annulable, et l'ancienne reste
+dans l'historique.</p>
+
+<h2 id="sortir">5. Exporter, imprimer</h2>
+
+<p><kbd>Ctrl</kbd>+<kbd>E</kbd> exporte la sélection : JPEG, PNG, TIFF, WebP ou
+AVIF, qualité, bord maximum, filigrane, dossier de destination. Un export
+n'écrase jamais un fichier existant. Les réglages d'export se gardent en
+presets, comme les rendus.</p>
+
+<p><kbd>Ctrl</kbd>+<kbd>P</kbd> imprime la sélection : papier, orientation,
+marges, PPP, profil ICC de destination et intention de rendu.
+<em>Fichier ▸ Planche contact…</em> range la sélection sur une ou plusieurs
+pages PDF, légendes comprises.</p>
+
+<p>Dans le développement, <em>Épreuvage écran</em> simule le rendu d'un profil
+de destination à l'écran, avec l'alerte des couleurs hors gamut. Les triangles
+aux coins de l'histogramme (et <kbd>J</kbd>) montrent ce qui est écrêté.</p>
+
+<h2 id="organiser">6. Organiser et retrouver</h2>
+
+<p><strong>Dossiers</strong> : ce que le disque contient, tel quel.</p>
+
+<p><strong>Collections</strong> : des regroupements que vous faites.
+<kbd>Ctrl</kbd>+<kbd>N</kbd> en crée une ; <kbd>B</kbd> ajoute la sélection,
+<kbd>Maj</kbd>+<kbd>B</kbd> la retire. Une collection peut aussi être
+<strong>dynamique</strong> : elle garde le filtre en cours (note, boîtier,
+mots-clés, drapeau) et se met à jour toute seule.</p>
+
+<p><strong>Mots-clés</strong> : un arbre, dans le panneau de droite. Un mot-clé
+<code>Nature/Oiseaux/Héron</code> répond aussi à une recherche de
+<code>Nature</code>.</p>
+
+<p><strong>Recherche</strong> : la boîte de la barre de filtres cherche dans le
+nom de fichier, les mots-clés, le titre et la légende que vous avez écrits,
+l'auteur, les droits, le boîtier, l'objectif et la date de prise de vue. Les
+accents sont ignorés, et la recherche se fait pendant que vous tapez.</p>
+
+<p><strong>Carte</strong> : <kbd>M</kbd> montre les photos géolocalisées sur un
+fond de carte embarqué. Comme tout le reste, elle fonctionne sans réseau.</p>
+
+<h2 id="quand-ca-cloche">7. Quand quelque chose cloche</h2>
+
+<h3>Une racine hors ligne</h3>
+<p>Si les photos vivent sur un disque externe débranché, Leyline le dit :
+les vignettes, les notes et les réglages restent là, mais les pixels d'origine
+ne sont pas accessibles. Rebranchez le disque, ou dites où il est allé dans
+<em>Fichier ▸ Racines…</em>.</p>
+
+<h3>Un long travail</h3>
+<p>Un import, un export ou un retraitement s'affiche en bas à droite de la
+fenêtre, avec un bouton <em>Annuler</em>. L'arrêt se fait entre deux photos :
+ce qui est fait reste fait.</p>
+
+<h3>Signaler un problème</h3>
+<p><em>Aide ▸ Signaler un problème…</em> prépare un dossier — votre description,
+la version, la configuration, et une capture si vous en joignez une. Leyline
+l'assemble et l'ouvre ; <strong>rien n'est envoyé</strong> : vous le transmettez
+où vous voulez.</p>
+
+<h3>Mises à jour</h3>
+<p>Leyline ne contacte le réseau que si vous le lui demandez, pour vérifier
+qu'une version existe. Rien de vous ni de vos photos n'est transmis, et une mise
+à jour s'installe toujours sur un clic. Le choix se fait dans
+<em>Fichier ▸ Préférences…</em>.</p>
+
+<h3>Où sont les fichiers</h3>
+<table>
+  <tr><th>Quoi</th><th>Où</th></tr>
+  <tr><td>Catalogue</td><td><code>&lt;bibliothèque&gt;/catalog.db</code></td></tr>
+  <tr><td>Photos copiées</td><td><code>&lt;bibliothèque&gt;/Photos/</code></td></tr>
+  <tr><td>Aperçus</td><td><code>&lt;bibliothèque&gt;/Cache/</code> — effaçable, se régénère</td></tr>
+  <tr><td>Préférences</td><td>le dossier de configuration de votre système</td></tr>
+</table>
+
+<h2 id="clavier">8. Le clavier</h2>
+
+<table>
+  <tr><th>Partout</th><th></th></tr>
+  <tr><td><kbd>Tab</kbd> / <kbd>Maj</kbd>+<kbd>Tab</kbd></td><td>replier les panneaux</td></tr>
+  <tr><td><kbd>Ctrl</kbd>+<kbd>E</kbd> / <kbd>Ctrl</kbd>+<kbd>P</kbd></td><td>exporter / imprimer</td></tr>
+  <tr><td><kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>Ctrl</kbd>+<kbd>V</kbd></td><td>copier / coller les réglages</td></tr>
+  <tr><th>Bibliothèque</th><th></th></tr>
+  <tr><td><kbd>D</kbd> / <kbd>E</kbd> / <kbd>C</kbd> / <kbd>N</kbd> / <kbd>M</kbd></td><td>développer, loupe, comparer, mosaïque, carte</td></tr>
+  <tr><td><kbd>I</kbd> / <kbd>T</kbd></td><td>importer, prise de vue connectée</td></tr>
+  <tr><td><kbd>Ctrl</kbd>+<kbd>A</kbd> / <kbd>Ctrl</kbd>+<kbd>D</kbd></td><td>tout sélectionner / rien</td></tr>
+  <tr><td><kbd>0</kbd>…<kbd>5</kbd>, <kbd>6</kbd>…<kbd>9</kbd>, <kbd>P</kbd>/<kbd>X</kbd>/<kbd>U</kbd></td><td>note, étiquette, drapeau</td></tr>
+  <tr><td><kbd>Ctrl</kbd>+<kbd>N</kbd>, <kbd>B</kbd>, <kbd>Maj</kbd>+<kbd>B</kbd></td><td>collection : créer, ajouter, retirer</td></tr>
+  <tr><th>Développement</th><th></th></tr>
+  <tr><td><kbd>G</kbd> / <kbd>Échap</kbd></td><td>retour à la bibliothèque</td></tr>
+  <tr><td><kbd>\</kbd> / <kbd>J</kbd> / <kbd>Z</kbd></td><td>avant-après, alertes d'écrêtage, zoom 100 %</td></tr>
+  <tr><td><kbd>S</kbd> / <kbd>R</kbd></td><td>enregistrer un preset, retraiter</td></tr>
+  <tr><td><kbd>←</kbd> / <kbd>→</kbd></td><td>photo précédente / suivante</td></tr>
+</table>
+
+<p>La liste complète est dans <em>Aide ▸ Raccourcis clavier…</em>, toujours à
+jour puisqu'elle est lue dans l'application.</p>
+
+<footer>
+Ce guide est livré avec l'application et décrit la version que vous utilisez.
+Leyline fonctionne hors ligne, sans compte et sans abonnement ; vos fichiers
+restent les vôtres.
+</footer>
+
+</body>
+</html>
