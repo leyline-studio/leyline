@@ -221,7 +221,7 @@ fn a_soft_proof_transforms_the_view_and_leaves_everything_else_alone() {
     // And nothing was written: the cached preview file is untouched, and no
     // revision was created (the import's is still the only one).
     assert_eq!(std::fs::read(&plain.path).unwrap(), plain_bytes);
-    let session = library.edit(report.imported[0].registered.version).unwrap();
+    let mut session = library.edit(report.imported[0].registered.version).unwrap();
     assert_eq!(session.history().unwrap().len(), 1);
     drop(session);
 
@@ -839,4 +839,141 @@ fn white_balance_picker_refuses_a_clipped_sample() {
         library.neutralize_wb(asset, 0.5, 0.5),
         Err(LeylineError::InvalidImage(_))
     ));
+}
+
+/// A library holding two photographs, for the claim tests below.
+fn library_with_two_photos(dir: &tempfile::TempDir) -> (Library, Vec<leyline_core::VersionId>) {
+    let library = Library::create(&dir.path().join("Claims"), "Claims").unwrap();
+    let source = dir.path().join("Shoot");
+    std::fs::create_dir(&source).unwrap();
+    for (index, name) in ["a.png", "b.png"].iter().enumerate() {
+        image::save_buffer(
+            source.join(name),
+            &[index as u8 * 40 + 10; 4 * 2 * 3],
+            4,
+            2,
+            image::ExtendedColorType::Rgb8,
+        )
+        .unwrap();
+    }
+    let report = library
+        .import(
+            &source,
+            &ImportOptions {
+                copy_files: true,
+                recursive: false,
+                pair_companions: true,
+                thumbnails: false,
+            },
+            |_, _| {},
+        )
+        .unwrap();
+    let versions = report
+        .imported
+        .iter()
+        .map(|file| file.registered.version)
+        .collect();
+    (library, versions)
+}
+
+/// ADR 0120 §1 — the whole point: the rest of the library goes on working
+/// while a session is open.
+///
+/// Answered from another thread with a deadline, so that a regression *fails*
+/// this test instead of hanging the suite the way the defect itself did.
+#[test]
+fn an_open_session_no_longer_freezes_the_library() {
+    let dir = tempfile::tempdir().unwrap();
+    let (library, versions) = library_with_two_photos(&dir);
+
+    let mut session = library.edit(versions[0]).unwrap();
+    session.set(Param::Exposure, Value::Float(0.5)).unwrap();
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    let elsewhere = library.clone();
+    std::thread::spawn(move || {
+        // Three ordinary calls, one read and two writes, none of them about
+        // the version being edited.
+        let count = elsewhere.catalog().count(&GridQuery::default()).unwrap();
+        elsewhere.set_rating(&[versions[1]], Some(3)).unwrap();
+        let mut other = elsewhere.edit(versions[1]).unwrap();
+        other.set(Param::Contrast, Value::Int(10)).unwrap();
+        let _ = tx.send(count);
+    });
+
+    let count = rx
+        .recv_timeout(std::time::Duration::from_secs(10))
+        .expect("the library must answer while a session is open");
+    assert_eq!(count, 2);
+    // And the session that was open all along still works.
+    session.commit().unwrap();
+}
+
+/// ADR 0120 §2 — a second session on the same version is refused by name,
+/// never left to block.
+#[test]
+fn a_second_session_on_one_version_is_refused_by_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let (library, versions) = library_with_two_photos(&dir);
+
+    let mut first = library.edit(versions[0]).unwrap();
+    match library.edit(versions[0]) {
+        Err(LeylineError::VersionBusy { version }) => {
+            assert_eq!(version, versions[0].get());
+        }
+        other => panic!("expected VersionBusy, got {other:?}"),
+    }
+    // A session on the other photograph is not affected in any way.
+    let _second = library.edit(versions[1]).unwrap();
+
+    // The claim is released when the session ends — and what was pending is
+    // committed first, which is `Drop`'s existing promise (§3).
+    first.set(Param::Exposure, Value::Float(1.25)).unwrap();
+    drop(first);
+    let reopened = library.edit(versions[0]).unwrap();
+    assert!((reopened.settings().exposure - 1.25).abs() < f64::EPSILON);
+}
+
+/// A session refused at `open` — a head written by a newer engine, say —
+/// must not leave its claim behind, or the version would stay locked by a
+/// session that never existed.
+#[test]
+fn a_session_that_fails_to_open_leaves_no_claim() {
+    let dir = tempfile::tempdir().unwrap();
+    let (library, versions) = library_with_two_photos(&dir);
+
+    let missing = leyline_core::VersionId::new(9_999);
+    assert!(library.edit(missing).is_err());
+    assert!(library.edit(missing).is_err(), "still refused, not busy");
+    // And a real one still opens.
+    let _session = library.edit(versions[0]).unwrap();
+}
+
+/// ADR 0120 §2, the other half: a batch no longer *blocks* behind an open
+/// session, so it must not write behind its back either. The claimed version
+/// comes back as an ordinary per-version failure.
+#[test]
+fn a_batch_leaves_a_claimed_version_alone_and_says_so() {
+    let dir = tempfile::tempdir().unwrap();
+    let (library, versions) = library_with_two_photos(&dir);
+
+    let mut open = library.edit(versions[0]).unwrap();
+    open.set(Param::Exposure, Value::Float(2.0)).unwrap();
+
+    let report = library.reprocess(&versions, |_, _| {}).unwrap();
+    assert_eq!(report.failed.len(), 1, "{report:?}");
+    assert_eq!(report.failed[0].version, versions[0]);
+    assert!(
+        report.failed[0].reason.contains("session"),
+        "{}",
+        report.failed[0].reason
+    );
+    // The other photograph went through as usual.
+    assert!(
+        report.reprocessed.contains(&versions[1]) || report.already_current.contains(&versions[1])
+    );
+
+    // And the session's own state is untouched by the batch that stepped
+    // around it.
+    assert!((open.settings().exposure - 2.0).abs() < f64::EPSILON);
 }

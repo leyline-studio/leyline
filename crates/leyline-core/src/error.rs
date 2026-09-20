@@ -195,6 +195,19 @@ pub enum LeylineError {
         uuid: String,
     },
 
+    /// Another edit session is already open on this version (ADR 0120 §2).
+    ///
+    /// Refused by name rather than blocked: two sessions on one version is a
+    /// real mistake — the second's commit would overwrite the first's
+    /// authoritative state — and a mistake that *blocks* is one the user
+    /// watches as a freeze. An interface can say "this photograph is open
+    /// somewhere else"; it can say nothing at all about a mutex.
+    #[error("version {version} is already being edited")]
+    VersionBusy {
+        /// The version a session already holds.
+        version: i64,
+    },
+
     /// An underlying I/O operation failed.
     #[error("i/o error: {0}")]
     Io(#[from] std::io::Error),

@@ -1,6 +1,6 @@
 # ADR 0120 — A session claims a version, it does not hold the catalog
 
-**Status:** Accepted — 2026-09
+**Status:** Accepted — 2026-09 · **Built** — 2026-09-20
 
 ## Context
 
@@ -95,6 +95,26 @@ The number needs a reason, so here it is, from both ends:
 * **Never reached by a client that is alive**, because every call renews it,
   and a client with nothing to say sends a heartbeat, which is the cheapest
   message a transport has.
+
+## What was built
+
+The decision above was taken in 2026-09 and built on 2026-09-20, unchanged in
+substance. Two notes from the building, both of them consequences of §1 rather
+than departures from it:
+
+* The seam `EditSession` is generic over is no longer `DerefMut<Target = Catalog>`
+  but a `CatalogAccess` trait with one method, `with(|catalog| …)`. A reference
+  cannot be handed out without being *held*, which is the whole defect; a
+  closure can, so the handle takes the lock inside the call and gives it back.
+  `&mut Catalog` implements it in one line, so the engine's own batches and
+  every test are untouched. `EditSession::history` becomes `&mut self`, reading
+  the history being an operation like any other.
+* §2's refusal had to be extended to the **batches**. Before the claim, a
+  preset application or a reprocess simply blocked behind an open session,
+  because everything shared one lock; afterwards they would have written behind
+  its back, which is precisely the mistake §2 refuses. They now leave a claimed
+  version alone and report it, in the per-version failure list those batches
+  already carry.
 
 ## Consequences
 

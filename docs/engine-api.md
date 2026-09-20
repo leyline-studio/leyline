@@ -526,13 +526,22 @@ impl EditSession {
     pub fn redo(&mut self) -> Result<Option<RevisionId>>;
 
     pub fn settings(&self) -> &Settings;       // the complete current state
-    pub fn history(&self) -> Result<Vec<RevisionInfo>>;
+    pub fn history(&mut self) -> Result<Vec<RevisionInfo>>;
 }
 ```
 
 * `set` is called on every slider movement: the engine updates the preview in memory.
 * `commit` is called at the commit points defined by `pipeline.md` (release, tool change…). The session alone decides whether it is a new revision or an amendment.
 * Closing the session (drop) commits the pending state: nothing is ever lost.
+
+### The claim ([ADR 0120](adr/0120-edit-session-claim.md))
+
+A session claims **its version**, and nothing else.
+
+* **Everything else on the library keeps working** while it is open — a grid query, a preview, an export job, a session on another photograph. The session takes the catalog's lock the way every other method does: one operation, then release.
+* **A second session on the same version is refused by name**, with `LeylineError::VersionBusy`, never left to block: a mistake that blocks is one the user watches as a freeze, and an interface can say "this photograph is open somewhere else" while it can say nothing at all about a mutex.
+* **The batches step around a claimed version** rather than writing behind the session's back: `apply_preset`, `apply_settings` and `reprocess` report it as an ordinary per-version failure ("another edit session is open on this version") and do the rest.
+* The claim is released by `Drop`, **after** the pending state has been committed — the work is saved first, the claim goes second. A holder whose disappearance cannot be observed (a remote client, [ADR 0121](adr/0121-remote-engine-boundary.md)) will carry a deadline instead; a local session has `Drop` and needs none.
 
 ## 10.2 Versions
 

@@ -117,7 +117,7 @@ pub(crate) fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<()
         return Ok(());
     };
     let (settings, history) = {
-        let session = app.library.edit(version).map_err(|e| e.to_string())?;
+        let mut session = app.library.edit(version).map_err(|e| e.to_string())?;
         let history = session.history().map_err(|e| e.to_string())?;
         (session.settings().clone(), history)
     };

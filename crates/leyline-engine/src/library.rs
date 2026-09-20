@@ -48,7 +48,7 @@ use crate::print::{PrintRecipe, PrintReport, PrintRequest};
 use crate::rename::{RenameReport, move_sidecars};
 use crate::reprocess::ReprocessReport;
 use crate::scan::{ScanOptions, ScanReport};
-use crate::session::EditSession;
+use crate::session::{CatalogAccess, EditSession};
 use crate::wb::RangeSample;
 
 /// Decoded images kept in memory for preview renders. Two covers the
@@ -130,6 +130,10 @@ struct Inner {
     subscribers: Mutex<Vec<Sender<Event>>>,
     /// Next job id, unique within this process.
     next_job: AtomicU64,
+    /// Versions an edit session currently claims (ADR 0120 §1). A session
+    /// no longer holds the catalog's lock: it registers here, and takes the
+    /// lock one operation at a time like every other method of the façade.
+    claims: Mutex<HashSet<VersionId>>,
     /// Jobs a client has asked to stop (ADR 0139). A job id enters this set
     /// when [`Library::cancel_job`] is called and leaves it when the job
     /// ends, so the set holds at most the handful of batches in flight.
@@ -383,6 +387,7 @@ impl Library {
                 watch: Mutex::new(None),
                 map_pack: Mutex::new(None),
                 next_job: AtomicU64::new(1),
+                claims: Mutex::new(HashSet::new()),
                 cancelled_jobs: Mutex::new(HashSet::new()),
                 jobs: job_tx,
             }),
@@ -2312,13 +2317,37 @@ impl Library {
         self.catalog().contact_sheet_presets()
     }
 
-    /// Opens an edit session on a version (§10.1). The session holds the
-    /// catalog lock: nothing else mutates while editing, so keep sessions
-    /// short — Studio opens one per commit point. Every history write of
-    /// the session emits `VersionChanged` (§3.2).
-    pub fn edit(&self, version: VersionId) -> Result<EditSession<CatalogWrite<'_>>> {
+    /// Splits a batch's targets into the ones it may write and the ones a
+    /// session is holding (ADR 0120 §2).
+    ///
+    /// Before the claim existed, these batches simply *blocked* behind an
+    /// open session, because everything shared one lock. Now they would write
+    /// behind its back — and a session's whole promise is that its in-memory
+    /// state is the authoritative one — so a claimed version is left alone
+    /// and reported, the way any other per-version failure is.
+    fn split_claimed(&self, versions: &[VersionId]) -> (Vec<VersionId>, Vec<VersionId>) {
+        let claims = lock(&self.inner.claims);
+        versions
+            .iter()
+            .partition(|version| !claims.contains(version))
+    }
+
+    /// Opens an edit session on a version (§10.1).
+    ///
+    /// The session claims **that version** and nothing else (ADR 0120): every
+    /// other call on this library — a grid query, a preview, an export job —
+    /// goes on working while it is open, and a second session on the same
+    /// version is refused by name with [`LeylineError::VersionBusy`] rather
+    /// than left to block. Every history write of the session emits
+    /// `VersionChanged` (§3.2).
+    ///
+    /// The claim is released when the session is dropped, after `Drop` has
+    /// committed whatever was pending — so nothing is lost and nothing stays
+    /// claimed.
+    pub fn edit(&self, version: VersionId) -> Result<EditSession<VersionClaim>> {
+        let claim = VersionClaim::take(self, version)?;
         let library = self.clone();
-        Ok(EditSession::open(self.catalog_mut(), version)?
+        Ok(EditSession::open(claim, version)?
             .with_notifier(move |version_id| library.emit(Event::VersionChanged { version_id })))
     }
 
@@ -2356,9 +2385,11 @@ impl Library {
         versions: &[VersionId],
         mut progress: impl FnMut(u64, u64) -> F,
     ) -> Result<PresetApplyReport> {
+        let (free, busy) = self.split_claimed(versions);
         let mut catalog = lock(&self.inner.catalog);
-        let report = crate::presets::apply_batch(&mut catalog, settings, versions, &mut progress);
+        let mut report = crate::presets::apply_batch(&mut catalog, settings, &free, &mut progress);
         drop(catalog);
+        report.failed.extend(busy.into_iter().map(busy_apply));
         for &version in &report.applied {
             self.emit(Event::VersionChanged {
                 version_id: version,
@@ -2401,18 +2432,20 @@ impl Library {
     ) -> Result<PresetApplyReport> {
         let stored = self.catalog().preset(preset)?;
         let fields = PresetSettings::parse(&stored.preset_json)?;
+        let (free, busy) = self.split_claimed(versions);
         let mut catalog = lock(&self.inner.catalog);
         // Each revision records the preset *and the version of it* that was
         // applied (ADR 0058 §5), which is what makes "developed with an older
         // version of this preset" answerable later.
-        let report = crate::presets::apply_batch_from(
+        let mut report = crate::presets::apply_batch_from(
             &mut catalog,
             &fields,
             Some((preset, stored.revision)),
-            versions,
+            &free,
             &mut progress,
         );
         drop(catalog);
+        report.failed.extend(busy.into_iter().map(busy_apply));
         for &version in &report.applied {
             self.emit(Event::VersionChanged {
                 version_id: version,
@@ -2505,9 +2538,17 @@ impl Library {
         versions: &[VersionId],
         mut progress: impl FnMut(u64, u64) -> F,
     ) -> Result<ReprocessReport> {
+        let (free, busy) = self.split_claimed(versions);
         let mut catalog = lock(&self.inner.catalog);
-        let report = crate::reprocess::reprocess_batch(&mut catalog, versions, &mut progress);
+        let mut report = crate::reprocess::reprocess_batch(&mut catalog, &free, &mut progress);
         drop(catalog);
+        report.failed.extend(
+            busy.into_iter()
+                .map(|version| crate::reprocess::FailedReprocess {
+                    version,
+                    reason: BUSY_REASON.to_owned(),
+                }),
+        );
         for &version in &report.reprocessed {
             self.emit(Event::VersionChanged {
                 version_id: version,
@@ -3434,6 +3475,62 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 /// Unit tests for the job pool itself (§3.3): they use `spawn_job`
 /// directly to submit synthetic work, unlike `tests/jobs.rs` which only
 /// exercises the public `*_async` facade and its event contract.
+/// What a batch reports for a version an open session is holding
+/// (ADR 0120 §2). One sentence, in the family of the engine's other
+/// per-version reasons: the client shows it as-is.
+const BUSY_REASON: &str = "another edit session is open on this version";
+
+/// The per-version failure a claimed version produces in a preset batch.
+fn busy_apply(version: VersionId) -> crate::presets::FailedApply {
+    crate::presets::FailedApply {
+        version,
+        reason: BUSY_REASON.to_owned(),
+    }
+}
+
+/// A session's claim on one version (ADR 0120 §1).
+///
+/// Two things at once, which is why it is one type: the **registration** that
+/// refuses a second session on the same version, and the **handle** through
+/// which that session reaches the catalog — taking the lock for one operation
+/// and giving it back, the rule every other method of the façade follows.
+///
+/// Released by `Drop`, which runs after `EditSession`'s own `Drop` has
+/// committed whatever was pending: the work is saved first, the claim goes
+/// second.
+#[derive(Debug)]
+pub struct VersionClaim {
+    library: Library,
+    version: VersionId,
+}
+
+impl VersionClaim {
+    /// Registers a claim, or refuses because one is already held.
+    fn take(library: &Library, version: VersionId) -> Result<VersionClaim> {
+        if !lock(&library.inner.claims).insert(version) {
+            return Err(LeylineError::VersionBusy {
+                version: version.get(),
+            });
+        }
+        Ok(VersionClaim {
+            library: library.clone(),
+            version,
+        })
+    }
+}
+
+impl CatalogAccess for VersionClaim {
+    fn with<R>(&mut self, operation: impl FnOnce(&mut Catalog) -> R) -> R {
+        operation(&mut lock(&self.library.inner.catalog))
+    }
+}
+
+impl Drop for VersionClaim {
+    fn drop(&mut self) {
+        lock(&self.library.inner.claims).remove(&self.version);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Barrier;

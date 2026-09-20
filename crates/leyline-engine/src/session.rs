@@ -10,7 +10,6 @@
 //!
 //! Dropping a session commits any pending state: nothing is ever lost.
 
-use std::ops::DerefMut;
 use std::time::{Duration, Instant};
 
 use leyline_catalog::{Catalog, RevisionRow};
@@ -206,13 +205,41 @@ enum Pending {
 /// Callback invoked after every write to the version's history.
 type Notifier = Box<dyn FnMut(VersionId) + Send>;
 
+/// How a session reaches the catalog (ADR 0120 §1).
+///
+/// The seam this replaces was `DerefMut<Target = Catalog>`, which forced the
+/// session to *hold* a write handle for its whole life — and the only shared
+/// handle in the façade is the catalog's mutex guard, so a session froze
+/// every other call on the library until it was dropped.
+///
+/// A closure instead of a reference is what lets a handle take the lock **per
+/// operation** and give it back, which is the rule `CatalogWrite` states for
+/// everything else in the façade.
+pub trait CatalogAccess {
+    /// Runs one operation against the catalog.
+    fn with<R>(&mut self, operation: impl FnOnce(&mut Catalog) -> R) -> R;
+}
+
+/// A borrowed catalog, for a caller that already holds one — the engine's own
+/// batches (`presets`, `reprocess`) and the tests.
+impl CatalogAccess for &mut Catalog {
+    fn with<R>(&mut self, operation: impl FnOnce(&mut Catalog) -> R) -> R {
+        operation(self)
+    }
+}
+
 /// An open edit session on one develop version (`docs/engine-api.md` §10.1).
 ///
-/// The session holds the only write handle: while it lives, nothing else
-/// mutates the version, so its in-memory state is authoritative. It is
-/// generic over how that handle is held — a plain `&mut Catalog`, or the
-/// lock guard a shared [`crate::Library`] hands out.
-pub struct EditSession<C: DerefMut<Target = Catalog>> {
+/// While it lives, its in-memory state is the authoritative one for **that
+/// version**: a second session on the same version is refused by name, and
+/// the batches that would write to it step around it (ADR 0120 §2). Every
+/// other photograph in the library is unaffected, and so is every other call
+/// on the library.
+///
+/// Generic over how the catalog is reached — a plain `&mut Catalog` for a
+/// caller that already holds one, or the claim a shared [`crate::Library`]
+/// hands out, which takes the lock for one operation at a time.
+pub struct EditSession<C: CatalogAccess> {
     catalog: C,
     version: VersionId,
     settings: Settings,
@@ -226,7 +253,7 @@ pub struct EditSession<C: DerefMut<Target = Catalog>> {
     notify: Option<Notifier>,
 }
 
-impl<C: DerefMut<Target = Catalog>> std::fmt::Debug for EditSession<C> {
+impl<C: CatalogAccess> std::fmt::Debug for EditSession<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("EditSession")
             .field("version", &self.version)
@@ -239,15 +266,17 @@ impl<C: DerefMut<Target = Catalog>> std::fmt::Debug for EditSession<C> {
     }
 }
 
-impl<C: DerefMut<Target = Catalog>> EditSession<C> {
+impl<C: CatalogAccess> EditSession<C> {
     /// Opens a session on the version's head.
     ///
     /// A head written by a newer engine (newer `schema` or `process`) is
     /// refused with [`LeylineError::NewerSettings`]: the client shows the
     /// best cached preview with a warning instead (`docs/pipeline.md` §3.4).
-    pub fn open(catalog: C, version: VersionId) -> Result<EditSession<C>> {
-        let head = catalog.version_head(version)?;
-        let settings = Settings::parse(&catalog.revision(head)?.settings_json)?;
+    pub fn open(mut catalog: C, version: VersionId) -> Result<EditSession<C>> {
+        let settings = catalog.with(|catalog| {
+            let head = catalog.version_head(version)?;
+            Settings::parse(&catalog.revision(head)?.settings_json)
+        })?;
         if settings.schema > CURRENT_SCHEMA {
             return Err(LeylineError::NewerSettings {
                 schema: settings.schema,
@@ -332,8 +361,9 @@ impl<C: DerefMut<Target = Catalog>> EditSession<C> {
     /// recorded.
     pub fn commit_from(&mut self, from_preset: Option<(PresetId, u32)>) -> Result<RevisionId> {
         let now = Instant::now();
+        let version = self.version;
         let head = match self.pending {
-            Pending::Clean => return self.catalog.version_head(self.version),
+            Pending::Clean => return self.catalog.with(|c| c.version_head(version)),
             Pending::One(param) => {
                 // Only ever on the way to a write: pinning a state nobody
                 // persists would tell the session it had recorded versions
@@ -343,27 +373,30 @@ impl<C: DerefMut<Target = Catalog>> EditSession<C> {
                     && self.last_commit.is_some_and(|(p, at)| {
                         p == param && now.duration_since(at) <= self.amend_window
                     });
+                // Disjoint fields: the settings are read while the handle is
+                // borrowed for the write, which is what lets the lock be
+                // taken and given back inside `with` (ADR 0120 §1).
+                let settings = &self.settings;
                 let amended = if in_window {
-                    self.catalog.try_amend_head(self.version, &self.settings)?
+                    self.catalog.with(|c| c.try_amend_head(version, settings))?
                 } else {
                     None
                 };
                 let head = match amended {
                     Some(amendment) => amendment.revision,
-                    None => self.catalog.commit_revision_from(
-                        self.version,
-                        &self.settings,
-                        from_preset,
-                    )?,
+                    None => self
+                        .catalog
+                        .with(|c| c.commit_revision_from(version, settings, from_preset))?,
                 };
                 self.last_commit = Some((param, now));
                 head
             }
             Pending::Many => {
                 crate::stages::pin(&mut self.settings);
-                let head =
-                    self.catalog
-                        .commit_revision_from(self.version, &self.settings, from_preset)?;
+                let settings = &self.settings;
+                let head = self
+                    .catalog
+                    .with(|c| c.commit_revision_from(version, settings, from_preset))?;
                 self.last_commit = None;
                 head
             }
@@ -379,7 +412,8 @@ impl<C: DerefMut<Target = Catalog>> EditSession<C> {
     /// state reloads from the new head; the undone revision stays reachable.
     pub fn undo(&mut self) -> Result<Option<RevisionId>> {
         self.commit()?;
-        let moved = self.catalog.undo_version(self.version)?;
+        let version = self.version;
+        let moved = self.catalog.with(|c| c.undo_version(version))?;
         self.reload_head(moved)?;
         if moved.is_some() {
             self.notify_write();
@@ -392,7 +426,8 @@ impl<C: DerefMut<Target = Catalog>> EditSession<C> {
     /// Returns the new head, or `None` when there is nothing to redo.
     pub fn redo(&mut self) -> Result<Option<RevisionId>> {
         self.commit()?;
-        let moved = self.catalog.redo_version(self.version)?;
+        let version = self.version;
+        let moved = self.catalog.with(|c| c.redo_version(version))?;
         self.reload_head(moved)?;
         if moved.is_some() {
             self.notify_write();
@@ -401,8 +436,12 @@ impl<C: DerefMut<Target = Catalog>> EditSession<C> {
     }
 
     /// The revision chain of the version, head first.
-    pub fn history(&self) -> Result<Vec<RevisionRow>> {
-        self.catalog.version_history(self.version)
+    ///
+    /// `&mut self` since ADR 0120: reading the history is an operation like
+    /// any other, and an operation is where the catalog's lock is taken.
+    pub fn history(&mut self) -> Result<Vec<RevisionRow>> {
+        let version = self.version;
+        self.catalog.with(|c| c.version_history(version))
     }
 
     /// Commits any pending state, then jumps the head directly to `revision`
@@ -412,7 +451,9 @@ impl<C: DerefMut<Target = Catalog>> EditSession<C> {
     /// jumping away from a revision keeps it reachable.
     pub fn checkout(&mut self, revision: RevisionId) -> Result<RevisionId> {
         self.commit()?;
-        self.catalog.checkout_revision(self.version, revision)?;
+        let version = self.version;
+        self.catalog
+            .with(|c| c.checkout_revision(version, revision))?;
         self.reload_head(Some(revision))?;
         self.notify_write();
         Ok(revision)
@@ -438,10 +479,14 @@ impl<C: DerefMut<Target = Catalog>> EditSession<C> {
         // did for the whole pipeline at once.
         self.settings.stages.clear();
         crate::stages::pin(&mut self.settings);
+        let version = self.version;
         if self.settings.stages == before {
-            return self.catalog.version_head(self.version);
+            return self.catalog.with(|c| c.version_head(version));
         }
-        let head = self.catalog.commit_revision(self.version, &self.settings)?;
+        let settings = &self.settings;
+        let head = self
+            .catalog
+            .with(|c| c.commit_revision(version, settings))?;
         self.last_commit = None;
         self.notify_write();
         Ok(head)
@@ -459,7 +504,8 @@ impl<C: DerefMut<Target = Catalog>> EditSession<C> {
     /// amendment chain: the next commit always creates a revision.
     fn reload_head(&mut self, moved: Option<RevisionId>) -> Result<()> {
         if let Some(head) = moved {
-            self.settings = Settings::parse(&self.catalog.revision(head)?.settings_json)?;
+            let json = self.catalog.with(|c| c.revision(head))?.settings_json;
+            self.settings = Settings::parse(&json)?;
             self.pending = Pending::Clean;
             self.last_commit = None;
         }
@@ -467,7 +513,7 @@ impl<C: DerefMut<Target = Catalog>> EditSession<C> {
     }
 }
 
-impl<C: DerefMut<Target = Catalog>> Drop for EditSession<C> {
+impl<C: CatalogAccess> Drop for EditSession<C> {
     /// Closing the session commits the pending state: nothing is ever lost
     /// (`docs/engine-api.md` §10.1). A failing drop-commit is unreportable
     /// and ignored; call [`EditSession::commit`] explicitly to observe errors.
