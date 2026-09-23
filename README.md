@@ -57,7 +57,7 @@ The V1 scope is implemented, and packages are on the
 
 | Platform | Package | Floor |
 |---|---|---|
-| Linux x86-64 | AppImage | glibc 2.38 — Ubuntu 24.04, Debian 13, Fedora 39 or newer |
+| Linux x86-64 | AppImage | glibc 2.39 — Ubuntu 24.04, Debian 13, Fedora 40 or newer |
 | Windows x86-64 | installer | Windows 10 |
 | macOS | **none yet** | no binary has been validated on a Mac |
 
