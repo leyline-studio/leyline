@@ -27,7 +27,7 @@ const MANIFEST_URL: &str =
 /// this repository nor in CI (ADR 0077 §1). Without this verification an
 /// update is the download and execution of an arbitrary binary, so a build
 /// with an empty key refuses to check at all — see [`check`].
-const PUBLIC_KEY: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDczRDQwNTYwMzFBOTJCOUMKUldTY0s2a3hZQVhVYzdIVENQQ0g5UlR5Qy9HRkc5SkRzMkFzMXFwTzBsTmtuc2J4OUZoamFIUlAK";
+const PUBLIC_KEY: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIxOTdCQUUwNzRDNjA0MTQKUldRVUJNWjA0THFYSVU4WnVHdHRXelV3bGc1VTVZakdtRTJXb0Vsa1BldTczbmVsRkFEN2pCWXcK";
 
 /// Gives up rather than hanging on a captive portal or a black hole. Being
 /// offline is Leyline's normal state; a check that never returns would be

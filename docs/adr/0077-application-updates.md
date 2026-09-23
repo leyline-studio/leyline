@@ -80,6 +80,13 @@ going to operate one for its own updates.
 The private signing key lives **neither in the repository nor in CI**: it signs
 by hand at publication time. The repository carries only the public key.
 
+The private key is **protected by a passphrase**, asked on the terminal by
+`packaging/release-manifest.sh` and never passed as an argument: a copy of the
+file alone signs nothing. The key the alphas were built with had none; it was
+retired before the first public release, 0.1.0, rather than after — while the
+only installed copies to lose their automatic update were a handful of test
+builds.
+
 ### 2. We ask once, then check by ourselves — but we never install by ourselves
 
 It is Firefox's cadence without its silence, and the two halves separate
