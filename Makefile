@@ -16,7 +16,7 @@ export PATH := $(HOME)/.cargo/bin:$(PATH)
 
 .DEFAULT_GOAL := help
 .PHONY: help check fmt fmt-check lint test test-raw bench golden golden-bless \
-        run cli i18n windows appimage dmg release-manifest clean
+        run cli i18n windows appimage dmg release-manifest release publish clean
 
 help: ## List the available targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -101,6 +101,17 @@ dmg: ## Build the macOS .app + .dmg (macOS host only)
 # at it; `VERSION` is the one the artifacts were built from.
 release-manifest: ## Sign the packaged artifacts and write latest.json (ADR 0077)
 	bash packaging/release-manifest.sh $(VERSION) $(NOTES)
+
+# The whole release in one command: the passphrase is asked once, up front,
+# then both packages are built, the Linux floor checked against the docs, the
+# manifest signed and verified against the key compiled into Studio, and
+# SHA256SUMS written. The version is the workspace's. Publishes nothing.
+release: ## Build, sign and verify a release (make release NOTES=<manifest notes>)
+	bash packaging/release.sh $(NOTES)
+
+# Asks before sending: the only step that leaves this machine.
+publish: ## Publish what `make release` prepared (make publish RELEASE_NOTES=<notes.md>)
+	bash packaging/publish.sh $(RELEASE_NOTES)
 
 clean: ## Remove build artefacts
 	cargo clean
