@@ -11,7 +11,8 @@
 # The private key lives outside this repository and outside CI: it signs
 # here, by hand, at publication time. Point `LEYLINE_SIGN_KEY` at it (the
 # default below is where `cargo packager signer generate` was told to put
-# it), and set `LEYLINE_SIGN_PASSWORD` if the key carries a password.
+# it). The key carries a passphrase, asked once on the terminal; set
+# `LEYLINE_SIGN_PASSWORD` instead to sign without a terminal.
 #
 #   packaging/release-manifest.sh <version> [notes-file]
 #
@@ -36,14 +37,25 @@ fi
 
 mkdir -p "$out_dir"
 
+# Asked once, never echoed, and handed over through the environment: an
+# argument would sit in `ps` and in the shell history for as long as the
+# signing runs. An empty answer means the key has no passphrase.
+if [[ -z "${LEYLINE_SIGN_PASSWORD+set}" && -t 0 ]]; then
+    read -rsp "passphrase for $key: " LEYLINE_SIGN_PASSWORD
+    echo >&2
+fi
+if [[ -n "${LEYLINE_SIGN_PASSWORD:-}" ]]; then
+    export CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD="$LEYLINE_SIGN_PASSWORD"
+fi
+
 # Signs one artifact and echoes the signature, which is what the manifest
 # carries — the updater verifies the downloaded bytes against it before
-# anything is installed.
+# anything is installed. The key goes by its path, for the same reason as
+# the passphrase.
 sign() {
     local file="$1"
     cargo packager signer sign \
-        --private-key "$(cat "$key")" \
-        ${LEYLINE_SIGN_PASSWORD:+--password "$LEYLINE_SIGN_PASSWORD"} \
+        --private-key "$key" \
         --quite \
         "$file" >/dev/null
     cat "$file.sig"
