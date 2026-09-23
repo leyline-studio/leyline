@@ -82,11 +82,13 @@ Conversely, a large machine gains by raising it: 6 photos in flight take 3.4× i
 
 | Platform | Floor | Delivered as |
 |---|---|---|
-| Linux | glibc **2.35** — Ubuntu 22.04, Debian 12 or newer | AppImage |
+| Linux | glibc **2.38** — Ubuntu 24.04, Debian 13, Fedora 39 or newer | AppImage |
 | Windows | Windows 10 | NSIS installer |
 | macOS | arm64 | `.dmg` |
 
 The Linux floor is not an architectural decision: it is the glibc of the machine that built the AppImage. Building it on an older distribution lowers it accordingly, without changing a line of code.
+
+It is also not set by Leyline's own code. Measured on the 0.1.0 AppImage: the Rust binary asks for nothing above glibc 2.35 (its two 2.39 symbols, `pidfd_spawnp` and `pidfd_getpid`, are weak references the standard library falls back from). The 2.38 comes from the C libraries the AppImage carries — `libraw_r` built on the packaging machine, and `libgomp` and `libltdl` copied from it — which the C23 headers of glibc 2.38 bind to `__isoc23_strtol` and its siblings. This page used to say 2.35, the binary's own figure, for as long as nobody had looked inside the package; §7 gives the command that looks.
 
 ---
 
@@ -158,6 +160,11 @@ grep VmHWM /proc/$!/status
 
 # Growth of the catalog and of the thumbnails
 ls -l <lib>/catalog.db && du -sb <lib>/Cache/thumbnails
+
+# Linux floor (§4): the highest glibc any file in the AppImage requires
+leyline-studio_*.AppImage --appimage-extract >/dev/null
+find squashfs-root -type f \( -name '*.so*' -o -name leyline-studio \) \
+  -exec objdump -T {} \; | grep -v ' w ' | grep -oE 'GLIBC_[0-9.]+' | sort -uV | tail -1
 ```
 
 The measurement taken under `Xvfb` goes through llvmpipe: it is therefore also the figure for a machine with no hardware GPU.
