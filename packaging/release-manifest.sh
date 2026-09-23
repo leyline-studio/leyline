@@ -20,6 +20,9 @@
 # each artifact. It builds nothing: run `make appimage` and `make windows`
 # first, and pass the same version they were built from.
 set -euo pipefail
+# Without it a failure inside `$(sign …)` is swallowed, and the manifest is
+# built from whatever `.sig` happens to be on disk.
+shopt -s inherit_errexit
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
@@ -39,8 +42,15 @@ mkdir -p "$out_dir"
 
 # Asked once, never echoed, and handed over through the environment: an
 # argument would sit in `ps` and in the shell history for as long as the
-# signing runs. An empty answer means the key has no passphrase.
-if [[ -z "${LEYLINE_SIGN_PASSWORD+set}" && -t 0 ]]; then
+# signing runs. An empty answer means the key has no passphrase. With no
+# terminal to ask on — a `!` command inside an agent session, a pipe — the
+# script stops rather than signing as if the key had none.
+if [[ -z "${LEYLINE_SIGN_PASSWORD+set}" ]]; then
+    if [[ ! -t 0 ]]; then
+        echo "no terminal to ask the passphrase on: run this from a terminal," >&2
+        echo "or set LEYLINE_SIGN_PASSWORD (empty for a key without one)" >&2
+        exit 1
+    fi
     read -rsp "passphrase for $key: " LEYLINE_SIGN_PASSWORD
     echo >&2
 fi
@@ -51,13 +61,17 @@ fi
 # Signs one artifact and echoes the signature, which is what the manifest
 # carries — the updater verifies the downloaded bytes against it before
 # anything is installed. The key goes by its path, for the same reason as
-# the passphrase.
+# the passphrase. The previous `.sig` goes first: left in place, a failed
+# signing would hand the manifest a signature over some older build's bytes
+# — which nearly shipped with the 0.1.0 AppImage.
 sign() {
     local file="$1"
+    rm -f "$file.sig"
     cargo packager signer sign \
         --private-key "$key" \
         --quite \
-        "$file" >/dev/null
+        "$file" >/dev/null ||
+        { echo "signing $file failed — wrong passphrase?" >&2; return 1; }
     cat "$file.sig"
 }
 
