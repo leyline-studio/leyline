@@ -4,7 +4,7 @@ members = ["crates/*"]
 
 [workspace.package]
 authors = ["Quentin Boulard"]
-version = "0.1.0-alpha.8"
+version = "0.1.0"
 edition = "2024"
 license = "GPL-3.0-only"
 repository = "https://github.com/leyline-studio/leyline"
