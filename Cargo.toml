@@ -24,6 +24,7 @@ leyline-heif = { path = "crates/leyline-heif" }
 leyline-detect = { path = "crates/leyline-detect" }
 leyline-derive = { path = "crates/leyline-derive" }
 leyline-cull = { path = "crates/leyline-cull" }
+leyline-mcp = { path = "crates/leyline-mcp" }
 # `default-features = false` here rather than on each member edge: Cargo
 # forbids a member from overriding an inherited dependency's
 # `default-features`. Each consumer re-enables the `tether` backend through

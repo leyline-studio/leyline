@@ -36,6 +36,7 @@ Fourteen crates, each with a single responsibility.
 | `leyline-cull` | Technical quality measures and burst fingerprints for **assisted culling** ([ADR 0084](adr/0084-assisted-culling.md) §4): focus, clipping, perceptual fingerprint. No model, no weights, no I/O — it computes numbers and decides no verdict. The engine turns them into a proposal. |
 | `leyline-sdk` | The engine's stable public surface. The semver contract. |
 | `leyline-cli` | The command-line client. |
+| `leyline-mcp` | The **agent surface**: a Model Context Protocol server over stdio, launched as `leyline mcp --library <path>` ([ADR 0154](adr/0154-an-agent-surface-over-stdio.md)). Its registry maps each stable tool id to one façade call. Depends on `leyline-sdk` and never on `leyline-engine`. |
 | `leyline-studio` | The desktop application (Slint). |
 
 ---
@@ -57,6 +58,7 @@ Studio  →  SDK  →  Engine  →  Core
 Two consequences that come up often in review:
 
 * `leyline-core` depends on no other crate of the project. If a type needs to descend into it, it is because it is shared; if it is not, it does not belong there.
+* `leyline-mcp` sits beside the CLI, on the SDK alone: the missing `leyline-engine` line in its `Cargo.toml` is the guard that a tool cannot reach past the façade ([ADR 0154](adr/0154-an-agent-surface-over-stdio.md) §2). The CLI depends on it only to offer the `mcp` subcommand.
 * `leyline-sdk` contains **nothing but** re-exports. That is deliberate: the SDK is the semver contract, which leaves `leyline-engine` free to evolve with every version. Its only failure mode is the *hole* — a type the engine returns but an external caller cannot name — hence the surface test that goes with it.
 
 ---

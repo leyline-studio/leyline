@@ -134,6 +134,8 @@ Usage:
   leyline facets <library>          the bodies, lenses and value ranges the
                                     library actually holds — what the filters
                                     above take
+  leyline mcp --library <library>   serve the library to an AI agent over
+                                    stdio (Model Context Protocol, ADR 0154)
   leyline preview <library> <asset-id> [--kind <thumbnail|small|medium|large|full>]
   leyline export <library> <dest-dir> <version-id>...
                  [--preset <name>] [--format <f>] [--quality <1-100>] [--max-edge <px>]
@@ -387,6 +389,7 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("watch") => watch(&args[1..]),
         Some("ls") => ls(&args[1..]),
         Some("facets") => facets(&args[1..]),
+        Some("mcp") => mcp(&args[1..]),
         Some("preview") => preview(&args[1..]),
         Some("export") => export(&args[1..]),
         Some("preset") => preset(&args[1..]),
@@ -772,6 +775,16 @@ fn facets(args: &[String]) -> Result<(), String> {
         }
     });
     Ok(())
+}
+
+/// Serves the library to an agent over stdin/stdout (ADR 0154). Its MCP
+/// client launches this; stdout is the protocol, so nothing else may print.
+fn mcp(args: &[String]) -> Result<(), String> {
+    let (positional, options) = parse(args, &["library"])?;
+    let (Some(root), true) = (options.value("library"), positional.is_empty()) else {
+        return Err("usage: leyline mcp --library <library>".to_owned());
+    };
+    leyline_mcp::serve_stdio(Path::new(root))
 }
 
 fn preview(args: &[String]) -> Result<(), String> {
