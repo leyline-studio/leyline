@@ -24,7 +24,7 @@ import { LibraryState } from "../state/library.slint";
 import { MapState } from "../state/map.slint";
 import { PreferencesState } from "../state/preferences.slint";
 import { FilterChip } from "../widgets/controls.slint";
-import { MenuDropdown, MenuRow, MenuSep, MenuToggleRow, ModuleLabel, SubmenuHeader, TopMenuLabel } from "../widgets/menu.slint";
+import { BarButton, MenuDropdown, MenuRow, MenuSep, MenuToggleRow, SubmenuHeader, TopMenuLabel } from "../widgets/menu.slint";
 
 export component MenuBar inherits Rectangle {
     // Which top-level menu is open: "" or one of "file"/"library"/"photo"/
@@ -41,6 +41,9 @@ export component MenuBar inherits Rectangle {
     callback fold-panels();
     callback fold-everything();
     callback zoom-to-100();
+    // A search sent from the bar hands the keyboard back to the window, so
+    // the next key is a shortcut again and not a letter in the field.
+    callback return-focus();
     // The library grid, and nothing else: the only place a thumbnail has a
     // size. Written here rather than repeated on two rows.
     property <bool> in-grid: !DevelopState.develop-mode && !MapState.map-mode
@@ -893,38 +896,65 @@ export component MenuBar inherits Rectangle {
     // already-existing `VerticalLayout` (adding a sibling element was
     // safe in testing) — never via a property override on the column
     // itself or on `keys`.
-    // The bar's own band: bars and panels are `surface`, what lies between
-    // them is the window's `ground` (ADR 0158 §1). Declared before the row
-    // so the labels paint on top of it.
-    Rectangle {
-        x: 0;
-        y: 0;
-        width: root.width;
-        height: menu-row.height;
-        background: Theme.surface;
-    }
+
+    // The top bar (ADR 0158 §2, merged with the menus by ADR 0159 §1):
+    // left-panel toggle, undo and redo, the text menus, the search field
+    // centred in what is left, then Map, Export and the theme switch.
+    // The module switcher has left it (ADR 0158 §5): Develop is reached by
+    // `D`, `Return`, a double click or the View menu until the bottom bar's
+    // view buttons arrive.
     menu-row := HorizontalLayout {
-        // Custom menu bar (ADR 0020): a second, discoverable path to the
-        // same callbacks already wired to keyboard shortcuts above — no
-        // new functionality, no new code path. Context-sensitive entries
-        // are disabled outside the context where their shortcut is
-        // meaningful. Not Slint's native `MenuBar` — see the comment above
-        // `TopMenuLabel` for why. The dropdown panels themselves are
-        // declared later, in the same overlay z-order as the modal
-        // dialogs, so they paint on top of the grid/develop view; only the
-        // row of labels lives here.
+        // Not Slint's native `MenuBar` — see the comment above
+        // `TopMenuLabel` for why. The dropdown panels are declared earlier
+        // in this component, in the same overlay z-order as the modal
+        // dialogs; only the row of labels lives here. The dropdowns anchor
+        // on `menus.x + <label>.x`, so `menus` stays a direct child of this
+        // row, which starts at the window's left edge.
         x: 0;
         y: 0;
         height: Frame.top-bar;
-        // The menus keep the left end, the module switcher takes the right
-        // end (ADR 0055 §1), and neither group is stretched: `space-between`
-        // pushes the two apart while leaving every label at its own width.
-        // The dropdowns below therefore anchor on `menus.x + <label>.x`,
-        // since their `x` is measured from the window rather than from this
-        // inner row.
-        alignment: space-between;
         padding-left: 4px;
         padding-right: 8px;
+        spacing: 2px;
+
+        BarButton {
+            glyph: "◧";
+            active: !root.panels-folded;
+            hint: root.panels-folded ? @tr("Show the side panels    Tab") : @tr("Hide the side panels    Tab");
+            clicked => {
+                root.open-menu = "";
+                root.fold-panels();
+            }
+        }
+        // One pair for both histories, as `Ctrl+Z` already is: the develop
+        // history of the photo being edited, or the library's own.
+        BarButton {
+            glyph: "↶";
+            enabled: DevelopState.develop-mode ? DevelopState.dev-can-undo : LibraryState.undoable != "";
+            hint: DevelopState.develop-mode ? @tr("Undo    Ctrl+Z") : root.undo-title(LibraryState.undoable, true);
+            clicked => {
+                root.open-menu = "";
+                if (DevelopState.develop-mode) {
+                    DevelopState.develop-undo();
+                } else {
+                    LibraryState.undo-library();
+                }
+            }
+        }
+        BarButton {
+            glyph: "↷";
+            enabled: DevelopState.develop-mode ? DevelopState.dev-can-redo : LibraryState.redoable != "";
+            hint: DevelopState.develop-mode ? @tr("Redo    Ctrl+Y") : root.undo-title(LibraryState.redoable, false);
+            clicked => {
+                root.open-menu = "";
+                if (DevelopState.develop-mode) {
+                    DevelopState.develop-redo();
+                } else {
+                    LibraryState.redo-library();
+                }
+            }
+        }
+        Rectangle { width: 6px; }
 
         menus := HorizontalLayout {
             spacing: 2px;
@@ -985,74 +1015,96 @@ export component MenuBar inherits Rectangle {
             }
         }
 
-        // Module switcher (ADR 0055 §1): the three whole-window views, in the
-        // corner where someone arriving from Lightroom looks first. Each
-        // entry leaves the current view before entering its own, so the two
-        // exclusive modes can never both be on. *Print* is deliberately
-        // absent — it is a dialog, an action that ends, not a place one stays
-        // (ADR 0055 §1, Alternatives).
-        HorizontalLayout {
-            spacing: 0px;
 
-            ModuleLabel {
-                title: @tr("Library");
-                current: !DevelopState.develop-mode && !MapState.map-mode;
-                clicked => {
-                    if (DevelopState.develop-mode) {
-                        DevelopState.exit-develop();
+        Rectangle {
+            horizontal-stretch: 1;
+        }
+
+        // The grid's text filter, given the place it deserves (ADR 0158
+        // §2). The one control of the bar that gives ground: on a narrow
+        // window it shrinks, the menus never (ADR 0159 §1).
+        VerticalLayout {
+            alignment: center;
+            Rectangle {
+                height: 26px;
+                min-width: 120px;
+                preferred-width: 360px;
+                max-width: 360px;
+                horizontal-stretch: 2;
+                background: Theme.sunken;
+                border-radius: 13px;
+                border-width: 1px;
+                border-color: search-input.text == "" ? Theme.border : Theme.focus;
+                search-input := TextInput {
+                    x: 12px;
+                    width: parent.width - 24px;
+                    height: 100%;
+                    text <=> FilterState.search-text;
+                    color: Theme.text;
+                    font-size: 12px;
+                    vertical-alignment: center;
+                    single-line: true;
+                    accepted => {
+                        FilterState.search(self.text);
+                        root.return-focus();
                     }
-                    if (MapState.map-mode) {
-                        MapState.exit-map();
-                    }
-                    root.open-menu = "";
+                }
+                if search-input.text == "" && !search-input.has-focus: Text {
+                    x: 12px;
+                    height: 100%;
+                    text: @tr("Search…");
+                    color: Theme.text-disabled;
+                    font-size: 12px;
+                    vertical-alignment: center;
                 }
             }
-            Text {
-                text: "|";
-                color: Theme.text-disabled;
-                font-size: 13px;
-                vertical-alignment: center;
-            }
-            ModuleLabel {
-                title: @tr("Develop");
-                current: DevelopState.develop-mode;
-                // Develop is about *a* photo: without a selection there is
-                // nothing to develop, exactly as the Develop menu is already
-                // greyed out in that case.
-                enabled: GridState.selected >= 0;
-                clicked => {
-                    if (MapState.map-mode) {
-                        MapState.exit-map();
+        }
+
+        Rectangle {
+            horizontal-stretch: 1;
+        }
+
+        HorizontalLayout {
+            spacing: 6px;
+            alignment: end;
+
+            VerticalLayout {
+                alignment: center;
+                FilterChip {
+                    // Map is a whole-window view (ADR 0158 §5): entered here,
+                    // left from here, by `M`, or by the View menu.
+                    text: @tr("Map");
+                    active: MapState.map-mode;
+                    clicked => {
+                        root.open-menu = "";
+                        if (MapState.map-mode) {
+                            MapState.exit-map();
+                        } else {
+                            if (DevelopState.develop-mode) {
+                                DevelopState.exit-develop();
+                            }
+                            MapState.enter-map();
+                        }
                     }
-                    DevelopState.enter-develop();
-                    root.open-menu = "";
                 }
             }
-            Text {
-                text: "|";
-                color: Theme.text-disabled;
-                font-size: 13px;
-                vertical-alignment: center;
-            }
-            ModuleLabel {
-                title: @tr("Map");
-                current: MapState.map-mode;
-                clicked => {
-                    if (DevelopState.develop-mode) {
-                        DevelopState.exit-develop();
+            VerticalLayout {
+                alignment: center;
+                FilterChip {
+                    text: @tr("Export…");
+                    active: false;
+                    hint: @tr("Export the selected photos    Ctrl+E");
+                    clicked => {
+                        root.open-menu = "";
+                        DialogState.open-export();
                     }
-                    MapState.enter-map();
-                    root.open-menu = "";
                 }
             }
             // The interface's theme (ADR 0159 §6), cycling dark → light →
             // system. A glyph showing where the switch stands, and words on
             // hover since a glyph alone is a convention (ADR 0127 §1).
-            // Here until the top bar of ADR 0158 §2 exists to receive it.
-            Rectangle { width: 10px; }
-            FilterChip {
-                text: Theme.choice == 1 ? "☾" : (Theme.choice == 2 ? "☀" : "◐");
-                active: false;
+            BarButton {
+                glyph: Theme.choice == 1 ? "☾" : (Theme.choice == 2 ? "☀" : "◐");
                 hint: Theme.choice == 1
                     ? @tr("Theme: dark. Click for light.")
                     : (Theme.choice == 2

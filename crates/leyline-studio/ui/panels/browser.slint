@@ -610,42 +610,6 @@ export component BrowserPanel inherits HorizontalLayout {
                     }
                 }
 
-                // The one control on this row that can give ground. Everything
-                // else is a chip sized by its own label, so when the bar runs
-                // out of room the search field is what yields — down to a box
-                // still wide enough to read a short query in, never to zero.
-                Rectangle {
-                    height: 24px;
-                    min-width: 90px;
-                    max-width: 180px;
-                    horizontal-stretch: 1;
-                    background: Theme.surface;
-                    border-radius: 12px;
-                    border-width: 1px;
-                    border-color: search-input.text == "" ? Theme.border : Theme.focus;
-                    search-input := TextInput {
-                        x: 10px;
-                        width: parent.width - 20px;
-                        height: 100%;
-                        color: Theme.text;
-                        font-size: 12px;
-                        vertical-alignment: center;
-                        single-line: true;
-                        accepted => {
-                            FilterState.search(self.text);
-                            root.return-focus();
-                        }
-                    }
-                    if search-input.text == "" && !search-input.has-focus: Text {
-                        x: 10px;
-                        height: 100%;
-                        text: @tr("Search…");
-                        color: Theme.text-disabled;
-                        font-size: 12px;
-                        vertical-alignment: center;
-                    }
-                }
-
                 FilterChip {
                     // No emoji: the camera pictogram is a colour glyph that
                     // simply vanishes on the fonts of a bare X session, and a
@@ -892,7 +856,7 @@ export component BrowserPanel inherits HorizontalLayout {
                             // Rust just reset knows nothing about it, so it
                             // is cleared here or the box would still show a
                             // term that no longer filters anything.
-                            search-input.text = "";
+                            FilterState.search-text = "";
                             GridState.clear-criteria();
                         }
                     }

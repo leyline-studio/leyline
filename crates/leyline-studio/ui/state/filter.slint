@@ -28,6 +28,10 @@ export global FilterState {
     // one turns the filter off.
     callback keyword-filter(int);
     callback clear-keyword-filter();
+    // What the search field of the top bar holds. Here rather than in the
+    // field so the browser's *Show all photos* can empty it: the query Rust
+    // resets knows nothing about the text still showing in the box.
+    in-out property <string> search-text;
     callback search(string);
 
     // Shot filters (ADR 0064). The two lists are what the library was

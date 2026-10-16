@@ -619,6 +619,9 @@ export component StudioWindow inherits Window {
         fold-everything => {
             root.fold-everything();
         }
+        return-focus => {
+            keys.focus();
+        }
         zoom-to-100 => {
             if (DevelopState.develop-mode) {
                 develop.dev-zoomed = !develop.dev-zoomed;
