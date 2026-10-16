@@ -6,6 +6,7 @@
 //
 // Hosted by `panels/dialogs.slint` (ADR 0045 §3).
 
+import { Theme } from "../theme.slint";
 import { DialogState } from "../state/dialog.slint";
 import { PreferencesState } from "../state/preferences.slint";
 import { FilterChip } from "../widgets/controls.slint";
@@ -18,13 +19,13 @@ export component UpdateConsentDialog inherits VerticalLayout {
     spacing: 12px;
     Text {
         text: @tr("Check for updates?");
-        color: #f0f0f0;
+        color: Theme.text;
         font-size: 15px;
         font-weight: 600;
     }
     Text {
         text: @tr("Leyline can look for a new version when it starts, at most once a day. Nothing about you, your library or your photos is ever sent, and an update is never installed without a click.");
-        color: #c8c8c8;
+        color: Theme.text-dim;
         font-size: 12px;
         wrap: word-wrap;
     }
@@ -52,7 +53,7 @@ export component UpdateConsentDialog inherits VerticalLayout {
     // it, it is a reversible default.
     Text {
         text: @tr("You can change this later in File ▸ Preferences.");
-        color: #808080;
+        color: Theme.text-dim;
         font-size: 11px;
         wrap: word-wrap;
     }
@@ -64,19 +65,19 @@ export component UpdateDialog inherits VerticalLayout {
     spacing: 12px;
     Text {
         text: @tr("Updates");
-        color: #f0f0f0;
+        color: Theme.text;
         font-size: 15px;
         font-weight: 600;
     }
     if PreferencesState.update-available: Text {
         text: @tr("Version {} is available.", PreferencesState.update-version);
-        color: #f0f0f0;
+        color: Theme.text;
         font-size: 13px;
         wrap: word-wrap;
     }
     if PreferencesState.update-available && PreferencesState.update-notes != "": Text {
         text: PreferencesState.update-notes;
-        color: #c8c8c8;
+        color: Theme.text-dim;
         font-size: 11px;
         wrap: word-wrap;
     }
@@ -91,7 +92,7 @@ export component UpdateDialog inherits VerticalLayout {
             : PreferencesState.update-state == "installed" ? @tr("Update installed. Restart Leyline to use it.")
             : PreferencesState.update-state == "failed" ? @tr("The update could not be installed.")
             : "";
-        color: #9a9a9a;
+        color: Theme.text-dim;
         font-size: 12px;
         wrap: word-wrap;
     }

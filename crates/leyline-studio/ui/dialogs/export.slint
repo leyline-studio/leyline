@@ -4,6 +4,7 @@
 //
 // One of the dialogs hosted by `panels/dialogs.slint` (ADR 0045 §3).
 
+import { Theme } from "../theme.slint";
 import { DialogState } from "../state/dialog.slint";
 import { FilterChip } from "../widgets/controls.slint";
 
@@ -13,13 +14,13 @@ export component ExportDialog inherits VerticalLayout {
         text: DialogState.export-photo-count > 1
             ? @tr("Export {} selected photos", DialogState.export-photo-count)
             : @tr("Export selected photo");
-        color: #f0f0f0;
+        color: Theme.text;
         font-size: 15px;
         font-weight: 600;
     }
     Text {
         text: @tr("Preset");
-        color: #9a9a9a;
+        color: Theme.text-dim;
         font-size: 12px;
     }
     HorizontalLayout {
@@ -44,7 +45,7 @@ export component ExportDialog inherits VerticalLayout {
         spacing: 8px;
         Text {
             text: @tr("Format");
-            color: #9a9a9a;
+            color: Theme.text-dim;
             font-size: 12px;
         }
         HorizontalLayout {
@@ -65,21 +66,21 @@ export component ExportDialog inherits VerticalLayout {
                 horizontal-stretch: 1;
                 Text {
                     text: @tr("Quality (1-100)");
-                    color: #9a9a9a;
+                    color: Theme.text-dim;
                     font-size: 12px;
                 }
                 Rectangle {
                     height: 28px;
-                    background: #1b1b1b;
+                    background: Theme.surface;
                     border-radius: 4px;
                     border-width: 1px;
-                    border-color: #3a3a3a;
+                    border-color: Theme.border;
                     TextInput {
                         x: 8px;
                         width: parent.width - 16px;
                         height: 100%;
                         text <=> DialogState.export-quality-text;
-                        color: #e6e6e6;
+                        color: Theme.text;
                         font-size: 12px;
                         vertical-alignment: center;
                         single-line: true;
@@ -93,21 +94,21 @@ export component ExportDialog inherits VerticalLayout {
                 horizontal-stretch: 1;
                 Text {
                     text: @tr("AVIF speed (1-10)");
-                    color: #9a9a9a;
+                    color: Theme.text-dim;
                     font-size: 12px;
                 }
                 Rectangle {
                     height: 28px;
-                    background: #1b1b1b;
+                    background: Theme.surface;
                     border-radius: 4px;
                     border-width: 1px;
-                    border-color: #3a3a3a;
+                    border-color: Theme.border;
                     TextInput {
                         x: 8px;
                         width: parent.width - 16px;
                         height: 100%;
                         text <=> DialogState.export-avif-speed-text;
-                        color: #e6e6e6;
+                        color: Theme.text;
                         font-size: 12px;
                         vertical-alignment: center;
                         single-line: true;
@@ -119,21 +120,21 @@ export component ExportDialog inherits VerticalLayout {
                 horizontal-stretch: 1;
                 Text {
                     text: @tr("Max edge px (blank = full size)");
-                    color: #9a9a9a;
+                    color: Theme.text-dim;
                     font-size: 12px;
                 }
                 Rectangle {
                     height: 28px;
-                    background: #1b1b1b;
+                    background: Theme.surface;
                     border-radius: 4px;
                     border-width: 1px;
-                    border-color: #3a3a3a;
+                    border-color: Theme.border;
                     TextInput {
                         x: 8px;
                         width: parent.width - 16px;
                         height: 100%;
                         text <=> DialogState.export-max-edge-text;
-                        color: #e6e6e6;
+                        color: Theme.text;
                         font-size: 12px;
                         vertical-alignment: center;
                         single-line: true;
@@ -145,21 +146,21 @@ export component ExportDialog inherits VerticalLayout {
             spacing: 4px;
             Text {
                 text: @tr("Watermark text (blank = none)");
-                color: #9a9a9a;
+                color: Theme.text-dim;
                 font-size: 12px;
             }
             Rectangle {
                 height: 28px;
-                background: #1b1b1b;
+                background: Theme.surface;
                 border-radius: 4px;
                 border-width: 1px;
-                border-color: #3a3a3a;
+                border-color: Theme.border;
                 TextInput {
                     x: 8px;
                     width: parent.width - 16px;
                     height: 100%;
                     text <=> DialogState.export-watermark-text;
-                    color: #e6e6e6;
+                    color: Theme.text;
                     font-size: 12px;
                     vertical-alignment: center;
                     single-line: true;
@@ -173,7 +174,7 @@ export component ExportDialog inherits VerticalLayout {
             spacing: 8px;
             Text {
                 text: @tr("Watermark corner");
-                color: #9a9a9a;
+                color: Theme.text-dim;
                 font-size: 12px;
             }
             // Laid out as the frame is, not as the indices are: five chips
@@ -229,21 +230,21 @@ export component ExportDialog inherits VerticalLayout {
                     horizontal-stretch: 1;
                     Text {
                         text: @tr("Size (% of height)");
-                        color: #9a9a9a;
+                        color: Theme.text-dim;
                         font-size: 12px;
                     }
                     Rectangle {
                         height: 28px;
-                        background: #1b1b1b;
+                        background: Theme.surface;
                         border-radius: 4px;
                         border-width: 1px;
-                        border-color: #3a3a3a;
+                        border-color: Theme.border;
                         TextInput {
                             x: 8px;
                             width: parent.width - 16px;
                             height: 100%;
                             text <=> DialogState.export-watermark-size-text;
-                            color: #e6e6e6;
+                            color: Theme.text;
                             font-size: 12px;
                             vertical-alignment: center;
                             single-line: true;
@@ -255,21 +256,21 @@ export component ExportDialog inherits VerticalLayout {
                     horizontal-stretch: 1;
                     Text {
                         text: @tr("Colour (#RRGGBB)");
-                        color: #9a9a9a;
+                        color: Theme.text-dim;
                         font-size: 12px;
                     }
                     Rectangle {
                         height: 28px;
-                        background: #1b1b1b;
+                        background: Theme.surface;
                         border-radius: 4px;
                         border-width: 1px;
-                        border-color: #3a3a3a;
+                        border-color: Theme.border;
                         TextInput {
                             x: 8px;
                             width: parent.width - 16px;
                             height: 100%;
                             text <=> DialogState.export-watermark-color-text;
-                            color: #e6e6e6;
+                            color: Theme.text;
                             font-size: 12px;
                             vertical-alignment: center;
                             single-line: true;
@@ -281,21 +282,21 @@ export component ExportDialog inherits VerticalLayout {
                     horizontal-stretch: 1;
                     Text {
                         text: @tr("Opacity (0-1)");
-                        color: #9a9a9a;
+                        color: Theme.text-dim;
                         font-size: 12px;
                     }
                     Rectangle {
                         height: 28px;
-                        background: #1b1b1b;
+                        background: Theme.surface;
                         border-radius: 4px;
                         border-width: 1px;
-                        border-color: #3a3a3a;
+                        border-color: Theme.border;
                         TextInput {
                             x: 8px;
                             width: parent.width - 16px;
                             height: 100%;
                             text <=> DialogState.export-watermark-opacity-text;
-                            color: #e6e6e6;
+                            color: Theme.text;
                             font-size: 12px;
                             vertical-alignment: center;
                             single-line: true;
@@ -311,21 +312,21 @@ export component ExportDialog inherits VerticalLayout {
                 horizontal-stretch: 1;
                 Text {
                     text: @tr("Save as preset (optional name)");
-                    color: #9a9a9a;
+                    color: Theme.text-dim;
                     font-size: 12px;
                 }
                 Rectangle {
                     height: 28px;
-                    background: #1b1b1b;
+                    background: Theme.surface;
                     border-radius: 4px;
                     border-width: 1px;
-                    border-color: #3a3a3a;
+                    border-color: Theme.border;
                     TextInput {
                         x: 8px;
                         width: parent.width - 16px;
                         height: 100%;
                         text <=> DialogState.export-preset-name;
-                        color: #e6e6e6;
+                        color: Theme.text;
                         font-size: 12px;
                         vertical-alignment: center;
                         single-line: true;
@@ -349,7 +350,7 @@ export component ExportDialog inherits VerticalLayout {
     }
     Text {
         text: @tr("Destination folder (absolute path)");
-        color: #9a9a9a;
+        color: Theme.text-dim;
         font-size: 12px;
     }
     HorizontalLayout {
@@ -357,16 +358,16 @@ export component ExportDialog inherits VerticalLayout {
         Rectangle {
             height: 28px;
             horizontal-stretch: 1;
-            background: #1b1b1b;
+            background: Theme.surface;
             border-radius: 4px;
             border-width: 1px;
-            border-color: #3a3a3a;
+            border-color: Theme.border;
             export-destination := TextInput {
                 x: 8px;
                 width: parent.width - 16px;
                 height: 100%;
                 text <=> DialogState.export-destination-text;
-                color: #e6e6e6;
+                color: Theme.text;
                 font-size: 12px;
                 vertical-alignment: center;
                 single-line: true;

@@ -8,6 +8,7 @@
 //
 // One of the dialogs hosted by `panels/dialogs.slint` (ADR 0045 §3).
 
+import { Theme } from "../theme.slint";
 import { DialogState } from "../state/dialog.slint";
 import { LibraryState } from "../state/library.slint";
 import { FilterChip } from "../widgets/controls.slint";
@@ -34,7 +35,7 @@ export component AboutDialog inherits VerticalLayout {
     }
     Text {
         text: @tr("Version {}", LibraryState.app-version);
-        color: #9a9a9a;
+        color: Theme.text-dim;
         font-size: 11px;
         horizontal-alignment: center;
     }
@@ -60,25 +61,25 @@ export component AboutDialog inherits VerticalLayout {
         // Selectable so it can be pasted straight into a report rather than
         // copied out by hand.
         text: LibraryState.build-details;
-        color: #c8c8c8;
+        color: Theme.text-dim;
         font-size: 11px;
         wrap: word-wrap;
     }
     if !root.show-build: Text {
         text: @tr("Local-first, non-destructive RAW development.");
-        color: #c8c8c8;
+        color: Theme.text-dim;
         font-size: 12px;
         wrap: word-wrap;
     }
     if !root.show-build: Text {
         text: @tr("Library: {}", LibraryState.library-path);
-        color: #909090;
+        color: Theme.text-dim;
         font-size: 11px;
         wrap: word-wrap;
     }
     Text {
         text: "https://github.com/leyline-studio/leyline";
-        color: #c8b06a;
+        color: Theme.notice;
         font-size: 11px;
         wrap: word-wrap;
     }
@@ -86,13 +87,13 @@ export component AboutDialog inherits VerticalLayout {
     // display. Not translated: a name and a year read the same everywhere.
     Text {
         text: "© 2026 Quentin Boulard";
-        color: #9a9a9a;
+        color: Theme.text-dim;
         font-size: 11px;
         wrap: word-wrap;
     }
     Text {
         text: @tr("Licensed under {}", "GPL-3.0-only");
-        color: #9a9a9a;
+        color: Theme.text-dim;
         font-size: 11px;
         wrap: word-wrap;
     }

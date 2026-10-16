@@ -14,6 +14,7 @@
 // one level of folders, favourites first, filtered by the search box above.
 // Nothing here decides an order or a filter.
 
+import { Theme } from "../theme.slint";
 import { PresetRow } from "../types.slint";
 import { HintState } from "../state/hint.slint";
 import { DevelopState } from "../state/develop.slint";
@@ -33,7 +34,7 @@ component PresetItem inherits Rectangle {
     callback hovered(bool);
 
     height: root.entry.summary == "" ? 26px : 38px;
-    background: touch.has-hover ? #ffffff10 : transparent;
+    background: touch.has-hover ? Theme.veil : transparent;
     border-radius: 3px;
 
     HorizontalLayout {
@@ -58,8 +59,8 @@ component PresetItem inherits Rectangle {
                 x: (parent.width - self.width) / 2;
                 border-radius: 5px;
                 border-width: 1px;
-                border-color: root.entry.favourite ? #d8b45a : (star-touch.has-hover ? #9a9a9a : #4a4a4a);
-                background: root.entry.favourite ? #d8b45a : transparent;
+                border-color: root.entry.favourite ? Theme.rating : (star-touch.has-hover ? Theme.text-dim : Theme.border);
+                background: root.entry.favourite ? Theme.rating : transparent;
             }
             star-touch := TouchArea {
                 clicked => {
@@ -73,13 +74,13 @@ component PresetItem inherits Rectangle {
             spacing: 0px;
             Text {
                 text: root.entry.name;
-                color: #e6e6e6;
+                color: Theme.text;
                 font-size: 12px;
                 overflow: elide;
             }
             if root.entry.summary != "": Text {
                 text: root.entry.summary;
-                color: #7a7a7a;
+                color: Theme.text-disabled;
                 font-size: 10px;
                 overflow: elide;
             }
@@ -157,10 +158,10 @@ export component PresetsSection inherits VerticalLayout {
             width: 18px;
             height: 18px;
             border-radius: 3px;
-            background: add-touch.has-hover ? #ffffff14 : transparent;
+            background: add-touch.has-hover ? Theme.veil : transparent;
             Text {
                 text: "+";
-                color: #b0b0b0;
+                color: Theme.text-dim;
                 font-size: 14px;
                 horizontal-alignment: center;
                 vertical-alignment: center;
@@ -191,17 +192,17 @@ export component PresetsSection inherits VerticalLayout {
 
         Rectangle {
             height: 24px;
-            background: #1b1b1b;
+            background: Theme.surface;
             border-radius: 4px;
             border-width: 1px;
-            border-color: #3a3a3a;
+            border-color: Theme.border;
             HorizontalLayout {
                 x: 8px;
                 width: parent.width - 16px;
                 height: 100%;
                 if DevelopState.preset-filter == "": Text {
                     text: @tr("Search presets");
-                    color: #6a6a6a;
+                    color: Theme.text-disabled;
                     font-size: 11px;
                     vertical-alignment: center;
                 }
@@ -209,7 +210,7 @@ export component PresetsSection inherits VerticalLayout {
                     width: parent.width;
                     height: 100%;
                     text: DevelopState.preset-filter;
-                    color: #e6e6e6;
+                    color: Theme.text;
                     font-size: 11px;
                     vertical-alignment: center;
                     single-line: true;
@@ -222,7 +223,7 @@ export component PresetsSection inherits VerticalLayout {
 
         if DevelopState.dev-preset-rows.length == 0: Text {
             text: DevelopState.preset-filter == "" ? @tr("No presets yet. Develop a photo, then press S to keep the look.") : @tr("No preset matches.");
-            color: #7a7a7a;
+            color: Theme.text-disabled;
             font-size: 11px;
             wrap: word-wrap;
         }
@@ -241,7 +242,7 @@ export component PresetsSection inherits VerticalLayout {
                 property <int> index: row.index;
 
                 if row.is-folder: Rectangle {
-                    background: folder-touch.has-hover ? #ffffff10 : transparent;
+                    background: folder-touch.has-hover ? Theme.veil : transparent;
                     border-radius: 3px;
                     HorizontalLayout {
                         x: 4px;
@@ -250,13 +251,13 @@ export component PresetsSection inherits VerticalLayout {
                         spacing: 4px;
                         Text {
                             text: row.expanded ? "▾" : "▸";
-                            color: #8a8a8a;
+                            color: Theme.text-dim;
                             font-size: 9px;
                             vertical-alignment: center;
                         }
                         Text {
                             text: row.name;
-                            color: #c8c8c8;
+                            color: Theme.text-dim;
                             font-size: 11px;
                             font-weight: 600;
                             vertical-alignment: center;
@@ -265,7 +266,7 @@ export component PresetsSection inherits VerticalLayout {
                         }
                         Text {
                             text: row.count;
-                            color: #6a6a6a;
+                            color: Theme.text-disabled;
                             font-size: 10px;
                             vertical-alignment: center;
                         }

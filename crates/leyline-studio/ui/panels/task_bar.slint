@@ -6,6 +6,7 @@
 // closing makes disappear. Bottom **right**, because bottom centre is the
 // tether bar's and the two can be up at once.
 
+import { Theme } from "../theme.slint";
 import { JobsState } from "../state/jobs.slint";
 import { FilterChip } from "../widgets/controls.slint";
 
@@ -19,10 +20,10 @@ export component TaskBar inherits Rectangle {
         y: parent.height - self.height - 24px;
         width: row.preferred-width;
         height: 44px;
-        background: #1c1c1cf0;
+        background: Theme.floating;
         border-radius: 8px;
         border-width: 1px;
-        border-color: #3a3a3a;
+        border-color: Theme.border;
 
         // The proportion, drawn along the bottom edge of the pill rather
         // than as a bar of its own: at this size a second rectangle is
@@ -33,7 +34,7 @@ export component TaskBar inherits Rectangle {
             y: parent.height - 4px;
             width: (parent.width - 2px) * min(1.0, JobsState.done / max(1, JobsState.total));
             height: 3px;
-            background: #6fa8dc;
+            background: Theme.focus;
             border-radius: 1.5px;
         }
 
@@ -50,7 +51,7 @@ export component TaskBar inherits Rectangle {
                 alignment: center;
                 Text {
                     text: JobsState.label;
-                    color: #e6e6e6;
+                    color: Theme.text;
                     font-size: 12px;
                     font-weight: 600;
                 }
@@ -58,7 +59,7 @@ export component TaskBar inherits Rectangle {
                     text: JobsState.total > 0
                         ? @tr("{} / {}", JobsState.done, JobsState.total)
                         : @tr("in progress…");
-                    color: #9a9a9a;
+                    color: Theme.text-dim;
                     font-size: 11px;
                 }
             }

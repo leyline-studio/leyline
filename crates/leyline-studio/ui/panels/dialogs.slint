@@ -4,6 +4,7 @@
 // Each dialog is its own file under `ui/dialogs/`; this component only
 // decides which one is mounted and gives them a common frame.
 
+import { Theme } from "../theme.slint";
 import { CollectionState } from "../state/collection.slint";
 import { DialogState } from "../state/dialog.slint";
 import { PreferencesState } from "../state/preferences.slint";
@@ -69,7 +70,7 @@ export component DialogOverlay inherits Rectangle {
             DialogState.import-scanned = false;
             DialogState.import-chosen = 0;
         }
-        background: #000000aa;
+        background: Theme.scrim;
         TouchArea {
             clicked => {
                 DialogState.dialog = "";
@@ -85,10 +86,10 @@ export component DialogOverlay inherits Rectangle {
         // (ADR 0138 §2), the way `SettingsGroupChips` already is.
         Rectangle {
             width: 480px;
-            background: #262626;
+            background: Theme.raised;
             border-radius: 8px;
             border-width: 1px;
-            border-color: #3a3a3a;
+            border-color: Theme.border;
             // Never taller than the window it is centred in: past that the
             // card grows out through the top and the bottom at once, and
             // what leaves by the top is the title (ADR 0138 §1).
@@ -176,7 +177,7 @@ export component DialogOverlay inherits Rectangle {
 
                     if DialogState.dialog-result != "": Text {
                         text: DialogState.dialog-result;
-                        color: #d8b23c;
+                        color: Theme.rating;
                         font-size: 12px;
                         wrap: word-wrap;
                     }
@@ -195,7 +196,7 @@ export component DialogOverlay inherits Rectangle {
                 width: 3px;
                 height: max(24px, (scroll.height - 8px) * scroll.height / scroll.viewport-height);
                 border-radius: 1.5px;
-                background: #6f6f6f;
+                background: Theme.control;
             }
         }
 }

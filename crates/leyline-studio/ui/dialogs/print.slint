@@ -3,6 +3,7 @@
 //
 // One of the dialogs hosted by `panels/dialogs.slint` (ADR 0045 §3).
 
+import { Theme } from "../theme.slint";
 import { DialogState } from "../state/dialog.slint";
 import { FilterChip } from "../widgets/controls.slint";
 
@@ -12,13 +13,13 @@ export component PrintDialog inherits VerticalLayout {
         text: DialogState.print-photo-count > 1
             ? @tr("Print {} selected photos", DialogState.print-photo-count)
             : @tr("Print selected photo");
-        color: #f0f0f0;
+        color: Theme.text;
         font-size: 15px;
         font-weight: 600;
     }
     Text {
         text: @tr("Preset");
-        color: #9a9a9a;
+        color: Theme.text-dim;
         font-size: 12px;
     }
     HorizontalLayout {
@@ -43,7 +44,7 @@ export component PrintDialog inherits VerticalLayout {
         spacing: 8px;
         Text {
             text: @tr("Paper");
-            color: #9a9a9a;
+            color: Theme.text-dim;
             font-size: 12px;
         }
         HorizontalLayout {
@@ -59,7 +60,7 @@ export component PrintDialog inherits VerticalLayout {
         }
         Text {
             text: @tr("Orientation");
-            color: #9a9a9a;
+            color: Theme.text-dim;
             font-size: 12px;
         }
         HorizontalLayout {
@@ -80,21 +81,21 @@ export component PrintDialog inherits VerticalLayout {
                 horizontal-stretch: 1;
                 Text {
                     text: @tr("Margins (mm, all sides)");
-                    color: #9a9a9a;
+                    color: Theme.text-dim;
                     font-size: 12px;
                 }
                 Rectangle {
                     height: 28px;
-                    background: #1b1b1b;
+                    background: Theme.surface;
                     border-radius: 4px;
                     border-width: 1px;
-                    border-color: #3a3a3a;
+                    border-color: Theme.border;
                     TextInput {
                         x: 8px;
                         width: parent.width - 16px;
                         height: 100%;
                         text <=> DialogState.print-margins-text;
-                        color: #e6e6e6;
+                        color: Theme.text;
                         font-size: 12px;
                         vertical-alignment: center;
                         single-line: true;
@@ -106,21 +107,21 @@ export component PrintDialog inherits VerticalLayout {
                 horizontal-stretch: 1;
                 Text {
                     text: @tr("DPI");
-                    color: #9a9a9a;
+                    color: Theme.text-dim;
                     font-size: 12px;
                 }
                 Rectangle {
                     height: 28px;
-                    background: #1b1b1b;
+                    background: Theme.surface;
                     border-radius: 4px;
                     border-width: 1px;
-                    border-color: #3a3a3a;
+                    border-color: Theme.border;
                     TextInput {
                         x: 8px;
                         width: parent.width - 16px;
                         height: 100%;
                         text <=> DialogState.print-dpi-text;
-                        color: #e6e6e6;
+                        color: Theme.text;
                         font-size: 12px;
                         vertical-alignment: center;
                         single-line: true;
@@ -130,7 +131,7 @@ export component PrintDialog inherits VerticalLayout {
         }
         Text {
             text: @tr("Destination ICC profile (blank = sRGB)");
-            color: #9a9a9a;
+            color: Theme.text-dim;
             font-size: 12px;
         }
         HorizontalLayout {
@@ -138,16 +139,16 @@ export component PrintDialog inherits VerticalLayout {
             Rectangle {
                 height: 28px;
                 horizontal-stretch: 1;
-                background: #1b1b1b;
+                background: Theme.surface;
                 border-radius: 4px;
                 border-width: 1px;
-                border-color: #3a3a3a;
+                border-color: Theme.border;
                 TextInput {
                     x: 8px;
                     width: parent.width - 16px;
                     height: 100%;
                     text <=> DialogState.print-profile-text;
-                    color: #e6e6e6;
+                    color: Theme.text;
                     font-size: 12px;
                     vertical-alignment: center;
                     single-line: true;
@@ -163,7 +164,7 @@ export component PrintDialog inherits VerticalLayout {
         }
         Text {
             text: @tr("Rendering intent");
-            color: #9a9a9a;
+            color: Theme.text-dim;
             font-size: 12px;
         }
         HorizontalLayout {
@@ -184,21 +185,21 @@ export component PrintDialog inherits VerticalLayout {
                 horizontal-stretch: 1;
                 Text {
                     text: @tr("Save as preset (optional name)");
-                    color: #9a9a9a;
+                    color: Theme.text-dim;
                     font-size: 12px;
                 }
                 Rectangle {
                     height: 28px;
-                    background: #1b1b1b;
+                    background: Theme.surface;
                     border-radius: 4px;
                     border-width: 1px;
-                    border-color: #3a3a3a;
+                    border-color: Theme.border;
                     TextInput {
                         x: 8px;
                         width: parent.width - 16px;
                         height: 100%;
                         text <=> DialogState.print-preset-name;
-                        color: #e6e6e6;
+                        color: Theme.text;
                         font-size: 12px;
                         vertical-alignment: center;
                         single-line: true;
@@ -224,7 +225,7 @@ export component PrintDialog inherits VerticalLayout {
     }
     Text {
         text: @tr("Destination folder (absolute path)");
-        color: #9a9a9a;
+        color: Theme.text-dim;
         font-size: 12px;
     }
     HorizontalLayout {
@@ -232,16 +233,16 @@ export component PrintDialog inherits VerticalLayout {
         Rectangle {
             height: 28px;
             horizontal-stretch: 1;
-            background: #1b1b1b;
+            background: Theme.surface;
             border-radius: 4px;
             border-width: 1px;
-            border-color: #3a3a3a;
+            border-color: Theme.border;
             print-destination := TextInput {
                 x: 8px;
                 width: parent.width - 16px;
                 height: 100%;
                 text <=> DialogState.print-destination-text;
-                color: #e6e6e6;
+                color: Theme.text;
                 font-size: 12px;
                 vertical-alignment: center;
                 single-line: true;
@@ -262,21 +263,21 @@ export component PrintDialog inherits VerticalLayout {
             horizontal-stretch: 1;
             Text {
                 text: @tr("Copies");
-                color: #9a9a9a;
+                color: Theme.text-dim;
                 font-size: 12px;
             }
             Rectangle {
                 height: 28px;
-                background: #1b1b1b;
+                background: Theme.surface;
                 border-radius: 4px;
                 border-width: 1px;
-                border-color: #3a3a3a;
+                border-color: Theme.border;
                 TextInput {
                     x: 8px;
                     width: parent.width - 16px;
                     height: 100%;
                     text <=> DialogState.print-copies-text;
-                    color: #e6e6e6;
+                    color: Theme.text;
                     font-size: 12px;
                     vertical-alignment: center;
                     single-line: true;

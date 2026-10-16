@@ -10,6 +10,7 @@
 // path. See `StudioWindow.open-menu`/`reset-submenus()` for the state this
 // wires into, and the dropdown panels near the modal dialog overlay for
 // the actual menu contents.
+import { Theme } from "../theme.slint";
 export component TopMenuLabel inherits Rectangle {
     in property <string> title;
     in property <bool> active;
@@ -18,11 +19,11 @@ export component TopMenuLabel inherits Rectangle {
 
     height: 28px;
     width: label.preferred-width + 20px;
-    background: root.active ? #2f4f6f : transparent;
+    background: root.active ? Theme.active : transparent;
 
     label := Text {
         text: root.title;
-        color: root.enabled ? #e6e6e6 : #666666;
+        color: root.enabled ? Theme.text : Theme.text-disabled;
         font-size: 13px;
         horizontal-alignment: center;
         vertical-alignment: center;
@@ -52,7 +53,7 @@ export component ModuleLabel inherits Rectangle {
 
     label := Text {
         text: root.title;
-        color: !root.enabled ? #555555 : (root.current ? #f0f0f0 : #9a9a9a);
+        color: !root.enabled ? Theme.text-disabled : (root.current ? Theme.text : Theme.text-dim);
         font-size: 13px;
         font-weight: root.current ? 700 : 400;
         horizontal-alignment: center;
@@ -76,10 +77,10 @@ export component MenuDropdown inherits Rectangle {
     // dropdown's background span the entire page even though its rows are
     // only 240px wide. Sizing to `content`'s own preferred size instead
     // makes it hug its rows.
-    background: #262626;
+    background: Theme.raised;
     border-radius: 6px;
     border-width: 1px;
-    border-color: #3a3a3a;
+    border-color: Theme.border;
     width: content.preferred-width;
     height: content.preferred-height;
     content := VerticalLayout {
@@ -94,13 +95,13 @@ export component MenuRow inherits Rectangle {
 
     height: 26px;
     width: 240px;
-    background: touch.has-hover && root.enabled ? #2f4f6f : transparent;
+    background: touch.has-hover && root.enabled ? Theme.active : transparent;
 
     Text {
         x: 12px;
         width: parent.width - 24px;
         text: root.title;
-        color: root.enabled ? #e6e6e6 : #666666;
+        color: root.enabled ? Theme.text : Theme.text-disabled;
         font-size: 12px;
         vertical-alignment: center;
         height: 100%;
@@ -126,12 +127,12 @@ export component SubmenuHeader inherits Rectangle {
 
     height: 26px;
     width: 240px;
-    background: touch.has-hover && root.enabled ? #2f4f6f : transparent;
+    background: touch.has-hover && root.enabled ? Theme.active : transparent;
 
     Text {
         x: 12px;
         text: (root.expanded ? "▾ " : "▸ ") + root.title;
-        color: root.enabled ? #e6e6e6 : #666666;
+        color: root.enabled ? Theme.text : Theme.text-disabled;
         font-size: 12px;
         vertical-alignment: center;
         height: 100%;
@@ -152,7 +153,7 @@ export component MenuSep inherits Rectangle {
         y: parent.height / 2;
         width: parent.width - 16px;
         height: 1px;
-        background: #3a3a3a;
+        background: Theme.hover;
     }
 }
 
@@ -171,13 +172,13 @@ export component MenuToggleRow inherits Rectangle {
 
     height: 26px;
     width: 240px;
-    background: touch.has-hover && root.enabled ? #2f4f6f : transparent;
+    background: touch.has-hover && root.enabled ? Theme.active : transparent;
 
     Text {
         x: 12px;
         width: 14px;
         text: root.checked ? "✓" : "";
-        color: root.enabled ? #6fa8dc : #666666;
+        color: root.enabled ? Theme.focus : Theme.text-disabled;
         font-size: 12px;
         vertical-alignment: center;
         height: 100%;
@@ -186,7 +187,7 @@ export component MenuToggleRow inherits Rectangle {
         x: 26px;
         width: parent.width - 38px;
         text: root.title;
-        color: root.enabled ? #e6e6e6 : #666666;
+        color: root.enabled ? Theme.text : Theme.text-disabled;
         font-size: 12px;
         vertical-alignment: center;
         height: 100%;

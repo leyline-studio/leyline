@@ -14,6 +14,7 @@
 // geometry and catches no input of its own; only the dropdown backdrop,
 // which exists solely while a menu is open, has a `TouchArea`.
 
+import { Theme } from "../theme.slint";
 import { CollectionState } from "../state/collection.slint";
 import { DevelopState } from "../state/develop.slint";
 import { DialogState } from "../state/dialog.slint";
@@ -861,14 +862,14 @@ export component MenuBar inherits Rectangle {
         y: 0;
         width: root.width;
         height: 28px;
-        background: #1b1b1b;
+        background: Theme.surface;
 
         // A hairline rather than a shadow: it separates the bar from
         // whatever scrolls beneath it without pretending the bar floats.
         Rectangle {
             y: parent.height - 1px;
             height: 1px;
-            background: #303030;
+            background: Theme.raised;
         }
     }
 
@@ -891,6 +892,16 @@ export component MenuBar inherits Rectangle {
     // already-existing `VerticalLayout` (adding a sibling element was
     // safe in testing) — never via a property override on the column
     // itself or on `keys`.
+    // The bar's own band: bars and panels are `surface`, what lies between
+    // them is the window's `ground` (ADR 0158 §1). Declared before the row
+    // so the labels paint on top of it.
+    Rectangle {
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: menu-row.height;
+        background: Theme.surface;
+    }
     menu-row := HorizontalLayout {
         // Custom menu bar (ADR 0020): a second, discoverable path to the
         // same callbacks already wired to keyboard shortcuts above — no
@@ -997,7 +1008,7 @@ export component MenuBar inherits Rectangle {
             }
             Text {
                 text: "|";
-                color: #4a4a4a;
+                color: Theme.text-disabled;
                 font-size: 13px;
                 vertical-alignment: center;
             }
@@ -1018,7 +1029,7 @@ export component MenuBar inherits Rectangle {
             }
             Text {
                 text: "|";
-                color: #4a4a4a;
+                color: Theme.text-disabled;
                 font-size: 13px;
                 vertical-alignment: center;
             }

@@ -8,6 +8,7 @@
 //
 // One of the dialogs hosted by `panels/dialogs.slint` (ADR 0045 §3).
 
+import { Theme } from "../theme.slint";
 import { DevelopState } from "../state/develop.slint";
 import { DialogState } from "../state/dialog.slint";
 import { FilterChip, SettingsGroupChips, SettingsGroups } from "../widgets/controls.slint";
@@ -23,26 +24,26 @@ export component PresetDialog inherits VerticalLayout {
 
     Text {
         text: @tr("Save as preset");
-        color: #f0f0f0;
+        color: Theme.text;
         font-size: 15px;
         font-weight: 600;
     }
     Text {
         text: @tr("Name");
-        color: #9a9a9a;
+        color: Theme.text-dim;
         font-size: 12px;
     }
     Rectangle {
         height: 28px;
-        background: #1b1b1b;
+        background: Theme.surface;
         border-radius: 4px;
         border-width: 1px;
-        border-color: #3a3a3a;
+        border-color: Theme.border;
         preset-name := TextInput {
             x: 8px;
             width: parent.width - 16px;
             height: 100%;
-            color: #e6e6e6;
+            color: Theme.text;
             font-size: 12px;
             vertical-alignment: center;
             single-line: true;
@@ -52,7 +53,7 @@ export component PresetDialog inherits VerticalLayout {
         // Wrapped, and short enough not to need it: a single-line `Text`
         // here was silently elided at the dialog's width.
         text: @tr("Categories (the six that start off are not part of a look)");
-        color: #9a9a9a;
+        color: Theme.text-dim;
         font-size: 12px;
         wrap: word-wrap;
     }
@@ -92,7 +93,7 @@ export component PresetDialog inherits VerticalLayout {
 
     Text {
         text: @tr("Folder");
-        color: #9a9a9a;
+        color: Theme.text-dim;
         font-size: 12px;
     }
     Flickable {
@@ -103,13 +104,13 @@ export component PresetDialog inherits VerticalLayout {
             spacing: 2px;
             Rectangle {
                 height: 22px;
-                background: root.folder == -1 ? #2f4f6f : (root-touch.has-hover ? #ffffff10 : transparent);
+                background: root.folder == -1 ? Theme.active : (root-touch.has-hover ? Theme.veil : transparent);
                 border-radius: 3px;
                 Text {
                     x: 8px;
                     height: 100%;
                     text: @tr("No folder");
-                    color: #e6e6e6;
+                    color: Theme.text;
                     font-size: 11px;
                     vertical-alignment: center;
                 }
@@ -121,14 +122,14 @@ export component PresetDialog inherits VerticalLayout {
             }
             for name[index] in DevelopState.preset-folders: Rectangle {
                 height: 22px;
-                background: root.folder == index ? #2f4f6f : (folder-touch.has-hover ? #ffffff10 : transparent);
+                background: root.folder == index ? Theme.active : (folder-touch.has-hover ? Theme.veil : transparent);
                 border-radius: 3px;
                 Text {
                     x: 8px;
                     width: parent.width - 16px;
                     height: 100%;
                     text: name;
-                    color: #e6e6e6;
+                    color: Theme.text;
                     font-size: 11px;
                     vertical-alignment: center;
                     overflow: elide;
@@ -146,15 +147,15 @@ export component PresetDialog inherits VerticalLayout {
         Rectangle {
             height: 24px;
             horizontal-stretch: 1;
-            background: #1b1b1b;
+            background: Theme.surface;
             border-radius: 4px;
             border-width: 1px;
-            border-color: #3a3a3a;
+            border-color: Theme.border;
             new-folder := TextInput {
                 x: 8px;
                 width: parent.width - 16px;
                 height: 100%;
-                color: #e6e6e6;
+                color: Theme.text;
                 font-size: 11px;
                 vertical-alignment: center;
                 single-line: true;

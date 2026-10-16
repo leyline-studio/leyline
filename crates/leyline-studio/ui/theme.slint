@@ -1,0 +1,156 @@
+// The colours of the interface, and the only file allowed to spell one
+// (ADR 0158 §1, ADR 0159 §6). `make check` refuses a colour literal in any
+// other `.slint` file.
+//
+// Two globals, because there are two kinds of colour:
+//
+// * `Theme` is the interface: named by **role**, never by value, and
+//   switched between a dark and a light palette. No component knows which
+//   one is on.
+// * `Hues` is what is drawn **on or about the photograph** — crop guides,
+//   clipping warnings, histogram channels, the gradients that show what a
+//   slider does to a colour. Those keep their meaning whatever the
+//   interface around them looks like, so they do not follow the theme.
+//
+// Neither paints the viewer's surround: that is the photographer's choice of
+// ground (ADR 0117), handed down as `viewer-ground`, and the theme never
+// moves it (ADR 0159 §6).
+
+import { Palette } from "std-widgets.slint";
+
+export global Theme {
+    // The switch of ADR 0159 §6: 0 = follow the system, 1 = dark,
+    // 2 = light. Remembered by Rust as interface state (ADR 0128), not as a
+    // preference.
+    in-out property <int> choice: 0;
+    // An unknown system scheme reads as dark: the interface Studio has
+    // always had, and the one the photograph is usually developed against.
+    out property <bool> dark: choice == 1 || (choice == 0 && Palette.color-scheme != ColorScheme.light);
+
+    // The dark values are measured on the reference (ADR 0158 §1); the light
+    // ones on its light theme (ADR 0159 §6), the rest set by contrast.
+
+    // Bars, panels, dialogs.
+    out property <color> surface: dark ? #2d2d2d : #e6e6e6;
+    // Behind thumbnails and empty areas — not the viewer's surround.
+    out property <color> ground: dark ? #1c1c1c : #cfcfcf;
+    // Set into a surface: fields, chips at rest, the histogram, list wells.
+    out property <color> sunken: dark ? #222222 : #f6f6f6;
+    // Lifted off a surface: menus, cards inside a dialog.
+    out property <color> raised: dark ? #363636 : #f0f0f0;
+    out property <color> hover: dark ? #3a3a3a : #d6d6d6;
+    // A chip that is on, a row that is chosen. Grey, not a colour: the only
+    // accent is `focus`, so nothing of the interface competes with the
+    // photograph's own colours (ADR 0158 §1).
+    out property <color> active: dark ? #484848 : #c4c4c4;
+    out property <color> active-hover: dark ? #525252 : #b8b8b8;
+    out property <color> border: dark ? #3a3a3a : #c4c4c4;
+    // A tooltip, darker than anything it can float over.
+    out property <color> tooltip: dark ? #0e0e0e : #f6f6f6;
+    // A bar floating over the photograph, nearly opaque.
+    out property <color> floating: dark ? #1c1c1cf0 : #e6e6e6f0;
+    // Behind a modal dialog.
+    out property <color> scrim: dark ? #000000aa : #00000066;
+    // Hover and pressed tints over any of the above, so one value works on
+    // every surface: white over dark, black over light.
+    out property <color> veil-faint: dark ? #ffffff08 : #00000008;
+    out property <color> veil: dark ? #ffffff10 : #0000000f;
+    out property <color> veil-strong: dark ? #ffffff1c : #0000001a;
+
+    out property <color> text: dark ? #e6e6e6 : #1c1c1c;
+    out property <color> text-dim: dark ? #9a9a9a : #5b5b5b;
+    out property <color> text-disabled: dark ? #666666 : #9e9e9e;
+
+    // Slider thumbs and scroll bars at rest.
+    out property <color> control: dark ? #8a8a8a : #7a7a7a;
+    out property <color> track: dark ? #5a5a5a : #b3b3b3;
+
+    // The one accent: keyboard focus, the photograph that is current, a
+    // field with something typed in it.
+    out property <color> focus: dark ? #6fa8dc : #1f6fb8;
+    // The other photographs of a multiple selection.
+    out property <color> focus-dim: dark ? #4a7aa8 : #6f9fd0;
+
+    // Meanings, not decorations: each must stay readable on `surface` in
+    // both palettes.
+    out property <color> rating: dark ? #d8b23c : #a87800;
+    out property <color> notice: dark ? #d8b23c : #8a6400;
+    out property <color> alert: dark ? #d98a6a : #b0472a;
+    out property <color> success: dark ? #7fc97f : #2e7d32;
+    out property <color> success-background: dark ? #2f6f4f : #b5dcb8;
+}
+
+export global Hues {
+    // Crop, straighten and mask guides drawn over the photograph.
+    out property <color> guide: #ffcc00;
+    out property <color> guide-handle: #ffcc00cc;
+    out property <color> guide-soft: #ffcc0088;
+    out property <color> guide-fill: #ffcc0055;
+    out property <color> guide-faint: #ffcc0022;
+    out property <color> guide-handle-edge: #332600;
+    // The second guide colour, for the shape being drawn against the one
+    // already placed.
+    out property <color> guide-alternate: #33ddff;
+    // A brush dab or marquee in progress, and the lines that keep a guide
+    // visible on both a bright and a dark photograph.
+    out property <color> marquee-fill: #ffffff22;
+    out property <color> marquee-edge: #f0f0f0;
+    out property <color> dab-preview: #ffffff99;
+    out property <color> line-light: #ffffffaa;
+    out property <color> line-shadow: #00000066;
+    // The navigator's frame over its miniature.
+    out property <color> navigator-frame: #e6e6e6;
+    out property <color> navigator-fill: #ffffff18;
+    // Dark veils laid over a photograph or the map so text stays legible.
+    out property <color> photo-scrim: #000000aa;
+    out property <color> photo-scrim-strong: #000000cc;
+    out property <color> photo-scrim-solid: #000000e0;
+    out property <color> on-photo-text: #d8d8d8;
+
+    // Clipping warnings: the colours photographers already read
+    // as "crushed" and "blown".
+    out property <color> clip-shadows: #0a84ff;
+    out property <color> clip-shadows-veil: #0a84ff40;
+    out property <color> clip-highlights: #ff3b30;
+    out property <color> clip-highlights-veil: #ff3b3040;
+    out property <color> clip-highlights-edge: #e08080;
+
+    // The histogram's channels, and the tone curve tinted by the channel
+    // being edited (ADR 0098 §4).
+    out property <color> histogram-red: #ff444455;
+    out property <color> histogram-green: #44ff4455;
+    out property <color> histogram-blue: #4444ff55;
+    out property <color> curve-red: #e06c6c;
+    out property <color> curve-green: #6cc86c;
+    out property <color> curve-blue: #6c8ce0;
+
+    // Slider tracks that show the direction of their effect.
+    out property <color> neutral-start: #6b6b6b;
+    out property <color> neutral-start-dark: #333333;
+    out property <color> temperature-cold: #4a6fd0;
+    out property <color> temperature-warm: #d8b45a;
+    out property <color> tint-green: #4fae54;
+    out property <color> tint-magenta: #b756c4;
+    out property <color> vibrance: #d05a8c;
+    out property <color> saturation: #4fae54;
+    out property <color> fringe-red: #cc4444;
+    out property <color> fringe-cyan: #44cccc;
+    out property <color> fringe-blue: #4466cc;
+    out property <color> fringe-yellow: #cccc44;
+    out property <color> fringe-purple: #8a4fd0;
+    out property <color> fringe-green: #4fd06a;
+
+    // Badges stamped on a thumbnail by assisted culling (ADR 0084): keep and
+    // discard proposals.
+    out property <color> proposal-keep: #2f4f6fe0;
+    out property <color> proposal-discard: #6f4a2ae0;
+
+    out property <color> map-pin: #e05c3e;
+    out property <color> map-pin-edge: #ffffff;
+
+    // The tethered-capture shutter is drawn as a physical button, the same
+    // in either theme.
+    out property <color> shutter: #d8d8d8;
+    out property <color> shutter-hover: #f0f0f0;
+    out property <color> shutter-pressed: #b0b0b0;
+}

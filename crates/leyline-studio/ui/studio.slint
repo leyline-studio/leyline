@@ -7,6 +7,7 @@
 // its attributes, the keyboard `FocusScope`, and the order the pieces are
 // mounted in.
 
+import { Theme } from "theme.slint";
 import { Cell, CollectionRow, ColorGradingZoneValues, CurveMarker, DevSettings, FolderRow, HslBandValues, KeywordRow, MapPinMarker, MaskDab, MaskRow, PresetRow, ProfileRow, SurveyCell, TetherControl, Tr } from "types.slint";
 import { CollectionState } from "state/collection.slint";
 import { FolderState } from "state/folder.slint";
@@ -107,7 +108,7 @@ export component StudioWindow inherits Window {
     // is the only way to say "no maximum" in Slint 1.13.
     max-width: 100000px;
     max-height: 100000px;
-    background: #1b1b1b;
+    background: Theme.ground;
     forward-focus: keys;
 
     // Panel folding (ADR 0055 §6). Declared on the window rather than in a
@@ -632,7 +633,7 @@ export component StudioWindow inherits Window {
     // including the menu bar: it is the whole window that accepts them, and
     // saying so anywhere smaller would be a lie about where to let go.
     if LibraryState.file-drop-hovering: Rectangle {
-        background: #0b0b0bcc;
+        background: Theme.scrim;
 
         Rectangle {
             x: 24px;
@@ -641,7 +642,7 @@ export component StudioWindow inherits Window {
             height: parent.height - 48px;
             background: transparent;
             border-width: 2px;
-            border-color: #6fa8dc;
+            border-color: Theme.focus;
             border-radius: 10px;
         }
         VerticalLayout {
@@ -649,7 +650,7 @@ export component StudioWindow inherits Window {
             spacing: 6px;
             Text {
                 text: @tr("Drop to import");
-                color: #f0f0f0;
+                color: Theme.text;
                 font-size: 20px;
                 horizontal-alignment: center;
             }
@@ -657,7 +658,7 @@ export component StudioWindow inherits Window {
             // a drop opens the dialog and writes nothing.
             Text {
                 text: @tr("The import dialog opens — nothing is imported until you say so.");
-                color: #9a9a9a;
+                color: Theme.text-dim;
                 font-size: 12px;
                 horizontal-alignment: center;
             }
@@ -673,10 +674,10 @@ export component StudioWindow inherits Window {
         y: DragState.y + 12px;
         width: drag-label.preferred-width + 16px;
         height: 22px;
-        background: #2f4f6f;
+        background: Theme.active;
         border-radius: 4px;
         border-width: 1px;
-        border-color: #6fa8dc;
+        border-color: Theme.focus;
 
         drag-label := Text {
             // Says *how many*, because the answer differs from what the
@@ -684,7 +685,7 @@ export component StudioWindow inherits Window {
             // `Tr.photo-count` is the phrase the import and removal
             // dialogs already use, plural form included.
             text: Tr.photo-count(DragState.count);
-            color: #e6e6e6;
+            color: Theme.text;
             font-size: 11px;
             horizontal-alignment: center;
             vertical-alignment: center;
@@ -722,14 +723,14 @@ export component StudioWindow inherits Window {
         // hugs them, because the width is the *smaller* of the two.
         width: min(hint-text.preferred-width + 16px, 320px);
         height: hint-text.preferred-height + 12px;
-        background: #0e0e0e;
+        background: Theme.tooltip;
         border-radius: 4px;
         border-width: 1px;
-        border-color: #3a3a3a;
+        border-color: Theme.border;
 
         hint-text := Text {
             text: HintState.hint;
-            color: #e6e6e6;
+            color: Theme.text;
             font-size: 11px;
             horizontal-alignment: center;
             vertical-alignment: center;

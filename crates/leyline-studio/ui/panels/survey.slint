@@ -5,6 +5,7 @@
 // two. Removing a photo takes it out of the *selection* — nothing is deleted
 // and nothing is written.
 
+import { Hues, Theme } from "../theme.slint";
 import { SurveyCell } from "../types.slint";
 import { GridState } from "../state/grid.slint";
 import { DevelopState } from "../state/develop.slint";
@@ -57,7 +58,7 @@ export component SurveyPanel inherits VerticalLayout {
             text: GridState.survey-cells.length > 1
                 ? @tr("{} photos compared · ✕ drops one", GridState.survey-cells.length)
                 : @tr("One photo only: survey compares a selection — press G, then Ctrl+click to add more.");
-            color: #7a7a7a;
+            color: Theme.text-disabled;
             font-size: 11px;
             vertical-alignment: center;
         }
@@ -78,10 +79,10 @@ export component SurveyPanel inherits VerticalLayout {
             // with two photos left the cells are tall, the images letterbox
             // inside them, and without the tile the ✕ in the corner looks
             // like it belongs to nothing.
-            background: #1e1e1e;
+            background: Theme.sunken;
             border-radius: 6px;
             border-width: 1px;
-            border-color: #2c2c2c;
+            border-color: Theme.border;
 
             VerticalLayout {
                 padding: 6px;
@@ -93,7 +94,7 @@ export component SurveyPanel inherits VerticalLayout {
                 }
                 Text {
                     text: cell.filename;
-                    color: #9a9a9a;
+                    color: Theme.text-dim;
                     font-size: 11px;
                     horizontal-alignment: center;
                     overflow: elide;
@@ -110,10 +111,10 @@ export component SurveyPanel inherits VerticalLayout {
                 width: 20px;
                 height: 20px;
                 border-radius: 10px;
-                background: #000000aa;
+                background: Hues.photo-scrim;
                 Text {
                     text: "✕";
-                    color: #e6e6e6;
+                    color: Hues.on-photo-text;
                     font-size: 12px;
                     horizontal-alignment: center;
                     vertical-alignment: center;

@@ -9,6 +9,7 @@
 // finds. Grouped by *where* a key works, because several of them mean
 // different things in the library and in develop.
 
+import { Theme } from "../theme.slint";
 import { DialogState } from "../state/dialog.slint";
 import { FilterChip } from "../widgets/controls.slint";
 
@@ -19,20 +20,20 @@ component Shortcut inherits HorizontalLayout {
     spacing: 12px;
     Text {
         text: root.keys;
-        color: #e6e6e6;
+        color: Theme.text;
         font-size: 12px;
         font-weight: 600;
         width: 110px;
     }
     Text {
         text: root.what;
-        color: #9a9a9a;
+        color: Theme.text-dim;
         font-size: 12px;
     }
 }
 
 component Section inherits Text {
-    color: #6fa8dc;
+    color: Theme.focus;
     font-size: 11px;
     font-weight: 600;
 }
@@ -41,7 +42,7 @@ export component ShortcutsDialog inherits VerticalLayout {
     spacing: 12px;
     Text {
         text: @tr("Keyboard shortcuts");
-        color: #f0f0f0;
+        color: Theme.text;
         font-size: 15px;
         font-weight: 600;
     }

@@ -13,6 +13,7 @@
 // Its own window rather than a dialog inside `StudioWindow`: at the moment it
 // is needed there is no `StudioWindow`, and that is the whole point.
 
+import { Theme } from "theme.slint";
 export component StartupErrorWindow inherits Window {
     title: "Leyline Studio";
     // Without this the `FocusScope` below never has focus, and the window's
@@ -23,7 +24,7 @@ export component StartupErrorWindow inherits Window {
     // its content would follow the length of an engine message.
     width: 520px;
     height: 240px;
-    background: #1b1b1b;
+    background: Theme.surface;
 
     // The engine's own sentence, verbatim and in English — the same rule the
     // rest of Studio follows for a reason coming from the engine (ADR 0122 §4).
@@ -39,7 +40,7 @@ export component StartupErrorWindow inherits Window {
 
         Text {
             text: @tr("Leyline Studio could not start");
-            color: #f0f0f0;
+            color: Theme.text;
             font-size: 17px;
             font-weight: 600;
         }
@@ -47,7 +48,7 @@ export component StartupErrorWindow inherits Window {
         Text {
             width: 472px;
             text: root.reason;
-            color: #e6e6e6;
+            color: Theme.text;
             font-size: 13px;
             wrap: word-wrap;
         }
@@ -56,13 +57,13 @@ export component StartupErrorWindow inherits Window {
             spacing: 2px;
             Text {
                 text: @tr("It was trying to open");
-                color: #9a9a9a;
+                color: Theme.text-dim;
                 font-size: 11px;
             }
             Text {
                 width: 472px;
                 text: root.path;
-                color: #9a9a9a;
+                color: Theme.text-dim;
                 font-size: 12px;
                 wrap: word-wrap;
                 overflow: elide;
@@ -79,10 +80,10 @@ export component StartupErrorWindow inherits Window {
                 width: 92px;
                 height: 26px;
                 border-radius: 13px;
-                background: touch.has-hover ? #3a5f8f : #2f4f6f;
+                background: touch.has-hover ? Theme.active-hover : Theme.active;
                 Text {
                     text: @tr("Close");
-                    color: #f0f0f0;
+                    color: Theme.text;
                     font-size: 12px;
                     horizontal-alignment: center;
                     vertical-alignment: center;

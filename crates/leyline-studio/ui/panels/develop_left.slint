@@ -9,6 +9,7 @@
 // they are lists of states rather than settings — which is exactly the
 // reason ADR 0112 §4 had to except them from the group reset.
 
+import { Hues, Theme } from "../theme.slint";
 import { DevelopState } from "../state/develop.slint";
 import { PreferencesState } from "../state/preferences.slint";
 import { PresetsSection } from "presets.slint";
@@ -60,7 +61,7 @@ export component DevelopLeftPanel inherits Rectangle {
     }
 
     width: 260px;
-    background: #212121;
+    background: Theme.surface;
 
     Flickable {
         VerticalLayout {
@@ -81,7 +82,7 @@ export component DevelopLeftPanel inherits Rectangle {
             }
             if root.expand-navigator: navigator := Rectangle {
                 height: 150px;
-                background: #1a1a1a;
+                background: Theme.sunken;
                 border-radius: 4px;
                 // The viewport frame is drawn in the photograph's own
                 // coordinates and is not clamped to it: at the edge of a
@@ -122,8 +123,8 @@ export component DevelopLeftPanel inherits Rectangle {
                     width: navigator.shown-w * navigator.visible-w;
                     height: navigator.shown-h * navigator.visible-h;
                     border-width: 1px;
-                    border-color: #e6e6e6;
-                    background: #ffffff18;
+                    border-color: Hues.navigator-frame;
+                    background: Hues.navigator-fill;
                 }
 
                 // Click or drag to move the view. Both are the same
@@ -204,7 +205,7 @@ export component DevelopLeftPanel inherits Rectangle {
                     Rectangle {
                         width: 100%;
                         height: 100%;
-                        background: index == DevelopState.dev-history-current ? #2f4f6f : (touch.has-hover ? #2a2a2a : transparent);
+                        background: index == DevelopState.dev-history-current ? Theme.active : (touch.has-hover ? Theme.hover : transparent);
                         border-radius: 4px;
                         VerticalLayout {
                             padding-left: 8px;
@@ -216,13 +217,13 @@ export component DevelopLeftPanel inherits Rectangle {
                                 text: index == DevelopState.dev-history-current
                                     ? @tr("{} (current)", entry.what)
                                     : entry.what;
-                                color: #d0d0d0;
+                                color: Theme.text;
                                 font-size: 12px;
                                 overflow: elide;
                             }
                             Text {
                                 text: entry.when;
-                                color: #7a7a7a;
+                                color: Theme.text-disabled;
                                 font-size: 10px;
                                 overflow: elide;
                             }

@@ -8,6 +8,7 @@
 //
 // One of the dialogs hosted by `panels/dialogs.slint` (ADR 0045 §3).
 
+import { Theme } from "../theme.slint";
 import { DialogState } from "../state/dialog.slint";
 import { FilterChip } from "../widgets/controls.slint";
 
@@ -18,21 +19,21 @@ component LabelledField inherits VerticalLayout {
     horizontal-stretch: 1;
     Text {
         text: root.label;
-        color: #9a9a9a;
+        color: Theme.text-dim;
         font-size: 12px;
     }
     Rectangle {
         height: 28px;
-        background: #1b1b1b;
+        background: Theme.surface;
         border-radius: 4px;
         border-width: 1px;
-        border-color: #3a3a3a;
+        border-color: Theme.border;
         TextInput {
             x: 8px;
             width: parent.width - 16px;
             height: 100%;
             text <=> root.value;
-            color: #e6e6e6;
+            color: Theme.text;
             font-size: 12px;
             vertical-alignment: center;
             single-line: true;
@@ -44,18 +45,18 @@ export component ContactSheetDialog inherits VerticalLayout {
     spacing: 12px;
     Text {
         text: @tr("Contact sheet");
-        color: #f0f0f0;
+        color: Theme.text;
         font-size: 15px;
         font-weight: 600;
     }
     Text {
         text: @tr("Every selected photo, in order, on one PDF");
-        color: #9a9a9a;
+        color: Theme.text-dim;
         font-size: 12px;
     }
     Text {
         text: @tr("Preset");
-        color: #9a9a9a;
+        color: Theme.text-dim;
         font-size: 12px;
     }
     HorizontalLayout {
@@ -80,7 +81,7 @@ export component ContactSheetDialog inherits VerticalLayout {
         spacing: 8px;
         Text {
             text: @tr("Paper");
-            color: #9a9a9a;
+            color: Theme.text-dim;
             font-size: 12px;
         }
         HorizontalLayout {
@@ -96,7 +97,7 @@ export component ContactSheetDialog inherits VerticalLayout {
         }
         Text {
             text: @tr("Orientation");
-            color: #9a9a9a;
+            color: Theme.text-dim;
             font-size: 12px;
         }
         HorizontalLayout {
@@ -138,7 +139,7 @@ export component ContactSheetDialog inherits VerticalLayout {
         }
         Text {
             text: @tr("Captions");
-            color: #9a9a9a;
+            color: Theme.text-dim;
             font-size: 12px;
         }
         HorizontalLayout {
@@ -165,7 +166,7 @@ export component ContactSheetDialog inherits VerticalLayout {
         }
         Text {
             text: @tr("Destination ICC profile (blank = sRGB)");
-            color: #9a9a9a;
+            color: Theme.text-dim;
             font-size: 12px;
         }
         HorizontalLayout {
@@ -173,16 +174,16 @@ export component ContactSheetDialog inherits VerticalLayout {
             Rectangle {
                 height: 28px;
                 horizontal-stretch: 1;
-                background: #1b1b1b;
+                background: Theme.surface;
                 border-radius: 4px;
                 border-width: 1px;
-                border-color: #3a3a3a;
+                border-color: Theme.border;
                 TextInput {
                     x: 8px;
                     width: parent.width - 16px;
                     height: 100%;
                     text <=> DialogState.sheet-profile-text;
-                    color: #e6e6e6;
+                    color: Theme.text;
                     font-size: 12px;
                     vertical-alignment: center;
                     single-line: true;
@@ -198,7 +199,7 @@ export component ContactSheetDialog inherits VerticalLayout {
         }
         Text {
             text: @tr("Rendering intent");
-            color: #9a9a9a;
+            color: Theme.text-dim;
             font-size: 12px;
         }
         HorizontalLayout {
@@ -229,7 +230,7 @@ export component ContactSheetDialog inherits VerticalLayout {
     }
     Text {
         text: @tr("PDF to write (absolute path)");
-        color: #9a9a9a;
+        color: Theme.text-dim;
         font-size: 12px;
     }
     HorizontalLayout {
@@ -237,16 +238,16 @@ export component ContactSheetDialog inherits VerticalLayout {
         Rectangle {
             height: 28px;
             horizontal-stretch: 1;
-            background: #1b1b1b;
+            background: Theme.surface;
             border-radius: 4px;
             border-width: 1px;
-            border-color: #3a3a3a;
+            border-color: Theme.border;
             TextInput {
                 x: 8px;
                 width: parent.width - 16px;
                 height: 100%;
                 text <=> DialogState.sheet-destination-text;
-                color: #e6e6e6;
+                color: Theme.text;
                 font-size: 12px;
                 vertical-alignment: center;
                 single-line: true;

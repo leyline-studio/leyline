@@ -7,6 +7,7 @@
 //
 // Hosted by `panels/dialogs.slint` (ADR 0045 §3).
 
+import { Theme } from "../theme.slint";
 import { DialogState } from "../state/dialog.slint";
 import { KeywordState } from "../state/keyword.slint";
 import { FilterChip } from "../widgets/controls.slint";
@@ -15,7 +16,7 @@ export component RenameKeywordDialog inherits VerticalLayout {
     spacing: 12px;
     Text {
         text: @tr("Rename keyword");
-        color: #f0f0f0;
+        color: Theme.text;
         font-size: 15px;
         font-weight: 600;
     }
@@ -24,22 +25,22 @@ export component RenameKeywordDialog inherits VerticalLayout {
         // and a slash here would be asking to move the branch — which
         // ADR 0134 §6 leaves out on purpose.
         text: @tr("Name of this level, in {}", KeywordState.target-path);
-        color: #9a9a9a;
+        color: Theme.text-dim;
         font-size: 12px;
         wrap: word-wrap;
     }
     Rectangle {
         height: 28px;
-        background: #1b1b1b;
+        background: Theme.surface;
         border-radius: 4px;
         border-width: 1px;
-        border-color: #3a3a3a;
+        border-color: Theme.border;
         new-name := TextInput {
             x: 8px;
             width: parent.width - 16px;
             height: 100%;
             text: KeywordState.target-name;
-            color: #e6e6e6;
+            color: Theme.text;
             font-size: 12px;
             vertical-alignment: center;
             single-line: true;
@@ -50,7 +51,7 @@ export component RenameKeywordDialog inherits VerticalLayout {
     }
     if DialogState.dialog-result != "": Text {
         text: DialogState.dialog-result;
-        color: #d08a6a;
+        color: Theme.alert;
         font-size: 11px;
         wrap: word-wrap;
     }
@@ -78,7 +79,7 @@ export component DeleteKeywordDialog inherits VerticalLayout {
     spacing: 12px;
     Text {
         text: @tr("Delete keyword");
-        color: #f0f0f0;
+        color: Theme.text;
         font-size: 15px;
         font-weight: 600;
     }
@@ -87,19 +88,19 @@ export component DeleteKeywordDialog inherits VerticalLayout {
         // photographs carry the keyword, and the sentence changes with the
         // number (ADR 0134 §4).
         text: KeywordState.delete-warning;
-        color: #d0d0d0;
+        color: Theme.text;
         font-size: 12px;
         wrap: word-wrap;
     }
     Text {
         text: @tr("The files are not touched, and this cannot be undone.");
-        color: #9a9a9a;
+        color: Theme.text-dim;
         font-size: 11px;
         wrap: word-wrap;
     }
     if DialogState.dialog-result != "": Text {
         text: DialogState.dialog-result;
-        color: #d08a6a;
+        color: Theme.alert;
         font-size: 11px;
         wrap: word-wrap;
     }

@@ -3,6 +3,7 @@
 //
 // One of the dialogs hosted by `panels/dialogs.slint` (ADR 0045 §3).
 
+import { Theme } from "../theme.slint";
 import { CollectionState } from "../state/collection.slint";
 import { DialogState } from "../state/dialog.slint";
 import { FilterChip } from "../widgets/controls.slint";
@@ -11,7 +12,7 @@ export component CollectionDialog inherits VerticalLayout {
     spacing: 12px;
     Text {
         text: @tr("New collection");
-        color: #f0f0f0;
+        color: Theme.text;
         font-size: 15px;
         font-weight: 600;
     }
@@ -40,26 +41,26 @@ export component CollectionDialog inherits VerticalLayout {
     }
     if CollectionState.new-collection-smart: Text {
         text: CollectionState.smart-summary;
-        color: CollectionState.smart-refused ? #d08a6a : #9a9a9a;
+        color: CollectionState.smart-refused ? Theme.alert : Theme.text-dim;
         font-size: 11px;
         wrap: word-wrap;
     }
     Text {
         text: @tr("Name");
-        color: #9a9a9a;
+        color: Theme.text-dim;
         font-size: 12px;
     }
     Rectangle {
         height: 28px;
-        background: #1b1b1b;
+        background: Theme.surface;
         border-radius: 4px;
         border-width: 1px;
-        border-color: #3a3a3a;
+        border-color: Theme.border;
         collection-name := TextInput {
             x: 8px;
             width: parent.width - 16px;
             height: 100%;
-            color: #e6e6e6;
+            color: Theme.text;
             font-size: 12px;
             vertical-alignment: center;
             single-line: true;
@@ -96,27 +97,27 @@ export component RenameCollectionDialog inherits VerticalLayout {
     spacing: 12px;
     Text {
         text: @tr("Rename collection");
-        color: #f0f0f0;
+        color: Theme.text;
         font-size: 15px;
         font-weight: 600;
     }
     Text {
         text: @tr("Name");
-        color: #9a9a9a;
+        color: Theme.text-dim;
         font-size: 12px;
     }
     Rectangle {
         height: 28px;
-        background: #1b1b1b;
+        background: Theme.surface;
         border-radius: 4px;
         border-width: 1px;
-        border-color: #3a3a3a;
+        border-color: Theme.border;
         new-name := TextInput {
             x: 8px;
             width: parent.width - 16px;
             height: 100%;
             text: CollectionState.target-name;
-            color: #e6e6e6;
+            color: Theme.text;
             font-size: 12px;
             vertical-alignment: center;
             single-line: true;
@@ -152,29 +153,29 @@ export component MoveCollectionDialog inherits VerticalLayout {
     spacing: 12px;
     Text {
         text: @tr("Move “{}” to", CollectionState.target-name);
-        color: #f0f0f0;
+        color: Theme.text;
         font-size: 15px;
         font-weight: 600;
     }
     Rectangle {
         height: 220px;
-        background: #1b1b1b;
+        background: Theme.surface;
         border-radius: 4px;
         border-width: 1px;
-        border-color: #3a3a3a;
+        border-color: Theme.border;
         Flickable {
             viewport-height: CollectionState.move-targets.length * 26px;
             for label[i] in CollectionState.move-targets: Rectangle {
                 y: i * 26px;
                 width: parent.width;
                 height: 26px;
-                background: touch.has-hover ? #2f4f6f : transparent;
+                background: touch.has-hover ? Theme.active : transparent;
                 Text {
                     x: 8px;
                     width: parent.width - 16px;
                     height: 100%;
                     text: label;
-                    color: #e6e6e6;
+                    color: Theme.text;
                     font-size: 12px;
                     vertical-alignment: center;
                     overflow: elide;
@@ -208,7 +209,7 @@ export component DeleteCollectionDialog inherits VerticalLayout {
         text: CollectionState.target-doomed > 1
             ? @tr("Delete “{}” and the {} collections under it?", CollectionState.target-name, CollectionState.target-doomed - 1)
             : @tr("Delete “{}”?", CollectionState.target-name);
-        color: #f0f0f0;
+        color: Theme.text;
         font-size: 15px;
         font-weight: 600;
         wrap: word-wrap;
@@ -216,7 +217,7 @@ export component DeleteCollectionDialog inherits VerticalLayout {
     }
     Text {
         text: @tr("No photo is deleted: a collection is a grouping, and only the grouping goes.");
-        color: #9a9a9a;
+        color: Theme.text-dim;
         font-size: 12px;
         wrap: word-wrap;
         width: 380px;

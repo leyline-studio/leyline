@@ -11,6 +11,7 @@
 //
 // One of the dialogs hosted by `panels/dialogs.slint` (ADR 0045 §3).
 
+import { Theme } from "../theme.slint";
 import { DevelopState } from "../state/develop.slint";
 import { DialogState } from "../state/dialog.slint";
 import { PreferencesState } from "../state/preferences.slint";
@@ -26,13 +27,13 @@ export component CopySettingsDialog inherits VerticalLayout {
 
     Text {
         text: @tr("Copy settings");
-        color: #f0f0f0;
+        color: Theme.text;
         font-size: 15px;
         font-weight: 600;
     }
     Text {
         text: @tr("What the clipboard picks up, and what a paste then writes over. Six start off: what a look is made of is on, what a place in this photograph — or this file — is made of is not.");
-        color: #9a9a9a;
+        color: Theme.text-dim;
         font-size: 11px;
         wrap: word-wrap;
     }
@@ -74,7 +75,7 @@ export component CopySettingsDialog inherits VerticalLayout {
 
     if DialogState.dialog-result != "": Text {
         text: DialogState.dialog-result;
-        color: #d08a6a;
+        color: Theme.alert;
         font-size: 11px;
         wrap: word-wrap;
     }

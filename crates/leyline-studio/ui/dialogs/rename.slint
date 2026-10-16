@@ -7,6 +7,7 @@
 //
 // One of the dialogs hosted by `panels/dialogs.slint` (ADR 0045 §3).
 
+import { Theme } from "../theme.slint";
 import { DialogState } from "../state/dialog.slint";
 import { FilterChip } from "../widgets/controls.slint";
 
@@ -14,7 +15,7 @@ export component RenameDialog inherits VerticalLayout {
     spacing: 12px;
     Text {
         text: @tr("Rename files");
-        color: #f0f0f0;
+        color: Theme.text;
         font-size: 15px;
         font-weight: 600;
     }
@@ -22,22 +23,22 @@ export component RenameDialog inherits VerticalLayout {
         // `@tr` reads `{…}` as a format placeholder, so the braces of a
         // rename template have to be doubled to survive it.
         text: @tr("Template — {{name}} {{date}} {{time}} {{seq}}. The extension is kept.");
-        color: #9a9a9a;
+        color: Theme.text-dim;
         font-size: 12px;
         wrap: word-wrap;
     }
     Rectangle {
         height: 28px;
-        background: #1b1b1b;
+        background: Theme.surface;
         border-radius: 4px;
         border-width: 1px;
-        border-color: #3a3a3a;
+        border-color: Theme.border;
         rename-template := TextInput {
             x: 8px;
             width: parent.width - 16px;
             height: 100%;
             text: DialogState.rename-template;
-            color: #e6e6e6;
+            color: Theme.text;
             font-size: 12px;
             vertical-alignment: center;
             single-line: true;
@@ -47,7 +48,7 @@ export component RenameDialog inherits VerticalLayout {
         // This dialog renames files on disk. Saying so is the honest
         // counterpart of ADR 0100's refusal to offer an undo.
         text: @tr("This renames the files themselves. A name already taken is refused, never overwritten, and RAW+JPEG pairs are renamed together.");
-        color: #c8a86a;
+        color: Theme.notice;
         font-size: 11px;
         wrap: word-wrap;
     }

@@ -7,6 +7,7 @@
 // `menu-row` in `studio.slint` for why any position or size override around
 // this content is a repaint hazard.
 
+import { Hues, Theme } from "../theme.slint";
 import { DevSettings, MaskRow } from "../types.slint";
 import { DevelopState } from "../state/develop.slint";
 import { HintState } from "../state/hint.slint";
@@ -49,7 +50,7 @@ component SplitHandle inherits Rectangle {
         viewbox-width: 10;
         viewbox-height: 10;
         commands: "M5 0 L10 10 L0 10 Z";
-        fill: drag.pressed ? #6fa8dc : #9a9a9a;
+        fill: drag.pressed ? Theme.focus : Theme.text-dim;
     }
     drag := TouchArea {
         // Wider than the triangle: a 10px target is a target one misses.
@@ -472,7 +473,7 @@ export component DevelopPanel inherits HorizontalLayout {
             // hazard with the redundancy (ADR 0054 §4).
             if !root.chrome-hidden: Text {
                 text: DevelopState.develop-filename;
-                color: #f0f0f0;
+                color: Theme.text;
                 font-size: 14px;
                 font-weight: 600;
                 overflow: elide;
@@ -969,13 +970,13 @@ export component DevelopPanel inherits HorizontalLayout {
                     y: parent.height - self.height - 8px;
                     width: readout.preferred-width + 16px;
                     height: readout.preferred-height + 8px;
-                    background: #000000aa;
+                    background: Hues.photo-scrim;
                     border-radius: 4px;
                     readout := Text {
                         text: root.dev-zoomed
                             ? Zoom.percent(root.dev-scale) + "   " + DevelopState.pixel-readout
                             : DevelopState.pixel-readout;
-                        color: #e6e6e6;
+                        color: Hues.on-photo-text;
                         font-size: 11px;
                         horizontal-alignment: center;
                         vertical-alignment: center;
@@ -989,13 +990,13 @@ export component DevelopPanel inherits HorizontalLayout {
                     y: 8px;
                     width: label.preferred-width + 16px;
                     height: label.preferred-height + 8px;
-                    background: #000000aa;
+                    background: Hues.photo-scrim;
                     border-radius: 4px;
                     label := Text {
                         x: 8px;
                         y: 4px;
                         text: @tr("Before");
-                        color: #f0f0f0;
+                        color: Hues.on-photo-text;
                         font-size: 12px;
                     }
                 }
@@ -1033,9 +1034,9 @@ export component DevelopPanel inherits HorizontalLayout {
                     y: min(crop-drag.pressed-y, self.corner-y);
                     width: abs((crop-drag.pressed-x - self.corner-x) / 1px) * 1px;
                     height: abs((crop-drag.pressed-y - self.corner-y) / 1px) * 1px;
-                    background: #ffffff22;
+                    background: Hues.marquee-fill;
                     border-width: 1px;
-                    border-color: #f0f0f0;
+                    border-color: Hues.marquee-edge;
                 }
 
                 // Composition guides (ADR 0135 §3), over the whole frame
@@ -1072,7 +1073,7 @@ export component DevelopPanel inherits HorizontalLayout {
                         viewbox-width: self.width / 1px;
                         viewbox-height: self.height / 1px;
                         commands: parent.commands;
-                        stroke: #00000066;
+                        stroke: Hues.line-shadow;
                         stroke-width: 3px;
                     }
                     Path {
@@ -1081,7 +1082,7 @@ export component DevelopPanel inherits HorizontalLayout {
                         viewbox-width: self.width / 1px;
                         viewbox-height: self.height / 1px;
                         commands: parent.commands;
-                        stroke: #ffffffaa;
+                        stroke: Hues.line-light;
                         stroke-width: 1px;
                     }
                 }
@@ -1213,9 +1214,9 @@ export component DevelopPanel inherits HorizontalLayout {
                     width: 10px;
                     height: 10px;
                     border-radius: 5px;
-                    background: #ffcc0055;
+                    background: Hues.guide-fill;
                     border-width: 1px;
-                    border-color: #ffcc00;
+                    border-color: Hues.guide;
                 }
 
                 // Radial and gradient: one drag traces the geometry
@@ -1255,7 +1256,7 @@ export component DevelopPanel inherits HorizontalLayout {
                         (mask-drag.pressed-y + mask-drag.mouse-y) / 2 / 1px,
                         abs((mask-drag.pressed-x - mask-drag.mouse-x) / 1px) / 2,
                         abs((mask-drag.pressed-y - mask-drag.mouse-y) / 1px) / 2);
-                    stroke: #ffcc00;
+                    stroke: Hues.guide;
                     stroke-width: 1px;
                 }
                 if mask-drag.pressed && root.active-tool == "gradient": Path {
@@ -1264,7 +1265,7 @@ export component DevelopPanel inherits HorizontalLayout {
                     viewbox-width: self.width / 1px;
                     viewbox-height: self.height / 1px;
                     commands: "M\{mask-drag.pressed-x / 1px} \{mask-drag.pressed-y / 1px} L\{mask-drag.mouse-x / 1px} \{mask-drag.mouse-y / 1px}";
-                    stroke: #ffcc00;
+                    stroke: Hues.guide;
                     stroke-width: 1px;
                 }
 
@@ -1293,7 +1294,7 @@ export component DevelopPanel inherits HorizontalLayout {
                     viewbox-width: self.width / 1px;
                     viewbox-height: self.height / 1px;
                     commands: "M\{reshape-drag.pressed-x / 1px} \{reshape-drag.pressed-y / 1px} L\{reshape-drag.mouse-x / 1px} \{reshape-drag.mouse-y / 1px}";
-                    stroke: #ffcc00;
+                    stroke: Hues.guide;
                     stroke-width: 1px;
                 }
 
@@ -1333,7 +1334,7 @@ export component DevelopPanel inherits HorizontalLayout {
                         viewbox-width: self.width / 1px;
                         viewbox-height: self.height / 1px;
                         commands: "M\{(parent.shown-x + guide.x1 * parent.shown-width) / 1px} \{(parent.shown-y + guide.y1 * parent.shown-height) / 1px} L\{(parent.shown-x + guide.x2 * parent.shown-width) / 1px} \{(parent.shown-y + guide.y2 * parent.shown-height) / 1px}";
-                        stroke: #33ddff;
+                        stroke: Hues.guide-alternate;
                         stroke-width: 1px;
                     }
                 }
@@ -1344,7 +1345,7 @@ export component DevelopPanel inherits HorizontalLayout {
                     viewbox-width: self.width / 1px;
                     viewbox-height: self.height / 1px;
                     commands: "M\{keystone-drag.pressed-x / 1px} \{keystone-drag.pressed-y / 1px} L\{keystone-drag.mouse-x / 1px} \{keystone-drag.mouse-y / 1px}";
-                    stroke: #33ddff;
+                    stroke: Hues.guide-alternate;
                     stroke-width: 1px;
                 }
 
@@ -1397,7 +1398,7 @@ export component DevelopPanel inherits HorizontalLayout {
                     border-width: 1px;
                     // Lighter than a placed dab: this one is a promise, not a
                     // mark.
-                    border-color: #ffffff99;
+                    border-color: Hues.dab-preview;
                 }
 
                 // The stroke as it is being traced, drawn from the dabs Rust
@@ -1415,9 +1416,9 @@ export component DevelopPanel inherits HorizontalLayout {
                         width: 2 * dab.radius * max(parent.width, parent.height);
                         height: self.width;
                         border-radius: self.width / 2;
-                        background: #ffcc0022;
+                        background: Hues.guide-faint;
                         border-width: 1px;
-                        border-color: #ffcc0088;
+                        border-color: Hues.guide-soft;
                     }
                 }
 
@@ -1454,7 +1455,7 @@ export component DevelopPanel inherits HorizontalLayout {
                         commands: ellipse-path(
                             outline.shape.cx * outline.w, outline.shape.cy * outline.h,
                             outline.shape.rx * outline.w, outline.shape.ry * outline.h);
-                        stroke: #ffcc00;
+                        stroke: Hues.guide;
                         stroke-width: 1px;
                     }
                     if outline.shape.kind == "gradient": Path {
@@ -1463,7 +1464,7 @@ export component DevelopPanel inherits HorizontalLayout {
                         viewbox-width: outline.w;
                         viewbox-height: outline.h;
                         commands: "M\{outline.shape.x0 * outline.w} \{outline.shape.y0 * outline.h} L\{outline.shape.x1 * outline.w} \{outline.shape.y1 * outline.h}";
-                        stroke: #ffcc00;
+                        stroke: Hues.guide;
                         stroke-width: 1px;
                     }
                     // The full-coverage end of the gradient, so which way it
@@ -1474,7 +1475,7 @@ export component DevelopPanel inherits HorizontalLayout {
                         width: 8px;
                         height: 8px;
                         border-radius: 4px;
-                        background: #ffcc00;
+                        background: Hues.guide;
                     }
 
                     // Drag handles (ADR 0097). Squares with a `TouchArea`,
@@ -1488,9 +1489,9 @@ export component DevelopPanel inherits HorizontalLayout {
                         width: 12px;
                         height: 12px;
                         border-radius: 6px;
-                        background: #ffcc00cc;
+                        background: Hues.guide-handle;
                         border-width: 1px;
-                        border-color: #332600;
+                        border-color: Hues.guide-handle-edge;
                         TouchArea {
                             mouse-cursor: move;
                             pointer-event(event) => {
@@ -1509,9 +1510,9 @@ export component DevelopPanel inherits HorizontalLayout {
                         width: 10px;
                         height: 10px;
                         border-radius: 2px;
-                        background: #ffcc00cc;
+                        background: Hues.guide-handle;
                         border-width: 1px;
-                        border-color: #332600;
+                        border-color: Hues.guide-handle-edge;
                         TouchArea {
                             mouse-cursor: ew-resize;
                             pointer-event(event) => {
@@ -1530,9 +1531,9 @@ export component DevelopPanel inherits HorizontalLayout {
                         width: 10px;
                         height: 10px;
                         border-radius: 2px;
-                        background: #ffcc00cc;
+                        background: Hues.guide-handle;
                         border-width: 1px;
-                        border-color: #332600;
+                        border-color: Hues.guide-handle-edge;
                         TouchArea {
                             mouse-cursor: ns-resize;
                             pointer-event(event) => {
@@ -1551,9 +1552,9 @@ export component DevelopPanel inherits HorizontalLayout {
                         width: 12px;
                         height: 12px;
                         border-radius: 6px;
-                        background: #ffcc00cc;
+                        background: Hues.guide-handle;
                         border-width: 1px;
-                        border-color: #332600;
+                        border-color: Hues.guide-handle-edge;
                         TouchArea {
                             mouse-cursor: move;
                             pointer-event(event) => {
@@ -1572,9 +1573,9 @@ export component DevelopPanel inherits HorizontalLayout {
                         width: 12px;
                         height: 12px;
                         border-radius: 6px;
-                        background: #ffcc0088;
+                        background: Hues.guide-soft;
                         border-width: 1px;
-                        border-color: #332600;
+                        border-color: Hues.guide-handle-edge;
                         TouchArea {
                             mouse-cursor: move;
                             pointer-event(event) => {
@@ -1597,7 +1598,7 @@ export component DevelopPanel inherits HorizontalLayout {
                             height: self.width;
                             border-radius: self.width / 2;
                             border-width: 1px;
-                            border-color: #ffcc0088;
+                            border-color: Hues.guide-soft;
                         }
                     }
                 }
@@ -1671,7 +1672,7 @@ export component DevelopPanel inherits HorizontalLayout {
             // pixels it could not take from the track without spending the
             // precision ADR 0126 bought, so the panel pays instead.
             width: 320px;
-            background: #212121;
+            background: Theme.surface;
 
             Flickable {
                 VerticalLayout {
@@ -1690,14 +1691,14 @@ export component DevelopPanel inherits HorizontalLayout {
                     // same cadence the image updates at).
                     Rectangle {
                         height: 90px;
-                        background: #1a1a1a;
+                        background: Theme.sunken;
                         border-radius: 4px;
                         Path {
                             width: 100%;
                             height: 100%;
                             viewbox-width: 256;
                             viewbox-height: 90;
-                            fill: #ff444455;
+                            fill: Hues.histogram-red;
                             commands: DevelopState.dev-histogram-r;
                         }
                         Path {
@@ -1705,7 +1706,7 @@ export component DevelopPanel inherits HorizontalLayout {
                             height: 100%;
                             viewbox-width: 256;
                             viewbox-height: 90;
-                            fill: #44ff4455;
+                            fill: Hues.histogram-green;
                             commands: DevelopState.dev-histogram-g;
                         }
                         Path {
@@ -1713,7 +1714,7 @@ export component DevelopPanel inherits HorizontalLayout {
                             height: 100%;
                             viewbox-width: 256;
                             viewbox-height: 90;
-                            fill: #4444ff55;
+                            fill: Hues.histogram-blue;
                             commands: DevelopState.dev-histogram-b;
                         }
 
@@ -1731,10 +1732,10 @@ export component DevelopPanel inherits HorizontalLayout {
                             height: 10px;
                             border-radius: 2px;
                             border-width: 1px;
-                            border-color: DevelopState.dev-shadows-clipped ? #6fa8dc : #444444;
+                            border-color: DevelopState.dev-shadows-clipped ? Theme.focus : Theme.border;
                             background: DevelopState.dev-clip-shadows
-                                ? #0a84ff
-                                : (DevelopState.dev-shadows-clipped ? #0a84ff40 : transparent);
+                                ? Hues.clip-shadows
+                                : (DevelopState.dev-shadows-clipped ? Hues.clip-shadows-veil : transparent);
                             // Two 10px squares at the corners of a
                             // histogram: the most wordless control in the
                             // application (ADR 0127 §2).
@@ -1760,10 +1761,10 @@ export component DevelopPanel inherits HorizontalLayout {
                             height: 10px;
                             border-radius: 2px;
                             border-width: 1px;
-                            border-color: DevelopState.dev-highlights-clipped ? #e08080 : #444444;
+                            border-color: DevelopState.dev-highlights-clipped ? Hues.clip-highlights-edge : Theme.border;
                             background: DevelopState.dev-clip-highlights
-                                ? #ff3b30
-                                : (DevelopState.dev-highlights-clipped ? #ff3b3040 : transparent);
+                                ? Hues.clip-highlights
+                                : (DevelopState.dev-highlights-clipped ? Hues.clip-highlights-veil : transparent);
                             highlight-clip-touch := TouchArea {
                                 clicked => {
                                     HintState.dismiss();
@@ -1797,22 +1798,22 @@ export component DevelopPanel inherits HorizontalLayout {
                         padding-bottom: 2px;
                         Text {
                             text: DevelopState.dev-iso;
-                            color: #7a7a7a;
+                            color: Theme.text-disabled;
                             font-size: 11px;
                         }
                         Text {
                             text: DevelopState.dev-focal;
-                            color: #7a7a7a;
+                            color: Theme.text-disabled;
                             font-size: 11px;
                         }
                         Text {
                             text: DevelopState.dev-aperture;
-                            color: #7a7a7a;
+                            color: Theme.text-disabled;
                             font-size: 11px;
                         }
                         Text {
                             text: DevelopState.dev-shutter;
-                            color: #7a7a7a;
+                            color: Theme.text-disabled;
                             font-size: 11px;
                         }
                     }
@@ -1965,8 +1966,8 @@ export component DevelopPanel inherits HorizontalLayout {
                             // daylight it is measured against (`Settings`
                             // default, 6500 K).
                             neutral: 6500;
-                            track-from: #4a6fd0;
-                            track-to: #d8b45a;
+                            track-from: Hues.temperature-cold;
+                            track-to: Hues.temperature-warm;
                             value: DevelopState.dev.wb-temp;
                             edited(v) => {
                                 DevelopState.develop-edit("wb-temp", v);
@@ -1980,8 +1981,8 @@ export component DevelopPanel inherits HorizontalLayout {
                             hint: @tr("The green–magenta axis: the half of a white balance that temperature alone cannot reach.");
                             minimum: -100;
                             maximum: 100;
-                            track-from: #4fae54;
-                            track-to: #b756c4;
+                            track-from: Hues.tint-green;
+                            track-to: Hues.tint-magenta;
                             value: DevelopState.dev.wb-tint;
                             edited(v) => {
                                 DevelopState.develop-edit("wb-tint", v);
@@ -2122,7 +2123,7 @@ export component DevelopPanel inherits HorizontalLayout {
                         // (ADR 0054 §2).
                         if !root.basic-mode: Text {
                             text: @tr("Clipped highlights");
-                            color: #9a9a9a;
+                            color: Theme.text-dim;
                             font-size: 12px;
                         }
                         if !root.basic-mode: HorizontalLayout {
@@ -2161,7 +2162,7 @@ export component DevelopPanel inherits HorizontalLayout {
                         // that appears inert reads as broken.
                         if !root.basic-mode: Text {
                             text: @tr("Demosaic");
-                            color: #9a9a9a;
+                            color: Theme.text-dim;
                             font-size: 12px;
                         }
                         if !root.basic-mode: HorizontalLayout {
@@ -2202,7 +2203,7 @@ export component DevelopPanel inherits HorizontalLayout {
                         }
                         if !root.basic-mode: Text {
                             text: @tr("Visible at full size and on export only — small previews skip interpolation.");
-                            color: #6f6f6f;
+                            color: Theme.text-disabled;
                             font-size: 11px;
                             wrap: word-wrap;
                         }
@@ -2212,8 +2213,8 @@ export component DevelopPanel inherits HorizontalLayout {
                             minimum: -100;
                             maximum: 100;
                             // Grey to colour, the direction the slider goes.
-                            track-from: #6b6b6b;
-                            track-to: #d05a8c;
+                            track-from: Hues.neutral-start;
+                            track-to: Hues.vibrance;
                             value: DevelopState.dev.vibrance;
                             edited(v) => {
                                 DevelopState.develop-edit("vibrance", v);
@@ -2226,8 +2227,8 @@ export component DevelopPanel inherits HorizontalLayout {
                             label: @tr("Saturation");
                             minimum: -100;
                             maximum: 100;
-                            track-from: #6b6b6b;
-                            track-to: #4fae54;
+                            track-from: Hues.neutral-start;
+                            track-to: Hues.saturation;
                             value: DevelopState.dev.saturation;
                             edited(v) => {
                                 DevelopState.develop-edit("saturation", v);
@@ -2271,7 +2272,7 @@ export component DevelopPanel inherits HorizontalLayout {
                         // not only in the ADR.
                         Text {
                             text: @tr("Experimental: colors are not yet validated against reference renders.");
-                            color: #c8a45a;
+                            color: Theme.notice;
                             font-size: 11px;
                             wrap: word-wrap;
                         }
@@ -2291,7 +2292,7 @@ export component DevelopPanel inherits HorizontalLayout {
                                 spacing: 6px;
                                 for row[i] in DevelopState.profile-rows: Rectangle {
                                     height: 74px;
-                                    background: row.selected ? #2f4f6f : (entry.has-hover ? #ffffff10 : transparent);
+                                    background: row.selected ? Theme.active : (entry.has-hover ? Theme.veil : transparent);
                                     border-radius: 4px;
                                     HorizontalLayout {
                                         x: 4px;
@@ -2300,7 +2301,7 @@ export component DevelopPanel inherits HorizontalLayout {
                                         spacing: 8px;
                                         Rectangle {
                                             width: 66px;
-                                            background: #151515;
+                                            background: Theme.sunken;
                                             border-radius: 3px;
                                             Image {
                                                 source: row.thumbnail;
@@ -2315,7 +2316,7 @@ export component DevelopPanel inherits HorizontalLayout {
                                             padding-top: 8px;
                                             Text {
                                                 text: row.name;
-                                                color: #e6e6e6;
+                                                color: Theme.text;
                                                 font-size: 11px;
                                                 wrap: word-wrap;
                                             }
@@ -2329,7 +2330,7 @@ export component DevelopPanel inherits HorizontalLayout {
                                             // to do.
                                             if row.thumbnail.width == 0 && row.path != "": Text {
                                                 text: @tr("Could not be read");
-                                                color: #d98a8a;
+                                                color: Theme.alert;
                                                 font-size: 10px;
                                             }
                                         }
@@ -2379,7 +2380,7 @@ export component DevelopPanel inherits HorizontalLayout {
                             text: DevelopState.lut-name == ""
                                 ? @tr("No LUT — Leyline's own color only")
                                 : DevelopState.lut-name;
-                            color: #9a9a9a;
+                            color: Theme.text-dim;
                             font-size: 12px;
                             wrap: word-wrap;
                         }
@@ -2444,7 +2445,7 @@ export component DevelopPanel inherits HorizontalLayout {
                         // gets nothing from the profile above.
                         Text {
                             text: @tr("Chromatic aberration (% of radius)");
-                            color: #9a9a9a;
+                            color: Theme.text-dim;
                             font-size: 12px;
                         }
                         EditSlider {
@@ -2454,8 +2455,8 @@ export component DevelopPanel inherits HorizontalLayout {
                             maximum: 0.5;
                             decimals: 3;
                             value: DevelopState.dev.lens-tca-red;
-                            track-from: #cc4444;
-                            track-to: #44cccc;
+                            track-from: Hues.fringe-red;
+                            track-to: Hues.fringe-cyan;
                             edited(v) => {
                                 DevelopState.develop-edit("lens-tca-red", v);
                             }
@@ -2470,8 +2471,8 @@ export component DevelopPanel inherits HorizontalLayout {
                             maximum: 0.5;
                             decimals: 3;
                             value: DevelopState.dev.lens-tca-blue;
-                            track-from: #4466cc;
-                            track-to: #cccc44;
+                            track-from: Hues.fringe-blue;
+                            track-to: Hues.fringe-yellow;
                             edited(v) => {
                                 DevelopState.develop-edit("lens-tca-blue", v);
                             }
@@ -2494,7 +2495,7 @@ export component DevelopPanel inherits HorizontalLayout {
                         // other half of (ADR 0113 §5).
                         Text {
                             text: @tr("Defringe (colour halo at an edge)");
-                            color: #9a9a9a;
+                            color: Theme.text-dim;
                             font-size: 12px;
                         }
                         EditSlider {
@@ -2503,8 +2504,8 @@ export component DevelopPanel inherits HorizontalLayout {
                             minimum: 0;
                             maximum: 100;
                             value: DevelopState.dev.defringe-purple;
-                            track-from: #333333;
-                            track-to: #8a4fd0;
+                            track-from: Hues.neutral-start-dark;
+                            track-to: Hues.fringe-purple;
                             edited(v) => {
                                 DevelopState.develop-edit("defringe-purple", v);
                             }
@@ -2518,8 +2519,8 @@ export component DevelopPanel inherits HorizontalLayout {
                             minimum: 0;
                             maximum: 100;
                             value: DevelopState.dev.defringe-green;
-                            track-from: #333333;
-                            track-to: #4fd06a;
+                            track-from: Hues.neutral-start-dark;
+                            track-to: Hues.fringe-green;
                             edited(v) => {
                                 DevelopState.develop-edit("defringe-green", v);
                             }
@@ -2819,16 +2820,16 @@ export component DevelopPanel inherits HorizontalLayout {
                         }
                         if DevelopState.dev-curve-mode == "point": Text {
                             text: @tr("Click to add a point, click a point to remove it.");
-                            color: #666666;
+                            color: Theme.text-disabled;
                             font-size: 11px;
                             wrap: word-wrap;
                         }
                         if DevelopState.dev-curve-mode == "point": Rectangle {
                             width: 220px;
                             height: 220px;
-                            background: #1b1b1b;
+                            background: Theme.surface;
                             border-width: 1px;
-                            border-color: #3a3a3a;
+                            border-color: Theme.border;
 
                             // Diagonal reference line: the identity curve.
                             Path {
@@ -2837,7 +2838,7 @@ export component DevelopPanel inherits HorizontalLayout {
                                 viewbox-width: 220;
                                 viewbox-height: 220;
                                 commands: "M0 220 L220 0";
-                                stroke: #444444;
+                                stroke: Theme.border;
                                 stroke-width: 1px;
                             }
                             // The actual curve, empty when there are no
@@ -2853,12 +2854,12 @@ export component DevelopPanel inherits HorizontalLayout {
                                 // (ADR 0098 §4), so which curve is on
                                 // screen is read from the drawing itself.
                                 stroke: DevelopState.dev-curve-channel == "red"
-                                    ? #e06c6c
+                                    ? Hues.curve-red
                                     : (DevelopState.dev-curve-channel == "green"
-                                        ? #6cc86c
+                                        ? Hues.curve-green
                                         : (DevelopState.dev-curve-channel == "blue"
-                                            ? #6c8ce0
-                                            : #6fa8dc));
+                                            ? Hues.curve-blue
+                                            : Theme.focus));
                                 stroke-width: 2px;
                             }
                             for point in DevelopState.dev-curve-points: Rectangle {
@@ -2867,7 +2868,7 @@ export component DevelopPanel inherits HorizontalLayout {
                                 width: 8px;
                                 height: 8px;
                                 border-radius: 4px;
-                                background: #6fa8dc;
+                                background: Theme.focus;
                             }
                             curve-click := TouchArea {
                                 mouse-cursor: crosshair;
@@ -2885,9 +2886,9 @@ export component DevelopPanel inherits HorizontalLayout {
                         if DevelopState.dev-curve-mode == "region": Rectangle {
                             width: 220px;
                             height: 220px;
-                            background: #1b1b1b;
+                            background: Theme.surface;
                             border-width: 1px;
-                            border-color: #3a3a3a;
+                            border-color: Theme.border;
 
                             // The four regions, faintly shaded, so the split
                             // one drags is visibly the boundary between two
@@ -2896,13 +2897,13 @@ export component DevelopPanel inherits HorizontalLayout {
                                 x: 0;
                                 width: DevelopState.dev.parametric-shadow-split * 2.2px;
                                 height: 100%;
-                                background: #ffffff08;
+                                background: Theme.veil-faint;
                             }
                             Rectangle {
                                 x: DevelopState.dev.parametric-midtone-split * 2.2px;
                                 width: (DevelopState.dev.parametric-highlight-split - DevelopState.dev.parametric-midtone-split) * 2.2px;
                                 height: 100%;
-                                background: #ffffff08;
+                                background: Theme.veil-faint;
                             }
 
                             Path {
@@ -2911,7 +2912,7 @@ export component DevelopPanel inherits HorizontalLayout {
                                 viewbox-width: 220;
                                 viewbox-height: 220;
                                 commands: "M0 220 L220 0";
-                                stroke: #444444;
+                                stroke: Theme.border;
                                 stroke-width: 1px;
                             }
                             Path {
@@ -2920,7 +2921,7 @@ export component DevelopPanel inherits HorizontalLayout {
                                 viewbox-width: 220;
                                 viewbox-height: 220;
                                 commands: DevelopState.dev-parametric-path;
-                                stroke: #6fa8dc;
+                                stroke: Theme.focus;
                                 stroke-width: 2px;
                             }
 
@@ -2949,7 +2950,7 @@ export component DevelopPanel inherits HorizontalLayout {
                         }
                         if DevelopState.dev-curve-mode == "region": Text {
                             text: @tr("Drag the three markers to say where each region begins.");
-                            color: #666666;
+                            color: Theme.text-disabled;
                             font-size: 11px;
                             wrap: word-wrap;
                         }
@@ -3028,7 +3029,7 @@ export component DevelopPanel inherits HorizontalLayout {
                         // nothing left to act on. Said rather than hidden —
                         // greying them out would suggest they were broken.
                         text: @tr("In black and white, only Luminance acts: it is the B&W mix.");
-                        color: #8a8a8a;
+                        color: Theme.text-dim;
                         font-size: 10px;
                         wrap: word-wrap;
                     }
@@ -3038,7 +3039,7 @@ export component DevelopPanel inherits HorizontalLayout {
                             spacing: 6px;
                             Text {
                                 text: root.hsl-band-names[i];
-                                color: #c0c0c0;
+                                color: Theme.text-dim;
                                 font-size: 12px;
                                 font-weight: 600;
                             }
@@ -3095,7 +3096,7 @@ export component DevelopPanel inherits HorizontalLayout {
                             spacing: 6px;
                             Text {
                                 text: @tr("Shadows");
-                                color: #c0c0c0;
+                                color: Theme.text-dim;
                                 font-size: 12px;
                                 font-weight: 600;
                             }
@@ -3140,7 +3141,7 @@ export component DevelopPanel inherits HorizontalLayout {
                             spacing: 6px;
                             Text {
                                 text: @tr("Midtones");
-                                color: #c0c0c0;
+                                color: Theme.text-dim;
                                 font-size: 12px;
                                 font-weight: 600;
                             }
@@ -3185,7 +3186,7 @@ export component DevelopPanel inherits HorizontalLayout {
                             spacing: 6px;
                             Text {
                                 text: @tr("Highlights");
-                                color: #c0c0c0;
+                                color: Theme.text-dim;
                                 font-size: 12px;
                                 font-weight: 600;
                             }
@@ -3266,7 +3267,7 @@ export component DevelopPanel inherits HorizontalLayout {
                         spacing: 8px;
                         Text {
                             text: @tr("Pick the Reshape tool above, then drag from the content to where it should go. The pixels within the radius follow and fade to nothing at its edge; nothing is invented.");
-                            color: #666666;
+                            color: Theme.text-disabled;
                             font-size: 11px;
                             wrap: word-wrap;
                         }
@@ -3280,21 +3281,21 @@ export component DevelopPanel inherits HorizontalLayout {
                                 horizontal-stretch: 1;
                                 Text {
                                     text: field.label;
-                                    color: #9a9a9a;
+                                    color: Theme.text-dim;
                                     font-size: 12px;
                                 }
                                 Rectangle {
                                     height: 26px;
-                                    background: #1b1b1b;
+                                    background: Theme.surface;
                                     border-radius: 4px;
                                     border-width: 1px;
-                                    border-color: #3a3a3a;
+                                    border-color: Theme.border;
                                     reshape-input := TextInput {
                                         x: 6px;
                                         width: parent.width - 12px;
                                         height: 100%;
                                         text: field.value;
-                                        color: #e6e6e6;
+                                        color: Theme.text;
                                         font-size: 12px;
                                         vertical-alignment: center;
                                         single-line: true;
@@ -3313,7 +3314,7 @@ export component DevelopPanel inherits HorizontalLayout {
                             alignment: space-between;
                             Text {
                                 text: @tr("{} placed", DevelopState.dev-reshape-count);
-                                color: #9a9a9a;
+                                color: Theme.text-dim;
                                 font-size: 12px;
                                 vertical-alignment: center;
                             }
@@ -3340,7 +3341,7 @@ export component DevelopPanel inherits HorizontalLayout {
                         spacing: 8px;
                         Text {
                             text: @tr("Pick the Red Eye tool above, then click each pupil. Only red pixels inside the circle are corrected, so the circle need not be precise.");
-                            color: #666666;
+                            color: Theme.text-disabled;
                             font-size: 11px;
                             wrap: word-wrap;
                         }
@@ -3355,21 +3356,21 @@ export component DevelopPanel inherits HorizontalLayout {
                                 horizontal-stretch: 1;
                                 Text {
                                     text: field.label;
-                                    color: #9a9a9a;
+                                    color: Theme.text-dim;
                                     font-size: 12px;
                                 }
                                 Rectangle {
                                     height: 26px;
-                                    background: #1b1b1b;
+                                    background: Theme.surface;
                                     border-radius: 4px;
                                     border-width: 1px;
-                                    border-color: #3a3a3a;
+                                    border-color: Theme.border;
                                     red-eye-input := TextInput {
                                         x: 6px;
                                         width: parent.width - 12px;
                                         height: 100%;
                                         text: field.value;
-                                        color: #e6e6e6;
+                                        color: Theme.text;
                                         font-size: 12px;
                                         vertical-alignment: center;
                                         single-line: true;
@@ -3390,7 +3391,7 @@ export component DevelopPanel inherits HorizontalLayout {
                             alignment: space-between;
                             Text {
                                 text: @tr("{} placed", DevelopState.dev-red-eye-count);
-                                color: #9a9a9a;
+                                color: Theme.text-dim;
                                 font-size: 12px;
                                 vertical-alignment: center;
                             }
@@ -3417,7 +3418,7 @@ export component DevelopPanel inherits HorizontalLayout {
                         spacing: 8px;
                         Text {
                             text: @tr("Pick the Spot Removal tool above, click a clean source, then the spot to fix.");
-                            color: #666666;
+                            color: Theme.text-disabled;
                             font-size: 11px;
                             wrap: word-wrap;
                         }
@@ -3428,21 +3429,21 @@ export component DevelopPanel inherits HorizontalLayout {
                                 horizontal-stretch: 1;
                                 Text {
                                     text: @tr("Radius %");
-                                    color: #9a9a9a;
+                                    color: Theme.text-dim;
                                     font-size: 12px;
                                 }
                                 Rectangle {
                                     height: 26px;
-                                    background: #1b1b1b;
+                                    background: Theme.surface;
                                     border-radius: 4px;
                                     border-width: 1px;
-                                    border-color: #3a3a3a;
+                                    border-color: Theme.border;
                                     TextInput {
                                         x: 6px;
                                         width: parent.width - 12px;
                                         height: 100%;
                                         text <=> DevelopState.spot-radius-text;
-                                        color: #e6e6e6;
+                                        color: Theme.text;
                                         font-size: 12px;
                                         vertical-alignment: center;
                                         single-line: true;
@@ -3454,21 +3455,21 @@ export component DevelopPanel inherits HorizontalLayout {
                                 horizontal-stretch: 1;
                                 Text {
                                     text: @tr("Feather %");
-                                    color: #9a9a9a;
+                                    color: Theme.text-dim;
                                     font-size: 12px;
                                 }
                                 Rectangle {
                                     height: 26px;
-                                    background: #1b1b1b;
+                                    background: Theme.surface;
                                     border-radius: 4px;
                                     border-width: 1px;
-                                    border-color: #3a3a3a;
+                                    border-color: Theme.border;
                                     TextInput {
                                         x: 6px;
                                         width: parent.width - 12px;
                                         height: 100%;
                                         text <=> DevelopState.spot-feather-text;
-                                        color: #e6e6e6;
+                                        color: Theme.text;
                                         font-size: 12px;
                                         vertical-alignment: center;
                                         single-line: true;
@@ -3480,21 +3481,21 @@ export component DevelopPanel inherits HorizontalLayout {
                                 horizontal-stretch: 1;
                                 Text {
                                     text: @tr("Opacity %");
-                                    color: #9a9a9a;
+                                    color: Theme.text-dim;
                                     font-size: 12px;
                                 }
                                 Rectangle {
                                     height: 26px;
-                                    background: #1b1b1b;
+                                    background: Theme.surface;
                                     border-radius: 4px;
                                     border-width: 1px;
-                                    border-color: #3a3a3a;
+                                    border-color: Theme.border;
                                     TextInput {
                                         x: 6px;
                                         width: parent.width - 12px;
                                         height: 100%;
                                         text <=> DevelopState.spot-opacity-text;
-                                        color: #e6e6e6;
+                                        color: Theme.text;
                                         font-size: 12px;
                                         vertical-alignment: center;
                                         single-line: true;
@@ -3506,7 +3507,7 @@ export component DevelopPanel inherits HorizontalLayout {
                             spacing: 8px;
                             Text {
                                 text: @tr("{} spot(s)", DevelopState.dev-spot-count);
-                                color: #9a9a9a;
+                                color: Theme.text-dim;
                                 font-size: 12px;
                                 vertical-alignment: center;
                                 horizontal-stretch: 1;
@@ -3544,7 +3545,7 @@ export component DevelopPanel inherits HorizontalLayout {
                         spacing: 8px;
                         Text {
                             text: @tr("Pick Radial, Gradient or Brush above and draw on the photo. Click a row to edit it; drawing again moves the selected mask.");
-                            color: #666666;
+                            color: Theme.text-disabled;
                             font-size: 11px;
                             wrap: word-wrap;
                         }
@@ -3561,7 +3562,7 @@ export component DevelopPanel inherits HorizontalLayout {
                                 width: 100%;
                                 height: 100%;
                                 border-radius: 4px;
-                                background: i == MaskState.selected-mask ? #2f4f6f : (mask-touch.has-hover ? #2a2a2a : transparent);
+                                background: i == MaskState.selected-mask ? Theme.active : (mask-touch.has-hover ? Theme.hover : transparent);
                                 HorizontalLayout {
                                     padding-left: 8px;
                                     padding-right: 4px;
@@ -3571,7 +3572,7 @@ export component DevelopPanel inherits HorizontalLayout {
                                             : row.kind == "gradient" ? @tr("Gradient")
                                             : row.kind == "brush" ? @tr("Brush")
                                             : @tr("Whole image");
-                                        color: #e6e6e6;
+                                        color: Theme.text;
                                         font-size: 12px;
                                         vertical-alignment: center;
                                     }
@@ -3579,7 +3580,7 @@ export component DevelopPanel inherits HorizontalLayout {
                                         // Already formatted by Rust
                                         // (`models::mask_rows`).
                                         text: row.geometry;
-                                        color: #9a9a9a;
+                                        color: Theme.text-dim;
                                         font-size: 11px;
                                         overflow: elide;
                                         horizontal-stretch: 1;
@@ -3593,7 +3594,7 @@ export component DevelopPanel inherits HorizontalLayout {
                                         }
                                         Text {
                                             text: "×";
-                                            color: remove-touch.has-hover ? #f0f0f0 : #9a9a9a;
+                                            color: remove-touch.has-hover ? Theme.text : Theme.text-dim;
                                             font-size: 13px;
                                             horizontal-alignment: center;
                                             vertical-alignment: center;
@@ -3661,21 +3662,21 @@ export component DevelopPanel inherits HorizontalLayout {
                                 horizontal-stretch: 1;
                                 Text {
                                     text: @tr("Size %");
-                                    color: #9a9a9a;
+                                    color: Theme.text-dim;
                                     font-size: 12px;
                                 }
                                 Rectangle {
                                     height: 26px;
-                                    background: #1b1b1b;
+                                    background: Theme.surface;
                                     border-radius: 4px;
                                     border-width: 1px;
-                                    border-color: #3a3a3a;
+                                    border-color: Theme.border;
                                     TextInput {
                                         x: 6px;
                                         width: parent.width - 12px;
                                         height: 100%;
                                         text <=> MaskState.brush-size-text;
-                                        color: #e6e6e6;
+                                        color: Theme.text;
                                         font-size: 12px;
                                         vertical-alignment: center;
                                         single-line: true;
@@ -3687,21 +3688,21 @@ export component DevelopPanel inherits HorizontalLayout {
                                 horizontal-stretch: 1;
                                 Text {
                                     text: @tr("Flow %");
-                                    color: #9a9a9a;
+                                    color: Theme.text-dim;
                                     font-size: 12px;
                                 }
                                 Rectangle {
                                     height: 26px;
-                                    background: #1b1b1b;
+                                    background: Theme.surface;
                                     border-radius: 4px;
                                     border-width: 1px;
-                                    border-color: #3a3a3a;
+                                    border-color: Theme.border;
                                     TextInput {
                                         x: 6px;
                                         width: parent.width - 12px;
                                         height: 100%;
                                         text <=> MaskState.brush-flow-text;
-                                        color: #e6e6e6;
+                                        color: Theme.text;
                                         font-size: 12px;
                                         vertical-alignment: center;
                                         single-line: true;
@@ -3713,21 +3714,21 @@ export component DevelopPanel inherits HorizontalLayout {
                                 horizontal-stretch: 1;
                                 Text {
                                     text: @tr("Hardness %");
-                                    color: #9a9a9a;
+                                    color: Theme.text-dim;
                                     font-size: 12px;
                                 }
                                 Rectangle {
                                     height: 26px;
-                                    background: #1b1b1b;
+                                    background: Theme.surface;
                                     border-radius: 4px;
                                     border-width: 1px;
-                                    border-color: #3a3a3a;
+                                    border-color: Theme.border;
                                     TextInput {
                                         x: 6px;
                                         width: parent.width - 12px;
                                         height: 100%;
                                         text <=> MaskState.brush-hardness-text;
-                                        color: #e6e6e6;
+                                        color: Theme.text;
                                         font-size: 12px;
                                         vertical-alignment: center;
                                         single-line: true;
@@ -3961,8 +3962,8 @@ export component DevelopPanel inherits HorizontalLayout {
                                 minimum: 0;
                                 maximum: 100;
                                 value: editor.sel.defringe-purple;
-                                track-from: #333333;
-                                track-to: #8a4fd0;
+                                track-from: Hues.neutral-start-dark;
+                                track-to: Hues.fringe-purple;
                                 edited(v) => {
                                     MaskState.edit-mask(MaskState.selected-mask, "defringe-purple", v);
                                 }
@@ -3976,8 +3977,8 @@ export component DevelopPanel inherits HorizontalLayout {
                                 minimum: 0;
                                 maximum: 100;
                                 value: editor.sel.defringe-green;
-                                track-from: #333333;
-                                track-to: #4fd06a;
+                                track-from: Hues.neutral-start-dark;
+                                track-to: Hues.fringe-green;
                                 edited(v) => {
                                     MaskState.edit-mask(MaskState.selected-mask, "defringe-green", v);
                                 }
@@ -4145,7 +4146,7 @@ export component DevelopPanel inherits HorizontalLayout {
                         spacing: 8px;
                         Text {
                             text: @tr("Shows the photo as a destination profile would reproduce it. Never stored, never exported.");
-                            color: #666666;
+                            color: Theme.text-disabled;
                             font-size: 11px;
                             wrap: word-wrap;
                         }
@@ -4153,7 +4154,7 @@ export component DevelopPanel inherits HorizontalLayout {
                             text: DevelopState.soft-proof-name == ""
                                 ? @tr("No proof — the real render")
                                 : DevelopState.soft-proof-name;
-                            color: #9a9a9a;
+                            color: Theme.text-dim;
                             font-size: 12px;
                             wrap: word-wrap;
                         }
@@ -4276,7 +4277,7 @@ export component DevelopPanel inherits HorizontalLayout {
                             spacing: 8px;
                             Text {
                                 text: @tr("{} guides", DevelopState.keystone-guides.length);
-                                color: #9a9a9a;
+                                color: Theme.text-dim;
                                 font-size: 12px;
                                 vertical-alignment: center;
                             }
@@ -4299,7 +4300,7 @@ export component DevelopPanel inherits HorizontalLayout {
                         }
                         Text {
                             text: @tr("Pick the Keystone tool above, then drag along two or more edges that ought to be vertical or horizontal. Each line's own slope says which it is, and nothing is detected: the drawing is the whole input.");
-                            color: #7a7a7a;
+                            color: Theme.text-disabled;
                             font-size: 11px;
                             wrap: word-wrap;
                         }

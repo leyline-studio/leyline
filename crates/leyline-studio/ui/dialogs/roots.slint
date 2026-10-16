@@ -8,6 +8,7 @@
 // hidden, never greyed to the point of looking broken, because the photos it
 // holds are still catalogued, still browsable and still searchable.
 
+import { Theme } from "../theme.slint";
 import { DialogState } from "../state/dialog.slint";
 import { FilterChip } from "../widgets/controls.slint";
 
@@ -15,24 +16,24 @@ export component RootsDialog inherits VerticalLayout {
     spacing: 12px;
     Text {
         text: @tr("Roots");
-        color: #f0f0f0;
+        color: Theme.text;
         font-size: 15px;
         font-weight: 600;
     }
     Text {
         text: @tr("Folders this library may reference photographs inside. A root is found by a marker in the folder, so it keeps working when the folder moves.");
-        color: #9a9a9a;
+        color: Theme.text-dim;
         font-size: 12px;
         wrap: word-wrap;
     }
     if DialogState.roots-status != "": Text {
         text: DialogState.roots-status;
-        color: #d08a5a;
+        color: Theme.alert;
         font-size: 12px;
         wrap: word-wrap;
     }
     Rectangle {
-        background: #1c1c1c;
+        background: Theme.sunken;
         border-radius: 4px;
         min-height: 120px;
         max-height: 260px;
@@ -40,7 +41,7 @@ export component RootsDialog inherits VerticalLayout {
             padding: 6px;
             spacing: 4px;
             for entry in DialogState.roots: Rectangle {
-                background: #232323;
+                background: Theme.sunken;
                 border-radius: 3px;
                 HorizontalLayout {
                     padding: 8px;
@@ -51,7 +52,7 @@ export component RootsDialog inherits VerticalLayout {
                             spacing: 6px;
                             Text {
                                 text: entry.name;
-                                color: #f0f0f0;
+                                color: Theme.text;
                                 font-size: 12px;
                                 font-weight: 600;
                             }
@@ -59,24 +60,24 @@ export component RootsDialog inherits VerticalLayout {
                             // photographs': "offline", never "missing".
                             if !entry.online: Text {
                                 text: @tr("offline");
-                                color: #d08a5a;
+                                color: Theme.alert;
                                 font-size: 11px;
                             }
                             if entry.is-library: Text {
                                 text: @tr("this library");
-                                color: #7a7a7a;
+                                color: Theme.text-disabled;
                                 font-size: 11px;
                             }
                         }
                         Text {
                             text: entry.location;
-                            color: #9a9a9a;
+                            color: Theme.text-dim;
                             font-size: 11px;
                             wrap: word-wrap;
                         }
                         Text {
                             text: entry.uuid;
-                            color: #6a6a6a;
+                            color: Theme.text-disabled;
                             font-size: 10px;
                         }
                     }
@@ -103,7 +104,7 @@ export component RootsDialog inherits VerticalLayout {
     // (ADR 0085 §7) rather than buried in the documentation.
     Text {
         text: @tr("Backing up the library folder covers the catalog and every edit. Photographs in other roots are not in it — they live on their own volumes.");
-        color: #7a7a7a;
+        color: Theme.text-disabled;
         font-size: 11px;
         wrap: word-wrap;
     }

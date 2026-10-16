@@ -5,6 +5,7 @@
 // `MapState.map-mode`, inheriting `HorizontalLayout` and setting no geometry
 // of its own.
 
+import { Hues, Theme } from "../theme.slint";
 import { MapState } from "../state/map.slint";
 import { FilterChip } from "../widgets/controls.slint";
 
@@ -26,7 +27,7 @@ export component MapPanel inherits HorizontalLayout {
                 spacing: 8px;
                 Text {
                     text: @tr("Map");
-                    color: #f0f0f0;
+                    color: Theme.text;
                     font-size: 15px;
                     font-weight: 600;
                     vertical-alignment: center;
@@ -90,7 +91,7 @@ export component MapPanel inherits HorizontalLayout {
                 // letterboxed.
                 vertical-stretch: 1;
                 clip: true;
-                background: #1a1a1a;
+                background: Theme.ground;
 
                 changed width => {
                     MapState.map-resized(self.width / 1px, self.height / 1px);
@@ -134,9 +135,9 @@ export component MapPanel inherits HorizontalLayout {
                         width: 12px;
                         height: 12px;
                         border-radius: 6px;
-                        background: #e05c3e;
+                        background: Hues.map-pin;
                         border-width: 1.5px;
-                        border-color: #ffffff;
+                        border-color: Hues.map-pin-edge;
                     }
                 }
 
@@ -165,7 +166,7 @@ export component MapPanel inherits HorizontalLayout {
                     y: (parent.height - self.height) / 2;
                     width: 420px;
                     height: no-gps.height + 24px;
-                    background: #000000cc;
+                    background: Hues.photo-scrim-strong;
                     border-radius: 6px;
                     no-gps := Text {
                         x: 12px;
@@ -176,7 +177,7 @@ export component MapPanel inherits HorizontalLayout {
                                 ? @tr("This build ships no map background. Import an offline MBTiles map pack to place GPS-tagged photos on a map.")
                                 : MapState.map-status)
                             : @tr("No photo in this library has GPS coordinates. Leyline reads them from the file's own metadata — it never invents a position, and never asks the network for one.");
-                        color: #d8d8d8;
+                        color: Hues.on-photo-text;
                         font-size: 12px;
                         horizontal-alignment: center;
                         wrap: word-wrap;
@@ -193,12 +194,12 @@ export component MapPanel inherits HorizontalLayout {
                     y: parent.height - self.height - 4px;
                     width: attribution-text.width + 8px;
                     height: attribution-text.height + 4px;
-                    background: #000000aa;
+                    background: Hues.photo-scrim;
                     attribution-text := Text {
                         x: 4px;
                         y: 2px;
                         text: MapState.map-pack-attribution == "" ? "© OpenStreetMap contributors" : MapState.map-pack-attribution;
-                        color: #d8d8d8;
+                        color: Hues.on-photo-text;
                         font-size: 10px;
                     }
                 }

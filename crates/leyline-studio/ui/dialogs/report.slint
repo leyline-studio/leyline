@@ -8,6 +8,7 @@
 // A report that surprises its author when they open it has already failed at
 // the only thing this feature is for (ADR 0123 §3).
 
+import { Theme } from "../theme.slint";
 import { DialogState } from "../state/dialog.slint";
 import { FilterChip } from "../widgets/controls.slint";
 
@@ -15,35 +16,35 @@ export component ReportDialog inherits VerticalLayout {
     spacing: 10px;
     Text {
         text: @tr("Report a problem");
-        color: #f0f0f0;
+        color: Theme.text;
         font-size: 15px;
         font-weight: 600;
     }
     Text {
         text: @tr("Leyline writes a folder and opens it. Nothing is sent: you look at it, then attach it wherever you like.");
-        color: #9a9a9a;
+        color: Theme.text-dim;
         font-size: 12px;
         wrap: word-wrap;
     }
 
     Text {
         text: @tr("What were you doing, and what happened?");
-        color: #e6e6e6;
+        color: Theme.text;
         font-size: 12px;
     }
     Rectangle {
         height: 84px;
-        background: #1b1b1b;
+        background: Theme.surface;
         border-radius: 4px;
         border-width: 1px;
-        border-color: #333333;
+        border-color: Theme.border;
         description := TextInput {
             x: 8px;
             y: 6px;
             width: parent.width - 16px;
             height: parent.height - 12px;
             text <=> DialogState.report-description;
-            color: #e6e6e6;
+            color: Theme.text;
             font-size: 12px;
             single-line: false;
             wrap: word-wrap;
@@ -65,7 +66,7 @@ export component ReportDialog inherits VerticalLayout {
     Text {
         // Optional, and said so: a description on its own is a report.
         text: @tr("A screenshot helps, and is not required. The folder will hold these, and nothing else:");
-        color: #9a9a9a;
+        color: Theme.text-dim;
         font-size: 11px;
         // Two sentences now, and without this the line was cut mid-word at
         // the dialog's edge.
@@ -73,7 +74,7 @@ export component ReportDialog inherits VerticalLayout {
     }
     Text {
         text: "description.txt · build.txt";
-        color: #9a9a9a;
+        color: Theme.text-dim;
         font-size: 11px;
     }
     // Absolute positions inside a fixed-height row, the same shape the folder
@@ -86,7 +87,7 @@ export component ReportDialog inherits VerticalLayout {
             width: parent.width - 22px;
             height: 100%;
             text: attachment;
-            color: #9a9a9a;
+            color: Theme.text-dim;
             font-size: 11px;
             vertical-alignment: center;
             overflow: elide;
@@ -97,7 +98,7 @@ export component ReportDialog inherits VerticalLayout {
             height: 100%;
             Text {
                 text: "×";
-                color: remove.has-hover ? #e06c6c : #7a7a7a;
+                color: remove.has-hover ? Theme.alert : Theme.text-disabled;
                 font-size: 13px;
                 horizontal-alignment: center;
                 vertical-alignment: center;

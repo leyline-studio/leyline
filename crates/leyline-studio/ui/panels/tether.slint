@@ -10,6 +10,7 @@
 // click outside, and a list positioned on its control. Slint's native menus
 // are what broke repaint scheduling here in the first place.
 
+import { Hues, Theme } from "../theme.slint";
 import { Tr } from "../types.slint";
 import { TetherState } from "../state/tether.slint";
 
@@ -26,7 +27,7 @@ component TetherField inherits Rectangle {
 
     width: content.preferred-width + 16px;
     height: 40px;
-    background: touch.has-hover && root.settable ? #ffffff14 : transparent;
+    background: touch.has-hover && root.settable ? Theme.veil : transparent;
     border-radius: 4px;
 
     content := VerticalLayout {
@@ -36,14 +37,14 @@ component TetherField inherits Rectangle {
         spacing: 1px;
         Text {
             text: root.label;
-            color: #8a8a8a;
+            color: Theme.text-dim;
             font-size: 9px;
         }
         HorizontalLayout {
             spacing: 4px;
             Text {
                 text: root.value;
-                color: root.settable ? #f0f0f0 : #9a9a9a;
+                color: root.settable ? Theme.text : Theme.text-dim;
                 font-size: 13px;
                 vertical-alignment: center;
             }
@@ -56,7 +57,7 @@ component TetherField inherits Rectangle {
             // draws an empty box.
             if root.settable: Text {
                 text: "▾";
-                color: #8a8a8a;
+                color: Theme.text-dim;
                 font-size: 11px;
                 vertical-alignment: center;
             }
@@ -80,10 +81,10 @@ component TetherPicker inherits Rectangle {
 
     width: 130px;
     height: min(260px, list.preferred-height + 8px);
-    background: #262626;
+    background: Theme.raised;
     border-radius: 6px;
     border-width: 1px;
-    border-color: #3a3a3a;
+    border-color: Theme.border;
 
     Flickable {
         x: 4px;
@@ -95,14 +96,14 @@ component TetherPicker inherits Rectangle {
             width: parent.width;
             for choice in root.choices: Rectangle {
                 height: 24px;
-                background: row.has-hover ? #2f4f6f : (choice == root.current ? #ffffff10 : transparent);
+                background: row.has-hover ? Theme.active : (choice == root.current ? Theme.veil : transparent);
                 border-radius: 3px;
                 Text {
                     x: 8px;
                     width: parent.width - 16px;
                     height: 100%;
                     text: choice;
-                    color: #e6e6e6;
+                    color: Theme.text;
                     font-size: 12px;
                     vertical-alignment: center;
                     overflow: elide;
@@ -127,7 +128,7 @@ export component TetherBar inherits Rectangle {
     // not delivered yet — showing the black ground for it, rather than
     // nothing, is what makes the toggle feel answered.
     if TetherState.live: Rectangle {
-        background: #000000e0;
+        background: Hues.photo-scrim-solid;
         // Swallows clicks so a stray one during live view does not land in
         // the grid underneath.
         TouchArea { }
@@ -145,10 +146,10 @@ export component TetherBar inherits Rectangle {
         y: parent.height - self.height - 24px;
         width: row.preferred-width;
         height: 56px;
-        background: #1c1c1cf0;
+        background: Theme.floating;
         border-radius: 8px;
         border-width: 1px;
-        border-color: #3a3a3a;
+        border-color: Theme.border;
 
         row := HorizontalLayout {
             padding-left: 14px;
@@ -166,12 +167,12 @@ export component TetherBar inherits Rectangle {
                 padding-right: 6px;
                 Text {
                     text: TetherState.model == "" ? @tr("Camera") : TetherState.model;
-                    color: #f0f0f0;
+                    color: Theme.text;
                     font-size: 13px;
                 }
                 Text {
                     text: TetherState.session;
-                    color: #8a8a8a;
+                    color: Theme.text-dim;
                     font-size: 10px;
                     width: 160px;
                     overflow: elide;
@@ -184,7 +185,7 @@ export component TetherBar inherits Rectangle {
                 height: 8px;
                 y: (parent.height - self.height) / 2;
                 border-radius: 4px;
-                background: #7fc97f;
+                background: Theme.success;
             }
 
             if TetherState.can-live-view: Rectangle {
@@ -192,10 +193,10 @@ export component TetherBar inherits Rectangle {
                 width: live-label.preferred-width + 18px;
                 height: 24px;
                 border-radius: 4px;
-                background: TetherState.live ? #2f6f4f : (live-touch.has-hover ? #ffffff14 : #ffffff08);
+                background: TetherState.live ? Theme.success-background : (live-touch.has-hover ? Theme.veil : Theme.veil-faint);
                 live-label := Text {
                     text: @tr("Live");
-                    color: #f0f0f0;
+                    color: Theme.text;
                     font-size: 12px;
                     horizontal-alignment: center;
                     vertical-alignment: center;
@@ -241,7 +242,7 @@ export component TetherBar inherits Rectangle {
                 width: 38px;
                 height: 38px;
                 border-radius: 19px;
-                background: shutter-touch.pressed ? #b0b0b0 : (shutter-touch.has-hover ? #f0f0f0 : #d8d8d8);
+                background: shutter-touch.pressed ? Hues.shutter-pressed : (shutter-touch.has-hover ? Hues.shutter-hover : Hues.shutter);
                 shutter-touch := TouchArea {
                     clicked => {
                         TetherState.capture();
@@ -259,7 +260,7 @@ export component TetherBar inherits Rectangle {
                     height: 16px;
                     Text {
                         text: "×";
-                        color: close-touch.has-hover ? #f0f0f0 : #8a8a8a;
+                        color: close-touch.has-hover ? Theme.text : Theme.text-dim;
                         font-size: 11px;
                         horizontal-alignment: center;
                         vertical-alignment: center;
@@ -274,7 +275,7 @@ export component TetherBar inherits Rectangle {
                 }
                 Text {
                     text: Tr.tether-captured(TetherState.captured-count);
-                    color: #8a8a8a;
+                    color: Theme.text-dim;
                     font-size: 9px;
                 }
             }
@@ -289,7 +290,7 @@ export component TetherBar inherits Rectangle {
         x: (parent.width - self.width) / 2;
         y: bar.y - 20px;
         text: TetherState.status;
-        color: #d98a8a;
+        color: Theme.alert;
         font-size: 11px;
     }
 

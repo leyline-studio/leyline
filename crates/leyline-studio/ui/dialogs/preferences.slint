@@ -8,6 +8,7 @@
 //
 // One of the dialogs hosted by `panels/dialogs.slint` (ADR 0045 §3).
 
+import { Theme } from "../theme.slint";
 import { DialogState } from "../state/dialog.slint";
 import { PreferencesState } from "../state/preferences.slint";
 import { FilterChip, SubHeading } from "../widgets/controls.slint";
@@ -16,7 +17,7 @@ export component PreferencesDialog inherits VerticalLayout {
     spacing: 12px;
     Text {
         text: @tr("Preferences");
-        color: #f0f0f0;
+        color: Theme.text;
         font-size: 15px;
         font-weight: 600;
     }
@@ -40,7 +41,7 @@ export component PreferencesDialog inherits VerticalLayout {
     }
     Text {
         text: @tr("Takes effect immediately.");
-        color: #808080;
+        color: Theme.text-dim;
         font-size: 11px;
         wrap: word-wrap;
     }
@@ -63,7 +64,7 @@ export component PreferencesDialog inherits VerticalLayout {
     }
     Text {
         text: @tr("Mid-grey is what judging tone asks for; dark is what looking asks for.");
-        color: #808080;
+        color: Theme.text-dim;
         font-size: 11px;
         wrap: word-wrap;
     }
@@ -83,7 +84,7 @@ export component PreferencesDialog inherits VerticalLayout {
     }
     Text {
         text: @tr("White by default: a proof answers what a print will look like, and a print is looked at on paper.");
-        color: #808080;
+        color: Theme.text-dim;
         font-size: 11px;
         wrap: word-wrap;
     }
@@ -104,7 +105,7 @@ export component PreferencesDialog inherits VerticalLayout {
     }
     Text {
         text: @tr("Once a day at most, at startup. Only the installed version and the platform are used, locally, to pick a line from the release manifest — nothing about you or your photos is sent. Installing an update always takes a click.");
-        color: #808080;
+        color: Theme.text-dim;
         font-size: 11px;
         wrap: word-wrap;
     }

@@ -10,6 +10,7 @@
 // working on it are two different intentions, and only one of them should
 // write to the catalog.
 
+import { Theme } from "../theme.slint";
 import { GridState } from "../state/grid.slint";
 import { PreferencesState } from "../state/preferences.slint";
 import { DevelopState } from "../state/develop.slint";
@@ -70,7 +71,7 @@ export component LoupePanel inherits VerticalLayout {
         }
         if root.zoomed: Text {
             text: Zoom.percent(root.scale);
-            color: #9a9a9a;
+            color: Theme.text-dim;
             font-size: 12px;
             vertical-alignment: center;
         }
