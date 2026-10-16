@@ -1,0 +1,108 @@
+// The Navigator (ADR 0124 §2), an overlay in the bottom-left corner of
+// the photograph since ADR 0158 §3: shown only while the view is zoomed
+// past *Fit*, the one moment it answers a question — where in the frame
+// one is looking. Fitted, the photograph is its own miniature.
+
+import { Hues, Theme } from "../theme.slint";
+import { DevelopState } from "../state/develop.slint";
+
+export component Navigator inherits Rectangle {
+    // The viewer's zoom state, read and never owned (ADR 0124, Consequences):
+    // the same properties the toolbar and the image share. The Navigator
+    // draws them; moving the view goes back out through `panned`. Whether
+    // the view is zoomed is not among them: this overlay exists only then.
+    in property <float> scale: 1.0;
+    in property <float> center-x: 0.5;
+    in property <float> center-y: 0.5;
+    // The viewer's own size, which is what decides how much of the frame is
+    // on screen. The overlay sits inside the viewer, so its parent hands
+    // these down; no column reaches across to another (ADR 0045 §3).
+    in property <length> viewer-width;
+    in property <length> viewer-height;
+    callback panned(float, float);
+
+    // The box takes the photograph's own shape inside a 200×150 bound, so
+    // the miniature fills it rather than sitting between two bands.
+    property <float> photo-w: max(DevelopState.develop-image.width, 1);
+    property <float> photo-h: max(DevelopState.develop-image.height, 1);
+    width: min(200px, 150px * self.photo-w / self.photo-h) + 2px;
+    height: min(150px, 200px * self.photo-h / self.photo-w) + 2px;
+    background: Theme.sunken;
+    border-radius: 4px;
+    border-width: 1px;
+    border-color: Theme.border;
+    drop-shadow-blur: 8px;
+    drop-shadow-color: Hues.line-shadow;
+
+    navigator := Rectangle {
+        x: 1px;
+        y: 1px;
+        width: parent.width - 2px;
+        height: parent.height - 2px;
+        border-radius: 3px;
+        // The viewport frame is drawn in the photograph's own
+        // coordinates and is not clamped to it: at the edge of a
+        // zoomed image the viewer really does show ground beside
+        // the frame, and a rectangle that stopped at the border
+        // would say otherwise. Clipping is what keeps that honest
+        // *and* inside the box.
+        clip: true;
+
+        property <float> image-w: max(DevelopState.develop-image.width, 1);
+        property <float> image-h: max(DevelopState.develop-image.height, 1);
+        // Where `image-fit: contain` actually puts the photograph
+        // inside this box — the same letterbox the viewer computes,
+        // at thumbnail size.
+        property <length> shown-w: min(self.width, self.height * self.image-w / self.image-h);
+        property <length> shown-h: min(self.height, self.width * self.image-h / self.image-w);
+        property <length> shown-x: (self.width - self.shown-w) / 2;
+        property <length> shown-y: (self.height - self.shown-h) / 2;
+        // The fraction of the frame on screen: the viewport's size
+        // in image pixels, over the image's own size. Capped at 1 —
+        // a viewport wider than the photograph shows all of it.
+        property <float> visible-w: min(1, root.viewer-width / (self.image-w * root.scale * 1px));
+        property <float> visible-h: min(1, root.viewer-height / (self.image-h * root.scale * 1px));
+
+        Image {
+            source: DevelopState.develop-image;
+            image-fit: contain;
+            width: 100%;
+            height: 100%;
+        }
+
+        Rectangle {
+            x: navigator.shown-x + navigator.shown-w * (root.center-x - navigator.visible-w / 2);
+            y: navigator.shown-y + navigator.shown-h * (root.center-y - navigator.visible-h / 2);
+            width: navigator.shown-w * navigator.visible-w;
+            height: navigator.shown-h * navigator.visible-h;
+            border-width: 1px;
+            border-color: Hues.navigator-frame;
+            background: Hues.navigator-fill;
+        }
+
+        // Click or drag to move the view. Both are the same
+        // gesture — where the pointer is *becomes* the centre — so
+        // there is nothing to grab and nothing to miss.
+        TouchArea {
+            mouse-cursor: pointer;
+            property <length> at-x: self.mouse-x;
+            property <length> at-y: self.mouse-y;
+            function aim() {
+                if (navigator.shown-w <= 0 || navigator.shown-h <= 0) {
+                    return;
+                }
+                root.panned(
+                    Math.clamp((self.at-x - navigator.shown-x) / navigator.shown-w, 0, 1),
+                    Math.clamp((self.at-y - navigator.shown-y) / navigator.shown-h, 0, 1));
+            }
+            clicked => {
+                self.aim();
+            }
+            moved => {
+                if (self.pressed) {
+                    self.aim();
+                }
+            }
+        }
+    }
+}

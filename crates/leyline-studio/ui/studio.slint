@@ -199,28 +199,11 @@ export component StudioWindow inherits Window {
     // measurement for: what went off the edge at 1340px was the metadata
     // panel.
     property <bool> browser-detail-folded: false;
-    // The same fold for Develop, at its own threshold and on one column
-    // only (ADR 0125 §1). The paragraph above says Develop keeps its panels
-    // because there the panels *are* the module — which is true of the
-    // right-hand one, and not of the left. Navigator, presets, versions and
-    // history are what one *chooses* with (ADR 0124 §1); the sliders are
-    // what one *works* with. So the left column is the one that yields,
-    // and the settings panel never does.
-    //
-    // 1150px, and measured rather than picked: 260px of left column plus
-    // 300px of settings leaves 590px of viewer at that width, which is
-    // still a photograph one can judge; below it the viewer is the thing
-    // being squeezed, and the column that chooses is worth less then than
-    // the picture. Assigned from the same handler, for the same
-    // cycle-avoidance reason.
-    property <length> develop-narrow-threshold: 1150px;
-    property <bool> develop-left-folded: false;
     function refresh-fold() {
         root.browser-detail-folded =
             root.side-panels-hidden || root.width < root.narrow-threshold;
         root.browser-panels-folded =
             root.side-panels-hidden || root.width < root.sidebar-threshold;
-        root.develop-left-folded = root.width < root.develop-narrow-threshold;
     }
     changed width => {
         root.refresh-fold();
@@ -547,7 +530,6 @@ export component StudioWindow inherits Window {
         develop := DevelopPanel {
             side-panels-hidden: root.side-panels-hidden;
             chrome-hidden: root.chrome-hidden;
-            left-panel-folded: root.develop-left-folded;
         }
 
         MapPanel { }

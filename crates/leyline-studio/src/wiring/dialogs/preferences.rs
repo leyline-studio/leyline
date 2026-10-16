@@ -91,16 +91,14 @@ fn show_current_values(window: &StudioWindow, preferences: &SharedPreferences) {
     // shown, which is what the panels' initial bindings read; `-1` for an
     // absent value, so "never stored" and "stored empty" stay different
     // states.
-    let (develop, develop_left, develop_rail) = with_preferences(preferences, |file| {
+    let (develop, develop_rail) = with_preferences(preferences, |file| {
         let values = file.values();
         (
             values.develop_view.unwrap_or(-1),
-            values.develop_left_view.unwrap_or(-1),
             values.develop_rail.clone().unwrap_or_default(),
         )
     });
     state.set_develop_view(develop);
-    state.set_develop_left_view(develop_left);
     state.set_develop_rail(develop_rail.into());
     // ADR 0159 §6: set before the window is shown, so a light interface does
     // not open dark for one frame.
@@ -216,14 +214,6 @@ pub(crate) fn wire_preferences(window: &StudioWindow, preferences: &SharedPrefer
         state.on_remember_develop_view(move |code| {
             let _ = with_preferences(&preferences, |file| {
                 file.update(|values| values.develop_view = Some(code))
-            });
-        });
-    }
-    {
-        let preferences = preferences.clone();
-        state.on_remember_develop_left_view(move |code| {
-            let _ = with_preferences(&preferences, |file| {
-                file.update(|values| values.develop_left_view = Some(code))
             });
         });
     }

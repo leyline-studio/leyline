@@ -66,10 +66,9 @@ export global PreferencesState {
 
     // How the interface was left, so it comes back that way (ADR 0128).
     //
-    // **Numbers Rust never interprets.** Each is a bitfield the panel that
+    // **A number Rust never interprets:** a bitfield the panel that
     // owns it composes and decomposes: bit 0 of `develop-view` is Full mode,
-    // the rest are its setting groups, and `develop-left-view` carries the
-    // sections of the left column. Rust reads neither — it stores the
+    // the rest are its setting groups. Rust never reads it — it stores the
     // number and hands it back at the next launch — which is what keeps
     // ADR 0045 §2 true rather than merely bypassed: the crossing is real
     // (persistence needs it) and it is as narrow as the need, so a
@@ -84,9 +83,7 @@ export global PreferencesState {
     // uses the defaults its own ADR chose (ADR 0128 §2). It is not the same
     // as 0, which is a deliberately empty interface.
     in property <int> develop-view: -1;
-    in property <int> develop-left-view: -1;
     callback remember-develop-view(int);
-    callback remember-develop-left-view(int);
     // The rail entry left open (ADR 0158 §4), by name — Slint compares
     // strings, it only cannot search them. `""` is "never stored"; a panel
     // the user closed is stored as "none". Uninterpreted by Rust as well.
