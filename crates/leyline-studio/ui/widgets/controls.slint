@@ -49,6 +49,13 @@ export global Zoom {
             root.minimum,
             root.maximum);
     }
+    // The centre, on one axis, that keeps the image point `point` (in [0, 1])
+    // under the pointer once the image is shown `shown` long: the wheel zooms
+    // into what the pointer is on, not into the middle of the view. `offset`
+    // is the pointer's distance from the viewport's middle.
+    public pure function anchored(point: float, offset: length, shown: length) -> float {
+        return Math.clamp(point - offset / shown, 0, 1);
+    }
     // What the corner reads: "100 %", never "100.0000 %".
     public pure function percent(scale: float) -> string {
         return Math.round(scale * 100) + " %";
@@ -353,11 +360,12 @@ export component ZoomableImage inherits Rectangle {
     in property <float> scale: 1.0;
     in property <float> center-x: 0.5;
     in property <float> center-y: 0.5;
-    // Dragging asks for a new centre and the wheel a new scale; the parent
-    // decides, since in compare it is one centre and one scale for two views
-    // — which is the whole reason neither is owned here.
+    // Dragging asks for a new centre and the wheel a new scale with the
+    // centre that keeps the pointed spot still; the parent decides, since in
+    // compare it is one centre and one scale for two views — which is the
+    // whole reason neither is owned here.
     callback panned(float, float);
-    callback zoom-requested(float);
+    callback zoom-requested(/* scale */ float, /* center-x */ float, /* center-y */ float);
 
     clip: true;
 
@@ -411,15 +419,29 @@ export component ZoomableImage inherits Rectangle {
         scroll-event(event) => {
             if (event.modifiers.control) {
                 if (root.zoomed) {
-                    root.zoom-requested(Zoom.stepped(root.scale, event.delta-y));
+                    self.zoom-at(
+                        Zoom.stepped(root.scale, event.delta-y),
+                        root.center-x + (self.mouse-x - root.width / 2) / root.shown-w,
+                        root.center-y + (self.mouse-y - root.height / 2) / root.shown-h);
                     return accept;
                 }
                 if (event.delta-y > 0) {
-                    root.zoom-requested(Zoom.stepped(parent.height / (root.image-h * 1px), event.delta-y));
+                    // Where the pointer is on the fitted (`contain`) image.
+                    let fit = min(root.width / root.image-w, root.height / root.image-h);
+                    self.zoom-at(
+                        Zoom.stepped(root.height / (root.image-h * 1px), event.delta-y),
+                        (self.mouse-x - (root.width - root.image-w * fit) / 2) / (root.image-w * fit),
+                        (self.mouse-y - (root.height - root.image-h * fit) / 2) / (root.image-h * fit));
                     return accept;
                 }
             }
             return reject;
+        }
+        function zoom-at(scale: float, point-x: float, point-y: float) {
+            root.zoom-requested(
+                scale,
+                Zoom.anchored(Math.clamp(point-x, 0, 1), self.mouse-x - root.width / 2, root.image-w * scale * 1px),
+                Zoom.anchored(Math.clamp(point-y, 0, 1), self.mouse-y - root.height / 2, root.image-h * scale * 1px));
         }
     }
 }

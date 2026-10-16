@@ -108,8 +108,10 @@ export component ComparePanel inherits VerticalLayout {
                     root.center-x = x;
                     root.center-y = y;
                 }
-                zoom-requested(s) => {
+                zoom-requested(s, x, y) => {
                     root.scale = s;
+                    root.center-x = x;
+                    root.center-y = y;
                     root.zoomed = true;
                 }
             }
@@ -137,8 +139,10 @@ export component ComparePanel inherits VerticalLayout {
                     root.center-x = x;
                     root.center-y = y;
                 }
-                zoom-requested(s) => {
+                zoom-requested(s, x, y) => {
                     root.scale = s;
+                    root.center-x = x;
+                    root.center-y = y;
                     root.zoomed = true;
                 }
             }

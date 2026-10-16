@@ -888,9 +888,16 @@ export component DevelopPanel inherits HorizontalLayout {
                     }
                     scroll-event(event) => {
                         if (event.modifiers.control && event.delta-y > 0) {
+                            // Into the spot under the pointer, not the middle.
                             root.dev-scale = Zoom.stepped(parent.fit / 1px, event.delta-y);
-                            root.dev-center-x = 0.5;
-                            root.dev-center-y = 0.5;
+                            root.dev-center-x = Zoom.anchored(
+                                Math.clamp((self.mouse-x - parent.pad-x) / (parent.image-w * parent.fit), 0, 1),
+                                self.mouse-x - parent.width / 2,
+                                parent.image-w * root.dev-scale * 1px);
+                            root.dev-center-y = Zoom.anchored(
+                                Math.clamp((self.mouse-y - parent.pad-y) / (parent.image-h * parent.fit), 0, 1),
+                                self.mouse-y - parent.height / 2,
+                                parent.image-h * root.dev-scale * 1px);
                             root.dev-zoomed = true;
                             return accept;
                         }
@@ -935,7 +942,18 @@ export component DevelopPanel inherits HorizontalLayout {
                         }
                         scroll-event(event) => {
                             if (event.modifiers.control) {
+                                // The image point under the pointer stays under it.
+                                let point-x = root.dev-center-x + (self.mouse-x - parent.width / 2) / parent.shown-w;
+                                let point-y = root.dev-center-y + (self.mouse-y - parent.height / 2) / parent.shown-h;
                                 root.dev-scale = Zoom.stepped(root.dev-scale, event.delta-y);
+                                root.dev-center-x = Zoom.anchored(
+                                    Math.clamp(point-x, 0, 1),
+                                    self.mouse-x - parent.width / 2,
+                                    parent.shown-w);
+                                root.dev-center-y = Zoom.anchored(
+                                    Math.clamp(point-y, 0, 1),
+                                    self.mouse-y - parent.height / 2,
+                                    parent.shown-h);
                                 return accept;
                             }
                             return reject;
