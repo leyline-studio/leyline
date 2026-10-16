@@ -1259,7 +1259,7 @@ msgid "– Unflagged"
 msgstr "– Sans drapeau"
 
 #: crates/leyline-studio/ui/panels/browser.slint:387
-msgctxt "BrowserPanel"
+msgctxt "MenuBar"
 msgid "Search…"
 msgstr "Rechercher…"
 
@@ -4582,3 +4582,23 @@ msgstr "Thème : clair. Cliquer pour suivre le système."
 msgctxt "MenuBar"
 msgid "Theme: follows the system. Click for dark."
 msgstr "Thème : celui du système. Cliquer pour le sombre."
+
+#: crates/leyline-studio/ui/panels/menubar.slint
+msgctxt "MenuBar"
+msgid "Export…"
+msgstr "Exporter…"
+
+#: crates/leyline-studio/ui/panels/menubar.slint
+msgctxt "MenuBar"
+msgid "Show the side panels    Tab"
+msgstr "Afficher les panneaux latéraux    Tab"
+
+#: crates/leyline-studio/ui/panels/menubar.slint
+msgctxt "MenuBar"
+msgid "Hide the side panels    Tab"
+msgstr "Masquer les panneaux latéraux    Tab"
+
+#: crates/leyline-studio/ui/panels/menubar.slint
+msgctxt "MenuBar"
+msgid "Export the selected photos    Ctrl+E"
+msgstr "Exporter les photos sélectionnées    Ctrl+E"
