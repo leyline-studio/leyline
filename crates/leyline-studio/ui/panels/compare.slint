@@ -12,8 +12,7 @@
 import { Frame, Theme } from "../theme.slint";
 import { GridState } from "../state/grid.slint";
 import { PreferencesState } from "../state/preferences.slint";
-import { DevelopState } from "../state/develop.slint";
-import { Filmstrip, FilterChip, ZoomableImage, Zoom } from "../widgets/controls.slint";
+import { Filmstrip, FilterChip, ZoomableImage } from "../widgets/controls.slint";
 
 export component ComparePanel inherits VerticalLayout {
     in property <bool> chrome-hidden;
@@ -50,42 +49,10 @@ export component ComparePanel inherits VerticalLayout {
         alignment: start;
 
         FilterChip {
-            text: @tr("Grid    G");
-            active: false;
-            clicked => {
-                GridState.compare-mode = false;
-                GridState.compare-mode-changed();
-            }
-        }
-        FilterChip {
             text: @tr("Swap    ↑");
             active: false;
             clicked => {
                 GridState.compare-swap();
-            }
-        }
-        FilterChip {
-            text: root.zoomed ? @tr("Fit") : @tr("100%    Z");
-            active: root.zoomed;
-            clicked => {
-                root.scale = 1.0;
-                root.zoomed = !root.zoomed;
-            }
-        }
-        if root.zoomed: Text {
-            text: Zoom.percent(root.scale);
-            color: Theme.text-dim;
-            font-size: 12px;
-            vertical-alignment: center;
-        }
-        FilterChip {
-            text: @tr("Develop    D");
-            active: false;
-            enabled: GridState.selected >= 0;
-            clicked => {
-                GridState.compare-mode = false;
-                GridState.compare-mode-changed();
-                DevelopState.enter-develop();
             }
         }
     }
@@ -169,5 +136,11 @@ export component ComparePanel inherits VerticalLayout {
             GridState.selected = index;
             GridState.select(index);
         }
+    }
+
+    // Under the bottom bar of the window (ADR 0158 §2), which carries the
+    // views and the zoom this panel's own strip used to.
+    if !root.chrome-hidden: Rectangle {
+        height: Frame.bottom-bar;
     }
 }

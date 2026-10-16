@@ -34,6 +34,7 @@ import { LoupePanel } from "panels/loupe.slint";
 import { SurveyPanel } from "panels/survey.slint";
 import { MapPanel } from "panels/map.slint";
 import { MenuBar } from "panels/menubar.slint";
+import { BottomBar } from "panels/bottom_bar.slint";
 import { TetherBar } from "panels/tether.slint";
 // A second top-level window, not a panel of this one: it is shown when
 // `StudioWindow` was never built (ADR 0122). Imported and re-exported here
@@ -600,6 +601,23 @@ export component StudioWindow inherits Window {
         // showed through the dim while its Cancel button dismissed the
         // dialog instead of stopping the job.
         TaskBar { }
+    }
+
+    // Before the menus, so an open menu paints over it (ADR 0158 §2).
+    // Develop and the map keep their own strips until slice 2c.
+    BottomBar {
+        shown: !root.chrome-hidden && !DevelopState.develop-mode && !MapState.map-mode;
+        zoomed: GridState.compare-mode ? compare.zoomed : loupe.zoomed;
+        scale: GridState.compare-mode ? compare.scale : loupe.scale;
+        toggle-zoom => {
+            if (GridState.compare-mode) {
+                compare.scale = 1.0;
+                compare.zoomed = !compare.zoomed;
+            } else {
+                loupe.scale = 1.0;
+                loupe.zoomed = !loupe.zoomed;
+            }
+        }
     }
 
     menubar := MenuBar {

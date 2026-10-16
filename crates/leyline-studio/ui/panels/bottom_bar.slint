@@ -1,0 +1,328 @@
+// The bottom bar of the window (ADR 0158 §2): at the left, the views and the
+// sort; centred, the pill that classes the photograph in hand; at the right,
+// how big — thumbnail size in the grid, zoom in a viewer.
+//
+// It gathers what the grid, the loupe, the compare and the survey each drew
+// in a strip of their own, so the way to another view is in the same place
+// whichever view one is in. Develop and the map keep their own strips until
+// they become views of this frame (slice 2c).
+//
+// Drawn the way `MenuBar` is, for the repaint reason written there: the
+// component keeps its default whole-window geometry, paints only its own
+// band, and every panel under it reserves `Frame.bottom-bar` with a spacer.
+
+import { Frame, Theme } from "../theme.slint";
+import { Cell, Tr } from "../types.slint";
+import { DevelopState } from "../state/develop.slint";
+import { FilterState } from "../state/filter.slint";
+import { GridState } from "../state/grid.slint";
+import { HintState } from "../state/hint.slint";
+import { PreferencesState } from "../state/preferences.slint";
+import { AdvanceChip, FilterChip, MiniSlider, Zoom } from "../widgets/controls.slint";
+
+// One mark of the pill: a glyph that is lit when the photograph carries it.
+component PillMark inherits Rectangle {
+    in property <string> glyph;
+    in property <bool> lit;
+    in property <color> lit-color: Theme.text;
+    in property <bool> enabled: true;
+    in property <string> hint;
+    callback clicked;
+
+    width: 22px;
+    height: 24px;
+
+    Text {
+        text: root.glyph;
+        color: !root.enabled ? Theme.text-disabled
+            : root.lit ? root.lit-color
+            : touch.has-hover ? Theme.text-dim : Theme.text-disabled;
+        font-size: 15px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        width: 100%;
+        height: 100%;
+    }
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: pointer;
+        clicked => {
+            HintState.dismiss();
+            root.clicked();
+        }
+        changed has-hover => {
+            if (self.has-hover) {
+                HintState.enter(root.hint, root.absolute-position.x, root.absolute-position.y - 28px);
+            } else {
+                HintState.leave(root.hint);
+            }
+        }
+    }
+}
+
+export component BottomBar inherits Rectangle {
+    in property <bool> shown;
+    // The zoom of whichever viewer is on screen; the window owns it, as it
+    // owns `Z` (see `zoom-to-100` on `MenuBar`).
+    in property <bool> zoomed;
+    in property <float> scale;
+    callback toggle-zoom();
+
+    property <bool> sort-open: false;
+    property <bool> in-grid: !GridState.loupe-mode && !GridState.compare-mode && !GridState.survey-mode;
+    property <bool> has-photo: GridState.selected >= 0;
+    // The cells model is the visible window of the grid, not the whole
+    // library; an index outside it reads as an empty cell, which the pill
+    // shows as unrated and unflagged rather than as something wrong.
+    property <Cell> focused: GridState.cells[GridState.selected - GridState.window-start];
+    property <int> rating: root.focused.stars.character-count;
+    property <length> bar-y: root.height - Frame.bottom-bar;
+
+    // Leaves whichever of the three library views is open. Each has its own
+    // `*-changed` because Rust reacts to each differently.
+    function leave-views() {
+        if (GridState.loupe-mode) {
+            GridState.loupe-mode = false;
+            GridState.loupe-mode-changed();
+        }
+        if (GridState.compare-mode) {
+            GridState.compare-mode = false;
+            GridState.compare-mode-changed();
+        }
+        if (GridState.survey-mode) {
+            GridState.survey-mode = false;
+            GridState.survey-mode-changed();
+        }
+    }
+
+    if root.shown: Rectangle {
+        x: 0;
+        y: root.bar-y;
+        width: root.width;
+        height: Frame.bottom-bar;
+        background: Theme.surface;
+
+        Rectangle {
+            y: 0;
+            height: 1px;
+            background: Theme.raised;
+        }
+    }
+
+    if root.shown: HorizontalLayout {
+        x: 0;
+        y: root.bar-y;
+        width: root.width;
+        height: Frame.bottom-bar;
+        padding-left: 8px;
+        padding-right: 12px;
+        padding-top: 8px;
+        padding-bottom: 8px;
+        spacing: 6px;
+
+        FilterChip {
+            text: @tr("Grid");
+            active: root.in-grid;
+            hint: @tr("Grid    G");
+            clicked => {
+                root.leave-views();
+            }
+        }
+        FilterChip {
+            text: @tr("Loupe");
+            active: GridState.loupe-mode;
+            enabled: root.has-photo;
+            hint: @tr("Loupe    E");
+            clicked => {
+                if (!GridState.loupe-mode) {
+                    root.leave-views();
+                    GridState.loupe-mode = true;
+                    GridState.loupe-mode-changed();
+                }
+            }
+        }
+        // Provisional (ADR 0158 §5): until editing is the loupe with the
+        // Edit panel open (slice 3), it opens Develop.
+        FilterChip {
+            text: @tr("Edit");
+            enabled: root.has-photo;
+            hint: @tr("Edit    D");
+            clicked => {
+                root.leave-views();
+                DevelopState.enter-develop();
+            }
+        }
+        AdvanceChip { }
+        Rectangle { width: 6px; }
+        FilterChip {
+            text: @tr("Sort: {} {}",
+                Tr.sort-name(FilterState.sort-key),
+                Tr.sort-direction-short(FilterState.sort-key, FilterState.sort-ascending));
+            active: root.sort-open;
+            clicked => {
+                root.sort-open = !root.sort-open;
+            }
+        }
+
+        Rectangle {
+            horizontal-stretch: 1;
+        }
+
+        if root.in-grid: Text {
+            text: @tr("Thumbnails");
+            color: Theme.text-disabled;
+            font-size: 11px;
+            vertical-alignment: center;
+        }
+        if root.in-grid: MiniSlider {
+            y: 2px;
+            minimum: PreferencesState.thumbnail-size-min;
+            maximum: PreferencesState.thumbnail-size-max;
+            value: PreferencesState.thumbnail-size;
+            edited(v) => {
+                PreferencesState.remember-thumbnail-size(v);
+            }
+        }
+        if !root.in-grid && !GridState.survey-mode && root.zoomed: Text {
+            text: Zoom.percent(root.scale);
+            color: Theme.text-dim;
+            font-size: 12px;
+            vertical-alignment: center;
+        }
+        if !root.in-grid && !GridState.survey-mode: FilterChip {
+            text: root.zoomed ? @tr("Fit") : @tr("100%    Z");
+            active: root.zoomed;
+            clicked => {
+                root.toggle-zoom();
+            }
+        }
+    }
+
+    // Centred on the window and not between its neighbours, so it does not
+    // slide when the sort label or the zoom changes width.
+    if root.shown: Rectangle {
+        x: (root.width - self.width) / 2;
+        y: root.bar-y + 6px;
+        width: pill.preferred-width;
+        height: Frame.bottom-bar - 12px;
+        background: Theme.pill;
+        border-radius: self.height / 2;
+
+        pill := HorizontalLayout {
+            padding-left: 10px;
+            padding-right: 10px;
+            spacing: 0px;
+
+            for s in 5: PillMark {
+                glyph: root.rating > s ? "★" : "☆";
+                lit: root.rating > s;
+                lit-color: Theme.rating;
+                enabled: root.has-photo;
+                hint: @tr("Rate {} ★    {}", s + 1, s + 1);
+                clicked => {
+                    GridState.classify("" + (s + 1));
+                }
+            }
+            Rectangle { width: 10px; }
+            PillMark {
+                glyph: "⚑";
+                lit: root.focused.flagged;
+                enabled: root.has-photo;
+                hint: @tr("Pick    P");
+                clicked => {
+                    GridState.classify("p");
+                }
+            }
+            PillMark {
+                glyph: "✕";
+                lit: root.focused.rejected;
+                lit-color: Theme.alert;
+                enabled: root.has-photo;
+                hint: @tr("Reject    X");
+                clicked => {
+                    GridState.classify("x");
+                }
+            }
+            Rectangle { width: 10px; }
+            copy := TouchArea {
+                width: copy-text.preferred-width + 12px;
+                enabled: root.has-photo;
+                mouse-cursor: pointer;
+                clicked => {
+                    DevelopState.copy-settings();
+                }
+                copy-text := Text {
+                    text: @tr("Copy Settings");
+                    color: !root.has-photo ? Theme.text-disabled
+                        : copy.has-hover ? Theme.text : Theme.text-dim;
+                    font-size: 12px;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    width: 100%;
+                    height: 100%;
+                }
+            }
+        }
+    }
+
+    // The sort choices, above the bar, while one is choosing (ADR 0148 §1).
+    // A click anywhere else closes them, as it closes a menu.
+    if root.shown && root.sort-open: TouchArea {
+        clicked => {
+            root.sort-open = false;
+        }
+    }
+    if root.shown && root.sort-open: Rectangle {
+        x: 8px;
+        y: root.bar-y - self.height - 4px;
+        width: sort-rows.preferred-width;
+        height: sort-rows.preferred-height;
+        background: Theme.raised;
+        border-radius: 6px;
+        border-width: 1px;
+        border-color: Theme.border;
+
+        sort-rows := VerticalLayout {
+            padding: 10px;
+            spacing: 6px;
+
+            HorizontalLayout {
+                spacing: 6px;
+                alignment: start;
+                // 56px: « Critère » does not fit in less.
+                Text {
+                    text: @tr("By");
+                    color: Theme.text-dim;
+                    font-size: 12px;
+                    vertical-alignment: center;
+                    width: 56px;
+                }
+                for key[k] in 4: FilterChip {
+                    text: Tr.sort-name(k);
+                    active: FilterState.sort-key == k;
+                    clicked => {
+                        FilterState.choose-sort(k, FilterState.sort-ascending);
+                    }
+                }
+            }
+            HorizontalLayout {
+                spacing: 6px;
+                alignment: start;
+                Text {
+                    text: @tr("Order");
+                    color: Theme.text-dim;
+                    font-size: 12px;
+                    vertical-alignment: center;
+                    width: 56px;
+                }
+                for way[w] in 2: FilterChip {
+                    text: Tr.sort-direction(FilterState.sort-key, w == 0);
+                    active: FilterState.sort-ascending == (w == 0);
+                    clicked => {
+                        FilterState.choose-sort(FilterState.sort-key, w == 0);
+                    }
+                }
+            }
+        }
+    }
+}

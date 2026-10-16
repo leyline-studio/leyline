@@ -47,6 +47,10 @@ export global Theme {
     out property <color> border: dark ? #3a3a3a : #c4c4c4;
     // A tooltip, darker than anything it can float over.
     out property <color> tooltip: dark ? #0e0e0e : #f6f6f6;
+    // The pill in the middle of the bottom bar (ADR 0158 §2): sunk deeper
+    // than a field, so the classement reads as one object and not as a row
+    // of loose chips.
+    out property <color> pill: dark ? #0e0e0e : #d2d2d2;
     // A bar floating over the photograph, nearly opaque.
     out property <color> floating: dark ? #1c1c1cf0 : #e6e6e6f0;
     // Behind a modal dialog.
@@ -161,4 +165,6 @@ export global Hues {
 // every panel under the menus.
 export global Frame {
     out property <length> top-bar: 40px;
+    // The same reasoning at the bottom: views, sort, classement, zoom.
+    out property <length> bottom-bar: 40px;
 }

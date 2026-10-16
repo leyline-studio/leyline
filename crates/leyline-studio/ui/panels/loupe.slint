@@ -10,11 +10,10 @@
 // working on it are two different intentions, and only one of them should
 // write to the catalog.
 
-import { Frame, Theme } from "../theme.slint";
+import { Frame } from "../theme.slint";
 import { GridState } from "../state/grid.slint";
 import { PreferencesState } from "../state/preferences.slint";
-import { DevelopState } from "../state/develop.slint";
-import { AdvanceChip, Filmstrip, FilterChip, ViewModeChips, ZoomableImage, Zoom } from "../widgets/controls.slint";
+import { Filmstrip, ZoomableImage } from "../widgets/controls.slint";
 
 export component LoupePanel inherits VerticalLayout {
     // Panel folding, owned by the window (ADR 0055 §6). The loupe has no
@@ -47,48 +46,6 @@ export component LoupePanel inherits VerticalLayout {
         height: Frame.top-bar;
     }
 
-    if !root.chrome-hidden: HorizontalLayout {
-        height: 24px;
-        spacing: 8px;
-        alignment: start;
-
-        ViewModeChips {
-            loupe: true;
-            show-grid => {
-                GridState.loupe-mode = false;
-                GridState.loupe-mode-changed();
-            }
-            show-loupe => { }
-        }
-        AdvanceChip { }
-        FilterChip {
-            text: root.zoomed ? @tr("Fit") : @tr("100%    Z");
-            active: root.zoomed;
-            clicked => {
-                root.scale = 1.0;
-                root.zoomed = !root.zoomed;
-            }
-        }
-        if root.zoomed: Text {
-            text: Zoom.percent(root.scale);
-            color: Theme.text-dim;
-            font-size: 12px;
-            vertical-alignment: center;
-        }
-        FilterChip {
-            text: @tr("Develop    D");
-            active: false;
-            enabled: GridState.selected >= 0;
-            clicked => {
-                GridState.loupe-mode = false;
-                GridState.loupe-mode-changed();
-                DevelopState.enter-develop();
-            }
-        }
-    }
-
-    // The same widget the compare view mounts twice (ADR 0057 §2) — which is
-    // how the loupe gained the 100 % zoom it did not have.
     ZoomableImage {
         vertical-stretch: 1;
         // ADR 0117: the loupe is where a photograph is looked at, so it is
@@ -122,5 +79,11 @@ export component LoupePanel inherits VerticalLayout {
             GridState.selected = index;
             GridState.select(index);
         }
+    }
+
+    // Under the bottom bar of the window (ADR 0158 §2), which carries the
+    // views and the zoom this panel's own strip used to.
+    if !root.chrome-hidden: Rectangle {
+        height: Frame.bottom-bar;
     }
 }

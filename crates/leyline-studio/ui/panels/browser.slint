@@ -10,7 +10,7 @@
 // here may gain a position or size override.
 
 import { Frame, Hues, Theme } from "../theme.slint";
-import { Cell, CollectionRow, FolderRow, Tr } from "../types.slint";
+import { Cell, CollectionRow, FolderRow } from "../types.slint";
 import { CollectionState } from "../state/collection.slint";
 import { FolderState } from "../state/folder.slint";
 import { LibraryState } from "../state/library.slint";
@@ -20,7 +20,7 @@ import { DialogState } from "../state/dialog.slint";
 import { FilterState } from "../state/filter.slint";
 import { GridState } from "../state/grid.slint";
 import { MapState } from "../state/map.slint";
-import { AdvanceChip, DetailRow, FilterChip, MiniSlider, RangeField, ViewModeChips } from "../widgets/controls.slint";
+import { DetailRow, FilterChip, RangeField } from "../widgets/controls.slint";
 import { KeywordRow } from "../types.slint";
 import { DragState } from "../state/drag.slint";
 import { KeywordState } from "../state/keyword.slint";
@@ -59,8 +59,6 @@ export component BrowserPanel inherits HorizontalLayout {
     // Panel-private: what is folded is a way of looking, not a filter, and
     // Rust has no use for it.
     property <bool> shot-panel-open: false;
-    // The sort strip of ADR 0148 §1, open only while one is choosing.
-    property <bool> sort-panel-open: false;
 
     // Thumbnail size (ADR 0055 §3), driven by the toolbar slider under the
     // grid. Panel-private and never stored: it is how one is looking right
@@ -477,6 +475,10 @@ export component BrowserPanel inherits HorizontalLayout {
                         }
                     }
                 }
+
+                Rectangle {
+                    height: Frame.bottom-bar;
+                }
             }
         }
 
@@ -626,80 +628,8 @@ export component BrowserPanel inherits HorizontalLayout {
                 Rectangle {
                     horizontal-stretch: 1;
                 }
-
-                // The order, and the way to change it (ADR 0148 §1). The
-                // chip used to advance through eight orders on click, so
-                // reaching one cost up to seven reloads and the other seven
-                // were never visible. It now opens the strip below, where
-                // the two questions are asked once each.
-                FilterChip {
-                    text: @tr("Sort: {} {}",
-                        Tr.sort-name(FilterState.sort-key),
-                        Tr.sort-direction-short(FilterState.sort-key, FilterState.sort-ascending));
-                    active: sort-panel-open;
-                    clicked => {
-                        sort-panel-open = !sort-panel-open;
-                    }
-                }
             }
 
-            // Under the bar and not in a popup of its own, for the reason
-            // the shot filters are (ADR 0064 §5): it orders the same grid
-            // the chips above narrow, so it belongs under them.
-            if sort-panel-open: VerticalLayout {
-                spacing: 6px;
-
-                HorizontalLayout {
-                    spacing: 6px;
-                    alignment: start;
-                    Text {
-                        // 56px rather than the shot panel's 44: « Critère »
-                        // does not fit in 44, and the two rows of this strip
-                        // line up with each other rather than with a panel
-                        // that is not open at the same time.
-                        text: @tr("By");
-                        color: Theme.text-dim;
-                        font-size: 12px;
-                        vertical-alignment: center;
-                        width: 56px;
-                    }
-                    for key[k] in 4: FilterChip {
-                        text: Tr.sort-name(k);
-                        active: FilterState.sort-key == k;
-                        clicked => {
-                            // Changing the key keeps the direction, and the
-                            // other way round: two questions, answered one
-                            // at a time.
-                            FilterState.choose-sort(k, FilterState.sort-ascending);
-                        }
-                    }
-                }
-
-                HorizontalLayout {
-                    spacing: 6px;
-                    alignment: start;
-                    Text {
-                        text: @tr("Order");
-                        color: Theme.text-dim;
-                        font-size: 12px;
-                        vertical-alignment: center;
-                        width: 56px;
-                    }
-                    for way[w] in 2: FilterChip {
-                        // Both ends, in words, for the key in force.
-                        text: Tr.sort-direction(FilterState.sort-key, w == 0);
-                        active: FilterState.sort-ascending == (w == 0);
-                        clicked => {
-                            FilterState.choose-sort(FilterState.sort-key, w == 0);
-                        }
-                    }
-                }
-            }
-
-            // The shot filters (ADR 0064 §5): folded under the bar rather
-            // than off in a side tab, because they narrow the same grid as
-            // the stars and the labels just above, and looking for them
-            // somewhere else would be looking twice.
             if shot-panel-open: VerticalLayout {
                 spacing: 6px;
 
@@ -1338,41 +1268,10 @@ export component BrowserPanel inherits HorizontalLayout {
                 }
             }
 
-            // The toolbar under the grid (ADR 0055 §3): how to look, and how
-            // big. The sort and the filters stay in the bar above — a setting
-            // that lives in two places is a setting one has to look for.
-            if !root.chrome-hidden: HorizontalLayout {
-                height: 26px;
-                spacing: 8px;
-                padding-top: 4px;
-
-                ViewModeChips {
-                    loupe: false;
-                    loupe-available: GridState.selected >= 0;
-                    show-grid => { }
-                    show-loupe => {
-                        GridState.loupe-mode = true;
-                        GridState.loupe-mode-changed();
-                    }
-                }
-                AdvanceChip { }
-                Rectangle {
-                    horizontal-stretch: 1;
-                }
-                Text {
-                    text: @tr("Thumbnails");
-                    color: Theme.text-disabled;
-                    font-size: 11px;
-                    vertical-alignment: center;
-                }
-                MiniSlider {
-                    minimum: PreferencesState.thumbnail-size-min;
-                    maximum: PreferencesState.thumbnail-size-max;
-                    value: root.cell-size / 1px;
-                    edited(v) => {
-                        PreferencesState.remember-thumbnail-size(v);
-                    }
-                }
+            // Under the bottom bar of the window (ADR 0158 §2), which now
+            // carries the views and the thumbnail size this toolbar held.
+            if !root.chrome-hidden: Rectangle {
+                height: Frame.bottom-bar;
             }
         }
 

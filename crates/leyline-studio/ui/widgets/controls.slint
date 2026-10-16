@@ -598,34 +598,6 @@ export component MiniSlider inherits Rectangle {
     }
 }
 
-// The two ways of looking at a library (ADR 0055 §3), shared by the grid and
-// the loupe so leaving one is never a keyboard-only gesture.
-export component ViewModeChips inherits HorizontalLayout {
-    in property <bool> loupe;
-    // A loupe with no photo in it would be an empty grey rectangle.
-    in property <bool> loupe-available: true;
-    callback show-grid();
-    callback show-loupe();
-
-    spacing: 6px;
-
-    FilterChip {
-        text: @tr("Grid");
-        active: !root.loupe;
-        clicked => {
-            root.show-grid();
-        }
-    }
-    FilterChip {
-        text: @tr("Loupe");
-        active: root.loupe;
-        enabled: root.loupe-available;
-        clicked => {
-            root.show-loupe();
-        }
-    }
-}
-
 // The seventeen categories of develop settings (ADR 0132 §1, `docs/presets.md`
 // §3.1), and the arithmetic that packs them into one number.
 //

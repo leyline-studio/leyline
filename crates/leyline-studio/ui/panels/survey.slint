@@ -8,8 +8,6 @@
 import { Frame, Hues, Theme } from "../theme.slint";
 import { SurveyCell } from "../types.slint";
 import { GridState } from "../state/grid.slint";
-import { DevelopState } from "../state/develop.slint";
-import { FilterChip } from "../widgets/controls.slint";
 
 export component SurveyPanel inherits VerticalLayout {
     in property <bool> chrome-hidden;
@@ -31,24 +29,6 @@ export component SurveyPanel inherits VerticalLayout {
         spacing: 8px;
         alignment: start;
 
-        FilterChip {
-            text: @tr("Grid    G");
-            active: false;
-            clicked => {
-                GridState.survey-mode = false;
-                GridState.survey-mode-changed();
-            }
-        }
-        FilterChip {
-            text: @tr("Develop    D");
-            active: false;
-            enabled: GridState.selected >= 0;
-            clicked => {
-                GridState.survey-mode = false;
-                GridState.survey-mode-changed();
-                DevelopState.enter-develop();
-            }
-        }
         // What this view is, said in the count (ADR 0146 §3). With one
         // photograph the survey is a loupe with a filename — the ✕ that
         // makes it a funnel only appears above two, and there is no
@@ -128,5 +108,11 @@ export component SurveyPanel inherits VerticalLayout {
                 }
             }
         }
+    }
+
+    // Under the bottom bar of the window (ADR 0158 §2), which carries the
+    // views and the zoom this panel's own strip used to.
+    if !root.chrome-hidden: Rectangle {
+        height: Frame.bottom-bar;
     }
 }
