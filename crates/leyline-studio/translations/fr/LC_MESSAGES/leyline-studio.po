@@ -2446,11 +2446,6 @@ msgctxt "DevelopPanel"
 msgid "Reset crop"
 msgstr "Réinitialiser le recadrage"
 
-#: crates/leyline-studio/ui/panels/develop_left.slint:57
-msgctxt "DevelopLeftPanel"
-msgid "Navigator"
-msgstr "Navigateur"
-
 #: crates/leyline-studio/ui/panels/develop_states.slint
 msgctxt "VersionsPanel"
 msgid "Versions"
