@@ -343,12 +343,22 @@ fn collect(source: &Path, recursive: bool, files: &mut Vec<PathBuf>) -> Result<(
         )));
     }
     for entry in std::fs::read_dir(source)? {
-        let path = entry?.path();
+        let entry = entry?;
+        let path = entry.path();
         let hidden = path
             .file_name()
             .and_then(|n| n.to_str())
             .is_none_or(|n| n.starts_with('.'));
         if hidden {
+            continue;
+        }
+        // A symlinked folder is never descended into: one pointing at an
+        // ancestor would recurse until the stack overflows, and one pointing
+        // elsewhere would import the same photos twice. `entry.file_type()`
+        // does not follow the link, unlike `path.is_dir()`. A symlinked
+        // *file* is still taken, and the folder the user named as `source`
+        // may itself be a link — only what the walk finds is skipped.
+        if entry.file_type()?.is_symlink() && path.is_dir() {
             continue;
         }
         if path.is_dir() {
@@ -560,6 +570,23 @@ fn tenths(value: f64) -> Rational {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A folder linking back to its parent used to recurse until the stack
+    /// overflowed; the walk now skips symlinked folders and still takes the
+    /// real files beside them.
+    #[cfg(unix)]
+    #[test]
+    fn a_recursive_walk_skips_symlinked_folders() {
+        let dir = tempfile::tempdir().unwrap();
+        let shoot = dir.path().join("shoot");
+        std::fs::create_dir(&shoot).unwrap();
+        std::fs::write(shoot.join("a.jpg"), b"bytes").unwrap();
+        std::os::unix::fs::symlink(dir.path(), shoot.join("loop")).unwrap();
+
+        let files = collect_files(dir.path(), true).unwrap();
+
+        assert_eq!(files, vec![shoot.join("a.jpg")]);
+    }
 
     /// The frozen noise table is keyed by the names *this* pipeline hands it,
     /// not by the ones a test author types — and a table that matched nothing
