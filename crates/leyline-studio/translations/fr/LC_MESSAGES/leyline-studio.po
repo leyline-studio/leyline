@@ -2451,23 +2451,23 @@ msgctxt "DevelopLeftPanel"
 msgid "Navigator"
 msgstr "Navigateur"
 
-#: crates/leyline-studio/ui/panels/develop_left.slint:141
-msgctxt "DevelopLeftPanel"
+#: crates/leyline-studio/ui/panels/develop_states.slint
+msgctxt "VersionsPanel"
 msgid "Versions"
 msgstr "Versions"
 
-#: crates/leyline-studio/ui/panels/develop_left.slint:156
-msgctxt "DevelopLeftPanel"
+#: crates/leyline-studio/ui/panels/develop_states.slint
+msgctxt "VersionsPanel"
 msgid "New Version"
 msgstr "Nouvelle version"
 
-#: crates/leyline-studio/ui/panels/develop_left.slint:166
-msgctxt "DevelopLeftPanel"
+#: crates/leyline-studio/ui/panels/develop_states.slint
+msgctxt "HistoryPanel"
 msgid "History"
 msgstr "Historique"
 
-#: crates/leyline-studio/ui/panels/develop_left.slint:186
-msgctxt "DevelopLeftPanel"
+#: crates/leyline-studio/ui/panels/develop_states.slint
+msgctxt "HistoryPanel"
 msgid "{} (current)"
 msgstr "{} (actuel)"
 
@@ -2866,27 +2866,27 @@ msgid "Delete preset"
 msgstr "Supprimer le preset"
 
 #: crates/leyline-studio/ui/panels/presets.slint:148
-msgctxt "PresetsSection"
+msgctxt "PresetsPanel"
 msgid "Presets"
 msgstr "Presets"
 
 #: crates/leyline-studio/ui/panels/presets.slint:191
-msgctxt "PresetsSection"
+msgctxt "PresetsPanel"
 msgid "Search presets"
 msgstr "Rechercher un preset"
 
 #: crates/leyline-studio/ui/panels/presets.slint:212
-msgctxt "PresetsSection"
+msgctxt "PresetsPanel"
 msgid "No presets yet. Develop a photo, then press S to keep the look."
 msgstr "Aucun preset. Développez une photo, puis pressez S pour en garder le rendu."
 
 #: crates/leyline-studio/ui/panels/presets.slint:212
-msgctxt "PresetsSection"
+msgctxt "PresetsPanel"
 msgid "No preset matches."
 msgstr "Aucun preset ne correspond."
 
 #: crates/leyline-studio/ui/panels/presets.slint:271
-msgctxt "PresetsSection"
+msgctxt "PresetsPanel"
 msgid "Delete folder (its presets move to the root)"
 msgstr "Supprimer le dossier (ses presets remontent à la racine)"
 
@@ -3613,7 +3613,7 @@ msgid "Redo Description    Ctrl+Y"
 msgstr "Rétablir la description    Ctrl+Y"
 
 #: crates/leyline-studio/ui/panels/presets.slint:179 crates/leyline-studio/ui/panels/presets.slint:182
-msgctxt "PresetsSection"
+msgctxt "PresetsPanel"
 msgid "Save these settings as a preset    S"
 msgstr "Enregistrer ces réglages en préréglage    S"
 
@@ -4682,3 +4682,23 @@ msgstr "Critère"
 msgctxt "BottomBar"
 msgid "Order"
 msgstr "Sens"
+
+#: crates/leyline-studio/ui/panels/rail.slint
+msgctxt "Rail"
+msgid "Edit    D"
+msgstr "Édition    D"
+
+#: crates/leyline-studio/ui/panels/rail.slint
+msgctxt "Rail"
+msgid "Presets"
+msgstr "Presets"
+
+#: crates/leyline-studio/ui/panels/rail.slint
+msgctxt "Rail"
+msgid "Versions"
+msgstr "Versions"
+
+#: crates/leyline-studio/ui/panels/rail.slint
+msgctxt "Rail"
+msgid "History"
+msgstr "Historique"
