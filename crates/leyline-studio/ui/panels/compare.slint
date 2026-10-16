@@ -16,6 +16,9 @@ import { Filmstrip, FilterChip, ZoomableImage } from "../widgets/controls.slint"
 
 export component ComparePanel inherits VerticalLayout {
     in property <bool> chrome-hidden;
+    // Room left on the left for the window's library column (ADR 0158 §3),
+    // which is drawn over this view rather than inside it.
+    in property <length> left-inset;
 
     // One viewpoint for the two images (ADR 0057 §2).
     // `in-out`: the window's `Z` shortcut toggles it from outside.
@@ -37,6 +40,7 @@ export component ComparePanel inherits VerticalLayout {
 
     visible: GridState.compare-mode;
     padding: 12px;
+    padding-left: 12px + root.left-inset;
     spacing: 8px;
 
     Rectangle {

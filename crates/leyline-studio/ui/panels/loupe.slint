@@ -19,6 +19,9 @@ export component LoupePanel inherits VerticalLayout {
     // Panel folding, owned by the window (ADR 0055 §6). The loupe has no
     // side panel to fold, only its chips and its filmstrip.
     in property <bool> chrome-hidden;
+    // Room left on the left for the window's library column (ADR 0158 §3),
+    // which is drawn over this view rather than inside it.
+    in property <length> left-inset;
 
     // Zoom and viewpoint, panel-private: the loupe drives one image, the
     // compare view drives two (ADR 0057 §2).
@@ -39,6 +42,7 @@ export component LoupePanel inherits VerticalLayout {
 
     visible: GridState.loupe-mode;
     padding: 12px;
+    padding-left: 12px + root.left-inset;
     spacing: 8px;
 
     // Clears the menu row above, like every other whole-window panel.

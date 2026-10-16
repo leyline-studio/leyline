@@ -11,6 +11,9 @@ import { GridState } from "../state/grid.slint";
 
 export component SurveyPanel inherits VerticalLayout {
     in property <bool> chrome-hidden;
+    // Room left on the left for the window's library column (ADR 0158 §3),
+    // which is drawn over this view rather than inside it.
+    in property <length> left-inset;
 
     // How many fit per row: enough to keep the cells roughly square without
     // asking Rust anything, since the count is all it takes.
@@ -18,6 +21,7 @@ export component SurveyPanel inherits VerticalLayout {
 
     visible: GridState.survey-mode;
     padding: 12px;
+    padding-left: 12px + root.left-inset;
     spacing: 8px;
 
     Rectangle {

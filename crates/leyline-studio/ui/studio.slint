@@ -7,7 +7,7 @@
 // its attributes, the keyboard `FocusScope`, and the order the pieces are
 // mounted in.
 
-import { Theme } from "theme.slint";
+import { Frame, Theme } from "theme.slint";
 import { Cell, CollectionRow, ColorGradingZoneValues, CurveMarker, DevSettings, FolderRow, HslBandValues, KeywordRow, MapPinMarker, MaskDab, MaskRow, PresetRow, ProfileRow, SurveyCell, TetherControl, Tr } from "types.slint";
 import { CollectionState } from "state/collection.slint";
 import { FolderState } from "state/folder.slint";
@@ -24,6 +24,7 @@ import { MaskState } from "state/mask.slint";
 import { PreferencesState } from "state/preferences.slint";
 import { TetherState } from "state/tether.slint";
 import { BrowserPanel } from "panels/browser.slint";
+import { LibraryColumn } from "panels/library_column.slint";
 import { DevelopPanel } from "panels/develop.slint";
 import { DialogOverlay } from "panels/dialogs.slint";
 import { TaskBar } from "panels/task_bar.slint";
@@ -208,6 +209,14 @@ export component StudioWindow inherits Window {
     changed width => {
         root.refresh-fold();
     }
+    // The library column (ADR 0158 §3): one instance, the same in every
+    // view but the map, which keeps the whole window (§5). It folds on the
+    // sidebar's rules (ADR 0130 §2), and a fold by hand leaves a handle.
+    property <bool> library-shown: !root.browser-panels-folded && !MapState.map-mode;
+    property <bool> library-handle-shown: root.browser-panels-folded
+        && root.side-panels-hidden && !MapState.map-mode;
+    property <length> library-inset: root.library-shown ? Frame.library-column
+        : root.library-handle-shown ? 14px : 0px;
     changed side-panels-hidden => {
         root.refresh-fold();
         PreferencesState.remember-panels-folded(self.side-panels-hidden);
@@ -529,21 +538,16 @@ export component StudioWindow inherits Window {
 
         develop := DevelopPanel {
             side-panels-hidden: root.side-panels-hidden;
+            left-inset: root.library-inset;
             chrome-hidden: root.chrome-hidden;
         }
 
         MapPanel { }
 
         browser := BrowserPanel {
-            sidebar-hidden: root.browser-panels-folded;
             detail-hidden: root.browser-detail-folded;
             chrome-hidden: root.chrome-hidden;
-            folded-by-hand: root.side-panels-hidden;
-            unfold => {
-                root.side-panels-hidden = false;
-                root.chrome-hidden = false;
-                root.refresh-fold();
-            }
+            left-inset: root.library-inset;
             return-focus => {
                 keys.focus();
             }
@@ -553,16 +557,57 @@ export component StudioWindow inherits Window {
         // loupe is the same library, looked at one photo at a time.
         loupe := LoupePanel {
             chrome-hidden: root.chrome-hidden;
+            left-inset: root.library-inset;
         }
 
         // The other two ways of looking at the same selection (ADR 0057),
         // mounted next to the loupe and gated the same way.
         compare := ComparePanel {
             chrome-hidden: root.chrome-hidden;
+            left-inset: root.library-inset;
         }
 
         SurveyPanel {
             chrome-hidden: root.chrome-hidden;
+            left-inset: root.library-inset;
+        }
+
+        // The library column (ADR 0158 §3), its own layer over the views,
+        // which leave it `library-inset` of room. A sibling with default
+        // geometry and a plain filler: the only shape the repaint hazard
+        // above `menu-row` leaves for anything holding a repeater.
+        HorizontalLayout {
+            if root.library-shown: LibraryColumn { }
+
+            // The way back, for panels hidden by hand (ADR 0130 §2). `Tab`
+            // goes on working and is what an experienced user reaches for;
+            // this is what says the panels exist at all to someone who
+            // pressed it by accident, or who never knew.
+            if root.library-handle-shown: Rectangle {
+                width: 14px;
+                background: Theme.surface;
+                Text {
+                    text: "›";
+                    color: unfold-touch.has-hover ? Theme.text : Theme.text-disabled;
+                    font-size: 14px;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    width: 100%;
+                    height: 100%;
+                }
+                unfold-touch := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => {
+                        root.side-panels-hidden = false;
+                        root.chrome-hidden = false;
+                        root.refresh-fold();
+                    }
+                }
+            }
+
+            Rectangle {
+                horizontal-stretch: 1;
+            }
         }
 
         // The tethered-capture bar (ADR 0087 §7), over every module and

@@ -105,6 +105,9 @@ export component DevelopPanel inherits HorizontalLayout {
     // first, then the toolbar, the shortcut line and the filmstrip.
     in property <bool> side-panels-hidden;
     in property <bool> chrome-hidden;
+    // Room left on the left for the window's library column (ADR 0158 §3),
+    // which is drawn over this view rather than inside it.
+    in property <length> left-inset;
     // Panel-private state (ADR 0045 §2): none of it crosses to Rust.
     //
     // Accordion state — basic adjustments start open, the rest start
@@ -406,6 +409,10 @@ export component DevelopPanel inherits HorizontalLayout {
     }
 
         visible: DevelopState.develop-mode;
+
+        Rectangle {
+            width: root.left-inset;
+        }
 
         VerticalLayout {
             horizontal-stretch: 1;

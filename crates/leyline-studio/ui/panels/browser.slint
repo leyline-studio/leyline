@@ -24,7 +24,6 @@ import { DragState } from "../state/drag.slint";
 import { KeywordState } from "../state/keyword.slint";
 import { PreferencesState } from "../state/preferences.slint";
 import { HintState } from "../state/hint.slint";
-import { LibraryColumn } from "library_column.slint";
 
 export component BrowserPanel inherits HorizontalLayout {
     // Hands keyboard focus back to the window's `FocusScope` after a text
@@ -32,23 +31,13 @@ export component BrowserPanel inherits HorizontalLayout {
     // instead of typing into the box. A callback rather than a global: this
     // is UI-internal plumbing that never reaches Rust (ADR 0045 §2).
     callback return-focus();
-    // Panel folding, owned by the window (ADR 0055 §6): the sidebar and the
-    // metadata panel go first, the toolbar under the grid with `Maj+Tab`.
-    //
-    // Two flags rather than one since ADR 0130 §2: the two panels are not
-    // worth the same on a narrow window. The metadata panel is
-    // informational — ADR 0055 §6's own words — while the sidebar is how one
-    // reaches a folder or a collection at all, so a width that can carry
-    // only one of them carries the sidebar.
-    in property <bool> sidebar-hidden;
+    // Panel folding, owned by the window (ADR 0055 §6): the metadata panel
+    // goes first, the toolbar under the grid with `Maj+Tab`. The library
+    // column left of the grid is the window's own since ADR 0158 §3; this
+    // view only leaves it room.
     in property <bool> detail-hidden;
     in property <bool> chrome-hidden;
-    // Whether the panels are hidden because someone pressed `Tab`, as
-    // opposed to because the window is too narrow to hold them. Only the
-    // first has a way back that is not "resize the window", so only the
-    // first gets a handle to click (ADR 0130 §2).
-    in property <bool> folded-by-hand;
-    callback unfold();
+    in property <length> left-inset;
     // How many thumbnails fit per row. Exposed because the window's Up/Down
     // arrow shortcuts move the selection by exactly one row, and only the
     // grid knows how wide a row currently is.
@@ -117,31 +106,10 @@ export component BrowserPanel inherits HorizontalLayout {
         visible: !DevelopState.develop-mode && !MapState.map-mode
             && !GridState.loupe-mode && !GridState.compare-mode && !GridState.survey-mode;
 
-        // The library column (ADR 0158 §3).
-        if !root.sidebar-hidden: LibraryColumn { }
-
-        // The way back, for panels hidden by hand (ADR 0130 §2). `Tab`
-        // goes on working and is what an experienced user reaches for;
-        // this is what says the panels exist at all to someone who pressed
-        // it by accident, or who never knew.
-        if root.sidebar-hidden && root.folded-by-hand: Rectangle {
-            width: 14px;
-            background: Theme.surface;
-            Text {
-                text: "›";
-                color: unfold-touch.has-hover ? Theme.text : Theme.text-disabled;
-                font-size: 14px;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-                width: 100%;
-                height: 100%;
-            }
-            unfold-touch := TouchArea {
-                mouse-cursor: pointer;
-                clicked => {
-                    root.unfold();
-                }
-            }
+        // Room for the window's library column (ADR 0158 §3), drawn over
+        // every view rather than inside this one.
+        Rectangle {
+            width: root.left-inset;
         }
 
         VerticalLayout {
