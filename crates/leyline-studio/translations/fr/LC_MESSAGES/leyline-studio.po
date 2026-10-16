@@ -1199,47 +1199,47 @@ msgid "Stop"
 msgstr "Arrêter"
 
 #: crates/leyline-studio/ui/panels/browser.slint:110
-msgctxt "BrowserPanel"
+msgctxt "LibraryColumn"
 msgid "Catalog"
 msgstr "Catalogue"
 
 #: crates/leyline-studio/ui/panels/browser.slint:124
-msgctxt "BrowserPanel"
+msgctxt "LibraryColumn"
 msgid "All photos"
 msgstr "Toutes les photos"
 
 #: crates/leyline-studio/ui/panels/browser.slint:140
-msgctxt "BrowserPanel"
+msgctxt "LibraryColumn"
 msgid "Folders"
 msgstr "Dossiers"
 
 #: crates/leyline-studio/ui/panels/browser.slint:186
-msgctxt "BrowserPanel"
+msgctxt "LibraryColumn"
 msgid "Collections"
 msgstr "Collections"
 
 #: crates/leyline-studio/ui/panels/browser.slint:225
-msgctxt "BrowserPanel"
+msgctxt "LibraryColumn"
 msgid "Rename…"
 msgstr "Renommer…"
 
 #: crates/leyline-studio/ui/panels/browser.slint:231
-msgctxt "BrowserPanel"
+msgctxt "LibraryColumn"
 msgid "Move to…"
 msgstr "Déplacer vers…"
 
 #: crates/leyline-studio/ui/panels/browser.slint:238
-msgctxt "BrowserPanel"
+msgctxt "LibraryColumn"
 msgid "Delete…"
 msgstr "Supprimer…"
 
 #: crates/leyline-studio/ui/panels/browser.slint:256
-msgctxt "BrowserPanel"
+msgctxt "LibraryColumn"
 msgid "Import…"
 msgstr "Importer…"
 
 #: crates/leyline-studio/ui/panels/browser.slint:264
-msgctxt "BrowserPanel"
+msgctxt "LibraryColumn"
 msgid "Export…"
 msgstr "Exporter…"
 
@@ -4697,3 +4697,7 @@ msgstr "Versions"
 msgctxt "Rail"
 msgid "History"
 msgstr "Historique"
+
+msgctxt "LibraryColumn"
+msgid "Keywords"
+msgstr "Mots-clés"
