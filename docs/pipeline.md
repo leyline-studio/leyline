@@ -615,6 +615,8 @@ Two runs produce the **same result, bit for bit**, if and only if:
 
 "The same result" is to be read in the strong sense: **the exported file**, not only the pixels. An export therefore carries no clock — in particular, the ICC profile embedded in every file has its creation date zeroed out, LittleCMS otherwise writing the current time into it, which made two otherwise identical exports differ by one byte (`leyline_color::srgb_icc_profile`).
 
+When an export embeds metadata ([ADR 0157](adr/0157-what-the-exported-file-says.md)), the **metadata and descriptions as they stand at export time** are one more input: editing a caption changes the next export's bytes without touching its pixels. The policy itself (`ExportSettings.metadata`) is a recorded parameter, and a recipe written before it existed reads as `None`, so it keeps producing the same file.
+
 That guarantee depends on **neither the application version nor the build profile**. Leyline 1.0.3 and Leyline 7.2.0 render `sharpen::v1` identically, because it is literally the same frozen code in both binaries; a `debug` build and a `release` build likewise, which the reference renders (`crates/leyline-engine/src/stages/golden.rs`, manifest in `tests/golden/renders.json`) verify in both profiles.
 
 Those reference renders pin, with every checksum, **the `stages` map that produced it**, and replay each entry through that map. A new stage version therefore cannot move an existing checksum: it adds one. Three guards hold together — pinned entries always render the same pixels, what the engine pins *today* appears in the manifest, and no published `(stage, version)` pair escapes the manifest.

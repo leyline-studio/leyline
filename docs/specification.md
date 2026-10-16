@@ -86,6 +86,7 @@ The word *experimental* is literal: the colorimetric accuracy of the DCP matrix 
 |---|---|
 | Image watermark (a logo) | Cut by [ADR 0034](adr/0034-softproofing-watermark-print.md): the asset-reference problem is not settled |
 | Agent surface (MCP) | [ADR 0154](adr/0154-an-agent-surface-over-stdio.md): `leyline mcp --library <path>` serves the façade's read, edit, preview, import and export verbs over stdio; each revision records its origin (migration v15). Not built yet |
+| Metadata in exported files | [ADR 0157](adr/0157-what-the-exported-file-says.md): EXIF/XMP capture, authorship, keywords and (on request) location embedded in JPEG, PNG, WebP and TIFF; new exports default to *without location*, older recipes to *none*; AVIF carries none, and says so. Not built yet |
 
 ---
 
