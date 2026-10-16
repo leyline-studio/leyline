@@ -4685,6 +4685,11 @@ msgstr "Édition    D"
 
 #: crates/leyline-studio/ui/panels/rail.slint
 msgctxt "Rail"
+msgid "Crop    O"
+msgstr "Recadrage    O"
+
+#: crates/leyline-studio/ui/panels/rail.slint
+msgctxt "Rail"
 msgid "Presets"
 msgstr "Presets"
 

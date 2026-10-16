@@ -45,6 +45,8 @@ component RailEntry inherits Rectangle {
         width: 100%;
         height: 100%;
     }
+    // A drawn glyph, for an entry whose symbol no common font carries.
+    @children
     touch := TouchArea {
         clicked => {
             HintState.dismiss();
@@ -58,6 +60,24 @@ component RailEntry inherits Rectangle {
             }
         }
     }
+}
+
+// Two crossing corners, the crop mark every editor uses. Drawn from
+// rectangles: U+26F6 is missing from the Linux fonts, and a `Path` is not
+// painted by the software renderer.
+component CropGlyph inherits Rectangle {
+    in property <color> ink;
+    width: 16px;
+    height: 16px;
+    x: (Frame.rail - self.width) / 2;
+    y: (Frame.rail - self.height) / 2;
+
+    // Upper-left corner: its stem runs down, its arm runs right.
+    Rectangle { x: 3px; y: 0; width: 2px; height: 13px; background: root.ink; }
+    Rectangle { x: 3px; y: 11px; width: 13px; height: 2px; background: root.ink; }
+    // Lower-right corner, crossing it.
+    Rectangle { x: 0; y: 3px; width: 13px; height: 2px; background: root.ink; }
+    Rectangle { x: 11px; y: 3px; width: 2px; height: 13px; background: root.ink; }
 }
 
 export component Rail inherits Rectangle {
@@ -90,6 +110,16 @@ export component Rail inherits Rectangle {
             open: root.open-entry == "edit";
             clicked => {
                 root.choose("edit");
+            }
+        }
+        crop := RailEntry {
+            hint: @tr("Crop    O");
+            open: root.open-entry == "crop";
+            clicked => {
+                root.choose("crop");
+            }
+            CropGlyph {
+                ink: crop.open ? Theme.focus : Theme.text-dim;
             }
         }
         RailEntry {

@@ -191,11 +191,12 @@ export component DevelopPanel inherits HorizontalLayout {
 
     // The next guide in the cycle, so `O` and the chip agree by sharing one
     // list instead of each carrying its own.
-    // `O`, from the window's key handler. Picking the Crop tool as it goes:
-    // cycling a guide one cannot see is a keystroke that appears to do
-    // nothing, and the only reason to press it is to place a crop.
+    // `O`, from the window's key handler. Opening the Crop entry as it goes
+    // (ADR 0160 §1): cycling a guide one cannot see is a keystroke that
+    // appears to do nothing, and the only reason to press it is to place a
+    // crop.
     public function cycle-guide() {
-        root.active-tool = "crop";
+        root.rail-entry = "crop";
         root.crop-guide = root.next-guide(root.crop-guide);
     }
 
@@ -347,7 +348,7 @@ export component DevelopPanel inherits HorizontalLayout {
     }
 
     // Which panel the rail shows on the right (ADR 0158 §4): "edit" (the
-    // settings), "presets", "versions", "history", or "" when the user
+    // settings), "crop", "presets", "versions", "history", or "" when the user
     // closed it by clicking the open entry. Kept across launches as
     // interface state (ADR 0128), stored as "none" for a closed panel so
     // that "never stored" (`""`, a first launch) can open on the settings.
@@ -356,6 +357,27 @@ export component DevelopPanel inherits HorizontalLayout {
         : (PreferencesState.develop-rail == "none" ? "" : PreferencesState.develop-rail);
     changed rail-entry => {
         PreferencesState.remember-develop-rail(self.rail-entry == "" ? "none" : self.rail-entry);
+        root.follow-rail();
+    }
+    // A tool entry is a panel and a tool together (ADR 0160 §1): opening
+    // Crop picks the crop tool, leaving it puts Select back.
+    function follow-rail() {
+        if (root.rail-entry == "crop") {
+            root.active-tool = "crop";
+            root.spot-pending = false;
+            root.dev-zoomed = false;
+        } else if (root.active-tool == "crop") {
+            root.active-tool = "select";
+        }
+    }
+    // And the other way: a tool picked from the toolbar — what is left of
+    // it until ADR 0160 §5's last slice — closes the Crop panel it no
+    // longer matches, rather than leave a panel open on a gesture that
+    // is not the one the photograph answers.
+    changed active-tool => {
+        if (self.active-tool != "crop" && root.rail-entry == "crop") {
+            root.rail-entry = "edit";
+        }
     }
     // `D` opens the Edit panel (ADR 0158 §4): entering Develop with the
     // panel closed opens the settings, and leaves any other open entry be.
@@ -363,6 +385,11 @@ export component DevelopPanel inherits HorizontalLayout {
     changed in-develop => {
         if (self.in-develop && root.rail-entry == "") {
             root.rail-entry = "edit";
+        }
+        // A Crop entry remembered from the last session comes back with
+        // its tool, which the handler above only gives on a change.
+        if (self.in-develop) {
+            root.follow-rail();
         }
     }
 
@@ -559,15 +586,6 @@ export component DevelopPanel inherits HorizontalLayout {
                             root.spot-pending = false;
                         }
                     }
-                    FilterChip {
-                        text: @tr("Crop");
-                        active: root.active-tool == "crop";
-                        clicked => {
-                            root.active-tool = "crop";
-                            root.spot-pending = false;
-                            root.dev-zoomed = false;
-                        }
-                    }
                     // The targeted adjustment (ADR 0130 §3). In **Basic**,
                     // beside Select and Crop, because the sliders it drives
                     // are Basic's own — a tool that moves *Exposure* while
@@ -729,61 +747,6 @@ export component DevelopPanel inherits HorizontalLayout {
                     forward: true;
                     clicked => {
                         flick.viewport-x = max(-toolbar.hidden-width, flick.viewport-x - 120px);
-                    }
-                }
-            }
-
-            // The crop's own row (ADR 0135 §1): the ratio the next drag will
-            // take, and the guide drawn while it is taken. Shown only while
-            // the Crop tool is picked — a setting that changes the meaning of
-            // a gesture belongs beside the gesture, and a row that appears
-            // with a tool is how the tool says what it can do.
-            //
-            // Not in the Geometry group opposite, which holds the crop's four
-            // edges as numbers: those describe the crop that exists, these
-            // describe the one about to be made.
-            if !root.chrome-hidden && root.active-tool == "crop": HorizontalLayout {
-                height: root.toolbar-height;
-                spacing: 6px;
-                alignment: start;
-
-                FilterChip {
-                    text: @tr("Free");
-                    active: root.crop-ratio == 0;
-                    clicked => {
-                        root.crop-ratio = 0;
-                    }
-                }
-                CropRatioChip { label: "1:1"; ratio: 1.0; chosen: root.crop-ratio; picked(r) => { root.crop-ratio = r; } }
-                CropRatioChip { label: "5:4"; ratio: 1.25; chosen: root.crop-ratio; picked(r) => { root.crop-ratio = r; } }
-                CropRatioChip { label: "4:3"; ratio: 4.0 / 3.0; chosen: root.crop-ratio; picked(r) => { root.crop-ratio = r; } }
-                CropRatioChip { label: "3:2"; ratio: 1.5; chosen: root.crop-ratio; picked(r) => { root.crop-ratio = r; } }
-                CropRatioChip { label: "16:9"; ratio: 16.0 / 9.0; chosen: root.crop-ratio; picked(r) => { root.crop-ratio = r; } }
-                CropRatioChip { label: "7:5"; ratio: 1.4; chosen: root.crop-ratio; picked(r) => { root.crop-ratio = r; } }
-                // Turns any of them on its side. Disabled on Free, where
-                // there is no shape to turn, and on 1:1, where turning one
-                // changes nothing.
-                FilterChip {
-                    text: @tr("Turn");
-                    active: false;
-                    enabled: root.crop-ratio > 0 && root.crop-ratio != 1;
-                    clicked => {
-                        root.crop-ratio = 1 / root.crop-ratio;
-                    }
-                }
-                ToolSeparator { }
-                FilterChip {
-                    // Names the guide currently drawn, and carries the key
-                    // that cycles it: `O` is the gesture, and the chip is
-                    // what tells anyone it exists.
-                    text: root.crop-guide == "none" ? @tr("Guide    O")
-                        : root.crop-guide == "thirds" ? @tr("Thirds    O")
-                        : root.crop-guide == "golden" ? @tr("Golden    O")
-                        : root.crop-guide == "diagonals" ? @tr("Diagonals    O")
-                        : @tr("Grid    O");
-                    active: root.crop-guide != "none";
-                    clicked => {
-                        root.crop-guide = root.next-guide(root.crop-guide);
                     }
                 }
             }
@@ -1689,6 +1652,145 @@ export component DevelopPanel inherits HorizontalLayout {
                         height: Frame.top-bar;
                     }
                     HistoryPanel { }
+                    Rectangle {
+                        height: Frame.bottom-bar;
+                    }
+                }
+            }
+
+            // The Crop entry (ADR 0160 §2). First the shape the next drag
+            // takes and the guide drawn while it is made (ADR 0135 §1) — a
+            // setting that changes the meaning of a gesture, beside the
+            // panel that picked the gesture — then the angle and the frame
+            // that exist, as numbers.
+            if root.rail-entry == "crop": Flickable {
+                VerticalLayout {
+                    padding: 16px;
+                    spacing: 12px;
+                    alignment: start;
+                    Rectangle {
+                        height: Frame.top-bar;
+                    }
+                    HorizontalLayout {
+                        spacing: 6px;
+                        alignment: start;
+                        FilterChip {
+                            text: @tr("Free");
+                            active: root.crop-ratio == 0;
+                            clicked => {
+                                root.crop-ratio = 0;
+                            }
+                        }
+                        CropRatioChip { label: "1:1"; ratio: 1.0; chosen: root.crop-ratio; picked(r) => { root.crop-ratio = r; } }
+                        CropRatioChip { label: "5:4"; ratio: 1.25; chosen: root.crop-ratio; picked(r) => { root.crop-ratio = r; } }
+                        CropRatioChip { label: "4:3"; ratio: 4.0 / 3.0; chosen: root.crop-ratio; picked(r) => { root.crop-ratio = r; } }
+                    }
+                    HorizontalLayout {
+                        spacing: 6px;
+                        alignment: start;
+                        CropRatioChip { label: "3:2"; ratio: 1.5; chosen: root.crop-ratio; picked(r) => { root.crop-ratio = r; } }
+                        CropRatioChip { label: "16:9"; ratio: 16.0 / 9.0; chosen: root.crop-ratio; picked(r) => { root.crop-ratio = r; } }
+                        CropRatioChip { label: "7:5"; ratio: 1.4; chosen: root.crop-ratio; picked(r) => { root.crop-ratio = r; } }
+                        FilterChip {
+                            text: @tr("Turn");
+                            active: false;
+                            enabled: root.crop-ratio > 0 && root.crop-ratio != 1;
+                            clicked => {
+                                root.crop-ratio = 1 / root.crop-ratio;
+                            }
+                        }
+                    }
+                    HorizontalLayout {
+                        alignment: start;
+                        FilterChip {
+                            // Names the guide currently drawn, and carries the key
+                            // that cycles it: `O` is the gesture, and the chip is
+                            // what tells anyone it exists.
+                            text: root.crop-guide == "none" ? @tr("Guide    O")
+                                : root.crop-guide == "thirds" ? @tr("Thirds    O")
+                                : root.crop-guide == "golden" ? @tr("Golden    O")
+                                : root.crop-guide == "diagonals" ? @tr("Diagonals    O")
+                                : @tr("Grid    O");
+                            active: root.crop-guide != "none";
+                            clicked => {
+                                root.crop-guide = root.next-guide(root.crop-guide);
+                            }
+                        }
+                    }
+                    EditSlider {
+                        label: @tr("Rotation");
+                        minimum: -45;
+                        maximum: 45;
+                        decimals: 1;
+                        value: DevelopState.dev.rotation;
+                        edited(v) => {
+                            DevelopState.develop-edit("rotation", v);
+                        }
+                        previewing(v) => {
+                            DevelopState.develop-preview("rotation", v);
+                        }
+                    }
+                    SubHeading {
+                        label: @tr("Crop");
+                    }
+                    EditSlider {
+                        label: @tr("Left");
+                        minimum: 0;
+                        maximum: 100;
+                        value: DevelopState.dev.crop-left;
+                        edited(v) => {
+                            DevelopState.develop-edit("crop-left", v);
+                        }
+                        previewing(v) => {
+                            DevelopState.develop-preview("crop-left", v);
+                        }
+                    }
+                    EditSlider {
+                        label: @tr("Top");
+                        minimum: 0;
+                        maximum: 100;
+                        value: DevelopState.dev.crop-top;
+                        edited(v) => {
+                            DevelopState.develop-edit("crop-top", v);
+                        }
+                        previewing(v) => {
+                            DevelopState.develop-preview("crop-top", v);
+                        }
+                    }
+                    EditSlider {
+                        label: @tr("Width");
+                        minimum: 1;
+                        maximum: 100;
+                        value: DevelopState.dev.crop-width;
+                        edited(v) => {
+                            DevelopState.develop-edit("crop-width", v);
+                        }
+                        previewing(v) => {
+                            DevelopState.develop-preview("crop-width", v);
+                        }
+                    }
+                    EditSlider {
+                        label: @tr("Height");
+                        minimum: 1;
+                        maximum: 100;
+                        value: DevelopState.dev.crop-height;
+                        edited(v) => {
+                            DevelopState.develop-edit("crop-height", v);
+                        }
+                        previewing(v) => {
+                            DevelopState.develop-preview("crop-height", v);
+                        }
+                    }
+                    HorizontalLayout {
+                        alignment: end;
+                        FilterChip {
+                            text: @tr("Reset crop");
+                            active: false;
+                            clicked => {
+                                DevelopState.develop-edit("crop-reset", 0);
+                            }
+                        }
+                    }
                     Rectangle {
                         height: Frame.bottom-bar;
                     }
@@ -4252,21 +4354,9 @@ export component DevelopPanel inherits HorizontalLayout {
                     }
                     if root.expand-geometry: VerticalLayout {
                         spacing: 12px;
-                        EditSlider {
-                            label: @tr("Rotation");
-                            minimum: -45;
-                            maximum: 45;
-                            decimals: 1;
-                            value: DevelopState.dev.rotation;
-                            edited(v) => {
-                                DevelopState.develop-edit("rotation", v);
-                            }
-                            previewing(v) => {
-                                DevelopState.develop-preview("rotation", v);
-                            }
-                        }
-                        // Perspective (ADR 0052): between rotation and crop
-                        // in the panel exactly as in the pipeline.
+                        // Perspective (ADR 0052). The rotation and the crop
+                        // that frame it in the pipeline are the Crop entry's
+                        // since ADR 0160 §2.
                         SubHeading {
                             label: @tr("Perspective");
                         }
@@ -4330,67 +4420,6 @@ export component DevelopPanel inherits HorizontalLayout {
                             wrap: word-wrap;
                         }
 
-                        SubHeading {
-                            label: @tr("Crop");
-                        }
-                        EditSlider {
-                            label: @tr("Left");
-                            minimum: 0;
-                            maximum: 100;
-                            value: DevelopState.dev.crop-left;
-                            edited(v) => {
-                                DevelopState.develop-edit("crop-left", v);
-                            }
-                            previewing(v) => {
-                                DevelopState.develop-preview("crop-left", v);
-                            }
-                        }
-                        EditSlider {
-                            label: @tr("Top");
-                            minimum: 0;
-                            maximum: 100;
-                            value: DevelopState.dev.crop-top;
-                            edited(v) => {
-                                DevelopState.develop-edit("crop-top", v);
-                            }
-                            previewing(v) => {
-                                DevelopState.develop-preview("crop-top", v);
-                            }
-                        }
-                        EditSlider {
-                            label: @tr("Width");
-                            minimum: 1;
-                            maximum: 100;
-                            value: DevelopState.dev.crop-width;
-                            edited(v) => {
-                                DevelopState.develop-edit("crop-width", v);
-                            }
-                            previewing(v) => {
-                                DevelopState.develop-preview("crop-width", v);
-                            }
-                        }
-                        EditSlider {
-                            label: @tr("Height");
-                            minimum: 1;
-                            maximum: 100;
-                            value: DevelopState.dev.crop-height;
-                            edited(v) => {
-                                DevelopState.develop-edit("crop-height", v);
-                            }
-                            previewing(v) => {
-                                DevelopState.develop-preview("crop-height", v);
-                            }
-                        }
-                        HorizontalLayout {
-                            alignment: end;
-                            FilterChip {
-                                text: @tr("Reset crop");
-                                active: false;
-                                clicked => {
-                                    DevelopState.develop-edit("crop-reset", 0);
-                                }
-                            }
-                        }
                     }
 
                     // Versions and History used to close this column.

@@ -403,7 +403,7 @@ pub fn target_setting(image: &leyline_sdk::Rgb8, u: f32, v: f32) -> Option<&'sta
 /// `reset_group("all")` walks (ADR 0124 §4). The three headers that are not
 /// settings are absent for the reason they are absent from the `match`:
 /// Soft Proof is a view, Versions and History are lists.
-const GROUPS: [&str; 14] = [
+const GROUPS: [&str; 15] = [
     "basic",
     "camera-profile",
     "lut",
@@ -417,6 +417,7 @@ const GROUPS: [&str; 14] = [
     "reshape",
     "spot-removal",
     "local",
+    "crop",
     "geometry",
 ];
 
@@ -581,16 +582,18 @@ pub fn reset_group(group: &str, current: &Settings) -> Vec<(Param, Value)> {
                 set(Param::LocalAdjustment(index), Value::LocalAdjustment(None));
             }
         }
-        "geometry" => {
+        // The Crop panel owns the straighten angle with the frame
+        // (ADR 0160 §2); Geometry keeps what the Keystone guides write.
+        "crop" => {
             if current.rotation != 0.0 {
                 set(Param::Rotation, Value::Float(0.0));
             }
             if current.crop.is_some() {
                 set(Param::Crop, Value::Crop(None));
             }
-            if current.perspective.is_some() {
-                set(Param::Perspective, Value::Perspective(None));
-            }
+        }
+        "geometry" if current.perspective.is_some() => {
+            set(Param::Perspective, Value::Perspective(None));
         }
         // Soft Proof is a view setting, Versions and History are lists:
         // nothing of a revision to put back.
@@ -1888,7 +1891,8 @@ mod tests {
 mod reset_tests {
     use super::*;
     use leyline_sdk::{
-        ColorGradingZone, Grain, HighlightReconstruction, Lut, Mask, Vignette, WhiteBalance,
+        ColorGradingZone, Grain, HighlightReconstruction, Lut, Mask, Perspective, Vignette,
+        WhiteBalance,
     };
 
     /// A revision with **every** group away from neutral: the fixture a
@@ -1988,6 +1992,10 @@ mod reset_tests {
                 },
             ],
             rotation: 3.5,
+            perspective: Some(Perspective {
+                vertical: 12,
+                horizontal: -8,
+            }),
             crop: Some(Crop {
                 x: 0.1,
                 y: 0.1,
@@ -2065,7 +2073,8 @@ mod reset_tests {
         assert_eq!(touched("red-eye"), ["RedEye"]);
         assert_eq!(touched("spot-removal"), ["SpotRemoval"]);
         assert_eq!(touched("lut"), ["Lut"]);
-        assert_eq!(touched("geometry"), ["Crop", "Rotation"]);
+        assert_eq!(touched("crop"), ["Crop", "Rotation"]);
+        assert_eq!(touched("geometry"), ["Perspective"]);
 
         // The mixer is eight parameters and the fixture moved two of them:
         // an untouched band is not written back.
@@ -2155,7 +2164,7 @@ mod reset_tests {
         union.sort();
         assert_eq!(touched("all"), union);
 
-        // And it is one call, not fourteen revisions: the caller commits
+        // And it is one call, not fifteen revisions: the caller commits
         // the whole list at once.
         assert!(touched("all").len() > touched("basic").len());
     }
