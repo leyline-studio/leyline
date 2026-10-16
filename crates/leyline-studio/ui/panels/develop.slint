@@ -337,6 +337,15 @@ export component DevelopPanel inherits HorizontalLayout {
     // Which point of the image sits in the middle of the viewport, in [0, 1].
     in-out property <float> dev-center-x: 0.5;
     in-out property <float> dev-center-y: 0.5;
+    // 100 % with pan or fit, from the bottom bar of the window and from `Z`
+    // (ADR 0158 §2). The exact zoom stays one gesture away whatever the
+    // wheel has been doing (ADR 0112 §3), hence the reset.
+    public function toggle-zoom() {
+        root.dev-scale = 1.0;
+        root.dev-center-x = 0.5;
+        root.dev-center-y = 0.5;
+        root.dev-zoomed = !root.dev-zoomed;
+    }
 
     // Every entry of the profile browser costs a render, so the grid is
     // built when the group is opened and not before (ADR 0089 §1). A
@@ -687,23 +696,6 @@ export component DevelopPanel inherits HorizontalLayout {
                         }
                     }
                     ToolSeparator { }
-
-                    FilterChip {
-                        // Loupe zoom (Z): 100%-with-pan vs fit-to-window,
-                        // Select tool only (see `dev-zoomed`'s declaration).
-                        // The one zoom level that means something exact — one
-                        // image pixel per screen pixel — stays one gesture away
-                        // whatever the wheel has been doing (ADR 0112 §3).
-                        text: root.dev-zoomed ? @tr("Fit") : @tr("100%    Z");
-                        active: root.dev-zoomed;
-                        enabled: root.active-tool == "select";
-                        clicked => {
-                            root.dev-scale = 1.0;
-                            root.dev-center-x = 0.5;
-                            root.dev-center-y = 0.5;
-                            root.dev-zoomed = !root.dev-zoomed;
-                        }
-                    }
 
                     // The quick reminder of the keys, one glyph wide instead of a
                     // permanent strip of grey text across the row that has to
@@ -1640,6 +1632,12 @@ export component DevelopPanel inherits HorizontalLayout {
                 clicked(index) => {
                     DevelopState.develop-switch(index);
                 }
+            }
+
+            // Under the bottom bar of the window (ADR 0158 §2), which now
+            // carries the views and the zoom here too.
+            if !root.chrome-hidden: Rectangle {
+                height: Frame.bottom-bar;
             }
         }
 
@@ -4349,6 +4347,12 @@ export component DevelopPanel inherits HorizontalLayout {
                     // why ADR 0112 §4 had to except them from the group
                     // reset — so they now sit in the left column with the
                     // preset library (ADR 0124 §3).
+
+                    // The last group can still be scrolled clear of the
+                    // window's bottom bar (ADR 0158 §2).
+                    Rectangle {
+                        height: Frame.bottom-bar;
+                    }
                 }
             }
         }

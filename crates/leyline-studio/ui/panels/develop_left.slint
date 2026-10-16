@@ -231,6 +231,12 @@ export component DevelopLeftPanel inherits Rectangle {
                     }
                 }
             }
+
+            // Clears the window's bottom bar, as the spacer above clears
+            // its menu row (ADR 0158 §2).
+            Rectangle {
+                height: Frame.bottom-bar;
+            }
         }
     }
 }

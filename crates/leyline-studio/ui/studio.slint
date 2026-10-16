@@ -604,13 +604,18 @@ export component StudioWindow inherits Window {
     }
 
     // Before the menus, so an open menu paints over it (ADR 0158 §2).
-    // Develop and the map keep their own strips until slice 2c.
+    // The map keeps the whole window (§5).
     BottomBar {
-        shown: !root.chrome-hidden && !DevelopState.develop-mode && !MapState.map-mode;
-        zoomed: GridState.compare-mode ? compare.zoomed : loupe.zoomed;
-        scale: GridState.compare-mode ? compare.scale : loupe.scale;
+        shown: !root.chrome-hidden && !MapState.map-mode;
+        zoomed: DevelopState.develop-mode ? develop.dev-zoomed
+            : GridState.compare-mode ? compare.zoomed : loupe.zoomed;
+        scale: DevelopState.develop-mode ? develop.dev-scale
+            : GridState.compare-mode ? compare.scale : loupe.scale;
+        zoom-enabled: !DevelopState.develop-mode || develop.active-tool == "select";
         toggle-zoom => {
-            if (GridState.compare-mode) {
+            if (DevelopState.develop-mode) {
+                develop.toggle-zoom();
+            } else if (GridState.compare-mode) {
                 compare.scale = 1.0;
                 compare.zoomed = !compare.zoomed;
             } else {

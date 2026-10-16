@@ -4,8 +4,8 @@
 //
 // It gathers what the grid, the loupe, the compare and the survey each drew
 // in a strip of their own, so the way to another view is in the same place
-// whichever view one is in. Develop and the map keep their own strips until
-// they become views of this frame (slice 2c).
+// whichever view one is in — Develop included since slice 2c. The map keeps
+// the whole window (ADR 0158 §5).
 //
 // Drawn the way `MenuBar` is, for the repaint reason written there: the
 // component keeps its default whole-window geometry, paints only its own
@@ -66,10 +66,13 @@ export component BottomBar inherits Rectangle {
     // owns `Z` (see `zoom-to-100` on `MenuBar`).
     in property <bool> zoomed;
     in property <float> scale;
+    // Develop zooms with the Select tool only (see `dev-zoomed`).
+    in property <bool> zoom-enabled: true;
     callback toggle-zoom();
 
     property <bool> sort-open: false;
-    property <bool> in-grid: !GridState.loupe-mode && !GridState.compare-mode && !GridState.survey-mode;
+    property <bool> in-grid: !GridState.loupe-mode && !GridState.compare-mode && !GridState.survey-mode
+        && !DevelopState.develop-mode;
     property <bool> has-photo: GridState.selected >= 0;
     // The cells model is the visible window of the grid, not the whole
     // library; an index outside it reads as an empty cell, which the pill
@@ -81,6 +84,9 @@ export component BottomBar inherits Rectangle {
     // Leaves whichever of the three library views is open. Each has its own
     // `*-changed` because Rust reacts to each differently.
     function leave-views() {
+        if (DevelopState.develop-mode) {
+            DevelopState.exit-develop();
+        }
         if (GridState.loupe-mode) {
             GridState.loupe-mode = false;
             GridState.loupe-mode-changed();
@@ -145,11 +151,14 @@ export component BottomBar inherits Rectangle {
         // Edit panel open (slice 3), it opens Develop.
         FilterChip {
             text: @tr("Edit");
+            active: DevelopState.develop-mode;
             enabled: root.has-photo;
             hint: @tr("Edit    D");
             clicked => {
-                root.leave-views();
-                DevelopState.enter-develop();
+                if (!DevelopState.develop-mode) {
+                    root.leave-views();
+                    DevelopState.enter-develop();
+                }
             }
         }
         AdvanceChip { }
@@ -192,6 +201,7 @@ export component BottomBar inherits Rectangle {
         if !root.in-grid && !GridState.survey-mode: FilterChip {
             text: root.zoomed ? @tr("Fit") : @tr("100%    Z");
             active: root.zoomed;
+            enabled: root.zoom-enabled;
             clicked => {
                 root.toggle-zoom();
             }
