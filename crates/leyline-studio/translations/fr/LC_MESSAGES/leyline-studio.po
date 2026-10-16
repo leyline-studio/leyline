@@ -4602,3 +4602,83 @@ msgstr "Masquer les panneaux latéraux    Tab"
 msgctxt "MenuBar"
 msgid "Export the selected photos    Ctrl+E"
 msgstr "Exporter les photos sélectionnées    Ctrl+E"
+
+#: crates/leyline-studio/ui/panels/bottom_bar.slint
+msgctxt "BottomBar"
+msgid "Grid"
+msgstr "Grille"
+
+#: crates/leyline-studio/ui/panels/bottom_bar.slint
+msgctxt "BottomBar"
+msgid "Grid    G"
+msgstr "Grille    G"
+
+#: crates/leyline-studio/ui/panels/bottom_bar.slint
+msgctxt "BottomBar"
+msgid "Loupe"
+msgstr "Loupe"
+
+#: crates/leyline-studio/ui/panels/bottom_bar.slint
+msgctxt "BottomBar"
+msgid "Loupe    E"
+msgstr "Loupe    E"
+
+#: crates/leyline-studio/ui/panels/bottom_bar.slint
+msgctxt "BottomBar"
+msgid "Edit"
+msgstr "Édition"
+
+#: crates/leyline-studio/ui/panels/bottom_bar.slint
+msgctxt "BottomBar"
+msgid "Edit    D"
+msgstr "Édition    D"
+
+#: crates/leyline-studio/ui/panels/bottom_bar.slint
+msgctxt "BottomBar"
+msgid "Sort: {} {}"
+msgstr "Tri : {} {}"
+
+#: crates/leyline-studio/ui/panels/bottom_bar.slint
+msgctxt "BottomBar"
+msgid "Thumbnails"
+msgstr "Vignettes"
+
+#: crates/leyline-studio/ui/panels/bottom_bar.slint
+msgctxt "BottomBar"
+msgid "Fit"
+msgstr "Ajuster"
+
+#: crates/leyline-studio/ui/panels/bottom_bar.slint
+msgctxt "BottomBar"
+msgid "100%    Z"
+msgstr "100 %    Z"
+
+#: crates/leyline-studio/ui/panels/bottom_bar.slint
+msgctxt "BottomBar"
+msgid "Rate {} ★    {}"
+msgstr "Noter {} ★    {}"
+
+#: crates/leyline-studio/ui/panels/bottom_bar.slint
+msgctxt "BottomBar"
+msgid "Pick    P"
+msgstr "Sélectionner    P"
+
+#: crates/leyline-studio/ui/panels/bottom_bar.slint
+msgctxt "BottomBar"
+msgid "Reject    X"
+msgstr "Rejeter    X"
+
+#: crates/leyline-studio/ui/panels/bottom_bar.slint
+msgctxt "BottomBar"
+msgid "Copy Settings"
+msgstr "Copier les réglages"
+
+#: crates/leyline-studio/ui/panels/bottom_bar.slint
+msgctxt "BottomBar"
+msgid "By"
+msgstr "Critère"
+
+#: crates/leyline-studio/ui/panels/bottom_bar.slint
+msgctxt "BottomBar"
+msgid "Order"
+msgstr "Sens"
