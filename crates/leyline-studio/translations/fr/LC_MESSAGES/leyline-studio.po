@@ -4570,3 +4570,15 @@ msgstr "Annuler (Ctrl+Z)"
 msgctxt "DevelopPanel"
 msgid "Redo (Ctrl+Y)"
 msgstr "Rétablir (Ctrl+Y)"
+
+msgctxt "MenuBar"
+msgid "Theme: dark. Click for light."
+msgstr "Thème : sombre. Cliquer pour le clair."
+
+msgctxt "MenuBar"
+msgid "Theme: light. Click to follow the system."
+msgstr "Thème : clair. Cliquer pour suivre le système."
+
+msgctxt "MenuBar"
+msgid "Theme: follows the system. Click for dark."
+msgstr "Thème : celui du système. Cliquer pour le sombre."

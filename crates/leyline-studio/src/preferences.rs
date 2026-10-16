@@ -145,6 +145,36 @@ pub(crate) struct Preferences {
     /// change. Unlike the panel bitfields above, Rust decodes this one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) sort: Option<String>,
+    /// The interface's theme (ADR 0159 §6): `"dark"` or `"light"`, by name
+    /// for the reason `sort` is. **Absent** means "follow the system", the
+    /// default, so a first launch matches the desktop it opens on.
+    ///
+    /// Interface state, not a preference — the switch sits in the top bar
+    /// where it acts, ADR 0078 §1's third condition — and it never reaches
+    /// the viewer's ground, which is `viewer_background` above.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) interface_theme: Option<String>,
+}
+
+/// The theme names `interface_theme` stores, at the position `Theme.choice`
+/// gives them in the interface; position 0, the system, is stored as absence.
+const THEMES: [(i32, &str); 2] = [(1, "dark"), (2, "light")];
+
+/// `Theme.choice` for a stored theme name. An unknown name — a file written
+/// by a newer version — follows the system rather than guessing.
+pub(crate) fn theme_choice(name: Option<&str>) -> i32 {
+    THEMES
+        .iter()
+        .find(|(_, key)| Some(*key) == name)
+        .map_or(0, |(choice, _)| *choice)
+}
+
+/// The stored name for a `Theme.choice`; `None` for the system.
+pub(crate) fn theme_name(choice: i32) -> Option<String> {
+    THEMES
+        .iter()
+        .find(|(position, _)| *position == choice)
+        .map(|(_, key)| (*key).to_owned())
 }
 
 /// The preferences as the running application holds them: the values, and
@@ -529,11 +559,26 @@ mod tests {
             thumbnail_size: Some(220),
             panels_folded: Some(true),
             sort: Some("rating-desc".to_owned()),
+            interface_theme: Some("light".to_owned()),
         };
         save_preferences(&path, &written).expect("save");
         assert_eq!(load_preferences(&path), written);
         // The temporary file is gone: a rename, not a copy.
         assert!(!path.with_extension("json.tmp").exists());
+    }
+
+    #[test]
+    fn each_theme_round_trips_through_its_stored_name() {
+        for choice in 0..3 {
+            assert_eq!(theme_choice(theme_name(choice).as_deref()), choice);
+        }
+        assert_eq!(theme_name(0), None, "the system is stored as absence");
+    }
+
+    #[test]
+    fn an_unknown_theme_name_follows_the_system() {
+        assert_eq!(theme_choice(Some("sepia")), 0);
+        assert_eq!(theme_choice(None), 0);
     }
 
     #[test]

@@ -13,9 +13,9 @@ use slint::{ComponentHandle, Global, ModelRc, SharedString, VecModel};
 use crate::app::report_error;
 use crate::preferences::{
     PreferencesFile, SharedPreferences, consent_question_due, language_choices, language_index,
-    now_secs, update_check_due,
+    now_secs, theme_choice, theme_name, update_check_due,
 };
-use crate::ui::{DialogState, PreferencesState, StudioWindow, Tr};
+use crate::ui::{DialogState, PreferencesState, StudioWindow, Theme, Tr};
 use crate::updates::{self, CheckOutcome};
 
 /// How long after the window opens the automatic check runs (ADR 0077 §2):
@@ -100,6 +100,12 @@ fn show_current_values(window: &StudioWindow, preferences: &SharedPreferences) {
     });
     state.set_develop_view(develop);
     state.set_develop_left_view(develop_left);
+    // ADR 0159 §6: set before the window is shown, so a light interface does
+    // not open dark for one frame.
+    let theme = with_preferences(preferences, |file| {
+        theme_choice(file.values().interface_theme.as_deref())
+    });
+    Theme::get(window).set_choice(theme);
     // ADR 0131 §5: absent means off, and off is the shipped default.
     let advance = with_preferences(preferences, |file| {
         file.values().advance_after_classement.unwrap_or(false)
@@ -216,6 +222,14 @@ pub(crate) fn wire_preferences(window: &StudioWindow, preferences: &SharedPrefer
         state.on_remember_develop_left_view(move |code| {
             let _ = with_preferences(&preferences, |file| {
                 file.update(|values| values.develop_left_view = Some(code))
+            });
+        });
+    }
+    {
+        let preferences = preferences.clone();
+        state.on_remember_interface_theme(move |choice| {
+            let _ = with_preferences(&preferences, |file| {
+                file.update(|values| values.interface_theme = theme_name(choice))
             });
         });
     }

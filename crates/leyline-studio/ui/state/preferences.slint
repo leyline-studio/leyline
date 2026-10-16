@@ -87,6 +87,9 @@ export global PreferencesState {
     in property <int> develop-left-view: -1;
     callback remember-develop-view(int);
     callback remember-develop-left-view(int);
+    // The theme switch's position (`Theme.choice`, ADR 0159 §6), handed to
+    // Rust to keep: interface state of the same kind as the two above.
+    callback remember-interface-theme(int);
 
     // Advance after a classement (ADR 0131): the selection steps to the next
     // photograph once a lone one has been rated, labelled or flagged.

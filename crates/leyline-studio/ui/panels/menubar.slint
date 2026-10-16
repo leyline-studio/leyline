@@ -23,6 +23,7 @@ import { GridState } from "../state/grid.slint";
 import { LibraryState } from "../state/library.slint";
 import { MapState } from "../state/map.slint";
 import { PreferencesState } from "../state/preferences.slint";
+import { FilterChip } from "../widgets/controls.slint";
 import { MenuDropdown, MenuRow, MenuSep, MenuToggleRow, ModuleLabel, SubmenuHeader, TopMenuLabel } from "../widgets/menu.slint";
 
 export component MenuBar inherits Rectangle {
@@ -1042,6 +1043,24 @@ export component MenuBar inherits Rectangle {
                     }
                     MapState.enter-map();
                     root.open-menu = "";
+                }
+            }
+            // The interface's theme (ADR 0159 §6), cycling dark → light →
+            // system. A glyph showing where the switch stands, and words on
+            // hover since a glyph alone is a convention (ADR 0127 §1).
+            // Here until the top bar of ADR 0158 §2 exists to receive it.
+            Rectangle { width: 10px; }
+            FilterChip {
+                text: Theme.choice == 1 ? "☾" : (Theme.choice == 2 ? "☀" : "◐");
+                active: false;
+                hint: Theme.choice == 1
+                    ? @tr("Theme: dark. Click for light.")
+                    : (Theme.choice == 2
+                        ? @tr("Theme: light. Click to follow the system.")
+                        : @tr("Theme: follows the system. Click for dark."));
+                clicked => {
+                    Theme.choice = Math.mod(Theme.choice + 1, 3);
+                    PreferencesState.remember-interface-theme(Theme.choice);
                 }
             }
         }
