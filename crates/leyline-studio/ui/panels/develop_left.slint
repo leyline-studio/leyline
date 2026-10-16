@@ -1,19 +1,15 @@
-// The left column of Develop (ADR 0124 §1): the Navigator, the preset
-// library, the versions of this photograph and its history — in that order,
-// which is the reading: where am I looking, what look can I put on this,
-// which branch am I on, how did it get here.
+// What is left of Develop's left column (ADR 0124 §1): the Navigator.
 //
-// The column is the one that *chooses* and the one that *shows where one is
-// looking*; the right-hand panel is the modification in progress
-// (ADR 0058 §1). Versions and History moved here from that panel because
-// they are lists of states rather than settings — which is exactly the
-// reason ADR 0112 §4 had to except them from the group reset.
+// The presets, the versions and the history left it for the rail
+// (ADR 0158 §4, `develop_states.slint`). The Navigator is the one section
+// the rail does not take: ADR 0158 §3 turns it into an overlay on the
+// photograph, the next step of that slice, and until then it keeps this
+// column to itself.
 
 import { Frame, Hues, Theme } from "../theme.slint";
 import { DevelopState } from "../state/develop.slint";
 import { PreferencesState } from "../state/preferences.slint";
-import { PresetsSection } from "presets.slint";
-import { FilterChip, GroupHeader } from "../widgets/controls.slint";
+import { GroupHeader } from "../widgets/controls.slint";
 
 export component DevelopLeftPanel inherits Rectangle {
     // The viewer's zoom state, read and never owned (ADR 0124, Consequences):
@@ -31,16 +27,12 @@ export component DevelopLeftPanel inherits Rectangle {
     in property <length> viewer-height;
     callback panned(float, float);
 
-    // Section folding — which now survives the session (ADR 0128), by the
-    // same one-number-per-view arrangement the settings panel opposite
-    // uses. With nothing stored (`-1`, a first launch) the defaults are the
-    // ones ADR 0124 §1 chose: the two lists start closed, so the column
-    // opens on the photograph and the presets.
+    // Section folding survives the session (ADR 0128), by the same
+    // one-number-per-view arrangement the settings panel opposite uses.
+    // Bit 0 is the Navigator; bits 1–3 were the sections the rail took,
+    // and an old stored value's are simply never read again.
     property <int> stored-view: PreferencesState.develop-left-view;
     property <bool> expand-navigator: root.stored-bit(root.stored-view, 0, true);
-    property <bool> expand-presets: root.stored-bit(root.stored-view, 1, true);
-    property <bool> expand-versions: root.stored-bit(root.stored-view, 2, false);
-    property <bool> expand-history: root.stored-bit(root.stored-view, 3, false);
 
     // See the twin in `develop.slint`: the `fallback` is what a first
     // launch gets, and it belongs in the function because a negative
@@ -51,11 +43,7 @@ export component DevelopLeftPanel inherits Rectangle {
             ? fallback
             : Math.mod(Math.floor(code / Math.pow(2, index)), 2) == 1;
     }
-    property <int> view-code:
-        (root.expand-navigator ? 1 : 0)
-        + (root.expand-presets ? 2 : 0)
-        + (root.expand-versions ? 4 : 0)
-        + (root.expand-history ? 8 : 0);
+    property <int> view-code: root.expand-navigator ? 1 : 0;
     changed view-code => {
         PreferencesState.remember-develop-left-view(self.view-code);
     }
@@ -153,87 +141,6 @@ export component DevelopLeftPanel inherits Rectangle {
                 }
             }
 
-            PresetsSection {
-                expanded <=> root.expand-presets;
-            }
-
-            // Versions (ADR 0094 §2): the branches of this photograph, above
-            // the history because a history is *of* a version — picking the
-            // branch comes first, then walking it.
-            GroupHeader {
-                label: @tr("Versions");
-                expanded <=> root.expand-versions;
-            }
-            if root.expand-versions: VerticalLayout {
-                spacing: 4px;
-                for name[index] in DevelopState.dev-versions: FilterChip {
-                    text: name;
-                    active: index == DevelopState.dev-version-current;
-                    clicked => {
-                        DevelopState.switch-version(index);
-                    }
-                }
-                HorizontalLayout {
-                    alignment: start;
-                    FilterChip {
-                        text: @tr("New Version");
-                        active: false;
-                        clicked => {
-                            DevelopState.create-version();
-                        }
-                    }
-                }
-            }
-
-            GroupHeader {
-                label: @tr("History");
-                expanded <=> root.expand-history;
-            }
-            // Browsable revision list beyond linear undo/redo (Ctrl+Z/Y):
-            // head first, click any row to jump straight to it
-            // (`checkout-history-row`).
-            if root.expand-history: VerticalLayout {
-                for entry[index] in DevelopState.dev-history: touch := TouchArea {
-                    // Two lines since ADR 0142 §2: what the revision changed,
-                    // and under it, smaller, when it was made. On one line the
-                    // 230px column showed « 2026-09-10 13:02 · Exposition, … »
-                    // — the date in full and the answer cut off.
-                    height: 34px;
-                    clicked => {
-                        DevelopState.checkout-history-row(index);
-                    }
-                    Rectangle {
-                        width: 100%;
-                        height: 100%;
-                        background: index == DevelopState.dev-history-current ? Theme.active : (touch.has-hover ? Theme.hover : transparent);
-                        border-radius: 4px;
-                        VerticalLayout {
-                            padding-left: 8px;
-                            padding-right: 8px;
-                            padding-top: 3px;
-                            padding-bottom: 3px;
-                            spacing: 0px;
-                            Text {
-                                text: index == DevelopState.dev-history-current
-                                    ? @tr("{} (current)", entry.what)
-                                    : entry.what;
-                                color: Theme.text;
-                                font-size: 12px;
-                                overflow: elide;
-                            }
-                            Text {
-                                text: entry.when;
-                                color: Theme.text-disabled;
-                                font-size: 10px;
-                                overflow: elide;
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Clears the window's bottom bar, as the spacer above clears
-            // its menu row (ADR 0158 §2).
             Rectangle {
                 height: Frame.bottom-bar;
             }

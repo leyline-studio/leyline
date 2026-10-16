@@ -13,6 +13,9 @@ import { DevelopState } from "../state/develop.slint";
 import { HintState } from "../state/hint.slint";
 import { PreferencesState } from "../state/preferences.slint";
 import { DevelopLeftPanel } from "develop_left.slint";
+import { HistoryPanel, VersionsPanel } from "develop_states.slint";
+import { PresetsPanel } from "presets.slint";
+import { Rail } from "rail.slint";
 import { GridState } from "../state/grid.slint";
 import { MaskState } from "../state/mask.slint";
 import { DialogState } from "../state/dialog.slint";
@@ -345,6 +348,26 @@ export component DevelopPanel inherits HorizontalLayout {
         root.dev-center-x = 0.5;
         root.dev-center-y = 0.5;
         root.dev-zoomed = !root.dev-zoomed;
+    }
+
+    // Which panel the rail shows on the right (ADR 0158 §4): "edit" (the
+    // settings), "presets", "versions", "history", or "" when the user
+    // closed it by clicking the open entry. Kept across launches as
+    // interface state (ADR 0128), stored as "none" for a closed panel so
+    // that "never stored" (`""`, a first launch) can open on the settings.
+    property <string> rail-entry: PreferencesState.develop-rail == ""
+        ? "edit"
+        : (PreferencesState.develop-rail == "none" ? "" : PreferencesState.develop-rail);
+    changed rail-entry => {
+        PreferencesState.remember-develop-rail(self.rail-entry == "" ? "none" : self.rail-entry);
+    }
+    // `D` opens the Edit panel (ADR 0158 §4): entering Develop with the
+    // panel closed opens the settings, and leaves any other open entry be.
+    property <bool> in-develop: DevelopState.develop-mode;
+    changed in-develop => {
+        if (self.in-develop && root.rail-entry == "") {
+            root.rail-entry = "edit";
+        }
     }
 
     // Every entry of the profile browser costs a render, so the grid is
@@ -1641,14 +1664,60 @@ export component DevelopPanel inherits HorizontalLayout {
             }
         }
 
-        if !root.side-panels-hidden: Rectangle {
+        if !root.side-panels-hidden && root.rail-entry != "": Rectangle {
             // 320px since ADR 0140 §1: the label column needed twenty
             // pixels it could not take from the track without spending the
             // precision ADR 0126 bought, so the panel pays instead.
             width: 320px;
             background: Theme.surface;
 
+            // The other rail panels, built when opened: short lists, cheap
+            // to make again.
+            if root.rail-entry == "presets": Flickable {
+                VerticalLayout {
+                    padding: 16px;
+                    alignment: start;
+                    Rectangle {
+                        height: Frame.top-bar;
+                    }
+                    PresetsPanel { }
+                    Rectangle {
+                        height: Frame.bottom-bar;
+                    }
+                }
+            }
+            if root.rail-entry == "versions": Flickable {
+                VerticalLayout {
+                    padding: 16px;
+                    alignment: start;
+                    Rectangle {
+                        height: Frame.top-bar;
+                    }
+                    VersionsPanel { }
+                    Rectangle {
+                        height: Frame.bottom-bar;
+                    }
+                }
+            }
+            if root.rail-entry == "history": Flickable {
+                VerticalLayout {
+                    padding: 16px;
+                    alignment: start;
+                    Rectangle {
+                        height: Frame.top-bar;
+                    }
+                    HistoryPanel { }
+                    Rectangle {
+                        height: Frame.bottom-bar;
+                    }
+                }
+            }
+
+            // The settings are hidden rather than torn down when another
+            // entry opens: two thousand lines of sliders rebuilt on every
+            // click of the rail, and the scroll position lost with them.
             Flickable {
+                visible: root.rail-entry == "edit";
                 VerticalLayout {
                     padding: 16px;
                     spacing: 12px;
@@ -4343,10 +4412,9 @@ export component DevelopPanel inherits HorizontalLayout {
                     }
 
                     // Versions and History used to close this column.
-                    // They are lists of *states*, not settings — which is
-                    // why ADR 0112 §4 had to except them from the group
-                    // reset — so they now sit in the left column with the
-                    // preset library (ADR 0124 §3).
+                    // They are lists of *states*, not settings (ADR 0112
+                    // §4), and are now rail entries of their own
+                    // (ADR 0158 §4, `develop_states.slint`).
 
                     // The last group can still be scrolled clear of the
                     // window's bottom bar (ADR 0158 §2).
@@ -4355,5 +4423,9 @@ export component DevelopPanel inherits HorizontalLayout {
                     }
                 }
             }
+        }
+
+        if !root.side-panels-hidden: Rail {
+            open-entry <=> root.rail-entry;
         }
 }

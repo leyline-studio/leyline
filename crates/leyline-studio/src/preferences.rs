@@ -99,10 +99,14 @@ pub(crate) struct Preferences {
     /// in the same file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) develop_view: Option<i32>,
-    /// The same, for Develop's left column (ADR 0124 §1): its four
-    /// sections, four bits, equally uninterpreted.
+    /// The same, for Develop's left column (ADR 0124 §1): one bit per
+    /// section, equally uninterpreted.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) develop_left_view: Option<i32>,
+    /// The rail entry left open in Develop (ADR 0158 §4), a name the rail
+    /// alone gives meaning to; `"none"` when the user closed the panel.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) develop_rail: Option<String>,
     /// Whether classing a lone photograph moves the selection on to the next
     /// one (ADR 0131). **Absent means off**, which is the decision of §3 and
     /// not a fallback: a selection that moves without having been asked to
@@ -554,6 +558,7 @@ mod tests {
             // what this test checks: it goes out and comes back untouched.
             develop_view: Some(3),
             develop_left_view: Some(1),
+            develop_rail: Some("history".to_owned()),
             advance_after_classement: Some(true),
             copy_groups: Some(vec![SettingsGroup::Tone, SettingsGroup::ToneCurve]),
             thumbnail_size: Some(220),

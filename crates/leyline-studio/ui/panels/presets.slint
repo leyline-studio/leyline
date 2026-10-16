@@ -1,14 +1,14 @@
-// The develop presets section (ADR 0058 §1–§4): one of the four sections of
-// Develop's left column (ADR 0124 §1), mounted by `develop_left.slint`.
+// The develop presets panel (ADR 0058 §1–§4), one of the panels the rail
+// opens on the right (ADR 0158 §4), mounted by `develop.slint`.
 //
-// Its place is the left because ADR 0058 §1 settled it — the right panel is
-// *the modification in progress*, this is *the library of modifications* —
-// and because ADR 0055 §2 already put what one **chooses** on the left of
-// the browser. Same side, same job.
+// It used to be a section of Develop's left column (ADR 0124 §1); the rail
+// keeps it apart from the settings all the same — one panel at a time, so
+// *the library of modifications* never shares the column with *the
+// modification in progress* (ADR 0058 §1).
 //
-// A section and no longer the column itself: it sets no width, paints no
-// background and reserves nothing for the menu bar — the column does all
-// three, once, for the four sections it holds.
+// A panel's content only: it sets no width, paints no background and
+// reserves nothing for the top bar — the right column does all three, once,
+// for whichever panel the rail opened.
 //
 // Rows arrive flat from Rust (`PresetRow`), like the collections sidebar:
 // one level of folders, favourites first, filtered by the search box above.
@@ -18,7 +18,7 @@ import { Theme } from "../theme.slint";
 import { PresetRow } from "../types.slint";
 import { HintState } from "../state/hint.slint";
 import { DevelopState } from "../state/develop.slint";
-import { GroupHeader } from "../widgets/controls.slint";
+import { PanelTitle } from "../widgets/controls.slint";
 
 // One preset. Two lines: its name, and what it actually changes — the whole
 // point of ADR 0058 §3, and the thing Lightroom cannot show because its
@@ -137,23 +137,16 @@ component PresetItem inherits Rectangle {
     // of them destructive or near enough to deserve being asked for.
 }
 
-export component PresetsSection inherits VerticalLayout {
-    // Folded by the column's own header, like the other three sections
-    // (ADR 0124 §1). `in-out` because the column owns the flag.
-    in-out property <bool> expanded: true;
-
+export component PresetsPanel inherits VerticalLayout {
     spacing: 8px;
 
     HorizontalLayout {
         spacing: 4px;
-        GroupHeader {
-            label: @tr("Presets");
-            expanded <=> root.expanded;
+        PanelTitle {
+            text: @tr("Presets");
             horizontal-stretch: 1;
         }
-        // Saving one, from the header of the list it lands in. Kept out of
-        // `GroupHeader` — that widget's right-hand slot is the group reset,
-        // and a list of presets has nothing to put back.
+        // Saving one, from the title of the list it lands in.
         Rectangle {
             width: 18px;
             height: 18px;
@@ -187,7 +180,7 @@ export component PresetsSection inherits VerticalLayout {
         }
     }
 
-    if root.expanded: VerticalLayout {
+    VerticalLayout {
         spacing: 8px;
 
         Rectangle {

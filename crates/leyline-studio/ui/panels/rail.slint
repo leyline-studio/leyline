@@ -1,0 +1,120 @@
+// The rail: a column of glyphs on the far right that chooses the one panel
+// beside it (ADR 0158 §4).
+//
+// It only names an entry; the view that owns the right column reads
+// `open-entry` and shows that entry's panel. Clicking the open entry closes
+// the panel, so `""` is a state the user chose, not a missing value.
+
+import { Frame, Theme } from "../theme.slint";
+import { HintState } from "../state/hint.slint";
+
+// One entry: a glyph, its hint (the glyph carries no word, ADR 0127), lit
+// with the only accent while its panel is the one shown.
+component RailEntry inherits Rectangle {
+    in property <string> glyph;
+    in property <string> hint;
+    in property <bool> open;
+    callback clicked;
+
+    width: Frame.rail;
+    height: Frame.rail;
+
+    Rectangle {
+        x: 4px;
+        y: 4px;
+        width: parent.width - 8px;
+        height: parent.height - 8px;
+        border-radius: 4px;
+        background: root.open ? Theme.active : (touch.has-hover ? Theme.hover : transparent);
+    }
+    // The open entry is marked on the edge facing its panel, so the eye
+    // goes from the lit glyph to what it opened.
+    if root.open: Rectangle {
+        x: 0;
+        y: 8px;
+        width: 2px;
+        height: parent.height - 16px;
+        background: Theme.focus;
+    }
+    Text {
+        text: root.glyph;
+        color: root.open ? Theme.focus : Theme.text-dim;
+        font-size: 16px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        width: 100%;
+        height: 100%;
+    }
+    touch := TouchArea {
+        clicked => {
+            HintState.dismiss();
+            root.clicked();
+        }
+        changed has-hover => {
+            if (self.has-hover) {
+                HintState.enter(root.hint, root.absolute-position.x, root.absolute-position.y + root.height);
+            } else {
+                HintState.leave(root.hint);
+            }
+        }
+    }
+}
+
+export component Rail inherits Rectangle {
+    in-out property <string> open-entry;
+
+    width: Frame.rail;
+    background: Theme.surface;
+
+    function choose(entry: string) {
+        root.open-entry = root.open-entry == entry ? "" : entry;
+    }
+
+    // The panel it opens is on its left; this line keeps the two apart
+    // when the panel is closed and the rail meets the photograph.
+    Rectangle {
+        x: 0;
+        width: 1px;
+        background: Theme.raised;
+    }
+
+    VerticalLayout {
+        alignment: start;
+
+        Rectangle {
+            height: Frame.top-bar;
+        }
+        RailEntry {
+            glyph: "☰";
+            hint: @tr("Edit    D");
+            open: root.open-entry == "edit";
+            clicked => {
+                root.choose("edit");
+            }
+        }
+        RailEntry {
+            glyph: "▦";
+            hint: @tr("Presets");
+            open: root.open-entry == "presets";
+            clicked => {
+                root.choose("presets");
+            }
+        }
+        RailEntry {
+            glyph: "❐";
+            hint: @tr("Versions");
+            open: root.open-entry == "versions";
+            clicked => {
+                root.choose("versions");
+            }
+        }
+        RailEntry {
+            glyph: "↺";
+            hint: @tr("History");
+            open: root.open-entry == "history";
+            clicked => {
+                root.choose("history");
+            }
+        }
+    }
+}

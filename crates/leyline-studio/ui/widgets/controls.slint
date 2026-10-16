@@ -117,6 +117,17 @@ export component GroupHeader inherits HorizontalLayout {
 // third thing to fold. Basic is one group read top to bottom (ADR 0054 §2),
 // so its internal divisions must not be clickable — a header that collapses
 // is an invitation to collapse it, and the sequence is the point.
+// The name of a panel the rail opened (ADR 0158 §4): a title, not a
+// `GroupHeader` — the panel is the whole column, there is nothing to fold.
+export component PanelTitle inherits Text {
+    color: Theme.text;
+    font-size: 13px;
+    font-weight: 600;
+    vertical-alignment: center;
+    height: 24px;
+    overflow: elide;
+}
+
 export component SubHeading inherits VerticalLayout {
     in property <string> label;
     spacing: 4px;

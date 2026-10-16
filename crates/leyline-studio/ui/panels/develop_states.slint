@@ -1,0 +1,96 @@
+// The two panels of the rail that list *states* of the photograph rather
+// than settings (ADR 0158 §4): its versions and its history. They are the
+// reason ADR 0112 §4 had to except them from the group reset, which is why
+// they never shared the settings' column for long — first a section of the
+// left column (ADR 0124 §3), now each its own rail entry.
+//
+// Panel contents only, like `PresetsPanel`: the right column gives them
+// their width, background and top-bar spacer.
+
+import { Theme } from "../theme.slint";
+import { DevelopState } from "../state/develop.slint";
+import { FilterChip, PanelTitle } from "../widgets/controls.slint";
+
+export component VersionsPanel inherits VerticalLayout {
+    spacing: 10px;
+
+    // Versions (ADR 0094 §2): the branches of this photograph. Its rail
+    // entry sits above History's because a history is *of* a version —
+    // picking the branch comes first, then walking it.
+    PanelTitle {
+        text: @tr("Versions");
+    }
+    VerticalLayout {
+        spacing: 4px;
+        for name[index] in DevelopState.dev-versions: FilterChip {
+            text: name;
+            active: index == DevelopState.dev-version-current;
+            clicked => {
+                DevelopState.switch-version(index);
+            }
+        }
+        HorizontalLayout {
+            alignment: start;
+            FilterChip {
+                text: @tr("New Version");
+                active: false;
+                clicked => {
+                    DevelopState.create-version();
+                }
+            }
+        }
+    }
+}
+
+export component HistoryPanel inherits VerticalLayout {
+    spacing: 10px;
+
+    PanelTitle {
+        text: @tr("History");
+    }
+    // Browsable revision list beyond linear undo/redo (Ctrl+Z/Y):
+    // head first, click any row to jump straight to it
+    // (`checkout-history-row`).
+    VerticalLayout {
+        for entry[index] in DevelopState.dev-history: touch := TouchArea {
+            // Two lines since ADR 0142 §2: what the revision changed,
+            // and under it, smaller, when it was made. On one line the
+            // 230px column showed « 2026-09-10 13:02 · Exposition, … »
+            // — the date in full and the answer cut off.
+            height: 34px;
+            clicked => {
+                DevelopState.checkout-history-row(index);
+            }
+            Rectangle {
+                width: 100%;
+                height: 100%;
+                background: index == DevelopState.dev-history-current ? Theme.active : (touch.has-hover ? Theme.hover : transparent);
+                border-radius: 4px;
+                VerticalLayout {
+                    padding-left: 8px;
+                    padding-right: 8px;
+                    padding-top: 3px;
+                    padding-bottom: 3px;
+                    spacing: 0px;
+                    Text {
+                        text: index == DevelopState.dev-history-current
+                            ? @tr("{} (current)", entry.what)
+                            : entry.what;
+                        color: Theme.text;
+                        font-size: 12px;
+                        overflow: elide;
+                    }
+                    Text {
+                        text: entry.when;
+                        color: Theme.text-disabled;
+                        font-size: 10px;
+                        overflow: elide;
+                    }
+                }
+            }
+        }
+    }
+
+    // Clears the window's bottom bar, as the spacer above clears
+    // its menu row (ADR 0158 §2).
+}
