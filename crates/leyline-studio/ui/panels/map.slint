@@ -5,7 +5,7 @@
 // `MapState.map-mode`, inheriting `HorizontalLayout` and setting no geometry
 // of its own.
 
-import { Hues, Theme } from "../theme.slint";
+import { Frame, Hues, Theme } from "../theme.slint";
 import { MapState } from "../state/map.slint";
 import { FilterChip } from "../widgets/controls.slint";
 
@@ -19,7 +19,7 @@ export component MapPanel inherits HorizontalLayout {
             // own title used to sit under the File menu, and its buttons
             // under the module switcher (ADR 0055 §1).
             Rectangle {
-                height: 28px;
+                height: Frame.top-bar;
             }
 
             HorizontalLayout {

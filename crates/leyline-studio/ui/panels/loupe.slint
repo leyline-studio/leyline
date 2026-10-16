@@ -10,7 +10,7 @@
 // working on it are two different intentions, and only one of them should
 // write to the catalog.
 
-import { Theme } from "../theme.slint";
+import { Frame, Theme } from "../theme.slint";
 import { GridState } from "../state/grid.slint";
 import { PreferencesState } from "../state/preferences.slint";
 import { DevelopState } from "../state/develop.slint";
@@ -44,7 +44,7 @@ export component LoupePanel inherits VerticalLayout {
 
     // Clears the menu row above, like every other whole-window panel.
     Rectangle {
-        height: 28px;
+        height: Frame.top-bar;
     }
 
     if !root.chrome-hidden: HorizontalLayout {

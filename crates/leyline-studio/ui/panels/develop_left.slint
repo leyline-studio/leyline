@@ -9,7 +9,7 @@
 // they are lists of states rather than settings — which is exactly the
 // reason ADR 0112 §4 had to except them from the group reset.
 
-import { Hues, Theme } from "../theme.slint";
+import { Frame, Hues, Theme } from "../theme.slint";
 import { DevelopState } from "../state/develop.slint";
 import { PreferencesState } from "../state/preferences.slint";
 import { PresetsSection } from "presets.slint";
@@ -73,7 +73,7 @@ export component DevelopLeftPanel inherits Rectangle {
             // opposite — a spacer child, never a geometry override on the
             // column (see the note above `menu-row` in `menubar.slint`).
             Rectangle {
-                height: 28px;
+                height: Frame.top-bar;
             }
 
             GroupHeader {

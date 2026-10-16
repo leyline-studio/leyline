@@ -154,3 +154,11 @@ export global Hues {
     out property <color> shutter-hover: #f0f0f0;
     out property <color> shutter-pressed: #b0b0b0;
 }
+
+// The fixed measures of the window's frame (ADR 0158 §2). One place, because
+// every whole-window panel overlaps the top bar and reserves its height with
+// a spacer: a bar that grows and a spacer that does not puts the first row of
+// every panel under the menus.
+export global Frame {
+    out property <length> top-bar: 28px;
+}

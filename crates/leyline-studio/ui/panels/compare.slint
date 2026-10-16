@@ -9,7 +9,7 @@
 // The zoom and the centre live here rather than in each view, because sharing
 // them *is* the feature (§2).
 
-import { Theme } from "../theme.slint";
+import { Frame, Theme } from "../theme.slint";
 import { GridState } from "../state/grid.slint";
 import { PreferencesState } from "../state/preferences.slint";
 import { DevelopState } from "../state/develop.slint";
@@ -41,7 +41,7 @@ export component ComparePanel inherits VerticalLayout {
     spacing: 8px;
 
     Rectangle {
-        height: 28px;
+        height: Frame.top-bar;
     }
 
     if !root.chrome-hidden: HorizontalLayout {

@@ -10,14 +10,14 @@
 // path. See `StudioWindow.open-menu`/`reset-submenus()` for the state this
 // wires into, and the dropdown panels near the modal dialog overlay for
 // the actual menu contents.
-import { Theme } from "../theme.slint";
+import { Frame, Theme } from "../theme.slint";
 export component TopMenuLabel inherits Rectangle {
     in property <string> title;
     in property <bool> active;
     in property <bool> enabled: true;
     callback clicked;
 
-    height: 28px;
+    height: Frame.top-bar;
     width: label.preferred-width + 20px;
     background: root.active ? Theme.active : transparent;
 
@@ -48,7 +48,7 @@ export component ModuleLabel inherits Rectangle {
     in property <bool> enabled: true;
     callback clicked;
 
-    height: 28px;
+    height: Frame.top-bar;
     width: label.preferred-width + 14px;
 
     label := Text {

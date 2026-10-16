@@ -14,7 +14,7 @@
 // geometry and catches no input of its own; only the dropdown backdrop,
 // which exists solely while a menu is open, has a `TouchArea`.
 
-import { Theme } from "../theme.slint";
+import { Frame, Theme } from "../theme.slint";
 import { CollectionState } from "../state/collection.slint";
 import { DevelopState } from "../state/develop.slint";
 import { DialogState } from "../state/dialog.slint";
@@ -107,7 +107,7 @@ export component MenuBar inherits Rectangle {
 
         if root.open-menu == "file": MenuDropdown {
             x: menus.x + file-label.x;
-            y: 28px;
+            y: Frame.top-bar;
             MenuRow {
                 title: @tr("Import…    I");
                 activated => {
@@ -214,7 +214,7 @@ export component MenuBar inherits Rectangle {
 
         if root.open-menu == "library": MenuDropdown {
             x: menus.x + library-label.x;
-            y: 28px;
+            y: Frame.top-bar;
             // Undoing a library edit (ADR 0129 §3). Here and not in the
             // Develop menu, which is disabled outside Develop — which is
             // exactly why its `Ctrl+Z` could never have served the grid.
@@ -318,7 +318,7 @@ export component MenuBar inherits Rectangle {
 
         if root.open-menu == "photo": MenuDropdown {
             x: menus.x + photo-label.x;
-            y: 28px;
+            y: Frame.top-bar;
             SubmenuHeader {
                 title: @tr("Rate");
                 expanded <=> root.rate-submenu-open;
@@ -565,7 +565,7 @@ export component MenuBar inherits Rectangle {
 
         if root.open-menu == "develop-menu" && DevelopState.develop-mode: MenuDropdown {
             x: menus.x + develop-label.x;
-            y: 28px;
+            y: Frame.top-bar;
             // Guarded since ADR 0149 §2: `EditSession::undo` answers
             // `Ok(None)` at the first revision, so an ungarded row was one
             // a photographer could click to no effect and no message.
@@ -650,7 +650,7 @@ export component MenuBar inherits Rectangle {
 
         if root.open-menu == "view": MenuDropdown {
             x: menus.x + view-label.x;
-            y: 28px;
+            y: Frame.top-bar;
             MenuRow {
                 title: @tr("Library    G");
                 enabled: DevelopState.develop-mode || GridState.loupe-mode
@@ -790,7 +790,7 @@ export component MenuBar inherits Rectangle {
 
         if root.open-menu == "help": MenuDropdown {
             x: menus.x + help-label.x;
-            y: 28px;
+            y: Frame.top-bar;
             // A found update is announced here and nowhere else
             // (ADR 0077 §2): no modal, no notification, no "you are up to
             // date". The entry renames itself, and the mark on the Help
@@ -862,7 +862,7 @@ export component MenuBar inherits Rectangle {
         x: 0;
         y: 0;
         width: root.width;
-        height: 28px;
+        height: Frame.top-bar;
         background: Theme.surface;
 
         // A hairline rather than a shadow: it separates the bar from
@@ -915,7 +915,7 @@ export component MenuBar inherits Rectangle {
         // row of labels lives here.
         x: 0;
         y: 0;
-        height: 28px;
+        height: Frame.top-bar;
         // The menus keep the left end, the module switcher takes the right
         // end (ADR 0055 §1), and neither group is stretched: `space-between`
         // pushes the two apart while leaving every label at its own width.

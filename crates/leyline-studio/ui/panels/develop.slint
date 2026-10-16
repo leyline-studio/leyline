@@ -7,7 +7,7 @@
 // `menu-row` in `studio.slint` for why any position or size override around
 // this content is a repaint hazard.
 
-import { Hues, Theme } from "../theme.slint";
+import { Frame, Hues, Theme } from "../theme.slint";
 import { DevSettings, MaskRow } from "../types.slint";
 import { DevelopState } from "../state/develop.slint";
 import { HintState } from "../state/hint.slint";
@@ -456,7 +456,7 @@ export component DevelopPanel inherits HorizontalLayout {
             spacing: 8px;
 
             Rectangle {
-                height: 28px;
+                height: Frame.top-bar;
             }
 
             // The photograph's name, and nothing beside it.
@@ -1681,7 +1681,7 @@ export component DevelopPanel inherits HorizontalLayout {
                     alignment: start;
 
                     Rectangle {
-                        height: 28px;
+                        height: Frame.top-bar;
                     }
 
                     // Histogram (RGB, sqrt-scaled so one dominant bin

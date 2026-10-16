@@ -9,7 +9,7 @@
 // bug documented above `menu-row` in `studio.slint` is about, so nothing
 // here may gain a position or size override.
 
-import { Hues, Theme } from "../theme.slint";
+import { Frame, Hues, Theme } from "../theme.slint";
 import { Cell, CollectionRow, FolderRow, Tr } from "../types.slint";
 import { CollectionState } from "../state/collection.slint";
 import { FolderState } from "../state/folder.slint";
@@ -135,7 +135,7 @@ export component BrowserPanel inherits HorizontalLayout {
                 spacing: 4px;
 
                 Rectangle {
-                    height: 28px;
+                    height: Frame.top-bar;
                 }
 
                 Text {
@@ -510,7 +510,7 @@ export component BrowserPanel inherits HorizontalLayout {
             spacing: 8px;
 
             Rectangle {
-                height: 28px;
+                height: Frame.top-bar;
             }
 
             HorizontalLayout {
@@ -1422,7 +1422,7 @@ export component BrowserPanel inherits HorizontalLayout {
                 alignment: start;
 
                 Rectangle {
-                    height: 28px;
+                    height: Frame.top-bar;
                 }
 
                 Text {

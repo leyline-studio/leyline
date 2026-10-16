@@ -5,7 +5,7 @@
 // two. Removing a photo takes it out of the *selection* — nothing is deleted
 // and nothing is written.
 
-import { Hues, Theme } from "../theme.slint";
+import { Frame, Hues, Theme } from "../theme.slint";
 import { SurveyCell } from "../types.slint";
 import { GridState } from "../state/grid.slint";
 import { DevelopState } from "../state/develop.slint";
@@ -23,7 +23,7 @@ export component SurveyPanel inherits VerticalLayout {
     spacing: 8px;
 
     Rectangle {
-        height: 28px;
+        height: Frame.top-bar;
     }
 
     if !root.chrome-hidden: HorizontalLayout {
