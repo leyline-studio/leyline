@@ -71,6 +71,8 @@ export component BottomBar inherits Rectangle {
     callback toggle-zoom();
 
     property <bool> sort-open: false;
+    // Where the sort chip ends, so the pill never covers it.
+    property <length> sort-end: 0px;
     property <bool> in-grid: !GridState.loupe-mode && !GridState.compare-mode && !GridState.survey-mode
         && !DevelopState.develop-mode;
     property <bool> has-photo: GridState.selected >= 0;
@@ -168,6 +170,17 @@ export component BottomBar inherits Rectangle {
                 Tr.sort-name(FilterState.sort-key),
                 Tr.sort-direction-short(FilterState.sort-key, FilterState.sort-ascending));
             active: root.sort-open;
+            // Read back by the pill, which cannot name an element under
+            // an `if`.
+            init => {
+                root.sort-end = self.x + self.width;
+            }
+            changed x => {
+                root.sort-end = self.x + self.width;
+            }
+            changed width => {
+                root.sort-end = self.x + self.width;
+            }
             clicked => {
                 root.sort-open = !root.sort-open;
             }
@@ -209,9 +222,11 @@ export component BottomBar inherits Rectangle {
     }
 
     // Centred on the window and not between its neighbours, so it does not
-    // slide when the sort label or the zoom changes width.
+    // slide when the sort label or the zoom changes width — unless that
+    // would cover the sort, as a 900px window in French does: it then
+    // stands just right of it.
     if root.shown: Rectangle {
-        x: (root.width - self.width) / 2;
+        x: max((root.width - self.width) / 2, root.sort-end + 8px);
         y: root.bar-y + 6px;
         width: pill.preferred-width;
         height: Frame.bottom-bar - 12px;
