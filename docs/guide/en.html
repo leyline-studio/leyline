@@ -118,11 +118,37 @@ with, or you discard the proposal.</p>
 
 <h2 id="develop">4. Developing</h2>
 
-<p><kbd>D</kbd> opens develop on the selected photograph, <kbd>G</kbd> returns to
-the library, <kbd>E</kbd> shows the photograph large without opening develop.</p>
+<p>The bottom bar switches views: <em>Grid</em> (<kbd>G</kbd>), <em>Loupe</em>
+(<kbd>E</kbd>, the photograph large without opening develop) and <em>Edit</em>
+(<kbd>D</kbd>, develop on the selected photograph). Developing is the loupe
+with a rail panel open.</p>
 
-<h3>The panel</h3>
-<p>On the right, the settings, grouped and foldable. Two levels:
+<h3>The rail</h3>
+<p>The column of icons at the window's right edge opens one panel at a time;
+clicking the open icon again closes it. Top to bottom:</p>
+<ul>
+  <li><strong>☰ Edit</strong> — the histogram and the settings;</li>
+  <li><strong>Crop</strong> (<kbd>O</kbd>) — ratios, the composition guide,
+    rotation and edges;</li>
+  <li><strong>✚ Retouch</strong> — spot removal, red eye, reshape;</li>
+  <li><strong>◎ Masks</strong> — radial, gradient, brush, and the local
+    adjustments;</li>
+  <li><strong>▦ Presets</strong>, <strong>❐ Versions</strong>,
+    <strong>↺ History</strong>;</li>
+  <li>at the foot, <strong># Keywords</strong> and <strong>i Info</strong> —
+    the photograph's own, also open from the grid and the loupe.</li>
+</ul>
+<p>A tool panel picks its tool: opening <em>Crop</em> crops, opening
+<em>Retouch</em> takes spot removal, opening <em>Masks</em> shows the handles
+of the existing masks. Closing it gives the ordinary pointer back. From the
+grid, a develop entry opens the selected photograph with that panel. Retouch
+and Masks appear in Full mode only.</p>
+
+<h3>The Edit panel</h3>
+<p>The settings, grouped and foldable. The white-balance picker sits on the
+white-balance row, the <em>Target</em> tool in the <em>Basic</em> header,
+<em>Keystone</em> in the <em>Geometry</em> header; clicking the active tool
+again puts it down. Two levels:
 <strong>Basic</strong> shows the essentials, <strong>Full</strong> shows
 everything. On a slider: drag to set, hold <kbd>Shift</kbd> for five times finer,
 the wheel moves one notch, a double-click resets, and the number on the right can
@@ -132,7 +158,7 @@ the photograph to how it arrived.</p>
 <h3>What is saved, and when</h3>
 <p>Nothing asks you to save. An edit becomes a <strong>revision</strong> when you
 release the slider; successive moves of the same slider fold into one. The
-<em>History</em> panel on the left lists those revisions and says what each one
+<em>History</em> panel of the rail lists those revisions and says what each one
 changed: click one to go back to it. <kbd>Ctrl</kbd>+<kbd>Z</kbd> and
 <kbd>Ctrl</kbd>+<kbd>Y</kbd> walk the same path step by step.</p>
 
@@ -175,7 +201,8 @@ with an out-of-gamut warning. The triangles at the histogram's corners (and
 <strong>dynamic</strong>: it keeps the current filter (rating, camera, keywords,
 pick flag) and updates itself.</p>
 
-<p><strong>Keywords</strong>: a tree, in the right-hand panel. A keyword
+<p><strong>Keywords</strong>: a tree, in the left column; the photograph's own
+are added in the rail's <em>#</em> panel. A keyword
 <code>Nature/Birds/Heron</code> also answers a search for <code>Nature</code>.</p>
 
 <p><strong>Search</strong>: the box in the filter bar searches the filename, the
