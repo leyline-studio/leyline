@@ -4807,3 +4807,8 @@ msgstr "Afficher ou masquer la pellicule"
 msgctxt "BottomBar"
 msgid "Show or hide the right panel"
 msgstr "Afficher ou masquer le panneau de droite"
+
+#: crates/leyline-studio/ui/panels/menubar.slint
+msgctxt "MenuBar"
+msgid "Filter"
+msgstr "Filtre"
