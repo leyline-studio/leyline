@@ -16,6 +16,7 @@ import { Filmstrip, FilterChip, ZoomableImage } from "../widgets/controls.slint"
 
 export component ComparePanel inherits VerticalLayout {
     in property <bool> chrome-hidden;
+    in property <bool> filmstrip-hidden;
     // Room left on the left for the window's library column (ADR 0158 §3),
     // which is drawn over this view rather than inside it.
     in property <length> left-inset;
@@ -132,7 +133,7 @@ export component ComparePanel inherits VerticalLayout {
         }
     }
 
-    if !root.chrome-hidden: Filmstrip {
+    if !root.chrome-hidden && !root.filmstrip-hidden: Filmstrip {
         cells: GridState.cells;
         window-start: GridState.window-start;
         selected: GridState.selected;

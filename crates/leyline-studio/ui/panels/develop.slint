@@ -109,6 +109,8 @@ export component DevelopPanel inherits HorizontalLayout {
     // first, then the file name and the filmstrip.
     in property <bool> side-panels-hidden;
     in property <bool> chrome-hidden;
+    // Folded from the bottom bar (ADR 0158 §2), alone.
+    in property <bool> filmstrip-hidden;
     // Room left on the left for the window's library column (ADR 0158 §3),
     // which is drawn over this view rather than inside it.
     in property <length> left-inset;
@@ -1388,7 +1390,7 @@ export component DevelopPanel inherits HorizontalLayout {
             // `GridState.cells` (already populated for the grid) — no
             // separate data path — through the same widget the loupe mounts
             // (ADR 0055 §5).
-            if !root.chrome-hidden: Filmstrip {
+            if !root.chrome-hidden && !root.filmstrip-hidden: Filmstrip {
                 cells: GridState.cells;
                 window-start: GridState.window-start;
                 selected: GridState.selected;

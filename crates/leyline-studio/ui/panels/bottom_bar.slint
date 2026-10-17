@@ -69,6 +69,12 @@ export component BottomBar inherits Rectangle {
     // Develop zooms with the Select tool only (see `dev-zoomed`).
     in property <bool> zoom-enabled: true;
     callback toggle-zoom();
+    // The two folds at the right of the bar (ADR 0158 §2): the window owns
+    // both, the bar reports the click.
+    in property <bool> filmstrip-open;
+    in property <bool> panel-open;
+    callback toggle-filmstrip();
+    callback toggle-panel();
 
     property <bool> sort-open: false;
     // Where the sort chip ends, so the pill never covers it.
@@ -217,6 +223,24 @@ export component BottomBar inherits Rectangle {
             enabled: root.zoom-enabled;
             clicked => {
                 root.toggle-zoom();
+            }
+        }
+        // Glyphs, each with its hint (ADR 0127): a strip along the foot of
+        // a frame, and a column down its right side.
+        if GridState.loupe-mode || GridState.compare-mode || DevelopState.develop-mode: FilterChip {
+            text: "▁";
+            hint: @tr("Show or hide the filmstrip");
+            active: root.filmstrip-open;
+            clicked => {
+                root.toggle-filmstrip();
+            }
+        }
+        if root.in-grid || GridState.loupe-mode || DevelopState.develop-mode: FilterChip {
+            text: "▐";
+            hint: @tr("Show or hide the right panel");
+            active: root.panel-open;
+            clicked => {
+                root.toggle-panel();
             }
         }
     }

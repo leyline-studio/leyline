@@ -22,6 +22,7 @@ export component LoupePanel inherits HorizontalLayout {
     // with the width, the rail with the side panels, the filmstrip with
     // the chrome.
     in property <bool> chrome-hidden;
+    in property <bool> filmstrip-hidden;
     in property <bool> detail-hidden;
     in property <bool> rail-hidden;
     // The rail (ADR 0158 §4), shared with the grid by the window.
@@ -83,7 +84,7 @@ export component LoupePanel inherits HorizontalLayout {
             }
         }
 
-        if !root.chrome-hidden: Filmstrip {
+        if !root.chrome-hidden && !root.filmstrip-hidden: Filmstrip {
             cells: GridState.cells;
             window-start: GridState.window-start;
             selected: GridState.selected;

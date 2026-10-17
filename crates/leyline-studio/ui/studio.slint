@@ -211,10 +211,15 @@ export component StudioWindow inherits Window {
             root.library-rail = root.library-rail-shown;
             GridState.loupe-mode = false;
             DevelopState.enter-develop();
-        } else {
+        } else if (self.library-rail != "") {
             root.library-rail-shown = self.library-rail;
         }
     }
+    // The develop entry the bottom bar's panel toggle closed, to reopen.
+    property <string> develop-rail-closed: "edit";
+    // The filmstrip's own fold, from the bottom bar (ADR 0158 §2); session
+    // state, like the other folds.
+    property <bool> filmstrip-hidden: false;
     function refresh-fold() {
         root.browser-detail-folded =
             root.side-panels-hidden || root.width < root.narrow-threshold;
@@ -555,6 +560,7 @@ export component StudioWindow inherits Window {
             side-panels-hidden: root.side-panels-hidden;
             left-inset: root.library-inset;
             chrome-hidden: root.chrome-hidden;
+            filmstrip-hidden: root.filmstrip-hidden;
             return-focus => {
                 keys.focus();
             }
@@ -578,6 +584,7 @@ export component StudioWindow inherits Window {
         // loupe is the same library, looked at one photo at a time.
         loupe := LoupePanel {
             chrome-hidden: root.chrome-hidden;
+            filmstrip-hidden: root.filmstrip-hidden;
             left-inset: root.library-inset;
             detail-hidden: root.browser-detail-folded;
             rail-hidden: root.side-panels-hidden;
@@ -592,6 +599,7 @@ export component StudioWindow inherits Window {
         // mounted next to the loupe and gated the same way.
         compare := ComparePanel {
             chrome-hidden: root.chrome-hidden;
+            filmstrip-hidden: root.filmstrip-hidden;
             left-inset: root.library-inset;
         }
 
@@ -667,6 +675,27 @@ export component StudioWindow inherits Window {
         scale: DevelopState.develop-mode ? develop.dev-scale
             : GridState.compare-mode ? compare.scale : loupe.scale;
         zoom-enabled: !DevelopState.develop-mode || develop.active-tool == "select";
+        filmstrip-open: !root.filmstrip-hidden;
+        panel-open: DevelopState.develop-mode ? develop.rail-entry != "" : root.library-rail != "";
+        toggle-filmstrip => {
+            root.filmstrip-hidden = !root.filmstrip-hidden;
+        }
+        // Closing the panel is closing the rail entry; opening it again
+        // gives back the last one the view had.
+        toggle-panel => {
+            if (DevelopState.develop-mode) {
+                if (develop.rail-entry != "") {
+                    root.develop-rail-closed = develop.rail-entry;
+                    develop.rail-entry = "";
+                } else {
+                    develop.rail-entry = root.develop-rail-closed;
+                }
+            } else if (root.library-rail != "") {
+                root.library-rail = "";
+            } else {
+                root.library-rail = root.library-rail-shown;
+            }
+        }
         toggle-zoom => {
             if (DevelopState.develop-mode) {
                 develop.toggle-zoom();
