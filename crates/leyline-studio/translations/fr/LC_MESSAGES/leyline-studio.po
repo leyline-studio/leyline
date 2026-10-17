@@ -4695,6 +4695,11 @@ msgstr "Retouche"
 
 #: crates/leyline-studio/ui/panels/rail.slint
 msgctxt "Rail"
+msgid "Masks"
+msgstr "Masques"
+
+#: crates/leyline-studio/ui/panels/rail.slint
+msgctxt "Rail"
 msgid "Presets"
 msgstr "Presets"
 

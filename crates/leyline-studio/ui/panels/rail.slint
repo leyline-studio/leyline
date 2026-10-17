@@ -82,7 +82,7 @@ component CropGlyph inherits Rectangle {
 
 export component Rail inherits Rectangle {
     in-out property <string> open-entry;
-    // Retouch is a Full-mode entry (ADR 0160 §2), as its chips were.
+    // Retouch and Masks are Full-mode entries (ADR 0160 §2), as their chips were.
     in property <bool> full-mode: true;
 
     width: Frame.rail;
@@ -131,6 +131,15 @@ export component Rail inherits Rectangle {
             open: root.open-entry == "retouch";
             clicked => {
                 root.choose("retouch");
+            }
+        }
+        if root.full-mode: RailEntry {
+            // A ring: the area a mask selects, in the block ▦ comes from.
+            glyph: "◎";
+            hint: @tr("Masks");
+            open: root.open-entry == "masks";
+            clicked => {
+                root.choose("masks");
             }
         }
         RailEntry {
