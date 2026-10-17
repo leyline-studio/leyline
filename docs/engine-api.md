@@ -426,12 +426,25 @@ impl ShotRange {
 impl Library {
     pub fn count(&self, query: &GridQuery) -> Result<u64>;
     pub fn grid(&self, query: &GridQuery) -> Result<Vec<GridItem>>;
+    pub fn grid_shapes(&self, query: &GridQuery) -> Result<Vec<GridShape>>; // whole query, `range` ignored
     pub fn asset(&self, id: AssetId) -> Result<AssetDetails>;   // full EXIF, versions, paths
     pub fn shot_facets(&self) -> Result<ShotFacets>;            // observed bodies, lenses and bounds
 }
 ```
 
 `grid` + `range` enable virtual scrolling: the UI never loads more than the visible window, whatever the size of the catalog.
+
+The justified grid ([ADR 0161](adr/0161-the-justified-grid.md)) cannot find
+the row of photograph *n* by arithmetic, so it reads `grid_shapes` — width,
+height and EXIF orientation of **every** matching version, in grid order —
+and lays the rows out with the pure `justify(aspects, &JustifyFrame)`;
+`GridShape::aspect` transposes the quarter turns, counts missing dimensions
+as 3:2 and clamps to [1:3, 3:1]; `step_vertical` answers `↑` / `↓`. Measured
+on the reference library (25 686 versions, release build, 2026-10-17):
+`grid_shapes` 30 ms, `justify` 0.2 ms. That is two frames once per change of
+query, so the layout is computed on the interface thread (ADR 0161
+§Consequences); a change of width or row height re-runs `justify` on the
+shapes already held, never the query.
 
 The six shot filters (ADR 0064) combine by **and** with the others and with
 each other. A photo whose metadata is missing satisfies none of them: it

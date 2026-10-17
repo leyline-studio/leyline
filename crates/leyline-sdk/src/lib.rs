@@ -44,9 +44,10 @@ pub use leyline_cull as cull;
 
 pub use leyline_catalog::{
     AssetDescription, CameraInfo, CollectionNode, ContactSheetPreset, ExportPreset, ExportRecord,
-    FolderNode, GridItem, GridQuery, KeywordNode, LIBRARY_ROOT, LensInfo, LibraryInfo, MapPin,
-    Metadata, Preset, PresetFolder, PrintPreset, RatingRule, Rational, RegisteredAsset,
-    RevisionRow, Root, ShotFacets, ShotRange, SmartRules, Sort, VersionInfo,
+    FolderNode, GridItem, GridQuery, GridShape, JustifiedCell, JustifiedLayout, JustifiedRow,
+    JustifyFrame, KeywordNode, LIBRARY_ROOT, LensInfo, LibraryInfo, MapPin, Metadata, Preset,
+    PresetFolder, PrintPreset, RatingRule, Rational, RegisteredAsset, RevisionRow, Root,
+    ShotFacets, ShotRange, SmartRules, Sort, VersionInfo, justify, step_vertical,
 };
 
 pub use leyline_color::RenderingIntent;

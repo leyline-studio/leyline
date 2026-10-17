@@ -295,6 +295,51 @@ pub struct GridItem {
     pub root_id: i64,
 }
 
+/// The shape of one grid row, as the justified layout reads it (ADR 0161
+/// §2): the file's frame and its EXIF orientation, nothing else.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GridShape {
+    /// Pixel width of the asset as stored, before orientation, when known.
+    pub width: Option<u32>,
+    /// Pixel height of the asset as stored, before orientation, when known.
+    pub height: Option<u32>,
+    /// EXIF orientation tag, when the file carries one.
+    pub orientation: Option<u16>,
+}
+
+impl GridShape {
+    /// The ratio a cell missing its dimensions is drawn at (ADR 0161 §2).
+    pub const DEFAULT_ASPECT: f32 = 3.0 / 2.0;
+    /// The narrowest ratio a cell takes (ADR 0161 §2).
+    pub const MIN_ASPECT: f32 = 1.0 / 3.0;
+    /// The widest ratio a cell takes, so a panorama does not take a row of
+    /// its own at a height of forty pixels (ADR 0161 §2).
+    pub const MAX_ASPECT: f32 = 3.0;
+
+    /// Width over height of the photograph as it is displayed: the stored
+    /// frame, transposed for the quarter turns (EXIF 5–8), clamped
+    /// between [`Self::MIN_ASPECT`] and [`Self::MAX_ASPECT`].
+    ///
+    /// The crop is deliberately not read (ADR 0161 §2): it would cost a
+    /// settings read per photograph to lay out a screen.
+    pub fn aspect(&self) -> f32 {
+        let (Some(width), Some(height)) = (self.width, self.height) else {
+            return Self::DEFAULT_ASPECT;
+        };
+        if width == 0 || height == 0 {
+            return Self::DEFAULT_ASPECT;
+        }
+        // `leyline_raw` stores the sensor's dimensions before orientation,
+        // as `leyline_engine::keystone::frame_aspect` also relies on.
+        let (displayed_width, displayed_height) = if matches!(self.orientation, Some(5..=8)) {
+            (height, width)
+        } else {
+            (width, height)
+        };
+        (displayed_width as f32 / displayed_height as f32).clamp(Self::MIN_ASPECT, Self::MAX_ASPECT)
+    }
+}
+
 impl Catalog {
     /// The subset of `assets` the grid actually shows, in the order it shows
     /// them — the default sort, newest capture first (ADR 0082 §4).
@@ -341,6 +386,37 @@ impl Catalog {
                 row.get::<_, i64>(0)
             })
             .map(|n| n as u64)
+            .map_err(db_err)
+    }
+
+    /// The shape of every version matching the query, in grid order,
+    /// ignoring `range` — what the justified layout needs to place any row
+    /// without arithmetic on its index (ADR 0161 §3).
+    ///
+    /// One flat pass: three integers per row, no thumbnail and no join
+    /// beyond the grid's own trunk. The orientation is a lookup on
+    /// `metadata`'s primary key rather than a join, so the trunk built by
+    /// [`core`] stays the one the grid and the count share.
+    pub fn grid_shapes(&self, query: &GridQuery) -> Result<Vec<GridShape>> {
+        let filter = self.resolve_collection(query)?;
+        let (core, params) = core(query, &filter)?;
+        let order = order_by(query, &filter)?;
+        let sql = format!(
+            "SELECT a.width, a.height,
+                    (SELECT m.orientation FROM metadata m WHERE m.asset_id = a.id)
+             {core}{order}"
+        );
+        let mut stmt = self.conn.prepare(&sql).map_err(db_err)?;
+        let rows = stmt
+            .query_map(rusqlite::params_from_iter(params), |row| {
+                Ok(GridShape {
+                    width: row.get(0)?,
+                    height: row.get(1)?,
+                    orientation: row.get(2)?,
+                })
+            })
+            .map_err(db_err)?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()
             .map_err(db_err)
     }
 

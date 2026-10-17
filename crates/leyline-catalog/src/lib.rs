@@ -16,6 +16,7 @@ mod details;
 mod exports;
 mod folders;
 mod grid;
+mod justify;
 mod keywords;
 mod map;
 mod metadata;
@@ -36,7 +37,10 @@ pub use descriptions::AssetDescription;
 pub use details::AssetDetails;
 pub use exports::{ExportPreset, ExportRecord};
 pub use folders::FolderNode;
-pub use grid::{GRID_COLUMNS, GridItem, GridQuery, ShotRange, Sort};
+pub use grid::{GRID_COLUMNS, GridItem, GridQuery, GridShape, ShotRange, Sort};
+pub use justify::{
+    JustifiedCell, JustifiedLayout, JustifiedRow, JustifyFrame, justify, step_vertical,
+};
 pub use keywords::KeywordNode;
 pub use map::MapPin;
 pub use metadata::{CameraInfo, LensInfo, Metadata, Rational, ShotFacets, gps_fix};

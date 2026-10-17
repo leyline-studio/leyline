@@ -1,8 +1,8 @@
 //! Integration tests: the grid query (`docs/engine-api.md` §7).
 
 use leyline_catalog::{
-    CameraInfo, Catalog, GridQuery, LensInfo, Metadata, NewAsset, Rational, RegisteredAsset,
-    ShotFacets, ShotRange, Sort,
+    CameraInfo, Catalog, GridQuery, GridShape, LensInfo, Metadata, NewAsset, Rational,
+    RegisteredAsset, ShotFacets, ShotRange, Sort,
 };
 use leyline_core::Settings;
 use leyline_core::{
@@ -811,4 +811,73 @@ fn narrows_answers_no_for_the_default_query_and_yes_for_every_criterion() {
     for query in narrowing {
         assert!(query.narrows(), "{query:?}");
     }
+}
+
+#[test]
+fn grid_shapes_follow_the_grid_order_over_the_whole_query() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+    let [heron, _eagle, street] = seeded(&mut catalog);
+    // Held sideways: the stored 6000 × 4000 frame is displayed portrait.
+    catalog
+        .set_metadata(
+            street.asset,
+            &Metadata {
+                orientation: Some(6),
+                ..Metadata::default()
+            },
+        )
+        .unwrap();
+
+    // A window of one row still answers for every matching version.
+    let query = GridQuery {
+        range: 0..1,
+        ..GridQuery::default()
+    };
+    let shapes = catalog.grid_shapes(&query).unwrap();
+    let order = catalog
+        .grid(&GridQuery {
+            range: 0..10,
+            ..GridQuery::default()
+        })
+        .unwrap();
+    assert_eq!(shapes.len(), order.len());
+    assert_eq!(order[0].version_id, heron.version);
+    assert_eq!(order[1].version_id, street.version);
+    assert_eq!(shapes[0].orientation, None);
+    assert_eq!(shapes[1].orientation, Some(6));
+    assert_eq!(shapes[0].aspect(), 1.5);
+    assert_eq!(shapes[1].aspect(), 4000.0 / 6000.0);
+
+    // Filters apply as they do to the grid.
+    let folder = catalog.ensure_folder("Wildlife").unwrap();
+    let wildlife = catalog
+        .grid_shapes(&GridQuery {
+            folder: Some(folder),
+            ..GridQuery::default()
+        })
+        .unwrap();
+    assert_eq!(wildlife.len(), 2);
+}
+
+#[test]
+fn a_shape_without_dimensions_is_three_two_and_panoramas_are_clamped() {
+    let shape = |width, height| GridShape {
+        width,
+        height,
+        orientation: None,
+    };
+    assert_eq!(shape(None, Some(4000)).aspect(), GridShape::DEFAULT_ASPECT);
+    assert_eq!(
+        shape(Some(0), Some(4000)).aspect(),
+        GridShape::DEFAULT_ASPECT
+    );
+    assert_eq!(
+        shape(Some(12_000), Some(1000)).aspect(),
+        GridShape::MAX_ASPECT
+    );
+    assert_eq!(
+        shape(Some(1000), Some(12_000)).aspect(),
+        GridShape::MIN_ASPECT
+    );
 }

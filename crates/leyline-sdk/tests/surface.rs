@@ -19,15 +19,15 @@ use leyline_sdk::{
     ColorGradingZone, ColorLabel, ColorRange, ContactSheetPreset, ContactSheetPresetId,
     ContactSheetRecipe, ContactSheetReport, ContactSheetRequest, ContactSheetSettings, Crop,
     CurvePoint, EditSession, Event, ExportFormat, ExportRecipe, ExportRequest, ExportSettings,
-    FailedRename, Grain, GridItem, GridQuery, HslBand, ImportOptions, ImportReport, ImportedFile,
-    JobId, LensCorrection, LeylineError, Library, LocalAdjustment, LocalAdjustmentValues,
-    LuminanceRange, Margins, Mask, NoiseReduction, Orientation, PaperSize, PickState, Point,
-    Preview, PreviewKind, PrintRecipe, PrintRequest, PrintSettings, RangeMask, RangeSample,
-    RegisteredAsset, RenameReport, RenamedAsset, RenderingIntent, RevisionId, ScanOptions,
-    Settings, Sharpening, ShotFacets, ShotRange, SkippedFile, SpotRemoval, StageVersions,
-    TCA_MIN_SAMPLES, TcaEstimate, ToneCurve, VersionId, Vignette, WHITE_BALANCE_PRESETS,
-    WatchSessionEvent, WatchedFile, Watermark, WatermarkAnchor, WatermarkFont, WhiteBalance,
-    WhiteBalancePreset,
+    FailedRename, Grain, GridItem, GridQuery, GridShape, HslBand, ImportOptions, ImportReport,
+    ImportedFile, JobId, JustifiedCell, JustifiedLayout, JustifiedRow, JustifyFrame,
+    LensCorrection, LeylineError, Library, LocalAdjustment, LocalAdjustmentValues, LuminanceRange,
+    Margins, Mask, NoiseReduction, Orientation, PaperSize, PickState, Point, Preview, PreviewKind,
+    PrintRecipe, PrintRequest, PrintSettings, RangeMask, RangeSample, RegisteredAsset,
+    RenameReport, RenamedAsset, RenderingIntent, RevisionId, ScanOptions, Settings, Sharpening,
+    ShotFacets, ShotRange, SkippedFile, SpotRemoval, StageVersions, TCA_MIN_SAMPLES, TcaEstimate,
+    ToneCurve, VersionId, Vignette, WHITE_BALANCE_PRESETS, WatchSessionEvent, WatchedFile,
+    Watermark, WatermarkAnchor, WatermarkFont, WhiteBalance, WhiteBalancePreset,
 };
 
 /// A `Settings` built field by field, every nested type named through the
@@ -348,6 +348,25 @@ fn a_library_round_trip_needs_nothing_but_the_sdk() {
     let grid: Vec<GridItem> = library.catalog().grid(&GridQuery::default()).unwrap();
     assert!(grid.is_empty());
     assert_eq!(library.catalog().count(&GridQuery::default()).unwrap(), 0);
+
+    // The justified layout (ADR 0161): the shapes and the pure geometry
+    // over them, both reached through the façade.
+    let shapes: Vec<GridShape> = library
+        .catalog()
+        .grid_shapes(&GridQuery::default())
+        .unwrap();
+    let aspects: Vec<f32> = shapes.iter().map(GridShape::aspect).collect();
+    let frame = JustifyFrame {
+        width: 1000.0,
+        row_height: 200.0,
+        gap: 4.0,
+        foot: 20.0,
+    };
+    let layout: JustifiedLayout = leyline_sdk::justify(&aspects, &frame);
+    let rows: &[JustifiedRow] = &layout.rows;
+    let cells: &[JustifiedCell] = &layout.cells;
+    assert!(rows.is_empty() && cells.is_empty());
+    assert_eq!(leyline_sdk::step_vertical(&layout, 0, 1), 0);
 
     // The shot filters and the lists they are chosen from (ADR 0064), named
     // from the SDK: a client never has to reach into the catalog crate.
