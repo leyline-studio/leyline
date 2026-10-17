@@ -64,6 +64,29 @@ impl JustifiedLayout {
         Some(self.rows.partition_point(|row| row.first <= index) - 1)
     }
 
+    /// The grid indices of every row that meets the band `top .. top +
+    /// height` — what the virtual window loads when the viewport travels in
+    /// pixels (ADR 0161 §4). A row spans from its `y` to the next row's, so
+    /// the gap under it counts as its own and no band falls between rows.
+    pub fn indices_in(&self, top: f32, height: f32) -> std::ops::Range<usize> {
+        if self.rows.is_empty() {
+            return 0..0;
+        }
+        let bottom = top + height.max(0.0);
+        // The first row whose span ends below `top`: the row after it starts
+        // below `top`, so search for the last row starting at or above it.
+        let first = self.rows.partition_point(|row| row.y <= top).max(1) - 1;
+        let last = self
+            .rows
+            .partition_point(|row| row.y < bottom)
+            .max(first + 1);
+        let end = self
+            .rows
+            .get(last)
+            .map_or(self.cells.len(), |next| next.first);
+        self.rows[first].first..end
+    }
+
     /// The grid indices of row `row`.
     fn indices_of(&self, row: usize) -> std::ops::Range<usize> {
         let end = self
@@ -251,6 +274,19 @@ mod tests {
         assert_eq!(layout.row_of(4), Some(1));
         assert_eq!(layout.row_of(5), Some(1));
         assert_eq!(layout.row_of(6), None);
+    }
+
+    #[test]
+    fn indices_in_covers_every_row_the_band_meets() {
+        // Rows of 220 px (200 + foot): 0..4 at y 0, 4..8 at 220, 8..9 at 440.
+        let layout = justify(&[1.25; 9], &FRAME);
+        assert_eq!(layout.rows.len(), 3);
+        assert_eq!(layout.indices_in(0.0, 100.0), 0..4);
+        assert_eq!(layout.indices_in(100.0, 200.0), 0..8);
+        assert_eq!(layout.indices_in(220.0, 10.0), 4..8);
+        assert_eq!(layout.indices_in(300.0, 1000.0), 4..9);
+        assert_eq!(layout.indices_in(5000.0, 100.0), 8..9);
+        assert_eq!(JustifiedLayout::default().indices_in(0.0, 100.0), 0..0);
     }
 
     #[test]
