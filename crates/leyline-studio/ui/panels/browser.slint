@@ -91,6 +91,15 @@ export component BrowserPanel inherits HorizontalLayout {
         if (index < 0) {
             return;
         }
+        if (GridState.justified) {
+            // Rust holds the rows (ADR 0161 §4); same smallest move.
+            if (GridState.justified-cell-top(index) * 1px < -flick.viewport-y) {
+                flick.viewport-y = -GridState.justified-cell-top(index) * 1px;
+            } else if (GridState.justified-cell-bottom(index) * 1px > -flick.viewport-y + flick.height) {
+                flick.viewport-y = flick.height - GridState.justified-cell-bottom(index) * 1px;
+            }
+            return;
+        }
         if (Math.floor(index / flick.columns) * root.cell-h < -flick.viewport-y) {
             flick.viewport-y = -Math.floor(index / flick.columns) * root.cell-h;
         } else if ((Math.floor(index / flick.columns) + 1) * root.cell-h > -flick.viewport-y + flick.height) {
@@ -434,19 +443,64 @@ export component BrowserPanel inherits HorizontalLayout {
                 // asks Rust for the matching window.
                 property <int> first-cell: Math.floor(-self.viewport-y / root.cell-h) * self.columns;
                 property <int> visible-cells: (Math.ceil(self.height / root.cell-h) + 1) * self.columns;
-                viewport-height: Math.ceil(GridState.total-cells / self.columns) * root.cell-h;
+                viewport-height: GridState.justified
+                    ? GridState.justified-height * 1px
+                    : Math.ceil(GridState.total-cells / self.columns) * root.cell-h;
                 changed first-cell => {
-                    GridState.viewport-moved(self.first-cell, self.visible-cells);
+                    if (!GridState.justified) {
+                        GridState.viewport-moved(self.first-cell, self.visible-cells);
+                    }
                 }
                 changed visible-cells => {
-                    GridState.viewport-moved(self.first-cell, self.visible-cells);
+                    if (!GridState.justified) {
+                        GridState.viewport-moved(self.first-cell, self.visible-cells);
+                    }
+                }
+
+                // The justified layout (ADR 0161 §4): Rust lays out rows on
+                // the width and the slider's size, and is told the band in
+                // pixels rather than a first index.
+                property <bool> justified: GridState.justified;
+                function report-frame() {
+                    if (self.justified) {
+                        GridState.justified-frame-changed(self.width / 1px, root.cell-size / 1px);
+                        GridState.justified-viewport-moved(-self.viewport-y / 1px, self.height / 1px);
+                    }
+                }
+                init => {
+                    self.report-frame();
+                }
+                changed width => {
+                    self.report-frame();
+                }
+                changed height => {
+                    self.report-frame();
+                }
+                changed justified => {
+                    if (self.justified) {
+                        self.report-frame();
+                    } else {
+                        GridState.viewport-moved(self.first-cell, self.visible-cells);
+                    }
+                    root.scroll-into-view(GridState.selected);
+                }
+                // A local mirror: `changed` attaches to the element's own
+                // properties only.
+                property <length> followed-size: root.cell-size;
+                changed followed-size => {
+                    self.report-frame();
+                }
+                changed viewport-y => {
+                    if (self.justified) {
+                        GridState.justified-viewport-moved(-self.viewport-y / 1px, self.height / 1px);
+                    }
                 }
 
                 for cell[i] in GridState.cells: Rectangle {
-                    x: Math.mod(GridState.window-start + i, flick.columns) * root.cell-size;
-                    y: Math.floor((GridState.window-start + i) / flick.columns) * root.cell-h;
-                    width: root.cell-size;
-                    height: root.cell-h;
+                    x: GridState.justified ? cell.x * 1px : Math.mod(GridState.window-start + i, flick.columns) * root.cell-size;
+                    y: GridState.justified ? cell.y * 1px : Math.floor((GridState.window-start + i) / flick.columns) * root.cell-h;
+                    width: GridState.justified ? cell.w * 1px : root.cell-size;
+                    height: GridState.justified ? cell.h * 1px : root.cell-h;
 
                     Rectangle {
                         x: 4px;
@@ -472,13 +526,16 @@ export component BrowserPanel inherits HorizontalLayout {
                             // square the area holds, both orientations get
                             // the same long edge, which is the rule of the
                             // contact sheet a grid is a picture of.
+                            // Justified, the area *is* the photograph's
+                            // shape (ADR 0161 §2) and the image fills it;
+                            // a crop shows as a thin band, never reframed.
                             Rectangle {
                                 vertical-stretch: 1;
                                 Image {
                                     source: cell.thumbnail;
                                     image-fit: contain;
-                                    width: min(parent.width, parent.height);
-                                    height: self.width;
+                                    width: GridState.justified ? parent.width : min(parent.width, parent.height);
+                                    height: GridState.justified ? parent.height : self.width;
                                     // A `Rectangle` is not a layout: without
                                     // these two the square sits top-left.
                                     x: (parent.width - self.width) / 2;

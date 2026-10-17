@@ -153,7 +153,11 @@ pub(crate) struct App {
     /// Total rows matching the query, loaded or not.
     pub(crate) total: u64,
     /// Last viewport reported by the UI: first visible cell, cell capacity.
+    /// In the justified layout, derived from the pixel band it scrolls to.
     pub(crate) viewport: (usize, usize),
+    /// The justified layout of the whole query while it is the grid's
+    /// layout, `None` in the square one (ADR 0161).
+    pub(crate) justified: Option<crate::wiring::justified::JustifiedGrid>,
     /// Grid indices additionally selected via Ctrl/Shift-click, beyond the
     /// single `selected` focus/anchor the UI tracks itself. Empty means
     /// "just `selected`" — batch actions (rate/label/flag/export) fall back

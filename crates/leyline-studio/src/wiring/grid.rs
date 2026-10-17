@@ -234,6 +234,7 @@ pub(crate) fn load_window(app: &mut App, window: &StudioWindow) -> Result<(), St
             .and_then(|proposal| proposal.entries.iter().find(|e| e.asset == item.asset_id));
         let keeper = entry.is_some_and(|e| e.verdict == leyline_sdk::Verdict::Pick);
         let verdict = entry.map(|e| verdict_words(window, e.verdict));
+        let (x, y, w, h) = crate::wiring::justified::cell_rectangle(app, range.start + index);
         cells.push(Cell {
             thumbnail: thumbnail.unwrap_or_default(),
             filename: SharedString::from(item.filename.as_str()),
@@ -249,6 +250,10 @@ pub(crate) fn load_window(app: &mut App, window: &StudioWindow) -> Result<(), St
             offline: !offline.is_empty() && offline.contains(&item.root_id),
             proposal: verdict.clone().unwrap_or_default(),
             proposal_keep: keeper,
+            x,
+            y,
+            w,
+            h,
         });
     }
     let (visible, above): (VecDeque<usize>, VecDeque<usize>) = missing
@@ -294,6 +299,7 @@ pub(crate) fn reload(app: &mut App, window: &StudioWindow) -> Result<(), String>
     // which: nothing imported yet, or criteria matching nothing (ADR 0054 §1).
     GridState::get(window).set_narrowed(app.query.narrows());
     refresh_status_line(app, window);
+    crate::wiring::justified::refetch_shapes(app, window)?;
     load_window(app, window)?;
 
     let selected = keep

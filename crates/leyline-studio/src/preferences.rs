@@ -154,6 +154,12 @@ pub(crate) struct Preferences {
     /// the viewer's ground, which is `viewer_background` above.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) interface_theme: Option<String>,
+    /// The grid's layout (ADR 0161 §1): `"justified"`, by name for the
+    /// reason `sort` is. **Absent** means the square grid, the default.
+    /// Remembered like `thumbnail_size`, so `G` returns to whichever layout
+    /// was last chosen.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) grid_layout: Option<String>,
 }
 
 /// The theme names `interface_theme` stores, at the position `Theme.choice`
@@ -560,6 +566,7 @@ mod tests {
             panels_folded: Some(true),
             sort: Some("rating-desc".to_owned()),
             interface_theme: Some("light".to_owned()),
+            grid_layout: Some("justified".to_owned()),
         };
         save_preferences(&path, &written).expect("save");
         assert_eq!(load_preferences(&path), written);

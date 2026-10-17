@@ -46,6 +46,13 @@ export struct Cell {
     // **Offline, not missing**: the cell keeps its thumbnail, its rating and
     // its place — what it cannot do is give up its pixels.
     offline: bool,
+    // Where the justified grid draws this cell, in logical pixels, chrome
+    // included (ADR 0161 §4). Filled by Rust, which holds the layout of the
+    // whole query; zero and unread in the square grid.
+    x: float,
+    y: float,
+    w: float,
+    h: float,
 }
 
 // One entry of the camera-profile browser (ADR 0089 §1): the open photo as

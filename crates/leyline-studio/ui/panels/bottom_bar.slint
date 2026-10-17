@@ -89,6 +89,13 @@ export component BottomBar inherits Rectangle {
     property <int> rating: root.focused.stars.character-count;
     property <length> bar-y: root.height - Frame.bottom-bar;
 
+    function choose-layout(justified: bool) {
+        if (GridState.justified != justified) {
+            GridState.justified = justified;
+            GridState.justified-changed();
+        }
+    }
+
     // Leaves whichever of the three library views is open. Each has its own
     // `*-changed` because Rust reacts to each differently.
     function leave-views() {
@@ -134,12 +141,24 @@ export component BottomBar inherits Rectangle {
         padding-bottom: 8px;
         spacing: 6px;
 
+        // The two layouts of the one grid (ADR 0161 §1): `G` returns to
+        // whichever was chosen last, so only these chips switch it.
         FilterChip {
             text: @tr("Grid");
-            active: root.in-grid;
+            active: root.in-grid && !GridState.justified;
             hint: @tr("Grid    G");
             clicked => {
                 root.leave-views();
+                root.choose-layout(false);
+            }
+        }
+        FilterChip {
+            text: @tr("Justified");
+            active: root.in-grid && GridState.justified;
+            hint: @tr("Justified grid: rows at each photograph's shape");
+            clicked => {
+                root.leave-views();
+                root.choose-layout(true);
             }
         }
         FilterChip {

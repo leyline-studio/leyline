@@ -545,11 +545,15 @@ export component StudioWindow inherits Window {
                 return accept;
             }
             if (event.text == Key.UpArrow) {
-                browser.select-cell(GridState.selected - browser.columns);
+                browser.select-cell(GridState.justified
+                    ? GridState.justified-step(GridState.selected, -1)
+                    : GridState.selected - browser.columns);
                 return accept;
             }
             if (event.text == Key.DownArrow) {
-                browser.select-cell(GridState.selected < 0 ? 0 : GridState.selected + browser.columns);
+                browser.select-cell(GridState.selected < 0 ? 0
+                    : GridState.justified ? GridState.justified-step(GridState.selected, 1)
+                    : GridState.selected + browser.columns);
                 return accept;
             }
             GridState.classify(event.text);

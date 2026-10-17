@@ -384,6 +384,7 @@ fn run() -> Result<(), Startup> {
         window_start: 0,
         total: 0,
         viewport: (0, 0),
+        justified: None,
         multi_selected: std::collections::BTreeSet::new(),
         pending_confirm: None,
         loupe_pending: None,
@@ -524,6 +525,7 @@ fn run() -> Result<(), Startup> {
 
     {
         let mut app = app.borrow_mut();
+        wiring::justified::restore_layout(&mut app, &window, &preferences);
         refresh_collections(&mut app, &window)?;
         refresh_folders(&mut app, &window)?;
         refresh_presets(&mut app, &window)?;
@@ -535,6 +537,7 @@ fn run() -> Result<(), Startup> {
     }
 
     wire_select(&app, &window);
+    wiring::justified::wire_justified(&app, &window, &preferences);
     wire_classify(&app, &window);
     wire_removal(&app, &window);
     wire_pairs(&app, &window);

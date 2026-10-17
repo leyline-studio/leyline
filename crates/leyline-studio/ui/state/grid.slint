@@ -41,6 +41,27 @@ export global GridState {
     callback clear-criteria();
     // First visible cell and how many cells fit, sent on scroll or resize.
     callback viewport-moved(int, int);
+
+    // The justified layout (ADR 0161): rows of one height, each photograph
+    // at its own shape. `in-out` because the bottom bar sets it and Rust
+    // restores it at launch; `justified-changed` tells Rust, which holds
+    // the layout and remembers the choice.
+    in-out property <bool> justified;
+    callback justified-changed();
+    // Height of the whole justified grid, for the scrollbar.
+    in property <float> justified-height;
+    // The grid's width and the slider's size, whenever either changes:
+    // Rust lays the rows out again on the shapes it holds.
+    callback justified-frame-changed(float, float);
+    // The band the viewport shows, top then height, in place of
+    // `viewport-moved`: in this layout no arithmetic on an index finds a row.
+    callback justified-viewport-moved(float, float);
+    // `↑` / `↓` (§5): the index of the photograph above (-1) or below (+1)
+    // whose centre is closest.
+    pure callback justified-step(int, int) -> int;
+    // Top and bottom of a cell, for scrolling it into view.
+    pure callback justified-cell-top(int) -> float;
+    pure callback justified-cell-bottom(int) -> float;
     // Loupe view (ADR 0055 §3): the selected photo, large, from the same
     // cached preview develop uses — no edit session is opened, so nothing is
     // written and there is nothing to undo. `loupe-mode` is `in-out` because
