@@ -20,6 +20,7 @@ import { GridState } from "../state/grid.slint";
 import { MapState } from "../state/map.slint";
 import { FilterChip, RangeField } from "../widgets/controls.slint";
 import { PhotoInfo, PhotoKeywords } from "photo_details.slint";
+import { Rail } from "rail.slint";
 import { DragState } from "../state/drag.slint";
 import { KeywordState } from "../state/keyword.slint";
 import { PreferencesState } from "../state/preferences.slint";
@@ -36,6 +37,24 @@ export component BrowserPanel inherits HorizontalLayout {
     // column left of the grid is the window's own since ADR 0158 §3; this
     // view only leaves it room.
     in property <bool> detail-hidden;
+    in property <bool> rail-hidden;
+    // The open rail entry, the window's so the grid and the loupe share it,
+    // and whether Retouch and Masks are offered (ADR 0160 §2).
+    in-out property <string> rail-entry: "info";
+    in property <bool> full-mode;
+    // A develop entry was picked: the window enters Develop with it open.
+    callback develop-entry(string);
+    changed rail-entry => {
+        if (self.rail-entry != "" && self.rail-entry != "info" && self.rail-entry != "keywords") {
+            root.develop-entry(self.rail-entry);
+            root.rail-entry = root.library-entry;
+        } else {
+            root.library-entry = self.rail-entry;
+        }
+    }
+    // What the grid's rail showed before a develop entry was picked, given
+    // back when Develop is left.
+    property <string> library-entry: "info";
     in property <bool> chrome-hidden;
     in property <length> left-inset;
     // How many thumbnails fit per row. Exposed because the window's Up/Down
@@ -881,7 +900,11 @@ export component BrowserPanel inherits HorizontalLayout {
             }
         }
 
-        if !root.detail-hidden: Rectangle {
+        // The rail (ADR 0158 §4) in the grid as in Develop: its bottom
+        // group opens here, any develop entry switches to the loupe with
+        // that panel open (§5). The panel folds with the window's width,
+        // the rail does not.
+        if !root.detail-hidden && (root.rail-entry == "info" || root.rail-entry == "keywords"): Rectangle {
             width: 300px;
             background: Theme.surface;
 
@@ -894,16 +917,20 @@ export component BrowserPanel inherits HorizontalLayout {
                     height: Frame.top-bar;
                 }
 
-                PhotoInfo {
+                if root.rail-entry == "info": PhotoInfo {
                     return-focus => {
                         root.return-focus();
                     }
                 }
-                PhotoKeywords {
+                if root.rail-entry == "keywords": PhotoKeywords {
                     return-focus => {
                         root.return-focus();
                     }
                 }
             }
+        }
+        if !root.rail-hidden: Rail {
+            open-entry <=> root.rail-entry;
+            full-mode: root.full-mode;
         }
 }

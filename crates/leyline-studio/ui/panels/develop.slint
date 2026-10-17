@@ -135,7 +135,7 @@ export component DevelopPanel inherits HorizontalLayout {
     // choice made in this session is never overwritten by the one stored
     // from the last.
     property <int> stored-view: PreferencesState.develop-view;
-    property <bool> basic-mode: !root.stored-bit(root.stored-view, 0, false);
+    out property <bool> basic-mode: !root.stored-bit(root.stored-view, 0, false);
     // White balance, tone and presence are one foldable group now, read as a
     // single sequence (ADR 0054 §2), so they share one flag.
     property <bool> expand-basic: root.stored-bit(root.stored-view, 1, true);
@@ -352,7 +352,7 @@ export component DevelopPanel inherits HorizontalLayout {
     // closed it by clicking the open entry. Kept across launches as
     // interface state (ADR 0128), stored as "none" for a closed panel so
     // that "never stored" (`""`, a first launch) can open on the settings.
-    property <string> rail-entry: PreferencesState.develop-rail == ""
+    in-out property <string> rail-entry: PreferencesState.develop-rail == ""
         ? "edit"
         : (PreferencesState.develop-rail == "none" ? "" : PreferencesState.develop-rail);
     changed rail-entry => {

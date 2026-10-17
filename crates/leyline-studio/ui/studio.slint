@@ -549,6 +549,15 @@ export component StudioWindow inherits Window {
 
         browser := BrowserPanel {
             detail-hidden: root.browser-detail-folded;
+            rail-hidden: root.side-panels-hidden;
+            full-mode: !develop.basic-mode;
+            develop-entry(entry) => {
+                // As `D` does from the grid: Develop is the loupe with a
+                // rail panel open (ADR 0158 §5).
+                develop.rail-entry = entry;
+                GridState.loupe-mode = false;
+                DevelopState.enter-develop();
+            }
             chrome-hidden: root.chrome-hidden;
             left-inset: root.library-inset;
             return-focus => {
