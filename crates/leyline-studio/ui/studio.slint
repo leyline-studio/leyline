@@ -540,6 +540,9 @@ export component StudioWindow inherits Window {
             side-panels-hidden: root.side-panels-hidden;
             left-inset: root.library-inset;
             chrome-hidden: root.chrome-hidden;
+            return-focus => {
+                keys.focus();
+            }
         }
 
         MapPanel { }

@@ -100,8 +100,9 @@ export component Rail inherits Rectangle {
         background: Theme.raised;
     }
 
+    // Stretched rather than packed at the top: the filler above Keywords
+    // is what pushes the bottom group down to the foot of the rail.
     VerticalLayout {
-        alignment: start;
 
         Rectangle {
             height: Frame.top-bar;
@@ -165,6 +166,30 @@ export component Rail inherits Rectangle {
             clicked => {
                 root.choose("history");
             }
+        }
+        // The bottom group (ADR 0158 §4): what the library knows about the
+        // photograph, apart from what develops it.
+        Rectangle {
+            vertical-stretch: 1;
+        }
+        RailEntry {
+            glyph: "#";
+            hint: @tr("Keywords");
+            open: root.open-entry == "keywords";
+            clicked => {
+                root.choose("keywords");
+            }
+        }
+        RailEntry {
+            glyph: "i";
+            hint: @tr("Info");
+            open: root.open-entry == "info";
+            clicked => {
+                root.choose("info");
+            }
+        }
+        Rectangle {
+            height: Frame.bottom-bar;
         }
     }
 }

@@ -1,0 +1,253 @@
+// The photograph's file, camera and authored description, and its
+// keywords: the library's detail panel, mounted by the grid and by the
+// rail of Develop (ADR 0158 §4) so both read and write the same thing.
+
+import { Theme } from "../theme.slint";
+import { DetailState } from "../state/detail.slint";
+import { FilterState } from "../state/filter.slint";
+import { GridState } from "../state/grid.slint";
+import { DetailRow } from "../widgets/controls.slint";
+
+export component PhotoInfo inherits VerticalLayout {
+    // Hands keyboard focus back to the window after a field is validated.
+    callback return-focus();
+
+    spacing: 10px;
+
+    Text {
+        text: GridState.selected < 0 ? @tr("No photo selected") : DetailState.detail-filename;
+        color: Theme.text;
+        font-size: 15px;
+        font-weight: 600;
+        overflow: elide;
+    }
+    if GridState.selected >= 0: VerticalLayout {
+        spacing: 6px;
+        DetailRow {
+            label: @tr("Path");
+            value: DetailState.detail-path;
+        }
+        DetailRow {
+            label: @tr("Captured");
+            value: DetailState.detail-capture;
+        }
+        DetailRow {
+            label: @tr("Size");
+            value: DetailState.detail-dimensions;
+        }
+        DetailRow {
+            label: @tr("File");
+            value: DetailState.detail-file-size;
+        }
+        DetailRow {
+            label: @tr("Camera");
+            value: DetailState.detail-camera;
+        }
+        DetailRow {
+            label: @tr("Lens");
+            value: DetailState.detail-lens;
+        }
+        DetailRow {
+            label: @tr("Exposure");
+            value: DetailState.detail-exposure;
+        }
+        if DetailState.detail-companion != "": DetailRow {
+            label: @tr("Companion file");
+            value: DetailState.detail-companion;
+        }
+
+        // What someone writes about the photograph (ADR 0099).
+        // Editable, unlike every row above: those report what
+        // the file says, these are the photographer's own.
+        // Committed on Enter, like the keyword field — a field
+        // saving on every keystroke would write a revision per
+        // letter.
+        Text {
+            text: @tr("Description");
+            color: Theme.text-dim;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        for field in [
+            { key: "title", label: @tr("Title"), value: DetailState.written-title, hint: "" },
+            { key: "caption", label: @tr("Caption"), value: DetailState.written-caption, hint: "" },
+            // Only these two have a file equivalent worth
+            // showing (ADR 0147 §1): no EXIF tag means what a
+            // title or a caption means.
+            { key: "creator", label: @tr("Creator"), value: DetailState.written-creator,
+              hint: DetailState.file-creator-hint },
+            { key: "copyright", label: @tr("Copyright"), value: DetailState.written-copyright,
+              hint: DetailState.file-copyright-hint },
+        ]: HorizontalLayout {
+            // 72px and 8px, which is what `DetailRow` uses for
+            // every row above: these four were 90px and 6px, so
+            // the labels of one block did not line up with the
+            // labels of the other, and the field was 20px
+            // narrower than it could be (ADR 0147 §1 needs the
+            // room for its hint).
+            spacing: 8px;
+            Text {
+                width: 72px;
+                text: field.label;
+                color: Theme.text-dim;
+                font-size: 12px;
+                vertical-alignment: center;
+            }
+            Rectangle {
+                height: 24px;
+                horizontal-stretch: 1;
+                background: Theme.surface;
+                border-radius: 4px;
+                border-width: 1px;
+                border-color: written-input.has-focus ? Theme.focus : Theme.border;
+                // What the file says, while nobody has written
+                // anything (ADR 0147 §1). A hint and never a
+                // value: nothing is stored, and it is what the
+                // export would write on its own. Declared
+                // before the input so the input paints over it,
+                // and it carries no `TouchArea` — a click goes
+                // through to the field underneath.
+                if field.hint != "" && written-input.text == "": Text {
+                    x: 8px;
+                    width: parent.width - 16px;
+                    height: 100%;
+                    text: field.hint;
+                    color: Theme.text-disabled;
+                    font-size: 12px;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+                written-input := TextInput {
+                    x: 8px;
+                    width: parent.width - 16px;
+                    height: 100%;
+                    text: field.value;
+                    color: Theme.text;
+                    font-size: 12px;
+                    vertical-alignment: center;
+                    single-line: true;
+                    accepted => {
+                        DetailState.write-description(field.key, self.text);
+                        root.return-focus();
+                    }
+                }
+            }
+        }
+    }
+}
+
+export component PhotoKeywords inherits VerticalLayout {
+    callback return-focus();
+
+    spacing: 6px;
+
+    if GridState.selected >= 0: VerticalLayout {
+        spacing: 6px;
+        Text {
+            text: @tr("Keywords");
+            color: Theme.text-dim;
+            font-size: 11px;
+        }
+        for kw[i] in DetailState.detail-keywords: HorizontalLayout {
+            spacing: 6px;
+            TouchArea {
+                horizontal-stretch: 1;
+                Text {
+                    text: kw;
+                    color: FilterState.filter-keyword-label == kw ? Theme.focus : Theme.text;
+                    font-size: 12px;
+                    overflow: elide;
+                    width: 100%;
+                    height: 100%;
+                    vertical-alignment: center;
+                }
+                clicked => {
+                    FilterState.keyword-filter(i);
+                }
+            }
+            TouchArea {
+                width: 16px;
+                height: 16px;
+                Text {
+                    text: "×";
+                    color: Theme.text-dim;
+                    font-size: 12px;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    width: 100%;
+                    height: 100%;
+                }
+                clicked => {
+                    DetailState.remove-keyword(i);
+                }
+            }
+        }
+        Rectangle {
+            height: 24px;
+            background: Theme.surface;
+            border-radius: 4px;
+            border-width: 1px;
+            border-color: keyword-input.text == "" ? Theme.border : Theme.focus;
+            keyword-input := TextInput {
+                x: 8px;
+                width: parent.width - 16px;
+                height: 100%;
+                color: Theme.text;
+                font-size: 12px;
+                vertical-alignment: center;
+                single-line: true;
+                // What exists, before something new is made
+                // (ADR 0134 §3). Rust matches on **any level**,
+                // so `her` finds `Nature/Birds/Heron` without
+                // typing the branch.
+                edited => {
+                    DetailState.suggest-keywords(self.text);
+                }
+                accepted => {
+                    DetailState.add-keyword(self.text);
+                    self.text = "";
+                    DetailState.suggest-keywords("");
+                    root.return-focus();
+                }
+            }
+            if keyword-input.text == "" && !keyword-input.has-focus: Text {
+                x: 8px;
+                height: 100%;
+                text: @tr("Add keyword (Nature/Birds)…");
+                color: Theme.text-disabled;
+                font-size: 12px;
+                vertical-alignment: center;
+            }
+        }
+        // The suggestions, under the field and only while there
+        // are any: clicking one tags with the path it names,
+        // which is also how a misspelling gets corrected — the
+        // wrong spelling has nothing behind it and the right one
+        // is one click away (ADR 0134 §3).
+        if DetailState.keyword-suggestions.length > 0: VerticalLayout {
+            spacing: 1px;
+            for path[s] in DetailState.keyword-suggestions: Rectangle {
+                height: 20px;
+                background: suggestion-touch.has-hover ? Theme.active : Theme.raised;
+                border-radius: 3px;
+                Text {
+                    x: 8px;
+                    width: parent.width - 16px;
+                    height: 100%;
+                    text: path;
+                    color: Theme.text;
+                    font-size: 11px;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+                suggestion-touch := TouchArea {
+                    clicked => {
+                        DetailState.add-keyword(path);
+                        keyword-input.text = "";
+                        DetailState.suggest-keywords("");
+                    }
+                }
+            }
+        }
+    }
+}
