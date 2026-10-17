@@ -82,6 +82,8 @@ component CropGlyph inherits Rectangle {
 
 export component Rail inherits Rectangle {
     in-out property <string> open-entry;
+    // Retouch is a Full-mode entry (ADR 0160 §2), as its chips were.
+    in property <bool> full-mode: true;
 
     width: Frame.rail;
     background: Theme.surface;
@@ -120,6 +122,15 @@ export component Rail inherits Rectangle {
             }
             CropGlyph {
                 ink: crop.open ? Theme.focus : Theme.text-dim;
+            }
+        }
+        if root.full-mode: RailEntry {
+            // The first-aid cross: a repair, in a block every font here has.
+            glyph: "✚";
+            hint: @tr("Retouch");
+            open: root.open-entry == "retouch";
+            clicked => {
+                root.choose("retouch");
             }
         }
         RailEntry {

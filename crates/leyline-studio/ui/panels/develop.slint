@@ -348,7 +348,7 @@ export component DevelopPanel inherits HorizontalLayout {
     }
 
     // Which panel the rail shows on the right (ADR 0158 §4): "edit" (the
-    // settings), "crop", "presets", "versions", "history", or "" when the user
+    // settings), "crop", "retouch", "presets", "versions", "history", or "" when the user
     // closed it by clicking the open entry. Kept across launches as
     // interface state (ADR 0128), stored as "none" for a closed panel so
     // that "never stored" (`""`, a first launch) can open on the settings.
@@ -359,23 +359,42 @@ export component DevelopPanel inherits HorizontalLayout {
         PreferencesState.remember-develop-rail(self.rail-entry == "" ? "none" : self.rail-entry);
         root.follow-rail();
     }
+    // The tools the Retouch panel picks between.
+    function is-retouch-tool(tool: string) -> bool {
+        return tool == "spot" || tool == "red-eye" || tool == "reshape";
+    }
     // A tool entry is a panel and a tool together (ADR 0160 §1): opening
-    // Crop picks the crop tool, leaving it puts Select back.
+    // Crop picks the crop tool, opening Retouch picks Spot Removal, and
+    // leaving either puts Select back.
     function follow-rail() {
-        if (root.rail-entry == "crop") {
+        if (root.rail-entry == "retouch" && root.basic-mode) {
+            // Remembered from a Full-mode session: Basic has no Retouch.
+            root.rail-entry = "edit";
+        } else if (root.rail-entry == "crop") {
             root.active-tool = "crop";
             root.spot-pending = false;
             root.dev-zoomed = false;
-        } else if (root.active-tool == "crop") {
+        } else if (root.rail-entry == "retouch") {
+            if (!root.is-retouch-tool(root.active-tool)) {
+                root.active-tool = "spot";
+                root.spot-pending = false;
+                root.dev-zoomed = false;
+                root.expand-spot-removal = true;
+            }
+        } else if (root.active-tool == "crop" || root.is-retouch-tool(root.active-tool)) {
             root.active-tool = "select";
+            root.spot-pending = false;
         }
     }
     // And the other way: a tool picked from the toolbar — what is left of
-    // it until ADR 0160 §5's last slice — closes the Crop panel it no
+    // it until ADR 0160 §5's last slice — closes the tool panel it no
     // longer matches, rather than leave a panel open on a gesture that
     // is not the one the photograph answers.
     changed active-tool => {
         if (self.active-tool != "crop" && root.rail-entry == "crop") {
+            root.rail-entry = "edit";
+        }
+        if (!root.is-retouch-tool(self.active-tool) && root.rail-entry == "retouch") {
             root.rail-entry = "edit";
         }
     }
@@ -626,37 +645,6 @@ export component DevelopPanel inherits HorizontalLayout {
                     }
 
                     if !root.basic-mode: ToolSeparator { }
-                    if !root.basic-mode: FilterChip {
-                        text: @tr("Spot Removal");
-                        active: root.active-tool == "spot";
-                        clicked => {
-                            root.active-tool = "spot";
-                            root.dev-zoomed = false;
-                        }
-                    }
-                    if !root.basic-mode: FilterChip {
-                        // Red-eye (ADR 0103): one click per pupil, where spot
-                        // removal takes two.
-                        text: @tr("Red Eye");
-                        active: root.active-tool == "red-eye";
-                        clicked => {
-                            root.active-tool = "red-eye";
-                            root.spot-pending = false;
-                            root.dev-zoomed = false;
-                            root.expand-red-eye = true;
-                        }
-                    }
-
-                    if !root.basic-mode: FilterChip {
-                        text: @tr("Reshape");
-                        active: root.active-tool == "reshape";
-                        clicked => {
-                            root.active-tool = "reshape";
-                            root.dev-zoomed = false;
-                            root.expand-reshape = true;
-                        }
-                    }
-
                     // Keystone by drawn lines (ADR 0119). Picking it zeroes the
                     // two perspective sliders: the guides are read against the
                     // photograph *before* the correction, and drawing "this
@@ -1791,6 +1779,329 @@ export component DevelopPanel inherits HorizontalLayout {
                             }
                         }
                     }
+                    Rectangle {
+                        height: Frame.bottom-bar;
+                    }
+                }
+            }
+
+            // The Retouch entry (ADR 0160 §2): the three repairs of the
+            // photograph's content, the tool first and then what it placed.
+            // Full mode only, like the chips it replaces (ADR 0054 §2).
+            if root.rail-entry == "retouch": Flickable {
+                VerticalLayout {
+                    padding: 16px;
+                    spacing: 12px;
+                    alignment: start;
+                    Rectangle {
+                        height: Frame.top-bar;
+                    }
+                    HorizontalLayout {
+                        spacing: 6px;
+                        alignment: start;
+                        FilterChip {
+                            text: @tr("Spot Removal");
+                            active: root.active-tool == "spot";
+                            clicked => {
+                                root.active-tool = "spot";
+                                root.expand-spot-removal = true;
+                            }
+                        }
+                        FilterChip {
+                            // Red-eye (ADR 0103): one click per pupil, where spot
+                            // removal takes two.
+                            text: @tr("Red Eye");
+                            active: root.active-tool == "red-eye";
+                            clicked => {
+                                root.active-tool = "red-eye";
+                                root.spot-pending = false;
+                                root.expand-red-eye = true;
+                            }
+                        }
+                        FilterChip {
+                            text: @tr("Reshape");
+                            active: root.active-tool == "reshape";
+                            clicked => {
+                                root.active-tool = "reshape";
+                                root.spot-pending = false;
+                                root.expand-reshape = true;
+                            }
+                        }
+                    }
+                    GroupHeader {
+                        label: @tr("Spot Removal");
+                        group: "spot-removal";
+                        reset => {
+                            DevelopState.reset-group("spot-removal");
+                        }
+                        expanded <=> root.expand-spot-removal;
+                    }
+                    if root.expand-spot-removal: VerticalLayout {
+                        spacing: 8px;
+                        Text {
+                            text: @tr("Pick the Spot Removal tool above, click a clean source, then the spot to fix.");
+                            color: Theme.text-disabled;
+                            font-size: 11px;
+                            wrap: word-wrap;
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            VerticalLayout {
+                                spacing: 4px;
+                                horizontal-stretch: 1;
+                                Text {
+                                    text: @tr("Radius %");
+                                    color: Theme.text-dim;
+                                    font-size: 12px;
+                                }
+                                Rectangle {
+                                    height: 26px;
+                                    background: Theme.surface;
+                                    border-radius: 4px;
+                                    border-width: 1px;
+                                    border-color: Theme.border;
+                                    TextInput {
+                                        x: 6px;
+                                        width: parent.width - 12px;
+                                        height: 100%;
+                                        text <=> DevelopState.spot-radius-text;
+                                        color: Theme.text;
+                                        font-size: 12px;
+                                        vertical-alignment: center;
+                                        single-line: true;
+                                    }
+                                }
+                            }
+                            VerticalLayout {
+                                spacing: 4px;
+                                horizontal-stretch: 1;
+                                Text {
+                                    text: @tr("Feather %");
+                                    color: Theme.text-dim;
+                                    font-size: 12px;
+                                }
+                                Rectangle {
+                                    height: 26px;
+                                    background: Theme.surface;
+                                    border-radius: 4px;
+                                    border-width: 1px;
+                                    border-color: Theme.border;
+                                    TextInput {
+                                        x: 6px;
+                                        width: parent.width - 12px;
+                                        height: 100%;
+                                        text <=> DevelopState.spot-feather-text;
+                                        color: Theme.text;
+                                        font-size: 12px;
+                                        vertical-alignment: center;
+                                        single-line: true;
+                                    }
+                                }
+                            }
+                            VerticalLayout {
+                                spacing: 4px;
+                                horizontal-stretch: 1;
+                                Text {
+                                    text: @tr("Opacity %");
+                                    color: Theme.text-dim;
+                                    font-size: 12px;
+                                }
+                                Rectangle {
+                                    height: 26px;
+                                    background: Theme.surface;
+                                    border-radius: 4px;
+                                    border-width: 1px;
+                                    border-color: Theme.border;
+                                    TextInput {
+                                        x: 6px;
+                                        width: parent.width - 12px;
+                                        height: 100%;
+                                        text <=> DevelopState.spot-opacity-text;
+                                        color: Theme.text;
+                                        font-size: 12px;
+                                        vertical-alignment: center;
+                                        single-line: true;
+                                    }
+                                }
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Text {
+                                text: @tr("{} spot(s)", DevelopState.dev-spot-count);
+                                color: Theme.text-dim;
+                                font-size: 12px;
+                                vertical-alignment: center;
+                                horizontal-stretch: 1;
+                            }
+                            FilterChip {
+                                text: @tr("Undo Last");
+                                active: false;
+                                clicked => {
+                                    DevelopState.develop-spot-undo();
+                                }
+                            }
+                            FilterChip {
+                                text: @tr("Clear All");
+                                active: false;
+                                clicked => {
+                                    DevelopState.develop-spot-reset();
+                                }
+                            }
+                        }
+                    }
+
+                    GroupHeader {
+                        label: @tr("Red Eye");
+                        group: "red-eye";
+                        reset => {
+                            DevelopState.reset-group("red-eye");
+                        }
+                        expanded <=> root.expand-red-eye;
+                    }
+                    if root.expand-red-eye: VerticalLayout {
+                        spacing: 8px;
+                        Text {
+                            text: @tr("Pick the Red Eye tool above, then click each pupil. Only red pixels inside the circle are corrected, so the circle need not be precise.");
+                            color: Theme.text-disabled;
+                            font-size: 11px;
+                            wrap: word-wrap;
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            for field in [
+                                { label: @tr("Radius %"), value: DevelopState.red-eye-radius-text, key: "radius" },
+                                { label: @tr("Feather"), value: DevelopState.red-eye-feather-text, key: "feather" },
+                                { label: @tr("Darken"), value: DevelopState.red-eye-darken-text, key: "darken" },
+                            ]: VerticalLayout {
+                                spacing: 4px;
+                                horizontal-stretch: 1;
+                                Text {
+                                    text: field.label;
+                                    color: Theme.text-dim;
+                                    font-size: 12px;
+                                }
+                                Rectangle {
+                                    height: 26px;
+                                    background: Theme.surface;
+                                    border-radius: 4px;
+                                    border-width: 1px;
+                                    border-color: Theme.border;
+                                    red-eye-input := TextInput {
+                                        x: 6px;
+                                        width: parent.width - 12px;
+                                        height: 100%;
+                                        text: field.value;
+                                        color: Theme.text;
+                                        font-size: 12px;
+                                        vertical-alignment: center;
+                                        single-line: true;
+                                        edited => {
+                                            if (field.key == "radius") {
+                                                DevelopState.red-eye-radius-text = self.text;
+                                            } else if (field.key == "feather") {
+                                                DevelopState.red-eye-feather-text = self.text;
+                                            } else {
+                                                DevelopState.red-eye-darken-text = self.text;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        HorizontalLayout {
+                            alignment: space-between;
+                            Text {
+                                text: @tr("{} placed", DevelopState.dev-red-eye-count);
+                                color: Theme.text-dim;
+                                font-size: 12px;
+                                vertical-alignment: center;
+                            }
+                            FilterChip {
+                                text: @tr("Clear");
+                                active: false;
+                                enabled: DevelopState.dev-red-eye-count > 0;
+                                clicked => {
+                                    DevelopState.develop-red-eye-reset();
+                                }
+                            }
+                        }
+                    }
+
+                    GroupHeader {
+                        label: @tr("Reshape");
+                        group: "reshape";
+                        reset => {
+                            DevelopState.reset-group("reshape");
+                        }
+                        expanded <=> root.expand-reshape;
+                    }
+                    if root.expand-reshape: VerticalLayout {
+                        spacing: 8px;
+                        Text {
+                            text: @tr("Pick the Reshape tool above, then drag from the content to where it should go. The pixels within the radius follow and fade to nothing at its edge; nothing is invented.");
+                            color: Theme.text-disabled;
+                            font-size: 11px;
+                            wrap: word-wrap;
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            for field in [
+                                { label: @tr("Radius %"), value: DevelopState.reshape-radius-text, key: "radius" },
+                                { label: @tr("Strength"), value: DevelopState.reshape-strength-text, key: "strength" },
+                            ]: VerticalLayout {
+                                spacing: 4px;
+                                horizontal-stretch: 1;
+                                Text {
+                                    text: field.label;
+                                    color: Theme.text-dim;
+                                    font-size: 12px;
+                                }
+                                Rectangle {
+                                    height: 26px;
+                                    background: Theme.surface;
+                                    border-radius: 4px;
+                                    border-width: 1px;
+                                    border-color: Theme.border;
+                                    reshape-input := TextInput {
+                                        x: 6px;
+                                        width: parent.width - 12px;
+                                        height: 100%;
+                                        text: field.value;
+                                        color: Theme.text;
+                                        font-size: 12px;
+                                        vertical-alignment: center;
+                                        single-line: true;
+                                        edited => {
+                                            if (field.key == "radius") {
+                                                DevelopState.reshape-radius-text = self.text;
+                                            } else {
+                                                DevelopState.reshape-strength-text = self.text;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        HorizontalLayout {
+                            alignment: space-between;
+                            Text {
+                                text: @tr("{} placed", DevelopState.dev-reshape-count);
+                                color: Theme.text-dim;
+                                font-size: 12px;
+                                vertical-alignment: center;
+                            }
+                            FilterChip {
+                                text: @tr("Clear");
+                                active: false;
+                                enabled: DevelopState.dev-reshape-count > 0;
+                                clicked => {
+                                    DevelopState.develop-reshape-reset();
+                                }
+                            }
+                        }
+                    }
+
                     Rectangle {
                         height: Frame.bottom-bar;
                     }
@@ -3383,280 +3694,6 @@ export component DevelopPanel inherits HorizontalLayout {
                     }
 
                     if !root.basic-mode: GroupHeader {
-                        label: @tr("Reshape");
-                        group: "reshape";
-                        reset => {
-                            DevelopState.reset-group("reshape");
-                        }
-                        expanded <=> root.expand-reshape;
-                    }
-                    if !root.basic-mode && root.expand-reshape: VerticalLayout {
-                        spacing: 8px;
-                        Text {
-                            text: @tr("Pick the Reshape tool above, then drag from the content to where it should go. The pixels within the radius follow and fade to nothing at its edge; nothing is invented.");
-                            color: Theme.text-disabled;
-                            font-size: 11px;
-                            wrap: word-wrap;
-                        }
-                        HorizontalLayout {
-                            spacing: 8px;
-                            for field in [
-                                { label: @tr("Radius %"), value: DevelopState.reshape-radius-text, key: "radius" },
-                                { label: @tr("Strength"), value: DevelopState.reshape-strength-text, key: "strength" },
-                            ]: VerticalLayout {
-                                spacing: 4px;
-                                horizontal-stretch: 1;
-                                Text {
-                                    text: field.label;
-                                    color: Theme.text-dim;
-                                    font-size: 12px;
-                                }
-                                Rectangle {
-                                    height: 26px;
-                                    background: Theme.surface;
-                                    border-radius: 4px;
-                                    border-width: 1px;
-                                    border-color: Theme.border;
-                                    reshape-input := TextInput {
-                                        x: 6px;
-                                        width: parent.width - 12px;
-                                        height: 100%;
-                                        text: field.value;
-                                        color: Theme.text;
-                                        font-size: 12px;
-                                        vertical-alignment: center;
-                                        single-line: true;
-                                        edited => {
-                                            if (field.key == "radius") {
-                                                DevelopState.reshape-radius-text = self.text;
-                                            } else {
-                                                DevelopState.reshape-strength-text = self.text;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        HorizontalLayout {
-                            alignment: space-between;
-                            Text {
-                                text: @tr("{} placed", DevelopState.dev-reshape-count);
-                                color: Theme.text-dim;
-                                font-size: 12px;
-                                vertical-alignment: center;
-                            }
-                            FilterChip {
-                                text: @tr("Clear");
-                                active: false;
-                                enabled: DevelopState.dev-reshape-count > 0;
-                                clicked => {
-                                    DevelopState.develop-reshape-reset();
-                                }
-                            }
-                        }
-                    }
-
-                    if !root.basic-mode: GroupHeader {
-                        label: @tr("Red Eye");
-                        group: "red-eye";
-                        reset => {
-                            DevelopState.reset-group("red-eye");
-                        }
-                        expanded <=> root.expand-red-eye;
-                    }
-                    if !root.basic-mode && root.expand-red-eye: VerticalLayout {
-                        spacing: 8px;
-                        Text {
-                            text: @tr("Pick the Red Eye tool above, then click each pupil. Only red pixels inside the circle are corrected, so the circle need not be precise.");
-                            color: Theme.text-disabled;
-                            font-size: 11px;
-                            wrap: word-wrap;
-                        }
-                        HorizontalLayout {
-                            spacing: 8px;
-                            for field in [
-                                { label: @tr("Radius %"), value: DevelopState.red-eye-radius-text, key: "radius" },
-                                { label: @tr("Feather"), value: DevelopState.red-eye-feather-text, key: "feather" },
-                                { label: @tr("Darken"), value: DevelopState.red-eye-darken-text, key: "darken" },
-                            ]: VerticalLayout {
-                                spacing: 4px;
-                                horizontal-stretch: 1;
-                                Text {
-                                    text: field.label;
-                                    color: Theme.text-dim;
-                                    font-size: 12px;
-                                }
-                                Rectangle {
-                                    height: 26px;
-                                    background: Theme.surface;
-                                    border-radius: 4px;
-                                    border-width: 1px;
-                                    border-color: Theme.border;
-                                    red-eye-input := TextInput {
-                                        x: 6px;
-                                        width: parent.width - 12px;
-                                        height: 100%;
-                                        text: field.value;
-                                        color: Theme.text;
-                                        font-size: 12px;
-                                        vertical-alignment: center;
-                                        single-line: true;
-                                        edited => {
-                                            if (field.key == "radius") {
-                                                DevelopState.red-eye-radius-text = self.text;
-                                            } else if (field.key == "feather") {
-                                                DevelopState.red-eye-feather-text = self.text;
-                                            } else {
-                                                DevelopState.red-eye-darken-text = self.text;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        HorizontalLayout {
-                            alignment: space-between;
-                            Text {
-                                text: @tr("{} placed", DevelopState.dev-red-eye-count);
-                                color: Theme.text-dim;
-                                font-size: 12px;
-                                vertical-alignment: center;
-                            }
-                            FilterChip {
-                                text: @tr("Clear");
-                                active: false;
-                                enabled: DevelopState.dev-red-eye-count > 0;
-                                clicked => {
-                                    DevelopState.develop-red-eye-reset();
-                                }
-                            }
-                        }
-                    }
-
-                    if !root.basic-mode: GroupHeader {
-                        label: @tr("Spot Removal");
-                        group: "spot-removal";
-                        reset => {
-                            DevelopState.reset-group("spot-removal");
-                        }
-                        expanded <=> root.expand-spot-removal;
-                    }
-                    if !root.basic-mode && root.expand-spot-removal: VerticalLayout {
-                        spacing: 8px;
-                        Text {
-                            text: @tr("Pick the Spot Removal tool above, click a clean source, then the spot to fix.");
-                            color: Theme.text-disabled;
-                            font-size: 11px;
-                            wrap: word-wrap;
-                        }
-                        HorizontalLayout {
-                            spacing: 8px;
-                            VerticalLayout {
-                                spacing: 4px;
-                                horizontal-stretch: 1;
-                                Text {
-                                    text: @tr("Radius %");
-                                    color: Theme.text-dim;
-                                    font-size: 12px;
-                                }
-                                Rectangle {
-                                    height: 26px;
-                                    background: Theme.surface;
-                                    border-radius: 4px;
-                                    border-width: 1px;
-                                    border-color: Theme.border;
-                                    TextInput {
-                                        x: 6px;
-                                        width: parent.width - 12px;
-                                        height: 100%;
-                                        text <=> DevelopState.spot-radius-text;
-                                        color: Theme.text;
-                                        font-size: 12px;
-                                        vertical-alignment: center;
-                                        single-line: true;
-                                    }
-                                }
-                            }
-                            VerticalLayout {
-                                spacing: 4px;
-                                horizontal-stretch: 1;
-                                Text {
-                                    text: @tr("Feather %");
-                                    color: Theme.text-dim;
-                                    font-size: 12px;
-                                }
-                                Rectangle {
-                                    height: 26px;
-                                    background: Theme.surface;
-                                    border-radius: 4px;
-                                    border-width: 1px;
-                                    border-color: Theme.border;
-                                    TextInput {
-                                        x: 6px;
-                                        width: parent.width - 12px;
-                                        height: 100%;
-                                        text <=> DevelopState.spot-feather-text;
-                                        color: Theme.text;
-                                        font-size: 12px;
-                                        vertical-alignment: center;
-                                        single-line: true;
-                                    }
-                                }
-                            }
-                            VerticalLayout {
-                                spacing: 4px;
-                                horizontal-stretch: 1;
-                                Text {
-                                    text: @tr("Opacity %");
-                                    color: Theme.text-dim;
-                                    font-size: 12px;
-                                }
-                                Rectangle {
-                                    height: 26px;
-                                    background: Theme.surface;
-                                    border-radius: 4px;
-                                    border-width: 1px;
-                                    border-color: Theme.border;
-                                    TextInput {
-                                        x: 6px;
-                                        width: parent.width - 12px;
-                                        height: 100%;
-                                        text <=> DevelopState.spot-opacity-text;
-                                        color: Theme.text;
-                                        font-size: 12px;
-                                        vertical-alignment: center;
-                                        single-line: true;
-                                    }
-                                }
-                            }
-                        }
-                        HorizontalLayout {
-                            spacing: 8px;
-                            Text {
-                                text: @tr("{} spot(s)", DevelopState.dev-spot-count);
-                                color: Theme.text-dim;
-                                font-size: 12px;
-                                vertical-alignment: center;
-                                horizontal-stretch: 1;
-                            }
-                            FilterChip {
-                                text: @tr("Undo Last");
-                                active: false;
-                                clicked => {
-                                    DevelopState.develop-spot-undo();
-                                }
-                            }
-                            FilterChip {
-                                text: @tr("Clear All");
-                                active: false;
-                                clicked => {
-                                    DevelopState.develop-spot-reset();
-                                }
-                            }
-                        }
-                    }
-
-                    if !root.basic-mode: GroupHeader {
                         label: @tr("Local Adjustments");
                         group: "local";
                         reset => {
@@ -4438,5 +4475,6 @@ export component DevelopPanel inherits HorizontalLayout {
 
         if !root.side-panels-hidden: Rail {
             open-entry <=> root.rail-entry;
+            full-mode: !root.basic-mode;
         }
 }
