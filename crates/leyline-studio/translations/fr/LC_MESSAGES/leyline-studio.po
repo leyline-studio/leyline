@@ -4797,3 +4797,13 @@ msgstr "Mots-clés"
 msgctxt "PhotoKeywords"
 msgid "Add keyword (Nature/Birds)…"
 msgstr "Ajouter un mot-clé (Nature/Oiseaux)…"
+
+#: crates/leyline-studio/ui/panels/bottom_bar.slint
+msgctxt "BottomBar"
+msgid "Show or hide the filmstrip"
+msgstr "Afficher ou masquer la pellicule"
+
+#: crates/leyline-studio/ui/panels/bottom_bar.slint
+msgctxt "BottomBar"
+msgid "Show or hide the right panel"
+msgstr "Afficher ou masquer le panneau de droite"
