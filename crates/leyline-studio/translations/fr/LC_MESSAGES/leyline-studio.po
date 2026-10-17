@@ -4812,3 +4812,13 @@ msgstr "Afficher ou masquer le panneau de droite"
 msgctxt "MenuBar"
 msgid "Filter"
 msgstr "Filtre"
+
+#: crates/leyline-studio/ui/panels/bottom_bar.slint
+msgctxt "BottomBar"
+msgid "Justified"
+msgstr "Justifiée"
+
+#: crates/leyline-studio/ui/panels/bottom_bar.slint
+msgctxt "BottomBar"
+msgid "Justified grid: rows at each photograph's shape"
+msgstr "Grille justifiée : des rangées à la forme de chaque photo"
