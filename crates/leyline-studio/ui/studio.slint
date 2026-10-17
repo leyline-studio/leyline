@@ -200,6 +200,21 @@ export component StudioWindow inherits Window {
     // measurement for: what went off the edge at 1340px was the metadata
     // panel.
     property <bool> browser-detail-folded: false;
+    // The rail's open entry in the grid and the loupe (ADR 0158 §4). Its
+    // bottom group opens there; a develop entry enters Develop with that
+    // panel open, as `D` does (§5), and the library keeps what it showed.
+    property <string> library-rail: "info";
+    property <string> library-rail-shown: "info";
+    changed library-rail => {
+        if (self.library-rail != "" && self.library-rail != "info" && self.library-rail != "keywords") {
+            develop.rail-entry = self.library-rail;
+            root.library-rail = root.library-rail-shown;
+            GridState.loupe-mode = false;
+            DevelopState.enter-develop();
+        } else {
+            root.library-rail-shown = self.library-rail;
+        }
+    }
     function refresh-fold() {
         root.browser-detail-folded =
             root.side-panels-hidden || root.width < root.narrow-threshold;
@@ -550,14 +565,8 @@ export component StudioWindow inherits Window {
         browser := BrowserPanel {
             detail-hidden: root.browser-detail-folded;
             rail-hidden: root.side-panels-hidden;
+            rail-entry <=> root.library-rail;
             full-mode: !develop.basic-mode;
-            develop-entry(entry) => {
-                // As `D` does from the grid: Develop is the loupe with a
-                // rail panel open (ADR 0158 §5).
-                develop.rail-entry = entry;
-                GridState.loupe-mode = false;
-                DevelopState.enter-develop();
-            }
             chrome-hidden: root.chrome-hidden;
             left-inset: root.library-inset;
             return-focus => {
@@ -570,6 +579,13 @@ export component StudioWindow inherits Window {
         loupe := LoupePanel {
             chrome-hidden: root.chrome-hidden;
             left-inset: root.library-inset;
+            detail-hidden: root.browser-detail-folded;
+            rail-hidden: root.side-panels-hidden;
+            rail-entry <=> root.library-rail;
+            full-mode: !develop.basic-mode;
+            return-focus => {
+                keys.focus();
+            }
         }
 
         // The other two ways of looking at the same selection (ADR 0057),

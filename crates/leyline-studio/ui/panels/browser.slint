@@ -38,23 +38,11 @@ export component BrowserPanel inherits HorizontalLayout {
     // view only leaves it room.
     in property <bool> detail-hidden;
     in property <bool> rail-hidden;
-    // The open rail entry, the window's so the grid and the loupe share it,
-    // and whether Retouch and Masks are offered (ADR 0160 §2).
-    in-out property <string> rail-entry: "info";
+    // The open rail entry, the window's so the grid and the loupe share it
+    // (a develop entry is the window's to act on), and whether Retouch and
+    // Masks are offered (ADR 0160 §2).
+    in-out property <string> rail-entry;
     in property <bool> full-mode;
-    // A develop entry was picked: the window enters Develop with it open.
-    callback develop-entry(string);
-    changed rail-entry => {
-        if (self.rail-entry != "" && self.rail-entry != "info" && self.rail-entry != "keywords") {
-            root.develop-entry(self.rail-entry);
-            root.rail-entry = root.library-entry;
-        } else {
-            root.library-entry = self.rail-entry;
-        }
-    }
-    // What the grid's rail showed before a develop entry was picked, given
-    // back when Develop is left.
-    property <string> library-entry: "info";
     in property <bool> chrome-hidden;
     in property <length> left-inset;
     // How many thumbnails fit per row. Exposed because the window's Up/Down
