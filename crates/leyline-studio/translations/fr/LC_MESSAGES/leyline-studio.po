@@ -2416,10 +2416,11 @@ msgstr "Redresser"
 #: crates/leyline-studio/ui/panels/develop.slint:3475
 msgctxt "DevelopPanel"
 msgid ""
-"Pick the Keystone tool above, then drag along two or more edges that ought "
+"Pick Keystone in the header above, then drag along two or more edges that "
+"ought "
 "to be vertical or horizontal. Each line's own slope says which it is, and "
 "nothing is detected: the drawing is the whole input."
-msgstr "Choisissez l'outil Lignes directrices ci-dessus, puis tracez le long d'au moins deux arêtes qui devraient être verticales ou horizontales. La pente de chaque ligne dit laquelle des deux elle est, et rien n'est détecté : le tracé est la totalité de l'entrée."
+msgstr "Choisissez Lignes directrices dans l'en-tête ci-dessus, puis tracez le long d'au moins deux arêtes qui devraient être verticales ou horizontales. La pente de chaque ligne dit laquelle des deux elle est, et rien n'est détecté : le tracé est la totalité de l'entrée."
 
 #: crates/leyline-studio/ui/panels/develop.slint:3482
 msgctxt "DevelopPanel"
@@ -3521,11 +3522,6 @@ msgctxt "DevelopPanel"
 msgid "White balance: click a neutral grey in the photograph"
 msgstr "Balance des blancs : cliquez un gris neutre sur la photo"
 
-#: crates/leyline-studio/ui/panels/develop.slint:518
-msgctxt "DevelopPanel"
-msgid "Keyboard shortcuts"
-msgstr "Raccourcis clavier"
-
 #: crates/leyline-studio/ui/panels/develop.slint:1391 crates/leyline-studio/ui/panels/develop.slint:1394
 msgctxt "DevelopPanel"
 msgid "Show crushed shadows    J"
@@ -3616,11 +3612,6 @@ msgstr "Enregistrer ces réglages en préréglage    S"
 msgctxt "GroupHeader"
 msgid "Put this group back to neutral"
 msgstr "Remettre ce groupe à zéro"
-
-#: crates/leyline-studio/ui/widgets/controls.slint:263 crates/leyline-studio/ui/widgets/controls.slint:266
-msgctxt "ToolbarChevron"
-msgid "More tools"
-msgstr "Plus d'outils"
 
 #: crates/leyline-studio/ui/dialogs/shortcuts.slint:174
 msgctxt "ShortcutsDialog"
