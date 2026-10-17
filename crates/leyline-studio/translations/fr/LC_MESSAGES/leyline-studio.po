@@ -4704,6 +4704,96 @@ msgctxt "Rail"
 msgid "History"
 msgstr "Historique"
 
+#: crates/leyline-studio/ui/panels/rail.slint
+msgctxt "Rail"
+msgid "Keywords"
+msgstr "Mots-clés"
+
+#: crates/leyline-studio/ui/panels/rail.slint
+msgctxt "Rail"
+msgid "Info"
+msgstr "Infos"
+
 msgctxt "LibraryColumn"
 msgid "Keywords"
 msgstr "Mots-clés"
+
+#: crates/leyline-studio/ui/panels/photo_details.slint
+msgctxt "PhotoInfo"
+msgid "No photo selected"
+msgstr "Aucune photo sélectionnée"
+
+#: crates/leyline-studio/ui/panels/photo_details.slint
+msgctxt "PhotoInfo"
+msgid "Path"
+msgstr "Chemin"
+
+#: crates/leyline-studio/ui/panels/photo_details.slint
+msgctxt "PhotoInfo"
+msgid "Captured"
+msgstr "Prise le"
+
+#: crates/leyline-studio/ui/panels/photo_details.slint
+msgctxt "PhotoInfo"
+msgid "Size"
+msgstr "Taille"
+
+#: crates/leyline-studio/ui/panels/photo_details.slint
+msgctxt "PhotoInfo"
+msgid "File"
+msgstr "Fichier"
+
+#: crates/leyline-studio/ui/panels/photo_details.slint
+msgctxt "PhotoInfo"
+msgid "Camera"
+msgstr "Appareil"
+
+#: crates/leyline-studio/ui/panels/photo_details.slint
+msgctxt "PhotoInfo"
+msgid "Lens"
+msgstr "Objectif"
+
+#: crates/leyline-studio/ui/panels/photo_details.slint
+msgctxt "PhotoInfo"
+msgid "Exposure"
+msgstr "Exposition"
+
+#: crates/leyline-studio/ui/panels/photo_details.slint
+msgctxt "PhotoInfo"
+msgid "Companion file"
+msgstr "Fichier compagnon"
+
+#: crates/leyline-studio/ui/panels/photo_details.slint
+msgctxt "PhotoInfo"
+msgid "Description"
+msgstr "Description"
+
+#: crates/leyline-studio/ui/panels/photo_details.slint
+msgctxt "PhotoInfo"
+msgid "Title"
+msgstr "Titre"
+
+#: crates/leyline-studio/ui/panels/photo_details.slint
+msgctxt "PhotoInfo"
+msgid "Caption"
+msgstr "Légende"
+
+#: crates/leyline-studio/ui/panels/photo_details.slint
+msgctxt "PhotoInfo"
+msgid "Creator"
+msgstr "Auteur"
+
+#: crates/leyline-studio/ui/panels/photo_details.slint
+msgctxt "PhotoInfo"
+msgid "Copyright"
+msgstr "Droits"
+
+#: crates/leyline-studio/ui/panels/photo_details.slint
+msgctxt "PhotoKeywords"
+msgid "Keywords"
+msgstr "Mots-clés"
+
+#: crates/leyline-studio/ui/panels/photo_details.slint
+msgctxt "PhotoKeywords"
+msgid "Add keyword (Nature/Birds)…"
+msgstr "Ajouter un mot-clé (Nature/Oiseaux)…"
