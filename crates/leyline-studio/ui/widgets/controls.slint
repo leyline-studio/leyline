@@ -83,6 +83,9 @@ export component GroupHeader inherits HorizontalLayout {
             root.expanded = !root.expanded;
         }
     }
+    // A tool that writes this group's settings (ADR 0160 §3), beside its
+    // name rather than in a toolbar of its own.
+    @children
     // Put the whole group back to neutral, in one revision (ADR 0112 §4).
     // Shown only while the group is open: a header row is read as a list,
     // and a column of buttons down the side of a folded panel invites the
@@ -247,56 +250,6 @@ export component PipetteChip inherits Rectangle {
 // The end of a toolbar that does not fit, and the way to reach it
 // (ADR 0125 §3).
 //
-// A chevron rather than a scrollbar: a 24px-tall row would carry a 4px bar
-// under controls that are themselves 24px tall, and the gesture that bar
-// invites — grabbing something thinner than the thing it scrolls — is the
-// one a cramped window is least able to serve. This is a button, the size
-// of the chips beside it, and it says which way there is more.
-//
-// It paints its own ground because it sits *over* the row it scrolls: with
-// a transparent one, a chip would read through the glyph.
-export component ToolbarChevron inherits Rectangle {
-    in property <bool> forward;
-    callback clicked;
-
-    width: 18px;
-    height: 24px;
-    background: Theme.surface;
-
-    Text {
-        text: root.forward ? "›" : "‹";
-        color: touch.has-hover ? Theme.text : Theme.text-dim;
-        font-size: 14px;
-        horizontal-alignment: center;
-        vertical-alignment: center;
-        width: 100%;
-        height: 100%;
-    }
-    touch := TouchArea {
-        mouse-cursor: pointer;
-        clicked => {
-            HintState.dismiss();
-            root.clicked();
-        }
-        changed has-hover => {
-            if (self.has-hover) {
-                HintState.enter(@tr("More tools"),
-                    self.absolute-position.x, self.absolute-position.y + self.height);
-            } else {
-                HintState.leave(@tr("More tools"));
-            }
-        }
-    }
-}
-
-// A thin rule between groups of tools: the toolbar carries a dozen of them,
-// and a dozen chips in one undifferentiated row is a list, not a toolbar.
-export component ToolSeparator inherits Rectangle {
-    width: 1px;
-    height: 16px;
-    background: Theme.border;
-}
-
 // A photo shown large, fitted or at 100 %, with the viewpoint driven from
 // **outside** (ADR 0057 §2).
 //
