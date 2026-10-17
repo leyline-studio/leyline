@@ -128,217 +128,224 @@ export component BrowserPanel inherits HorizontalLayout {
                 height: Frame.top-bar;
             }
 
-            HorizontalLayout {
-                spacing: 10px;
+            // The filters (ADR 0158 §2): behind the top bar's *Filter* chip,
+            // unfolded over the top of the grid rather than holding a row
+            // of it for good.
+            if FilterState.filter-open: VerticalLayout {
+                spacing: 8px;
 
                 HorizontalLayout {
-                    spacing: 2px;
-                    for s in 5: TouchArea {
-                        width: 18px;
-                        height: 24px;
-                        Text {
-                            text: FilterState.filter-rating > s ? "★" : "☆";
-                            color: FilterState.filter-rating > s ? Theme.rating : Theme.text-disabled;
-                            font-size: 15px;
-                            vertical-alignment: center;
-                            horizontal-alignment: center;
-                            width: 100%;
-                            height: 100%;
-                        }
-                        clicked => {
-                            FilterState.rating-filter(s + 1);
-                        }
-                    }
-                }
+                    spacing: 10px;
 
-                HorizontalLayout {
-                    spacing: 4px;
-                    for l[i] in 5: dot := TouchArea {
-                        width: 16px;
-                        height: 24px;
-                        // Five coloured circles, and nothing anywhere says
-                        // they filter (ADR 0127 §1). The names are the
-                        // labels' own, in the order `label-colors` holds
-                        // them, which is the order the `6`–`9` keys assign
-                        // them in — red, yellow, green, blue, purple.
-                        property <string> label-name: i == 0 ? @tr("Filter: red label")
-                            : i == 1 ? @tr("Filter: yellow label")
-                            : i == 2 ? @tr("Filter: green label")
-                            : i == 3 ? @tr("Filter: blue label")
-                            : @tr("Filter: purple label");
-                        changed has-hover => {
-                            if (self.has-hover) {
-                                HintState.enter(self.label-name,
-                                    self.absolute-position.x, self.absolute-position.y + self.height);
-                            } else {
-                                HintState.leave(self.label-name);
+                    HorizontalLayout {
+                        spacing: 2px;
+                        for s in 5: TouchArea {
+                            width: 18px;
+                            height: 24px;
+                            Text {
+                                text: FilterState.filter-rating > s ? "★" : "☆";
+                                color: FilterState.filter-rating > s ? Theme.rating : Theme.text-disabled;
+                                font-size: 15px;
+                                vertical-alignment: center;
+                                horizontal-alignment: center;
+                                width: 100%;
+                                height: 100%;
+                            }
+                            clicked => {
+                                FilterState.rating-filter(s + 1);
                             }
                         }
-                        Rectangle {
-                            width: 12px;
-                            height: 12px;
-                            y: (parent.height - self.height) / 2;
-                            border-radius: 6px;
-                            background: FilterState.label-colors[l];
-                            border-width: FilterState.filter-label == l ? 2px : 0px;
-                            border-color: Theme.text;
-                            opacity: FilterState.filter-label == l || FilterState.filter-label == -1 ? 1 : 0.35;
+                    }
+
+                    HorizontalLayout {
+                        spacing: 4px;
+                        for l[i] in 5: dot := TouchArea {
+                            width: 16px;
+                            height: 24px;
+                            // Five coloured circles, and nothing anywhere says
+                            // they filter (ADR 0127 §1). The names are the
+                            // labels' own, in the order `label-colors` holds
+                            // them, which is the order the `6`–`9` keys assign
+                            // them in — red, yellow, green, blue, purple.
+                            property <string> label-name: i == 0 ? @tr("Filter: red label")
+                                : i == 1 ? @tr("Filter: yellow label")
+                                : i == 2 ? @tr("Filter: green label")
+                                : i == 3 ? @tr("Filter: blue label")
+                                : @tr("Filter: purple label");
+                            changed has-hover => {
+                                if (self.has-hover) {
+                                    HintState.enter(self.label-name,
+                                        self.absolute-position.x, self.absolute-position.y + self.height);
+                                } else {
+                                    HintState.leave(self.label-name);
+                                }
+                            }
+                            Rectangle {
+                                width: 12px;
+                                height: 12px;
+                                y: (parent.height - self.height) / 2;
+                                border-radius: 6px;
+                                background: FilterState.label-colors[l];
+                                border-width: FilterState.filter-label == l ? 2px : 0px;
+                                border-color: Theme.text;
+                                opacity: FilterState.filter-label == l || FilterState.filter-label == -1 ? 1 : 0.35;
+                            }
+                            clicked => {
+                                HintState.dismiss();
+                                FilterState.label-filter(l);
+                            }
                         }
+                    }
+
+                    FilterChip {
+                        text: @tr("⚑ Picked");
+                        active: FilterState.filter-pick == 1;
                         clicked => {
-                            HintState.dismiss();
-                            FilterState.label-filter(l);
-                        }
-                    }
-                }
-
-                FilterChip {
-                    text: @tr("⚑ Picked");
-                    active: FilterState.filter-pick == 1;
-                    clicked => {
-                        FilterState.pick-filter(1);
-                    }
-                }
-                FilterChip {
-                    text: @tr("✕ Rejected");
-                    active: FilterState.filter-pick == 2;
-                    clicked => {
-                        FilterState.pick-filter(2);
-                    }
-                }
-                FilterChip {
-                    text: @tr("– Unflagged");
-                    active: FilterState.filter-pick == 0;
-                    clicked => {
-                        FilterState.pick-filter(0);
-                    }
-                }
-
-                if FilterState.filter-keyword-label != "": FilterChip {
-                    // `#` and not `🏷`: the bundled font has no U+1F3F7 and
-                    // drew an empty box — seen the moment ADR 0134 made this
-                    // chip reachable from the sidebar, having been unreachable
-                    // before.
-                    text: "# " + FilterState.filter-keyword-label;
-                    active: true;
-                    clicked => {
-                        FilterState.clear-keyword-filter();
-                    }
-                }
-
-                FilterChip {
-                    // No emoji: the camera pictogram is a colour glyph that
-                    // simply vanishes on the fonts of a bare X session, and a
-                    // chip whose label disappears is worse than a plain one.
-                    text: FilterState.shot-count > 0
-                        ? @tr("Shot ({})", FilterState.shot-count)
-                        : @tr("Shot");
-                    active: FilterState.shot-count > 0;
-                    clicked => {
-                        shot-panel-open = !shot-panel-open;
-                    }
-                }
-
-                Rectangle {
-                    horizontal-stretch: 1;
-                }
-            }
-
-            if shot-panel-open: VerticalLayout {
-                spacing: 6px;
-
-                if FilterState.shot-cameras.length > 0: HorizontalLayout {
-                    spacing: 6px;
-                    alignment: start;
-                    Text {
-                        text: @tr("Body");
-                        color: Theme.text-dim;
-                        font-size: 12px;
-                        vertical-alignment: center;
-                        width: 44px;
-                    }
-                    for camera[i] in FilterState.shot-cameras: FilterChip {
-                        text: camera;
-                        active: FilterState.shot-camera == i;
-                        clicked => {
-                            FilterState.camera-filter(i);
-                        }
-                    }
-                }
-
-                if FilterState.shot-lenses.length > 0: HorizontalLayout {
-                    spacing: 6px;
-                    alignment: start;
-                    Text {
-                        text: @tr("Lens");
-                        color: Theme.text-dim;
-                        font-size: 12px;
-                        vertical-alignment: center;
-                        width: 44px;
-                    }
-                    for lens[i] in FilterState.shot-lenses: FilterChip {
-                        text: lens;
-                        active: FilterState.shot-lens == i;
-                        clicked => {
-                            FilterState.lens-filter(i);
-                        }
-                    }
-                }
-
-                HorizontalLayout {
-                    spacing: 12px;
-                    alignment: start;
-                    iso-range := RangeField {
-                        label: "ISO";
-                        placeholder: "3200-";
-                        accepted(text) => {
-                            FilterState.shot-range("iso", text);
-                            root.return-focus();
-                        }
-                    }
-                    aperture-range := RangeField {
-                        label: "f/";
-                        placeholder: "-2.8";
-                        accepted(text) => {
-                            FilterState.shot-range("aperture", text);
-                            root.return-focus();
-                        }
-                    }
-                    focal-range := RangeField {
-                        label: "mm";
-                        placeholder: "24-70";
-                        accepted(text) => {
-                            FilterState.shot-range("focal", text);
-                            root.return-focus();
-                        }
-                    }
-                    shutter-range := RangeField {
-                        label: "s";
-                        placeholder: "-1/500";
-                        accepted(text) => {
-                            FilterState.shot-range("shutter", text);
-                            root.return-focus();
+                            FilterState.pick-filter(1);
                         }
                     }
                     FilterChip {
-                        text: @tr("Clear");
-                        active: false;
-                        enabled: FilterState.shot-count > 0;
+                        text: @tr("✕ Rejected");
+                        active: FilterState.filter-pick == 2;
                         clicked => {
-                            iso-range.clear();
-                            aperture-range.clear();
-                            focal-range.clear();
-                            shutter-range.clear();
-                            FilterState.clear-shot-filters();
+                            FilterState.pick-filter(2);
                         }
+                    }
+                    FilterChip {
+                        text: @tr("– Unflagged");
+                        active: FilterState.filter-pick == 0;
+                        clicked => {
+                            FilterState.pick-filter(0);
+                        }
+                    }
+
+                    if FilterState.filter-keyword-label != "": FilterChip {
+                        // `#` and not `🏷`: the bundled font has no U+1F3F7 and
+                        // drew an empty box — seen the moment ADR 0134 made this
+                        // chip reachable from the sidebar, having been unreachable
+                        // before.
+                        text: "# " + FilterState.filter-keyword-label;
+                        active: true;
+                        clicked => {
+                            FilterState.clear-keyword-filter();
+                        }
+                    }
+
+                    FilterChip {
+                        // No emoji: the camera pictogram is a colour glyph that
+                        // simply vanishes on the fonts of a bare X session, and a
+                        // chip whose label disappears is worse than a plain one.
+                        text: FilterState.shot-count > 0
+                            ? @tr("Shot ({})", FilterState.shot-count)
+                            : @tr("Shot");
+                        active: FilterState.shot-count > 0;
+                        clicked => {
+                            shot-panel-open = !shot-panel-open;
+                        }
+                    }
+
+                    Rectangle {
+                        horizontal-stretch: 1;
                     }
                 }
 
-                // The library holds nothing to filter on yet: say so, rather
-                // than show an empty row that looks broken.
-                if FilterState.shot-cameras.length == 0 && FilterState.shot-lenses.length == 0: Text {
-                    text: @tr("No camera or lens recorded in this library yet.");
-                    color: Theme.text-disabled;
-                    font-size: 12px;
+                if shot-panel-open: VerticalLayout {
+                    spacing: 6px;
+
+                    if FilterState.shot-cameras.length > 0: HorizontalLayout {
+                        spacing: 6px;
+                        alignment: start;
+                        Text {
+                            text: @tr("Body");
+                            color: Theme.text-dim;
+                            font-size: 12px;
+                            vertical-alignment: center;
+                            width: 44px;
+                        }
+                        for camera[i] in FilterState.shot-cameras: FilterChip {
+                            text: camera;
+                            active: FilterState.shot-camera == i;
+                            clicked => {
+                                FilterState.camera-filter(i);
+                            }
+                        }
+                    }
+
+                    if FilterState.shot-lenses.length > 0: HorizontalLayout {
+                        spacing: 6px;
+                        alignment: start;
+                        Text {
+                            text: @tr("Lens");
+                            color: Theme.text-dim;
+                            font-size: 12px;
+                            vertical-alignment: center;
+                            width: 44px;
+                        }
+                        for lens[i] in FilterState.shot-lenses: FilterChip {
+                            text: lens;
+                            active: FilterState.shot-lens == i;
+                            clicked => {
+                                FilterState.lens-filter(i);
+                            }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 12px;
+                        alignment: start;
+                        iso-range := RangeField {
+                            label: "ISO";
+                            placeholder: "3200-";
+                            accepted(text) => {
+                                FilterState.shot-range("iso", text);
+                                root.return-focus();
+                            }
+                        }
+                        aperture-range := RangeField {
+                            label: "f/";
+                            placeholder: "-2.8";
+                            accepted(text) => {
+                                FilterState.shot-range("aperture", text);
+                                root.return-focus();
+                            }
+                        }
+                        focal-range := RangeField {
+                            label: "mm";
+                            placeholder: "24-70";
+                            accepted(text) => {
+                                FilterState.shot-range("focal", text);
+                                root.return-focus();
+                            }
+                        }
+                        shutter-range := RangeField {
+                            label: "s";
+                            placeholder: "-1/500";
+                            accepted(text) => {
+                                FilterState.shot-range("shutter", text);
+                                root.return-focus();
+                            }
+                        }
+                        FilterChip {
+                            text: @tr("Clear");
+                            active: false;
+                            enabled: FilterState.shot-count > 0;
+                            clicked => {
+                                iso-range.clear();
+                                aperture-range.clear();
+                                focal-range.clear();
+                                shutter-range.clear();
+                                FilterState.clear-shot-filters();
+                            }
+                        }
+                    }
+
+                    // The library holds nothing to filter on yet: say so, rather
+                    // than show an empty row that looks broken.
+                    if FilterState.shot-cameras.length == 0 && FilterState.shot-lenses.length == 0: Text {
+                        text: @tr("No camera or lens recorded in this library yet.");
+                        color: Theme.text-disabled;
+                        font-size: 12px;
+                    }
                 }
             }
 

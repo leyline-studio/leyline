@@ -1068,6 +1068,22 @@ export component MenuBar inherits Rectangle {
             spacing: 6px;
             alignment: end;
 
+            // The filter menu (ADR 0158 §2), a grid matter: lit while it
+            // is open or while any filter narrows what the grid shows, so a
+            // folded menu never hides that the library is filtered.
+            if !DevelopState.develop-mode && !MapState.map-mode: VerticalLayout {
+                alignment: center;
+                FilterChip {
+                    text: @tr("Filter");
+                    active: FilterState.filter-open || FilterState.filter-rating > 0
+                        || FilterState.filter-label >= 0 || FilterState.filter-pick >= 0
+                        || FilterState.filter-keyword-label != "" || FilterState.shot-count > 0;
+                    clicked => {
+                        root.open-menu = "";
+                        FilterState.filter-open = !FilterState.filter-open;
+                    }
+                }
+            }
             VerticalLayout {
                 alignment: center;
                 FilterChip {
