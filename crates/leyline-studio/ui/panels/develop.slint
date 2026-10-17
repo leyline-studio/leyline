@@ -2073,8 +2073,10 @@ export component DevelopPanel inherits HorizontalLayout {
                                 }
                             }
                         }
-                        HorizontalLayout {
-                            alignment: start;
+                        // Stacked, not side by side: the two labels alone are
+                        // wider than the 300px panel, in English already.
+                        VerticalLayout {
+                            spacing: 6px;
                             FilterChip {
                                 // A range mask standing on its own needs a
                                 // geometry that covers everything (ADR 0048
