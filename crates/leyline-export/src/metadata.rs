@@ -74,6 +74,22 @@ pub struct GpsPosition {
     pub altitude: Option<f64>,
 }
 
+/// Where an export comes from (ADR 0153 §3): what leads from the file back
+/// to the revision that made it. No library id, no clock, no application
+/// version — the first would link every published photograph to one
+/// library, the other two would make two identical exports differ.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Provenance {
+    /// The revision fingerprint (ADR 0153 §1).
+    pub revision_fingerprint: [u8; 32],
+    /// The stage versions the revision is pinned to, in name order.
+    pub stages: Vec<(String, u16)>,
+    /// The decoder version loaded at export time.
+    pub decoder: String,
+    /// The resolved export recipe, as JSON.
+    pub export_settings_json: String,
+}
+
 /// Everything an export may write about the photograph (ADR 0157 §2), already
 /// resolved by the engine: an authored value has won over the file's own
 /// (ADR 0099 §2) before it reaches this crate. Every field is optional; an
@@ -123,6 +139,9 @@ pub struct PhotoMetadata {
     pub state: Option<String>,
     /// Country. Location.
     pub country: Option<String>,
+    /// Where the export comes from (ADR 0153 §3); written under every
+    /// policy but `None`, like the rest of the packet.
+    pub provenance: Option<Provenance>,
 }
 
 impl PhotoMetadata {

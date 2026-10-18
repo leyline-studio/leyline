@@ -477,6 +477,21 @@ fn exports_a_png_source_to_jpeg_and_journals_it() {
     assert_eq!(row.decoder.as_deref(), Some(leyline_raw::decoder_version()));
     let recipe = ExportSettings::parse(row.export_settings_json.as_deref().unwrap()).unwrap();
     assert_eq!(recipe, ExportSettings::default());
+
+    // ADR 0153 §3: the file names the same fingerprint the journal holds.
+    let fingerprint: String = row
+        .revision_fingerprint
+        .unwrap()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    let text = String::from_utf8_lossy(&bytes);
+    assert!(
+        text.contains(&format!(
+            "<leyline:Revision>{fingerprint}</leyline:Revision>"
+        )),
+        "the file leads back to its revision"
+    );
 }
 
 /// What the photographer typed reaches the exported file, and the policy is
@@ -539,7 +554,12 @@ fn an_export_carries_the_authored_description_unless_told_not_to() {
         "the city is a location"
     );
     assert!(export_under(ExportMetadata::Full, "full").contains("Brest"));
-    assert!(!export_under(ExportMetadata::None, "none").contains("Typed Creator"));
+    let none = export_under(ExportMetadata::None, "none");
+    assert!(!none.contains("Typed Creator"));
+    assert!(
+        !none.contains("leyline:"),
+        "no provenance under None (ADR 0153 §3)"
+    );
 }
 
 /// Full pipeline against a real RAW file. Run with

@@ -7,7 +7,7 @@
 
 use super::exif_block::offset_text;
 use super::{
-    CaptureTime, GpsPosition, PhotoMetadata, Ratio, SOFTWARE, altitude_centimetres,
+    CaptureTime, GpsPosition, PhotoMetadata, Provenance, Ratio, SOFTWARE, altitude_centimetres,
     bias_hundredths, usable, usable_position,
 };
 
@@ -99,6 +99,30 @@ fn gps(body: &mut String, position: &GpsPosition) {
     }
 }
 
+/// The namespace of the provenance block (ADR 0153 §3, `docs/pipeline.md`).
+pub(crate) const PROVENANCE_NAMESPACE: &str = "https://leyline.photo/ns/provenance/1.0/";
+
+fn provenance(body: &mut String, provenance: &Provenance) {
+    let fingerprint: String = provenance
+        .revision_fingerprint
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    simple(body, "leyline:Revision", &fingerprint);
+    let stages: Vec<String> = provenance
+        .stages
+        .iter()
+        .map(|(name, version)| format!("{name}={version}"))
+        .collect();
+    simple(body, "leyline:Stages", &stages.join(";"));
+    simple(body, "leyline:Decoder", &provenance.decoder);
+    simple(
+        body,
+        "leyline:ExportSettings",
+        &provenance.export_settings_json,
+    );
+}
+
 /// The whole packet for `photo`.
 pub(crate) fn xmp_packet(photo: &PhotoMetadata) -> String {
     let mut body = String::new();
@@ -182,6 +206,9 @@ pub(crate) fn xmp_packet(photo: &PhotoMetadata) -> String {
             simple(&mut body, tag, value);
         }
     }
+    if let Some(origin) = &photo.provenance {
+        provenance(&mut body, origin);
+    }
 
     format!(
         "<?xpacket begin=\"\u{feff}\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n\
@@ -194,7 +221,8 @@ pub(crate) fn xmp_packet(photo: &PhotoMetadata) -> String {
          \x20  xmlns:exifEX=\"http://cipa.jp/exif/1.0/\"\n\
          \x20  xmlns:dc=\"http://purl.org/dc/elements/1.1/\"\n\
          \x20  xmlns:lr=\"http://ns.adobe.com/lightroom/1.0/\"\n\
-         \x20  xmlns:photoshop=\"http://ns.adobe.com/photoshop/1.0/\">\n\
+         \x20  xmlns:photoshop=\"http://ns.adobe.com/photoshop/1.0/\"\n\
+         \x20  xmlns:leyline=\"{PROVENANCE_NAMESPACE}\">\n\
          {body}\
          \x20 </rdf:Description>\n\
          \x20</rdf:RDF>\n\

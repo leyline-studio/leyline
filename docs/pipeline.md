@@ -617,6 +617,17 @@ Two runs produce the **same result, bit for bit**, if and only if:
 
 When an export embeds metadata ([ADR 0157](adr/0157-what-the-exported-file-says.md)), the **metadata and descriptions as they stand at export time** are one more input: editing a caption changes the next export's bytes without touching its pixels. The policy itself (`ExportSettings.metadata`) is a recorded parameter, and a recipe written before it existed reads as `None`, so it keeps producing the same file.
 
+The same packet carries the export's **provenance** ([ADR 0153](adr/0153-an-export-knows-where-it-comes-from.md) §3), namespace `https://leyline.photo/ns/provenance/1.0/`, prefix `leyline:`, under the same policy (nothing under `None`, nothing in AVIF):
+
+| Property | Value |
+|---|---|
+| `leyline:Revision` | the revision fingerprint — BLAKE3(asset checksum ‖ `0x00` ‖ the revision's stored `settings_json`), 64 lowercase hexadecimal digits |
+| `leyline:Stages` | the `stages` map, `name=version` pairs in name order, joined by `;` |
+| `leyline:Decoder` | the LibRaw version loaded at export time |
+| `leyline:ExportSettings` | the resolved export recipe, as its JSON |
+
+None of these depends on when or by which build the file was written, so the block keeps the bit-for-bit promise: it is a function of the revision, the recipe and the decoder, which are already its inputs. No library identifier is written — it would link every photograph ever published from one library.
+
 That guarantee depends on **neither the application version nor the build profile**. Leyline 1.0.3 and Leyline 7.2.0 render `sharpen::v1` identically, because it is literally the same frozen code in both binaries; a `debug` build and a `release` build likewise, which the reference renders (`crates/leyline-engine/src/stages/golden.rs`, manifest in `tests/golden/renders.json`) verify in both profiles.
 
 Those reference renders pin, with every checksum, **the `stages` map that produced it**, and replay each entry through that map. A new stage version therefore cannot move an existing checksum: it adds one. Three guards hold together — pinned entries always render the same pixels, what the engine pins *today* appears in the manifest, and no published `(stage, version)` pair escapes the manifest.

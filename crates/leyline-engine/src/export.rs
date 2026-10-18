@@ -86,6 +86,24 @@ pub(crate) struct ExportPlan {
     photo: leyline_export::PhotoMetadata,
 }
 
+impl ExportPlan {
+    /// What the file says about where it comes from (ADR 0153 §3): the same
+    /// facts the journal records, minus what a file must not carry.
+    fn provenance(&self, settings: &ExportSettings) -> leyline_export::Provenance {
+        leyline_export::Provenance {
+            revision_fingerprint: self.revision_fingerprint,
+            stages: self
+                .develop
+                .stages
+                .iter()
+                .map(|(name, version)| (name.clone(), *version))
+                .collect(),
+            decoder: leyline_raw::decoder_version().to_owned(),
+            export_settings_json: settings.to_json(),
+        }
+    }
+}
+
 /// Reads everything needed to render a version, without decoding or
 /// rendering anything itself — the read-only, catalog-bound half of
 /// [`export_version`], split out so a caller can drop the catalog lock
@@ -225,7 +243,10 @@ pub(crate) fn render_export_to(
         output.height(),
         output.data(),
         settings,
-        &plan.photo,
+        &leyline_export::PhotoMetadata {
+            provenance: Some(plan.provenance(settings)),
+            ..plan.photo.clone()
+        },
     )
     .map_err(export_err)?;
 

@@ -6,7 +6,7 @@ use std::path::Path;
 
 use leyline_export::{
     CaptureTime, ExportError, ExportFormat, ExportMetadata, ExportSettings, GpsPosition,
-    PhotoMetadata, Ratio, encode,
+    PhotoMetadata, Provenance, Ratio, encode,
 };
 
 fn pixels() -> Vec<u8> {
@@ -57,6 +57,12 @@ fn photo() -> PhotoMetadata {
         city: Some("Paris".into()),
         state: None,
         country: Some("France".into()),
+        provenance: Some(Provenance {
+            revision_fingerprint: [0xAB; 32],
+            stages: vec![("input".into(), 6), ("tone".into(), 2)],
+            decoder: "0.22.2".into(),
+            export_settings_json: r#"{"format":"jpeg","quality":90}"#.into(),
+        }),
     }
 }
 
@@ -141,6 +147,26 @@ fn every_carrier_says_what_was_written() {
             .and_then(|li| li.text());
         assert_eq!(title, Some("Quai <nord> & sud"), "{format:?}");
         assert!(packet.contains("48,51.396000N"), "{format:?}");
+
+        // ADR 0153 §3: the block leads back to the revision, and its recipe
+        // survives the escaping intact.
+        let leyline = |name: &str| {
+            document
+                .descendants()
+                .find(|n| {
+                    n.tag_name().name() == name
+                        && n.tag_name().namespace()
+                            == Some("https://leyline.photo/ns/provenance/1.0/")
+                })
+                .and_then(|n| n.text())
+                .map(str::to_owned)
+        };
+        assert_eq!(leyline("Revision"), Some("ab".repeat(32)), "{format:?}");
+        assert_eq!(leyline("Stages").as_deref(), Some("input=6;tone=2"));
+        assert_eq!(
+            leyline("ExportSettings").as_deref(),
+            Some(r#"{"format":"jpeg","quality":90}"#)
+        );
         assert!(packet.contains("2,21.132000W"), "{format:?}");
     }
 }

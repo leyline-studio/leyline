@@ -65,6 +65,8 @@ fn assemble(
         city: written.city,
         state: written.state,
         country: written.country,
+        // Known only once the recipe is: `render_export` adds it.
+        provenance: None,
     }
 }
 
