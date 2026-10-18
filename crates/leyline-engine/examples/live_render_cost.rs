@@ -32,11 +32,6 @@ fn main() -> Result<(), String> {
     if files.is_empty() {
         return Err("usage: live_render_cost <raw-file>...".to_owned());
     }
-    #[cfg(feature = "gpu")]
-    eprintln!(
-        "preview backend: {}",
-        leyline_engine::preview_backend().unwrap_or_else(|| "CPU".to_owned())
-    );
     println!("file\tclass\tslider\tmedian_ms\tframe_px");
     for file in files {
         measure(&file)?;
@@ -67,6 +62,12 @@ fn measure(file: &Path) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     let imported = report.imported.first().ok_or("nothing imported")?;
     let (asset, version) = (imported.registered.asset, imported.registered.version);
+    eprintln!(
+        "preview backend: {}",
+        library
+            .preview_backend()
+            .unwrap_or_else(|| "CPU".to_owned())
+    );
     let head = library
         .edit(version)
         .map_err(|e| e.to_string())?

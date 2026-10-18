@@ -254,7 +254,10 @@ pub(crate) fn render_preview(
         &coverages,
         &crate::source::color(&plan.source_path),
         scale,
-        asset,
+        crate::stages::CacheTarget {
+            asset,
+            class_edge: plan.max_edge,
+        },
         stage_cache,
     )?;
     Rgb8::new(rendered.width, rendered.height, rendered.data).map_err(preview_err)
@@ -405,7 +408,10 @@ pub(crate) fn render_with_settings(
             &coverages,
             &crate::source::color(&plan.source_path),
             scale,
-            cached_asset,
+            crate::stages::CacheTarget {
+                asset: cached_asset,
+                class_edge: plan.max_edge,
+            },
             cache,
         )?,
         None => render_scaled(

@@ -2795,3 +2795,156 @@ fn the_gpu_preview_stays_within_one_level_of_the_cpu() {
         "the GPU preview strays {worst} levels from the CPU"
     );
 }
+
+/// ADR 0166 §4: the develop view's `Small` render and its loupe-sized
+/// upgrade alternate on one asset; each keeps its own checkpoints instead
+/// of discarding the other's, and a third input evicts the oldest.
+#[test]
+fn the_stage_cache_keeps_two_inputs_and_evicts_the_third() {
+    use super::{CacheTarget, StageCache, develop_scaled_cached};
+    use leyline_core::AssetId;
+
+    let mut settings = leyline_core::Settings {
+        exposure: 0.4,
+        contrast: 20,
+        ..Default::default()
+    };
+    super::pin(&mut settings);
+    let source = super::Source::plain(super::SourceColor::Srgb);
+    let mut cache = StageCache::default();
+    let render = |image: &leyline_raw::RawImage, edge: u32, cache: &mut StageCache| {
+        develop_scaled_cached(
+            image,
+            &settings,
+            None,
+            None,
+            None,
+            None,
+            &Default::default(),
+            &source,
+            1.0,
+            CacheTarget {
+                asset: AssetId::new(1),
+                class_edge: Some(edge),
+            },
+            cache,
+        )
+        .unwrap();
+    };
+    let (small, large, third) = (test_image(32, 24), test_image(64, 48), test_image(48, 48));
+    render(&small, 1024, &mut cache);
+    render(&large, 4096, &mut cache);
+    render(&small, 1024, &mut cache);
+    assert_eq!(cache.contexts.len(), 2);
+    assert_eq!(
+        cache.contexts[0].key.2, 32,
+        "the small input is current again"
+    );
+    assert!(
+        !cache.contexts[1].checkpoints.is_empty(),
+        "and the large one kept its checkpoints"
+    );
+    render(&third, 2048, &mut cache);
+    assert_eq!(cache.contexts.len(), 2);
+    assert!(
+        cache.contexts.iter().all(|c| c.key.2 != 64),
+        "the oldest went"
+    );
+}
+
+/// ADR 0166 §4: past 2048 px, only the first checkpoint is kept.
+#[test]
+fn a_large_frame_keeps_only_its_first_checkpoint() {
+    use super::{StageCache, develop_scaled_cached};
+    use leyline_core::AssetId;
+
+    // Stages on both sides of every cut, so a small frame takes them all.
+    let mut settings = leyline_core::Settings {
+        exposure: 0.4,
+        clarity: 10,
+        vibrance: 10,
+        sharpening: Sharpening {
+            amount: 20,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    super::pin(&mut settings);
+    let source = super::Source::plain(super::SourceColor::Srgb);
+    let checkpoints = |width: u32| {
+        let mut cache = StageCache::default();
+        develop_scaled_cached(
+            &test_image(width, 4),
+            &settings,
+            None,
+            None,
+            None,
+            None,
+            &Default::default(),
+            &source,
+            1.0,
+            AssetId::new(1),
+            &mut cache,
+        )
+        .unwrap();
+        cache.contexts[0].checkpoints.len()
+    };
+    assert!(checkpoints(2048) > 1);
+    assert_eq!(checkpoints(2049), 1);
+}
+
+/// ADR 0166 §3: the predicate says yes only once a checkpoint of that class
+/// exists and is valid for the settings asked about — and, with a device,
+/// only when every stage after it has a kernel.
+#[cfg(feature = "gpu")]
+#[test]
+fn would_render_on_gpu_follows_the_cache_and_the_kernels() {
+    use super::{CacheTarget, StageCache, develop_scaled_cached};
+    use leyline_core::AssetId;
+
+    let mut settings = leyline_core::Settings {
+        exposure: 0.4,
+        ..Default::default()
+    };
+    super::pin(&mut settings);
+    let asset = AssetId::new(7);
+    let mut cache = StageCache::default();
+    assert!(!cache.would_render_on_gpu(asset, Some(4096), &settings));
+    develop_scaled_cached(
+        &test_image(64, 48),
+        &settings,
+        None,
+        None,
+        None,
+        None,
+        &Default::default(),
+        &super::Source::plain(super::SourceColor::Srgb),
+        1.0,
+        CacheTarget {
+            asset,
+            class_edge: Some(4096),
+        },
+        &mut cache,
+    )
+    .unwrap();
+    let device = crate::gpu_preview::preview_backend().is_some();
+    let dragged = leyline_core::Settings {
+        exposure: 1.2,
+        ..settings.clone()
+    };
+    assert_eq!(
+        cache.would_render_on_gpu(asset, Some(4096), &dragged),
+        device
+    );
+    // Another class has no checkpoint yet.
+    assert!(!cache.would_render_on_gpu(asset, Some(1024), &dragged));
+    // A stage with no kernel after the checkpoint keeps it on the CPU.
+    let sharpened = leyline_core::Settings {
+        sharpening: Sharpening {
+            amount: 30,
+            ..Default::default()
+        },
+        ..dragged
+    };
+    assert!(!cache.would_render_on_gpu(asset, Some(4096), &sharpened));
+}

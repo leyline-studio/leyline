@@ -225,7 +225,7 @@ pub(crate) fn render_scaled_cached(
     coverages: &crate::mask_coverage::MaskCoverages,
     source: &Source,
     scale: f32,
-    asset: leyline_core::AssetId,
+    target: stages::CacheTarget,
     cache: &mut stages::StageCache,
 ) -> Result<Rendered> {
     if settings.schema > CURRENT_SCHEMA {
@@ -245,7 +245,7 @@ pub(crate) fn render_scaled_cached(
         coverages,
         source,
         scale,
-        asset,
+        target,
         cache,
     )
 }

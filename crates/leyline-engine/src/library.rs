@@ -1272,6 +1272,41 @@ impl Library {
         })
     }
 
+    /// Whether [`Library::preview_live`] at `kind` would render `settings`
+    /// on the GPU **now** (ADR 0166 §3): a device, a checkpoint of that
+    /// class still valid for these settings, and a kernel for every stage
+    /// after it. What a client asks before choosing a loupe-sized frame
+    /// over a `Small` one; it renders nothing and drops nothing. Always
+    /// `false` in a build without the `gpu` feature.
+    pub fn live_on_gpu(&self, asset: AssetId, kind: PreviewKind, settings: &Settings) -> bool {
+        #[cfg(feature = "gpu")]
+        {
+            lock(&self.inner.stage_cache).would_render_on_gpu(
+                asset,
+                leyline_preview::max_edge(kind),
+                settings,
+            )
+        }
+        #[cfg(not(feature = "gpu"))]
+        {
+            let _ = (asset, kind, settings);
+            false
+        }
+    }
+
+    /// What the preview renders on (ADR 0156 §2): the GPU adapter, or
+    /// `None` for the CPU — including in a build without the `gpu` feature.
+    pub fn preview_backend(&self) -> Option<String> {
+        #[cfg(feature = "gpu")]
+        {
+            crate::gpu_preview::preview_backend()
+        }
+        #[cfg(not(feature = "gpu"))]
+        {
+            None
+        }
+    }
+
     /// The tone Auto proposes for `asset` (ADR 0088 §1–§2).
     ///
     /// **Writes nothing.** It returns five numbers; feeding them through an

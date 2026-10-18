@@ -1711,9 +1711,46 @@ const CHECKPOINT_BEFORE_RANK: &[u16] = &[40, 90, 120, 165];
 /// render that happens once.
 #[derive(Debug, Default)]
 pub(crate) struct StageCache {
+    /// One entry per input recently rendered, most recent first, at most
+    /// [`CONTEXTS`]: the develop view's `Small` render and its loupe-sized
+    /// upgrade alternate, and one context would have each discard the
+    /// other's checkpoints at every call (ADR 0166 §4).
+    contexts: Vec<ContextCache>,
+}
+
+/// How many inputs the stage cache keeps checkpoints for (ADR 0166 §4).
+const CONTEXTS: usize = 2;
+
+/// A frame longer than this keeps only its first checkpoint (ADR 0166 §4):
+/// at 4K each is ~134 MB, and the deeper ones serve only CPU drags that
+/// Studio renders at `Small` instead.
+const ONE_CHECKPOINT_ABOVE: u32 = 2048;
+
+/// Which render a cache entry serves: the asset, and the longest edge of
+/// the preview class asked for (`None` for full resolution). The class is a
+/// label for [`StageCache::would_render_on_gpu`]; what invalidates is
+/// [`ContextCache::key`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct CacheTarget {
+    pub asset: leyline_core::AssetId,
+    pub class_edge: Option<u32>,
+}
+
+impl From<leyline_core::AssetId> for CacheTarget {
+    fn from(asset: leyline_core::AssetId) -> Self {
+        CacheTarget {
+            asset,
+            class_edge: None,
+        }
+    }
+}
+
+/// The checkpoints of one input.
+#[derive(Debug)]
+struct ContextCache {
     /// What the buffers were rendered from: asset, proxy scale and the
     /// input buffer's dimensions. None is a setting, so none is covered by
-    /// [`prefix_fingerprint`] — a change here invalidates everything at once.
+    /// [`prefix_fingerprint`] — a change here starts another context.
     ///
     /// The scale alone does not identify the input: it is relative to the
     /// *decoded* buffer, and a half-size decode reduced to 1024 px can have
@@ -1721,7 +1758,9 @@ pub(crate) struct StageCache {
     /// 3360 → 1024 and 6720 → 2048 are both ×0.3048). Measured by E0
     /// (`docs/measured-findings.md` §B5): a `Medium` render after a `Small`
     /// one came back at 1024 px.
-    context: Option<(leyline_core::AssetId, u32, u32, u32)>,
+    key: (leyline_core::AssetId, u32, u32, u32),
+    #[cfg_attr(not(feature = "gpu"), allow(dead_code))]
+    class_edge: Option<u32>,
     checkpoints: Vec<Checkpoint>,
     /// The GPU-resident copy of one checkpoint (ADR 0156 §4): uploaded once,
     /// rendered from at every frame of a drag. Purely derived, like the
@@ -1741,18 +1780,36 @@ struct Checkpoint {
 }
 
 impl StageCache {
-    /// Forgets everything rendered for another asset, another proxy scale
-    /// or another input buffer.
-    fn retarget(&mut self, asset: leyline_core::AssetId, scale: f32, input: &RawImage) {
-        let context = (asset, scale.to_bits(), input.width, input.height);
-        if self.context != Some(context) {
-            self.context = Some(context);
-            self.checkpoints.clear();
-            #[cfg(feature = "gpu")]
-            {
-                self.gpu_frame = None;
+    /// Makes the context of this input the current one — found among the
+    /// kept ones, or started empty — and forgets the oldest beyond
+    /// [`CONTEXTS`].
+    fn retarget(&mut self, target: CacheTarget, scale: f32, input: &RawImage) {
+        let key = (target.asset, scale.to_bits(), input.width, input.height);
+        match self.contexts.iter().position(|c| c.key == key) {
+            Some(0) => {}
+            Some(found) => {
+                let context = self.contexts.remove(found);
+                self.contexts.insert(0, context);
+            }
+            None => {
+                self.contexts.insert(
+                    0,
+                    ContextCache {
+                        key,
+                        class_edge: target.class_edge,
+                        checkpoints: Vec::new(),
+                        #[cfg(feature = "gpu")]
+                        gpu_frame: None,
+                    },
+                );
+                self.contexts.truncate(CONTEXTS);
             }
         }
+    }
+
+    /// The current context; only called after [`StageCache::retarget`].
+    fn current(&mut self) -> Option<&mut ContextCache> {
+        self.contexts.first_mut()
     }
 
     /// Renders the rest of `plan` on the GPU from the deepest valid
@@ -1762,15 +1819,16 @@ impl StageCache {
         &mut self,
         settings: &Settings,
         plan: &[(&'static Stage, &'static Version)],
-        ctx: &Context<'_>,
     ) -> Option<Rendered> {
-        self.checkpoints
+        let current = self.current()?;
+        current
+            .checkpoints
             .retain(|c| c.fingerprint == prefix_fingerprint(settings, plan, c.applied));
-        let deepest = self.checkpoints.iter().max_by_key(|c| c.applied)?;
+        let deepest = current.checkpoints.iter().max_by_key(|c| c.applied)?;
         let data = crate::gpu_preview::render(
-            &mut self.gpu_frame,
+            &mut current.gpu_frame,
             plan.get(deepest.applied..)?,
-            ctx,
+            settings,
             deepest.applied,
             deepest.fingerprint,
             &deepest.pixels,
@@ -1780,6 +1838,38 @@ impl StageCache {
             height: deepest.pixels.height,
             data,
         })
+    }
+
+    /// Whether a render of `settings` for `asset` at the class of
+    /// `class_edge` would run on the GPU now (ADR 0166 §3): a device, a
+    /// context of that class with a checkpoint still valid for these
+    /// settings, and a kernel for every stage after it. Reads only; it
+    /// drops nothing.
+    #[cfg(feature = "gpu")]
+    pub(crate) fn would_render_on_gpu(
+        &self,
+        asset: leyline_core::AssetId,
+        class_edge: Option<u32>,
+        settings: &Settings,
+    ) -> bool {
+        let Ok(plan) = plan(settings) else {
+            return false;
+        };
+        let Some(context) = self
+            .contexts
+            .iter()
+            .find(|c| c.key.0 == asset && c.class_edge == class_edge)
+        else {
+            return false;
+        };
+        context
+            .checkpoints
+            .iter()
+            .filter(|c| c.fingerprint == prefix_fingerprint(settings, &plan, c.applied))
+            .max_by_key(|c| c.applied)
+            .is_some_and(|deepest| {
+                crate::gpu_preview::covers(plan.get(deepest.applied..).unwrap_or(&[]), settings)
+            })
     }
 
     /// The deepest checkpoint still valid for `settings`, if any.
@@ -1793,26 +1883,37 @@ impl StageCache {
         settings: &Settings,
         plan: &[(&'static Stage, &'static Version)],
     ) -> Option<(usize, Pixels)> {
-        self.checkpoints
+        let current = self.current()?;
+        current
+            .checkpoints
             .retain(|c| c.fingerprint == prefix_fingerprint(settings, plan, c.applied));
-        self.checkpoints
+        current
+            .checkpoints
             .iter()
             .max_by_key(|c| c.applied)
             .map(|c| (c.applied, c.pixels.clone()))
     }
 
     /// Records a buffer taken after `applied` stages, replacing any
-    /// checkpoint already held at that depth.
+    /// checkpoint already held at that depth. A frame longer than
+    /// [`ONE_CHECKPOINT_ABOVE`] keeps only its `first` (ADR 0166 §4).
     fn store(
         &mut self,
         settings: &Settings,
         plan: &[(&'static Stage, &'static Version)],
         applied: usize,
         pixels: &Pixels,
+        first: bool,
     ) {
+        if !first && pixels.width.max(pixels.height) > ONE_CHECKPOINT_ABOVE {
+            return;
+        }
         let fingerprint = prefix_fingerprint(settings, plan, applied);
-        self.checkpoints.retain(|c| c.applied != applied);
-        self.checkpoints.push(Checkpoint {
+        let Some(current) = self.current() else {
+            return;
+        };
+        current.checkpoints.retain(|c| c.applied != applied);
+        current.checkpoints.push(Checkpoint {
             applied,
             fingerprint,
             pixels: pixels.clone(),
@@ -1836,7 +1937,7 @@ pub(crate) fn develop_scaled_cached(
     coverages: &crate::mask_coverage::MaskCoverages,
     source: &Source,
     scale: f32,
-    asset: leyline_core::AssetId,
+    target: impl Into<CacheTarget>,
     cache: &mut StageCache,
 ) -> Result<Rendered> {
     let plan = plan(settings)?;
@@ -1862,11 +1963,11 @@ pub(crate) fn develop_scaled_cached(
         .filter_map(|&rank| plan.iter().position(|(_, v)| v.rank >= rank))
         .collect();
 
-    cache.retarget(asset, scale, image);
+    cache.retarget(target.into(), scale, image);
     // The GPU first, from the deepest checkpoint, *before* that checkpoint
     // is cloned for the CPU: at 4K the clone alone is ~134 MB (ADR 0156 §4).
     #[cfg(feature = "gpu")]
-    if let Some(rendered) = cache.render_on_gpu(settings, &plan, &ctx) {
+    if let Some(rendered) = cache.render_on_gpu(settings, &plan) {
         return Ok(rendered);
     }
     let (mut applied, mut px) = match cache.resume_from(settings, &plan) {
@@ -1879,7 +1980,13 @@ pub(crate) fn develop_scaled_cached(
         // that closed it: what matters is that the buffer entering an
         // expensive run is kept, whatever ran before it.
         if cuts.contains(&applied) {
-            cache.store(settings, &plan, applied, &px);
+            cache.store(
+                settings,
+                &plan,
+                applied,
+                &px,
+                cuts.first() == Some(&applied),
+            );
         }
         plan[applied].1.run(&mut px, &ctx);
         applied += 1;

@@ -11,7 +11,9 @@ use std::sync::{Arc, OnceLock};
 use leyline_gpu::{DisplayOp, Frame, Gpu, Op, Transfer};
 
 use crate::pixels::Pixels;
-use crate::stages::{Context, Stage, Version};
+use leyline_core::Settings;
+
+use crate::stages::{Stage, Version};
 
 /// The device, acquired once per process on first use. `LEYLINE_GPU=off`
 /// keeps the preview on the CPU, for a comparison or a driver that
@@ -35,7 +37,7 @@ fn gpu() -> Option<&'static Gpu> {
 
 /// What the preview's renders run on, for *About* (ADR 0156 §2): the
 /// adapter, or `None` for the CPU.
-pub fn preview_backend() -> Option<String> {
+pub(crate) fn preview_backend() -> Option<String> {
     gpu().map(Gpu::describe)
 }
 
@@ -43,23 +45,23 @@ pub fn preview_backend() -> Option<String> {
 /// renders (ADR 0156 §3) — a table beside `STAGES`, keyed by name and
 /// version like `INPUT_DECODE`, so a frozen `Version` is never edited to
 /// gain one. `None` means the GPU cannot run this version.
-fn kernel(stage: &Stage, version: &Version, ctx: &Context) -> Option<Op> {
+fn kernel(stage: &Stage, version: &Version, settings: &Settings) -> Option<Op> {
     match (stage.name, version.version) {
         ("gains", 1) => Some(Op::Gains(crate::stages::gains::v1::channel_gains(
-            ctx.settings.white_balance.as_ref(),
-            ctx.settings.exposure,
+            settings.white_balance.as_ref(),
+            settings.exposure,
         ))),
         ("contrast", 1) => display(DisplayOp::Contrast {
-            k: f32::from(ctx.settings.contrast as i16) / 100.0,
+            k: f32::from(settings.contrast as i16) / 100.0,
         }),
         ("highlights_shadows", 1) => display(DisplayOp::HighlightsShadows {
-            highlights: f32::from(ctx.settings.highlights as i16) / 100.0,
-            shadows: f32::from(ctx.settings.shadows as i16) / 100.0,
+            highlights: f32::from(settings.highlights as i16) / 100.0,
+            shadows: f32::from(settings.shadows as i16) / 100.0,
         }),
         // The same arithmetic as `whites_blacks` v1, in the same `f32`.
         ("whites_blacks", 1) => {
-            let white = 1.0 - f32::from(ctx.settings.whites as i16) / 100.0 * 0.25;
-            let black = -f32::from(ctx.settings.blacks as i16) / 100.0 * 0.25;
+            let white = 1.0 - f32::from(settings.whites as i16) / 100.0 * 0.25;
+            let black = -f32::from(settings.blacks as i16) / 100.0 * 0.25;
             display(DisplayOp::WhitesBlacks {
                 black,
                 scale: 1.0 / (white - black),
@@ -67,14 +69,12 @@ fn kernel(stage: &Stage, version: &Version, ctx: &Context) -> Option<Op> {
         }
         ("parametric_curve", 1) => display(DisplayOp::Curve(Arc::new(
             crate::stages::tone_curve::v1::build_curve_lut(
-                &crate::stages::parametric_curve::v1::control_points(
-                    &ctx.settings.parametric_curve,
-                ),
+                &crate::stages::parametric_curve::v1::control_points(&settings.parametric_curve),
             )
             .to_vec(),
         ))),
         ("levels", 1) => {
-            let levels = &ctx.settings.levels;
+            let levels = &settings.levels;
             display(DisplayOp::Levels {
                 in_black: levels.input_black as f32 / 255.0,
                 in_range: (levels.input_white - levels.input_black) as f32 / 255.0,
@@ -84,15 +84,15 @@ fn kernel(stage: &Stage, version: &Version, ctx: &Context) -> Option<Op> {
             })
         }
         // The master curve alone: v2 with channel curves stays on the CPU.
-        ("tone_curve", 1 | 2) if !ctx.settings.tone_curve.has_channel_curves() => {
+        ("tone_curve", 1 | 2) if !settings.tone_curve.has_channel_curves() => {
             display(DisplayOp::Curve(Arc::new(
-                crate::stages::tone_curve::v1::build_curve_lut(&ctx.settings.tone_curve.points)
+                crate::stages::tone_curve::v1::build_curve_lut(&settings.tone_curve.points)
                     .to_vec(),
             )))
         }
         ("output_rendering", 1) => Some(Op::OutputRendering {
             knee: crate::stages::output_rendering::v1::knee(
-                ctx.settings.output_rendering.highlight_rolloff,
+                settings.output_rendering.highlight_rolloff,
             ),
             matrix: leyline_color::REC2020_TO_LINEAR_SRGB.map(|row| row.map(|v| v as f32)),
             display_table: display_table(),
@@ -120,6 +120,15 @@ fn display_table() -> Arc<Vec<f32>> {
     Arc::clone(TABLE.get_or_init(|| Arc::new(crate::stages::kernel::v1::tables().1.to_vec())))
 }
 
+/// Whether the GPU could run every stage of `rest` for `settings`
+/// (ADR 0166 §3), with a device to run them on.
+pub(crate) fn covers(rest: &[(&'static Stage, &'static Version)], settings: &Settings) -> bool {
+    gpu().is_some()
+        && rest
+            .iter()
+            .all(|(stage, version)| kernel(stage, version, settings).is_some())
+}
+
 /// The resident copy of one checkpoint, and which checkpoint it is.
 #[derive(Debug)]
 pub(crate) struct ResidentFrame {
@@ -134,7 +143,7 @@ pub(crate) struct ResidentFrame {
 pub(crate) fn render(
     resident: &mut Option<ResidentFrame>,
     rest: &[(&'static Stage, &'static Version)],
-    ctx: &Context,
+    settings: &Settings,
     applied: usize,
     fingerprint: u64,
     pixels: &Pixels,
@@ -142,7 +151,7 @@ pub(crate) fn render(
     let gpu = gpu()?;
     let ops = rest
         .iter()
-        .map(|(stage, version)| kernel(stage, version, ctx))
+        .map(|(stage, version)| kernel(stage, version, settings))
         .collect::<Option<Vec<Op>>>()?;
     let key = (applied, fingerprint);
     if resident.as_ref().is_none_or(|r| r.key != key) {
