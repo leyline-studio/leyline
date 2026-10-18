@@ -70,6 +70,8 @@ export component GroupHeader inherits HorizontalLayout {
     in property <string> group;
     in-out property <bool> expanded;
     callback reset();
+    // Held: the group's identifier; released: empty (ADR 0163 §2).
+    callback peek(string);
 
     TouchArea {
         horizontal-stretch: 1;
@@ -86,6 +88,32 @@ export component GroupHeader inherits HorizontalLayout {
     // A tool that writes this group's settings (ADR 0160 §3), beside its
     // name rather than in a toolbar of its own.
     @children
+    // Look at the photograph without this group while the glyph is held
+    // (ADR 0163): what ⟲ beside it would write, shown and not committed.
+    // Same visibility rule as ⟲.
+    if root.group != "" && root.expanded: peek-glyph := TouchArea {
+        width: 16px;
+        mouse-cursor: pointer;
+        Text {
+            text: "◐";
+            color: parent.pressed ? Theme.text : parent.has-hover ? Theme.text : Theme.text-disabled;
+            font-size: 12px;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+        changed pressed => {
+            HintState.dismiss();
+            root.peek(self.pressed ? root.group : "");
+        }
+        changed has-hover => {
+            if (self.has-hover) {
+                HintState.enter(@tr("Hold to see the photo without this group"),
+                    self.absolute-position.x, self.absolute-position.y + self.height);
+            } else {
+                HintState.leave(@tr("Hold to see the photo without this group"));
+            }
+        }
+    }
     // Put the whole group back to neutral, in one revision (ADR 0112 §4).
     // Shown only while the group is open: a header row is read as a list,
     // and a column of buttons down the side of a folded panel invites the

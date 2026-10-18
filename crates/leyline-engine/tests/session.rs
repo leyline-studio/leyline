@@ -482,3 +482,31 @@ fn opening_a_missing_version_is_reported() {
         Err(LeylineError::VersionMissing(id)) if id.get() == 999
     ));
 }
+
+/// What a view renders (ADR 0163): the session's mapping and validation,
+/// in memory, and no revision — unlike a session dropped with a value set.
+#[test]
+fn settings_with_applies_and_validates_without_writing() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut catalog, reg) = catalog_with_asset(&dir);
+    let head = EditSession::open(&mut catalog, reg.version)
+        .unwrap()
+        .settings()
+        .clone();
+
+    let viewed = leyline_engine::settings_with(
+        &head,
+        [
+            (Param::Exposure, Value::Float(1.5)),
+            (Param::Saturation, Value::Int(-100)),
+        ],
+    )
+    .unwrap();
+    assert_eq!(viewed.exposure, 1.5);
+    assert_eq!(viewed.saturation, -100);
+    // Out of range is refused as `set` refuses it.
+    assert!(leyline_engine::settings_with(&head, [(Param::Saturation, Value::Int(1000))]).is_err());
+
+    let mut session = EditSession::open(&mut catalog, reg.version).unwrap();
+    assert_eq!(session.history().unwrap().len(), 1);
+}

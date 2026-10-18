@@ -3613,6 +3613,10 @@ msgctxt "GroupHeader"
 msgid "Put this group back to neutral"
 msgstr "Remettre ce groupe à zéro"
 
+msgctxt "GroupHeader"
+msgid "Hold to see the photo without this group"
+msgstr "Maintenir pour voir la photo sans ce groupe"
+
 #: crates/leyline-studio/ui/dialogs/shortcuts.slint:174
 msgctxt "ShortcutsDialog"
 msgid "Wheel"

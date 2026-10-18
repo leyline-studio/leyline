@@ -1680,6 +1680,9 @@ export component DevelopPanel inherits HorizontalLayout {
                         reset => {
                             DevelopState.reset-group("spot-removal");
                         }
+                        peek(group) => {
+                            DevelopState.peek-group(group);
+                        }
                         expanded <=> root.expand-spot-removal;
                     }
                     if root.expand-spot-removal: VerticalLayout {
@@ -1803,6 +1806,9 @@ export component DevelopPanel inherits HorizontalLayout {
                         reset => {
                             DevelopState.reset-group("red-eye");
                         }
+                        peek(group) => {
+                            DevelopState.peek-group(group);
+                        }
                         expanded <=> root.expand-red-eye;
                     }
                     if root.expand-red-eye: VerticalLayout {
@@ -1879,6 +1885,9 @@ export component DevelopPanel inherits HorizontalLayout {
                         group: "reshape";
                         reset => {
                             DevelopState.reset-group("reshape");
+                        }
+                        peek(group) => {
+                            DevelopState.peek-group(group);
                         }
                         expanded <=> root.expand-reshape;
                     }
@@ -2004,6 +2013,9 @@ export component DevelopPanel inherits HorizontalLayout {
                         group: "local";
                         reset => {
                             DevelopState.reset-group("local");
+                        }
+                        peek(group) => {
+                            DevelopState.peek-group(group);
                         }
                         expanded <=> root.expand-local;
                     }
@@ -2834,6 +2846,9 @@ export component DevelopPanel inherits HorizontalLayout {
                         reset => {
                             DevelopState.reset-group("basic");
                         }
+                        peek(group) => {
+                            DevelopState.peek-group(group);
+                        }
                         expanded <=> root.expand-basic;
                         // The targeted adjustment (ADR 0130 §3) heads the
                         // group whose sliders it moves (ADR 0160 §3); a
@@ -3228,6 +3243,9 @@ export component DevelopPanel inherits HorizontalLayout {
                         reset => {
                             DevelopState.reset-group("camera-profile");
                         }
+                        peek(group) => {
+                            DevelopState.peek-group(group);
+                        }
                         expanded <=> root.expand-camera-profile;
                     }
                     if !root.basic-mode && root.expand-camera-profile: VerticalLayout {
@@ -3335,6 +3353,9 @@ export component DevelopPanel inherits HorizontalLayout {
                         reset => {
                             DevelopState.reset-group("lut");
                         }
+                        peek(group) => {
+                            DevelopState.peek-group(group);
+                        }
                         expanded <=> root.expand-lut;
                     }
                     // A look chosen elsewhere and imported into the library
@@ -3394,6 +3415,9 @@ export component DevelopPanel inherits HorizontalLayout {
                         group: "lens";
                         reset => {
                             DevelopState.reset-group("lens");
+                        }
+                        peek(group) => {
+                            DevelopState.peek-group(group);
                         }
                         expanded <=> root.expand-lens;
                     }
@@ -3502,6 +3526,9 @@ export component DevelopPanel inherits HorizontalLayout {
                         reset => {
                             DevelopState.reset-group("detail");
                         }
+                        peek(group) => {
+                            DevelopState.peek-group(group);
+                        }
                         expanded <=> root.expand-detail;
                     }
                     if root.expand-detail: VerticalLayout {
@@ -3599,6 +3626,9 @@ export component DevelopPanel inherits HorizontalLayout {
                         group: "effects";
                         reset => {
                             DevelopState.reset-group("effects");
+                        }
+                        peek(group) => {
+                            DevelopState.peek-group(group);
                         }
                         expanded <=> root.expand-effects;
                     }
@@ -3724,6 +3754,9 @@ export component DevelopPanel inherits HorizontalLayout {
                         group: "tone-curve";
                         reset => {
                             DevelopState.reset-group("tone-curve");
+                        }
+                        peek(group) => {
+                            DevelopState.peek-group(group);
                         }
                         expanded <=> root.expand-tone-curve;
                     }
@@ -3987,6 +4020,9 @@ export component DevelopPanel inherits HorizontalLayout {
                         reset => {
                             DevelopState.reset-group("hsl");
                         }
+                        peek(group) => {
+                            DevelopState.peek-group(group);
+                        }
                         expanded <=> root.expand-hsl;
                     }
                     if !root.basic-mode && root.expand-hsl && DevelopState.dev.monochrome: Text {
@@ -4053,6 +4089,9 @@ export component DevelopPanel inherits HorizontalLayout {
                         group: "color-grading";
                         reset => {
                             DevelopState.reset-group("color-grading");
+                        }
+                        peek(group) => {
+                            DevelopState.peek-group(group);
                         }
                         expanded <=> root.expand-color-grading;
                     }
@@ -4308,6 +4347,9 @@ export component DevelopPanel inherits HorizontalLayout {
                         group: "geometry";
                         reset => {
                             DevelopState.reset-group("geometry");
+                        }
+                        peek(group) => {
+                            DevelopState.peek-group(group);
                         }
                         expanded <=> root.expand-geometry;
                         // Keystone by drawn lines (ADR 0119) heads the group

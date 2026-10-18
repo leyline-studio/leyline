@@ -43,7 +43,7 @@ pub use leyline_engine::{
     SourceColor, StudioLock, TCA_MIN_SAMPLES, TcaEstimate, TetherOptions, Value, Verdict,
     WatchError, WatchSessionEvent, WatchedFile, changed_settings, decoder_version,
     install_panic_hook, install_panic_hook_recording, neutral_settings, overlay,
-    parametric_curve_samples, session_folder,
+    parametric_curve_samples, session_folder, settings_with,
 };
 
 /// The measures assisted culling is built on (ADR 0084 §4) — focus,

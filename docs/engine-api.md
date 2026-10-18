@@ -552,6 +552,7 @@ impl EditSession {
 * `set` is called on every slider movement: the engine updates the preview in memory.
 * `commit` is called at the commit points defined by `pipeline.md` (release, tool change…). The session alone decides whether it is a new revision or an amendment.
 * Closing the session (drop) commits the pending state: nothing is ever lost.
+* A view that must not be written — a slider mid-drag, a group looked at without its values ([ADR 0163](adr/0163-a-look-without-one-group.md)) — therefore never goes through a session's `set`: `settings_with(&head, changes)` applies the same mapping and the same validation in memory, and `Library::preview_live` renders the result. A session opened only to *read* the head commits nothing on drop.
 
 ### The claim ([ADR 0120](adr/0120-edit-session-claim.md))
 

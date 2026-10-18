@@ -94,14 +94,14 @@ pub(super) fn live_preview(
     app.last_live_render = Some(now);
 
     let shown = (|| {
-        let mut session = app.library.edit(version)?;
-        let Some((param, value)) = action(session.settings()) else {
+        // Only read: dropping a session that has a value set *commits* it
+        // (`engine-api.md` §10.1), which is why the change is applied in
+        // memory with `settings_with` rather than with `session.set`.
+        let head = app.library.edit(version)?.settings().clone();
+        let Some(change) = action(&head) else {
             return Ok(None);
         };
-        session.set(param, value)?;
-        let settings = session.settings().clone();
-        // Dropped without committing: that is the whole point.
-        drop(session);
+        let settings = leyline_sdk::settings_with(&head, [change])?;
         app.library
             .preview_live(asset, PreviewKind::Small, &settings)
             .map(Some)

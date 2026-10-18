@@ -103,7 +103,7 @@ pub use render::{LensShot, Rendered, SensorShot, lens_shot, render, render_scale
 pub use reprocess::{FailedReprocess, ReprocessReport, reprocess_batch};
 pub use reproduce::{DifferenceSuspect, ExportMatch, ReproduceVerdict, Reproduction};
 pub use scan::{ImportCandidate, ScanOptions, ScanReport, scan};
-pub use session::{DEFAULT_AMEND_WINDOW, EditSession, Param, Value};
+pub use session::{DEFAULT_AMEND_WINDOW, EditSession, Param, Value, settings_with};
 pub use stages::parametric_curve_samples;
 pub use stages::{Source, SourceColor, neutral_settings};
 pub use studio_lock::{STUDIO_LOCK_FILE, StudioLock};

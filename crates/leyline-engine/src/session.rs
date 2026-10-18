@@ -522,6 +522,28 @@ impl<C: CatalogAccess> Drop for EditSession<C> {
     }
 }
 
+/// `base` with `changes` applied, computed in memory and written nowhere:
+/// what a client renders to *show* settings it has not committed — a slider
+/// mid-drag, a group looked at without its values (ADR 0163). Each change
+/// goes through the mapping [`EditSession::set`] uses, and the result is
+/// validated as a session validates it, so the view cannot show something a
+/// commit would not produce.
+///
+/// Not a session on purpose: dropping an [`EditSession`] *commits* its
+/// pending state (§10.1), so a session opened only to compute a view writes
+/// a revision.
+pub fn settings_with(
+    base: &Settings,
+    changes: impl IntoIterator<Item = (Param, Value)>,
+) -> Result<Settings> {
+    let mut settings = base.clone();
+    for (param, value) in changes {
+        apply(&mut settings, param, value)?;
+    }
+    settings.validate()?;
+    Ok(settings)
+}
+
 /// Applies one typed value to the matching settings field.
 ///
 /// `pub(crate)` so a preset can be laid over a [`Settings`] **without** a

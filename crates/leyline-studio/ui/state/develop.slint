@@ -126,6 +126,10 @@ export global DevelopState {
     // Puts one panel group back to neutral in a single revision
     // (ADR 0112 §4); the identifier is `develop::reset_group`'s.
     callback reset-group(string);
+    // Shows the photograph without one group — exactly what that group's
+    // reset would write, rendered and not committed (ADR 0163); an empty
+    // identifier brings the photograph back.
+    callback peek-group(string);
     // The pixel under the pointer, in [0, 1] image coordinates: Rust reads
     // the render it already holds and fills `pixel-readout` (ADR 0112 §2).
     callback sample-pixel(float, float);

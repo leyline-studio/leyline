@@ -10,7 +10,7 @@ use super::refresh_develop;
 use crate::app::{App, report_error};
 use crate::develop;
 use crate::ui::{DevelopState, StudioWindow};
-use leyline_sdk::{Param, Value};
+use leyline_sdk::{Param, PreviewKind, Value};
 use slint::{ComponentHandle, Global};
 
 pub(super) fn wire_adjustments(app: &Rc<RefCell<App>>, window: &StudioWindow) {
@@ -41,6 +41,17 @@ pub(super) fn wire_adjustments(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             {
                 report_error(&window, &error);
             }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        DevelopState::get(window).on_peek_group(move |group| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            let app = app.borrow();
+            peek_group(&app, &window, group.as_str());
         });
     }
     {
@@ -425,5 +436,32 @@ pub(super) fn wire_adjustments(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                 report_error(&window, &error);
             }
         });
+    }
+}
+
+/// Shows the photo without one group, or brings it back when `group` is
+/// empty (ADR 0163). The look is the group's reset applied in memory
+/// (`settings_with`) and rendered through `preview_live`: nothing is
+/// written, and what shows is exactly what the ⟲ beside the glyph would
+/// commit. A render that fails shows nothing and reports nothing — a held
+/// glyph is not a command (§4).
+fn peek_group(app: &App, window: &StudioWindow, group: &str) {
+    let state = DevelopState::get(window);
+    let Some((asset, version)) = app.develop.filter(|_| !group.is_empty()) else {
+        state.set_dev_trial_active(false);
+        return;
+    };
+    let look = (|| {
+        // Read and closed with nothing set, so its drop commits nothing; it
+        // must be closed before rendering, since a living session holds the
+        // library.
+        let head = app.library.edit(version)?.settings().clone();
+        let settings = leyline_sdk::settings_with(&head, develop::reset_group(group, &head))?;
+        app.library
+            .preview_live(asset, PreviewKind::Small, &settings)
+    })();
+    if let Ok(image) = look {
+        state.set_dev_trial_image(crate::models::rgb8_to_slint_image(&image));
+        state.set_dev_trial_active(true);
     }
 }
