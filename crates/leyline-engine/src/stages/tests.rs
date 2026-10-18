@@ -2628,3 +2628,58 @@ fn a_non_finite_hue_falls_back_to_the_first_band() {
         assert_eq!(hue_band_neighbors(hue), (0, 1, 0.0));
     }
 }
+
+/// E0's finding (`docs/measured-findings.md` §B5): the same asset at the
+/// same scale but from a differently sized input — a half-size decode
+/// against a full one — must not resume from the other's checkpoints.
+#[test]
+fn the_stage_cache_is_dropped_across_input_sizes_at_one_scale() {
+    use super::{StageCache, develop_scaled, develop_scaled_cached};
+    use leyline_core::AssetId;
+
+    let mut settings = leyline_core::Settings {
+        dehaze: 25,
+        sharpening: Sharpening {
+            amount: 30,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    super::pin(&mut settings);
+    let source = super::Source::plain(super::SourceColor::Srgb);
+    let render = |image: &leyline_raw::RawImage, cache: &mut StageCache| {
+        develop_scaled_cached(
+            image,
+            &settings,
+            None,
+            None,
+            None,
+            None,
+            &Default::default(),
+            &source,
+            0.5,
+            AssetId::new(1),
+            cache,
+        )
+        .unwrap()
+    };
+
+    let mut cache = StageCache::default();
+    render(&test_image(32, 24), &mut cache);
+    let larger = test_image(64, 48);
+    let cached = render(&larger, &mut cache);
+    let cold = develop_scaled(
+        &larger,
+        &settings,
+        None,
+        None,
+        None,
+        None,
+        &Default::default(),
+        &source,
+        0.5,
+    )
+    .unwrap();
+    assert_eq!((cached.width, cached.height), (64, 48));
+    assert_eq!(cached.data, cold.data);
+}

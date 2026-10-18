@@ -1711,10 +1711,17 @@ const CHECKPOINT_BEFORE_RANK: &[u16] = &[40, 90, 120, 165];
 /// render that happens once.
 #[derive(Debug, Default)]
 pub(crate) struct StageCache {
-    /// What the buffers were rendered from: asset and proxy scale. Neither
-    /// is a setting, so neither is covered by [`prefix_fingerprint`] — a
-    /// change here invalidates everything at once.
-    context: Option<(leyline_core::AssetId, u32)>,
+    /// What the buffers were rendered from: asset, proxy scale and the
+    /// input buffer's dimensions. None is a setting, so none is covered by
+    /// [`prefix_fingerprint`] — a change here invalidates everything at once.
+    ///
+    /// The scale alone does not identify the input: it is relative to the
+    /// *decoded* buffer, and a half-size decode reduced to 1024 px can have
+    /// exactly the scale of a full decode reduced to 2048 (a 6720-px sensor:
+    /// 3360 → 1024 and 6720 → 2048 are both ×0.3048). Measured by E0
+    /// (`docs/measured-findings.md` §B5): a `Medium` render after a `Small`
+    /// one came back at 1024 px.
+    context: Option<(leyline_core::AssetId, u32, u32, u32)>,
     checkpoints: Vec<Checkpoint>,
 }
 
@@ -1729,10 +1736,10 @@ struct Checkpoint {
 }
 
 impl StageCache {
-    /// Forgets everything rendered for another asset or another proxy
-    /// scale.
-    fn retarget(&mut self, asset: leyline_core::AssetId, scale: f32) {
-        let context = (asset, scale.to_bits());
+    /// Forgets everything rendered for another asset, another proxy scale
+    /// or another input buffer.
+    fn retarget(&mut self, asset: leyline_core::AssetId, scale: f32, input: &RawImage) {
+        let context = (asset, scale.to_bits(), input.width, input.height);
         if self.context != Some(context) {
             self.context = Some(context);
             self.checkpoints.clear();
@@ -1819,7 +1826,7 @@ pub(crate) fn develop_scaled_cached(
         .filter_map(|&rank| plan.iter().position(|(_, v)| v.rank >= rank))
         .collect();
 
-    cache.retarget(asset, scale);
+    cache.retarget(asset, scale, image);
     let (mut applied, mut px) = match cache.resume_from(settings, &plan) {
         Some((applied, pixels)) => (applied, pixels),
         None => (0, Pixels::from_raw(image)?),

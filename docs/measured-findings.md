@@ -537,7 +537,8 @@ The CPU path is **at its ceiling for cheap wins**. What is left, in order:
 
 1. **Denoise and dehaze parallel efficiency**, ~9× → ~13×: bounded at ~20 % of
    a full edit, and the hardest kind of work in this list;
-2. nothing else with a measured lever. SIMD is empty, the GPU is closed by B3,
+2. nothing else with a measured lever. SIMD is empty, the GPU is closed by B3
+   for the 1024-px proxy (B5 reopens it at the loupe's resolution),
    export has no deficit to catch up (B2), import went 695 → 13 ms per file
    ([ADR 0082](adr/0082-embedded-preview-at-import.md)–[0083](adr/0083-scaled-jpeg-thumbnail-decode.md)),
    the stage cache took 78 % off an interactive slider (B1) and batching took
@@ -545,6 +546,58 @@ The CPU path is **at its ceiling for cheap wins**. What is left, in order:
 
 The honest summary is that performance is no longer where this project's next
 gain lies.
+
+## B5 — E0: the drag at the loupe's resolution — **measured on 2026-10-19**
+
+**The question.** B1 made a drag fluid on a **1024-px** proxy, and B3 closed
+the GPU on that basis. But the loupe of a 1440p or 4K screen shows that
+1024-px proxy enlarged: fluid, and soft. Before any GPU work, the plan
+(chantier 5) asked what a drag costs at the resolution the screen actually
+shows, with a threshold set in advance: **if the CPU holds 33 ms per frame at
+4K, enlarge the proxy and stop there**.
+
+**Protocol.** `crates/leyline-engine/examples/live_render_cost.rs`, repeatable:
+
+```
+cargo run --release -p leyline-engine --example live_render_cost -- <raw>...
+```
+
+One throw-away library per file; for each class, nine frames of a drag
+through `Library::preview_live` — the path Studio's drag takes, stage cache
+included — on an **early** slider (exposure, rank 40: everything after the
+first checkpoint replays) and a **late** one (sharpening: the cache's best
+case, plus the cost of the stage itself). The first frame warms the decode
+and the cache and is left out; the median of the other eight is reported.
+i9-9900K, 16 threads, the B-axis reference machine.
+
+| File | Class (frame) | Exposure | Sharpening |
+|---|---|---|---|
+| 10 Mpx CR2 (3888×2592) | Small (1024×683) | 19 ms | 25 ms |
+| | Medium (2048×1365) | 42 ms | 47 ms |
+| | Large (3888×2592, native) | 161 ms | 194 ms |
+| 30 Mpx 5D IV CR2 (6720×4480) | Small (1024×684) | 7 ms | 13 ms |
+| | Medium (2048×1367) | 39 ms | 46 ms |
+| | Large (4096×2734) | 172 ms | 199 ms |
+
+**Verdict: the threshold is not met.** At 4K the CPU renders a drag at
+**5–6 frames per second**, five to six times the 33 ms budget, and the cost
+follows the pixel count (×16 from Small to Large), as B4's parallel
+efficiency says it must. Medium is borderline at ~40–47 ms (~22 fps).
+Enlarging the proxy is therefore not an answer at 4K; per the plan, this is
+the measurement that sends the question to ADR 0156, still to be written (a GPU on the preview
+path alone, CPU authoritative at export, B3's separation).
+
+**A defect found on the way, and fixed.** The first run printed a `Medium`
+frame of **1024×684** for the 5D IV. The stage cache keyed its buffers by
+asset and proxy *scale*, and the scale is relative to the decoded buffer: a
+half-size decode reduced to 1024 px and a full decode reduced to 2048 px both
+have a scale of ×0.3048 on a 6720-px sensor. The cache resumed a `Medium`
+render from `Small` checkpoints. Its context now also holds the input
+buffer's dimensions, and
+`the_stage_cache_is_dropped_across_input_sizes_at_one_scale` fails without
+that change. The table above was measured after the fix. Studio's develop
+view mixes classes (a `Small` drag, larger renders on release and zoom), so
+the defect could show a soft 1024-px frame where a sharper one was due.
 
 ---
 
