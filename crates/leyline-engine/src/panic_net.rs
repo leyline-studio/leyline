@@ -19,14 +19,23 @@ use std::panic::{self, AssertUnwindSafe};
 /// hit would then reach a report with nothing to locate it. Called first
 /// thing by each client's `main`.
 pub fn install_panic_hook() {
-    panic::set_hook(Box::new(|info| {
+    install_panic_hook_recording(|_| {});
+}
+
+/// [`install_panic_hook`], and then hands the same text — thread, message,
+/// backtrace — to `record`.
+///
+/// Studio records it in `last-panic.txt` (ADR 0162 §1); where that file
+/// lives is the client's business, not the engine's. `record` runs while
+/// something is already wrong: it must not panic, and a failure inside it is
+/// its own to swallow.
+pub fn install_panic_hook_recording(record: impl Fn(&str) + Send + Sync + 'static) {
+    panic::set_hook(Box::new(move |info| {
         let thread = std::thread::current();
         let thread = thread.name().unwrap_or("<unnamed>");
-        eprintln!(
-            "internal error — this is a bug in Leyline, please report it.\n\
-             thread '{thread}' {info}\n{}",
-            Backtrace::force_capture()
-        );
+        let text = format!("thread '{thread}' {info}\n{}", Backtrace::force_capture());
+        eprintln!("internal error — this is a bug in Leyline, please report it.\n{text}");
+        record(&text);
     }));
 }
 

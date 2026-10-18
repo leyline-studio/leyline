@@ -44,6 +44,7 @@ mod library;
 mod map_view;
 mod masks;
 mod models;
+mod panic_file;
 mod preferences;
 mod undo;
 mod updates;
@@ -261,7 +262,7 @@ impl From<String> for Startup {
 }
 
 fn main() -> std::process::ExitCode {
-    leyline_sdk::install_panic_hook();
+    panic_file::install();
     match run() {
         Ok(()) => std::process::ExitCode::SUCCESS,
         Err(Startup::LoopFailed(message)) => {
@@ -501,23 +502,8 @@ fn run() -> Result<(), Startup> {
     // Surfaced in Help ▸ About Leyline: build-time constant from Cargo.toml's
     // `version.workspace = true`, so it stays in sync without a manual edit.
     LibraryState::get(&window).set_app_version(SharedString::from(env!("CARGO_PKG_VERSION")));
-    // Recorded by `build.rs`; every field degrades to "inconnu" rather than
-    // failing a build made from a source tarball with no git checkout.
-    // The decoder line is read at run time, unlike the four build-time
-    // constants around it, and that difference is the point: LibRaw is linked
-    // dynamically (ADR 0004), so it is a property of this machine rather than
-    // of this build. `docs/pipeline.md` §5.1 counts it among the terms of the
-    // bit-for-bit promise (ADR 0086), which makes it the one fact about a
-    // render a user cannot otherwise discover — and the first one worth having
-    // in a report that says the pixels changed.
-    LibraryState::get(&window).set_build_details(SharedString::from(format!(
-        "Version {}\nCommit {}\nTarget {}\n{}\nLibRaw {}",
-        env!("CARGO_PKG_VERSION"),
-        env!("LEYLINE_COMMIT"),
-        env!("LEYLINE_TARGET"),
-        env!("LEYLINE_RUSTC"),
-        leyline_sdk::decoder_version(),
-    )));
+    // The same five lines the panic file opens with (ADR 0162 §1).
+    LibraryState::get(&window).set_build_details(SharedString::from(panic_file::build_details()));
     FilterState::get(&window).set_filter_label(-1);
     FilterState::get(&window).set_filter_pick(-1);
     wiring::filters::publish_sort(&window, GridQuery::default().sort);
