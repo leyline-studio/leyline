@@ -499,8 +499,8 @@ mod tests {
         DetectorSource {
             id: name.to_owned(),
             label: name.to_owned(),
-            command: script(dir, &format!("{name}.sh"), body),
-            args: Vec::new(),
+            command: PathBuf::from("/bin/sh"),
+            args: vec![script_arg(dir, &format!("{name}.sh"), body)],
             detections: vec![Detection {
                 id: "sky".to_owned(),
                 label: "Sky".to_owned(),
@@ -655,12 +655,18 @@ cp {} "$out""#,
 
     /// A script that copies its `--image` to its `--out`, or fails on demand.
     #[cfg(unix)]
-    fn script(dir: &Path, name: &str, body: &str) -> PathBuf {
-        use std::os::unix::fs::PermissionsExt;
+    /// A script for `/bin/sh` to read, as the detector's one fixed argument.
+    ///
+    /// Read rather than executed: a script written and then executed at once
+    /// fails now and then with `ETXTBSY`, when a test running beside it forks
+    /// while the write is still open and the child holds a copy of that
+    /// descriptor until its own `exec`. `$1..` inside the script are the same
+    /// either way.
+    #[cfg(unix)]
+    fn script_arg(dir: &Path, name: &str, body: &str) -> String {
         let path = dir.join(name);
-        std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
-        path
+        std::fs::write(&path, format!("{body}\n")).unwrap();
+        path.display().to_string()
     }
 
     /// The usual argument dance, extracted once: `$1..$6` are the six
@@ -837,12 +843,12 @@ cp "$image" "$out"
     #[test]
     fn a_detector_that_writes_its_coverage_succeeds() {
         let dir = tempfile::tempdir().unwrap();
-        let command = script(dir.path(), "copy.sh", COPY_IMAGE_TO_OUT);
+        let script = script_arg(dir.path(), "copy.sh", COPY_IMAGE_TO_OUT);
         let source = DetectorSource {
             id: "copy".to_owned(),
             label: "Copy".to_owned(),
-            command,
-            args: Vec::new(),
+            command: PathBuf::from("/bin/sh"),
+            args: vec![script],
             detections: vec![Detection {
                 id: "sky".to_owned(),
                 label: "Sky".to_owned(),
@@ -861,7 +867,7 @@ cp "$image" "$out"
     #[test]
     fn a_refusal_carries_the_detectors_own_words() {
         let dir = tempfile::tempdir().unwrap();
-        let command = script(
+        let script = script_arg(
             dir.path(),
             "fail.sh",
             "echo 'no sky in this frame' >&2\nexit 3",
@@ -869,8 +875,8 @@ cp "$image" "$out"
         let source = DetectorSource {
             id: "fail".to_owned(),
             label: "Fail".to_owned(),
-            command,
-            args: Vec::new(),
+            command: PathBuf::from("/bin/sh"),
+            args: vec![script],
             detections: vec![Detection {
                 id: "sky".to_owned(),
                 label: "Sky".to_owned(),
@@ -892,12 +898,12 @@ cp "$image" "$out"
     #[test]
     fn success_without_a_coverage_is_still_a_failure() {
         let dir = tempfile::tempdir().unwrap();
-        let command = script(dir.path(), "silent.sh", "exit 0");
+        let script = script_arg(dir.path(), "silent.sh", "exit 0");
         let source = DetectorSource {
             id: "silent".to_owned(),
             label: "Silent".to_owned(),
-            command,
-            args: Vec::new(),
+            command: PathBuf::from("/bin/sh"),
+            args: vec![script],
             detections: vec![Detection {
                 id: "sky".to_owned(),
                 label: "Sky".to_owned(),
