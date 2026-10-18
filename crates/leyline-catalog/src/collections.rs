@@ -62,6 +62,10 @@ impl SmartRules {
     }
 
     /// Serializes the rules to their `rules_json` form.
+    #[allow(
+        clippy::expect_used,
+        reason = "serde_json only fails on a failing Serialize impl or a non-string map key, and the rules have neither"
+    )]
     pub fn to_json(&self) -> String {
         serde_json::to_string(self).expect("rules serialization cannot fail")
     }

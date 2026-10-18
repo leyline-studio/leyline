@@ -218,6 +218,10 @@ fn register_written(
     let (root_id, relative) = catalog.asset_location(plan.asset)?;
     let folder_path = relative.rsplit_once('/').map_or("", |(folder, _)| folder);
     let folder = catalog.ensure_folder_in(root_id, folder_path)?;
+    #[allow(
+        clippy::expect_used,
+        reason = "the destination's file name is built from a UTF-8 stem by this module"
+    )]
     let filename = destination
         .file_name()
         .and_then(|n| n.to_str())

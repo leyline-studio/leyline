@@ -8,6 +8,17 @@
 //! This crate is internal to the engine, which maps [`PreviewError`] onto
 //! `leyline_core::LeylineError` once it knows the asset involved.
 
+// ADR 0152: no panic on a production path.
+#![deny(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented
+)]
+#![forbid(unsafe_code)]
+
 mod cache;
 mod image;
 

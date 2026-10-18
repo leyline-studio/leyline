@@ -399,6 +399,10 @@ fn copy_into_photos(
 ) -> std::result::Result<String, Skip> {
     let mut relative = String::from("Photos");
     if source.is_dir() {
+        #[allow(
+            clippy::expect_used,
+            reason = "files are collected by walking the source directory, so each one lives under it"
+        )]
         let inside = file
             .strip_prefix(source)
             .expect("collected files live under the source directory");

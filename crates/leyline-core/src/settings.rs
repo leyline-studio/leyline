@@ -1276,6 +1276,10 @@ impl Settings {
     }
 
     /// Serializes the complete state back to a `settings_json` document.
+    #[allow(
+        clippy::expect_used,
+        reason = "serde_json only fails on a failing Serialize impl or a non-string map key, and Settings has neither"
+    )]
     pub fn to_json(&self) -> String {
         serde_json::to_string(self).expect("settings serialization cannot fail")
     }
@@ -1304,7 +1308,15 @@ impl Settings {
             version.hash(&mut hasher);
         }
 
+        #[allow(
+            clippy::expect_used,
+            reason = "serde_json only fails on a failing Serialize impl or a non-string map key, and Settings has neither"
+        )]
         let json = serde_json::to_value(self).expect("settings serialization cannot fail");
+        #[allow(
+            clippy::expect_used,
+            reason = "Settings is a struct, which serde_json always serializes to an object"
+        )]
         let object = json.as_object().expect("settings serialize to an object");
         // Sorted and deduplicated so the value depends on *which* settings
         // were named, never on the order they were named in.
@@ -2399,6 +2411,10 @@ impl PresetSettings {
     }
 
     /// Serializes back to a `preset_json` document.
+    #[allow(
+        clippy::expect_used,
+        reason = "serde_json only fails on a failing Serialize impl or a non-string map key, and a preset has neither"
+    )]
     pub fn to_json(&self) -> String {
         serde_json::to_string(self).expect("preset serialization cannot fail")
     }

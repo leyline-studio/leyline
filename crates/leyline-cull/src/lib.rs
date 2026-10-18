@@ -29,6 +29,15 @@
 //! fall into the right use, and the absolute score is exposed for display and
 //! for tie-breaking, not for judgement.
 
+// ADR 0152: no panic on a production path.
+#![deny(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented
+)]
 #![forbid(unsafe_code)]
 
 /// A frame to measure: 8-bit RGB, tightly packed, `width * height * 3` bytes.
@@ -263,8 +272,9 @@ pub fn group_bursts(prints: &[Fingerprint], max_distance: u32) -> Vec<Vec<usize>
     for (i, print) in prints.iter().enumerate() {
         match groups.last_mut() {
             Some(group)
-                if prints[*group.last().expect("a group is never empty")].distance(*print)
-                    <= max_distance =>
+                if group
+                    .last()
+                    .is_some_and(|&last| prints[last].distance(*print) <= max_distance) =>
             {
                 group.push(i);
             }

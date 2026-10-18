@@ -266,6 +266,10 @@ pub(crate) fn decide(
             continue;
         }
         let scores: Vec<Quality> = contenders.iter().map(|&i| entries[i].quality).collect();
+        #[allow(
+            clippy::expect_used,
+            reason = "sharpest returns None only for an empty slice, and the loop skips groups without contenders above"
+        )]
         let winner = contenders[leyline_cull::sharpest(&scores).expect("contenders is not empty")];
         entries[winner].verdict = Verdict::Pick;
         for &index in &contenders {

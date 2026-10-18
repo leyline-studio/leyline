@@ -396,6 +396,10 @@ impl Library {
     }
 
     /// Submits a `*_async` job's closure to the bounded job pool (§3.3).
+    #[allow(
+        clippy::expect_used,
+        reason = "the pool's receiver lives until every Library handle, this one included, has dropped"
+    )]
     fn spawn_job(&self, job: impl FnOnce() + Send + 'static) {
         // The pool only shuts down once every `Sender` (every `Inner`) has
         // dropped, which can't happen while `self` is alive to call this.

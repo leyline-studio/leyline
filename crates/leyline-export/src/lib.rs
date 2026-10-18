@@ -16,6 +16,17 @@
 //! without one because neither encoder crate supports it, which is the
 //! accepted convention for those formats on the web.
 
+// ADR 0152: no panic on a production path.
+#![deny(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented
+)]
+#![forbid(unsafe_code)]
+
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
@@ -136,6 +147,10 @@ impl ExportSettings {
     }
 
     /// Serializes the recipe to its `settings_json` form.
+    #[allow(
+        clippy::expect_used,
+        reason = "serde_json only fails on a failing Serialize impl or a non-string map key, and the recipe has neither"
+    )]
     pub fn to_json(&self) -> String {
         serde_json::to_string(self).expect("settings serialization cannot fail")
     }

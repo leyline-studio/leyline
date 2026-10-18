@@ -263,7 +263,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let mask = store_coverage(dir.path(), 2, 2, &[0, 1, 2, 3]).unwrap();
         let Mask::Coverage { path, .. } = &mask else {
-            unreachable!()
+            panic!("store_coverage returns a coverage mask")
         };
         let settings = Settings {
             stages: leyline_core::StageVersions::from([("local_adjustments".to_owned(), 3)]),
@@ -280,7 +280,7 @@ mod tests {
         // Same dimensions, different pixels: only the checksum can tell.
         let replacement = store_coverage(dir.path(), 2, 2, &[9, 9, 9, 9]).unwrap();
         let Mask::Coverage { path: other, .. } = &replacement else {
-            unreachable!()
+            panic!("store_coverage returns a coverage mask")
         };
         std::fs::copy(
             dir.path()

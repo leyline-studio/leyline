@@ -91,8 +91,8 @@ impl DecodeCache {
         decode: impl FnOnce() -> Result<RawImage, E>,
     ) -> Result<Arc<RawImage>, E> {
         let key = (asset, params.clone(), native_depth);
-        if let Some(position) = self.entries.iter().position(|(k, _)| *k == key) {
-            let entry = self.entries.remove(position).expect("position is valid");
+        let position = self.entries.iter().position(|(k, _)| *k == key);
+        if let Some(entry) = position.and_then(|position| self.entries.remove(position)) {
             self.entries.push_front(entry.clone());
             return Ok(entry.1);
         }
@@ -130,8 +130,8 @@ impl DecodeCache {
             ));
         };
         let key = (asset, params.clone(), native_depth, edge);
-        if let Some(position) = self.proxies.iter().position(|(k, _)| *k == key) {
-            let entry = self.proxies.remove(position).expect("position is valid");
+        let position = self.proxies.iter().position(|(k, _)| *k == key);
+        if let Some(entry) = position.and_then(|position| self.proxies.remove(position)) {
             self.proxies.push_front(entry.clone());
             return Ok(entry.1);
         }

@@ -6,6 +6,17 @@
 //! that stays with the engine's pixel buffer (mirrors how `leyline-raw`
 //! decodes without knowing about `Pixels`).
 
+// ADR 0152: no panic on a production path.
+#![deny(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented
+)]
+#![forbid(unsafe_code)]
+
 use std::sync::OnceLock;
 
 use lensfun::{Camera, Database, Lens, Modifier};
@@ -16,6 +27,10 @@ fn database() -> &'static Database {
     // The bundled XML ships with the crate: parsing it can only fail if the
     // dependency itself is broken, which is a build-time concern, not a
     // runtime one.
+    #[allow(
+        clippy::expect_used,
+        reason = "the lensfun database is embedded in the dependency and loaded by a test"
+    )]
     DB.get_or_init(|| Database::load_bundled().expect("bundled lensfun database"))
 }
 

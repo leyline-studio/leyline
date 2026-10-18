@@ -4,6 +4,16 @@
 //! own, proving the "API before GUI" principle of `docs/engine-api.md` §1:
 //! everything Studio will do, these commands already do.
 
+// ADR 0152: no panic on a production path; `unsafe` stays allowed in this crate (§3).
+#![deny(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented
+)]
+
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -1193,6 +1203,10 @@ fn develop(args: &[String]) -> Result<(), String> {
                     .iter()
                     .any(|p| p.name == name) =>
                 {
+                    #[allow(
+                        clippy::expect_used,
+                        reason = "the match guard just found this name in the same table"
+                    )]
                     let preset = leyline_sdk::WHITE_BALANCE_PRESETS
                         .iter()
                         .find(|p| p.name == name)

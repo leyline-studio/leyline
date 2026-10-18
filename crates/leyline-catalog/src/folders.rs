@@ -137,7 +137,12 @@ impl Catalog {
             current.push_str(segment);
             parent = Some(self.ensure_single_folder(root, parent, &current)?);
         }
-        Ok(parent.expect("path has at least one segment"))
+        #[allow(
+            clippy::expect_used,
+            reason = "split yields at least one segment, even on an empty string"
+        )]
+        let folder = parent.expect("path has at least one segment");
+        Ok(folder)
     }
 
     /// Finds or inserts one folder row whose full path is `relative_path`

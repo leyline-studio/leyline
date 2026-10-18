@@ -364,6 +364,10 @@ pub(crate) struct Stage {
 impl Stage {
     /// The version this engine pins when the stage leaves its neutral value
     /// for the first time (ADR 0043 §3).
+    #[allow(
+        clippy::expect_used,
+        reason = "a test checks that every registered stage has at least one version"
+    )]
     fn current(&self) -> &'static Version {
         self.versions
             .last()
@@ -1317,6 +1321,10 @@ type DecodeConfig = fn(&Settings, bool) -> DecodeParams;
 /// the revision cites, like every other part of its rendering.
 pub(crate) fn decode_params(settings: &Settings, half_size: bool) -> DecodeParams {
     let version = version_of("input", settings);
+    #[allow(
+        clippy::expect_used,
+        reason = "a test checks that every registered input version has an entry in INPUT_DECODE"
+    )]
     let decode = INPUT_DECODE
         .iter()
         .find(|(v, _)| *v == version.version)
@@ -1328,6 +1336,10 @@ pub(crate) fn decode_params(settings: &Settings, half_size: bool) -> DecodeParam
 /// Whether the non-RAW decoder keeps the file's own bit depth for this
 /// revision (ADR 0107 §6). Ignored by RAW and DNG sources, which LibRaw
 /// always hands over at sixteen bits.
+#[allow(
+    clippy::expect_used,
+    reason = "a test checks that every registered input version has an entry in INPUT_NATIVE_DEPTH"
+)]
 pub(crate) fn native_bit_depth(settings: &Settings) -> bool {
     let version = version_of("input", settings);
     INPUT_NATIVE_DEPTH
@@ -1344,6 +1356,10 @@ pub(crate) fn native_bit_depth(settings: &Settings) -> bool {
 /// about a stage absent from the registry gets a panic, since the name is
 /// always a literal from this module.
 fn version_of(stage_name: &'static str, settings: &Settings) -> &'static Version {
+    #[allow(
+        clippy::expect_used,
+        reason = "the stage name is always a literal of a registered stage from this module"
+    )]
     let stage = registry()
         .find(|stage| stage.name == stage_name)
         .expect("the stage name is a literal from this module");
@@ -1428,6 +1444,10 @@ pub(crate) fn check_known(settings: &Settings) -> Result<()> {
 /// settings, a preset, a test — gets the space this engine renders in today.
 /// A revision whose records disagree resolves to the first of them here and
 /// is refused by [`plan`], which can name both sides.
+#[allow(
+    clippy::expect_used,
+    reason = "the input stage is always registered: every render starts with it"
+)]
 fn revision_space(settings: &Settings) -> Space {
     settings
         .stages
@@ -1541,6 +1561,7 @@ fn plan(settings: &Settings) -> Result<Vec<(&'static Stage, &'static Version)>> 
     let mut plan: Vec<_> = registry()
         .filter(|stage| (stage.active)(settings))
         .map(|stage| {
+            #[allow(clippy::expect_used, reason = "check_known just refused every recorded stage this engine does not implement")]
             let version = match settings.stages.get(stage.name) {
                 Some(&recorded) => {
                     find(stage.name, recorded)

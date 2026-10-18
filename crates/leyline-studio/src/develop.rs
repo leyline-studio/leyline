@@ -724,7 +724,7 @@ pub fn curve_point(
         points.push(CurvePoint { x: 1.0, y: 1.0 });
     }
     points.push(CurvePoint { x, y });
-    points.sort_by(|a, b| a.x.partial_cmp(&b.x).expect("curve x is never NaN"));
+    points.sort_by(|a, b| a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal));
     Some(written(current, channel, points))
 }
 

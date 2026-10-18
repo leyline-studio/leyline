@@ -83,6 +83,10 @@ impl PreviewCache {
 
         let relative_path = Self::relative_path(asset, revision, kind);
         let path = self.absolute_path(&relative_path);
+        #[allow(
+            clippy::expect_used,
+            reason = "a cache path is the cache root joined with a relative path of at least one component"
+        )]
         let parent = path.parent().expect("cache paths always have a parent");
         fs::create_dir_all(parent)?;
 

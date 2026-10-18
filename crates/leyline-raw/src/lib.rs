@@ -8,6 +8,16 @@
 //! Decoding is deterministic: identical file, identical [`DecodeParams`] —
 //! identical pixels (`docs/pipeline.md` §5).
 
+// ADR 0152: no panic on a production path; `unsafe` stays allowed in this crate (§3).
+#![deny(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented
+)]
+
 mod ffi;
 
 use std::ffi::{CStr, CString, c_int};
@@ -306,7 +316,7 @@ impl Handle {
             ffi::LIBRAW_FILE_UNSUPPORTED | ffi::LIBRAW_DATA_ERROR | ffi::LIBRAW_IO_ERROR => {
                 Err(RawError::Unsupported)
             }
-            code => Err(check(code).unwrap_err()),
+            code => Err(error_of(code)),
         }
     }
 
@@ -446,7 +456,7 @@ pub fn thumbnail(path: &Path) -> Result<Option<Thumbnail>, RawError> {
         match ffi::libraw_unpack_thumb(handle.0) {
             0 => {}
             ffi::LIBRAW_NO_THUMBNAIL | ffi::LIBRAW_UNSUPPORTED_THUMBNAIL => return Ok(None),
-            code => return Err(check(code).unwrap_err()),
+            code => return Err(error_of(code)),
         }
 
         let mut errc: c_int = 0;
@@ -554,12 +564,19 @@ pub fn decode(path: &Path, params: &DecodeParams) -> Result<Decoded, RawError> {
 fn check(code: c_int) -> Result<(), RawError> {
     match code {
         0 => Ok(()),
-        ffi::LIBRAW_FILE_UNSUPPORTED => Err(RawError::Unsupported),
-        errno if errno > 0 => Err(RawError::Io(std::io::Error::from_raw_os_error(errno))),
+        failure => Err(error_of(failure)),
+    }
+}
+
+/// The error a non-zero LibRaw code stands for.
+fn error_of(code: c_int) -> RawError {
+    match code {
+        ffi::LIBRAW_FILE_UNSUPPORTED => RawError::Unsupported,
+        errno if errno > 0 => RawError::Io(std::io::Error::from_raw_os_error(errno)),
         other => {
             // SAFETY: libraw_strerror returns a static NUL-terminated string.
             let message = unsafe { shim_string(ffi::libraw_strerror(other)) };
-            Err(RawError::Decode(message))
+            RawError::Decode(message)
         }
     }
 }

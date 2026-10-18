@@ -2069,6 +2069,35 @@ fn every_published_version_declares_the_space_it_renders_in() {
 }
 
 #[test]
+fn the_registry_holds_what_its_expect_calls_rely_on() {
+    // ADR 0152 §1: these are the proofs the `allow`s in `stages.rs` cite.
+    let mut input = None;
+    for stage in crate::stages::registry() {
+        assert!(!stage.versions.is_empty(), "{} has no version", stage.name);
+        if stage.name == "input" {
+            input = Some(stage);
+        }
+    }
+    let input = input.expect("the input stage is registered");
+    for version in input.versions {
+        assert!(
+            super::INPUT_DECODE
+                .iter()
+                .any(|(v, _)| *v == version.version),
+            "input::v{} has no decoder configuration",
+            version.version
+        );
+        assert!(
+            super::INPUT_NATIVE_DEPTH
+                .iter()
+                .any(|(v, _)| *v == version.version),
+            "input::v{} has no native bit depth",
+            version.version
+        );
+    }
+}
+
+#[test]
 fn stages_agreeing_on_one_space_compose() {
     assert_eq!(
         super::single_space([

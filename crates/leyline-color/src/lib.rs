@@ -14,6 +14,17 @@
 //! export, screen soft-proofing, and the print module (ADR 0036), which all
 //! share this one primitive instead of each inventing their own.
 
+// ADR 0152: no panic on a production path.
+#![deny(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented
+)]
+#![forbid(unsafe_code)]
+
 mod cube;
 mod dcp;
 mod icc;
@@ -53,6 +64,10 @@ pub fn srgb_icc_profile() -> &'static [u8] {
     static PROFILE: OnceLock<Vec<u8>> = OnceLock::new();
     PROFILE
         .get_or_init(|| {
+            #[allow(
+                clippy::expect_used,
+                reason = "the profile is LittleCMS's own built-in sRGB, serialized by a test"
+            )]
             let mut icc = lcms2::Profile::new_srgb()
                 .icc()
                 .expect("LittleCMS's built-in sRGB profile always serializes");

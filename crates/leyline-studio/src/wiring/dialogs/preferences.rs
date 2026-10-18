@@ -185,6 +185,10 @@ pub(crate) fn show_backgrounds(window: &StudioWindow, preferences: &SharedPrefer
 /// `#rrggbb` to a Slint colour. The strings are this crate's own constants,
 /// so a malformed one is a bug here rather than a value to tolerate.
 fn colour_of(hex: &str) -> slint::Color {
+    #[allow(
+        clippy::expect_used,
+        reason = "the strings are this crate's own constants; a malformed one is a bug here"
+    )]
     let value = u32::from_str_radix(hex.trim_start_matches('#'), 16)
         .expect("the background table holds well-formed hex");
     slint::Color::from_argb_u8(

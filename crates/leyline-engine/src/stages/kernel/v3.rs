@@ -324,6 +324,10 @@ pub(crate) fn wavelet_denoise_adaptive(
 
 /// The parsed table, read once per process on first use — never at startup:
 /// a library that only imports files never pays for it.
+#[allow(
+    clippy::expect_used,
+    reason = "the table is embedded at build time and parsed by a test"
+)]
 fn table() -> &'static Table {
     static TABLE_ONCE: OnceLock<Table> = OnceLock::new();
     TABLE_ONCE

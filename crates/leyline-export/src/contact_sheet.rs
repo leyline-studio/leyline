@@ -110,6 +110,10 @@ impl ContactSheetSettings {
     }
 
     /// Serializes the recipe to its `settings_json` form.
+    #[allow(
+        clippy::expect_used,
+        reason = "serde_json only fails on a failing Serialize impl or a non-string map key, and the recipe has neither"
+    )]
     pub fn to_json(&self) -> String {
         serde_json::to_string(self).expect("settings serialization cannot fail")
     }
