@@ -1033,6 +1033,54 @@ fn the_watermark_decorations_reach_the_recipe_and_refuse_on_their_own() {
     assert!(stderr(&out).contains("watermark size"), "{}", stderr(&out));
 }
 
+/// ADR 0157 at a shell prompt: the policy reaches the file, an unknown one
+/// is refused by name, and AVIF says it carries nothing.
+#[test]
+fn the_metadata_policy_reaches_the_file_and_avif_says_so() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = library_with_a_photo(&dir);
+    let out = run(&["describe", &root, "1", "--title", "Héron cendré"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+
+    let exported = |name: &str, extra: &[&str]| {
+        let dest = dir.path().join(name);
+        std::fs::create_dir_all(&dest).unwrap();
+        let mut args = vec!["export", &root, dest.to_str().unwrap(), "1"];
+        args.extend_from_slice(extra);
+        let out = run(&args);
+        assert!(out.status.success(), "{}", stderr(&out));
+        let file = std::fs::read_dir(&dest).unwrap().next().unwrap().unwrap();
+        (
+            String::from_utf8_lossy(&std::fs::read(file.path()).unwrap()).into_owned(),
+            out,
+        )
+    };
+    let (by_default, _) = exported("default", &[]);
+    assert!(by_default.contains("Héron cendré"));
+    let (none, _) = exported("none", &["--metadata", "none"]);
+    assert!(!none.contains("Héron cendré"));
+
+    let (_, avif) = exported("avif", &["--format", "avif"]);
+    assert!(
+        stderr(&avif).contains("carry no metadata"),
+        "{}",
+        stderr(&avif)
+    );
+
+    let dest = dir.path().join("refused");
+    std::fs::create_dir_all(&dest).unwrap();
+    let out = run(&[
+        "export",
+        &root,
+        dest.to_str().unwrap(),
+        "1",
+        "--metadata",
+        "all",
+    ]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("metadata policy"), "{}", stderr(&out));
+}
+
 /// ADR 0110 at a shell prompt: the grid flags, the preset round trip, and
 /// the one file a sheet writes whatever the number of photographs.
 #[test]

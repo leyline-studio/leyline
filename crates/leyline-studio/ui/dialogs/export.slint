@@ -59,6 +59,38 @@ export component ExportDialog inherits VerticalLayout {
                 }
             }
         }
+        // What the file says about the photograph (ADR 0157). Greyed, and
+        // said, for AVIF: its encoder cannot write metadata, and a policy
+        // that looks applied but is not would be the worse answer.
+        Text {
+            text: @tr("Metadata");
+            color: Theme.text-dim;
+            font-size: 12px;
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            alignment: start;
+            for name[i] in [@tr("Everything"), @tr("Without location"), @tr("None")]: FilterChip {
+                text: name;
+                active: DialogState.export-metadata == i;
+                enabled: DialogState.export-format != 4;
+                clicked => {
+                    DialogState.export-metadata = i;
+                }
+            }
+        }
+        Text {
+            text: DialogState.export-format == 4
+                ? @tr("AVIF files cannot carry metadata: nothing is written.")
+                : DialogState.export-metadata == 0
+                ? @tr("Capture, camera, author and keywords, plus the GPS position and place names.")
+                : DialogState.export-metadata == 1
+                ? @tr("Capture, camera, author and keywords. The position and place names stay here.")
+                : @tr("Only the colour profile.");
+            color: Theme.text-dim;
+            font-size: 11px;
+            wrap: word-wrap;
+        }
         HorizontalLayout {
             spacing: 12px;
             VerticalLayout {

@@ -4842,3 +4842,43 @@ msgstr "Ignorer"
 msgctxt "LastPanicDialog"
 msgid "Report the problem…"
 msgstr "Signaler le problème…"
+
+#: crates/leyline-studio/ui/dialogs/export.slint
+msgctxt "ExportDialog"
+msgid "Metadata"
+msgstr "Métadonnées"
+
+#: crates/leyline-studio/ui/dialogs/export.slint
+msgctxt "ExportDialog"
+msgid "Everything"
+msgstr "Tout"
+
+#: crates/leyline-studio/ui/dialogs/export.slint
+msgctxt "ExportDialog"
+msgid "Without location"
+msgstr "Sans le lieu"
+
+#: crates/leyline-studio/ui/dialogs/export.slint
+msgctxt "ExportDialog"
+msgid "None"
+msgstr "Aucune"
+
+#: crates/leyline-studio/ui/dialogs/export.slint
+msgctxt "ExportDialog"
+msgid "AVIF files cannot carry metadata: nothing is written."
+msgstr "Un fichier AVIF ne peut pas porter de métadonnées : rien n'est écrit."
+
+#: crates/leyline-studio/ui/dialogs/export.slint
+msgctxt "ExportDialog"
+msgid "Capture, camera, author and keywords, plus the GPS position and place names."
+msgstr "Prise de vue, boîtier, auteur et mots-clés, plus la position GPS et les noms de lieux."
+
+#: crates/leyline-studio/ui/dialogs/export.slint
+msgctxt "ExportDialog"
+msgid "Capture, camera, author and keywords. The position and place names stay here."
+msgstr "Prise de vue, boîtier, auteur et mots-clés. La position et les noms de lieux restent ici."
+
+#: crates/leyline-studio/ui/dialogs/export.slint
+msgctxt "ExportDialog"
+msgid "Only the colour profile."
+msgstr "Le profil de couleur seulement."

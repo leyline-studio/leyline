@@ -20,13 +20,13 @@ use std::time::Duration;
 use leyline_sdk::{
     AssetDescription, AssetId, CameraProfile, CameraSettings, CaptionSource, ColorGrading,
     ColorGradingZone, ColorLabel, ContactSheetRecipe, ContactSheetRequest, ContactSheetSettings,
-    Crop, CurvePoint, Defringe, Demosaic, ExportFormat, ExportRecipe, ExportRequest,
-    ExportSettings, GridQuery, GuideLine, HighlightReconstruction, HslBand, ImportOptions,
-    LensCorrection, Library, LocalAdjustment, LocalAdjustmentValues, Lut, Margins, NoiseReduction,
-    Orientation, PaperSize, Param, Perspective, PickState, Point, PresetId, PreviewKind,
-    PrintRecipe, PrintRequest, PrintSettings, RedEye, RenderingIntent, ReshapePoint, ScanOptions,
-    Settings, SettingsGroup, Sharpening, ShotRange, SpotRemoval, TetherOptions, TetherSetting,
-    Value, VersionId, Watermark, WatermarkAnchor, WhiteBalance,
+    Crop, CurvePoint, Defringe, Demosaic, ExportFormat, ExportMetadata, ExportRecipe,
+    ExportRequest, ExportSettings, GridQuery, GuideLine, HighlightReconstruction, HslBand,
+    ImportOptions, LensCorrection, Library, LocalAdjustment, LocalAdjustmentValues, Lut, Margins,
+    NoiseReduction, Orientation, PaperSize, Param, Perspective, PickState, Point, PresetId,
+    PreviewKind, PrintRecipe, PrintRequest, PrintSettings, RedEye, RenderingIntent, ReshapePoint,
+    ScanOptions, Settings, SettingsGroup, Sharpening, ShotRange, SpotRemoval, TetherOptions,
+    TetherSetting, Value, VersionId, Watermark, WatermarkAnchor, WhiteBalance,
 };
 
 const USAGE: &str = "\
@@ -149,12 +149,12 @@ Usage:
   leyline preview <library> <asset-id> [--kind <thumbnail|small|medium|large|full>]
   leyline export <library> <dest-dir> <version-id>...
                  [--preset <name>] [--format <f>] [--quality <1-100>] [--max-edge <px>]
-                 [--avif-speed <1-10>] [--concurrency <n>]
+                 [--avif-speed <1-10>] [--concurrency <n>] [--metadata <m>]
                  [--watermark <text>] [--watermark-anchor <a>]
                  [--watermark-size <%>] [--watermark-color <#RRGGBB>]
                  [--watermark-opacity <0-1>]
   leyline preset <library> <name> [--format <f>] [--quality <1-100>] [--max-edge <px>]
-                 [--avif-speed <1-10>] [--concurrency <n>]
+                 [--avif-speed <1-10>] [--concurrency <n>] [--metadata <m>]
                  [--watermark <text>] [--watermark-anchor <a>]
                  [--watermark-size <%>] [--watermark-color <#RRGGBB>]
                  [--watermark-opacity <0-1>]
@@ -220,6 +220,12 @@ Options:
                 thorough, 10 encodes ~6x faster for 0 to 14% more bytes. Trades
                 time against size only — the image is the same. Other formats
                 ignore it
+  --metadata <full|without-location|none>
+                What the exported file says about the photograph (ADR 0157):
+                capture, camera, author, keywords — and, with full only, the
+                GPS position, city, state and country. without-location by
+                default; none writes only the colour profile. AVIF files
+                carry none of it
   --concurrency <n>
                 Photos an export batch keeps in flight, 4 by default
                 (ADR 0068). Higher is faster up to about 6 and costs ~0.7 GB
@@ -2888,6 +2894,18 @@ fn recipe(options: &Options) -> Result<ExportSettings, String> {
     if let Some(edge) = options.value("max-edge") {
         settings.max_edge = Some(edge.parse().map_err(|_| format!("bad max edge {edge:?}"))?);
     }
+    if let Some(metadata) = options.value("metadata") {
+        settings.metadata = match metadata {
+            "full" => ExportMetadata::Full,
+            "without-location" => ExportMetadata::WithoutLocation,
+            "none" => ExportMetadata::None,
+            other => {
+                return Err(format!(
+                    "unknown metadata policy {other:?}, expected full/without-location/none"
+                ));
+            }
+        };
+    }
     // The line, then its decoration (ADR 0106 §1). The ranges are not
     // restated here: `validate` below owns them, and a client that copied
     // them would be a second place to correct them.
@@ -2957,6 +2975,17 @@ fn decorate(
     }
 }
 
+/// Once per batch, before it starts: a policy that asks for metadata in a
+/// format that cannot carry it would otherwise look applied (ADR 0157 §5).
+fn say_when_the_format_drops_metadata(settings: &ExportSettings) {
+    if settings.metadata != ExportMetadata::None && !settings.format.carries_metadata() {
+        eprintln!(
+            "note: {} files carry no metadata — the encoder offers no way to write it",
+            settings.format.extension()
+        );
+    }
+}
+
 fn export(args: &[String]) -> Result<(), String> {
     let (positional, options) = parse(
         args,
@@ -2967,6 +2996,7 @@ fn export(args: &[String]) -> Result<(), String> {
             "avif-speed",
             "concurrency",
             "max-edge",
+            "metadata",
             "watermark",
             "watermark-anchor",
             "watermark-size",
@@ -2992,10 +3022,11 @@ fn export(args: &[String]) -> Result<(), String> {
                 || options.value("quality").is_some()
                 || options.value("avif-speed").is_some()
                 || options.value("max-edge").is_some()
+                || options.value("metadata").is_some()
                 || options.value("watermark").is_some()
             {
                 return Err("--preset already defines the recipe; \
-                     drop --format/--quality/--avif-speed/--max-edge/--watermark"
+                     drop --format/--quality/--avif-speed/--max-edge/--metadata/--watermark"
                     .to_owned());
             }
             let stored = library
@@ -3004,9 +3035,16 @@ fn export(args: &[String]) -> Result<(), String> {
                 .into_iter()
                 .find(|p| p.name == *name)
                 .ok_or_else(|| format!("no export preset named {name:?}"))?;
+            if let Ok(settings) = ExportSettings::parse(&stored.settings_json) {
+                say_when_the_format_drops_metadata(&settings);
+            }
             ExportRecipe::Preset(stored.preset)
         }
-        None => ExportRecipe::Adhoc(recipe(&options)?),
+        None => {
+            let settings = recipe(&options)?;
+            say_when_the_format_drops_metadata(&settings);
+            ExportRecipe::Adhoc(settings)
+        }
     };
     let concurrency = match options.value("concurrency") {
         Some(value) => Some(
@@ -3401,6 +3439,7 @@ fn preset(args: &[String]) -> Result<(), String> {
             "quality",
             "avif-speed",
             "max-edge",
+            "metadata",
             "watermark",
             "watermark-anchor",
             "watermark-size",

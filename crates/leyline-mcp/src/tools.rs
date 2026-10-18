@@ -10,8 +10,9 @@ use std::io::Cursor;
 use std::path::PathBuf;
 
 use leyline_sdk::{
-    AssetId, ExportRecipe, ExportRequest, ExportSettings, GridQuery, ImportOptions, Library,
-    PresetSettings, PreviewKind, Rational, Settings, SettingsGroup, VersionId, changed_settings,
+    AssetId, ExportMetadata, ExportRecipe, ExportRequest, ExportSettings, GridQuery, ImportOptions,
+    Library, PresetSettings, PreviewKind, Rational, Settings, SettingsGroup, VersionId,
+    changed_settings,
 };
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -382,10 +383,27 @@ fn import(library: &Library, args: ImportArgs) -> Result<ImportOutcome, String> 
 
 fn export(library: &Library, args: ExportArgs) -> Result<ExportOutcome, String> {
     let settings: ExportSettings = match args.settings {
-        Some(fields) => serde_json::from_value(Value::Object(fields))
-            .map_err(|e| format!("invalid export settings: {e}"))?,
+        Some(mut fields) => {
+            // A missing `metadata` reads as `none` in a stored recipe, so an
+            // old preset keeps its bytes (ADR 0157 §1); a request made now is
+            // a new export, and starts where every new export starts.
+            if !fields.contains_key("metadata") {
+                let default = serde_json::to_value(ExportSettings::default().metadata)
+                    .map_err(|e| e.to_string())?;
+                fields.insert("metadata".to_owned(), default);
+            }
+            serde_json::from_value(Value::Object(fields))
+                .map_err(|e| format!("invalid export settings: {e}"))?
+        }
         None => ExportSettings::default(),
     };
+    let note = (settings.metadata != ExportMetadata::None && !settings.format.carries_metadata())
+        .then(|| {
+            format!(
+                "{} files carry no metadata: the encoder offers no way to write it",
+                settings.format.extension()
+            )
+        });
     let request = ExportRequest {
         versions: args
             .version_ids
@@ -419,6 +437,7 @@ fn export(library: &Library, args: ExportArgs) -> Result<ExportOutcome, String> 
                 reason: failure.reason,
             })
             .collect(),
+        note,
     })
 }
 

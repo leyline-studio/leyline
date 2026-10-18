@@ -62,6 +62,7 @@ These features were scoped as post-V1 candidates in [`v2-scope.md`](v2-scope.md)
 | Creative `.cube` LUT imported into the library, with an amount | [ADR 0053](adr/0053-creative-lut.md) |
 | Clipped highlight reconstruction (`clip`/`blend`/`rebuild`, before demosaicing) | [ADR 0050](adr/0050-highlight-reconstruction.md) |
 | Text watermark on export and soft proofing (view only) | [ADR 0034](adr/0034-softproofing-watermark-print.md), [ADR 0051](adr/0051-watermark-rasterization-and-soft-proof-surface.md), [ADR 0106](adr/0106-watermark-settings-in-the-clients.md) |
+| Metadata in exported files: capture, authorship, keywords and, on request, location, in JPEG, PNG, WebP and TIFF; *without location* by default, AVIF carries none and says so | [ADR 0157](adr/0157-what-the-exported-file-says.md) |
 | RAW+JPEG pairing: the JPEG written by the camera becomes the companion of the RAW from the same shot, one photo in the grid instead of two | [ADR 0079](adr/0079-raw-jpeg-pairing.md) |
 | Automatic tone (`Auto`) and black and white, the two buttons Lightroom's Basic panel has above its sliders | [ADR 0088](adr/0088-auto-tone-and-black-and-white.md) |
 | A profile browser: choosing a camera rendering by looking at the open photo through each one | [ADR 0089](adr/0089-camera-profile-browser.md) |
@@ -86,7 +87,6 @@ The word *experimental* is literal: the colorimetric accuracy of the DCP matrix 
 |---|---|
 | Image watermark (a logo) | Cut by [ADR 0034](adr/0034-softproofing-watermark-print.md): the asset-reference problem is not settled |
 | Agent surface (MCP) | [ADR 0154](adr/0154-an-agent-surface-over-stdio.md): `leyline mcp --library <path>` serves the façade's read, edit, preview, import and export verbs over stdio; each revision records its origin (migration v15). Not built yet |
-| Metadata in exported files | [ADR 0157](adr/0157-what-the-exported-file-says.md): EXIF/XMP capture, authorship, keywords and (on request) location embedded in JPEG, PNG, WebP and TIFF; new exports default to *without location*, older recipes to *none*; AVIF carries none, and says so. Not built yet |
 
 ---
 

@@ -167,8 +167,10 @@ pub struct ExportArgs {
     /// Destination folder, an absolute path on this machine.
     pub destination_dir: String,
     /// Export settings: `format` (jpeg, png, tiff, webp, avif), `quality`
-    /// (1–100), `max_edge` (pixels). Omitted fields take their defaults
-    /// (full-size JPEG).
+    /// (1–100), `max_edge` (pixels), `metadata` (`full`, `without-location`,
+    /// `none`: what the file says about the photograph — `full` adds the GPS
+    /// position and place names). Omitted fields take their defaults
+    /// (full-size JPEG, without location).
     pub settings: Option<Map<String, Value>>,
 }
 
@@ -176,6 +178,10 @@ pub struct ExportArgs {
 pub struct ExportOutcome {
     pub exported: Vec<ExportedEntry>,
     pub failed: Vec<VersionFailure>,
+    /// Set when the policy asked for metadata the format cannot carry
+    /// (ADR 0157 §5), so the agent does not report it as written.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

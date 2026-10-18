@@ -197,4 +197,33 @@ fn an_agent_imports_edits_previews_and_exports() {
     );
     let path = exported["exported"][0]["path"].as_str().unwrap();
     assert!(Path::new(path).exists(), "{exported}");
+
+    // A partial recipe is a new export, so it writes metadata as every new
+    // export does (ADR 0157 §1) — not as a recipe from before the field.
+    let png = dir.path().join("png");
+    std::fs::create_dir(&png).unwrap();
+    let exported = agent.call_json(
+        "export",
+        json!({"version_ids": [version], "destination_dir": png.to_str().unwrap(),
+               "settings": {"format": "png"}}),
+    );
+    assert!(exported.get("note").is_none(), "{exported}");
+    let path = exported["exported"][0]["path"].as_str().unwrap();
+    let bytes = std::fs::read(path).unwrap();
+    assert!(String::from_utf8_lossy(&bytes).contains("xmp:CreatorTool"));
+
+    // AVIF says it carried nothing, rather than letting the agent assume.
+    let avif = dir.path().join("avif");
+    std::fs::create_dir(&avif).unwrap();
+    let exported = agent.call_json(
+        "export",
+        json!({"version_ids": [version], "destination_dir": avif.to_str().unwrap(),
+               "settings": {"format": "avif"}}),
+    );
+    assert!(
+        exported["note"]
+            .as_str()
+            .is_some_and(|n| n.contains("no metadata")),
+        "{exported}"
+    );
 }

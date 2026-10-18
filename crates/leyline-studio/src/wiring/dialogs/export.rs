@@ -110,6 +110,7 @@ pub(crate) fn wire_export(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                             &avif_speed,
                             &max_edge,
                             watermark,
+                            metadata_from_state(&window),
                         ) {
                             Ok(settings) => settings,
                             Err(message) => {
@@ -162,6 +163,7 @@ pub(crate) fn wire_export(app: &Rc<RefCell<App>>, window: &StudioWindow) {
                     &avif_speed,
                     &max_edge,
                     watermark,
+                    metadata_from_state(&window),
                 ) {
                     Ok(request) => request,
                     Err(message) => {
@@ -213,6 +215,7 @@ pub(crate) fn export_settings(
     avif_speed: &str,
     max_edge: &str,
     watermark: Option<Watermark>,
+    metadata: ExportMetadata,
 ) -> Result<ExportSettings, String> {
     let format = match format {
         0 => ExportFormat::Jpeg,
@@ -250,9 +253,7 @@ pub(crate) fn export_settings(
         avif_speed,
         max_edge,
         watermark,
-        // ADR 0157 §1's default for a new export; the dialog's choice of
-        // policy is the next slice.
-        metadata: ExportMetadata::WithoutLocation,
+        metadata,
     };
     // The module's promise, kept: an unusable recipe never reaches the
     // engine. It parsed here and it validates here, so the dialog can say
@@ -261,6 +262,21 @@ pub(crate) fn export_settings(
     // used to surface (ADR 0106 §1).
     settings.validate().map_err(|e| e.to_string())?;
     Ok(settings)
+}
+
+/// The dialog's three chips, in their order, as the policy they stand for
+/// (ADR 0157 §1). Anything else is the default of a new export: the index
+/// only ever comes from those chips.
+pub(crate) fn metadata_policy(index: i32) -> ExportMetadata {
+    match index {
+        0 => ExportMetadata::Full,
+        2 => ExportMetadata::None,
+        _ => ExportMetadata::WithoutLocation,
+    }
+}
+
+fn metadata_from_state(window: &StudioWindow) -> ExportMetadata {
+    metadata_policy(DialogState::get(window).get_export_metadata())
 }
 
 /// Builds a `(name, ExportSettings)` request for saving the export dialog's
@@ -273,12 +289,13 @@ pub(crate) fn export_preset_request(
     avif_speed: &str,
     max_edge: &str,
     watermark: Option<Watermark>,
+    metadata: ExportMetadata,
 ) -> Result<(String, ExportSettings), String> {
     let name = name.trim();
     if name.is_empty() {
         return Err("name is empty".to_owned());
     }
-    let settings = export_settings(format, quality, avif_speed, max_edge, watermark)?;
+    let settings = export_settings(format, quality, avif_speed, max_edge, watermark, metadata)?;
     Ok((name.to_owned(), settings))
 }
 
@@ -357,7 +374,15 @@ mod tests {
         .into_iter()
         .enumerate()
         {
-            let settings = export_settings(index as i32, "80", "9", "", None).unwrap();
+            let settings = export_settings(
+                index as i32,
+                "80",
+                "9",
+                "",
+                None,
+                ExportMetadata::WithoutLocation,
+            )
+            .unwrap();
             assert_eq!(
                 settings,
                 ExportSettings {
@@ -378,29 +403,54 @@ mod tests {
     #[test]
     fn a_blank_avif_speed_falls_back_to_the_default() {
         assert_eq!(
-            export_settings(4, "90", "  ", "", None).unwrap().avif_speed,
+            export_settings(4, "90", "  ", "", None, ExportMetadata::WithoutLocation)
+                .unwrap()
+                .avif_speed,
             leyline_sdk::DEFAULT_AVIF_SPEED
         );
         assert_eq!(
-            export_settings(4, "90", " 10 ", "", None)
+            export_settings(4, "90", " 10 ", "", None, ExportMetadata::WithoutLocation)
                 .unwrap()
                 .avif_speed,
             10
         );
-        assert!(export_settings(4, "90", "fast", "", None).is_err());
+        assert!(
+            export_settings(4, "90", "fast", "", None, ExportMetadata::WithoutLocation).is_err()
+        );
     }
 
     #[test]
     fn export_settings_parses_a_max_edge() {
-        let settings = export_settings(0, "90", "9", "2048", None).unwrap();
+        let settings =
+            export_settings(0, "90", "9", "2048", None, ExportMetadata::WithoutLocation).unwrap();
         assert_eq!(settings.max_edge, Some(2048));
     }
 
     #[test]
     fn export_settings_rejects_bad_input() {
-        assert!(export_settings(5, "90", "9", "", None).is_err());
-        assert!(export_settings(0, "not a number", "9", "", None).is_err());
-        assert!(export_settings(0, "90", "9", "not a number", None).is_err());
+        assert!(export_settings(5, "90", "9", "", None, ExportMetadata::WithoutLocation).is_err());
+        assert!(
+            export_settings(
+                0,
+                "not a number",
+                "9",
+                "",
+                None,
+                ExportMetadata::WithoutLocation
+            )
+            .is_err()
+        );
+        assert!(
+            export_settings(
+                0,
+                "90",
+                "9",
+                "not a number",
+                None,
+                ExportMetadata::WithoutLocation
+            )
+            .is_err()
+        );
     }
 
     /// An empty line is the absence of a watermark; a typed one is trimmed.
@@ -470,15 +520,30 @@ mod tests {
 
         let watermark = watermark_settings("©", 0, "3", "rouge", "0.7").unwrap();
         assert!(
-            export_settings(0, "90", "9", "", watermark).is_err(),
+            export_settings(0, "90", "9", "", watermark, ExportMetadata::WithoutLocation).is_err(),
             "a colour the engine refuses must not reach an export"
         );
     }
 
     #[test]
+    fn the_three_chips_are_the_three_policies() {
+        assert_eq!(metadata_policy(0), ExportMetadata::Full);
+        assert_eq!(metadata_policy(1), ExportMetadata::WithoutLocation);
+        assert_eq!(metadata_policy(2), ExportMetadata::None);
+    }
+
+    #[test]
     fn export_preset_request_trims_the_name_and_reuses_export_settings() {
-        let (name, settings) =
-            export_preset_request("  Web  ", 0, "80", "9", "2048", None).unwrap();
+        let (name, settings) = export_preset_request(
+            "  Web  ",
+            0,
+            "80",
+            "9",
+            "2048",
+            None,
+            ExportMetadata::WithoutLocation,
+        )
+        .unwrap();
         assert_eq!(name, "Web");
         assert_eq!(
             settings,
@@ -495,13 +560,49 @@ mod tests {
 
     #[test]
     fn export_preset_request_rejects_a_blank_or_whitespace_only_name() {
-        assert!(export_preset_request("", 0, "80", "9", "", None).is_err());
-        assert!(export_preset_request("   ", 0, "80", "9", "", None).is_err());
+        assert!(
+            export_preset_request("", 0, "80", "9", "", None, ExportMetadata::WithoutLocation)
+                .is_err()
+        );
+        assert!(
+            export_preset_request(
+                "   ",
+                0,
+                "80",
+                "9",
+                "",
+                None,
+                ExportMetadata::WithoutLocation
+            )
+            .is_err()
+        );
     }
 
     #[test]
     fn export_preset_request_still_validates_the_recipe() {
-        assert!(export_preset_request("Web", 0, "not a number", "9", "", None).is_err());
-        assert!(export_preset_request("Web", 5, "80", "9", "", None).is_err());
+        assert!(
+            export_preset_request(
+                "Web",
+                0,
+                "not a number",
+                "9",
+                "",
+                None,
+                ExportMetadata::WithoutLocation
+            )
+            .is_err()
+        );
+        assert!(
+            export_preset_request(
+                "Web",
+                5,
+                "80",
+                "9",
+                "",
+                None,
+                ExportMetadata::WithoutLocation
+            )
+            .is_err()
+        );
     }
 }

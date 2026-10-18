@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2026-10-18 15:09+0000\n"
+"POT-Creation-Date: 2026-10-18 16:09+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -346,97 +346,139 @@ msgctxt "ExportDialog"
 msgid "Format"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/export.slint:68
+#: crates/leyline-studio/ui/dialogs/export.slint:66
+msgctxt "ExportDialog"
+msgid "Metadata"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/export.slint:73
+msgctxt "ExportDialog"
+msgid "Everything"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/export.slint:73
+msgctxt "ExportDialog"
+msgid "Without location"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/export.slint:73
+msgctxt "ExportDialog"
+msgid "None"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/export.slint:84
+msgctxt "ExportDialog"
+msgid "AVIF files cannot carry metadata: nothing is written."
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/export.slint:86
+msgctxt "ExportDialog"
+msgid ""
+"Capture, camera, author and keywords, plus the GPS position and place names."
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/export.slint:88
+msgctxt "ExportDialog"
+msgid ""
+"Capture, camera, author and keywords. The position and place names stay here."
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/export.slint:89
+msgctxt "ExportDialog"
+msgid "Only the colour profile."
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/export.slint:100
 msgctxt "ExportDialog"
 msgid "Quality (1-100)"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/export.slint:96
+#: crates/leyline-studio/ui/dialogs/export.slint:128
 msgctxt "ExportDialog"
 msgid "AVIF speed (1-10)"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/export.slint:122
+#: crates/leyline-studio/ui/dialogs/export.slint:154
 msgctxt "ExportDialog"
 msgid "Max edge px (blank = full size)"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/export.slint:148
+#: crates/leyline-studio/ui/dialogs/export.slint:180
 msgctxt "ExportDialog"
 msgid "Watermark text (blank = none)"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/export.slint:176
+#: crates/leyline-studio/ui/dialogs/export.slint:208
 msgctxt "ExportDialog"
 msgid "Watermark corner"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/export.slint:187
+#: crates/leyline-studio/ui/dialogs/export.slint:219
 msgctxt "ExportDialog"
 msgid "Top left"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/export.slint:194
+#: crates/leyline-studio/ui/dialogs/export.slint:226
 msgctxt "ExportDialog"
 msgid "Top right"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/export.slint:201
+#: crates/leyline-studio/ui/dialogs/export.slint:233
 msgctxt "ExportDialog"
 msgid "Center"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/export.slint:212
+#: crates/leyline-studio/ui/dialogs/export.slint:244
 msgctxt "ExportDialog"
 msgid "Bottom left"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/export.slint:219
+#: crates/leyline-studio/ui/dialogs/export.slint:251
 msgctxt "ExportDialog"
 msgid "Bottom right"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/export.slint:232
+#: crates/leyline-studio/ui/dialogs/export.slint:264
 msgctxt "ExportDialog"
 msgid "Size (% of height)"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/export.slint:258
+#: crates/leyline-studio/ui/dialogs/export.slint:290
 msgctxt "ExportDialog"
 msgid "Colour (#RRGGBB)"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/export.slint:284
+#: crates/leyline-studio/ui/dialogs/export.slint:316
 msgctxt "ExportDialog"
 msgid "Opacity (0-1)"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/export.slint:314
+#: crates/leyline-studio/ui/dialogs/export.slint:346
 msgctxt "ExportDialog"
 msgid "Save as preset (optional name)"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/export.slint:337
+#: crates/leyline-studio/ui/dialogs/export.slint:369
 msgctxt "ExportDialog"
 msgid "Save as preset"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/export.slint:352
+#: crates/leyline-studio/ui/dialogs/export.slint:384
 msgctxt "ExportDialog"
 msgid "Destination folder (absolute path)"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/export.slint:377
+#: crates/leyline-studio/ui/dialogs/export.slint:409
 msgctxt "ExportDialog"
 msgid "Browse…"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/export.slint:388
+#: crates/leyline-studio/ui/dialogs/export.slint:420
 msgctxt "ExportDialog"
 msgid "Cancel"
 msgstr ""
 
-#: crates/leyline-studio/ui/dialogs/export.slint:395
+#: crates/leyline-studio/ui/dialogs/export.slint:427
 msgctxt "ExportDialog"
 msgid "Export"
 msgstr ""

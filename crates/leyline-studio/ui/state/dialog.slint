@@ -97,6 +97,9 @@ export global DialogState {
     // AVIF encoder effort, 1 to 10 (ADR 0067). Only shown, and only read,
     // when the chosen format is AVIF — no other encoder has the notion.
     in-out property <string> export-avif-speed-text: "9";
+    // What the file says about the photograph (ADR 0157 §1): 0 everything,
+    // 1 everything but the location — where a new export starts — 2 nothing.
+    in-out property <int> export-metadata: 1;
     in-out property <string> export-max-edge-text: "";
     // Text watermark drawn on the export, empty = none (ADR 0034). The line
     // and its four decorations, all editable (ADR 0106 §2) — before that,
