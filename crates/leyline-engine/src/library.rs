@@ -27,7 +27,8 @@ use leyline_catalog::{
 use leyline_core::{
     AssetId, CameraSettings, CollectionId, ColorLabel, ContactSheetPresetId, ExportPresetId, JobId,
     KeywordId, LeylineError, PickState, PresetFolderId, PresetId, PresetSettings, PreviewKind,
-    PrintPresetId, Result, Settings, SettingsGroup, TetherSetting, VersionId, WhiteBalance,
+    PrintPresetId, Result, RevisionOrigin, Settings, SettingsGroup, TetherSetting, VersionId,
+    WhiteBalance,
 };
 use leyline_export::{ContactSheetSettings, ExportSettings, PrintSettings};
 use leyline_preview::{PreviewCache, Rgb8};
@@ -412,6 +413,17 @@ impl Library {
     /// The library root directory.
     pub fn root(&self) -> &Path {
         &self.inner.root
+    }
+
+    /// Declares which program holds this library (ADR 0154 §6): every
+    /// revision written through it from now on — edits, imports, presets —
+    /// records `origin`. It belongs to the handle rather than to each write,
+    /// because a per-write parameter can be forgotten and a forgotten origin
+    /// is a lie by omission. A client declares it right after opening; an
+    /// MCP server, once the client has named itself at `initialize`. A
+    /// handle that never declares writes revisions of unknown origin.
+    pub fn declare_origin(&self, origin: RevisionOrigin) {
+        lock(&self.inner.catalog).declare_origin(origin);
     }
 
     /// Every root this library references, and whether it is reachable now

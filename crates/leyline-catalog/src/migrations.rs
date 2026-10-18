@@ -12,7 +12,7 @@ use leyline_core::Result;
 /// Migration scripts: index `n` migrates the database to `user_version` `n + 1`.
 const MIGRATIONS: &[&str] = &[
     SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8,
-    SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14,
+    SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15,
 ];
 
 /// The schema version produced by the newest migration.
@@ -742,4 +742,10 @@ CREATE INDEX idx_export_history_version ON export_history(version_id);
 CREATE INDEX idx_export_history_revision ON export_history(revision_id);
 CREATE INDEX idx_export_history_fingerprint ON export_history(revision_fingerprint);
 CREATE INDEX idx_export_history_output ON export_history(output_checksum);
+";
+
+/// v15: which program wrote each revision (ADR 0154 §6). Rows written before
+/// stay NULL — unknown, never backfilled.
+const SCHEMA_V15: &str = "
+ALTER TABLE develop_revisions ADD COLUMN origin TEXT;
 ";

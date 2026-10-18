@@ -1,12 +1,13 @@
 //! The MCP side: announces the registry and routes each call to its tool.
 
 use base64::Engine as _;
-use leyline_sdk::Library;
+use leyline_sdk::{Library, RevisionOrigin};
 use rmcp::ErrorData as McpError;
 use rmcp::ServerHandler;
 use rmcp::model::{
     CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, Implementation,
-    ListToolsResult, PaginatedRequestParams, ServerCapabilities, ServerConfig,
+    InitializeRequestParams, InitializeResult, ListToolsResult, PaginatedRequestParams,
+    ServerCapabilities, ServerConfig,
 };
 use rmcp::service::{RequestContext, RoleServer};
 use serde_json::Value;
@@ -34,6 +35,20 @@ impl ServerHandler for LeylineServer {
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::new("leyline", env!("CARGO_PKG_VERSION")))
             .with_instructions(INSTRUCTIONS)
+    }
+
+    /// The client names itself here, and that name becomes the origin of
+    /// every revision this session writes (ADR 0154 §6) — self-declared, a
+    /// label rather than an identity.
+    async fn initialize(
+        &self,
+        request: InitializeRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<InitializeResult, McpError> {
+        self.library
+            .declare_origin(RevisionOrigin::mcp(&request.client_info.name));
+        context.peer.set_peer_info(request.clone());
+        self.negotiate_initialize(&request)
     }
 
     async fn list_tools(

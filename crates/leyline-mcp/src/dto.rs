@@ -97,6 +97,9 @@ pub struct RevisionEntry {
     pub parent_revision_id: Option<i64>,
     pub created_at_ms: i64,
     pub from_preset: Option<i64>,
+    /// The program that wrote it — `studio`, `cli` or `mcp:<client>` — or
+    /// null when unknown (ADR 0154 §6). A client name is self-declared.
+    pub origin: Option<String>,
     /// Settings keys this revision changed relative to its parent.
     pub changed: Vec<String>,
 }

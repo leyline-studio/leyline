@@ -173,6 +173,10 @@ fn an_agent_imports_edits_previews_and_exports() {
     let history = agent.call_json("history", json!({"version_id": version}));
     assert_eq!(history[0]["revision_id"], applied["revision_id"]);
     assert!(changed(&history[0]), "{history}");
+    // ADR 0154 §6: the name the client gave at `initialize` is on every
+    // revision it wrote, the import's initial one included.
+    assert_eq!(history[0]["origin"], "mcp:test-agent", "{history}");
+    assert_eq!(history[1]["origin"], "mcp:test-agent", "{history}");
 
     // A key the settings do not have is refused by name, and writes nothing.
     let (refusal, refused) = agent.call(

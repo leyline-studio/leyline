@@ -160,11 +160,17 @@ impl Library {
     /// Opens without write rights (catalog newer than the engine).
     pub fn open_read_only(root: &Path) -> Result<Library>;
 
+    /// Says which program holds the handle (ADR 0154 §6): every revision
+    /// written through it from then on records it.
+    pub fn declare_origin(&self, origin: RevisionOrigin);
+
     pub fn subscribe(&self) -> Receiver<Event>;
 
     pub fn close(self) -> Result<()>;
 }
 ```
+
+**Origin of revisions.** A client declares itself once, right after opening: Studio as `RevisionOrigin::Studio`, the CLI as `Cli`, an MCP server as `Mcp(<client name>)` once the client has named itself at `initialize`. The origin belongs to the handle, never to a single write, so it cannot be forgotten on one call; a handle that declares nothing writes revisions of unknown origin (`docs/catalog.md` §16).
 
 One writing instance per library (a file lock); several readers are free (WAL).
 

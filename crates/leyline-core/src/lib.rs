@@ -18,6 +18,7 @@
 
 mod error;
 mod id;
+mod origin;
 mod path;
 mod settings;
 mod tether;
@@ -28,6 +29,7 @@ pub use id::{
     AssetId, CollectionId, ContactSheetPresetId, ExportPresetId, FolderId, JobId, KeywordId,
     PresetFolderId, PresetId, PrintPresetId, RevisionId, VersionId,
 };
+pub use origin::{MCP_CLIENT_NAME_MAX, RevisionOrigin};
 pub use path::validate_library_relative_path;
 pub use settings::{
     BrushStroke, CURRENT_SCHEMA, CameraProfile, ColorGrading, ColorGradingZone, ColorRange, Crop,

@@ -96,6 +96,7 @@ impl Catalog {
         self.ensure_writable()?;
         let now = now_ms();
         let neutral = initial.to_json();
+        let origin = self.origin().map(ToString::to_string);
 
         let tx = self.conn.transaction().map_err(db_err)?;
 
@@ -126,10 +127,11 @@ impl Catalog {
         let asset = AssetId::new(tx.last_insert_rowid());
 
         tx.prepare_cached(
-            "INSERT INTO develop_revisions (asset_id, parent_revision_id, settings_json, created_at)
-             VALUES (?1, NULL, ?2, ?3)",
+            "INSERT INTO develop_revisions
+                 (asset_id, parent_revision_id, settings_json, created_at, origin)
+             VALUES (?1, NULL, ?2, ?3, ?4)",
         )
-        .and_then(|mut stmt| stmt.execute(rusqlite::params![asset.get(), neutral, now]))
+        .and_then(|mut stmt| stmt.execute(rusqlite::params![asset.get(), neutral, now, origin]))
         .map_err(db_err)?;
         let revision = RevisionId::new(tx.last_insert_rowid());
 

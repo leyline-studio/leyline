@@ -92,6 +92,9 @@ fn develop_covers_every_param_kind() {
     // The initial revision plus one commit per develop call above.
     assert_eq!(stdout(&out).lines().count(), 14);
     assert!(stdout(&out).lines().next().unwrap().starts_with("HEAD"));
+    // Every revision was written by the CLI, the import's included
+    // (ADR 0154 §6).
+    assert!(stdout(&out).lines().all(|line| line.contains("by cli")));
 }
 
 /// The measured white balance (ADR 0091): grey-world on the frame, or the

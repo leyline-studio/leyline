@@ -25,9 +25,9 @@ use leyline_sdk::{
     HighlightReconstruction, HslBand, ImportOptions, LensCorrection, Library, LocalAdjustment,
     LocalAdjustmentValues, Lut, Margins, NoiseReduction, Orientation, PaperSize, Param,
     Perspective, PickState, Point, PresetId, PreviewKind, PrintRecipe, PrintRequest, PrintSettings,
-    RedEye, RenderingIntent, Reproduction, ReshapePoint, ScanOptions, Settings, SettingsGroup,
-    Sharpening, ShotRange, SpotRemoval, TetherOptions, TetherSetting, Value, VersionId, Watermark,
-    WatermarkAnchor, WhiteBalance,
+    RedEye, RenderingIntent, Reproduction, ReshapePoint, RevisionOrigin, ScanOptions, Settings,
+    SettingsGroup, Sharpening, ShotRange, SpotRemoval, TetherOptions, TetherSetting, Value,
+    VersionId, Watermark, WatermarkAnchor, WhiteBalance,
 };
 
 const USAGE: &str = "\
@@ -518,7 +518,9 @@ impl Options {
 }
 
 fn open(root: &str) -> Result<Library, String> {
-    Library::open(Path::new(root)).map_err(|e| e.to_string())
+    let library = Library::open(Path::new(root)).map_err(|e| e.to_string())?;
+    library.declare_origin(RevisionOrigin::Cli);
+    Ok(library)
 }
 
 fn new(args: &[String]) -> Result<(), String> {
@@ -1756,8 +1758,14 @@ fn history(args: &[String]) -> Result<(), String> {
                 }
             }
         };
+        // Unknown origins (ADR 0154 §6) print nothing rather than a guess.
+        let origin = row
+            .origin
+            .as_ref()
+            .map(|origin| format!("  by {origin}"))
+            .unwrap_or_default();
         println!(
-            "{marker} r{:<6} {changed}  (schema {}, stages [{stages}])",
+            "{marker} r{:<6} {changed}{origin}  (schema {}, stages [{stages}])",
             row.revision, settings.schema
         );
     }

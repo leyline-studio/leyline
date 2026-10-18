@@ -69,7 +69,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use rusqlite::{Connection, ErrorCode, OpenFlags};
 
-use leyline_core::{LeylineError, Result};
+use leyline_core::{LeylineError, Result, RevisionOrigin};
 
 /// Identity row of a library (`docs/catalog.md` §7).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -89,6 +89,8 @@ pub struct LibraryInfo {
 pub struct Catalog {
     conn: Connection,
     read_only: bool,
+    /// Stamped on every revision this handle writes (ADR 0154 §6).
+    origin: Option<RevisionOrigin>,
 }
 
 impl Catalog {
@@ -131,6 +133,7 @@ impl Catalog {
         Ok(Catalog {
             conn,
             read_only: false,
+            origin: None,
         })
     }
 
@@ -163,6 +166,7 @@ impl Catalog {
         Ok(Catalog {
             conn,
             read_only: false,
+            origin: None,
         })
     }
 
@@ -184,12 +188,25 @@ impl Catalog {
         Ok(Catalog {
             conn,
             read_only: true,
+            origin: None,
         })
     }
 
     /// Returns the schema version (`PRAGMA user_version`) of the open catalog.
     pub fn user_version(&self) -> Result<u32> {
         migrations::user_version(&self.conn)
+    }
+
+    /// Declares which program holds this handle (ADR 0154 §6): every revision
+    /// written from now on records it. A handle that never declares one
+    /// writes revisions of unknown origin.
+    pub fn declare_origin(&mut self, origin: RevisionOrigin) {
+        self.origin = Some(origin);
+    }
+
+    /// The origin this handle stamps on the revisions it writes.
+    pub fn origin(&self) -> Option<&RevisionOrigin> {
+        self.origin.as_ref()
     }
 
     /// Whether this handle was opened without write access.

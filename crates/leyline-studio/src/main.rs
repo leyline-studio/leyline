@@ -73,7 +73,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
-use leyline_sdk::{ColorLabel, GridQuery, Library};
+use leyline_sdk::{ColorLabel, GridQuery, Library, RevisionOrigin};
 use slint::winit_030::WinitWindowAccessor;
 use slint::{ComponentHandle, Global, ModelRc, SharedString, VecModel};
 
@@ -360,6 +360,7 @@ fn run() -> Result<(), Startup> {
             })?
         }
     };
+    library.declare_origin(RevisionOrigin::Studio);
     // Preferences (ADR 0078 §5), read before anything is on screen: the
     // language they may carry has to be applied at the window's first
     // paint, and the launch counter they hold decides whether the consent

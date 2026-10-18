@@ -828,6 +828,9 @@ CREATE TABLE develop_revisions (
 
     created_at INTEGER NOT NULL,
 
+    -- v15 (ADR 0154 §6), NULL for rows written before
+    origin TEXT,
+
     FOREIGN KEY(asset_id)
         REFERENCES assets(id)
         ON DELETE CASCADE,
@@ -840,6 +843,8 @@ CREATE TABLE develop_revisions (
 ```
 
 `author` is optional: it prepares for collaborative development (§38) at no cost today.
+
+`origin` says which **program** wrote the revision: `studio`, `cli` or `mcp:<client>`, where `<client>` is the name an MCP client declares at `initialize` — self-declared and unauthenticated, trimmed, stripped of control characters and capped at 64 characters. It is a property of the opened library handle (`Library::declare_origin`), stamped by the catalog on every revision that handle writes, the initial revision of an import included; it is never a parameter of a single write. It is not `author`: a program is not a person. Rows written before v15, or by a handle that declared nothing, keep `NULL`, read as *unknown*; nothing is backfilled. A value this engine does not recognise is read as unknown too. Like the preset provenance below, no renderer reads it.
 
 ---
 

@@ -2,7 +2,7 @@
 //! (`docs/catalog.md` §16, §17, §18).
 
 use leyline_catalog::{Catalog, NewAsset, NewPreview, RegisteredAsset};
-use leyline_core::{LeylineError, MediaType, PreviewKind, Settings, VersionId};
+use leyline_core::{LeylineError, MediaType, PreviewKind, RevisionOrigin, Settings, VersionId};
 
 fn new_catalog(dir: &tempfile::TempDir) -> Catalog {
     Catalog::create(&dir.path().join("catalog.db"), "Revisions").unwrap()
@@ -388,4 +388,44 @@ fn read_only_handles_refuse_revision_writes() {
         catalog.undo_version(version),
         Err(LeylineError::Db(_))
     ));
+}
+
+#[test]
+fn a_declared_origin_is_stamped_on_every_revision_the_handle_writes() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+    let unknown = registered_asset(&mut catalog);
+    assert_eq!(catalog.revision(unknown.revision).unwrap().origin, None);
+
+    catalog.declare_origin(RevisionOrigin::mcp("Claude Desktop"));
+    let r1 = catalog
+        .commit_revision(unknown.version, &exposure(0.5))
+        .unwrap();
+    let agent = RevisionOrigin::Mcp("Claude Desktop".to_owned());
+    assert_eq!(catalog.revision(r1).unwrap().origin, Some(agent.clone()));
+
+    // The initial revision of an import is stamped too, and the history
+    // reads the column the same way.
+    let new = NewAsset {
+        folder: catalog.ensure_folder("Photos").unwrap(),
+        filename: "IMG_0002.CR3".to_owned(),
+        extension: "CR3".to_owned(),
+        media_type: MediaType::Raw,
+        file_size: 1,
+        checksum: [0xCD; 32],
+        width: None,
+        height: None,
+        capture_date: None,
+        capture_offset_minutes: None,
+    };
+    let imported = catalog.add_asset(&new, &Settings::default()).unwrap();
+    let history = catalog.version_history(imported.version).unwrap();
+    assert_eq!(history[0].origin, Some(agent));
+
+    let history = catalog.version_history(unknown.version).unwrap();
+    let origins: Vec<_> = history.iter().map(|r| r.origin.clone()).collect();
+    assert_eq!(
+        origins,
+        vec![Some(RevisionOrigin::Mcp("Claude Desktop".to_owned())), None]
+    );
 }

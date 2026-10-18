@@ -23,9 +23,10 @@ pub use leyline_core::{
     HighlightReconstruction, HslBand, JobId, KeywordId, LensCorrection, LeylineError,
     LocalAdjustment, LocalAdjustmentValues, LuminanceRange, Lut, Mask, MediaType, NoiseReduction,
     ParametricCurve, Perspective, PickState, Point, PresetFolderId, PresetId, PresetSettings,
-    PreviewKind, PrintPresetId, RangeMask, RedEye, ReshapePoint, Result, RevisionId, SETTINGS_KEYS,
-    Settings, SettingsGroup, Sharpening, SpotRemoval, StageVersions, TetherSetting, ToneCurve,
-    VersionId, Vignette, WHITE_BALANCE_PRESETS, WhiteBalance, WhiteBalancePreset,
+    PreviewKind, PrintPresetId, RangeMask, RedEye, ReshapePoint, Result, RevisionId,
+    RevisionOrigin, SETTINGS_KEYS, Settings, SettingsGroup, Sharpening, SpotRemoval, StageVersions,
+    TetherSetting, ToneCurve, VersionId, Vignette, WHITE_BALANCE_PRESETS, WhiteBalance,
+    WhiteBalancePreset,
 };
 
 pub use leyline_engine::{

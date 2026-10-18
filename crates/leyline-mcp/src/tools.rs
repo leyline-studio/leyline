@@ -186,6 +186,7 @@ fn history(library: &Library, args: VersionArgs) -> Result<Vec<RevisionEntry>, S
                 parent_revision_id: row.parent.map(|p| p.get()),
                 created_at_ms: row.created_at,
                 from_preset: row.from_preset.map(|p| p.get()),
+                origin: row.origin.as_ref().map(ToString::to_string),
                 changed,
             })
         })

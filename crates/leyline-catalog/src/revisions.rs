@@ -10,7 +10,9 @@
 //! amendment window applies — belongs to the engine's edit session
 //! (`docs/engine-api.md` §10.1).
 
-use leyline_core::{AssetId, LeylineError, PresetId, Result, RevisionId, Settings, VersionId};
+use leyline_core::{
+    AssetId, LeylineError, PresetId, Result, RevisionId, RevisionOrigin, Settings, VersionId,
+};
 
 use crate::{Catalog, db_err, now_ms};
 
@@ -33,6 +35,10 @@ pub struct RevisionRow {
     /// « this photograph took the Portrait preset » is the one thing about a
     /// revision that a list of changed settings cannot say.
     pub from_preset: Option<PresetId>,
+    /// The program that wrote it (ADR 0154 §6); `None` is *unknown* — a
+    /// revision older than catalog v15, or one written by a handle that
+    /// declared no origin.
+    pub origin: Option<RevisionOrigin>,
 }
 
 /// Result of a successful head amendment.
@@ -74,14 +80,15 @@ impl Catalog {
         self.ensure_writable()?;
         settings.validate()?;
         let now = now_ms();
+        let origin = self.origin().map(ToString::to_string);
 
         let tx = self.conn.transaction().map_err(db_err)?;
         let (asset, head) = version_row(&tx, version)?;
         tx.execute(
             "INSERT INTO develop_revisions
                  (asset_id, parent_revision_id, settings_json, created_at,
-                  from_preset_id, from_preset_revision)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                  from_preset_id, from_preset_revision, origin)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             rusqlite::params![
                 asset.get(),
                 head.get(),
@@ -89,6 +96,7 @@ impl Catalog {
                 now,
                 from_preset.map(|(preset, _)| preset.get()),
                 from_preset.map(|(_, revision)| i64::from(revision)),
+                origin,
             ],
         )
         .map_err(db_err)?;
@@ -294,7 +302,8 @@ impl Catalog {
     pub fn revision(&self, revision: RevisionId) -> Result<RevisionRow> {
         self.conn
             .query_row(
-                "SELECT asset_id, parent_revision_id, settings_json, created_at, from_preset_id
+                "SELECT asset_id, parent_revision_id, settings_json, created_at, from_preset_id,
+                        origin
                  FROM develop_revisions WHERE id = ?1",
                 [revision.get()],
                 |row| {
@@ -309,6 +318,7 @@ impl Catalog {
                         from_preset: row
                             .get::<_, Option<i64>>("from_preset_id")?
                             .map(PresetId::new),
+                        origin: read_origin(row)?,
                     })
                 },
             )
@@ -333,7 +343,7 @@ impl Catalog {
                      WHERE r.parent_revision_id IS NOT NULL
                  )
                  SELECT r.id, r.asset_id, r.parent_revision_id, r.settings_json, r.created_at,
-                        r.from_preset_id
+                        r.from_preset_id, r.origin
                  FROM chain JOIN develop_revisions r ON r.id = chain.id",
             )
             .map_err(db_err)?;
@@ -350,12 +360,21 @@ impl Catalog {
                     from_preset: row
                         .get::<_, Option<i64>>("from_preset_id")?
                         .map(PresetId::new),
+                    origin: read_origin(row)?,
                 })
             })
             .map_err(db_err)?;
         rows.collect::<std::result::Result<Vec<_>, _>>()
             .map_err(db_err)
     }
+}
+
+/// Reads the `origin` column; a value this engine does not know is unknown.
+fn read_origin(row: &rusqlite::Row<'_>) -> rusqlite::Result<Option<RevisionOrigin>> {
+    Ok(row
+        .get::<_, Option<String>>("origin")?
+        .as_deref()
+        .and_then(RevisionOrigin::parse))
 }
 
 /// Reads a version's asset and head, failing with `VersionMissing`.
