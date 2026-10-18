@@ -584,7 +584,7 @@ i9-9900K, 16 threads, the B-axis reference machine.
 follows the pixel count (×16 from Small to Large), as B4's parallel
 efficiency says it must. Medium is borderline at ~40–47 ms (~22 fps).
 Enlarging the proxy is therefore not an answer at 4K; per the plan, this is
-the measurement that sends the question to ADR 0156, still to be written (a GPU on the preview
+the measurement that sends the question to [ADR 0156](adr/0156-a-gpu-for-the-preview-alone.md) (a GPU on the preview
 path alone, CPU authoritative at export, B3's separation).
 
 **A defect found on the way, and fixed.** The first run printed a `Medium`
