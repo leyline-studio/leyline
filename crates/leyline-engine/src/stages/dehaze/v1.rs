@@ -9,6 +9,8 @@
 //! through exactly this code, forever. A change of rendering is a new
 //! version module next to this one, never an edit here (ADR 0042 §1).
 
+use std::cmp::Ordering;
+
 use rayon::prelude::*;
 
 use crate::pixels::Pixels;
@@ -145,25 +147,40 @@ pub(crate) fn min_filter(plane: &[f32], width: usize, height: usize, radius: usi
 /// the highest original-image intensity, He et al.'s selection rule.
 pub(crate) fn atmospheric_light(px: &Pixels, dark: &[f32]) -> [f32; 3] {
     let total = dark.len();
+    // An empty image has no haze to measure; `clamp(1, 0)` below would
+    // panic on it (ADR 0152 §4).
+    if total == 0 {
+        return [0.0; 3];
+    }
     let take = ((total as f32 * DEHAZE_TOP_FRACTION).ceil() as usize).clamp(1, total);
     let mut indices: Vec<usize> = (0..total).collect();
-    indices.select_nth_unstable_by(total - take, |&a, &b| {
-        dark[a]
-            .partial_cmp(&dark[b])
-            .expect("luma samples are finite")
-    });
+    indices.select_nth_unstable_by(total - take, |&a, &b| nan_lowest(dark[a], dark[b]));
     let brightest = indices[total - take..]
         .iter()
         .copied()
         .max_by(|&a, &b| {
             let sum_a: f32 = px.data[a * 3..a * 3 + 3].iter().sum();
             let sum_b: f32 = px.data[b * 3..b * 3 + 3].iter().sum();
-            sum_a.partial_cmp(&sum_b).expect("rgb samples are finite")
+            nan_lowest(sum_a, sum_b)
         })
-        .expect("take is always at least 1");
+        .unwrap_or(total - 1);
     [
         px.data[brightest * 3],
         px.data[brightest * 3 + 1],
         px.data[brightest * 3 + 2],
     ]
+}
+
+/// `partial_cmp` for every pair it orders, with NaN ranked below everything
+/// so that a NaN pixel is never picked as the atmospheric light. Unlike
+/// `total_cmp` it keeps `-0.0 == +0.0`, so no sane input changes order
+/// (ADR 0152 §4), and unlike `partial_cmp().unwrap_or(Equal)` it stays a
+/// total order, which `select_nth_unstable_by` may otherwise panic over.
+fn nan_lowest(a: f32, b: f32) -> Ordering {
+    match (a.is_nan(), b.is_nan()) {
+        (true, true) => Ordering::Equal,
+        (true, false) => Ordering::Less,
+        (false, true) => Ordering::Greater,
+        (false, false) => a.partial_cmp(&b).unwrap_or(Ordering::Equal),
+    }
 }

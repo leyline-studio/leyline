@@ -89,5 +89,8 @@ pub(crate) fn hue_band_neighbors(hue_deg: f32) -> (usize, usize, f32) {
             return (i, j, (probe - start) / (end - start));
         }
     }
-    unreachable!("HSL_BAND_CENTERS_DEG spans exactly one full turn of the hue circle")
+    // Only a non-finite hue (a NaN or infinite pixel) misses every span,
+    // since the spans cover one full turn: band 0 takes the whole weight rather
+    // than a panic in a frozen module (ADR 0152 §4).
+    (0, 1, 0.0)
 }

@@ -8,6 +8,8 @@
 //! through exactly this code, forever. A change of rendering is a new
 //! version module next to this one, never an edit here (ADR 0042 §1).
 
+use std::cmp::Ordering;
+
 use leyline_core::CurvePoint;
 
 use crate::pixels::Pixels;
@@ -101,7 +103,10 @@ pub(crate) fn eval_hermite(xs: &[f64], ys: &[f64], tangents: &[f64], x: f64) -> 
     if x >= xs[last] {
         return ys[last];
     }
-    let i = match xs.binary_search_by(|probe| probe.partial_cmp(&x).unwrap()) {
+    // `Settings::validate` guarantees strictly increasing, hence finite,
+    // control points, and `x` comes from a table index: the fallback never
+    // applies, it only spares a panic in a frozen module (ADR 0152 §4).
+    let i = match xs.binary_search_by(|probe| probe.partial_cmp(&x).unwrap_or(Ordering::Less)) {
         Ok(i) => return ys[i],
         Err(i) => i - 1,
     };

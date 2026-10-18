@@ -14,9 +14,9 @@ use leyline_core::{
 use super::Space;
 use super::clarity::v1::CLARITY_RADIUS;
 use super::color_grading::v1::{zone_tint, zone_weights};
-use super::dehaze::v1::{DEHAZE_PATCH_RADIUS, atmospheric_light, min_filter};
+use super::dehaze::v1::{DEHAZE_PATCH_RADIUS, atmospheric_light, dehaze, min_filter};
 use super::fixture;
-use super::hsl::v1::{HSL_BAND_CENTERS_DEG, hue_band_neighbors};
+use super::hsl::v1::{HSL_BAND_CENTERS_DEG, hsl_mixer, hue_band_neighbors};
 use super::kernel::v1::{
     approx_blur, exact_linear_to_srgb, exact_srgb_to_linear, gaussian_blur, hsl_to_rgb,
     lens_bilinear, lens_bilinear_channel, local_contrast, lookup, post_rotation_point_to_buffer,
@@ -24,7 +24,7 @@ use super::kernel::v1::{
 };
 use super::spot_removal::v1::radial_coverage;
 use super::texture::v1::TEXTURE_RADIUS;
-use super::tone_curve::v1::{build_curve_lut, curve_lookup};
+use super::tone_curve::v1::{build_curve_lut, curve_lookup, tone_curve};
 use super::*;
 
 /// The neutral rendering of `image`: the same file with no operator
@@ -2531,4 +2531,67 @@ fn the_pipeline_specification_lists_every_stage_version_this_engine_renders() {
         missing.len(),
         missing.join("\n  ")
     );
+}
+
+/// A 4×4 buffer whose first pixel is NaN and the rest mid-grey: what a
+/// degenerate camera matrix hands the frozen stages (ADR 0152 §4).
+fn pixels_with_a_nan() -> Pixels {
+    let mut data = vec![0.5f32; 4 * 4 * 3];
+    data[..3].fill(f32::NAN);
+    Pixels {
+        width: 4,
+        height: 4,
+        data,
+    }
+}
+
+#[test]
+fn frozen_stages_do_not_panic_on_a_nan_pixel() {
+    let mut px = pixels_with_a_nan();
+    dehaze(&mut px, 50, 1.0);
+    let mut px = pixels_with_a_nan();
+    hsl_mixer(
+        &mut px,
+        &[HslBand {
+            hue: 20,
+            saturation: 20,
+            luminance: 20,
+        }; 8],
+    );
+    let mut px = pixels_with_a_nan();
+    let points = [
+        CurvePoint { x: 0.0, y: 0.0 },
+        CurvePoint { x: 0.5, y: 0.6 },
+        CurvePoint { x: 1.0, y: 1.0 },
+    ];
+    tone_curve(&mut px, &points);
+}
+
+#[test]
+fn dehaze_never_picks_a_nan_pixel_as_the_atmospheric_light() {
+    let px = pixels_with_a_nan();
+    let dark: Vec<f32> = px
+        .data
+        .chunks_exact(3)
+        .map(|rgb| rgb[0].min(rgb[1]).min(rgb[2]))
+        .collect();
+    let atmosphere = atmospheric_light(&px, &dark);
+    assert!(atmosphere.iter().all(|v| v.is_finite()), "{atmosphere:?}");
+}
+
+#[test]
+fn the_atmospheric_light_of_an_empty_image_does_not_panic() {
+    let px = Pixels {
+        width: 0,
+        height: 0,
+        data: Vec::new(),
+    };
+    assert_eq!(atmospheric_light(&px, &[]), [0.0; 3]);
+}
+
+#[test]
+fn a_non_finite_hue_falls_back_to_the_first_band() {
+    for hue in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+        assert_eq!(hue_band_neighbors(hue), (0, 1, 0.0));
+    }
 }
