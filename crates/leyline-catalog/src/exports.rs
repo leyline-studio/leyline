@@ -178,19 +178,54 @@ impl Catalog {
 
     /// Returns an asset's export history, newest first.
     pub fn export_history(&self, asset: AssetId) -> Result<Vec<ExportRecord>> {
+        self.export_rows("asset_id = ?1", rusqlite::params![asset.get()])
+    }
+
+    /// The exports whose written file had this BLAKE3 checksum, newest
+    /// first — `verify`'s *intact* case (ADR 0153 §4).
+    pub fn exports_by_output_checksum(
+        &self,
+        checksum: &[u8; CHECKSUM_LEN],
+    ) -> Result<Vec<ExportRecord>> {
+        self.export_rows(
+            "output_checksum = ?1",
+            rusqlite::params![checksum.as_slice()],
+        )
+    }
+
+    /// The exports made from the revision with this fingerprint, newest
+    /// first — `verify`'s *modified* case (ADR 0153 §4).
+    pub fn exports_by_revision_fingerprint(
+        &self,
+        fingerprint: &[u8; CHECKSUM_LEN],
+    ) -> Result<Vec<ExportRecord>> {
+        self.export_rows(
+            "revision_fingerprint = ?1",
+            rusqlite::params![fingerprint.as_slice()],
+        )
+    }
+
+    /// The journal rows matching `condition`, newest first. `condition` is
+    /// one of the fixed clauses above, never caller text.
+    fn export_rows(
+        &self,
+        condition: &str,
+        params: &[&dyn rusqlite::ToSql],
+    ) -> Result<Vec<ExportRecord>> {
         let mut stmt = self
             .conn
-            .prepare_cached(
-                "SELECT preset_id, format, destination, exported_at, version_id, revision_id,
-                        revision_fingerprint, export_settings_json, decoder, output_checksum
-                 FROM export_history WHERE asset_id = ?1
-                 ORDER BY exported_at DESC, id DESC",
-            )
+            .prepare_cached(&format!(
+                "SELECT asset_id, preset_id, format, destination, exported_at, version_id,
+                        revision_id, revision_fingerprint, export_settings_json, decoder,
+                        output_checksum
+                 FROM export_history WHERE {condition}
+                 ORDER BY exported_at DESC, id DESC"
+            ))
             .map_err(db_err)?;
         let rows = stmt
-            .query_map([asset.get()], |row| {
+            .query_map(params, |row| {
                 Ok(ExportRecord {
-                    asset,
+                    asset: AssetId::new(row.get("asset_id")?),
                     preset: row
                         .get::<_, Option<i64>>("preset_id")?
                         .map(ExportPresetId::new),

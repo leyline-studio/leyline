@@ -10,7 +10,8 @@ use rmcp::handler::server::common::schema_for_type;
 use rmcp::model::{JsonObject, Tool, ToolAnnotations};
 
 use crate::dto::{
-    ApplyEditsArgs, AssetArgs, ExportArgs, ImportArgs, RenderPreviewArgs, SearchArgs, VersionArgs,
+    ApplyEditsArgs, AssetArgs, ExportArgs, ImportArgs, RenderPreviewArgs, SearchArgs,
+    VerifyExportArgs, VersionArgs,
 };
 
 /// Every tool of the first surface (§4): verbs whose effect is nothing, a
@@ -28,10 +29,11 @@ pub enum ToolId {
     ApplyEdits,
     Import,
     Export,
+    VerifyExport,
 }
 
 impl ToolId {
-    pub const ALL: [ToolId; 9] = [
+    pub const ALL: [ToolId; 10] = [
         ToolId::Search,
         ToolId::GetMetadata,
         ToolId::GetSettings,
@@ -41,6 +43,7 @@ impl ToolId {
         ToolId::ApplyEdits,
         ToolId::Import,
         ToolId::Export,
+        ToolId::VerifyExport,
     ];
 
     /// The id a client calls the tool by.
@@ -55,6 +58,7 @@ impl ToolId {
             ToolId::ApplyEdits => "apply_edits",
             ToolId::Import => "import",
             ToolId::Export => "export",
+            ToolId::VerifyExport => "verify_export",
         }
     }
 
@@ -102,6 +106,11 @@ impl ToolId {
                 "Render versions to image files in a folder. Never touches the \
                  originals or the edits."
             }
+            ToolId::VerifyExport => {
+                "Say whether an image file is one this library exported: intact, \
+                 modified since, or unknown here — and which version and revision \
+                 it came from. A matching checksum, not a signature."
+            }
         }
     }
 
@@ -114,6 +123,7 @@ impl ToolId {
             ToolId::ApplyEdits => schema_for_type::<ApplyEditsArgs>(),
             ToolId::Import => schema_for_type::<ImportArgs>(),
             ToolId::Export => schema_for_type::<ExportArgs>(),
+            ToolId::VerifyExport => schema_for_type::<VerifyExportArgs>(),
         }
     }
 

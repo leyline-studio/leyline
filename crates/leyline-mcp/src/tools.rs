@@ -7,12 +7,12 @@
 //! rule).
 
 use std::io::Cursor;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use leyline_sdk::{
-    AssetId, ExportMetadata, ExportRecipe, ExportRequest, ExportSettings, GridQuery, ImportOptions,
-    Library, PresetSettings, PreviewKind, Rational, Settings, SettingsGroup, VersionId,
-    changed_settings,
+    AssetId, ExportMetadata, ExportRecipe, ExportRequest, ExportSettings, ExportVerdict, GridQuery,
+    ImportOptions, Library, PresetSettings, PreviewKind, Rational, Settings, SettingsGroup,
+    VersionId, changed_settings,
 };
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -21,7 +21,8 @@ use serde_json::{Map, Value};
 use crate::dto::{
     ApplyEditsArgs, ApplyEditsOutcome, AssetArgs, AssetMetadata, ExportArgs, ExportOutcome,
     ExportedEntry, ImportArgs, ImportOutcome, ImportedEntry, PathFailure, RenderPreviewArgs,
-    RevisionEntry, SearchArgs, SearchHit, VersionArgs, VersionEntry, VersionFailure,
+    RevisionEntry, SearchArgs, SearchHit, VerifyExportArgs, VerifyExportOutcome, VersionArgs,
+    VersionEntry, VersionFailure,
 };
 use crate::registry::ToolId;
 
@@ -48,6 +49,7 @@ pub fn call(library: &Library, tool: ToolId, arguments: Value) -> Result<Reply, 
         ToolId::ApplyEdits => json(apply_edits(library, parse(arguments)?)),
         ToolId::Import => json(import(library, parse(arguments)?)),
         ToolId::Export => json(export(library, parse(arguments)?)),
+        ToolId::VerifyExport => json(verify_export(library, parse(arguments)?)),
     }
 }
 
@@ -378,6 +380,24 @@ fn import(library: &Library, args: ImportArgs) -> Result<ImportOutcome, String> 
                 reason: file.reason,
             })
             .collect(),
+    })
+}
+
+fn verify_export(library: &Library, args: VerifyExportArgs) -> Result<VerifyExportOutcome, String> {
+    let verdict = library
+        .verify_export(Path::new(&args.path))
+        .map_err(|e| e.to_string())?;
+    let (name, row) = match verdict {
+        ExportVerdict::Intact(row) => ("intact", Some(row)),
+        ExportVerdict::Modified(row) => ("modified", Some(row)),
+        ExportVerdict::Unknown => ("unknown", None),
+    };
+    Ok(VerifyExportOutcome {
+        verdict: name,
+        version_id: row.as_ref().and_then(|r| r.version).map(|v| v.get()),
+        revision_id: row.as_ref().and_then(|r| r.revision).map(|r| r.get()),
+        exported_at: row.as_ref().map(|r| r.exported_at),
+        destination: row.map(|r| r.destination),
     })
 }
 

@@ -2003,6 +2003,17 @@ impl Library {
         self.catalog().export_presets()
     }
 
+    /// Says whether the file at `path` is one this library exported
+    /// (ADR 0153 §4): *intact*, *modified* since, or *unknown* here.
+    ///
+    /// The file is read and hashed before the catalog lock is taken
+    /// (ADR 0024); only the two journal lookups hold it.
+    pub fn verify_export(&self, path: &Path) -> Result<crate::ExportVerdict> {
+        let file = std::fs::read(path)?;
+        let checksum = *blake3::hash(&file).as_bytes();
+        crate::verify::verdict(&self.catalog(), &file, &checksum)
+    }
+
     /// Prints every version of `request` through its recipe (ADR 0036) —
     /// same shape and same catalog-lock discipline as [`Library::export`]:
     /// decode+render+scale+encode never holds the catalog lock, one failing

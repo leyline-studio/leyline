@@ -241,6 +241,18 @@ fn every_enum_is_matchable(preview: Preview, watch: WatchSessionEvent) {
     }
 }
 
+/// ADR 0153 §4: the three answers of `verify`, and the journal row two of
+/// them carry, read through the façade alone.
+#[expect(dead_code, reason = "the match arms are the test")]
+fn every_export_verdict_is_matchable(library: &Library, path: &std::path::Path) {
+    match library.verify_export(path).unwrap() {
+        leyline_sdk::ExportVerdict::Intact(row) | leyline_sdk::ExportVerdict::Modified(row) => {
+            let _: leyline_sdk::ExportRecord = row;
+        }
+        leyline_sdk::ExportVerdict::Unknown => {}
+    }
+}
+
 /// The request structs a caller has to build, spelled out through the façade
 /// including the `leyline-export` and `leyline-color` types they embed.
 #[expect(dead_code, reason = "the constructors are the test")]

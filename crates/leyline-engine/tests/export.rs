@@ -3,7 +3,8 @@
 use leyline_catalog::Catalog;
 use leyline_core::{ExportPresetId, LeylineError, VersionId};
 use leyline_engine::{
-    ExportRecipe, ExportRequest, ImportOptions, Library, export_batch, export_version, import,
+    ExportRecipe, ExportRequest, ExportVerdict, ImportOptions, Library, export_batch,
+    export_version, import,
 };
 use leyline_export::{ExportFormat, ExportMetadata, ExportSettings};
 
@@ -559,6 +560,83 @@ fn an_export_carries_the_authored_description_unless_told_not_to() {
     assert!(
         !none.contains("leyline:"),
         "no provenance under None (ADR 0153 §3)"
+    );
+}
+
+/// ADR 0153 §4 end to end: a file stays *intact* after the photograph is
+/// edited (revisions are immutable), becomes *modified* once its bytes
+/// change, and a file this library never wrote is *unknown*.
+#[test]
+fn verify_finds_the_revision_a_file_came_from() {
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::create(&dir.path().join("Library"), "Verify").unwrap();
+    let source = dir.path().join("Shoot");
+    std::fs::create_dir(&source).unwrap();
+    image::save_buffer(
+        source.join("quay.png"),
+        &[120u8; 4 * 2 * 3],
+        4,
+        2,
+        image::ExtendedColorType::Rgb8,
+    )
+    .unwrap();
+    let options = ImportOptions {
+        copy_files: true,
+        recursive: false,
+        pair_companions: true,
+        thumbnails: false,
+    };
+    let registered = library
+        .import(&source, &options, |_, _| {})
+        .unwrap()
+        .imported[0]
+        .registered;
+    let batch = library
+        .export(
+            &ExportRequest {
+                versions: vec![registered.version],
+                recipe: ExportRecipe::Adhoc(ExportSettings::default()),
+                destination_dir: dir.path().join("out"),
+                concurrency: None,
+            },
+            |_, _| {},
+        )
+        .unwrap();
+    let file = batch.exported[0].path.clone();
+
+    // Edited after the export: a new head, and the file still names the old one.
+    {
+        let mut session = library.edit(registered.version).unwrap();
+        session
+            .set(
+                leyline_engine::Param::Exposure,
+                leyline_engine::Value::Float(1.0),
+            )
+            .unwrap();
+        session.commit().unwrap();
+    }
+    match library.verify_export(&file).unwrap() {
+        ExportVerdict::Intact(row) => {
+            assert_eq!(row.revision, Some(registered.revision));
+            assert_eq!(row.version, Some(registered.version));
+        }
+        other => panic!("expected intact, got {other:?}"),
+    }
+
+    let mut bytes = std::fs::read(&file).unwrap();
+    bytes.push(0);
+    let altered = dir.path().join("altered.jpg");
+    std::fs::write(&altered, &bytes).unwrap();
+    match library.verify_export(&altered).unwrap() {
+        ExportVerdict::Modified(row) => assert_eq!(row.revision, Some(registered.revision)),
+        other => panic!("expected modified, got {other:?}"),
+    }
+
+    let stranger = dir.path().join("stranger.jpg");
+    std::fs::write(&stranger, b"\xFF\xD8 not ours").unwrap();
+    assert_eq!(
+        library.verify_export(&stranger).unwrap(),
+        ExportVerdict::Unknown
     );
 }
 

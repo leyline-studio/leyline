@@ -20,13 +20,13 @@ use std::time::Duration;
 use leyline_sdk::{
     AssetDescription, AssetId, CameraProfile, CameraSettings, CaptionSource, ColorGrading,
     ColorGradingZone, ColorLabel, ContactSheetRecipe, ContactSheetRequest, ContactSheetSettings,
-    Crop, CurvePoint, Defringe, Demosaic, ExportFormat, ExportMetadata, ExportRecipe,
-    ExportRequest, ExportSettings, GridQuery, GuideLine, HighlightReconstruction, HslBand,
-    ImportOptions, LensCorrection, Library, LocalAdjustment, LocalAdjustmentValues, Lut, Margins,
-    NoiseReduction, Orientation, PaperSize, Param, Perspective, PickState, Point, PresetId,
-    PreviewKind, PrintRecipe, PrintRequest, PrintSettings, RedEye, RenderingIntent, ReshapePoint,
-    ScanOptions, Settings, SettingsGroup, Sharpening, ShotRange, SpotRemoval, TetherOptions,
-    TetherSetting, Value, VersionId, Watermark, WatermarkAnchor, WhiteBalance,
+    Crop, CurvePoint, Defringe, Demosaic, ExportFormat, ExportMetadata, ExportRecipe, ExportRecord,
+    ExportRequest, ExportSettings, ExportVerdict, GridQuery, GuideLine, HighlightReconstruction,
+    HslBand, ImportOptions, LensCorrection, Library, LocalAdjustment, LocalAdjustmentValues, Lut,
+    Margins, NoiseReduction, Orientation, PaperSize, Param, Perspective, PickState, Point,
+    PresetId, PreviewKind, PrintRecipe, PrintRequest, PrintSettings, RedEye, RenderingIntent,
+    ReshapePoint, ScanOptions, Settings, SettingsGroup, Sharpening, ShotRange, SpotRemoval,
+    TetherOptions, TetherSetting, Value, VersionId, Watermark, WatermarkAnchor, WhiteBalance,
 };
 
 const USAGE: &str = "\
@@ -147,6 +147,10 @@ Usage:
   leyline mcp --library <library>   serve the library to an AI agent over
                                     stdio (Model Context Protocol, ADR 0154)
   leyline preview <library> <asset-id> [--kind <thumbnail|small|medium|large|full>]
+  leyline verify <library> <file>   say whether the file is one this library
+                                    exported: intact, modified since, or
+                                    unknown here (ADR 0153). Exits 0 only
+                                    when intact
   leyline export <library> <dest-dir> <version-id>...
                  [--preset <name>] [--format <f>] [--quality <1-100>] [--max-edge <px>]
                  [--avif-speed <1-10>] [--concurrency <n>] [--metadata <m>]
@@ -409,6 +413,7 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("mcp") => mcp(&args[1..]),
         Some("preview") => preview(&args[1..]),
         Some("export") => export(&args[1..]),
+        Some("verify") => verify(&args[1..]),
         Some("preset") => preset(&args[1..]),
         Some("presets") => presets(&args[1..]),
         Some("roots") => roots(&args[1..]),
@@ -2983,6 +2988,43 @@ fn say_when_the_format_drops_metadata(settings: &ExportSettings) {
             "note: {} files carry no metadata — the encoder offers no way to write it",
             settings.format.extension()
         );
+    }
+}
+
+/// `leyline verify <library> <file>` (ADR 0153 §4). The exit code is 0 only
+/// for *intact*, so a script can gate on it.
+fn verify(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root, file] = positional.as_slice() else {
+        return Err("usage: leyline verify <library> <file>".to_owned());
+    };
+    let library = open(root)?;
+    let describe = |row: &ExportRecord| {
+        format!(
+            "asset {} version {} revision {}, {} to {}",
+            row.asset,
+            row.version.map_or("deleted".to_owned(), |v| v.to_string()),
+            row.revision.map_or("deleted".to_owned(), |r| r.to_string()),
+            row.format,
+            row.destination
+        )
+    };
+    match library
+        .verify_export(Path::new(file))
+        .map_err(|e| e.to_string())?
+    {
+        ExportVerdict::Intact(row) => {
+            println!("intact: {}", describe(&row));
+            Ok(())
+        }
+        ExportVerdict::Modified(row) => {
+            println!("modified since export: {}", describe(&row));
+            Err("the file is not the one written".to_owned())
+        }
+        ExportVerdict::Unknown => {
+            println!("unknown to this library");
+            Err("no export of this library matches the file".to_owned())
+        }
     }
 }
 

@@ -198,6 +198,11 @@ fn an_agent_imports_edits_previews_and_exports() {
     let path = exported["exported"][0]["path"].as_str().unwrap();
     assert!(Path::new(path).exists(), "{exported}");
 
+    // ADR 0153 §4: the agent can ask whether a file is one we wrote.
+    let verified = agent.call_json("verify_export", json!({"path": path}));
+    assert_eq!(verified["verdict"], "intact", "{verified}");
+    assert_eq!(verified["version_id"], version, "{verified}");
+
     // A partial recipe is a new export, so it writes metadata as every new
     // export does (ADR 0157 §1) — not as a recipe from before the field.
     let png = dir.path().join("png");

@@ -1081,6 +1081,38 @@ fn the_metadata_policy_reaches_the_file_and_avif_says_so() {
     assert!(stderr(&out).contains("metadata policy"), "{}", stderr(&out));
 }
 
+/// ADR 0153 §4 at a shell prompt: a file the library wrote is *intact* and
+/// exits 0; anything else says what it is and exits non-zero.
+#[test]
+fn verify_says_intact_only_for_a_file_the_library_wrote() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = library_with_a_photo(&dir);
+    let dest = dir.path().join("out");
+    std::fs::create_dir_all(&dest).unwrap();
+    let out = run(&["export", &root, dest.to_str().unwrap(), "1"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    let file = std::fs::read_dir(&dest)
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+
+    let out = run(&["verify", &root, file.to_str().unwrap()]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(stdout(&out).starts_with("intact:"), "{}", stdout(&out));
+
+    let stranger = dir.path().join("stranger.jpg");
+    std::fs::write(&stranger, b"not ours").unwrap();
+    let out = run(&["verify", &root, stranger.to_str().unwrap()]);
+    assert!(!out.status.success());
+    assert!(
+        stdout(&out).contains("unknown to this library"),
+        "{}",
+        stdout(&out)
+    );
+}
+
 /// ADR 0110 at a shell prompt: the grid flags, the preset round trip, and
 /// the one file a sheet writes whatever the number of photographs.
 #[test]

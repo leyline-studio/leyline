@@ -56,6 +56,7 @@ mod session;
 mod source;
 mod stages;
 mod tether;
+mod verify;
 mod watch;
 mod wb;
 mod xmp;
@@ -103,6 +104,7 @@ pub use session::{DEFAULT_AMEND_WINDOW, EditSession, Param, Value};
 pub use stages::parametric_curve_samples;
 pub use stages::{Source, SourceColor, neutral_settings};
 pub use tether::{DEFAULT_SESSION, TetherOptions, session_folder};
+pub use verify::ExportVerdict;
 pub use watch::{WatchError, WatchSessionEvent, WatchedFile};
 pub use wb::RangeSample;
 pub use xmp::{

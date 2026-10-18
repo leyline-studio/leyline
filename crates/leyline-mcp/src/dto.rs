@@ -184,6 +184,28 @@ pub struct ExportOutcome {
     pub note: Option<String>,
 }
 
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct VerifyExportArgs {
+    /// The file to check, an absolute path on this machine.
+    pub path: String,
+}
+
+/// ADR 0153 §4: `intact`, `modified` or `unknown`, with the export it
+/// matched when there is one.
+#[derive(Debug, Serialize)]
+pub struct VerifyExportOutcome {
+    pub verdict: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version_id: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub revision_id: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exported_at: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub destination: Option<String>,
+}
+
 #[derive(Debug, Serialize)]
 pub struct ExportedEntry {
     pub version_id: i64,
