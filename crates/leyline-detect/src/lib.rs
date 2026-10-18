@@ -19,6 +19,17 @@
 //! two files, so it links nothing of Leyline, can be written in twenty lines
 //! of any language, and cannot take the application down with it.
 
+// ADR 0152: no panic on a production path, no `unsafe` outside raw and cli.
+#![deny(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented
+)]
+#![forbid(unsafe_code)]
+
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 

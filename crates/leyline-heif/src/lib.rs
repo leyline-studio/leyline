@@ -12,6 +12,17 @@
 //! platform-native backend (Image I/O, WIC) can replace it later without
 //! touching another crate.
 
+// ADR 0152: no panic on a production path, no `unsafe` outside raw and cli.
+#![deny(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented
+)]
+#![forbid(unsafe_code)]
+
 use std::path::Path;
 
 use libheif_rs::{ColorSpace, HeifContext, RgbChroma};

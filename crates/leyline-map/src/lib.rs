@@ -12,6 +12,17 @@
 //! `leyline-catalog` for the SQLite catalog or `leyline-preview` for the
 //! thumbnail cache.
 
+// ADR 0152: no panic on a production path, no `unsafe` outside raw and cli.
+#![deny(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented
+)]
+#![forbid(unsafe_code)]
+
 use std::path::Path;
 
 use rusqlite::{Connection, OpenFlags, OptionalExtension};

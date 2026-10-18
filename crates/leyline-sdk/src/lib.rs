@@ -5,6 +5,17 @@
 //! change at every version; this crate is the semver contract (`0.x` until
 //! V1). The core types (ids, errors, [`Settings`]) are part of it.
 
+// ADR 0152: no panic on a production path, no `unsafe` outside raw and cli.
+#![deny(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented
+)]
+#![forbid(unsafe_code)]
+
 pub use leyline_core::{
     AssetId, BrushStroke, CURRENT_SCHEMA, CameraProfile, CameraSetting, CameraSettings,
     CollectionId, CollectionType, ColorGrading, ColorGradingZone, ColorLabel, ColorRange,

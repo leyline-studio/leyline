@@ -10,6 +10,17 @@
 //! revision, or new files — anything an agent does can be read back and
 //! walked back with the history the photographer already has.
 
+// ADR 0152: no panic on a production path, no `unsafe` outside raw and cli.
+#![deny(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented
+)]
+#![forbid(unsafe_code)]
+
 mod dto;
 mod registry;
 mod server;

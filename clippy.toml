@@ -1,0 +1,5 @@
+# ADR 0152: the panic lints are denied on production crate roots; a test
+# that panics is a failing test, which is what a test is for.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
