@@ -39,6 +39,7 @@ serde_json.workspace = true
 uuid.workspace = true
 thiserror.workspace = true
 trash.workspace = true
+fs4 = { version = "1.1", features = ["sync"] }
 
 [features]
 # On by default, so an ordinary `cargo build`/`cargo test` is unchanged.

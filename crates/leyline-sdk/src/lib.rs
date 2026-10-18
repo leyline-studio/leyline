@@ -39,11 +39,11 @@ pub use leyline_engine::{
     KEYSTONE_MIN_GUIDES, KeystoneSolution, Library, Param, PresetApplyReport, Preview, PreviewFile,
     PrintRecipe, PrintReport, PrintRequest, PrintedVersion, RangeSample, RejectReason,
     RemovalReport, RenameReport, RenamedAsset, ReprocessReport, ReproduceVerdict, Reproduction,
-    Rgb8, RootStatus, ScanOptions, ScanReport, SkippedFile, SoftProof, Source, SourceColor,
-    TCA_MIN_SAMPLES, TcaEstimate, TetherOptions, Value, Verdict, WatchError, WatchSessionEvent,
-    WatchedFile, changed_settings, decoder_version, install_panic_hook,
-    install_panic_hook_recording, neutral_settings, overlay, parametric_curve_samples,
-    session_folder,
+    Rgb8, RootStatus, STUDIO_LOCK_FILE, ScanOptions, ScanReport, SkippedFile, SoftProof, Source,
+    SourceColor, StudioLock, TCA_MIN_SAMPLES, TcaEstimate, TetherOptions, Value, Verdict,
+    WatchError, WatchSessionEvent, WatchedFile, changed_settings, decoder_version,
+    install_panic_hook, install_panic_hook_recording, neutral_settings, overlay,
+    parametric_curve_samples, session_folder,
 };
 
 /// The measures assisted culling is built on (ADR 0084 §4) — focus,

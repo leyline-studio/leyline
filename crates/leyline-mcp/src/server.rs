@@ -20,13 +20,22 @@ const INSTRUCTIONS: &str = "Leyline is a non-destructive RAW photo library. \
     and `render_preview`, and develop them with `apply_edits`: each edit is one \
     revision the photographer can undo. Original files are never modified.";
 
+/// What a writing tool answers while Studio holds the library (ADR 0154 §7).
+pub const STUDIO_HAS_IT: &str =
+    "Leyline Studio has this library open; close it, or edit from Studio";
+
 pub struct LeylineServer {
     library: Library,
+    /// Studio held the library when this server opened it read-only.
+    studio_has_it: bool,
 }
 
 impl LeylineServer {
-    pub fn new(library: Library) -> LeylineServer {
-        LeylineServer { library }
+    pub fn new(library: Library, studio_has_it: bool) -> LeylineServer {
+        LeylineServer {
+            library,
+            studio_has_it,
+        }
     }
 }
 
@@ -45,8 +54,10 @@ impl ServerHandler for LeylineServer {
         request: InitializeRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<InitializeResult, McpError> {
-        self.library
-            .declare_origin(RevisionOrigin::mcp(&request.client_info.name));
+        if !self.studio_has_it {
+            self.library
+                .declare_origin(RevisionOrigin::mcp(&request.client_info.name));
+        }
         context.peer.set_peer_info(request.clone());
         self.negotiate_initialize(&request)
     }
@@ -72,6 +83,13 @@ impl ServerHandler for LeylineServer {
                 None,
             ));
         };
+        if self.studio_has_it && !tool.is_read_only() {
+            return Ok(CallToolResult::error(vec![ContentBlock::text(format!(
+                "`{}` refused: {STUDIO_HAS_IT}",
+                tool.name()
+            ))])
+            .into());
+        }
         let arguments = Value::Object(request.arguments.unwrap_or_default());
         let library = self.library.clone();
         // The engine is synchronous and a render takes seconds: off the

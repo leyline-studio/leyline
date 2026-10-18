@@ -236,3 +236,53 @@ fn an_agent_imports_edits_previews_and_exports() {
         "{exported}"
     );
 }
+
+/// ADR 0154 §7, step 1: while Studio holds the library, the agent reads and
+/// renders but every writing tool refuses by name, and nothing is written.
+#[test]
+fn while_studio_has_the_library_the_agent_only_reads() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("Lib");
+    let root = root.to_str().unwrap();
+    cli(&["new", root]);
+    let shoot = dir.path().join("shoot");
+    std::fs::create_dir(&shoot).unwrap();
+    sample_png(&shoot.join("photo.png"));
+    cli(&["import", root, shoot.to_str().unwrap()]);
+
+    // This test process stands in for Studio: the lock is per open file, so
+    // the server it launches sees it held exactly as it would see Studio's.
+    let studio = leyline_sdk::StudioLock::acquire(Path::new(root))
+        .unwrap()
+        .unwrap();
+    let mut agent = Agent::launch(root);
+
+    let hits = agent.call_json("search", json!({}));
+    let version = hits[0]["version_id"].as_i64().unwrap();
+    let (image, refused) = agent.call("render_preview", json!({"version_id": version}));
+    assert!(!refused, "{image}");
+
+    let (refusal, refused) = agent.call(
+        "apply_edits",
+        json!({"version_id": version, "settings": {"exposure": 0.5}}),
+    );
+    assert!(refused);
+    let text = refusal["text"].as_str().unwrap();
+    assert!(text.contains("`apply_edits`"), "{text}");
+    assert!(
+        text.contains("Leyline Studio has this library open"),
+        "{text}"
+    );
+    let history = agent.call_json("history", json!({"version_id": version}));
+    assert_eq!(history.as_array().unwrap().len(), 1, "{history}");
+    drop(agent);
+
+    // Studio closed: the next agent writes again.
+    drop(studio);
+    let mut agent = Agent::launch(root);
+    let (_, refused) = agent.call(
+        "apply_edits",
+        json!({"version_id": version, "settings": {"exposure": 0.5}}),
+    );
+    assert!(!refused);
+}

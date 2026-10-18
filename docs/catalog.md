@@ -119,6 +119,10 @@ Library/
 
 ├── .leyline-root         (this folder's identity as root 1, ADR 0085 §1)
 
+├── studio.lock           (empty; Studio holds an OS advisory lock on it while
+│                          the library is open, ADR 0154 §7 — the lock, not
+│                          the file, is what means anything)
+
 ├── Photos/
 
 ├── Cache/

@@ -50,6 +50,8 @@ Every feature listed as delivered is delivered on all **three clients**: Studio,
 These features were scoped as post-V1 candidates in [`v2-scope.md`](v2-scope.md). They are implemented.
 
 | Feature | Decision |
+| Export provenance | [ADR 0153](adr/0153-an-export-knows-where-it-comes-from.md): the journal records the revision, its fingerprint, the resolved recipe, the decoder and the file's BLAKE3 (migration v14); the file carries a `leyline:` XMP block under the metadata policy; `verify` and `reproduce` in every client. Built |
+| Agent surface (MCP) | [ADR 0154](adr/0154-an-agent-surface-over-stdio.md): `leyline mcp --library <path>` serves the façade's read, edit, preview, import, export and verify verbs over stdio; each revision records the program that wrote it — `studio`, `cli` or `mcp:<client>` (migration v15); while Studio has the library open, an agent opens it read-only and the writing tools refuse by name (§7 step 1). Studio relaying the agent on a local socket (§7 step 2) is decided, not built |
 |---|---|
 | Tone curve (monotone cubic spline, applied on luminance) | [ADR 0030](adr/0030-tone-curve.md) |
 | Spot removal (deterministic cloning, no *heal* mode) | [ADR 0032](adr/0032-spot-removal-clone.md) |
@@ -86,8 +88,6 @@ The word *experimental* is literal: the colorimetric accuracy of the DCP matrix 
 | Subject | Decision |
 |---|---|
 | Image watermark (a logo) | Cut by [ADR 0034](adr/0034-softproofing-watermark-print.md): the asset-reference problem is not settled |
-| Export provenance | [ADR 0153](adr/0153-an-export-knows-where-it-comes-from.md): the journal records the revision, its fingerprint, the resolved recipe, the decoder and the file's BLAKE3 (migration v14); the file carries a `leyline:` XMP block under the metadata policy; `verify` and `reproduce` in every client. Not built yet |
-| Agent surface (MCP) | [ADR 0154](adr/0154-an-agent-surface-over-stdio.md): `leyline mcp --library <path>` serves the façade's read, edit, preview, import and export verbs over stdio; each revision records its origin (migration v15). Not built yet |
 
 ---
 

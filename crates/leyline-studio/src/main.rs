@@ -73,7 +73,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
-use leyline_sdk::{ColorLabel, GridQuery, Library, RevisionOrigin};
+use leyline_sdk::{ColorLabel, GridQuery, Library, RevisionOrigin, StudioLock};
 use slint::winit_030::WinitWindowAccessor;
 use slint::{ComponentHandle, Global, ModelRc, SharedString, VecModel};
 
@@ -361,6 +361,21 @@ fn run() -> Result<(), Startup> {
         }
     };
     library.declare_origin(RevisionOrigin::Studio);
+    // Held until `run` returns, and by the OS until the process dies: an
+    // agent launched meanwhile opens the library read-only (ADR 0154 §7).
+    // Not getting it — another Studio on this library, or a root that will
+    // not take the file — costs that protection, never the launch.
+    let _studio_lock = match StudioLock::acquire(library.root()) {
+        Ok(Some(lock)) => Some(lock),
+        Ok(None) => {
+            eprintln!("leyline-studio: another Studio already holds this library's lock");
+            None
+        }
+        Err(error) => {
+            eprintln!("leyline-studio: cannot take the library lock: {error}");
+            None
+        }
+    };
     // Preferences (ADR 0078 §5), read before anything is on screen: the
     // language they may carry has to be applied at the window's first
     // paint, and the launch counter they hold decides whether the consent
