@@ -8,7 +8,7 @@
 
 use std::sync::{Arc, OnceLock};
 
-use leyline_gpu::{Frame, Gpu, Op};
+use leyline_gpu::{DisplayOp, Frame, Gpu, Op, Transfer};
 
 use crate::pixels::Pixels;
 use crate::stages::{Context, Stage, Version};
@@ -49,6 +49,47 @@ fn kernel(stage: &Stage, version: &Version, ctx: &Context) -> Option<Op> {
             ctx.settings.white_balance.as_ref(),
             ctx.settings.exposure,
         ))),
+        ("contrast", 1) => display(DisplayOp::Contrast {
+            k: f32::from(ctx.settings.contrast as i16) / 100.0,
+        }),
+        ("highlights_shadows", 1) => display(DisplayOp::HighlightsShadows {
+            highlights: f32::from(ctx.settings.highlights as i16) / 100.0,
+            shadows: f32::from(ctx.settings.shadows as i16) / 100.0,
+        }),
+        // The same arithmetic as `whites_blacks` v1, in the same `f32`.
+        ("whites_blacks", 1) => {
+            let white = 1.0 - f32::from(ctx.settings.whites as i16) / 100.0 * 0.25;
+            let black = -f32::from(ctx.settings.blacks as i16) / 100.0 * 0.25;
+            display(DisplayOp::WhitesBlacks {
+                black,
+                scale: 1.0 / (white - black),
+            })
+        }
+        ("parametric_curve", 1) => display(DisplayOp::Curve(Arc::new(
+            crate::stages::tone_curve::v1::build_curve_lut(
+                &crate::stages::parametric_curve::v1::control_points(
+                    &ctx.settings.parametric_curve,
+                ),
+            )
+            .to_vec(),
+        ))),
+        ("levels", 1) => {
+            let levels = &ctx.settings.levels;
+            display(DisplayOp::Levels {
+                in_black: levels.input_black as f32 / 255.0,
+                in_range: (levels.input_white - levels.input_black) as f32 / 255.0,
+                out_black: levels.output_black as f32 / 255.0,
+                out_range: (levels.output_white - levels.output_black) as f32 / 255.0,
+                exponent: (1.0 / levels.gamma) as f32,
+            })
+        }
+        // The master curve alone: v2 with channel curves stays on the CPU.
+        ("tone_curve", 1 | 2) if !ctx.settings.tone_curve.has_channel_curves() => {
+            display(DisplayOp::Curve(Arc::new(
+                crate::stages::tone_curve::v1::build_curve_lut(&ctx.settings.tone_curve.points)
+                    .to_vec(),
+            )))
+        }
         ("output_rendering", 1) => Some(Op::OutputRendering {
             knee: crate::stages::output_rendering::v1::knee(
                 ctx.settings.output_rendering.highlight_rolloff,
@@ -58,6 +99,19 @@ fn kernel(stage: &Stage, version: &Version, ctx: &Context) -> Option<Op> {
         }),
         _ => None,
     }
+}
+
+/// A display-axis operation with the CPU's transfer tables.
+fn display(op: DisplayOp) -> Option<Op> {
+    static TRANSFER: OnceLock<Transfer> = OnceLock::new();
+    let transfer = TRANSFER.get_or_init(|| {
+        let (to_linear, to_display) = crate::stages::kernel::v1::tables();
+        Transfer {
+            to_linear: Arc::new(to_linear.to_vec()),
+            to_display: Arc::new(to_display.to_vec()),
+        }
+    });
+    Some(Op::Display(op, transfer.clone()))
 }
 
 /// The CPU's display-curve table, shared with every frame.

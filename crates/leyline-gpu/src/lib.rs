@@ -88,7 +88,7 @@ impl Gpu {
 
 mod frame;
 use frame::Pipelines;
-pub use frame::{Frame, Op};
+pub use frame::{DisplayOp, Frame, Op, Transfer};
 
 mod scale;
 pub use scale::scale_samples;

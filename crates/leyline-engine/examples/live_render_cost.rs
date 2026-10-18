@@ -7,8 +7,9 @@
 //!
 //! For each file: imports it into a throw-away library, then for each class
 //! (Small 1024 px, Medium 2048 px, Large 4096 px) renders a drag on an early
-//! slider (exposure: the whole pipeline after the decode is replayed) and on
-//! a late one (sharpening: the stage cache's best case), and prints the
+//! slider (exposure: the whole pipeline after the decode is replayed), on
+//! contrast with the rest of the tonal block active, and on a late one
+//! (sharpening: the stage cache's best case), and prints the
 //! median of the frames after the first, in milliseconds. Every render goes
 //! through `Library::preview_live`, the path Studio's drag uses.
 //!
@@ -77,7 +78,7 @@ fn measure(file: &Path) -> Result<(), String> {
         (PreviewKind::Medium, "medium-2048"),
         (PreviewKind::Large, "large-4096"),
     ] {
-        for slider in ["exposure", "sharpening"] {
+        for slider in ["exposure", "tone", "sharpening"] {
             let mut times = Vec::with_capacity(FRAMES);
             let mut size = (0, 0);
             let mut last = None;
@@ -119,6 +120,17 @@ fn dragged(head: &Settings, slider: &str, frame: usize) -> Settings {
     let step = frame as f64 / FRAMES as f64;
     match slider {
         "exposure" => settings.exposure = 0.1 + step,
+        // The Basic panel at work: contrast dragged while the other tonal
+        // sliders, levels and the parametric curve hold their values.
+        "tone" => {
+            settings.contrast = 10 + frame as i32 * 5;
+            settings.highlights = -30;
+            settings.shadows = 25;
+            settings.whites = 10;
+            settings.blacks = -5;
+            settings.levels.gamma = 1.2;
+            settings.parametric_curve.darks = 15;
+        }
         _ => {
             settings.sharpening.amount = 20 + frame as i32 * 5;
             settings.sharpening.radius = 1.0;

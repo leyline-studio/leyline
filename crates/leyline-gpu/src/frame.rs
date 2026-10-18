@@ -25,6 +25,8 @@ pub enum Op {
     /// Every sample times its channel's gain, floored at 0: white balance
     /// and exposure (`gains` v1).
     Gains([f32; 3]),
+    /// A tone operator on the display axis.
+    Display(DisplayOp, Transfer),
     /// The output rendering (`output_rendering` v1): the highlight rolloff
     /// at `knee`, the working space to linear sRGB through `matrix`, the
     /// clamp, and the display curve through `display_table` — the very
@@ -37,6 +39,57 @@ pub enum Op {
         /// The CPU's display-curve table, entry `i` at `i / (len − 1)`.
         display_table: Arc<Vec<f32>>,
     },
+}
+
+/// A tone operator on the display axis: the CPU's `in_display` around a
+/// per-sample function, with the CPU's own transfer tables (ADR 0156 §5).
+#[derive(Debug, Clone)]
+pub enum DisplayOp {
+    /// `contrast` v1, at `k` = amount / 100.
+    Contrast {
+        /// The amount, in [-1, 1].
+        k: f32,
+    },
+    /// `whites_blacks` v1: `(x − black) · scale`, floored at 0.
+    WhitesBlacks {
+        /// The display value that becomes black.
+        black: f32,
+        /// `1 / (white − black)`.
+        scale: f32,
+    },
+    /// `highlights_shadows` v1, each at amount / 100.
+    HighlightsShadows {
+        /// The highlights amount, in [-1, 1].
+        highlights: f32,
+        /// The shadows amount, in [-1, 1].
+        shadows: f32,
+    },
+    /// `levels` v1, the four limits already divided by 255.
+    Levels {
+        /// Input black.
+        in_black: f32,
+        /// Input white minus input black.
+        in_range: f32,
+        /// Output black.
+        out_black: f32,
+        /// Output white minus output black.
+        out_range: f32,
+        /// `1 / gamma`.
+        exponent: f32,
+    },
+    /// A curve the CPU already tabulated (`tone_curve` v1, the parametric
+    /// curve): looked up exactly as the CPU looks it up.
+    Curve(Arc<Vec<f32>>),
+}
+
+/// The CPU's transfer tables between the linear and display axes, shared
+/// by every display-axis operation.
+#[derive(Debug, Clone)]
+pub struct Transfer {
+    /// sRGB → linear over [0, 1].
+    pub to_linear: Arc<Vec<f32>>,
+    /// Linear → sRGB over [0, 1].
+    pub to_display: Arc<Vec<f32>>,
 }
 
 /// A frame uploaded once, rendered many times.
@@ -124,6 +177,39 @@ impl Frame {
         // Uniforms live until the submission; collected so they outlive it.
         let mut uniforms = Vec::with_capacity(ops.len());
         for step in steps {
+            if let Op::Display(op, transfer) = step {
+                let (mode, values, curve) = display_params(op);
+                let mut params = Vec::with_capacity(48);
+                for word in [mode, self.pixels, stride, curve_entries(curve.as_deref())?] {
+                    params.extend_from_slice(&word.to_le_bytes());
+                }
+                for value in values {
+                    params.extend_from_slice(&value.to_le_bytes());
+                }
+                params.resize(48, 0);
+                uniforms.push(uniform(device, &params));
+                let tables = [
+                    table(device, &transfer.to_display),
+                    table(device, &transfer.to_linear),
+                    table(device, curve.as_deref().unwrap_or(&transfer.to_display)),
+                ];
+                let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("display"),
+                    layout: &gpu.pipelines().display.get_bind_group_layout(0),
+                    entries: &[
+                        entry(0, &self.work),
+                        entry(1, uniforms.last()?),
+                        entry(2, &tables[0]),
+                        entry(3, &tables[1]),
+                        entry(4, &tables[2]),
+                    ],
+                });
+                let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor::default());
+                pass.set_pipeline(&gpu.pipelines().display);
+                pass.set_bind_group(0, &bind_group, &[]);
+                pass.dispatch_workgroups(groups_x, groups_y, 1);
+                continue;
+            }
             let Op::Gains(gains) = step else {
                 return None;
             };
@@ -159,11 +245,7 @@ impl Frame {
         let table_entries = u32::try_from(display_table.len()).ok()?;
         params.extend_from_slice(&table_entries.to_le_bytes());
         uniforms.push(uniform(device, &params));
-        let table = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("display table"),
-            contents: &bytes_of_f32(display_table),
-            usage: wgpu::BufferUsages::STORAGE,
-        });
+        let table = table(device, display_table);
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("output rendering"),
             layout: &gpu.pipelines().output.get_bind_group_layout(0),
@@ -206,6 +288,7 @@ impl Frame {
 #[derive(Debug)]
 pub(crate) struct Pipelines {
     gains: wgpu::ComputePipeline,
+    display: wgpu::ComputePipeline,
     output: wgpu::ComputePipeline,
 }
 
@@ -213,6 +296,7 @@ impl Pipelines {
     pub(crate) fn new(device: &wgpu::Device) -> Pipelines {
         Pipelines {
             gains: pipeline(device, "gains", GAINS),
+            display: pipeline(device, "display", DISPLAY),
             output: pipeline(device, "output rendering", OUTPUT_RENDERING),
         }
     }
@@ -254,6 +338,44 @@ fn entry(binding: u32, buffer: &wgpu::Buffer) -> wgpu::BindGroupEntry<'_> {
         binding,
         resource: buffer.as_entire_binding(),
     }
+}
+
+fn table(device: &wgpu::Device, values: &[f32]) -> wgpu::Buffer {
+    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("table"),
+        contents: &bytes_of_f32(values),
+        usage: wgpu::BufferUsages::STORAGE,
+    })
+}
+
+/// The shader's mode, its five values, and the curve table if any.
+fn display_params(op: &DisplayOp) -> (u32, [f32; 5], Option<Arc<Vec<f32>>>) {
+    match op {
+        DisplayOp::Contrast { k } => (0, [*k, 0.0, 0.0, 0.0, 0.0], None),
+        DisplayOp::WhitesBlacks { black, scale } => (1, [*black, *scale, 0.0, 0.0, 0.0], None),
+        DisplayOp::HighlightsShadows {
+            highlights,
+            shadows,
+        } => (2, [*highlights, *shadows, 0.0, 0.0, 0.0], None),
+        DisplayOp::Levels {
+            in_black,
+            in_range,
+            out_black,
+            out_range,
+            exponent,
+        } => (
+            3,
+            [*in_black, *in_range, *out_black, *out_range, *exponent],
+            None,
+        ),
+        DisplayOp::Curve(table) => (4, [0.0; 5], Some(Arc::clone(table))),
+    }
+}
+
+/// Entries of the curve table bound for this operation, the transfer table
+/// standing in when there is none.
+fn curve_entries(curve: Option<&Vec<f32>>) -> Option<u32> {
+    u32::try_from(curve.map_or(0, Vec::len)).ok()
 }
 
 fn bytes_of_f32(values: &[f32]) -> Vec<u8> {
@@ -332,5 +454,136 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     let g = quantize(display(clamp(srgb.y, 0.0, 1.0)));
     let b = quantize(display(clamp(srgb.z, 0.0, 1.0)));
     packed[pixel] = r | (g << 8u) | (b << 16u);
+}
+";
+
+/// The display-axis operators: `in_display` (to the display axis, the
+/// operator, back to linear from a value floored at 0), with the CPU's
+/// tables below 1 and the exact sRGB formulas above, as `display`/`linear`
+/// do.
+const DISPLAY: &str = r"
+struct Params {
+    mode: u32,
+    pixels: u32,
+    stride: u32,
+    curve_entries: u32,
+    a: f32,
+    b: f32,
+    c: f32,
+    d: f32,
+    e: f32,
+}
+@group(0) @binding(0) var<storage, read_write> samples: array<f32>;
+@group(0) @binding(1) var<uniform> params: Params;
+@group(0) @binding(2) var<storage, read> to_display_table: array<f32>;
+@group(0) @binding(3) var<storage, read> to_linear_table: array<f32>;
+@group(0) @binding(4) var<storage, read> curve_table: array<f32>;
+
+fn lookup_display(v: f32) -> f32 {
+    let size = arrayLength(&to_display_table) - 1u;
+    let x = clamp(v, 0.0, 1.0) * f32(size);
+    let i = min(u32(x), size - 1u);
+    let t = x - f32(i);
+    return to_display_table[i] + (to_display_table[i + 1u] - to_display_table[i]) * t;
+}
+
+fn lookup_linear(v: f32) -> f32 {
+    let size = arrayLength(&to_linear_table) - 1u;
+    let x = clamp(v, 0.0, 1.0) * f32(size);
+    let i = min(u32(x), size - 1u);
+    let t = x - f32(i);
+    return to_linear_table[i] + (to_linear_table[i + 1u] - to_linear_table[i]) * t;
+}
+
+fn lookup_curve(v: f32) -> f32 {
+    let size = params.curve_entries - 1u;
+    let x = clamp(v, 0.0, 1.0) * f32(size);
+    let i = min(u32(x), size - 1u);
+    let t = x - f32(i);
+    return curve_table[i] + (curve_table[i + 1u] - curve_table[i]) * t;
+}
+
+fn to_display(v: f32) -> f32 {
+    if (v <= 1.0) { return lookup_display(v); }
+    if (v <= 0.0031308) { return v * 12.92; }
+    return 1.055 * pow(v, 1.0 / 2.4) - 0.055;
+}
+
+fn to_linear(v: f32) -> f32 {
+    if (v <= 1.0) { return lookup_linear(v); }
+    if (v <= 0.04045) { return v / 12.92; }
+    return pow((v + 0.055) / 1.055, 2.4);
+}
+
+// The per-sample function of the curve-like modes, defined on [0, 1].
+fn curve(x: f32) -> f32 {
+    switch params.mode {
+        case 0u: {
+            let k = params.a;
+            if (k >= 0.0) {
+                let s = x * x * (3.0 - 2.0 * x);
+                return max((1.0 - k) * x + k * s, 0.0);
+            }
+            let flat = 0.25 + 0.5 * x;
+            return max((1.0 + k) * x - k * flat, 0.0);
+        }
+        case 1u: {
+            return max((x - params.a) * params.b, 0.0);
+        }
+        case 3u: {
+            let t = clamp((x - params.a) / params.b, 0.0, 1.0);
+            var shaped = t;
+            if (params.e != 1.0) { shaped = pow(t, params.e); }
+            return params.c + params.d * shaped;
+        }
+        default: {
+            return lookup_curve(x);
+        }
+    }
+}
+
+// `display_curve`: the function below 1, its gain at white above.
+fn display_curve(x: f32) -> f32 {
+    if (x <= 1.0) { return curve(x); }
+    return x * curve(1.0);
+}
+
+fn highlights_shadows(rgb: vec3<f32>) -> vec3<f32> {
+    let l = clamp(0.2627 * rgb.x + 0.6780 * rgb.y + 0.0593 * rgb.z, 0.0, 1.0);
+    let delta = 0.5 * (params.b * (1.0 - l) * (1.0 - l) + params.a * l * l);
+    var out = rgb;
+    for (var c = 0u; c < 3u; c = c + 1u) {
+        let x = rgb[c];
+        var moved: f32;
+        if (x > 1.0) {
+            if (delta >= 0.0) { moved = x; } else { moved = x * (1.0 + delta); }
+        } else if (delta >= 0.0) {
+            moved = x + delta * (1.0 - x);
+        } else {
+            moved = x + delta * x;
+        }
+        out[c] = max(moved, 0.0);
+    }
+    return out;
+}
+
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) id: vec3<u32>) {
+    let pixel = id.y * params.stride + id.x;
+    if (pixel >= params.pixels) { return; }
+    let base = pixel * 3u;
+    var rgb = vec3<f32>(
+        to_display(samples[base]),
+        to_display(samples[base + 1u]),
+        to_display(samples[base + 2u]),
+    );
+    if (params.mode == 2u) {
+        rgb = highlights_shadows(rgb);
+    } else {
+        rgb = vec3<f32>(display_curve(rgb.x), display_curve(rgb.y), display_curve(rgb.z));
+    }
+    samples[base] = to_linear(max(rgb.x, 0.0));
+    samples[base + 1u] = to_linear(max(rgb.y, 0.0));
+    samples[base + 2u] = to_linear(max(rgb.z, 0.0));
 }
 ";

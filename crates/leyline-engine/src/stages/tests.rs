@@ -2686,8 +2686,10 @@ fn the_stage_cache_is_dropped_across_input_sizes_at_one_scale() {
 
 /// ADR 0156 §3: a drag the GPU renders stays within one 8-bit level of the
 /// CPU's render of the same settings. The first render is the CPU's and
-/// leaves the checkpoint; the second, with exposure, white balance and the
-/// highlight rolloff moved, has only kernel-backed stages after it.
+/// leaves the checkpoint; the second moves every operator that has a kernel
+/// — the Basic panel's tone, both curves, levels, the rolloff — with an
+/// exposure high enough to send highlights above 1, and so has only
+/// kernel-backed stages after it.
 #[cfg(feature = "gpu")]
 #[test]
 fn the_gpu_preview_stays_within_one_level_of_the_cpu() {
@@ -2697,11 +2699,6 @@ fn the_gpu_preview_stays_within_one_level_of_the_cpu() {
 
     let image = test_image(96, 64);
     let source = super::Source::plain(super::SourceColor::Srgb);
-    let mut first = leyline_core::Settings {
-        exposure: 0.3,
-        ..Default::default()
-    };
-    super::pin(&mut first);
     let mut cache = StageCache::default();
     let cached = |settings: &leyline_core::Settings, cache: &mut StageCache| {
         develop_scaled_cached(
@@ -2719,21 +2716,57 @@ fn the_gpu_preview_stays_within_one_level_of_the_cpu() {
         )
         .unwrap()
     };
-    cached(&first, &mut cache);
-
     let mut dragged = leyline_core::Settings {
         exposure: 1.6,
         white_balance: Some(WhiteBalance {
             temperature: 4800,
             tint: 15,
         }),
+        contrast: 35,
+        highlights: -40,
+        shadows: 30,
+        whites: 15,
+        blacks: -10,
+        parametric_curve: leyline_core::ParametricCurve {
+            darks: 20,
+            highlights: -15,
+            ..Default::default()
+        },
+        levels: leyline_core::Levels {
+            input_black: 6,
+            input_white: 245,
+            gamma: 1.3,
+            output_black: 4,
+            output_white: 250,
+        },
+        tone_curve: leyline_core::ToneCurve {
+            points: vec![
+                leyline_core::CurvePoint { x: 0.0, y: 0.02 },
+                leyline_core::CurvePoint { x: 0.5, y: 0.55 },
+                leyline_core::CurvePoint { x: 1.0, y: 0.97 },
+            ],
+            ..Default::default()
+        },
         ..Default::default()
     };
     dragged.output_rendering.highlight_rolloff = 70;
     super::pin(&mut dragged);
+    // A drag moves values, not the pinned map: the frame before it is the
+    // same revision with the exposure where the pointer started.
+    let first = leyline_core::Settings {
+        exposure: 0.3,
+        ..dragged.clone()
+    };
+    cached(&first, &mut cache);
     let before = crate::gpu_preview::tests::RENDERED.load(Ordering::SeqCst);
     let gpu = cached(&dragged, &mut cache);
     if crate::gpu_preview::tests::RENDERED.load(Ordering::SeqCst) == before {
+        // Silent only when there is truly nothing to run on: an adapter and
+        // a CPU-rendered drag is the defect this test exists to catch.
+        assert!(
+            crate::gpu_preview::preview_backend().is_none(),
+            "an adapter is there, yet the drag stayed on the CPU"
+        );
         eprintln!("no GPU adapter on this machine: only the CPU path was exercised");
         return;
     }

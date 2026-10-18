@@ -630,6 +630,22 @@ the GPU and once with `LEYLINE_GPU=off`, frames written with
 | | 2048 | 33 ms | 18 ms | 1 | 0.0001 % |
 | | 4096 | 134 ms | 29 ms | 1 | 0.0002 % |
 
+Second slice, the same day: kernels for the rest of the tonal block —
+`contrast`, `highlights_shadows`, `whites_blacks`, `parametric_curve`,
+`levels` and the master `tone_curve` — through one display-axis kernel that
+uses the CPU's own transfer and curve tables. A third drag, *tone*
+(contrast moved with highlights, shadows, whites, blacks, levels and the
+parametric curve held), measured the same way:
+
+| File | Class | Tone, CPU | Tone, GPU | Worst gap | Samples off by 1 |
+|---|---|---|---|---|---|
+| 10 Mpx CR2 | 1024 | 29 ms | 3 ms | 1 | 0.0008 % |
+| | 2048 | 111 ms | 7 ms | 1 | 0.0010 % |
+| | native 3888 | 400 ms | 52 ms | 1 | 0.0005 % |
+| 30 Mpx 5D IV CR2 | 1024 | 30 ms | 4 ms | 1 | 0.0013 % |
+| | 2048 | 115 ms | 27 ms | 1 | 0.0010 % |
+| | 4096 | 459 ms | 58 ms | 1 | 0.0011 % |
+
 The sharpening drag is unchanged (155–170 ms at 4K): sharpening has no
 kernel yet, so per §4 that drag stays on the CPU, as it must. The 4K
 exposure drag is now at or near the 33 ms budget; what is left in it is the
