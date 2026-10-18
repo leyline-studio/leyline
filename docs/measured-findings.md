@@ -599,6 +599,19 @@ that change. The table above was measured after the fix. Studio's develop
 view mixes classes (a `Small` drag, larger renders on release and zoom), so
 the defect could show a soft 1024-px frame where a sharper one was due.
 
+### The checks ADR 0156 §7 asks for before any kernel — **passed on 2026-10-19**
+
+`crates/leyline-gpu` holds a device and one kernel (every sample times a
+factor, the core of an exposure gain), whose test compares the GPU's output
+with the CPU's. wgpu is pinned at **26.0.1**, the newest release whose MSRV
+(1.84) fits the workspace's 1.85.
+
+| Check | Result |
+|---|---|
+| Linux, software adapter | `llvmpipe (LLVM 20.1.2) (Vulkan)` — test green |
+| Windows cross-build (`x86_64-pc-windows-gnu`, mingw) | links; the test binary run **natively** on Windows (through WSL interop, not Wine): `NVIDIA GeForce RTX 3080 Ti (Vulkan)` green, and with `WGPU_BACKEND=dx12`, `(Dx12)` green |
+| glibc floor | highest `GLIBC_` symbol **2.39**, the floor already published; no `NEEDED` on `libvulkan` (wgpu loads it at run time) |
+
 ---
 
 # 4. Axis C — Optional local AI

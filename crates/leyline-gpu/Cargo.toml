@@ -1,0 +1,18 @@
+[package]
+name = "leyline-gpu"
+description = "GPU compute for the preview path only (ADR 0156); never the export."
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+# wgpu 26 is the newest release whose MSRV (1.84) fits the workspace's 1.85;
+# 27 and later require 1.88 (ADR 0156 §7).
+[dependencies]
+wgpu = "26.0.1"
+pollster = "0.4"
+
+[lints]
+workspace = true

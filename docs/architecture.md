@@ -31,6 +31,7 @@ Fourteen crates, each with a single responsibility.
 | `leyline-tether` | USB tethered capture through libgphoto2. |
 | `leyline-map` | Reading offline MBTiles tiles for the map view. |
 | `leyline-export` | Output encoding: JPEG, TIFF, PNG, WebP, AVIF, and print-to-PDF. |
+| `leyline-gpu` | GPU compute (wgpu) for the **preview path only**, never an export or a print ([ADR 0156](adr/0156-a-gpu-for-the-preview-alone.md)). Optional at run time: no adapter means the CPU path. Not yet consumed by the engine: it holds the device and the first kernel the §7 checks ran. |
 | `leyline-detect` | The contract, discovery and invocation of **external mask detectors** — executables that turn an image into a coverage ([ADR 0073](adr/0073-external-mask-detectors.md)). Detects nothing itself. |
 | `leyline-derive` | The contract, discovery and invocation of **external pixel processors** — executables that turn the develop buffer into another image ([ADR 0107](adr/0107-derived-assets-and-the-pixel-socket.md)). Processes nothing itself. |
 | `leyline-cull` | Technical quality measures and burst fingerprints for **assisted culling** ([ADR 0084](adr/0084-assisted-culling.md) §4): focus, clipping, perceptual fingerprint. No model, no weights, no I/O — it computes numbers and decides no verdict. The engine turns them into a proposal. |
