@@ -3461,6 +3461,7 @@ dependencies = [
  "blake3",
  "criterion",
  "image",
+ "image-webp",
  "jpeg-decoder",
  "kamadak-exif",
  "lcms2",

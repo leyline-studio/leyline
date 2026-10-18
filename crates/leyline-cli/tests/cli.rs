@@ -1113,6 +1113,49 @@ fn verify_says_intact_only_for_a_file_the_library_wrote() {
     );
 }
 
+/// ADR 0153 §5 at a shell prompt: an untouched export reproduces bit for
+/// bit and exits 0; a file the library never wrote is refused by name.
+#[test]
+fn reproduce_says_bit_for_bit_for_an_untouched_export() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = library_with_a_photo(&dir);
+    let dest = dir.path().join("out");
+    std::fs::create_dir_all(&dest).unwrap();
+    let out = run(&["export", &root, dest.to_str().unwrap(), "1"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    let file = std::fs::read_dir(&dest)
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+
+    let again = dir.path().join("again");
+    let out = run(&[
+        "reproduce",
+        &root,
+        file.to_str().unwrap(),
+        again.to_str().unwrap(),
+    ]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(stdout(&out).contains("bit for bit"), "{}", stdout(&out));
+
+    let stranger = dir.path().join("stranger.jpg");
+    std::fs::write(&stranger, b"not ours").unwrap();
+    let out = run(&[
+        "reproduce",
+        &root,
+        stranger.to_str().unwrap(),
+        again.to_str().unwrap(),
+    ]);
+    assert!(!out.status.success());
+    assert!(
+        stderr(&out).contains("cannot be reproduced"),
+        "{}",
+        stderr(&out)
+    );
+}
+
 /// ADR 0110 at a shell prompt: the grid flags, the preset round trip, and
 /// the one file a sheet writes whatever the number of photographs.
 #[test]

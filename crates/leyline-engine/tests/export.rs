@@ -3,8 +3,8 @@
 use leyline_catalog::Catalog;
 use leyline_core::{ExportPresetId, LeylineError, VersionId};
 use leyline_engine::{
-    ExportRecipe, ExportRequest, ExportVerdict, ImportOptions, Library, export_batch,
-    export_version, import,
+    ExportMatch, ExportRecipe, ExportRequest, ExportVerdict, ImportOptions, Library, Reproduction,
+    export_batch, export_version, import,
 };
 use leyline_export::{ExportFormat, ExportMetadata, ExportSettings};
 
@@ -638,6 +638,101 @@ fn verify_finds_the_revision_a_file_came_from() {
         library.verify_export(&stranger).unwrap(),
         ExportVerdict::Unknown
     );
+}
+
+/// ADR 0153 §5 end to end: the export is rendered again at the revision it
+/// recorded, not at the head the photograph has moved to since; a changed
+/// caption keeps the pixels and moves the bytes; a file found only by its
+/// fingerprint still reproduces the export's own bytes.
+#[test]
+fn reproduce_renders_the_recorded_revision_again() {
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::create(&dir.path().join("Library"), "Reproduce").unwrap();
+    let source = dir.path().join("Shoot");
+    std::fs::create_dir(&source).unwrap();
+    image::save_buffer(
+        source.join("quay.png"),
+        &[120u8; 4 * 2 * 3],
+        4,
+        2,
+        image::ExtendedColorType::Rgb8,
+    )
+    .unwrap();
+    let options = ImportOptions {
+        copy_files: true,
+        recursive: false,
+        pair_companions: true,
+        thumbnails: false,
+    };
+    let registered = library
+        .import(&source, &options, |_, _| {})
+        .unwrap()
+        .imported[0]
+        .registered;
+    let batch = library
+        .export(
+            &ExportRequest {
+                versions: vec![registered.version],
+                recipe: ExportRecipe::Adhoc(ExportSettings::default()),
+                destination_dir: dir.path().join("out"),
+                concurrency: None,
+            },
+            |_, _| {},
+        )
+        .unwrap();
+    let file = batch.exported[0].path.clone();
+    {
+        let mut session = library.edit(registered.version).unwrap();
+        session
+            .set(
+                leyline_engine::Param::Exposure,
+                leyline_engine::Value::Float(1.0),
+            )
+            .unwrap();
+        session.commit().unwrap();
+    }
+
+    let again = library
+        .reproduce_export(&file, &dir.path().join("again"))
+        .unwrap();
+    assert_eq!(again.outcome, Reproduction::BitForBit);
+    assert_eq!(again.matched, ExportMatch::Intact);
+    assert_eq!(again.record.revision, Some(registered.revision));
+    assert_eq!(
+        std::fs::read(&again.reproduced).unwrap(),
+        std::fs::read(&file).unwrap()
+    );
+
+    let mut bytes = std::fs::read(&file).unwrap();
+    bytes.push(0);
+    let altered = dir.path().join("altered.jpg");
+    std::fs::write(&altered, &bytes).unwrap();
+    let from_altered = library
+        .reproduce_export(&altered, &dir.path().join("from-altered"))
+        .unwrap();
+    assert_eq!(from_altered.matched, ExportMatch::Modified);
+    assert_eq!(from_altered.outcome, Reproduction::BitForBit);
+
+    library
+        .set_description(
+            registered.asset,
+            &leyline_catalog::AssetDescription {
+                creator: Some("Typed Creator".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    let captioned = library
+        .reproduce_export(&file, &dir.path().join("captioned"))
+        .unwrap();
+    assert_eq!(captioned.outcome, Reproduction::SamePixels);
+
+    let stranger = dir.path().join("stranger.jpg");
+    std::fs::write(&stranger, b"\xFF\xD8 not ours").unwrap();
+    assert!(matches!(
+        library.reproduce_export(&stranger, &dir.path().join("never")),
+        Err(LeylineError::NotReproducible { .. })
+    ));
 }
 
 /// Full pipeline against a real RAW file. Run with

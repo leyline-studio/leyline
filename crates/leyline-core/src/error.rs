@@ -208,6 +208,18 @@ pub enum LeylineError {
         version: i64,
     },
 
+    /// `reproduce` (`docs/adr/0153-an-export-knows-where-it-comes-from.md`
+    /// §5) found nothing to render again: the file is unknown to this
+    /// library's journal, or the revision it came from was deleted with its
+    /// version.
+    #[error("{path} cannot be reproduced: {reason}")]
+    NotReproducible {
+        /// The file asked about.
+        path: PathBuf,
+        /// Why, in a sentence.
+        reason: String,
+    },
+
     /// An underlying I/O operation failed.
     #[error("i/o error: {0}")]
     Io(#[from] std::io::Error),

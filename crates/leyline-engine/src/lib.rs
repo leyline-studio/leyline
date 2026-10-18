@@ -50,6 +50,7 @@ mod provenance;
 mod rename;
 mod render;
 mod reprocess;
+mod reproduce;
 mod roots;
 mod scan;
 mod session;
@@ -99,6 +100,7 @@ pub use print::{FailedPrint, PrintRecipe, PrintReport, PrintRequest, PrintedVers
 pub use rename::{FailedRename, RenameReport, RenamedAsset};
 pub use render::{LensShot, Rendered, SensorShot, lens_shot, render, render_scaled, sensor_shot};
 pub use reprocess::{FailedReprocess, ReprocessReport, reprocess_batch};
+pub use reproduce::{DifferenceSuspect, ExportMatch, ReproduceVerdict, Reproduction};
 pub use scan::{ImportCandidate, ScanOptions, ScanReport, scan};
 pub use session::{DEFAULT_AMEND_WINDOW, EditSession, Param, Value};
 pub use stages::parametric_curve_samples;

@@ -113,8 +113,20 @@ pub(crate) fn plan_export(
     library_root: &Path,
     version: VersionId,
 ) -> Result<ExportPlan> {
-    let asset = catalog.version_asset(version)?;
     let head = catalog.version_head(version)?;
+    plan_export_at(catalog, library_root, version, head)
+}
+
+/// [`plan_export`] at a given revision of `version` rather than its head —
+/// what `reproduce` renders again (ADR 0153 §5): the revision a journal row
+/// recorded, which the head may have left since.
+pub(crate) fn plan_export_at(
+    catalog: &Catalog,
+    library_root: &Path,
+    version: VersionId,
+    head: leyline_core::RevisionId,
+) -> Result<ExportPlan> {
+    let asset = catalog.version_asset(version)?;
     let stored = catalog.revision(head)?.settings_json;
     let develop = Settings::parse(&stored)?;
     let revision_fingerprint =

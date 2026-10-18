@@ -253,6 +253,30 @@ fn every_export_verdict_is_matchable(library: &Library, path: &std::path::Path) 
     }
 }
 
+/// ADR 0153 §5: the verdict of `reproduce` and every outcome it can name,
+/// read through the façade alone.
+#[expect(dead_code, reason = "the match arms are the test")]
+fn every_reproduction_is_matchable(library: &Library, path: &std::path::Path) {
+    let verdict: leyline_sdk::ReproduceVerdict = library.reproduce_export(path, path).unwrap();
+    let _: leyline_sdk::ExportRecord = verdict.record;
+    let _: std::path::PathBuf = verdict.reproduced;
+    match verdict.matched {
+        leyline_sdk::ExportMatch::Intact | leyline_sdk::ExportMatch::Modified => {}
+    }
+    match verdict.outcome {
+        leyline_sdk::Reproduction::BitForBit
+        | leyline_sdk::Reproduction::SamePixels
+        | leyline_sdk::Reproduction::PixelsNotCompared => {}
+        leyline_sdk::Reproduction::DifferentPixels(suspect) => match suspect {
+            leyline_sdk::DifferenceSuspect::Decoder { recorded, loaded } => {
+                let _: (String, String) = (recorded, loaded);
+            }
+            leyline_sdk::DifferenceSuspect::FileModified
+            | leyline_sdk::DifferenceSuspect::PlatformOrToolchain => {}
+        },
+    }
+}
+
 /// The request structs a caller has to build, spelled out through the façade
 /// including the `leyline-export` and `leyline-color` types they embed.
 #[expect(dead_code, reason = "the constructors are the test")]

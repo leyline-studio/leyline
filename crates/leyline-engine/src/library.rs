@@ -2014,6 +2014,31 @@ impl Library {
         crate::verify::verdict(&self.catalog(), &file, &checksum)
     }
 
+    /// Renders again the export the file at `path` came from, into
+    /// `destination_dir`, and compares (ADR 0153 §5): *bit for bit*, *same
+    /// pixels* (the metadata moved since), or *different pixels* with the
+    /// condition that can be named.
+    ///
+    /// The journal row is found as [`Library::verify_export`] finds it; a
+    /// file unknown to this library is [`LeylineError::NotReproducible`].
+    /// The render holds no catalog lock (ADR 0024) and journals nothing: a
+    /// reproduction checks an export, it is not one. Like every export, it
+    /// refuses to overwrite a file already at its destination.
+    pub fn reproduce_export(
+        &self,
+        path: &Path,
+        destination_dir: &Path,
+    ) -> Result<crate::ReproduceVerdict> {
+        let file = std::fs::read(path)?;
+        let checksum = *blake3::hash(&file).as_bytes();
+        let plan = {
+            let catalog = self.catalog();
+            let verdict = crate::verify::verdict(&catalog, &file, &checksum)?;
+            crate::reproduce::plan(&catalog, &self.inner.root, path, verdict)?
+        };
+        crate::reproduce::reproduce(plan, path, destination_dir)
+    }
+
     /// Prints every version of `request` through its recipe (ADR 0036) —
     /// same shape and same catalog-lock discipline as [`Library::export`]:
     /// decode+render+scale+encode never holds the catalog lock, one failing

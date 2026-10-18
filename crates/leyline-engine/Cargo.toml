@@ -12,6 +12,9 @@ rust-version.workspace = true
 blake3.workspace = true
 jpeg-decoder.workspace = true
 image.workspace = true
+# `reproduce` compares WebP exports by their pixels (ADR 0153 §5); `image`
+# is built without its WebP decoder.
+image-webp.workspace = true
 kamadak-exif.workspace = true
 leyline-core.workspace = true
 leyline-raw.workspace = true

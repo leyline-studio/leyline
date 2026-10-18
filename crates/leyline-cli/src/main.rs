@@ -20,13 +20,14 @@ use std::time::Duration;
 use leyline_sdk::{
     AssetDescription, AssetId, CameraProfile, CameraSettings, CaptionSource, ColorGrading,
     ColorGradingZone, ColorLabel, ContactSheetRecipe, ContactSheetRequest, ContactSheetSettings,
-    Crop, CurvePoint, Defringe, Demosaic, ExportFormat, ExportMetadata, ExportRecipe, ExportRecord,
-    ExportRequest, ExportSettings, ExportVerdict, GridQuery, GuideLine, HighlightReconstruction,
-    HslBand, ImportOptions, LensCorrection, Library, LocalAdjustment, LocalAdjustmentValues, Lut,
-    Margins, NoiseReduction, Orientation, PaperSize, Param, Perspective, PickState, Point,
-    PresetId, PreviewKind, PrintRecipe, PrintRequest, PrintSettings, RedEye, RenderingIntent,
-    ReshapePoint, ScanOptions, Settings, SettingsGroup, Sharpening, ShotRange, SpotRemoval,
-    TetherOptions, TetherSetting, Value, VersionId, Watermark, WatermarkAnchor, WhiteBalance,
+    Crop, CurvePoint, Defringe, Demosaic, DifferenceSuspect, ExportFormat, ExportMetadata,
+    ExportRecipe, ExportRecord, ExportRequest, ExportSettings, ExportVerdict, GridQuery, GuideLine,
+    HighlightReconstruction, HslBand, ImportOptions, LensCorrection, Library, LocalAdjustment,
+    LocalAdjustmentValues, Lut, Margins, NoiseReduction, Orientation, PaperSize, Param,
+    Perspective, PickState, Point, PresetId, PreviewKind, PrintRecipe, PrintRequest, PrintSettings,
+    RedEye, RenderingIntent, Reproduction, ReshapePoint, ScanOptions, Settings, SettingsGroup,
+    Sharpening, ShotRange, SpotRemoval, TetherOptions, TetherSetting, Value, VersionId, Watermark,
+    WatermarkAnchor, WhiteBalance,
 };
 
 const USAGE: &str = "\
@@ -151,6 +152,12 @@ Usage:
                                     exported: intact, modified since, or
                                     unknown here (ADR 0153). Exits 0 only
                                     when intact
+  leyline reproduce <library> <file> <dest-dir>
+                                    render the export the file came from
+                                    again into <dest-dir> and compare: bit
+                                    for bit, same pixels (metadata moved),
+                                    or different pixels (ADR 0153). Exits 0
+                                    only when bit for bit
   leyline export <library> <dest-dir> <version-id>...
                  [--preset <name>] [--format <f>] [--quality <1-100>] [--max-edge <px>]
                  [--avif-speed <1-10>] [--concurrency <n>] [--metadata <m>]
@@ -414,6 +421,7 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("preview") => preview(&args[1..]),
         Some("export") => export(&args[1..]),
         Some("verify") => verify(&args[1..]),
+        Some("reproduce") => reproduce(&args[1..]),
         Some("preset") => preset(&args[1..]),
         Some("presets") => presets(&args[1..]),
         Some("roots") => roots(&args[1..]),
@@ -3024,6 +3032,49 @@ fn verify(args: &[String]) -> Result<(), String> {
         ExportVerdict::Unknown => {
             println!("unknown to this library");
             Err("no export of this library matches the file".to_owned())
+        }
+    }
+}
+
+/// `leyline reproduce <library> <file> <dest-dir>` (ADR 0153 §5). The exit
+/// code is 0 only for *bit for bit*: *same pixels* is no failure of the
+/// promise, but it is not the file either.
+fn reproduce(args: &[String]) -> Result<(), String> {
+    let (positional, _) = parse(args, &[])?;
+    let [root, file, destination] = positional.as_slice() else {
+        return Err("usage: leyline reproduce <library> <file> <dest-dir>".to_owned());
+    };
+    let library = open(root)?;
+    let verdict = library
+        .reproduce_export(Path::new(file), Path::new(destination))
+        .map_err(|e| e.to_string())?;
+    println!("reproduced: {}", verdict.reproduced.display());
+    match verdict.outcome {
+        Reproduction::BitForBit => {
+            println!("bit for bit");
+            Ok(())
+        }
+        Reproduction::SamePixels => {
+            println!("same pixels, different bytes: the photograph's metadata changed since");
+            Err("the bytes differ".to_owned())
+        }
+        Reproduction::PixelsNotCompared => {
+            println!("different bytes; pixels not compared (no AVIF decoder)");
+            Err("the bytes differ".to_owned())
+        }
+        Reproduction::DifferentPixels(suspect) => {
+            match suspect {
+                DifferenceSuspect::Decoder { recorded, loaded } => println!(
+                    "different pixels: exported with decoder {recorded}, {loaded} loaded now"
+                ),
+                DifferenceSuspect::FileModified => {
+                    println!("different pixels: the file was changed after the export")
+                }
+                DifferenceSuspect::PlatformOrToolchain => println!(
+                    "different pixels: same decoder; the platform or the toolchain differs"
+                ),
+            }
+            Err("the pixels differ".to_owned())
         }
     }
 }
