@@ -317,8 +317,26 @@ pub(crate) struct Version {
     /// The working buffer this version expects and leaves behind
     /// (ADR 0044 §4).
     pub space: Space,
-    /// The rendering itself.
+    /// The rendering itself. Called through [`Version::run`], never
+    /// directly.
     pub apply: fn(&mut Pixels, &Context<'_>),
+}
+
+impl Version {
+    /// Runs this version on `px` — unless the buffer holds no pixel at all.
+    ///
+    /// An image of zero area has nothing to render, and every stage would
+    /// leave it as empty as it found it. Skipping it here is what lets the
+    /// frozen modules keep dividing by the width and chunking by the row
+    /// without each carrying its own guard (ADR 0152 §6): `Pixels::from_raw`
+    /// already refuses a zero dimension, so only a stage shrinking the
+    /// buffer to nothing could hand one on.
+    fn run(&self, px: &mut Pixels, ctx: &Context<'_>) {
+        if px.width == 0 || px.height == 0 {
+            return;
+        }
+        (self.apply)(px, ctx);
+    }
 }
 
 /// One operator, with every version of it this engine can still render.
@@ -1780,7 +1798,7 @@ pub(crate) fn develop_scaled_cached(
         if cuts.contains(&applied) {
             cache.store(settings, &plan, applied, &px);
         }
-        (plan[applied].1.apply)(&mut px, &ctx);
+        plan[applied].1.run(&mut px, &ctx);
         applied += 1;
     }
 
@@ -1820,7 +1838,7 @@ pub(crate) fn develop_scaled(
     };
     let mut px = Pixels::from_raw(image)?;
     for (_, version) in plan {
-        (version.apply)(&mut px, &ctx);
+        version.run(&mut px, &ctx);
     }
     Ok(Rendered {
         width: px.width,
@@ -1879,7 +1897,7 @@ pub(crate) fn develop_until_rank(
         if version.rank >= max_rank {
             break;
         }
-        (version.apply)(&mut px, &ctx);
+        version.run(&mut px, &ctx);
     }
     Ok((px.width, px.height, px.data))
 }
@@ -1934,7 +1952,7 @@ pub(crate) fn develop_mask_coverage(
         if version.rank >= LOCAL_ADJUSTMENTS_RANK {
             break;
         }
-        (version.apply)(&mut px, &ctx);
+        version.run(&mut px, &ctx);
     }
 
     // The plan already resolved which version this revision renders through,
@@ -1961,7 +1979,7 @@ pub(crate) fn develop_mask_coverage(
     drop(px);
     for (stage, version) in &plan {
         if matches!(stage.name, "rotate" | "perspective" | "crop") {
-            (version.apply)(&mut carrier, &ctx);
+            version.run(&mut carrier, &ctx);
         }
     }
 
@@ -1978,6 +1996,9 @@ mod fixture;
 
 #[cfg(test)]
 mod golden;
+
+#[cfg(test)]
+mod hostile;
 
 #[cfg(test)]
 mod tests;

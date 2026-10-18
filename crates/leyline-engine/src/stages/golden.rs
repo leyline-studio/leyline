@@ -76,10 +76,10 @@ const MANIFEST: &str = "tests/golden/renders.json";
 
 /// One pinned render.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-struct Golden {
+pub(super) struct Golden {
     /// The stage versions this render went through — and the ones it is
     /// replayed through forever after.
-    stages: StageVersions,
+    pub(super) stages: StageVersions,
     width: u32,
     height: u32,
     /// BLAKE3 of the RGB8 output — the bit-identity assertion itself.
@@ -91,7 +91,7 @@ struct Golden {
 
 /// The manifest: every pinned variant of every case. A case gets a second
 /// entry the day one of the operators it exercises gets a second version.
-type Manifest = BTreeMap<String, Vec<Golden>>;
+pub(super) type Manifest = BTreeMap<String, Vec<Golden>>;
 
 /// Deterministic stand-in for a decoded RAW: smooth ramps so tone
 /// operators have something continuous to act on, a per-pixel hash so the
@@ -123,7 +123,7 @@ fn synthetic_image(width: u32, height: u32) -> RawImage {
 /// at 20mm — the same fixture `leyline-lens` and the lens stage unit
 /// tests use, so the golden exercises the actual profile lookup rather
 /// than a synthetic stand-in.
-fn canon_shot() -> LensShot {
+pub(super) fn canon_shot() -> LensShot {
     LensShot {
         camera_make: "Canon".to_owned(),
         camera_model: "Canon EOS 5D Mark III".to_owned(),
@@ -151,15 +151,15 @@ fn canon_sensor() -> SensorShot {
 /// cases differ by it alone — a profiled render and its fallback — and a
 /// case is only replayable if it still means what it meant (ADR 0072 §7).
 #[derive(Debug, Clone)]
-struct Case {
-    settings: Settings,
-    sensor: Option<SensorShot>,
+pub(super) struct Case {
+    pub(super) settings: Settings,
+    pub(super) sensor: Option<SensorShot>,
 }
 
 /// A minimal in-memory DCP carrying an identity `ColorMatrix1`. The matrix
 /// values do not matter to the freeze — only that the stage runs and that
 /// it keeps producing the same pixels through it.
-fn sample_profile() -> DcpProfile {
+pub(super) fn sample_profile() -> DcpProfile {
     use tiff::encoder::{TiffEncoder, colortype::Gray8};
     use tiff::tags::Tag;
 
@@ -737,7 +737,7 @@ fn presence(settings: Settings) -> Settings {
 /// pipeline every time, not that anyone would grade with it. It swaps green
 /// into red and warms the whites, so a render through it is unmistakably
 /// different from one without.
-fn sample_lut() -> leyline_color::CubeLut {
+pub(super) fn sample_lut() -> leyline_color::CubeLut {
     leyline_color::CubeLut::parse(
         "LUT_3D_SIZE 2\n\
          0.00 0.00 0.00\n\
@@ -818,7 +818,7 @@ fn fixture_stage(settings: Settings, version: u16) -> Settings {
 /// One `neutral` floor, one case per operator family, and an `everything`
 /// case running them all together — the combination most likely to expose a
 /// stage ordering mistake.
-fn cases() -> Vec<(String, Case)> {
+pub(super) fn cases() -> Vec<(String, Case)> {
     let base = Settings::default();
     let mut named: Vec<(&str, Settings)> = vec![
         ("neutral", base.clone()),
@@ -912,20 +912,7 @@ fn capture(case: &Case, stages: &StageVersions) -> Golden {
         stages: stages.clone(),
         ..case.settings.clone()
     };
-    // A fixed, made-up camera matrix: what matters to the freeze is that the
-    // colorimetry entering the pipeline is the same every time, not that it
-    // belongs to a real body (ADR 0044 §3).
-    let source = SourceColor::Camera {
-        to_xyz: Some([
-            [0.671_9, -0.099_4, -0.092_5],
-            [-0.440_8, 1.242_6, 0.221_1],
-            [-0.088_7, 0.212_9, 0.605_1],
-        ]),
-        // Fixed for the same reason as the matrix, and non-neutral so a case
-        // asking for highlight reconstruction (ADR 0050) has a gain to give
-        // back rather than nothing to do.
-        multipliers: Some([2.0, 1.0, 1.5, 1.0]),
-    };
+    let source = camera_source();
     let look = sample_lut();
     let rendered = render(
         &image,
@@ -959,11 +946,28 @@ fn capture(case: &Case, stages: &StageVersions) -> Golden {
     }
 }
 
+/// A fixed, made-up camera matrix: what matters to the freeze is that the
+/// colorimetry entering the pipeline is the same every time, not that it
+/// belongs to a real body (ADR 0044 §3).
+pub(super) fn camera_source() -> SourceColor {
+    SourceColor::Camera {
+        to_xyz: Some([
+            [0.671_9, -0.099_4, -0.092_5],
+            [-0.440_8, 1.242_6, 0.221_1],
+            [-0.088_7, 0.212_9, 0.605_1],
+        ]),
+        // Fixed for the same reason as the matrix, and non-neutral so a case
+        // asking for highlight reconstruction (ADR 0050) has a gain to give
+        // back rather than nothing to do.
+        multipliers: Some([2.0, 1.0, 1.5, 1.0]),
+    }
+}
+
 fn manifest_path() -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(MANIFEST)
 }
 
-fn read_manifest() -> Manifest {
+pub(super) fn read_manifest() -> Manifest {
     let path = manifest_path();
     let raw = std::fs::read_to_string(&path).unwrap_or_else(|e| {
         panic!(
