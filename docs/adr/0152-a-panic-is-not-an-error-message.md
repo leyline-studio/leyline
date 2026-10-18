@@ -1,6 +1,6 @@
 # ADR 0152 — A panic is not an error message
 
-**Status:** Accepted — 2026-10
+**Status:** Accepted — 2026-10 · §5 made precise by [ADR 0162](0162-the-panic-file-and-the-next-launch.md)
 
 ## Context
 
