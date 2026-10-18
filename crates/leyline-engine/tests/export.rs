@@ -5,7 +5,7 @@ use leyline_core::{ExportPresetId, LeylineError, VersionId};
 use leyline_engine::{
     ExportRecipe, ExportRequest, ImportOptions, Library, export_batch, export_version, import,
 };
-use leyline_export::{ExportFormat, ExportSettings};
+use leyline_export::{ExportFormat, ExportMetadata, ExportSettings};
 
 fn library(dir: &tempfile::TempDir) -> (Catalog, std::path::PathBuf) {
     let root = dir.path().join("Library");
@@ -466,6 +466,69 @@ fn exports_a_png_source_to_jpeg_and_journals_it() {
     let history = catalog.export_history(registered.asset).unwrap();
     assert_eq!(history.len(), 1);
     assert_eq!(history[0].format, "jpg");
+}
+
+/// What the photographer typed reaches the exported file, and the policy is
+/// what decides it (ADR 0157): the same version exported under `None` carries
+/// none of it.
+#[test]
+fn an_export_carries_the_authored_description_unless_told_not_to() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut catalog, root) = library(&dir);
+    let source = dir.path().join("harbour.png");
+    image::save_buffer(
+        &source,
+        &[90u8; 4 * 2 * 3],
+        4,
+        2,
+        image::ExtendedColorType::Rgb8,
+    )
+    .unwrap();
+    let options = ImportOptions {
+        copy_files: true,
+        recursive: false,
+        pair_companions: true,
+        thumbnails: false,
+    };
+    let registered = import(&mut catalog, &root, &source, &options, |_, _| {})
+        .unwrap()
+        .imported[0]
+        .registered;
+    catalog
+        .set_description(
+            registered.asset,
+            &leyline_catalog::AssetDescription {
+                creator: Some("Typed Creator".into()),
+                city: Some("Brest".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+    let mut export_under = |metadata: ExportMetadata, out: &str| {
+        let settings = ExportSettings {
+            metadata,
+            ..ExportSettings::default()
+        };
+        let path = export_version(
+            &mut catalog,
+            &root,
+            registered.version,
+            &settings,
+            None,
+            &dir.path().join(out),
+        )
+        .unwrap();
+        String::from_utf8_lossy(&std::fs::read(path).unwrap()).into_owned()
+    };
+    let without_location = export_under(ExportMetadata::WithoutLocation, "default");
+    assert!(without_location.contains("Typed Creator"));
+    assert!(
+        !without_location.contains("Brest"),
+        "the city is a location"
+    );
+    assert!(export_under(ExportMetadata::Full, "full").contains("Brest"));
+    assert!(!export_under(ExportMetadata::None, "none").contains("Typed Creator"));
 }
 
 /// Full pipeline against a real RAW file. Run with

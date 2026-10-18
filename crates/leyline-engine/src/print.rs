@@ -235,5 +235,8 @@ pub(crate) fn print_err(error: ExportError) -> LeylineError {
         ExportError::InvalidImage(m) => LeylineError::InvalidImage(m),
         ExportError::InvalidSettings(m) => LeylineError::InvalidSettings(m),
         ExportError::Encode(m) => LeylineError::InvalidImage(m),
+        too_large @ ExportError::MetadataTooLarge { .. } => {
+            LeylineError::InvalidImage(too_large.to_string())
+        }
     }
 }

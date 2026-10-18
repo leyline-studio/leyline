@@ -25,6 +25,8 @@ serde_json.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
+kamadak-exif.workspace = true
+roxmltree.workspace = true
 tempfile.workspace = true
 
 [lints]

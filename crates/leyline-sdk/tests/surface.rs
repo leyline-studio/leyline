@@ -255,6 +255,7 @@ fn every_request_is_constructible(
                 quality: 90,
                 avif_speed: leyline_sdk::DEFAULT_AVIF_SPEED,
                 max_edge: Some(2048),
+                metadata: leyline_sdk::ExportMetadata::WithoutLocation,
                 watermark: Some(Watermark {
                     text: "© 2026".to_owned(),
                     font: WatermarkFont::Sans,

@@ -11,7 +11,8 @@ use std::rc::Rc;
 use crate::app::{App, report_error, selected_indices, selected_versions};
 use crate::ui::{DialogState, GridState, StudioWindow, Tr};
 use leyline_sdk::{
-    ExportFormat, ExportRecipe, ExportRequest, ExportSettings, Watermark, WatermarkAnchor,
+    ExportFormat, ExportMetadata, ExportRecipe, ExportRequest, ExportSettings, Watermark,
+    WatermarkAnchor,
 };
 use slint::{ComponentHandle, Global, ModelRc, SharedString, VecModel};
 
@@ -249,6 +250,9 @@ pub(crate) fn export_settings(
         avif_speed,
         max_edge,
         watermark,
+        // ADR 0157 §1's default for a new export; the dialog's choice of
+        // policy is the next slice.
+        metadata: ExportMetadata::WithoutLocation,
     };
     // The module's promise, kept: an unusable recipe never reaches the
     // engine. It parsed here and it validates here, so the dialog can say
@@ -362,6 +366,7 @@ mod tests {
                     avif_speed: 9,
                     max_edge: None,
                     watermark: None,
+                    metadata: ExportMetadata::WithoutLocation,
                 }
             );
         }
@@ -483,6 +488,7 @@ mod tests {
                 avif_speed: 9,
                 max_edge: Some(2048),
                 watermark: None,
+                metadata: ExportMetadata::WithoutLocation,
             }
         );
     }

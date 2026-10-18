@@ -73,6 +73,10 @@ pub(crate) struct ExportPlan {
     /// file from disk has no place in the catalog-bound half of this split
     /// (ADR 0024).
     library_root: PathBuf,
+    /// What the file may say about the photograph (ADR 0157 §2), read now:
+    /// the metadata as it stands when the export is planned is an input of
+    /// the file's bytes (§4).
+    photo: leyline_export::PhotoMetadata,
 }
 
 /// Reads everything needed to render a version, without decoding or
@@ -107,6 +111,7 @@ pub(crate) fn plan_export(
         sensor,
         stem,
         library_root: library_root.to_path_buf(),
+        photo: crate::export_metadata::photo_metadata(catalog, asset)?,
     })
 }
 
@@ -207,6 +212,7 @@ pub(crate) fn render_export_to(
         output.height(),
         output.data(),
         settings,
+        &plan.photo,
     )
     .map_err(export_err)?;
 
@@ -341,5 +347,8 @@ pub(crate) fn export_err(error: ExportError) -> LeylineError {
         ExportError::InvalidImage(m) => LeylineError::InvalidImage(m),
         ExportError::InvalidSettings(m) => LeylineError::InvalidSettings(m),
         ExportError::Encode(m) => LeylineError::InvalidImage(m),
+        too_large @ ExportError::MetadataTooLarge { .. } => {
+            LeylineError::InvalidImage(too_large.to_string())
+        }
     }
 }

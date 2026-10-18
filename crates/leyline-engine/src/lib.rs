@@ -32,6 +32,7 @@ mod downscale;
 mod events;
 mod exif;
 mod export;
+mod export_metadata;
 mod flow;
 mod import;
 mod keystone;

@@ -10,11 +10,14 @@
 //! of what this crate consumes.
 //!
 //! The pixels arrive already in sRGB (`docs/adr/0015-color-management-srgb.md`).
-//! JPEG, PNG and TIFF get an explicit sRGB ICC profile embedded via
+//! JPEG, PNG, TIFF and WebP get an explicit sRGB ICC profile embedded via
 //! [`leyline_color::srgb_icc_profile`] so color-managed viewers render them
-//! correctly instead of relying on convention; WebP and AVIF are written
-//! without one because neither encoder crate supports it, which is the
-//! accepted convention for those formats on the web.
+//! correctly instead of relying on convention; AVIF is written without one
+//! because its encoder offers no way to add it.
+//!
+//! What the file says about the photograph — capture, authorship, keywords,
+//! location — is ADR 0157's: the recipe's [`ExportMetadata`] decides how much
+//! of the engine's [`PhotoMetadata`] each format carries.
 
 // ADR 0152: no panic on a production path.
 #![deny(
@@ -32,11 +35,13 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 mod contact_sheet;
+mod metadata;
 mod print;
 mod watermark;
 pub use contact_sheet::{
     CaptionSource, ContactSheetSettings, SheetCell, compose_page, encode_contact_sheet,
 };
+pub use metadata::{CaptureTime, ExportMetadata, GpsPosition, PhotoMetadata, Ratio};
 pub use print::{Margins, Orientation, PaperSize, PrintSettings, encode_print};
 pub use watermark::{Watermark, WatermarkAnchor, WatermarkFont};
 
@@ -55,6 +60,16 @@ pub enum ExportError {
     /// The encoder itself failed.
     #[error("encoding failed: {0}")]
     Encode(String),
+    /// The metadata does not fit the one segment JPEG gives it — thousands
+    /// of keywords. Refused rather than truncated: losing keywords without a
+    /// word is worse than an export that says why it stopped (ADR 0157 §5).
+    #[error("metadata too large for a JPEG segment: {bytes} bytes, at most {limit}")]
+    MetadataTooLarge {
+        /// The segment's size.
+        bytes: usize,
+        /// The most a segment holds.
+        limit: usize,
+    },
 }
 
 /// Output file format.
@@ -84,6 +99,13 @@ impl ExportFormat {
             ExportFormat::Avif => "avif",
         }
     }
+
+    /// Whether files of this format carry the metadata of ADR 0157. AVIF
+    /// does not, because its encoder offers no way to; the clients say so
+    /// rather than let a policy look applied (ADR 0157 §5).
+    pub fn carries_metadata(self) -> bool {
+        !matches!(self, ExportFormat::Avif)
+    }
 }
 
 /// One export recipe — and the `settings_json` of a §27 preset.
@@ -110,6 +132,11 @@ pub struct ExportSettings {
     /// none (ADR 0034, ADR 0051).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub watermark: Option<Watermark>,
+    /// What the file says about the photograph (ADR 0157 §1). Always
+    /// serialized; a recipe written before the field existed reads as
+    /// [`ExportMetadata::None`], so it keeps producing the same bytes.
+    #[serde(default = "ExportMetadata::before_adr_0157")]
+    pub metadata: ExportMetadata,
 }
 
 /// The AVIF effort the encoder uses unless a recipe says otherwise.
@@ -122,7 +149,7 @@ pub struct ExportSettings {
 pub const DEFAULT_AVIF_SPEED: u8 = 9;
 
 impl Default for ExportSettings {
-    /// Full-resolution JPEG at quality 90.
+    /// Full-resolution JPEG at quality 90, without the location.
     fn default() -> Self {
         ExportSettings {
             format: ExportFormat::Jpeg,
@@ -130,6 +157,7 @@ impl Default for ExportSettings {
             avif_speed: DEFAULT_AVIF_SPEED,
             max_edge: None,
             watermark: None,
+            metadata: ExportMetadata::WithoutLocation,
         }
     }
 }
@@ -181,7 +209,8 @@ impl ExportSettings {
     }
 }
 
-/// Encodes tightly packed 8-bit interleaved RGB pixels to `path`.
+/// Encodes tightly packed 8-bit interleaved RGB pixels to `path`, with what
+/// `settings.metadata` lets `photo` say about them.
 ///
 /// The pixels are written as-is: any `max_edge` scaling already happened.
 /// The parent directory must exist; an existing file is replaced.
@@ -191,6 +220,7 @@ pub fn encode(
     height: u32,
     rgb8: &[u8],
     settings: &ExportSettings,
+    photo: &PhotoMetadata,
 ) -> Result<(), ExportError> {
     settings.validate()?;
     let expected = width as usize * height as usize * 3;
@@ -215,6 +245,12 @@ pub fn encode(
         None => rgb8,
     };
 
+    // Both blocks are built before the file is created, so an oversized one
+    // refuses the export without leaving half a file behind.
+    let written = photo.under(settings.metadata);
+    let exif = written.as_ref().map(metadata::exif_block::exif_block);
+    let xmp = written.as_ref().map(metadata::xmp_packet::xmp_packet);
+
     match settings.format {
         ExportFormat::Jpeg => {
             let (Ok(w), Ok(h)) = (u16::try_from(width), u16::try_from(height)) else {
@@ -222,8 +258,31 @@ pub fn encode(
                     "JPEG cannot exceed 65535 pixels per edge, got {width}x{height}"
                 )));
             };
+            // EXIF first: readers look for it right after the start marker.
+            let segments: Vec<Vec<u8>> = [
+                exif.map(|block| [metadata::exif_block::JPEG_PREFIX, &block].concat()),
+                xmp.map(|packet| {
+                    [metadata::xmp_packet::JPEG_NAMESPACE, packet.as_bytes()].concat()
+                }),
+            ]
+            .into_iter()
+            .flatten()
+            .collect();
+            for segment in &segments {
+                if segment.len() > JPEG_SEGMENT_LIMIT {
+                    return Err(ExportError::MetadataTooLarge {
+                        bytes: segment.len(),
+                        limit: JPEG_SEGMENT_LIMIT,
+                    });
+                }
+            }
             let mut encoder = jpeg_encoder::Encoder::new_file(path, settings.quality)
                 .map_err(|e| ExportError::Encode(e.to_string()))?;
+            for segment in &segments {
+                encoder
+                    .add_app_segment(1, segment)
+                    .map_err(|e| ExportError::Encode(e.to_string()))?;
+            }
             encoder
                 .add_icc_profile(leyline_color::srgb_icc_profile())
                 .map_err(|e| ExportError::Encode(e.to_string()))?;
@@ -237,8 +296,14 @@ pub fn encode(
             info.color_type = png::ColorType::Rgb;
             info.bit_depth = png::BitDepth::Eight;
             info.icc_profile = Some(leyline_color::srgb_icc_profile().into());
-            let encoder = png::Encoder::with_info(std::io::BufWriter::new(file), info)
+            info.exif_metadata = exif.map(Into::into);
+            let mut encoder = png::Encoder::with_info(std::io::BufWriter::new(file), info)
                 .map_err(|e| ExportError::Encode(e.to_string()))?;
+            if let Some(packet) = xmp {
+                encoder
+                    .add_itxt_chunk(metadata::xmp_packet::PNG_KEYWORD.to_owned(), packet)
+                    .map_err(|e| ExportError::Encode(e.to_string()))?;
+            }
             let mut writer = encoder
                 .write_header()
                 .map_err(|e| ExportError::Encode(e.to_string()))?;
@@ -263,13 +328,24 @@ pub fn encode(
                     leyline_color::srgb_icc_profile(),
                 )
                 .map_err(|e| ExportError::Encode(e.to_string()))?;
+            if let Some(photo) = &written {
+                write_tiff_tags(image.encoder(), photo, xmp.as_deref())?;
+            }
             image
                 .write_data(rgb8)
                 .map_err(|e| ExportError::Encode(e.to_string()))?;
         }
         ExportFormat::Webp => {
             let file = std::fs::File::create(path)?;
-            image_webp::WebPEncoder::new(std::io::BufWriter::new(file))
+            let mut encoder = image_webp::WebPEncoder::new(std::io::BufWriter::new(file));
+            encoder.set_icc_profile(leyline_color::srgb_icc_profile().to_vec());
+            if let Some(block) = exif {
+                encoder.set_exif_metadata(block);
+            }
+            if let Some(packet) = xmp {
+                encoder.set_xmp_metadata(packet.into_bytes());
+            }
+            encoder
                 .encode(rgb8, width, height, image_webp::ColorType::Rgb8)
                 .map_err(|e| ExportError::Encode(e.to_string()))?;
         }
@@ -283,6 +359,54 @@ pub fn encode(
                 .map_err(|e| ExportError::Encode(e.to_string()))?;
             std::fs::write(path, encoded.avif_file)?;
         }
+    }
+    Ok(())
+}
+
+/// The most one JPEG APP1 segment holds, its two length bytes aside.
+const JPEG_SEGMENT_LIMIT: usize = 65_533;
+
+/// TIFF carries its metadata in IFD 0 itself: the baseline tags, and the
+/// whole XMP packet as tag 700 (ADR 0157 §5).
+fn write_tiff_tags<W: std::io::Write + std::io::Seek, K: tiff::encoder::TiffKind>(
+    ifd: &mut tiff::encoder::DirectoryEncoder<'_, W, K>,
+    photo: &PhotoMetadata,
+    xmp: Option<&str>,
+) -> Result<(), ExportError> {
+    use tiff::tags::Tag;
+    let failed = |e: tiff::TiffError| ExportError::Encode(e.to_string());
+    for (tag, value) in [
+        (Tag::Make, &photo.make),
+        (Tag::Model, &photo.model),
+        (Tag::Artist, &photo.creator),
+        (Tag::Copyright, &photo.copyright),
+    ] {
+        // The encoder refuses anything but ASCII in an ASCII tag. A name with
+        // an accent is then left to the XMP packet below, which carries every
+        // field in UTF-8 — absent from one carrier, never mangled in it.
+        if let Some(value) = value
+            .as_deref()
+            .filter(|v| v.is_ascii() && !v.contains('\0'))
+        {
+            ifd.write_tag(tag, value).map_err(failed)?;
+        }
+    }
+    // Baseline TIFF has no capture date of its own; `DateTime` is the one
+    // date it has, and writing the export's clock there is what ADR 0157 §3
+    // refuses — so it holds the capture.
+    if let Some(time) = &photo.captured {
+        ifd.write_tag(
+            Tag::DateTime,
+            metadata::exif_block::exif_date(time).as_str(),
+        )
+        .map_err(failed)?;
+    }
+    ifd.write_tag(Tag::Orientation, 1u16).map_err(failed)?;
+    ifd.write_tag(Tag::Software, metadata::SOFTWARE)
+        .map_err(failed)?;
+    if let Some(packet) = xmp {
+        ifd.write_tag(Tag::Unknown(700), packet.as_bytes())
+            .map_err(failed)?;
     }
     Ok(())
 }
@@ -307,7 +431,15 @@ mod tests {
         let pixels = gradient(8, 6);
 
         let jpg = dir.path().join("out.jpg");
-        encode(&jpg, 8, 6, &pixels, &ExportSettings::default()).unwrap();
+        encode(
+            &jpg,
+            8,
+            6,
+            &pixels,
+            &ExportSettings::default(),
+            &PhotoMetadata::default(),
+        )
+        .unwrap();
         let bytes = std::fs::read(&jpg).unwrap();
         assert_eq!(&bytes[..3], &[0xFF, 0xD8, 0xFF], "JPEG SOI marker");
 
@@ -316,7 +448,15 @@ mod tests {
             format: ExportFormat::Png,
             ..ExportSettings::default()
         };
-        encode(&png_path, 8, 6, &pixels, &png_settings).unwrap();
+        encode(
+            &png_path,
+            8,
+            6,
+            &pixels,
+            &png_settings,
+            &PhotoMetadata::default(),
+        )
+        .unwrap();
         let bytes = std::fs::read(&png_path).unwrap();
         assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n", "PNG signature");
 
@@ -325,7 +465,15 @@ mod tests {
             format: ExportFormat::Tiff,
             ..ExportSettings::default()
         };
-        encode(&tif, 8, 6, &pixels, &tiff_settings).unwrap();
+        encode(
+            &tif,
+            8,
+            6,
+            &pixels,
+            &tiff_settings,
+            &PhotoMetadata::default(),
+        )
+        .unwrap();
         let bytes = std::fs::read(&tif).unwrap();
         assert_eq!(&bytes[..4], b"II*\0", "little-endian TIFF header");
 
@@ -334,7 +482,15 @@ mod tests {
             format: ExportFormat::Webp,
             ..ExportSettings::default()
         };
-        encode(&webp, 8, 6, &pixels, &webp_settings).unwrap();
+        encode(
+            &webp,
+            8,
+            6,
+            &pixels,
+            &webp_settings,
+            &PhotoMetadata::default(),
+        )
+        .unwrap();
         let bytes = std::fs::read(&webp).unwrap();
         assert_eq!(&bytes[..4], b"RIFF", "WebP RIFF container");
         assert_eq!(&bytes[8..12], b"WEBP", "WebP fourcc");
@@ -344,7 +500,15 @@ mod tests {
             format: ExportFormat::Avif,
             ..ExportSettings::default()
         };
-        encode(&avif, 8, 6, &pixels, &avif_settings).unwrap();
+        encode(
+            &avif,
+            8,
+            6,
+            &pixels,
+            &avif_settings,
+            &PhotoMetadata::default(),
+        )
+        .unwrap();
         let bytes = std::fs::read(&avif).unwrap();
         assert_eq!(&bytes[4..8], b"ftyp", "ISOBMFF ftyp box");
         assert_eq!(&bytes[8..12], b"avif", "AVIF brand");
@@ -357,7 +521,15 @@ mod tests {
         let icc = leyline_color::srgb_icc_profile();
 
         let jpg = dir.path().join("out.jpg");
-        encode(&jpg, 8, 6, &pixels, &ExportSettings::default()).unwrap();
+        encode(
+            &jpg,
+            8,
+            6,
+            &pixels,
+            &ExportSettings::default(),
+            &PhotoMetadata::default(),
+        )
+        .unwrap();
         let bytes = std::fs::read(&jpg).unwrap();
         assert!(
             bytes.windows(icc.len()).any(|w| w == icc),
@@ -369,7 +541,15 @@ mod tests {
             format: ExportFormat::Png,
             ..ExportSettings::default()
         };
-        encode(&png_path, 8, 6, &pixels, &png_settings).unwrap();
+        encode(
+            &png_path,
+            8,
+            6,
+            &pixels,
+            &png_settings,
+            &PhotoMetadata::default(),
+        )
+        .unwrap();
         let file = std::io::BufReader::new(std::fs::File::open(&png_path).unwrap());
         let reader = png::Decoder::new(file).read_info().unwrap();
         assert_eq!(
@@ -383,7 +563,15 @@ mod tests {
             format: ExportFormat::Tiff,
             ..ExportSettings::default()
         };
-        encode(&tif, 8, 6, &pixels, &tiff_settings).unwrap();
+        encode(
+            &tif,
+            8,
+            6,
+            &pixels,
+            &tiff_settings,
+            &PhotoMetadata::default(),
+        )
+        .unwrap();
         let bytes = std::fs::read(&tif).unwrap();
         assert!(
             bytes.windows(icc.len()).any(|w| w == icc),
@@ -397,7 +585,14 @@ mod tests {
         let path = dir.path().join("out.jpg");
 
         assert!(matches!(
-            encode(&path, 8, 6, &[0u8; 10], &ExportSettings::default()),
+            encode(
+                &path,
+                8,
+                6,
+                &[0u8; 10],
+                &ExportSettings::default(),
+                &PhotoMetadata::default()
+            ),
             Err(ExportError::InvalidImage(_))
         ));
         assert!(matches!(
@@ -409,7 +604,8 @@ mod tests {
                 &ExportSettings {
                     quality: 0,
                     ..ExportSettings::default()
-                }
+                },
+                &PhotoMetadata::default(),
             ),
             Err(ExportError::InvalidSettings(_))
         ));
@@ -426,14 +622,25 @@ mod tests {
                 text: "© 2026".to_owned(),
                 ..Watermark::default()
             }),
+            metadata: ExportMetadata::Full,
         };
         assert_eq!(
             ExportSettings::parse(&settings.to_json()).unwrap(),
             settings
         );
+        // A recipe from before ADR 0157 keeps writing no metadata, whatever
+        // a new export starts at.
         assert_eq!(
             ExportSettings::parse(r#"{"format":"jpeg"}"#).unwrap(),
+            ExportSettings {
+                metadata: ExportMetadata::None,
+                ..ExportSettings::default()
+            }
+        );
+        assert!(
             ExportSettings::default()
+                .to_json()
+                .contains(r#""metadata":"without-location""#)
         );
 
         // A watermark is a known field now (ADR 0051), and an object: the
@@ -520,6 +727,7 @@ mod tests {
                     avif_speed: speed,
                     ..ExportSettings::default()
                 },
+                &PhotoMetadata::default(),
             )
             .unwrap();
             let bytes = std::fs::read(&path).unwrap();

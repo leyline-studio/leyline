@@ -152,6 +152,7 @@ fn benches(c: &mut Criterion) {
                     modern.height,
                     black_box(&modern.data),
                     black_box(&settings),
+                    &leyline_export::PhotoMetadata::default(),
                 )
                 .unwrap()
             });
@@ -174,6 +175,7 @@ fn benches(c: &mut Criterion) {
                 reference.height,
                 black_box(&reference.data),
                 black_box(&settings),
+                &leyline_export::PhotoMetadata::default(),
             )
             .unwrap()
         });

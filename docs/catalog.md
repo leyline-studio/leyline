@@ -1386,7 +1386,7 @@ CREATE TABLE export_presets (
 
 Presets are independent of the exports actually performed.
 
-`settings_json` is opaque to the catalog; it is `leyline_export::ExportSettings` that interprets its structure: `format`, `quality` (1–100, ignored by lossless formats), `avif_speed` (1–10, the AVIF encoder's effort, 9 by default, ignored by every other format — [ADR 0067](adr/0067-avif-encode-speed.md)), `max_edge` (the longest edge, absent = actual size) and `watermark` ([ADR 0034](adr/0034-softproofing-watermark-print.md), [0051](adr/0051-watermark-rasterization-and-soft-proof-surface.md)). Unknown fields are refused: a preset written by a newer engine is never applied by halves.
+`settings_json` is opaque to the catalog; it is `leyline_export::ExportSettings` that interprets its structure: `format`, `quality` (1–100, ignored by lossless formats), `avif_speed` (1–10, the AVIF encoder's effort, 9 by default, ignored by every other format — [ADR 0067](adr/0067-avif-encode-speed.md)), `max_edge` (the longest edge, absent = actual size) and `watermark` ([ADR 0034](adr/0034-softproofing-watermark-print.md), [0051](adr/0051-watermark-rasterization-and-soft-proof-surface.md)) and `metadata` — `full`, `without-location` or `none`, what the file says about the photograph ([ADR 0157](adr/0157-what-the-exported-file-says.md) §1): always written, and a preset stored before the field existed reads as `none`, so it keeps producing the same bytes. Unknown fields are refused: a preset written by a newer engine is never applied by halves.
 
 ---
 

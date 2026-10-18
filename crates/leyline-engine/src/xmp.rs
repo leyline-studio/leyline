@@ -41,6 +41,29 @@ fn current_version(details: &AssetDetails) -> Result<&VersionInfo> {
         .ok_or(LeylineError::VersionMissing(details.current_version))
 }
 
+/// The two keyword lists XMP carries — the flat names (`dc:subject`) and the
+/// `|`-joined paths (`lr:hierarchicalSubject`) — each sorted, so a sidecar
+/// and an export of the same photograph name the same keywords in the same
+/// order (ADR 0157 §2).
+pub(crate) fn keyword_lists(
+    catalog: &Catalog,
+    keywords: &[leyline_core::KeywordId],
+) -> Result<(Vec<String>, Vec<String>)> {
+    let mut flat = Vec::new();
+    let mut hierarchical = Vec::new();
+    let mut stack = catalog.keyword_tree()?;
+    while let Some(node) = stack.pop() {
+        if keywords.contains(&node.keyword) {
+            flat.push(node.name.clone());
+            hierarchical.push(node.path.replace('/', "|"));
+        }
+        stack.extend(node.children);
+    }
+    flat.sort();
+    hierarchical.sort();
+    Ok((flat, hierarchical))
+}
+
 /// Writes (or rewrites) the XMP sidecar of an asset, next to its file with
 /// the `.xmp` extension, and returns its path.
 ///
@@ -54,19 +77,7 @@ pub fn write_xmp_sidecar(
     let details = catalog.asset_details(asset)?;
     let current = current_version(&details)?;
 
-    // Resolve keyword ids to paths through the tree.
-    let mut flat = Vec::new();
-    let mut hierarchical = Vec::new();
-    let mut stack = catalog.keyword_tree()?;
-    while let Some(node) = stack.pop() {
-        if details.keywords.contains(&node.keyword) {
-            flat.push(node.name.clone());
-            hierarchical.push(node.path.replace('/', "|"));
-        }
-        stack.extend(node.children);
-    }
-    flat.sort();
-    hierarchical.sort();
+    let (flat, hierarchical) = keyword_lists(catalog, &details.keywords)?;
 
     let mut description_attrs = String::new();
     if let Some(rating) = current.rating {

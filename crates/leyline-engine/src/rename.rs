@@ -140,7 +140,7 @@ fn format_time(ms: i64) -> String {
 /// Year, month, day, hour, minute, second of an epoch-millisecond instant,
 /// UTC. Hand-rolled like the rest of the workspace's date arithmetic, so
 /// renaming adds no dependency to a crate that already builds three ways.
-fn utc_parts(ms: i64) -> (i64, u32, u32, i64, i64, i64) {
+pub(crate) fn utc_parts(ms: i64) -> (i64, u32, u32, i64, i64, i64) {
     let secs = ms.div_euclid(1000);
     let days = secs.div_euclid(86_400);
     let tod = secs.rem_euclid(86_400);
