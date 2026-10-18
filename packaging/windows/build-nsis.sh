@@ -163,7 +163,7 @@ cp /usr/x86_64-w64-mingw32/lib/libwinpthread-1.dll "$vendor_dir/"
 # the user installs, not through a library we carry.
 build_flags=(
     --release --target x86_64-pc-windows-gnu -p leyline-studio
-    --no-default-features --features bundled-basemap
+    --no-default-features --features bundled-basemap,gpu
 )
 
 # cargo-packager does not build the binary itself here, it packages one that

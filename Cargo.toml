@@ -20,6 +20,7 @@ leyline-lens = { path = "crates/leyline-lens" }
 leyline-tether = { path = "crates/leyline-tether" }
 leyline-map = { path = "crates/leyline-map" }
 leyline-export = { path = "crates/leyline-export" }
+leyline-gpu = { path = "crates/leyline-gpu" }
 leyline-heif = { path = "crates/leyline-heif" }
 leyline-detect = { path = "crates/leyline-detect" }
 leyline-derive = { path = "crates/leyline-derive" }

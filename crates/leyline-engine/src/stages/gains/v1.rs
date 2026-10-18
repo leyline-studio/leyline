@@ -21,6 +21,21 @@ use crate::stages::kernel::v1::{blackbody_rgb, par_rows};
 
 /// Applies white balance and exposure as per-channel gains in linear light.
 pub(crate) fn linear_gains(px: &mut Pixels, wb: Option<&WhiteBalance>, exposure_ev: f64) {
+    let gains = channel_gains(wb, exposure_ev);
+    par_rows(px, |row| {
+        for rgb in row.chunks_exact_mut(3) {
+            for (sample, gain) in rgb.iter_mut().zip(gains) {
+                *sample = (*sample * gain).max(0.0);
+            }
+        }
+    });
+}
+
+/// The three per-channel gains [`linear_gains`] multiplies by — extracted
+/// unchanged so the preview's GPU kernel multiplies by the very same `f32`
+/// values (ADR 0156 §3). Not a change of rendering: the golden manifest
+/// pins it.
+pub(crate) fn channel_gains(wb: Option<&WhiteBalance>, exposure_ev: f64) -> [f32; 3] {
     let mut gains = [1.0f64; 3];
     if let Some(wb) = wb {
         let reference = blackbody_rgb(6500.0);
@@ -36,13 +51,5 @@ pub(crate) fn linear_gains(px: &mut Pixels, wb: Option<&WhiteBalance>, exposure_
         gains[1] *= 2.0f64.powf(-f64::from(wb.tint) / 200.0);
     }
     let gain = 2.0f64.powf(exposure_ev);
-    let gains = gains.map(|g| (g * gain) as f32);
-
-    par_rows(px, |row| {
-        for rgb in row.chunks_exact_mut(3) {
-            for (sample, gain) in rgb.iter_mut().zip(gains) {
-                *sample = (*sample * gain).max(0.0);
-            }
-        }
-    });
+    gains.map(|g| (g * gain) as f32)
 }

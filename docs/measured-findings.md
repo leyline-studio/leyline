@@ -612,6 +612,30 @@ with the CPU's. wgpu is pinned at **26.0.1**, the newest release whose MSRV
 | Windows cross-build (`x86_64-pc-windows-gnu`, mingw) | links; the test binary run **natively** on Windows (through WSL interop, not Wine): `NVIDIA GeForce RTX 3080 Ti (Vulkan)` green, and with `WGPU_BACKEND=dx12`, `(Dx12)` green |
 | glibc floor | highest `GLIBC_` symbol **2.39**, the floor already published; no `NEEDED` on `libvulkan` (wgpu loads it at run time) |
 
+### E1, first slice: gains and output on the GPU — **measured on 2026-10-19**
+
+Two kernels — `gains` v1 (white balance, exposure) and `output_rendering`
+v1 — so a drag of the Basic panel's first sliders, on a photograph whose
+other stages are neutral, runs on the GPU from the resident checkpoint.
+Same protocol, the example cross-built for Windows and run natively, once on
+the GPU and once with `LEYLINE_GPU=off`, frames written with
+`LEYLINE_E0_DUMP` and compared:
+
+| File | Class | Exposure, CPU | Exposure, GPU | Worst gap | Samples off by 1 |
+|---|---|---|---|---|---|
+| 10 Mpx CR2 | 1024 | 9 ms | 3 ms | 1 | 0.0001 % |
+| | 2048 | 35 ms | 8 ms | 1 | 0.0001 % |
+| | native 3888 | 116 ms | 39 ms | 1 | < 0.0001 % |
+| 30 Mpx 5D IV CR2 | 1024 | 10 ms | 6 ms | 1 | 0.0001 % |
+| | 2048 | 33 ms | 18 ms | 1 | 0.0001 % |
+| | 4096 | 134 ms | 29 ms | 1 | 0.0002 % |
+
+The sharpening drag is unchanged (155–170 ms at 4K): sharpening has no
+kernel yet, so per §4 that drag stays on the CPU, as it must. The 4K
+exposure drag is now at or near the 33 ms budget; what is left in it is the
+read-back of 44 MB and its repacking, to be measured on their own before
+anything is optimised.
+
 ---
 
 # 4. Axis C — Optional local AI

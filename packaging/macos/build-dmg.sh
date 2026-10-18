@@ -49,5 +49,5 @@ export RUSTFLAGS="-L native=$LIBRAW_MACOS_PREFIX/lib${RUSTFLAGS:+ $RUSTFLAGS}"
 # the bundle we distribute. macOS has a HEIF decoder of its own (Image I/O);
 # using it is a backend to write, not a library to ship.
 cargo build --release -p leyline-studio \
-    --no-default-features --features tether,bundled-basemap
+    --no-default-features --features tether,bundled-basemap,gpu
 cargo packager --release -p leyline-studio -f dmg "$@"

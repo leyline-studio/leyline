@@ -2683,3 +2683,82 @@ fn the_stage_cache_is_dropped_across_input_sizes_at_one_scale() {
     assert_eq!((cached.width, cached.height), (64, 48));
     assert_eq!(cached.data, cold.data);
 }
+
+/// ADR 0156 §3: a drag the GPU renders stays within one 8-bit level of the
+/// CPU's render of the same settings. The first render is the CPU's and
+/// leaves the checkpoint; the second, with exposure, white balance and the
+/// highlight rolloff moved, has only kernel-backed stages after it.
+#[cfg(feature = "gpu")]
+#[test]
+fn the_gpu_preview_stays_within_one_level_of_the_cpu() {
+    use super::{StageCache, develop_scaled, develop_scaled_cached};
+    use leyline_core::{AssetId, WhiteBalance};
+    use std::sync::atomic::Ordering;
+
+    let image = test_image(96, 64);
+    let source = super::Source::plain(super::SourceColor::Srgb);
+    let mut first = leyline_core::Settings {
+        exposure: 0.3,
+        ..Default::default()
+    };
+    super::pin(&mut first);
+    let mut cache = StageCache::default();
+    let cached = |settings: &leyline_core::Settings, cache: &mut StageCache| {
+        develop_scaled_cached(
+            &image,
+            settings,
+            None,
+            None,
+            None,
+            None,
+            &Default::default(),
+            &source,
+            1.0,
+            AssetId::new(1),
+            cache,
+        )
+        .unwrap()
+    };
+    cached(&first, &mut cache);
+
+    let mut dragged = leyline_core::Settings {
+        exposure: 1.6,
+        white_balance: Some(WhiteBalance {
+            temperature: 4800,
+            tint: 15,
+        }),
+        ..Default::default()
+    };
+    dragged.output_rendering.highlight_rolloff = 70;
+    super::pin(&mut dragged);
+    let before = crate::gpu_preview::tests::RENDERED.load(Ordering::SeqCst);
+    let gpu = cached(&dragged, &mut cache);
+    if crate::gpu_preview::tests::RENDERED.load(Ordering::SeqCst) == before {
+        eprintln!("no GPU adapter on this machine: only the CPU path was exercised");
+        return;
+    }
+    let cpu = develop_scaled(
+        &image,
+        &dragged,
+        None,
+        None,
+        None,
+        None,
+        &Default::default(),
+        &source,
+        1.0,
+    )
+    .unwrap();
+    assert_eq!((gpu.width, gpu.height), (cpu.width, cpu.height));
+    let worst = gpu
+        .data
+        .iter()
+        .zip(&cpu.data)
+        .map(|(g, c)| g.abs_diff(*c))
+        .max()
+        .unwrap();
+    assert!(
+        worst <= 1,
+        "the GPU preview strays {worst} levels from the CPU"
+    );
+}

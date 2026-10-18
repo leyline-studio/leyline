@@ -34,6 +34,8 @@ mod exif;
 mod export;
 mod export_metadata;
 mod flow;
+#[cfg(feature = "gpu")]
+mod gpu_preview;
 mod import;
 mod keystone;
 mod library;
@@ -77,6 +79,8 @@ pub use export::{
     export_version,
 };
 pub use flow::Flow;
+#[cfg(feature = "gpu")]
+pub use gpu_preview::preview_backend;
 pub use import::{ImportOptions, ImportReport, ImportedFile, SkippedFile, import, import_files};
 pub use keystone::{GuideLine, KeystoneSolution, MIN_GUIDES as KEYSTONE_MIN_GUIDES};
 pub use leyline_catalog::{LIBRARY_ROOT, Root};

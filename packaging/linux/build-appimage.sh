@@ -46,7 +46,7 @@ export LD_LIBRARY_PATH="$LIBRAW_LINUX_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_
 # "Failed to copy file ... No such file or directory" on
 # `target/release/leyline-studio`, which reads like a packaging bug rather
 # than a missing build. Same order as `packaging/windows/build-nsis.sh`.
-# `--no-default-features --features tether,bundled-basemap` keeps everything
+# `--no-default-features --features tether,bundled-basemap,gpu` keeps everything
 # an AppImage should have and drops one thing on purpose: `heif` (ADR 0114).
 # The feature links the system libheif, and an AppImage bundles the shared
 # libraries its binary needs — so building it on would put an HEVC decoder
@@ -64,7 +64,7 @@ export LD_LIBRARY_PATH="$LIBRAW_LINUX_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_
 # after this rebuilds everything once.
 export RUSTFLAGS="-L native=$LIBRAW_LINUX_PREFIX/lib${RUSTFLAGS:+ $RUSTFLAGS}"
 cargo build --release -p leyline-studio \
-    --no-default-features --features tether,bundled-basemap
+    --no-default-features --features tether,bundled-basemap,gpu
 
 # And the soname the binary asks for has to exist in the prefix, checked
 # rather than trusted: nothing failed the one time it did not.

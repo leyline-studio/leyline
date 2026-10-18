@@ -3601,6 +3601,7 @@ dependencies = [
  "leyline-cull",
  "leyline-derive",
  "leyline-export",
+ "leyline-gpu",
  "leyline-heif",
  "leyline-lens",
  "leyline-map",

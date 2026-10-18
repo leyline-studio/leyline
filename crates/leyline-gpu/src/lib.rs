@@ -22,23 +22,46 @@ pub struct Gpu {
     device: wgpu::Device,
     queue: wgpu::Queue,
     info: wgpu::AdapterInfo,
+    pipelines: Pipelines,
 }
 
 impl Gpu {
-    /// The first adapter wgpu offers, and a device on it; `None` when there
-    /// is none or it refuses a device. Never an error: a machine without a
-    /// GPU is a supported machine (ADR 0156 §2).
+    /// A hardware adapter and a device on it; `None` when there is none, or
+    /// when the only adapter is a software rasteriser — llvmpipe renders on
+    /// the CPU the preview path already uses, only slower. Never an error: a
+    /// machine without a GPU is a supported machine (ADR 0156 §2).
     pub fn acquire() -> Option<Gpu> {
+        Gpu::acquire_with(false)
+    }
+
+    /// [`Gpu::acquire`], accepting a software adapter too: what a test of
+    /// the kernels runs on, on every machine that runs the gate.
+    pub fn acquire_any() -> Option<Gpu> {
+        Gpu::acquire_with(true)
+    }
+
+    fn acquire_with(software: bool) -> Option<Gpu> {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::from_env_or_default());
         let adapter =
             pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
                 .ok()?;
-        let (device, queue) =
-            pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default())).ok()?;
+        let info = adapter.get_info();
+        if info.device_type == wgpu::DeviceType::Cpu && !software {
+            return None;
+        }
+        // The adapter's own limits, not WebGPU's defaults: one 4K frame of
+        // `f32` RGB is ~134 MB, past the default 128 MB per binding.
+        let descriptor = wgpu::DeviceDescriptor {
+            required_limits: adapter.limits(),
+            ..wgpu::DeviceDescriptor::default()
+        };
+        let (device, queue) = pollster::block_on(adapter.request_device(&descriptor)).ok()?;
+        let pipelines = Pipelines::new(&device);
         Some(Gpu {
             device,
             queue,
-            info: adapter.get_info(),
+            info,
+            pipelines,
         })
     }
 
@@ -57,7 +80,15 @@ impl Gpu {
     pub(crate) fn queue(&self) -> &wgpu::Queue {
         &self.queue
     }
+
+    pub(crate) fn pipelines(&self) -> &Pipelines {
+        &self.pipelines
+    }
 }
+
+mod frame;
+use frame::Pipelines;
+pub use frame::{Frame, Op};
 
 mod scale;
 pub use scale::scale_samples;

@@ -1723,6 +1723,11 @@ pub(crate) struct StageCache {
     /// one came back at 1024 px.
     context: Option<(leyline_core::AssetId, u32, u32, u32)>,
     checkpoints: Vec<Checkpoint>,
+    /// The GPU-resident copy of one checkpoint (ADR 0156 §4): uploaded once,
+    /// rendered from at every frame of a drag. Purely derived, like the
+    /// checkpoints, and dropped with them.
+    #[cfg(feature = "gpu")]
+    gpu_frame: Option<crate::gpu_preview::ResidentFrame>,
 }
 
 /// One intermediate buffer, and what it is only valid for.
@@ -1743,7 +1748,38 @@ impl StageCache {
         if self.context != Some(context) {
             self.context = Some(context);
             self.checkpoints.clear();
+            #[cfg(feature = "gpu")]
+            {
+                self.gpu_frame = None;
+            }
         }
+    }
+
+    /// Renders the rest of `plan` on the GPU from the deepest valid
+    /// checkpoint, when every stage after it has a kernel (ADR 0156 §4).
+    #[cfg(feature = "gpu")]
+    fn render_on_gpu(
+        &mut self,
+        settings: &Settings,
+        plan: &[(&'static Stage, &'static Version)],
+        ctx: &Context<'_>,
+    ) -> Option<Rendered> {
+        self.checkpoints
+            .retain(|c| c.fingerprint == prefix_fingerprint(settings, plan, c.applied));
+        let deepest = self.checkpoints.iter().max_by_key(|c| c.applied)?;
+        let data = crate::gpu_preview::render(
+            &mut self.gpu_frame,
+            plan.get(deepest.applied..)?,
+            ctx,
+            deepest.applied,
+            deepest.fingerprint,
+            &deepest.pixels,
+        )?;
+        Some(Rendered {
+            width: deepest.pixels.width,
+            height: deepest.pixels.height,
+            data,
+        })
     }
 
     /// The deepest checkpoint still valid for `settings`, if any.
@@ -1827,6 +1863,12 @@ pub(crate) fn develop_scaled_cached(
         .collect();
 
     cache.retarget(asset, scale, image);
+    // The GPU first, from the deepest checkpoint, *before* that checkpoint
+    // is cloned for the CPU: at 4K the clone alone is ~134 MB (ADR 0156 §4).
+    #[cfg(feature = "gpu")]
+    if let Some(rendered) = cache.render_on_gpu(settings, &plan, &ctx) {
+        return Ok(rendered);
+    }
     let (mut applied, mut px) = match cache.resume_from(settings, &plan) {
         Some((applied, pixels)) => (applied, pixels),
         None => (0, Pixels::from_raw(image)?),

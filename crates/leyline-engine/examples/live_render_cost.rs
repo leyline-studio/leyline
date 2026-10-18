@@ -11,6 +11,10 @@
 //! a late one (sharpening: the stage cache's best case), and prints the
 //! median of the frames after the first, in milliseconds. Every render goes
 //! through `Library::preview_live`, the path Studio's drag uses.
+//!
+//! `LEYLINE_E0_DUMP=<dir>` also writes each drag's last frame there as a
+//! binary PPM, so a run with `LEYLINE_GPU=off` can be compared with one on
+//! the GPU (ADR 0156 §3).
 
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -27,6 +31,11 @@ fn main() -> Result<(), String> {
     if files.is_empty() {
         return Err("usage: live_render_cost <raw-file>...".to_owned());
     }
+    #[cfg(feature = "gpu")]
+    eprintln!(
+        "preview backend: {}",
+        leyline_engine::preview_backend().unwrap_or_else(|| "CPU".to_owned())
+    );
     println!("file\tclass\tslider\tmedian_ms\tframe_px");
     for file in files {
         measure(&file)?;
@@ -71,6 +80,7 @@ fn measure(file: &Path) -> Result<(), String> {
         for slider in ["exposure", "sharpening"] {
             let mut times = Vec::with_capacity(FRAMES);
             let mut size = (0, 0);
+            let mut last = None;
             for frame in 0..FRAMES {
                 let settings = dragged(&head, slider, frame);
                 let started = Instant::now();
@@ -79,6 +89,14 @@ fn measure(file: &Path) -> Result<(), String> {
                     .map_err(|e| e.to_string())?;
                 times.push(started.elapsed().as_secs_f64() * 1000.0);
                 size = (image.width(), image.height());
+                last = Some(image);
+            }
+            if let (Ok(dir), Some(image)) = (std::env::var("LEYLINE_E0_DUMP"), last) {
+                let path = Path::new(&dir)
+                    .join(format!("{}-{class}-{slider}.ppm", name.to_string_lossy()));
+                let mut ppm = format!("P6\n{} {}\n255\n", size.0, size.1).into_bytes();
+                ppm.extend_from_slice(image.data());
+                std::fs::write(path, ppm).map_err(|e| e.to_string())?;
             }
             let mut steady = times[1..].to_vec();
             steady.sort_by(f64::total_cmp);

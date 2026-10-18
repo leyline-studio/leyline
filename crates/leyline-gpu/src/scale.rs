@@ -115,7 +115,7 @@ mod tests {
     /// the one promise left: `acquire` answers `None` rather than failing.
     #[test]
     fn the_chain_runs_and_matches_the_cpu() {
-        let Some(gpu) = Gpu::acquire() else {
+        let Some(gpu) = Gpu::acquire_any() else {
             eprintln!("no GPU adapter on this machine: the CPU path is the only one");
             return;
         };

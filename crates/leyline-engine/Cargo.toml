@@ -23,6 +23,7 @@ leyline-preview.workspace = true
 leyline-color.workspace = true
 leyline-lens.workspace = true
 leyline-tether = { workspace = true, optional = true }
+leyline-gpu = { workspace = true, optional = true }
 leyline-map.workspace = true
 leyline-export.workspace = true
 leyline-heif = { workspace = true, optional = true }
@@ -52,7 +53,7 @@ fs4 = { version = "1.1", features = ["sync"] }
 # `tether_disconnect` and the tether events compile either way, so
 # `leyline-sdk`'s semver surface keeps the same shape and no client — CLI,
 # Studio or third party — needs to know how the engine was built.
-default = ["tether", "heif"]
+default = ["tether", "heif", "gpu"]
 tether = ["dep:leyline-tether"]
 
 # HEIF reading through the *system* libheif (ADR 0114). On by default, so a
@@ -71,6 +72,10 @@ heif = ["dep:leyline-heif"]
 # expose no map rendering (ADR 0040), so they would carry the weight for
 # nothing. Leyline Studio turns it on through its own forwarding feature.
 bundled-basemap = []
+
+# The preview on the GPU (ADR 0156): optional at run time, so a build with
+# it still runs on a machine without one. On in every deliverable.
+gpu = ["dep:leyline-gpu"]
 
 [dev-dependencies]
 # Building a Display P3 profile for the colour tests (ADR 0115): the
