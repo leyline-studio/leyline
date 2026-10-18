@@ -126,6 +126,13 @@ export component MenuBar inherits Rectangle {
                     root.open-menu = "";
                 }
             }
+            MenuRow {
+                title: @tr("Verify an Export…");
+                activated => {
+                    DialogState.verify-export();
+                    root.open-menu = "";
+                }
+            }
             MenuSep { }
             MenuRow {
                 title: @tr("Open Library…");

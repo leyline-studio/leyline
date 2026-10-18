@@ -503,6 +503,7 @@ pub(crate) fn show_details(app: &mut App, window: &StudioWindow, index: i32) {
     let tr = Tr::get(window);
     state.set_file_creator_hint(file_hint(&tr, meta.and_then(|m| m.artist.as_deref())));
     state.set_file_copyright_hint(file_hint(&tr, meta.and_then(|m| m.copyright.as_deref())));
+    crate::wiring::dialogs::verify::show_export_history(app, window, asset);
 }
 
 /// What a file says about an authored field, as the sentence its empty box

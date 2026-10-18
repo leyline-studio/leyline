@@ -238,6 +238,14 @@ pub(crate) fn handle_event(app: &mut App, window: &StudioWindow, event: Event) {
                     }
                     _ => return,
                 });
+                // The journal just grew: the details panel lists the focused
+                // photograph's exports (ADR 0153 §6), and it is usually one
+                // of the photographs just exported.
+                if let Some(item) = crate::app::item_at(app, GridState::get(window).get_selected())
+                {
+                    let asset = item.asset_id;
+                    crate::wiring::dialogs::verify::show_export_history(app, window, asset);
+                }
             } else if app.print_job == Some(job_id) {
                 app.print_job = None;
                 DialogState::get(window).set_dialog_result(match result {

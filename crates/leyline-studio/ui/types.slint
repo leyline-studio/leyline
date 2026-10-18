@@ -155,6 +155,15 @@ export struct HistoryRow {
     when: string,
 }
 
+// One export of a photograph, from the journal (ADR 0153 §6): when, what
+// recipe, and where to. Preformatted by Rust; the destination gets a line of
+// its own because it is the longest and the one most often elided.
+export struct ExportRow {
+    when: string,
+    recipe: string,
+    destination: string,
+}
+
 export struct CandidateRow {
     filename: string,
     // Body and size, in one already-formatted line: Rust formats, the panel
@@ -700,6 +709,17 @@ export global Tr {
     // if nobody types anything.
     public pure function from-the-file(value: string) -> string {
         return @tr("{} — from the file", value);
+    }
+    // The words of an export's recipe line (ADR 0153 §6), which Rust
+    // assembles from the journal's resolved recipe.
+    public pure function export-quality(quality: int) -> string {
+        return @tr("quality {}", quality);
+    }
+    public pure function export-long-edge(pixels: int) -> string {
+        return @tr("{} px long edge", pixels);
+    }
+    public pure function export-full-size() -> string {
+        return @tr("full size");
     }
     public pure function exported-to(path: string) -> string {
         return @tr("Exported to {}.", path);

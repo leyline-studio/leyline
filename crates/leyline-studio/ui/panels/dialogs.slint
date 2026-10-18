@@ -27,6 +27,7 @@ import { UpdateConsentDialog, UpdateDialog } from "../dialogs/update.slint";
 import { WatchDialog } from "../dialogs/watch.slint";
 import { LastPanicDialog, ReportDialog } from "../dialogs/report.slint";
 import { RootsDialog } from "../dialogs/roots.slint";
+import { VerifyDialog } from "../dialogs/verify.slint";
 
 export component DialogOverlay inherits Rectangle {
         // The window's height, handed down rather than read here: this
@@ -138,6 +139,8 @@ export component DialogOverlay inherits Rectangle {
                     if DialogState.dialog == "last-panic": LastPanicDialog { }
 
                     if DialogState.dialog == "roots": RootsDialog { }
+
+                    if DialogState.dialog == "verify": VerifyDialog { }
 
                     if DialogState.dialog == "collection": CollectionDialog { }
                     if DialogState.dialog == "rename": RenameDialog { }

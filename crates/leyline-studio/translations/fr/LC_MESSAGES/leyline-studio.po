@@ -4882,3 +4882,98 @@ msgstr "Prise de vue, boîtier, auteur et mots-clés. La position et les noms de
 msgctxt "ExportDialog"
 msgid "Only the colour profile."
 msgstr "Le profil de couleur seulement."
+
+#: crates/leyline-studio/ui/dialogs/verify.slint
+msgctxt "VerifyDialog"
+msgid "Exported from this library, unchanged since."
+msgstr "Exporté par cette bibliothèque, intact."
+
+#: crates/leyline-studio/ui/dialogs/verify.slint
+msgctxt "VerifyDialog"
+msgid "Exported from this library, changed since."
+msgstr "Exporté par cette bibliothèque, modifié depuis."
+
+#: crates/leyline-studio/ui/dialogs/verify.slint
+msgctxt "VerifyDialog"
+msgid "Not an export this library knows."
+msgstr "Cette bibliothèque ne connaît pas cet export."
+
+#: crates/leyline-studio/ui/dialogs/verify.slint
+msgctxt "VerifyDialog"
+msgid "This file could not be read."
+msgstr "Ce fichier n'a pas pu être lu."
+
+#: crates/leyline-studio/ui/dialogs/verify.slint
+msgctxt "VerifyDialog"
+msgid "Its bytes are the ones the export wrote."
+msgstr "Ses octets sont ceux que l'export a écrits."
+
+#: crates/leyline-studio/ui/dialogs/verify.slint
+msgctxt "VerifyDialog"
+msgid "It names a revision this library exported, but its bytes are not the ones written: re-saved, re-compressed or edited elsewhere."
+msgstr "Il désigne une révision que cette bibliothèque a exportée, mais ses octets ne sont pas ceux écrits : réenregistré, recompressé ou retouché ailleurs."
+
+#: crates/leyline-studio/ui/dialogs/verify.slint
+msgctxt "VerifyDialog"
+msgid "Neither its bytes nor the revision it names are in this library's export journal. It may come from another library, from an export made before the journal kept them, or from elsewhere."
+msgstr "Ni ses octets ni la révision qu'il désigne ne figurent dans le journal d'export de cette bibliothèque. Il peut venir d'une autre bibliothèque, d'un export antérieur à ce journal, ou d'ailleurs."
+
+#: crates/leyline-studio/ui/dialogs/verify.slint
+msgctxt "VerifyDialog"
+msgid "File"
+msgstr "Fichier"
+
+#: crates/leyline-studio/ui/dialogs/verify.slint
+msgctxt "VerifyDialog"
+msgid "Photo"
+msgstr "Photo"
+
+#: crates/leyline-studio/ui/dialogs/verify.slint
+msgctxt "VerifyDialog"
+msgid "Exported"
+msgstr "Exporté le"
+
+#: crates/leyline-studio/ui/dialogs/verify.slint
+msgctxt "VerifyDialog"
+msgid "Recipe"
+msgstr "Recette"
+
+#: crates/leyline-studio/ui/dialogs/verify.slint
+msgctxt "VerifyDialog"
+msgid "Written to"
+msgstr "Écrit dans"
+
+#: crates/leyline-studio/ui/dialogs/verify.slint
+msgctxt "VerifyDialog"
+msgid "Verify Another…"
+msgstr "En vérifier un autre…"
+
+#: crates/leyline-studio/ui/dialogs/verify.slint
+msgctxt "VerifyDialog"
+msgid "Close"
+msgstr "Fermer"
+
+#: crates/leyline-studio/ui/panels/menubar.slint
+msgctxt "MenuBar"
+msgid "Verify an Export…"
+msgstr "Vérifier un export…"
+
+#: crates/leyline-studio/ui/panels/photo_details.slint
+msgctxt "PhotoInfo"
+msgid "Exports"
+msgstr "Exports"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "quality {}"
+msgstr "qualité {}"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "{} px long edge"
+msgstr "{} px grand côté"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
+msgid "full size"
+msgstr "pleine taille"

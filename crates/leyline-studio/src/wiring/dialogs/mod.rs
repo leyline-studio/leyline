@@ -1,5 +1,6 @@
 //! Wires `DialogState`: import, export, print, contact sheets, tethering,
-//! watched folders, roots, renaming and problem reports (ADR 0045 §4).
+//! watched folders, roots, renaming, problem reports and export
+//! verification (ADR 0045 §4).
 //!
 //! One submodule per dialog, mirroring `ui/dialogs/` one for one. This file
 //! only registers them all.
@@ -13,6 +14,7 @@ pub(crate) mod rename;
 pub(crate) mod report;
 pub(crate) mod roots;
 pub(crate) mod tether;
+pub(crate) mod verify;
 pub(crate) mod watch;
 
 use std::cell::RefCell;
@@ -32,4 +34,5 @@ pub(crate) fn wire_dialogs(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     roots::wire_roots(app, window);
     rename::wire_rename(app, window);
     report::wire_report(app, window);
+    verify::wire_verify(app, window);
 }

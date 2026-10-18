@@ -201,6 +201,19 @@ export global DialogState {
     // Opens the watched-folder auto-import panel (ADR 0039): starts/stops
     // watching a folder, importing every file that settles there.
     callback open-watch();
+
+    // File ▸ Verify an Export… (ADR 0153 §4, §6). Rust picks the file,
+    // asks the library, and fills these before opening the dialog.
+    // `verify-verdict` is "intact", "modified", "unknown" or "unreadable";
+    // the dialog owns the sentence each one says, so the extractor sees it.
+    callback verify-export();
+    in property <string> verify-verdict;
+    in property <string> verify-file;
+    in property <string> verify-photo;
+    in property <string> verify-when;
+    in property <string> verify-recipe;
+    in property <string> verify-destination;
+    in property <string> verify-error;
     callback browse-watch-folder();
     callback run-watch-start();
     callback run-watch-stop();

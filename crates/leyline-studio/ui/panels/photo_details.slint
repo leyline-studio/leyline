@@ -133,6 +133,33 @@ export component PhotoInfo inherits VerticalLayout {
                 }
             }
         }
+
+        // Where this photograph went (ADR 0153 §6), read from the export
+        // journal. Read-only, like the file facts above it; File ▸ Verify
+        // an Export… goes the other way, from a file back to here.
+        if DetailState.detail-exports.length > 0: Text {
+            text: @tr("Exports");
+            color: Theme.text-dim;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        for export in DetailState.detail-exports: VerticalLayout {
+            spacing: 2px;
+            Text {
+                text: export.when + " · " + export.recipe;
+                color: Theme.text;
+                font-size: 12px;
+                wrap: word-wrap;
+            }
+            Text {
+                // Wrapped by character, not elided: the end of a path is
+                // the file name, the part an elision would cut first.
+                text: export.destination;
+                color: Theme.text-dim;
+                font-size: 11px;
+                wrap: char-wrap;
+            }
+        }
     }
 }
 

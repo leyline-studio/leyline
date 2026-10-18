@@ -3,6 +3,8 @@
 // Everything is preformatted by Rust — dates, sizes and exposure arrive as
 // display strings, and keyword paths arrive already flattened. The panel
 // that shows them does no interpretation of its own.
+import { ExportRow } from "../types.slint";
+
 export global DetailState {
     in property <string> detail-filename;
     in property <string> detail-path;
@@ -18,6 +20,10 @@ export global DetailState {
     in property <string> detail-companion;
     // Keyword paths of the selected photo, already flattened by Rust.
     in property <[string]> detail-keywords;
+    // The photograph's exports, newest first, from the journal
+    // (ADR 0153 §6). Empty when it was never exported, and the section is
+    // then not shown at all.
+    in property <[ExportRow]> detail-exports;
     // Tag the selected photo with a slash-separated keyword path, or untag
     // the keyword at an index of `detail-keywords`.
     // What someone wrote about this photograph (ADR 0099). Editable,
