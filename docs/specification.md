@@ -86,6 +86,7 @@ The word *experimental* is literal: the colorimetric accuracy of the DCP matrix 
 | Subject | Decision |
 |---|---|
 | Image watermark (a logo) | Cut by [ADR 0034](adr/0034-softproofing-watermark-print.md): the asset-reference problem is not settled |
+| Export provenance | [ADR 0153](adr/0153-an-export-knows-where-it-comes-from.md): the journal records the revision, its fingerprint, the resolved recipe, the decoder and the file's BLAKE3 (migration v14); the file carries a `leyline:` XMP block under the metadata policy; `verify` and `reproduce` in every client. Not built yet |
 | Agent surface (MCP) | [ADR 0154](adr/0154-an-agent-surface-over-stdio.md): `leyline mcp --library <path>` serves the façade's read, edit, preview, import and export verbs over stdio; each revision records its origin (migration v15). Not built yet |
 
 ---
