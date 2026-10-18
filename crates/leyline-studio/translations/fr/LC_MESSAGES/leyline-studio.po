@@ -4822,3 +4822,23 @@ msgstr "Justifiée"
 msgctxt "BottomBar"
 msgid "Justified grid: rows at each photograph's shape"
 msgstr "Grille justifiée : des rangées à la forme de chaque photo"
+
+#: crates/leyline-studio/ui/dialogs/report.slint
+msgctxt "LastPanicDialog"
+msgid "Leyline stopped unexpectedly last time."
+msgstr "Leyline s'est arrêté de façon inattendue la dernière fois."
+
+#: crates/leyline-studio/ui/dialogs/report.slint
+msgctxt "LastPanicDialog"
+msgid "What it was doing when it stopped is in last-panic.txt. A report lets you add what you were doing, and shows the file before anything is written."
+msgstr "Ce qu'il faisait au moment de l'arrêt est dans last-panic.txt. Un rapport vous permet d'ajouter ce que vous faisiez, et vous montre le fichier avant d’écrire quoi que ce soit."
+
+#: crates/leyline-studio/ui/dialogs/report.slint
+msgctxt "LastPanicDialog"
+msgid "Dismiss"
+msgstr "Ignorer"
+
+#: crates/leyline-studio/ui/dialogs/report.slint
+msgctxt "LastPanicDialog"
+msgid "Report the problem…"
+msgstr "Signaler le problème…"

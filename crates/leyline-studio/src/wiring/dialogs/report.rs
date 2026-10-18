@@ -175,20 +175,61 @@ fn write_report(dir: &Path, description: &str, facts: &ReportFacts) -> Result<()
     Ok(())
 }
 
+/// Opens the dialog clean, with `prelisted` already in the attachment list
+/// when there is one: the panic file of ADR 0162 §3, shown like any
+/// attachment — by name, with its size and its × — and never included
+/// without being listed.
+fn open_report(app: &Rc<RefCell<App>>, window: &StudioWindow, prelisted: Option<PathBuf>) {
+    app.borrow_mut().report_files = prelisted.into_iter().collect();
+    let state = DialogState::get(window);
+    state.set_report_description(SharedString::default());
+    state.set_dialog_result(SharedString::default());
+    show_attachments(&app.borrow(), window);
+    state.set_dialog(SharedString::from("report"));
+}
+
+/// Shows the notice a panic left for this launch, if it left one
+/// (ADR 0162 §2). Called once, at startup, after the main window exists.
+///
+/// It yields to a dialog already open: the update-consent question is asked
+/// once in an installation's life and closing it is an answer (ADR 0078 §4),
+/// whereas this file waits on disk — the notice comes at the next launch.
+pub(crate) fn show_last_panic_notice(window: &StudioWindow) {
+    let state = DialogState::get(window);
+    if state.get_dialog().is_empty() && crate::panic_file::left_by_last_session().is_some() {
+        state.set_dialog_result(SharedString::default());
+        state.set_dialog(SharedString::from("last-panic"));
+    }
+}
+
 pub(crate) fn wire_report(app: &Rc<RefCell<App>>, window: &StudioWindow) {
     {
         let app = Rc::clone(app);
         let handle = window.as_weak();
         DialogState::get(window).on_open_report(move || {
-            let Some(window) = handle.upgrade() else {
-                return;
-            };
-            app.borrow_mut().report_files.clear();
-            let state = DialogState::get(&window);
-            state.set_report_description(SharedString::default());
-            state.set_dialog_result(SharedString::default());
-            show_attachments(&app.borrow(), &window);
-            state.set_dialog(SharedString::from("report"));
+            if let Some(window) = handle.upgrade() {
+                open_report(&app, &window, None);
+            }
+        });
+    }
+    {
+        let app = Rc::clone(app);
+        let handle = window.as_weak();
+        DialogState::get(window).on_report_last_panic(move || {
+            if let Some(window) = handle.upgrade() {
+                open_report(&app, &window, crate::panic_file::left_by_last_session());
+            }
+        });
+    }
+    {
+        let handle = window.as_weak();
+        DialogState::get(window).on_dismiss_last_panic(move || {
+            if let Some(path) = crate::panic_file::last_panic_path() {
+                crate::panic_file::forget(&path);
+            }
+            if let Some(window) = handle.upgrade() {
+                DialogState::get(&window).set_dialog(SharedString::default());
+            }
         });
     }
     {
@@ -254,10 +295,13 @@ pub(crate) fn wire_report(app: &Rc<RefCell<App>>, window: &StudioWindow) {
             // Walked in the order the dialog listed them, so what `build.txt`
             // names and what the folder holds are the same list, in the same
             // order.
+            let panic_file = crate::panic_file::last_panic_path();
             let mut written: Vec<String> = Vec::new();
+            let mut carries_panic_file = false;
             for path in &app.report_files {
                 if let Some(name) = copy_attachment(&dir, path, &written) {
                     written.push(name);
+                    carries_panic_file |= panic_file.as_ref() == Some(path);
                 }
             }
 
@@ -277,6 +321,12 @@ pub(crate) fn wire_report(app: &Rc<RefCell<App>>, window: &StudioWindow) {
 
             match write_report(&dir, &description, &facts) {
                 Ok(()) => {
+                    // The panic is now in a report; the notice has nothing
+                    // left to say (ADR 0162 §3). Taken off the list with ×,
+                    // it stays on disk.
+                    if let Some(path) = panic_file.as_ref().filter(|_| carries_panic_file) {
+                        crate::panic_file::forget(path);
+                    }
                     reveal(&dir);
                     DialogState::get(&window).set_dialog_result(
                         Tr::get(&window)

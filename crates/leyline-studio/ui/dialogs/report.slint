@@ -132,3 +132,42 @@ export component ReportDialog inherits VerticalLayout {
         }
     }
 }
+
+// What a panic leaves for the next launch (ADR 0162 §2). No window can be
+// trusted inside the process that panicked; the next start is the one moment
+// Studio is known to be healthy, and the one when the photographer can still
+// say what they were doing.
+export component LastPanicDialog inherits VerticalLayout {
+    spacing: 12px;
+    Text {
+        text: @tr("Leyline stopped unexpectedly last time.");
+        color: Theme.text;
+        font-size: 15px;
+        font-weight: 600;
+        wrap: word-wrap;
+    }
+    Text {
+        text: @tr("What it was doing when it stopped is in last-panic.txt. A report lets you add what you were doing, and shows the file before anything is written.");
+        color: Theme.text-dim;
+        font-size: 12px;
+        wrap: word-wrap;
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: end;
+        FilterChip {
+            text: @tr("Dismiss");
+            active: false;
+            clicked => {
+                DialogState.dismiss-last-panic();
+            }
+        }
+        FilterChip {
+            text: @tr("Report the problem…");
+            active: true;
+            clicked => {
+                DialogState.report-last-panic();
+            }
+        }
+    }
+}

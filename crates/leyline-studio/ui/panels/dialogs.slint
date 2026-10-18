@@ -25,7 +25,7 @@ import { ShortcutsDialog } from "../dialogs/shortcuts.slint";
 import { TetherDialog } from "../dialogs/tether.slint";
 import { UpdateConsentDialog, UpdateDialog } from "../dialogs/update.slint";
 import { WatchDialog } from "../dialogs/watch.slint";
-import { ReportDialog } from "../dialogs/report.slint";
+import { LastPanicDialog, ReportDialog } from "../dialogs/report.slint";
 import { RootsDialog } from "../dialogs/roots.slint";
 
 export component DialogOverlay inherits Rectangle {
@@ -133,6 +133,10 @@ export component DialogOverlay inherits Rectangle {
 
                     if DialogState.dialog == "watch": WatchDialog { }
                     if DialogState.dialog == "report": ReportDialog { }
+
+                    // Shown at startup when the last session panicked (ADR 0162 §2).
+                    if DialogState.dialog == "last-panic": LastPanicDialog { }
+
                     if DialogState.dialog == "roots": RootsDialog { }
 
                     if DialogState.dialog == "collection": CollectionDialog { }

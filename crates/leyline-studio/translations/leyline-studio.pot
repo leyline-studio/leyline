@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2026-10-18 07:40+0000\n"
+"POT-Creation-Date: 2026-10-18 15:09+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -878,6 +878,28 @@ msgstr ""
 #: crates/leyline-studio/ui/dialogs/report.slint:127
 msgctxt "ReportDialog"
 msgid "Create the folder"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/report.slint:143
+msgctxt "LastPanicDialog"
+msgid "Leyline stopped unexpectedly last time."
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/report.slint:150
+msgctxt "LastPanicDialog"
+msgid ""
+"What it was doing when it stopped is in last-panic.txt. A report lets you "
+"add what you were doing, and shows the file before anything is written."
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/report.slint:159
+msgctxt "LastPanicDialog"
+msgid "Dismiss"
+msgstr ""
+
+#: crates/leyline-studio/ui/dialogs/report.slint:166
+msgctxt "LastPanicDialog"
+msgid "Report the problem…"
 msgstr ""
 
 #: crates/leyline-studio/ui/dialogs/roots.slint:18

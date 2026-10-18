@@ -38,6 +38,19 @@ pub(crate) fn last_panic_path() -> Option<PathBuf> {
     directories::ProjectDirs::from("", "", "Leyline").map(|dirs| dirs.config_dir().join(FILE_NAME))
 }
 
+/// The file a previous session left behind, if there is one: what the notice
+/// at startup looks for (ADR 0162 §2).
+pub(crate) fn left_by_last_session() -> Option<PathBuf> {
+    last_panic_path().filter(|path| path.is_file())
+}
+
+/// Deletes the file — on Dismiss, or once a report carrying it has been
+/// written (ADR 0162 §3). Best-effort: a file that stays only means the
+/// notice comes back at the next launch.
+pub(crate) fn forget(path: &Path) {
+    let _ = std::fs::remove_file(path);
+}
+
 /// Installs the panic hook so that, besides stderr, each panic overwrites
 /// `last-panic.txt`. Studio only: the CLI's user is at the terminal the
 /// backtrace goes to.

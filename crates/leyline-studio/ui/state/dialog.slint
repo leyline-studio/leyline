@@ -188,6 +188,12 @@ export global DialogState {
     // with whatever tool they use. Optional: a description alone is a report.
     callback report-add-files();
     callback report-remove-attachment(int);
+    // The notice a panic leaves for the next launch (ADR 0162 §2): the
+    // report opens with `last-panic.txt` already listed, and Dismiss deletes
+    // the file. Closing the notice any other way does neither, so it comes
+    // back at the next launch.
+    callback report-last-panic();
+    callback dismiss-last-panic();
 
     // Opens the watched-folder auto-import panel (ADR 0039): starts/stops
     // watching a folder, importing every file that settles there.

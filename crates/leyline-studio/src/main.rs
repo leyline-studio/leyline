@@ -601,6 +601,8 @@ fn run() -> Result<(), Startup> {
     // someone has answered, and the check is a no-op unless the answer was
     // yes and the last successful one is a day old.
     ask_consent_if_due(&window, &preferences);
+    // After the consent question, which it yields to (ADR 0162 §2).
+    wiring::dialogs::report::show_last_panic_notice(&window);
     schedule_startup_check(&window, &preferences);
 
     // The winit window (and with it, monitor info) only exists once the
