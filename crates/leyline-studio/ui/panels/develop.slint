@@ -155,6 +155,7 @@ export component DevelopPanel inherits HorizontalLayout {
     property <bool> expand-local: root.stored-bit(root.stored-view, 13, false);
     property <bool> expand-proof: root.stored-bit(root.stored-view, 14, false);
     property <bool> expand-geometry: root.stored-bit(root.stored-view, 15, false);
+    property <bool> expand-levels: root.stored-bit(root.stored-view, 16, false);
 
 
     // The crop's aspect ratio, as width ÷ height (ADR 0135 §2). `0` is
@@ -308,7 +309,8 @@ export component DevelopPanel inherits HorizontalLayout {
         + (root.expand-red-eye ? 4096 : 0)
         + (root.expand-local ? 8192 : 0)
         + (root.expand-proof ? 16384 : 0)
-        + (root.expand-geometry ? 32768 : 0);
+        + (root.expand-geometry ? 32768 : 0)
+        + (root.expand-levels ? 65536 : 0);
     changed view-code => {
         PreferencesState.remember-develop-view(self.view-code);
     }
@@ -4010,6 +4012,95 @@ export component DevelopPanel inherits HorizontalLayout {
                             active: false;
                             clicked => {
                                 DevelopState.develop-curve-reset();
+                            }
+                        }
+                    }
+
+                    // Levels (ADR 0164): after the curves in the panel as in
+                    // the pipeline's neighbourhood — rank 78, between the
+                    // parametric curve and the point curve. The gamma slider
+                    // stops at 3, where the useful range ends; a typed value
+                    // or the CLI reaches the 9.99 the setting allows.
+                    if !root.basic-mode: GroupHeader {
+                        label: @tr("Levels");
+                        group: "levels";
+                        reset => {
+                            DevelopState.reset-group("levels");
+                        }
+                        peek(group) => {
+                            DevelopState.peek-group(group);
+                        }
+                        expanded <=> root.expand-levels;
+                    }
+                    if !root.basic-mode && root.expand-levels: VerticalLayout {
+                        spacing: 8px;
+                        EditSlider {
+                            label: @tr("Black point");
+                            hint: @tr("Input level that becomes the output black.");
+                            minimum: 0;
+                            maximum: 254;
+                            value: DevelopState.dev.levels-input-black;
+                            edited(v) => {
+                                DevelopState.develop-edit("levels-input-black", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("levels-input-black", v);
+                            }
+                        }
+                        EditSlider {
+                            label: @tr("Gamma");
+                            hint: @tr("Midtones: above 1 brightens, below 1 darkens.");
+                            minimum: 0.1;
+                            maximum: 3;
+                            decimals: 2;
+                            neutral: 1;
+                            value: DevelopState.dev.levels-gamma;
+                            edited(v) => {
+                                DevelopState.develop-edit("levels-gamma", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("levels-gamma", v);
+                            }
+                        }
+                        EditSlider {
+                            label: @tr("White point");
+                            hint: @tr("Input level that becomes the output white.");
+                            minimum: 1;
+                            maximum: 255;
+                            neutral: 255;
+                            value: DevelopState.dev.levels-input-white;
+                            edited(v) => {
+                                DevelopState.develop-edit("levels-input-white", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("levels-input-white", v);
+                            }
+                        }
+                        EditSlider {
+                            label: @tr("Output black");
+                            hint: @tr("The darkest level the photograph keeps.");
+                            minimum: 0;
+                            maximum: 255;
+                            value: DevelopState.dev.levels-output-black;
+                            edited(v) => {
+                                DevelopState.develop-edit("levels-output-black", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("levels-output-black", v);
+                            }
+                        }
+                        EditSlider {
+                            label: @tr("Output white");
+                            hint: @tr("The brightest level the photograph keeps.");
+                            minimum: 0;
+                            maximum: 255;
+                            neutral: 255;
+                            value: DevelopState.dev.levels-output-white;
+                            edited(v) => {
+                                DevelopState.develop-edit("levels-output-white", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("levels-output-white", v);
                             }
                         }
                     }

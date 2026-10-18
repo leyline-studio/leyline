@@ -405,6 +405,22 @@ fn camera_profile(settings: Settings) -> Settings {
     }
 }
 
+/// Levels (ADR 0164) — a new case, all five numbers off neutral: a case
+/// that only moved the black point would say nothing about the gamma or the
+/// output limits.
+fn levels(settings: Settings) -> Settings {
+    Settings {
+        levels: leyline_core::Levels {
+            input_black: 12,
+            input_white: 238,
+            gamma: 1.35,
+            output_black: 8,
+            output_white: 247,
+        },
+        ..settings
+    }
+}
+
 /// The parametric curve (ADR 0137) — a **new** case, never an edit of
 /// `tone_curve`, whose fragment is frozen with the entry citing it.
 ///
@@ -833,6 +849,7 @@ pub(super) fn cases() -> Vec<(String, Case)> {
         ("reshape", reshape(base.clone())),
         ("camera_profile", camera_profile(base.clone())),
         ("parametric_curve", parametric_curve(base.clone())),
+        ("levels", levels(base.clone())),
         ("tone_curve", tone_curve(base.clone())),
         ("tone_curve_channels", tone_curve_channels(base.clone())),
         ("spots", spots(base.clone())),

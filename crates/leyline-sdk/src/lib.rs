@@ -20,7 +20,7 @@ pub use leyline_core::{
     AssetId, BrushStroke, CURRENT_SCHEMA, CameraProfile, CameraSetting, CameraSettings,
     CollectionId, CollectionType, ColorGrading, ColorGradingZone, ColorLabel, ColorRange,
     ContactSheetPresetId, Crop, CurvePoint, Defringe, Demosaic, ExportPresetId, FolderId, Grain,
-    HighlightReconstruction, HslBand, JobId, KeywordId, LensCorrection, LeylineError,
+    HighlightReconstruction, HslBand, JobId, KeywordId, LensCorrection, Levels, LeylineError,
     LocalAdjustment, LocalAdjustmentValues, LuminanceRange, Lut, Mask, MediaType, NoiseReduction,
     ParametricCurve, Perspective, PickState, Point, PresetFolderId, PresetId, PresetSettings,
     PreviewKind, PrintPresetId, RangeMask, RedEye, ReshapePoint, Result, RevisionId,

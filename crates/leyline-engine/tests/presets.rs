@@ -4,10 +4,10 @@
 use leyline_catalog::{CHECKSUM_LEN, Catalog, NewAsset, RegisteredAsset};
 use leyline_core::{
     CURRENT_SCHEMA, CameraProfile, ColorGrading, Crop, CurvePoint, Defringe, Demosaic, Grain,
-    HighlightReconstruction, HslBand, LensCorrection, LocalAdjustment, LocalAdjustmentValues, Lut,
-    Mask, MediaType, NoiseReduction, OutputRendering, ParametricCurve, Perspective, Point,
-    PresetSettings, RedEye, ReshapePoint, Settings, SettingsGroup, Sharpening, SpotRemoval,
-    ToneCurve, VersionId, Vignette, WhiteBalance,
+    HighlightReconstruction, HslBand, LensCorrection, Levels, LocalAdjustment,
+    LocalAdjustmentValues, Lut, Mask, MediaType, NoiseReduction, OutputRendering, ParametricCurve,
+    Perspective, Point, PresetSettings, RedEye, ReshapePoint, Settings, SettingsGroup, Sharpening,
+    SpotRemoval, ToneCurve, VersionId, Vignette, WhiteBalance,
 };
 use leyline_engine::{EditSession, Param, Value, apply_batch, capture};
 
@@ -176,6 +176,13 @@ fn a_development_with_nothing_left_neutral() -> Settings {
             shadow_split: 20,
             midtone_split: 45,
             highlight_split: 80,
+        },
+        levels: Levels {
+            input_black: 5,
+            input_white: 250,
+            gamma: 1.1,
+            output_black: 3,
+            output_white: 252,
         },
         tone_curve: ToneCurve {
             points: vec![

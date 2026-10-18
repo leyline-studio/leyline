@@ -22,12 +22,12 @@ use leyline_sdk::{
     ColorGradingZone, ColorLabel, ContactSheetRecipe, ContactSheetRequest, ContactSheetSettings,
     Crop, CurvePoint, Defringe, Demosaic, DifferenceSuspect, ExportFormat, ExportMetadata,
     ExportRecipe, ExportRecord, ExportRequest, ExportSettings, ExportVerdict, GridQuery, GuideLine,
-    HighlightReconstruction, HslBand, ImportOptions, LensCorrection, Library, LocalAdjustment,
-    LocalAdjustmentValues, Lut, Margins, NoiseReduction, Orientation, PaperSize, Param,
-    Perspective, PickState, Point, PresetId, PreviewKind, PrintRecipe, PrintRequest, PrintSettings,
-    RedEye, RenderingIntent, Reproduction, ReshapePoint, RevisionOrigin, ScanOptions, Settings,
-    SettingsGroup, Sharpening, ShotRange, SpotRemoval, TetherOptions, TetherSetting, Value,
-    VersionId, Watermark, WatermarkAnchor, WhiteBalance,
+    HighlightReconstruction, HslBand, ImportOptions, LensCorrection, Levels, Library,
+    LocalAdjustment, LocalAdjustmentValues, Lut, Margins, NoiseReduction, Orientation, PaperSize,
+    Param, Perspective, PickState, Point, PresetId, PreviewKind, PrintRecipe, PrintRequest,
+    PrintSettings, RedEye, RenderingIntent, Reproduction, ReshapePoint, RevisionOrigin,
+    ScanOptions, Settings, SettingsGroup, Sharpening, ShotRange, SpotRemoval, TetherOptions,
+    TetherSetting, Value, VersionId, Watermark, WatermarkAnchor, WhiteBalance,
 };
 
 const USAGE: &str = "\
@@ -300,6 +300,10 @@ Develop params (docs/pipeline.md §3.2, schema 1):
                                     four regions in -100..100 and the three
                                     splits in 1..99 (ADR 0137); `-` keeps a
                                     field, and trailing fields may be omitted
+  levels <in-black> <in-white> <gamma> [<out-black> <out-white>] | reset
+                                    black and white points in 0..255, gamma
+                                    in 0.10..9.99 (above 1 brightens), output
+                                    limits default to 0 255 (ADR 0164)
   tone-curve [channel] <x,y> <x,y>...
                                     points in [0,1], strictly increasing x, or
                                     `tone-curve reset`; channel is one of
@@ -1409,6 +1413,28 @@ fn develop(args: &[String]) -> Result<(), String> {
                 }),
             };
             (Param::Crop, Value::Crop(crop))
+        }
+        // Levels (ADR 0164): input black, input white and gamma, and the
+        // output limits optionally; `reset` puts the five back to neutral.
+        "levels" => {
+            let levels = if at(0)? == "reset" {
+                Levels::default()
+            } else {
+                Levels {
+                    input_black: int_at(0)?,
+                    input_white: int_at(1)?,
+                    gamma: float_at(2)?,
+                    output_black: match rest.get(3) {
+                        Some(_) => int_at(3)?,
+                        None => 0,
+                    },
+                    output_white: match rest.get(4) {
+                        Some(_) => int_at(4)?,
+                        None => 255,
+                    },
+                }
+            };
+            (Param::Levels, Value::Levels(levels))
         }
         // The parametric curve (ADR 0137): seven numbers in one verb, since
         // the stage takes one value and a partial one has no meaning.

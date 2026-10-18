@@ -569,6 +569,50 @@ impl ParametricCurve {
     }
 }
 
+/// Levels (ADR 0164): black, gamma and white points, and output limits, on
+/// the 0–255 scale the numbers are known in — only a scale: nothing is
+/// quantised to 8 bits. Applied at rank 78, between the parametric curve and
+/// the point curve, identically on every channel.
+///
+/// Neutral: `0, 255, 1.0, 0, 255`, in which case the stage does not run.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Levels {
+    /// The input level mapped to `output_black`, in [0, 254].
+    pub input_black: i32,
+    /// The input level mapped to `output_white`, in [1, 255], above
+    /// `input_black`.
+    pub input_white: i32,
+    /// Midtone gamma in [0.10, 9.99]; above 1 brightens (Photoshop's
+    /// convention).
+    pub gamma: f64,
+    /// The darkest output level, in [0, 255].
+    pub output_black: i32,
+    /// The brightest output level, in [0, 255], not below `output_black`:
+    /// an inverted output is a negative, not a level (ADR 0164 §3).
+    pub output_white: i32,
+}
+
+impl Default for Levels {
+    fn default() -> Self {
+        Self {
+            input_black: 0,
+            input_white: 255,
+            gamma: 1.0,
+            output_black: 0,
+            output_white: 255,
+        }
+    }
+}
+
+impl Levels {
+    /// Whether the stage would change no pixel — and then it does not run.
+    #[must_use]
+    pub fn is_neutral(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
 /// Tone curve step (ADR 0030): a point curve applied in luminance, i.e. the
 /// same curve to every channel of the working buffer. Neutral: no points,
 /// in which case the stage does not run at all.
@@ -1139,6 +1183,10 @@ pub struct Settings {
     /// the last word. Neutral: every region at 0.
     #[serde(default, skip_serializing_if = "ParametricCurve::is_default")]
     pub parametric_curve: ParametricCurve,
+    /// Levels (ADR 0164), applied at rank 78 — after the parametric curve,
+    /// before the point curve. Neutral: `0, 255, 1.0, 0, 255`.
+    #[serde(default, skip_serializing_if = "Levels::is_neutral")]
+    pub levels: Levels,
     /// Tone curve step. Neutral: no points.
     pub tone_curve: ToneCurve,
 
@@ -1240,6 +1288,7 @@ impl Default for Settings {
             saturation: 0,
             monochrome: false,
             parametric_curve: ParametricCurve::default(),
+            levels: Levels::default(),
             tone_curve: ToneCurve::default(),
             hsl: [HslBand::default(); 8],
             color_grading: ColorGrading::default(),
@@ -1479,6 +1528,29 @@ impl Settings {
             return Err(LeylineError::InvalidSettings(
                 "parametric_curve splits must be strictly increasing".to_owned(),
             ));
+        }
+
+        // Levels (ADR 0164 §3).
+        let levels = &self.levels;
+        slider("levels.input_black", levels.input_black, 0, 254)?;
+        slider("levels.input_white", levels.input_white, 1, 255)?;
+        slider("levels.output_black", levels.output_black, 0, 255)?;
+        slider("levels.output_white", levels.output_white, 0, 255)?;
+        if levels.input_black >= levels.input_white {
+            return Err(LeylineError::InvalidSettings(
+                "levels.input_black must be below levels.input_white".to_owned(),
+            ));
+        }
+        if levels.output_black > levels.output_white {
+            return Err(LeylineError::InvalidSettings(
+                "levels.output_black must not exceed levels.output_white".to_owned(),
+            ));
+        }
+        if !(0.10..=9.99).contains(&levels.gamma) {
+            return Err(LeylineError::InvalidSettings(format!(
+                "levels.gamma must be in [0.10, 9.99], got {}",
+                levels.gamma
+            )));
         }
 
         // The master curve and the three channel curves are validated by
@@ -2129,6 +2201,7 @@ pub const SETTINGS_KEYS: &[&str] = &[
     "highlights",
     "hsl",
     "lens_correction",
+    "levels",
     "local_adjustments",
     "lut",
     "monochrome",
@@ -2268,6 +2341,11 @@ pub struct PresetSettings {
     /// follows.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parametric_curve: Option<ParametricCurve>,
+    /// Present when `groups` includes [`SettingsGroup::ToneCurve`]
+    /// (ADR 0164 §5); absent from a preset written before that ADR, which
+    /// then leaves levels alone.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub levels: Option<Levels>,
     /// Present when `groups` includes [`SettingsGroup::ColorMixer`] — all
     /// eight bands together, since a mix is one decision.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2353,6 +2431,7 @@ impl PresetSettings {
                     // photograph* — and a photographer copying it means both.
                     preset.tone_curve = Some(settings.tone_curve.clone());
                     preset.parametric_curve = Some(settings.parametric_curve);
+                    preset.levels = Some(settings.levels);
                 }
                 SettingsGroup::ColorMixer => {
                     preset.hsl = Some(settings.hsl);
@@ -3712,6 +3791,10 @@ mod specification {
             parametric_curve: ParametricCurve {
                 shadows: 10,
                 ..ParametricCurve::default()
+            },
+            levels: Levels {
+                gamma: 1.2,
+                ..Levels::default()
             },
             red_eye: vec![RedEye {
                 center: Point { x: 0.5, y: 0.5 },

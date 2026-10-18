@@ -342,6 +342,12 @@ export struct DevSettings {
     parametric-shadow-split: float,
     parametric-midtone-split: float,
     parametric-highlight-split: float,
+    // Levels (ADR 0164), on the 0–255 scale; gamma above 1 brightens.
+    levels-input-black: float,
+    levels-input-white: float,
+    levels-gamma: float,
+    levels-output-black: float,
+    levels-output-white: float,
     exposure: float,
     contrast: float,
     highlights: float,
@@ -548,6 +554,9 @@ export global Tr {
         }
         if (key == "parametric_curve") {
             return @tr("Parametric curve");
+        }
+        if (key == "levels") {
+            return @tr("Levels");
         }
         if (key == "tone_curve") {
             return @tr("Tone curve");

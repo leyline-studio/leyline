@@ -41,6 +41,25 @@ pub fn action(slider: &str, value: f64, current: &Settings) -> Option<(Param, Va
                 (perspective.vertical != 0 || perspective.horizontal != 0).then_some(perspective);
             (Param::Perspective, Value::Perspective(perspective))
         }
+        // Levels (ADR 0164): five sliders, one stage value. The interface
+        // keeps the black point below the white point by clamping against
+        // the other one, so a slider never asks for what `validate` refuses.
+        "levels-input-black"
+        | "levels-input-white"
+        | "levels-gamma"
+        | "levels-output-black"
+        | "levels-output-white" => {
+            let mut levels = current.levels;
+            let v = value.round() as i32;
+            match slider {
+                "levels-input-black" => levels.input_black = v.clamp(0, levels.input_white - 1),
+                "levels-input-white" => levels.input_white = v.clamp(levels.input_black + 1, 255),
+                "levels-gamma" => levels.gamma = (value * 100.0).round() / 100.0,
+                "levels-output-black" => levels.output_black = v.clamp(0, levels.output_white),
+                _ => levels.output_white = v.clamp(levels.output_black, 255),
+            }
+            (Param::Levels, Value::Levels(levels))
+        }
         // The parametric curve's four regions (ADR 0137). Read-modify-write
         // on the whole struct, like `perspective` above and for the same
         // reason: the stage takes one value, so a slider that moved only its
@@ -403,7 +422,7 @@ pub fn target_setting(image: &leyline_sdk::Rgb8, u: f32, v: f32) -> Option<&'sta
 /// `reset_group("all")` walks (ADR 0124 §4). The three headers that are not
 /// settings are absent for the reason they are absent from the `match`:
 /// Soft Proof is a view, Versions and History are lists.
-const GROUPS: [&str; 15] = [
+const GROUPS: [&str; 16] = [
     "basic",
     "camera-profile",
     "lut",
@@ -411,6 +430,7 @@ const GROUPS: [&str; 15] = [
     "detail",
     "effects",
     "tone-curve",
+    "levels",
     "hsl",
     "color-grading",
     "red-eye",
@@ -532,6 +552,11 @@ pub fn reset_group(group: &str, current: &Settings) -> Vec<(Param, Value)> {
             }
             if current.grain != neutral.grain {
                 set(Param::Grain, Value::Grain(neutral.grain));
+            }
+        }
+        "levels" => {
+            if current.levels != neutral.levels {
+                set(Param::Levels, Value::Levels(neutral.levels));
             }
         }
         "tone-curve" => {
@@ -1904,6 +1929,10 @@ mod reset_tests {
                 temperature: 4200,
                 tint: 12,
             }),
+            levels: leyline_sdk::Levels {
+                gamma: 1.2,
+                ..leyline_sdk::Levels::default()
+            },
             exposure: 0.8,
             contrast: 20,
             highlights: -30,

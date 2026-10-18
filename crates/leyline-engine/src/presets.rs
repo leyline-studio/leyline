@@ -225,6 +225,9 @@ fn param_values(preset: &PresetSettings) -> Vec<(Param, Value)> {
     if let Some(v) = preset.parametric_curve {
         values.push((Param::ParametricCurve, Value::ParametricCurve(v)));
     }
+    if let Some(v) = preset.levels {
+        values.push((Param::Levels, Value::Levels(v)));
+    }
     if let Some(bands) = &preset.hsl {
         // The one category with no whole-value parameter: the mixer is
         // addressed a band at a time, so eight entries stand for one

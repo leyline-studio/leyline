@@ -4981,3 +4981,51 @@ msgstr "{} px grand côté"
 msgctxt "Tr"
 msgid "full size"
 msgstr "pleine taille"
+
+msgctxt "DevelopPanel"
+msgid "Levels"
+msgstr "Niveaux"
+
+msgctxt "DevelopPanel"
+msgid "Black point"
+msgstr "Point noir"
+
+msgctxt "DevelopPanel"
+msgid "Input level that becomes the output black."
+msgstr "Niveau d'entrée qui devient le noir de sortie."
+
+msgctxt "DevelopPanel"
+msgid "Gamma"
+msgstr "Gamma"
+
+msgctxt "DevelopPanel"
+msgid "Midtones: above 1 brightens, below 1 darkens."
+msgstr "Tons moyens : au-dessus de 1 éclaircit, en dessous assombrit."
+
+msgctxt "DevelopPanel"
+msgid "White point"
+msgstr "Point blanc"
+
+msgctxt "DevelopPanel"
+msgid "Input level that becomes the output white."
+msgstr "Niveau d'entrée qui devient le blanc de sortie."
+
+msgctxt "DevelopPanel"
+msgid "Output black"
+msgstr "Noir de sortie"
+
+msgctxt "DevelopPanel"
+msgid "The darkest level the photograph keeps."
+msgstr "Le niveau le plus sombre que garde la photo."
+
+msgctxt "DevelopPanel"
+msgid "Output white"
+msgstr "Blanc de sortie"
+
+msgctxt "DevelopPanel"
+msgid "The brightest level the photograph keeps."
+msgstr "Le niveau le plus clair que garde la photo."
+
+msgctxt "Tr"
+msgid "Levels"
+msgstr "Niveaux"

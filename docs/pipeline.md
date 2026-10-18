@@ -389,6 +389,7 @@ The code of every stage version is kept in the engine forever: that is the price
 | 60 | `highlights_shadows` | 1 | Highlights and shadows, masked by luminance |
 | 70 | `whites_blacks` | 1 | Remapping of the extremes |
 | 75 | `parametric_curve` | 1 | Four tonal regions and three splits, expressed as six control points through the same monotone interpolant, then applied as a table ([ADR 0137](adr/0137-parametric-tone-curve.md)) |
+| 78 | `levels` | 1 | Black, gamma and white points and output limits on the 0–255 scale, on the display axis, every channel alike, evaluated per sample ([ADR 0164](adr/0164-levels.md)) |
 | 80 | `tone_curve` | 1 | A point curve, a monotone cubic spline precomputed into a table (ADR 0030) |
 | 80 | `tone_curve` | 2 | The same, plus one curve per channel (ADR 0098). With none set, bit-identical to v1 |
 | 90 | `clarity` | 1 | Local contrast at a large radius (ADR 0033) |

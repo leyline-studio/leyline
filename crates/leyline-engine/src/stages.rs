@@ -115,6 +115,9 @@ pub(crate) mod whites_blacks {
 pub(crate) mod parametric_curve {
     pub(crate) mod v1;
 }
+pub(crate) mod levels {
+    pub(crate) mod v1;
+}
 pub(crate) mod tone_curve {
     pub(crate) mod v1;
     pub(crate) mod v2;
@@ -798,6 +801,20 @@ pub(crate) static STAGES: &[Stage] = &[
             apply: |px, ctx| {
                 parametric_curve::v1::parametric_curve(px, &ctx.settings.parametric_curve);
             },
+        }],
+    },
+    Stage {
+        // Levels (ADR 0164): a stage of its own for the reason the
+        // parametric curve above is one — absent from every existing map,
+        // and inactive at neutral.
+        name: "levels",
+        active: |settings| !settings.levels.is_neutral(),
+        reads: &["levels"],
+        versions: &[Version {
+            version: 1,
+            rank: 78,
+            space: Space::LinearRec2020,
+            apply: |px, ctx| levels::v1::levels(px, &ctx.settings.levels),
         }],
     },
     Stage {

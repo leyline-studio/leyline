@@ -34,7 +34,7 @@ pub use path::validate_library_relative_path;
 pub use settings::{
     BrushStroke, CURRENT_SCHEMA, CameraProfile, ColorGrading, ColorGradingZone, ColorRange, Crop,
     CurvePoint, Defringe, Demosaic, Grain, HighlightReconstruction, HslBand, LensCorrection,
-    LocalAdjustment, LocalAdjustmentValues, LuminanceRange, Lut, Mask, NoiseReduction,
+    Levels, LocalAdjustment, LocalAdjustmentValues, LuminanceRange, Lut, Mask, NoiseReduction,
     OutputRendering, ParametricCurve, Perspective, Point, PresetSettings, RangeMask, RedEye,
     ReshapePoint, SETTINGS_KEYS, Settings, SettingsGroup, Sharpening, SourceEncoding, SpotRemoval,
     StageVersions, ToneCurve, Vignette, WHITE_BALANCE_PRESETS, WhiteBalance, WhiteBalancePreset,

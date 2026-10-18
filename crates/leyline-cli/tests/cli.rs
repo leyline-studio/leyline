@@ -1403,3 +1403,35 @@ fn defringe_takes_two_amounts_and_pins_its_own_stage() {
     assert!(!out.status.success());
     assert!(stderr(&out).contains("defringe.purple"), "{}", stderr(&out));
 }
+
+/// ADR 0164 at a shell prompt: levels are one develop value, they bring the
+/// `levels` stage into the revision's map, a black point above the white
+/// is refused by name, and `reset` takes the stage back out.
+#[test]
+fn levels_are_set_refused_and_reset() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = library_with_a_photo(&dir);
+
+    let out = run(&["develop", &root, "1", "levels", "12", "240", "1.2"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    let history = stdout(&run(&["history", &root, "1"]));
+    let head = history.lines().next().unwrap();
+    assert!(
+        head.contains("levels") && head.contains("levels:1"),
+        "{head}"
+    );
+
+    let out = run(&["develop", &root, "1", "levels", "200", "100", "1.0"]);
+    assert!(!out.status.success());
+    assert!(
+        stderr(&out).contains("levels.input_black"),
+        "{}",
+        stderr(&out)
+    );
+
+    let out = run(&["develop", &root, "1", "levels", "reset"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    let history = stdout(&run(&["history", &root, "1"]));
+    let head = history.lines().next().unwrap();
+    assert!(!head.contains("levels:"), "{head}");
+}
