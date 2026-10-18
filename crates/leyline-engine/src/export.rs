@@ -283,19 +283,22 @@ pub fn export_batch<F: Into<Flow>>(
     let total = versions.len() as u64;
     let mut report = ExportReport::default();
     for (done, &version) in versions.iter().enumerate() {
-        match export_version(
-            catalog,
-            library_root,
-            version,
-            settings,
-            preset,
-            destination_dir,
-        ) {
-            Ok(path) => report.exported.push(ExportedVersion { version, path }),
-            Err(error) => report.failed.push(FailedExport {
+        // A panic inside one version is that version's failure (ADR 0152 §5).
+        let outcome = crate::panic_net::isolate(|| {
+            export_version(
+                catalog,
+                library_root,
                 version,
-                reason: error.to_string(),
-            }),
+                settings,
+                preset,
+                destination_dir,
+            )
+            .map_err(|error| error.to_string())
+        })
+        .and_then(|outcome| outcome);
+        match outcome {
+            Ok(path) => report.exported.push(ExportedVersion { version, path }),
+            Err(reason) => report.failed.push(FailedExport { version, reason }),
         }
         if progress(done as u64 + 1, total).into().stops() {
             report.cancelled = true;

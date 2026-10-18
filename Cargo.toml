@@ -102,4 +102,7 @@ all = { level = "warn", priority = -1 }
 # a size computation moves to genuinely untrusted input (e.g. a user-supplied
 # dimension) that isn't bounded that way.
 [profile.release]
+# `abort` would disable the panic hook's backtrace-and-continue and the
+# per-photograph isolation of import and export batches (ADR 0152 §5).
+panic = "unwind"
 overflow-checks = false

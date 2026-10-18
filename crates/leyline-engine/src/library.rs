@@ -1885,7 +1885,9 @@ impl Library {
                             return;
                         };
                         let outcome = match planned {
-                            Ok((plan, destination)) => {
+                            // A panic inside one render is that version's
+                            // failure, not the batch's (ADR 0152 §5).
+                            Ok((plan, destination)) => crate::panic_net::isolate(|| {
                                 crate::export::render_export_to(plan, settings, destination)
                                     .and_then(|()| {
                                         let mut catalog = lock(&self.inner.catalog);
@@ -1899,7 +1901,8 @@ impl Library {
                                         Ok(destination.clone())
                                     })
                                     .map_err(|error| error.to_string())
-                            }
+                            })
+                            .and_then(|outcome| outcome),
                             Err(reason) => Err(reason.clone()),
                         };
                         *lock(&outcomes[index]) = Some(outcome);

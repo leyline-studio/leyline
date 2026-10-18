@@ -261,6 +261,7 @@ impl From<String> for Startup {
 }
 
 fn main() -> std::process::ExitCode {
+    leyline_sdk::install_panic_hook();
     match run() {
         Ok(()) => std::process::ExitCode::SUCCESS,
         Err(Startup::LoopFailed(message)) => {

@@ -40,6 +40,7 @@ mod lut;
 mod mask;
 pub mod mask_coverage;
 mod mask_overlay;
+mod panic_net;
 mod pixels;
 mod presets;
 mod preview;
@@ -88,6 +89,7 @@ pub use library::{
     CatalogRead, CatalogWrite, ImportedCameraProfile, ImportedLut, Library, RemovalReport,
     RootStatus, SoftProof,
 };
+pub use panic_net::install_panic_hook;
 pub use presets::{FailedApply, PresetApplyReport, apply_batch, capture, overlay};
 pub use preview::{Preview, PreviewFile, preview};
 pub use print::{FailedPrint, PrintRecipe, PrintReport, PrintRequest, PrintedVersion};

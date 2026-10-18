@@ -119,7 +119,11 @@ pub fn import_files<F: Into<Flow>>(
                 source.display()
             )))
         } else {
-            import_one(catalog, library_root, &roots, source, file, options)
+            // A panic inside one file is that file's skip (ADR 0152 §5).
+            crate::panic_net::isolate(|| {
+                import_one(catalog, library_root, &roots, source, file, options)
+            })
+            .unwrap_or_else(|reason| Err(Skip(reason)))
         };
         match outcome {
             Ok(imported) => report.imported.push(imported),

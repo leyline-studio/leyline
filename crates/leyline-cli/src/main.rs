@@ -363,6 +363,7 @@ fn restore_sigpipe() {
 fn restore_sigpipe() {}
 
 fn main() {
+    leyline_sdk::install_panic_hook();
     restore_sigpipe();
     let args: Vec<String> = std::env::args().skip(1).collect();
     if let Err(message) = run(&args) {
