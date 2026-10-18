@@ -7,6 +7,7 @@
 
 use leyline_core::{AssetId, KeywordId, LeylineError, Result};
 
+use crate::tree::{self, TreeNode};
 use crate::{Catalog, db_err, now_ms};
 
 /// One node of the keyword tree, children ordered by name.
@@ -20,6 +21,15 @@ pub struct KeywordNode {
     pub path: String,
     /// Child keywords, recursively.
     pub children: Vec<KeywordNode>,
+}
+
+impl TreeNode for KeywordNode {
+    fn name(&self) -> &str {
+        &self.name
+    }
+    fn children_mut(&mut self) -> &mut Vec<Self> {
+        &mut self.children
+    }
 }
 
 impl Catalog {
@@ -87,9 +97,7 @@ impl Catalog {
             .collect::<std::result::Result<Vec<_>, _>>()
             .map_err(db_err)?;
 
-        // Assemble children under their parents, deepest paths first, so a
-        // node is complete before it moves under its parent.
-        let mut nodes: std::collections::BTreeMap<i64, KeywordNode> = rows
+        let nodes: std::collections::BTreeMap<i64, KeywordNode> = rows
             .iter()
             .map(|(id, _, name, path)| {
                 (
@@ -104,26 +112,11 @@ impl Catalog {
             })
             .collect();
 
-        let mut children: Vec<(i64, i64)> = rows
+        let parents = rows
             .iter()
-            .filter_map(|(id, parent, _, _)| parent.map(|p| (*id, p)))
+            .filter_map(|(id, parent, ..)| parent.map(|p| (*id, p)))
             .collect();
-        children.sort_by_key(|&(id, _)| std::cmp::Reverse(nodes[&id].path.matches('/').count()));
-        for (id, parent) in children {
-            let node = nodes.remove(&id).expect("node moved once");
-            let parent = nodes
-                .get_mut(&parent)
-                .expect("parent outlives its children (ON DELETE RESTRICT)");
-            let at = parent
-                .children
-                .binary_search_by(|c| c.name.cmp(&node.name))
-                .unwrap_or_else(|e| e);
-            parent.children.insert(at, node);
-        }
-
-        let mut roots: Vec<KeywordNode> = nodes.into_values().collect();
-        roots.sort_by(|a, b| a.name.cmp(&b.name));
-        Ok(roots)
+        Ok(tree::assemble(nodes, &parents))
     }
 
     /// Tags a batch of assets with a keyword. Already-tagged assets are

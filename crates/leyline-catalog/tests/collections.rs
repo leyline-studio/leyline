@@ -269,3 +269,59 @@ fn deleting_takes_the_subtree_and_the_memberships_but_no_photo() {
     ));
     assert_eq!(catalog.grid(&Default::default()).unwrap().len(), 3);
 }
+
+/// Counts every node of a forest, at any depth.
+fn count_collections(nodes: &[leyline_catalog::CollectionNode]) -> usize {
+    nodes
+        .iter()
+        .map(|node| 1 + count_collections(&node.children))
+        .sum()
+}
+
+#[test]
+fn a_collection_moved_under_a_newer_one_is_still_read() {
+    // Ids no longer follow depth once a collection moves: "Older" (1) ends
+    // under "Middle" (2), itself under "Newest" (3). The tree used to be
+    // assembled highest id first and lost "Middle" before "Older" reached it.
+    let dir = tempfile::tempdir().unwrap();
+    let mut catalog = new_catalog(&dir);
+    let older = catalog.create_collection(None, "Older").unwrap();
+    let middle = catalog.create_collection(None, "Middle").unwrap();
+    let newest = catalog.create_collection(None, "Newest").unwrap();
+    catalog.move_collection(middle, Some(newest)).unwrap();
+    catalog.move_collection(older, Some(middle)).unwrap();
+
+    let tree = catalog.collections().unwrap();
+    assert_eq!(tree.len(), 1);
+    assert_eq!(tree[0].collection, newest);
+    assert_eq!(tree[0].children[0].collection, middle);
+    assert_eq!(tree[0].children[0].children[0].collection, older);
+}
+
+#[test]
+fn a_corrupted_parent_chain_is_read_without_losing_a_collection() {
+    // `move_collection` refuses a cycle, but the file can be edited by
+    // anything: a cycle, a self-parent or a dangling parent must not stop
+    // the read (ADR 0152 §1).
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("catalog.db");
+    {
+        let mut catalog = new_catalog(&dir);
+        for name in ["A", "B", "Self", "Orphan", "Fine"] {
+            catalog.create_collection(None, name).unwrap();
+        }
+    }
+    rusqlite::Connection::open(&path)
+        .unwrap()
+        .execute_batch(
+            "PRAGMA foreign_keys = OFF;
+             UPDATE collections SET parent_collection_id = 2 WHERE name = 'A';
+             UPDATE collections SET parent_collection_id = 1 WHERE name = 'B';
+             UPDATE collections SET parent_collection_id = 3 WHERE name = 'Self';
+             UPDATE collections SET parent_collection_id = 999 WHERE name = 'Orphan';",
+        )
+        .unwrap();
+
+    let tree = Catalog::open(&path).unwrap().collections().unwrap();
+    assert_eq!(count_collections(&tree), 5);
+}

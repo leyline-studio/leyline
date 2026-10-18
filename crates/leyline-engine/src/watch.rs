@@ -58,6 +58,9 @@ pub enum WatchError {
     /// The OS-level filesystem watcher failed to start or attach.
     #[error("filesystem watcher error: {0}")]
     Notify(String),
+    /// The OS refused the polling thread (out of threads or memory).
+    #[error("cannot start the watch thread: {0}")]
+    Thread(#[from] std::io::Error),
 }
 
 /// Result alias for this module.
@@ -106,8 +109,7 @@ impl WatchSession {
         let stop_thread = Arc::clone(&stop);
         let handle = std::thread::Builder::new()
             .name("leyline-watch".into())
-            .spawn(move || run(rx, stop_thread, on_event))
-            .expect("spawning the watch polling thread");
+            .spawn(move || run(rx, stop_thread, on_event))?;
         Ok(WatchSession {
             stop,
             handle: Some(handle),

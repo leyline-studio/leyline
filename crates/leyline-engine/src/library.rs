@@ -327,24 +327,26 @@ impl Library {
         }
         let catalog = Catalog::create(&root.join("catalog.db"), name)?;
         ensure_library_marker(root, &catalog)?;
-        Ok(Library::assemble(root, catalog))
+        Library::assemble(root, catalog)
     }
 
     /// Opens an existing library, applying pending catalog migrations.
     pub fn open(root: &Path) -> Result<Library> {
         let catalog = Catalog::open(&root.join("catalog.db"))?;
         ensure_library_marker(root, &catalog)?;
-        Ok(Library::assemble(root, catalog))
+        Library::assemble(root, catalog)
     }
 
     /// Opens an existing library without write access — the §5 fallback for
     /// catalogs newer than this engine.
     pub fn open_read_only(root: &Path) -> Result<Library> {
         let catalog = Catalog::open_read_only(&root.join("catalog.db"))?;
-        Ok(Library::assemble(root, catalog))
+        Library::assemble(root, catalog)
     }
 
-    fn assemble(root: &Path, catalog: Catalog) -> Library {
+    /// Fails only when the OS refuses a worker thread (out of threads or
+    /// memory): the workers already started stop once `job_tx` drops.
+    fn assemble(root: &Path, catalog: Catalog) -> Result<Library> {
         let (job_tx, job_rx) = channel::<Job>();
         let job_rx = Arc::new(Mutex::new(job_rx));
         for i in 0..job_pool_size() {
@@ -369,10 +371,9 @@ impl Library {
                             Err(_) => break,
                         }
                     }
-                })
-                .expect("spawning a job pool worker thread");
+                })?;
         }
-        Library {
+        Ok(Library {
             inner: Arc::new(Inner {
                 root: root.to_owned(),
                 cache: PreviewCache::new(root.join("Cache")),
@@ -391,7 +392,7 @@ impl Library {
                 cancelled_jobs: Mutex::new(HashSet::new()),
                 jobs: job_tx,
             }),
-        }
+        })
     }
 
     /// Submits a `*_async` job's closure to the bounded job pool (§3.3).

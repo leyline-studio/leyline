@@ -711,8 +711,8 @@ impl<'a> Ifd<'a> {
                     .chunks_exact(8)
                     .map(|c| {
                         let (n, d) = (
-                            self.i32_at(c[..4].try_into().unwrap()),
-                            self.i32_at(c[4..].try_into().unwrap()),
+                            self.i32_at([c[0], c[1], c[2], c[3]]),
+                            self.i32_at([c[4], c[5], c[6], c[7]]),
                         );
                         if d == 0 {
                             0.0
@@ -727,7 +727,7 @@ impl<'a> Ifd<'a> {
                 bytes
                     .chunks_exact(8)
                     .map(|c| {
-                        let raw = c.try_into().unwrap();
+                        let raw = [c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]];
                         if self.little_endian {
                             f64::from_le_bytes(raw)
                         } else {
@@ -762,7 +762,7 @@ impl<'a> Ifd<'a> {
             bytes
                 .chunks_exact(4)
                 .map(|c| {
-                    let raw = c.try_into().unwrap();
+                    let raw = [c[0], c[1], c[2], c[3]];
                     if self.little_endian {
                         f32::from_le_bytes(raw)
                     } else {
@@ -783,7 +783,7 @@ impl<'a> Ifd<'a> {
         Some(
             bytes
                 .chunks_exact(4)
-                .map(|c| self.u32_at(c.try_into().unwrap()))
+                .map(|c| self.u32_at([c[0], c[1], c[2], c[3]]))
                 .collect(),
         )
     }

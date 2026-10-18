@@ -17,6 +17,17 @@
 //! single camera; clients enqueue commands and read state back out of the
 //! session's slots.
 
+// ADR 0152: no panic on a production path, no `unsafe` outside raw and cli.
+#![deny(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented
+)]
+#![forbid(unsafe_code)]
+
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender, TryRecvError, channel};
@@ -195,8 +206,7 @@ impl TetherSession {
                     state_thread,
                     on_event,
                 )
-            })
-            .expect("spawning the tether polling thread");
+            })?;
         Ok(TetherSession {
             stop,
             commands,

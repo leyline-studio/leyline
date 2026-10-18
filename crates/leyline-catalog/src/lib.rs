@@ -28,6 +28,7 @@ mod prints;
 mod revisions;
 mod roots;
 mod search;
+mod tree;
 mod versions;
 
 pub use assets::{CHECKSUM_LEN, DeletedAssets, NewAsset, RegisteredAsset};
@@ -277,8 +278,30 @@ fn db_err(error: rusqlite::Error) -> LeylineError {
 
 /// Current time as UTC Unix epoch milliseconds (`docs/catalog.md` §7).
 fn now_ms() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("system clock before Unix epoch")
-        .as_millis() as i64
+    epoch_ms(SystemTime::now())
+}
+
+/// Milliseconds from the Unix epoch, negative before it. A clock set before
+/// 1970 is a wrong setting, not a reason to stop (ADR 0152 §1): the date is
+/// stored as the clock gives it, and saturates far beyond any real date.
+fn epoch_ms(time: SystemTime) -> i64 {
+    match time.duration_since(UNIX_EPOCH) {
+        Ok(after) => i64::try_from(after.as_millis()).unwrap_or(i64::MAX),
+        Err(before) => i64::try_from(before.duration().as_millis()).map_or(i64::MIN, |ms| -ms),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+    use super::epoch_ms;
+
+    #[test]
+    fn a_clock_before_1970_gives_a_negative_date() {
+        assert_eq!(epoch_ms(UNIX_EPOCH + Duration::from_millis(1_500)), 1_500);
+        assert_eq!(epoch_ms(UNIX_EPOCH - Duration::from_millis(1_500)), -1_500);
+        assert_eq!(epoch_ms(UNIX_EPOCH), 0);
+        assert!(epoch_ms(SystemTime::now()) > 0);
+    }
 }

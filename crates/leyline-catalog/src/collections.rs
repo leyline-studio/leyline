@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use leyline_core::{CollectionId, CollectionType, LeylineError, Result, VersionId};
 
+use crate::tree::{self, TreeNode};
 use crate::{Catalog, db_err, now_ms};
 
 /// Rating criterion of a smart collection.
@@ -92,6 +93,15 @@ pub struct CollectionNode {
     pub collection_type: CollectionType,
     /// Child collections, recursively.
     pub children: Vec<CollectionNode>,
+}
+
+impl TreeNode for CollectionNode {
+    fn name(&self) -> &str {
+        &self.name
+    }
+    fn children_mut(&mut self) -> &mut Vec<Self> {
+        &mut self.children
+    }
 }
 
 impl Catalog {
@@ -276,7 +286,7 @@ impl Catalog {
             .collect::<std::result::Result<Vec<_>, _>>()
             .map_err(db_err)?;
 
-        let mut nodes: std::collections::BTreeMap<i64, CollectionNode> = rows
+        let nodes: std::collections::BTreeMap<i64, CollectionNode> = rows
             .iter()
             .map(|(id, _, name, description, kind)| {
                 (
@@ -293,28 +303,11 @@ impl Catalog {
             })
             .collect();
 
-        // Move children under their parents, highest ids first: a child is
-        // always created after its parent, so it is complete when it moves.
-        let mut children: Vec<(i64, i64)> = rows
+        let parents = rows
             .iter()
             .filter_map(|(id, parent, ..)| parent.map(|p| (*id, p)))
             .collect();
-        children.sort_by_key(|&(id, _)| std::cmp::Reverse(id));
-        for (id, parent) in children {
-            let node = nodes.remove(&id).expect("node moved once");
-            let parent = nodes
-                .get_mut(&parent)
-                .expect("parent outlives its children (ON DELETE RESTRICT)");
-            let at = parent
-                .children
-                .binary_search_by(|c| c.name.cmp(&node.name))
-                .unwrap_or_else(|e| e);
-            parent.children.insert(at, node);
-        }
-
-        let mut roots: Vec<CollectionNode> = nodes.into_values().collect();
-        roots.sort_by(|a, b| a.name.cmp(&b.name));
-        Ok(roots)
+        Ok(tree::assemble(nodes, &parents))
     }
 
     /// Appends versions to a manual collection, in the given order, after

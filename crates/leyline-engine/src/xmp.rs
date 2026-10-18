@@ -20,8 +20,8 @@
 
 use std::path::{Path, PathBuf};
 
-use leyline_catalog::Catalog;
-use leyline_core::{AssetId, ColorLabel, Result};
+use leyline_catalog::{AssetDetails, Catalog, VersionInfo};
+use leyline_core::{AssetId, ColorLabel, LeylineError, Result};
 
 /// XMP namespace URIs. Prefixes are only a convention in XML — Lightroom's
 /// `xmp:`, darktable's `xmp:`, someone else's `ns2:` all denote the same
@@ -29,6 +29,17 @@ use leyline_core::{AssetId, ColorLabel, Result};
 const NS_XMP: &str = "http://ns.adobe.com/xap/1.0/";
 const NS_DC: &str = "http://purl.org/dc/elements/1.1/";
 const NS_LR: &str = "http://ns.adobe.com/lightroom/1.0/";
+
+/// The asset's current version among its versions. The schema cannot tie
+/// the two to the same asset, so a catalog edited by another tool can break
+/// the link: an error, not a panic (ADR 0152 §1).
+fn current_version(details: &AssetDetails) -> Result<&VersionInfo> {
+    details
+        .versions
+        .iter()
+        .find(|v| v.version == details.current_version)
+        .ok_or(LeylineError::VersionMissing(details.current_version))
+}
 
 /// Writes (or rewrites) the XMP sidecar of an asset, next to its file with
 /// the `.xmp` extension, and returns its path.
@@ -41,11 +52,7 @@ pub fn write_xmp_sidecar(
     asset: AssetId,
 ) -> Result<PathBuf> {
     let details = catalog.asset_details(asset)?;
-    let current = details
-        .versions
-        .iter()
-        .find(|v| v.version == details.current_version)
-        .expect("the current version is always one of the asset's versions");
+    let current = current_version(&details)?;
 
     // Resolve keyword ids to paths through the tree.
     let mut flat = Vec::new();
@@ -338,11 +345,7 @@ pub fn apply_xmp_sidecar(
     sidecar: &XmpSidecar,
 ) -> Result<bool> {
     let details = catalog.asset_details(asset)?;
-    let current = details
-        .versions
-        .iter()
-        .find(|v| v.version == details.current_version)
-        .expect("the current version is always one of the asset's versions");
+    let current = current_version(&details)?;
     let mut wrote = false;
 
     if let Some(rating) = sidecar.rating

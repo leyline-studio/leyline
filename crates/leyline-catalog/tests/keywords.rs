@@ -247,3 +247,39 @@ fn flatten(node: &leyline_catalog::KeywordNode) -> Vec<(KeywordId, String)> {
     }
     out
 }
+
+/// Counts every node of a forest, at any depth.
+fn count_keywords(nodes: &[leyline_catalog::KeywordNode]) -> usize {
+    nodes
+        .iter()
+        .map(|node| 1 + count_keywords(&node.children))
+        .sum()
+}
+
+#[test]
+fn a_corrupted_parent_chain_is_read_without_losing_a_keyword() {
+    // Nothing in the schema forbids a cycle between rows: a file edited by
+    // another tool must still list every keyword, and not panic (ADR 0152 §1).
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("catalog.db");
+    {
+        let mut catalog = new_catalog(&dir);
+        let nature = catalog.create_keyword(None, "Nature").unwrap();
+        catalog.create_keyword(Some(nature), "Birds").unwrap();
+        for name in ["Self", "Orphan"] {
+            catalog.create_keyword(None, name).unwrap();
+        }
+    }
+    rusqlite::Connection::open(&path)
+        .unwrap()
+        .execute_batch(
+            "PRAGMA foreign_keys = OFF;
+             UPDATE keywords SET parent_id = 2 WHERE name = 'Nature';
+             UPDATE keywords SET parent_id = 3 WHERE name = 'Self';
+             UPDATE keywords SET parent_id = 999 WHERE name = 'Orphan';",
+        )
+        .unwrap();
+
+    let tree = Catalog::open(&path).unwrap().keyword_tree().unwrap();
+    assert_eq!(count_keywords(&tree), 4);
+}

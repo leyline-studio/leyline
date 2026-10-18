@@ -442,3 +442,25 @@ fn the_sidecar_carries_the_authored_description() {
     let facts = library.catalog().metadata(asset).unwrap().unwrap();
     assert_eq!(facts.artist.as_deref(), Some("EXIF Artist"));
 }
+
+#[test]
+fn a_catalog_whose_current_version_points_elsewhere_is_an_error_not_a_panic() {
+    // The schema cannot tie `develop_current` to a version *of the same
+    // asset*; a file edited by another tool can break it (ADR 0152 §1).
+    let dir = tempfile::tempdir().unwrap();
+    let (library, asset, _) = library_with_one_photo(dir.path());
+    drop(library);
+    let root = dir.path().join("Lib");
+    rusqlite::Connection::open(root.join("catalog.db"))
+        .unwrap()
+        .execute_batch(
+            "PRAGMA foreign_keys = OFF;
+             UPDATE develop_current SET version_id = 999;",
+        )
+        .unwrap();
+    std::fs::write(sidecar_beside_the_copy(dir.path()), FOREIGN_SIDECAR).unwrap();
+
+    let library = Library::open(&root).unwrap();
+    assert!(library.write_xmp(asset).is_err());
+    assert!(library.read_xmp(asset).is_err());
+}
