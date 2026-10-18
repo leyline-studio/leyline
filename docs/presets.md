@@ -48,7 +48,7 @@ The rule that generates the list: **one category per block of the develop panel*
 | `creative_lut` | `CreativeLut` | `lut` ([ADR 0053](adr/0053-creative-lut.md)) |
 | `effects` | `Effects` | `vignette`, `grain` (ADR 0090 §5) |
 | `lens_correction` | `LensCorrection` | `lens_correction`, `defringe` — the category is *what the lens did to this photograph*, not the `LensCorrection` struct ([ADR 0113](adr/0113-defringe.md) §5) |
-| `detail` | `Detail` | `noise_reduction`, `sharpening` |
+| `detail` | `Detail` | `noise_reduction`, `sharpening`, `moire` ([ADR 0165](adr/0165-colour-moire.md)) |
 | `rendering` | `Rendering` | `highlight_reconstruction`, `demosaic`, `output_rendering` — how the photograph comes out of the file |
 | `geometry` | `Geometry` | `rotation`, `crop`, `perspective` |
 | `reshape` | `Reshape` | `reshape` ([ADR 0109](adr/0109-reshape-stage.md)) |

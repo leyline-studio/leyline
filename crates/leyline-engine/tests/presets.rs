@@ -177,6 +177,7 @@ fn a_development_with_nothing_left_neutral() -> Settings {
             midtone_split: 45,
             highlight_split: 80,
         },
+        moire: 25,
         levels: Levels {
             input_black: 5,
             input_white: 250,

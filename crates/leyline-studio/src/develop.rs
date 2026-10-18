@@ -86,6 +86,7 @@ pub fn action(slider: &str, value: f64, current: &Settings) -> Option<(Param, Va
         "clarity" => (Param::Clarity, int),
         "texture" => (Param::Texture, int),
         "dehaze" => (Param::Dehaze, int),
+        "moire" => (Param::Moire, int),
         "highlight-rolloff" => (Param::HighlightRolloff, int),
         "vibrance" => (Param::Vibrance, int),
         "saturation" => (Param::Saturation, int),
@@ -544,6 +545,9 @@ pub fn reset_group(group: &str, current: &Settings) -> Vec<(Param, Value)> {
                     Param::Sharpening,
                     Value::Sharpening(neutral.sharpening.clone()),
                 );
+            }
+            if current.moire != neutral.moire {
+                set(Param::Moire, Value::Int(neutral.moire));
             }
         }
         "effects" => {
@@ -1929,6 +1933,7 @@ mod reset_tests {
                 temperature: 4200,
                 tint: 12,
             }),
+            moire: 30,
             levels: leyline_sdk::Levels {
                 gamma: 1.2,
                 ..leyline_sdk::Levels::default()
@@ -2084,14 +2089,15 @@ mod reset_tests {
 
         assert_eq!(
             touched("detail"),
-            ["NoiseReduction", "Sharpening"],
-            "detail owns exactly the two pairs"
+            ["Moire", "NoiseReduction", "Sharpening"],
+            "detail owns the two pairs and the moiré beside them (ADR 0165 §3)"
         );
         assert_eq!(
             values("detail"),
             [
                 Value::NoiseReduction(neutral.noise_reduction.clone()),
                 Value::Sharpening(neutral.sharpening.clone()),
+                Value::Int(neutral.moire),
             ]
         );
         assert_eq!(touched("effects"), ["Grain", "Vignette"]);

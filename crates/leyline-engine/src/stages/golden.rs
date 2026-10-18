@@ -405,6 +405,15 @@ fn camera_profile(settings: Settings) -> Settings {
     }
 }
 
+/// Colour moiré (ADR 0165) — a new case at a strength high enough that the
+/// guided filter's window is wider than the fixture's finest detail.
+fn moire(settings: Settings) -> Settings {
+    Settings {
+        moire: 70,
+        ..settings
+    }
+}
+
 /// Levels (ADR 0164) — a new case, all five numbers off neutral: a case
 /// that only moved the black point would say nothing about the gamma or the
 /// output limits.
@@ -850,6 +859,7 @@ pub(super) fn cases() -> Vec<(String, Case)> {
         ("camera_profile", camera_profile(base.clone())),
         ("parametric_curve", parametric_curve(base.clone())),
         ("levels", levels(base.clone())),
+        ("moire", moire(base.clone())),
         ("tone_curve", tone_curve(base.clone())),
         ("tone_curve_channels", tone_curve_channels(base.clone())),
         ("spots", spots(base.clone())),

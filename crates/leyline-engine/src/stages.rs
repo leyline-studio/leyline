@@ -118,6 +118,9 @@ pub(crate) mod parametric_curve {
 pub(crate) mod levels {
     pub(crate) mod v1;
 }
+pub(crate) mod moire {
+    pub(crate) mod v1;
+}
 pub(crate) mod tone_curve {
     pub(crate) mod v1;
     pub(crate) mod v2;
@@ -1111,6 +1114,20 @@ pub(crate) static STAGES: &[Stage] = &[
                 },
             },
         ],
+    },
+    Stage {
+        // Colour moiré (ADR 0165): next to the other sensor artefacts, and
+        // before anything resamples the image. A stage of its own, so no
+        // existing revision's map changes.
+        name: "moire",
+        active: |settings| settings.moire != 0,
+        reads: &["moire"],
+        versions: &[Version {
+            version: 1,
+            rank: 7,
+            space: Space::LinearRec2020,
+            apply: |px, ctx| moire::v1::moire(px, ctx.settings.moire, ctx.scale),
+        }],
     },
     Stage {
         name: "noise_color",

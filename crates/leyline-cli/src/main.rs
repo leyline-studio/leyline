@@ -288,6 +288,8 @@ Develop params (docs/pipeline.md §3.2, schema 1):
                                     beside a high-contrast edge, each in [0, 100]
                                     (ADR 0113); green defaults to 0
   noise-reduction <luminance> <color>
+  moire <0-100>                     colour moiré: false colour bands over fine
+                                    patterns; 0 = off (ADR 0165)
   sharpening <amount> <radius> [masking]
                                     masking confines the sharpening to edges
                                     (ADR 0096); absent = 0, as before
@@ -1158,6 +1160,7 @@ fn develop(args: &[String]) -> Result<(), String> {
         "clarity" => (Param::Clarity, Value::Int(int_at(0)?)),
         "texture" => (Param::Texture, Value::Int(int_at(0)?)),
         "dehaze" => (Param::Dehaze, Value::Int(int_at(0)?)),
+        "moire" => (Param::Moire, Value::Int(int_at(0)?)),
         "highlight-rolloff" => (Param::HighlightRolloff, Value::Int(int_at(0)?)),
         "highlight-reconstruction" => {
             let mode = match at(0)? {

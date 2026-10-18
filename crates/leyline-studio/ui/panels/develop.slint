@@ -3569,6 +3569,23 @@ export component DevelopPanel inherits HorizontalLayout {
                                 DevelopState.develop-preview("nr-color", v);
                             }
                         }
+                        // Colour moiré (ADR 0165), beside the colour noise it
+                        // neighbours in the pipeline. Off until moved: a
+                        // false positive would damage a photograph nobody
+                        // was looking at (§4).
+                        EditSlider {
+                            label: @tr("Moiré");
+                            hint: @tr("Removes false colour bands over fine patterns such as fabric or screens. Stripes stay.");
+                            minimum: 0;
+                            maximum: 100;
+                            value: DevelopState.dev.moire;
+                            edited(v) => {
+                                DevelopState.develop-edit("moire", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("moire", v);
+                            }
+                        }
                         SubHeading {
                             label: @tr("Sharpening");
                         }

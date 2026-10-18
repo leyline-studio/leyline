@@ -569,6 +569,14 @@ impl ParametricCurve {
     }
 }
 
+/// `skip_serializing_if` for an integer setting added after the first
+/// schema: a revision that never moved it stores nothing, so its document is
+/// the one it always was.
+#[allow(clippy::trivially_copy_pass_by_ref)] // serde passes a reference
+fn is_zero_i32(value: &i32) -> bool {
+    *value == 0
+}
+
 /// Levels (ADR 0164): black, gamma and white points, and output limits, on
 /// the 0–255 scale the numbers are known in — only a scale: nothing is
 /// quantised to 8 bits. Applied at rank 78, between the parametric curve and
@@ -1216,6 +1224,10 @@ pub struct Settings {
     pub lens_correction: LensCorrection,
     /// Noise reduction step.
     pub noise_reduction: NoiseReduction,
+    /// Colour moiré reduction (ADR 0165), in [0, 100]; 0 = the stage does
+    /// not run. Colour only: luminance moiré is refused (§1).
+    #[serde(default, skip_serializing_if = "is_zero_i32")]
+    pub moire: i32,
     /// Sharpening step.
     pub sharpening: Sharpening,
     /// Defringe (ADR 0113), beside the lens corrections it belongs with.
@@ -1298,6 +1310,7 @@ impl Default for Settings {
             local_adjustments: Vec::new(),
             lens_correction: LensCorrection::default(),
             noise_reduction: NoiseReduction::default(),
+            moire: 0,
             output_rendering: OutputRendering::default(),
             highlight_reconstruction: HighlightReconstruction::default(),
             demosaic: Demosaic::default(),
@@ -1529,6 +1542,8 @@ impl Settings {
                 "parametric_curve splits must be strictly increasing".to_owned(),
             ));
         }
+
+        slider("moire", self.moire, 0, 100)?;
 
         // Levels (ADR 0164 §3).
         let levels = &self.levels;
@@ -2204,6 +2219,7 @@ pub const SETTINGS_KEYS: &[&str] = &[
     "levels",
     "local_adjustments",
     "lut",
+    "moire",
     "monochrome",
     "noise_reduction",
     "output_rendering",
@@ -2307,6 +2323,11 @@ pub struct PresetSettings {
     /// Present when `groups` includes [`SettingsGroup::Detail`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub noise_reduction: Option<NoiseReduction>,
+    /// Present when `groups` includes [`SettingsGroup::Detail`] (ADR 0165
+    /// §3); absent from a preset written before that ADR, which then leaves
+    /// moiré alone.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub moire: Option<i32>,
     /// Present when `groups` includes [`SettingsGroup::Detail`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sharpening: Option<Sharpening>,
@@ -2472,6 +2493,7 @@ impl PresetSettings {
                 }
                 SettingsGroup::Detail => {
                     preset.noise_reduction = Some(settings.noise_reduction.clone());
+                    preset.moire = Some(settings.moire);
                     preset.sharpening = Some(settings.sharpening.clone());
                 }
                 SettingsGroup::Geometry => {
@@ -3796,6 +3818,7 @@ mod specification {
                 gamma: 1.2,
                 ..Levels::default()
             },
+            moire: 30,
             red_eye: vec![RedEye {
                 center: Point { x: 0.5, y: 0.5 },
                 radius: 0.05,

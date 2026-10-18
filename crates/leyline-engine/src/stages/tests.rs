@@ -1789,6 +1789,8 @@ fn everything() -> Settings {
     settings.parametric_curve.darks = 20;
     // ADR 0164: levels off neutral, so the levels stage plans too.
     settings.levels.gamma = 1.1;
+    // ADR 0165: moiré off zero, so the moiré stage plans too.
+    settings.moire = 20;
     settings.hsl[0].saturation = 20;
     settings.color_grading.shadows.saturation = 20;
     settings.local_adjustments = vec![LocalAdjustment {

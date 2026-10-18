@@ -81,6 +81,7 @@ pub(crate) fn dev_model(settings: &Settings) -> crate::ui::DevSettings {
         parametric_shadow_split: settings.parametric_curve.shadow_split as f32,
         parametric_midtone_split: settings.parametric_curve.midtone_split as f32,
         parametric_highlight_split: settings.parametric_curve.highlight_split as f32,
+        moire: settings.moire as f32,
         levels_input_black: settings.levels.input_black as f32,
         levels_input_white: settings.levels.input_white as f32,
         levels_gamma: settings.levels.gamma as f32,

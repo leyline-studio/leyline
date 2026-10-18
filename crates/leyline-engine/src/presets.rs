@@ -225,6 +225,9 @@ fn param_values(preset: &PresetSettings) -> Vec<(Param, Value)> {
     if let Some(v) = preset.parametric_curve {
         values.push((Param::ParametricCurve, Value::ParametricCurve(v)));
     }
+    if let Some(v) = preset.moire {
+        values.push((Param::Moire, Value::Int(v)));
+    }
     if let Some(v) = preset.levels {
         values.push((Param::Levels, Value::Levels(v)));
     }

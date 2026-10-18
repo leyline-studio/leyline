@@ -5029,3 +5029,15 @@ msgstr "Le niveau le plus clair que garde la photo."
 msgctxt "Tr"
 msgid "Levels"
 msgstr "Niveaux"
+
+msgctxt "DevelopPanel"
+msgid "Moiré"
+msgstr "Moiré"
+
+msgctxt "DevelopPanel"
+msgid "Removes false colour bands over fine patterns such as fabric or screens. Stripes stay."
+msgstr "Retire les fausses bandes de couleur des motifs fins, tissus ou écrans. Les rayures restent."
+
+msgctxt "Tr"
+msgid "Moiré"
+msgstr "Moiré"

@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2026-10-18 21:50+0000\n"
+"POT-Creation-Date: 2026-10-18 22:13+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1806,7 +1806,7 @@ msgctxt "ComparePanel"
 msgid "{} (candidate)"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:319 crates/leyline-studio/ui/panels/develop.slint:3801
+#: crates/leyline-studio/ui/panels/develop.slint:319 crates/leyline-studio/ui/panels/develop.slint:3818
 msgctxt "DevelopPanel"
 msgid "Red"
 msgstr ""
@@ -1821,7 +1821,7 @@ msgctxt "DevelopPanel"
 msgid "Yellow"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:319 crates/leyline-studio/ui/panels/develop.slint:2461 crates/leyline-studio/ui/panels/develop.slint:3509 crates/leyline-studio/ui/panels/develop.slint:3808
+#: crates/leyline-studio/ui/panels/develop.slint:319 crates/leyline-studio/ui/panels/develop.slint:2461 crates/leyline-studio/ui/panels/develop.slint:3509 crates/leyline-studio/ui/panels/develop.slint:3825
 msgctxt "DevelopPanel"
 msgid "Green"
 msgstr ""
@@ -1831,7 +1831,7 @@ msgctxt "DevelopPanel"
 msgid "Aqua"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:320 crates/leyline-studio/ui/panels/develop.slint:3815
+#: crates/leyline-studio/ui/panels/develop.slint:320 crates/leyline-studio/ui/panels/develop.slint:3832
 msgctxt "DevelopPanel"
 msgid "Blue"
 msgstr ""
@@ -2016,7 +2016,7 @@ msgid ""
 "the circle are corrected, so the circle need not be precise."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1828 crates/leyline-studio/ui/panels/develop.slint:2248 crates/leyline-studio/ui/panels/develop.slint:3685
+#: crates/leyline-studio/ui/panels/develop.slint:1828 crates/leyline-studio/ui/panels/develop.slint:2248 crates/leyline-studio/ui/panels/develop.slint:3702
 msgctxt "DevelopPanel"
 msgid "Feather"
 msgstr ""
@@ -2031,7 +2031,7 @@ msgctxt "DevelopPanel"
 msgid "{} placed"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:1875 crates/leyline-studio/ui/panels/develop.slint:1952 crates/leyline-studio/ui/panels/develop.slint:4519
+#: crates/leyline-studio/ui/panels/develop.slint:1875 crates/leyline-studio/ui/panels/develop.slint:1952 crates/leyline-studio/ui/panels/develop.slint:4536
 msgctxt "DevelopPanel"
 msgid "Clear"
 msgstr ""
@@ -2144,7 +2144,7 @@ msgctxt "DevelopPanel"
 msgid "Contrast"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2293 crates/leyline-studio/ui/panels/develop.slint:3007 crates/leyline-studio/ui/panels/develop.slint:3959 crates/leyline-studio/ui/panels/develop.slint:4284
+#: crates/leyline-studio/ui/panels/develop.slint:2293 crates/leyline-studio/ui/panels/develop.slint:3007 crates/leyline-studio/ui/panels/develop.slint:3976 crates/leyline-studio/ui/panels/develop.slint:4301
 msgctxt "DevelopPanel"
 msgid "Highlights"
 msgstr ""
@@ -2156,7 +2156,7 @@ msgid ""
 "itself."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2306 crates/leyline-studio/ui/panels/develop.slint:3020 crates/leyline-studio/ui/panels/develop.slint:3998 crates/leyline-studio/ui/panels/develop.slint:4194
+#: crates/leyline-studio/ui/panels/develop.slint:2306 crates/leyline-studio/ui/panels/develop.slint:3020 crates/leyline-studio/ui/panels/develop.slint:4015 crates/leyline-studio/ui/panels/develop.slint:4211
 msgctxt "DevelopPanel"
 msgid "Shadows"
 msgstr ""
@@ -2204,7 +2204,7 @@ msgid ""
 "all equally."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2358 crates/leyline-studio/ui/panels/develop.slint:3210 crates/leyline-studio/ui/panels/develop.slint:4152 crates/leyline-studio/ui/panels/develop.slint:4212 crates/leyline-studio/ui/panels/develop.slint:4257 crates/leyline-studio/ui/panels/develop.slint:4302 crates/leyline-studio/ui/panels/develop.slint:4413
+#: crates/leyline-studio/ui/panels/develop.slint:2358 crates/leyline-studio/ui/panels/develop.slint:3210 crates/leyline-studio/ui/panels/develop.slint:4169 crates/leyline-studio/ui/panels/develop.slint:4229 crates/leyline-studio/ui/panels/develop.slint:4274 crates/leyline-studio/ui/panels/develop.slint:4319 crates/leyline-studio/ui/panels/develop.slint:4430
 msgctxt "DevelopPanel"
 msgid "Saturation"
 msgstr ""
@@ -2246,7 +2246,7 @@ msgctxt "DevelopPanel"
 msgid "Noise reduction"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2416 crates/leyline-studio/ui/panels/develop.slint:3547 crates/leyline-studio/ui/panels/develop.slint:4164 crates/leyline-studio/ui/panels/develop.slint:4224 crates/leyline-studio/ui/panels/develop.slint:4269 crates/leyline-studio/ui/panels/develop.slint:4314
+#: crates/leyline-studio/ui/panels/develop.slint:2416 crates/leyline-studio/ui/panels/develop.slint:3547 crates/leyline-studio/ui/panels/develop.slint:4181 crates/leyline-studio/ui/panels/develop.slint:4241 crates/leyline-studio/ui/panels/develop.slint:4286 crates/leyline-studio/ui/panels/develop.slint:4331
 msgctxt "DevelopPanel"
 msgid "Luminance"
 msgstr ""
@@ -2258,7 +2258,7 @@ msgid ""
 "plastic."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2429 crates/leyline-studio/ui/panels/develop.slint:3560 crates/leyline-studio/ui/panels/develop.slint:3740
+#: crates/leyline-studio/ui/panels/develop.slint:2429 crates/leyline-studio/ui/panels/develop.slint:3560 crates/leyline-studio/ui/panels/develop.slint:3757
 msgctxt "DevelopPanel"
 msgid "Color"
 msgstr ""
@@ -2365,7 +2365,7 @@ msgctxt "DevelopPanel"
 msgid "Take the colour range from the photograph"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:2584 crates/leyline-studio/ui/panels/develop.slint:4140 crates/leyline-studio/ui/panels/develop.slint:4200 crates/leyline-studio/ui/panels/develop.slint:4245 crates/leyline-studio/ui/panels/develop.slint:4290
+#: crates/leyline-studio/ui/panels/develop.slint:2584 crates/leyline-studio/ui/panels/develop.slint:4157 crates/leyline-studio/ui/panels/develop.slint:4217 crates/leyline-studio/ui/panels/develop.slint:4262 crates/leyline-studio/ui/panels/develop.slint:4307
 msgctxt "DevelopPanel"
 msgid "Hue"
 msgstr ""
@@ -2694,358 +2694,370 @@ msgctxt "DevelopPanel"
 msgid "Detail"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:3573
+#: crates/leyline-studio/ui/panels/develop.slint:3577
+msgctxt "DevelopPanel"
+msgid "Moiré"
+msgstr ""
+
+#: crates/leyline-studio/ui/panels/develop.slint:3578
+msgctxt "DevelopPanel"
+msgid ""
+"Removes false colour bands over fine patterns such as fabric or screens. "
+"Stripes stay."
+msgstr ""
+
+#: crates/leyline-studio/ui/panels/develop.slint:3590
 msgctxt "DevelopPanel"
 msgid "Sharpening"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:3576 crates/leyline-studio/ui/panels/develop.slint:3647 crates/leyline-studio/ui/panels/develop.slint:3701
+#: crates/leyline-studio/ui/panels/develop.slint:3593 crates/leyline-studio/ui/panels/develop.slint:3664 crates/leyline-studio/ui/panels/develop.slint:3718
 msgctxt "DevelopPanel"
 msgid "Amount"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:3588
+#: crates/leyline-studio/ui/panels/develop.slint:3605
 msgctxt "DevelopPanel"
 msgid "Radius"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:3589
+#: crates/leyline-studio/ui/panels/develop.slint:3606
 msgctxt "DevelopPanel"
 msgid ""
 "How wide an edge the sharpening works on. Small for fine detail, larger for "
 "a soft image."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:3607
+#: crates/leyline-studio/ui/panels/develop.slint:3624
 msgctxt "DevelopPanel"
 msgid "Masking"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:3608
+#: crates/leyline-studio/ui/panels/develop.slint:3625
 msgctxt "DevelopPanel"
 msgid ""
 "Keeps the sharpening on the edges and off the flat areas, so a sky stays "
 "smooth."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:3627
+#: crates/leyline-studio/ui/panels/develop.slint:3644
 msgctxt "DevelopPanel"
 msgid "Effects"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:3644
+#: crates/leyline-studio/ui/panels/develop.slint:3661
 msgctxt "DevelopPanel"
 msgid "Vignette"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:3659
+#: crates/leyline-studio/ui/panels/develop.slint:3676
 msgctxt "DevelopPanel"
 msgid "Midpoint"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:3660
+#: crates/leyline-studio/ui/panels/develop.slint:3677
 msgctxt "DevelopPanel"
 msgid "How far from the centre the vignette begins."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:3672
+#: crates/leyline-studio/ui/panels/develop.slint:3689
 msgctxt "DevelopPanel"
 msgid "Roundness"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:3673
+#: crates/leyline-studio/ui/panels/develop.slint:3690
 msgctxt "DevelopPanel"
 msgid "Whether the vignette follows a circle or the shape of the frame."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:3686
+#: crates/leyline-studio/ui/panels/develop.slint:3703
 msgctxt "DevelopPanel"
 msgid "How gradually the vignette fades in."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:3698
+#: crates/leyline-studio/ui/panels/develop.slint:3715
 msgctxt "DevelopPanel"
 msgid "Grain"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:3713
+#: crates/leyline-studio/ui/panels/develop.slint:3730
 msgctxt "DevelopPanel"
 msgid "Size"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:3725
+#: crates/leyline-studio/ui/panels/develop.slint:3742
 msgctxt "DevelopPanel"
 msgid "Roughness"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:3726
+#: crates/leyline-studio/ui/panels/develop.slint:3743
 msgctxt "DevelopPanel"
 msgid "How uneven the grain is. Higher reads as faster film."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:3741
+#: crates/leyline-studio/ui/panels/develop.slint:3758
 msgctxt "DevelopPanel"
 msgid "How coloured the grain is. Zero is a monochrome speckle."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:3755
+#: crates/leyline-studio/ui/panels/develop.slint:3772
 msgctxt "DevelopPanel"
 msgid "Tone Curve"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:3777
+#: crates/leyline-studio/ui/panels/develop.slint:3794
 msgctxt "DevelopPanel"
 msgid "Point"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:3784
+#: crates/leyline-studio/ui/panels/develop.slint:3801
 msgctxt "DevelopPanel"
 msgid "Region"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:3794
+#: crates/leyline-studio/ui/panels/develop.slint:3811
 msgctxt "DevelopPanel"
 msgid "Master"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:3823
+#: crates/leyline-studio/ui/panels/develop.slint:3840
 msgctxt "DevelopPanel"
 msgid "Click to add a point, click a point to remove it."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:3953
+#: crates/leyline-studio/ui/panels/develop.slint:3970
 msgctxt "DevelopPanel"
 msgid "Drag the three markers to say where each region begins."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:3960
+#: crates/leyline-studio/ui/panels/develop.slint:3977
 msgctxt "DevelopPanel"
 msgid "Lifts the brightest region, between the last marker and white."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:3972
+#: crates/leyline-studio/ui/panels/develop.slint:3989
 msgctxt "DevelopPanel"
 msgid "Lights"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:3973
+#: crates/leyline-studio/ui/panels/develop.slint:3990
 msgctxt "DevelopPanel"
 msgid "Lifts the region between the second and third markers."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:3985
+#: crates/leyline-studio/ui/panels/develop.slint:4002
 msgctxt "DevelopPanel"
 msgid "Darks"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:3986
+#: crates/leyline-studio/ui/panels/develop.slint:4003
 msgctxt "DevelopPanel"
 msgid "Lifts the region between the first and second markers."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:3999
+#: crates/leyline-studio/ui/panels/develop.slint:4016
 msgctxt "DevelopPanel"
 msgid "Lifts the darkest region, between black and the first marker."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4011
+#: crates/leyline-studio/ui/panels/develop.slint:4028
 msgctxt "DevelopPanel"
 msgid "Reset Curve"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4025
+#: crates/leyline-studio/ui/panels/develop.slint:4042
 msgctxt "DevelopPanel"
 msgid "Levels"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4038
+#: crates/leyline-studio/ui/panels/develop.slint:4055
 msgctxt "DevelopPanel"
 msgid "Black point"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4039
+#: crates/leyline-studio/ui/panels/develop.slint:4056
 msgctxt "DevelopPanel"
 msgid "Input level that becomes the output black."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4051
+#: crates/leyline-studio/ui/panels/develop.slint:4068
 msgctxt "DevelopPanel"
 msgid "Gamma"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4052
+#: crates/leyline-studio/ui/panels/develop.slint:4069
 msgctxt "DevelopPanel"
 msgid "Midtones: above 1 brightens, below 1 darkens."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4066
+#: crates/leyline-studio/ui/panels/develop.slint:4083
 msgctxt "DevelopPanel"
 msgid "White point"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4067
+#: crates/leyline-studio/ui/panels/develop.slint:4084
 msgctxt "DevelopPanel"
 msgid "Input level that becomes the output white."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4080
+#: crates/leyline-studio/ui/panels/develop.slint:4097
 msgctxt "DevelopPanel"
 msgid "Output black"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4081
+#: crates/leyline-studio/ui/panels/develop.slint:4098
 msgctxt "DevelopPanel"
 msgid "The darkest level the photograph keeps."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4093
+#: crates/leyline-studio/ui/panels/develop.slint:4110
 msgctxt "DevelopPanel"
 msgid "Output white"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4094
+#: crates/leyline-studio/ui/panels/develop.slint:4111
 msgctxt "DevelopPanel"
 msgid "The brightest level the photograph keeps."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4109
+#: crates/leyline-studio/ui/panels/develop.slint:4126
 msgctxt "DevelopPanel"
 msgid "HSL Mixer"
 msgstr ""
 
 #. greying them out would suggest they were broken.
-#: crates/leyline-studio/ui/panels/develop.slint:4124
+#: crates/leyline-studio/ui/panels/develop.slint:4141
 msgctxt "DevelopPanel"
 msgid "In black and white, only Luminance acts: it is the B&W mix."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4179
+#: crates/leyline-studio/ui/panels/develop.slint:4196
 msgctxt "DevelopPanel"
 msgid "Color Grading"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4239
+#: crates/leyline-studio/ui/panels/develop.slint:4256
 msgctxt "DevelopPanel"
 msgid "Midtones"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4327
+#: crates/leyline-studio/ui/panels/develop.slint:4344
 msgctxt "DevelopPanel"
 msgid "Balance"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4328
+#: crates/leyline-studio/ui/panels/develop.slint:4345
 msgctxt "DevelopPanel"
 msgid ""
 "Which zones the three wheels reach: towards the shadows, or towards the "
 "highlights."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4340
+#: crates/leyline-studio/ui/panels/develop.slint:4357
 msgctxt "DevelopPanel"
 msgid "Blending"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4341
+#: crates/leyline-studio/ui/panels/develop.slint:4358
 msgctxt "DevelopPanel"
 msgid ""
 "How much the three zones overlap. Low keeps them apart, high blends them "
 "into one another."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4355
+#: crates/leyline-studio/ui/panels/develop.slint:4372
 msgctxt "DevelopPanel"
 msgid "Soft Proof"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4364
+#: crates/leyline-studio/ui/panels/develop.slint:4381
 msgctxt "DevelopPanel"
 msgid ""
 "Shows the photo as a destination profile would reproduce it. Never stored, "
 "never exported."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4371
+#: crates/leyline-studio/ui/panels/develop.slint:4388
 msgctxt "DevelopPanel"
 msgid "No proof — the real render"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4381
+#: crates/leyline-studio/ui/panels/develop.slint:4398
 msgctxt "DevelopPanel"
 msgid "Choose .icc…"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4388
+#: crates/leyline-studio/ui/panels/develop.slint:4405
 msgctxt "DevelopPanel"
 msgid "Stop proofing"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4399
+#: crates/leyline-studio/ui/panels/develop.slint:4416
 msgctxt "DevelopPanel"
 msgid "Perceptual"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4406
+#: crates/leyline-studio/ui/panels/develop.slint:4423
 msgctxt "DevelopPanel"
 msgid "Relative"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4420
+#: crates/leyline-studio/ui/panels/develop.slint:4437
 msgctxt "DevelopPanel"
 msgid "Absolute"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4428
+#: crates/leyline-studio/ui/panels/develop.slint:4445
 msgctxt "DevelopPanel"
 msgid "Flag out-of-gamut colors"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4437
+#: crates/leyline-studio/ui/panels/develop.slint:4454
 msgctxt "DevelopPanel"
 msgid "Geometry"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4452
+#: crates/leyline-studio/ui/panels/develop.slint:4469
 msgctxt "DevelopPanel"
 msgid "Keystone"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4472
+#: crates/leyline-studio/ui/panels/develop.slint:4489
 msgctxt "DevelopPanel"
 msgid "Perspective"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4475
+#: crates/leyline-studio/ui/panels/develop.slint:4492
 msgctxt "DevelopPanel"
 msgid "Vertical"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4476
+#: crates/leyline-studio/ui/panels/develop.slint:4493
 msgctxt "DevelopPanel"
 msgid "Straightens converging verticals — a building that leans away."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4488
+#: crates/leyline-studio/ui/panels/develop.slint:4505
 msgctxt "DevelopPanel"
 msgid "Horizontal"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4489
+#: crates/leyline-studio/ui/panels/develop.slint:4506
 msgctxt "DevelopPanel"
 msgid "Straightens converging horizontals — a wall taken from an angle."
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4505
+#: crates/leyline-studio/ui/panels/develop.slint:4522
 msgctxt "DevelopPanel"
 msgid "{} guides"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4511
+#: crates/leyline-studio/ui/panels/develop.slint:4528
 msgctxt "DevelopPanel"
 msgid "Straighten"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/develop.slint:4528
+#: crates/leyline-studio/ui/panels/develop.slint:4545
 msgctxt "DevelopPanel"
 msgid ""
 "Pick Keystone in the header above, then drag along two or more edges that "
@@ -3909,529 +3921,534 @@ msgctxt "StudioWindow"
 msgid "The import dialog opens — nothing is imported until you say so."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:442
+#: crates/leyline-studio/ui/types.slint:444
 msgctxt "Tr"
 msgid "en"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:450 crates/leyline-studio/ui/types.slint:517
+#: crates/leyline-studio/ui/types.slint:452 crates/leyline-studio/ui/types.slint:519
 msgctxt "Tr"
 msgid "White balance"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:453
+#: crates/leyline-studio/ui/types.slint:455
 msgctxt "Tr"
 msgid "Temperature"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:456 crates/leyline-studio/ui/types.slint:520
+#: crates/leyline-studio/ui/types.slint:458 crates/leyline-studio/ui/types.slint:522
 msgctxt "Tr"
 msgid "Exposure"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:459 crates/leyline-studio/ui/types.slint:523
+#: crates/leyline-studio/ui/types.slint:461 crates/leyline-studio/ui/types.slint:525
 msgctxt "Tr"
 msgid "Contrast"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:462 crates/leyline-studio/ui/types.slint:526
+#: crates/leyline-studio/ui/types.slint:464 crates/leyline-studio/ui/types.slint:528
 msgctxt "Tr"
 msgid "Highlights"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:465 crates/leyline-studio/ui/types.slint:529
+#: crates/leyline-studio/ui/types.slint:467 crates/leyline-studio/ui/types.slint:531
 msgctxt "Tr"
 msgid "Shadows"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:468 crates/leyline-studio/ui/types.slint:532
+#: crates/leyline-studio/ui/types.slint:470 crates/leyline-studio/ui/types.slint:534
 msgctxt "Tr"
 msgid "Whites"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:471 crates/leyline-studio/ui/types.slint:535
+#: crates/leyline-studio/ui/types.slint:473 crates/leyline-studio/ui/types.slint:537
 msgctxt "Tr"
 msgid "Blacks"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:474 crates/leyline-studio/ui/types.slint:547
+#: crates/leyline-studio/ui/types.slint:476 crates/leyline-studio/ui/types.slint:549
 msgctxt "Tr"
 msgid "Vibrance"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:477 crates/leyline-studio/ui/types.slint:550
+#: crates/leyline-studio/ui/types.slint:479 crates/leyline-studio/ui/types.slint:552
 msgctxt "Tr"
 msgid "Saturation"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:480 crates/leyline-studio/ui/types.slint:583
+#: crates/leyline-studio/ui/types.slint:482 crates/leyline-studio/ui/types.slint:588
 msgctxt "Tr"
 msgid "Lens correction"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:483 crates/leyline-studio/ui/types.slint:586
+#: crates/leyline-studio/ui/types.slint:485 crates/leyline-studio/ui/types.slint:591
 msgctxt "Tr"
 msgid "Noise reduction"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:486 crates/leyline-studio/ui/types.slint:589
+#: crates/leyline-studio/ui/types.slint:488 crates/leyline-studio/ui/types.slint:594
 msgctxt "Tr"
 msgid "Sharpening"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:489 crates/leyline-studio/ui/types.slint:607
+#: crates/leyline-studio/ui/types.slint:491 crates/leyline-studio/ui/types.slint:612
 msgctxt "Tr"
 msgid "Rotation"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:492 crates/leyline-studio/ui/types.slint:613
+#: crates/leyline-studio/ui/types.slint:494 crates/leyline-studio/ui/types.slint:618
 msgctxt "Tr"
 msgid "Crop"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:495
+#: crates/leyline-studio/ui/types.slint:497
 msgctxt "Tr"
 msgid "as shot"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:508
+#: crates/leyline-studio/ui/types.slint:510
 msgctxt "Tr"
 msgid "Reprocessed"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:511
+#: crates/leyline-studio/ui/types.slint:513
 msgctxt "Tr"
 msgid "Camera profile"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:514
+#: crates/leyline-studio/ui/types.slint:516
 msgctxt "Tr"
 msgid "Creative LUT"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:538
+#: crates/leyline-studio/ui/types.slint:540
 msgctxt "Tr"
 msgid "Clarity"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:541
+#: crates/leyline-studio/ui/types.slint:543
 msgctxt "Tr"
 msgid "Texture"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:544
+#: crates/leyline-studio/ui/types.slint:546
 msgctxt "Tr"
 msgid "Dehaze"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:553
+#: crates/leyline-studio/ui/types.slint:555
 msgctxt "Tr"
 msgid "Black and white"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:556
+#: crates/leyline-studio/ui/types.slint:558
 msgctxt "Tr"
 msgid "Parametric curve"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:559
+#: crates/leyline-studio/ui/types.slint:561
 msgctxt "Tr"
 msgid "Levels"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:562
+#: crates/leyline-studio/ui/types.slint:564
+msgctxt "Tr"
+msgid "Moiré"
+msgstr ""
+
+#: crates/leyline-studio/ui/types.slint:567
 msgctxt "Tr"
 msgid "Tone curve"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:565
+#: crates/leyline-studio/ui/types.slint:570
 msgctxt "Tr"
 msgid "HSL mixer"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:568
+#: crates/leyline-studio/ui/types.slint:573
 msgctxt "Tr"
 msgid "Color grading"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:571
+#: crates/leyline-studio/ui/types.slint:576
 msgctxt "Tr"
 msgid "Spot removal"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:574
+#: crates/leyline-studio/ui/types.slint:579
 msgctxt "Tr"
 msgid "Reshape"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:577
+#: crates/leyline-studio/ui/types.slint:582
 msgctxt "Tr"
 msgid "Red eye"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:580
+#: crates/leyline-studio/ui/types.slint:585
 msgctxt "Tr"
 msgid "Local adjustments"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:592
+#: crates/leyline-studio/ui/types.slint:597
 msgctxt "Tr"
 msgid "Defringe"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:595
+#: crates/leyline-studio/ui/types.slint:600
 msgctxt "Tr"
 msgid "Highlight roll-off"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:598
+#: crates/leyline-studio/ui/types.slint:603
 msgctxt "Tr"
 msgid "Highlight reconstruction"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:601
+#: crates/leyline-studio/ui/types.slint:606
 msgctxt "Tr"
 msgid "Demosaic"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:604
+#: crates/leyline-studio/ui/types.slint:609
 msgctxt "Tr"
 msgid "Source colour space"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:610
+#: crates/leyline-studio/ui/types.slint:615
 msgctxt "Tr"
 msgid "Perspective"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:616
+#: crates/leyline-studio/ui/types.slint:621
 msgctxt "Tr"
 msgid "Vignette"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:619
+#: crates/leyline-studio/ui/types.slint:624
 msgctxt "Tr"
 msgid "Grain"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:626
+#: crates/leyline-studio/ui/types.slint:631
 msgctxt "Tr"
 msgid "No profile — the decoder's own colors"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:630
+#: crates/leyline-studio/ui/types.slint:635
 msgctxt "Tr"
 msgid "My presets"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:639
+#: crates/leyline-studio/ui/types.slint:644
 msgctxt "Tr"
 msgid "Shutter"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:642
+#: crates/leyline-studio/ui/types.slint:647
 msgctxt "Tr"
 msgid "Aperture"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:645 crates/leyline-studio/ui/types.slint:963
+#: crates/leyline-studio/ui/types.slint:650 crates/leyline-studio/ui/types.slint:968
 msgctxt "Tr"
 msgid "ISO"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:648
+#: crates/leyline-studio/ui/types.slint:653
 msgctxt "Tr"
 msgid "WB"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:653
+#: crates/leyline-studio/ui/types.slint:658
 msgctxt "Tr"
 msgid "{} shot"
 msgid_plural "{} shots"
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/leyline-studio/ui/types.slint:656
+#: crates/leyline-studio/ui/types.slint:661
 msgctxt "Tr"
 msgid "{} photo"
 msgid_plural "{} photos"
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/leyline-studio/ui/types.slint:662
+#: crates/leyline-studio/ui/types.slint:667
 msgctxt "Tr"
 msgid "{} of {} photos selected"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:665
+#: crates/leyline-studio/ui/types.slint:670
 msgctxt "Tr"
 msgid "Importing {}/{}…"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:668
+#: crates/leyline-studio/ui/types.slint:673
 msgctxt "Tr"
 msgid "Exporting {}/{}…"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:671
+#: crates/leyline-studio/ui/types.slint:676
 msgctxt "Tr"
 msgid "Import failed: {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:678
+#: crates/leyline-studio/ui/types.slint:683
 msgctxt "Tr"
 msgid "{} photo imported."
 msgid_plural "{} photos imported."
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/leyline-studio/ui/types.slint:681
+#: crates/leyline-studio/ui/types.slint:686
 msgctxt "Tr"
 msgid "{} imported, {} skipped ({})."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:689
+#: crates/leyline-studio/ui/types.slint:694
 msgctxt "Tr"
 msgid "Capture date"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:692
+#: crates/leyline-studio/ui/types.slint:697
 msgctxt "Tr"
 msgid "File name"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:695
+#: crates/leyline-studio/ui/types.slint:700
 msgctxt "Tr"
 msgid "Import date"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:697
+#: crates/leyline-studio/ui/types.slint:702
 msgctxt "Tr"
 msgid "Rating"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:701
+#: crates/leyline-studio/ui/types.slint:706
 msgctxt "Tr"
 msgid "A → Z"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:701
+#: crates/leyline-studio/ui/types.slint:706
 msgctxt "Tr"
 msgid "Z → A"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:704
+#: crates/leyline-studio/ui/types.slint:709
 msgctxt "Tr"
 msgid "lowest rated first"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:704
+#: crates/leyline-studio/ui/types.slint:709
 msgctxt "Tr"
 msgid "highest rated first"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:706
+#: crates/leyline-studio/ui/types.slint:711
 msgctxt "Tr"
 msgid "oldest first"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:706
+#: crates/leyline-studio/ui/types.slint:711
 msgctxt "Tr"
 msgid "newest first"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:712
+#: crates/leyline-studio/ui/types.slint:717
 msgctxt "Tr"
 msgid "A–Z"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:712
+#: crates/leyline-studio/ui/types.slint:717
 msgctxt "Tr"
 msgid "Z–A"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:720
+#: crates/leyline-studio/ui/types.slint:725
 msgctxt "Tr"
 msgid "{} — from the file"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:725
+#: crates/leyline-studio/ui/types.slint:730
 msgctxt "Tr"
 msgid "quality {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:728
+#: crates/leyline-studio/ui/types.slint:733
 msgctxt "Tr"
 msgid "{} px long edge"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:731
+#: crates/leyline-studio/ui/types.slint:736
 msgctxt "Tr"
 msgid "full size"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:734
+#: crates/leyline-studio/ui/types.slint:739
 msgctxt "Tr"
 msgid "Exported to {}."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:737
+#: crates/leyline-studio/ui/types.slint:742
 msgctxt "Tr"
 msgid "Nothing to export."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:740
+#: crates/leyline-studio/ui/types.slint:745
 msgctxt "Tr"
 msgid "Printed to {}."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:743
+#: crates/leyline-studio/ui/types.slint:748
 msgctxt "Tr"
 msgid "Nothing to print."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:747
+#: crates/leyline-studio/ui/types.slint:752
 msgctxt "Tr"
 msgid "Written to {} — look at it, then attach it wherever you like."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:753
+#: crates/leyline-studio/ui/types.slint:758
 msgctxt "Tr"
 msgid "User guide opened in your browser: {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:756
+#: crates/leyline-studio/ui/types.slint:761
 msgctxt "Tr"
 msgid "System language"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:761
+#: crates/leyline-studio/ui/types.slint:766
 msgctxt "Tr"
 msgid "{} file renamed."
 msgid_plural "{} files renamed."
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/leyline-studio/ui/types.slint:764
+#: crates/leyline-studio/ui/types.slint:769
 msgctxt "Tr"
 msgid "{} renamed, {} refused — {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:767
+#: crates/leyline-studio/ui/types.slint:772
 msgctxt "Tr"
 msgid "Export failed: {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:770
+#: crates/leyline-studio/ui/types.slint:775
 msgctxt "Tr"
 msgid "Printing {}/{}…"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:773
+#: crates/leyline-studio/ui/types.slint:778
 msgctxt "Tr"
 msgid "Print failed: {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:776
+#: crates/leyline-studio/ui/types.slint:781
 msgctxt "Tr"
 msgid "Printing…"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:782
+#: crates/leyline-studio/ui/types.slint:787
 msgctxt "Tr"
 msgid "Rendering {}/{}…"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:785
+#: crates/leyline-studio/ui/types.slint:790
 msgctxt "Tr"
 msgid "Wrote {} — {} photo(s) on {} page(s)."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:788
+#: crates/leyline-studio/ui/types.slint:793
 msgctxt "Tr"
 msgid "{} photo could not be rendered and left an empty cell."
 msgid_plural "{} photos could not be rendered and left empty cells."
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/leyline-studio/ui/types.slint:796
+#: crates/leyline-studio/ui/types.slint:801
 msgctxt "Tr"
 msgid "Dark"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:799
+#: crates/leyline-studio/ui/types.slint:804
 msgctxt "Tr"
 msgid "Mid-grey"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:802
+#: crates/leyline-studio/ui/types.slint:807
 msgctxt "Tr"
 msgid "White"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:805
+#: crates/leyline-studio/ui/types.slint:810
 msgctxt "Tr"
 msgid ""
 "Not enough usable edges on this photo ({}) — try a frame with detail away "
 "from the centre."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:808
+#: crates/leyline-studio/ui/types.slint:813
 msgctxt "Tr"
 msgid "Contact sheet failed: {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:811
+#: crates/leyline-studio/ui/types.slint:816
 msgctxt "Tr"
 msgid "Reprocessed {} photo(s), {} already current, {} failed"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:817
+#: crates/leyline-studio/ui/types.slint:822
 msgctxt "Tr"
 msgid "Remove {} photo from the catalog?"
 msgid_plural "Remove {} photos from the catalog?"
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/leyline-studio/ui/types.slint:820
+#: crates/leyline-studio/ui/types.slint:825
 msgctxt "Tr"
 msgid ""
 "The files stay exactly where they are, and can be imported again. Develop "
 "settings, keywords and collection membership go with the photos."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:823
+#: crates/leyline-studio/ui/types.slint:828
 msgctxt "Tr"
 msgid "Remove"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:826
+#: crates/leyline-studio/ui/types.slint:831
 msgctxt "Tr"
 msgid "Delete {} photo from the disk?"
 msgid_plural "Delete {} photos from the disk?"
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/leyline-studio/ui/types.slint:829
+#: crates/leyline-studio/ui/types.slint:834
 msgctxt "Tr"
 msgid ""
 "The photos leave the catalog, and their files — with their XMP sidecars — "
 "are sent to the system trash, from where they can still be recovered."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:832
+#: crates/leyline-studio/ui/types.slint:837
 msgctxt "Tr"
 msgid "Delete"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:838
+#: crates/leyline-studio/ui/types.slint:843
 msgctxt "Tr"
 msgid "Pair {} shot?"
 msgid_plural "Pair {} shots?"
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/leyline-studio/ui/types.slint:841
+#: crates/leyline-studio/ui/types.slint:846
 msgctxt "Tr"
 msgid ""
 "Each JPEG the camera wrote alongside a RAW of the same shot becomes a "
@@ -4439,37 +4456,37 @@ msgid ""
 "deleted, and any photo can be detached again."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:844
+#: crates/leyline-studio/ui/types.slint:849
 msgctxt "Tr"
 msgid "Pair"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:847
+#: crates/leyline-studio/ui/types.slint:852
 msgctxt "Tr"
 msgid "No RAW+JPEG couple left to pair."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:853
+#: crates/leyline-studio/ui/types.slint:858
 msgctxt "Tr"
 msgid "Processing…"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:856
+#: crates/leyline-studio/ui/types.slint:861
 msgctxt "Tr"
 msgid "{} added — a new photo carrying this one's development."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:863
+#: crates/leyline-studio/ui/types.slint:868
 msgctxt "Tr"
 msgid "Looking through the photos…"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:866
+#: crates/leyline-studio/ui/types.slint:871
 msgctxt "Tr"
 msgid "Looking through the photos… {} / {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:869
+#: crates/leyline-studio/ui/types.slint:874
 msgctxt "Tr"
 msgid ""
 "{} photo proposed for rejection, in {} burst — nothing written yet: reject "
@@ -4480,290 +4497,290 @@ msgid_plural ""
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/leyline-studio/ui/types.slint:875
+#: crates/leyline-studio/ui/types.slint:880
 msgctxt "Tr"
 msgid "sharpest of the burst"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:878
+#: crates/leyline-studio/ui/types.slint:883
 msgctxt "Tr"
 msgid "less sharp"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:881
+#: crates/leyline-studio/ui/types.slint:886
 msgctxt "Tr"
 msgid "blown out"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:884
+#: crates/leyline-studio/ui/types.slint:889
 msgctxt "Tr"
 msgid "black"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:887
+#: crates/leyline-studio/ui/types.slint:892
 msgctxt "Tr"
 msgid "Nothing to propose: no burst, and nothing technically wrong."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:891
+#: crates/leyline-studio/ui/types.slint:896
 msgctxt "Tr"
 msgid "Paired {} shot."
 msgid_plural "Paired {} shots."
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/leyline-studio/ui/types.slint:894
+#: crates/leyline-studio/ui/types.slint:899
 msgctxt "Tr"
 msgid "Enter a source folder."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:897
+#: crates/leyline-studio/ui/types.slint:902
 msgctxt "Tr"
 msgid "Importing…"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:900
+#: crates/leyline-studio/ui/types.slint:905
 msgctxt "Tr"
 msgid "Looking at what is there…"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:906
+#: crates/leyline-studio/ui/types.slint:911
 msgctxt "Tr"
 msgid "Original"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:911 crates/leyline-studio/ui/types.slint:1005
+#: crates/leyline-studio/ui/types.slint:916 crates/leyline-studio/ui/types.slint:1010
 msgctxt "Tr"
 msgid "Import"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:916
+#: crates/leyline-studio/ui/types.slint:921
 msgctxt "Tr"
 msgid "Preset « {} »"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:921
+#: crates/leyline-studio/ui/types.slint:926
 msgctxt "Tr"
 msgid "{} + {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:927
+#: crates/leyline-studio/ui/types.slint:932
 msgctxt "Tr"
 msgid "No change"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:932
+#: crates/leyline-studio/ui/types.slint:937
 msgctxt "Tr"
 msgid "rated {} or more"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:935
+#: crates/leyline-studio/ui/types.slint:940
 msgctxt "Tr"
 msgid "shot with {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:938
+#: crates/leyline-studio/ui/types.slint:943
 msgctxt "Tr"
 msgid "keyword {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:941
+#: crates/leyline-studio/ui/types.slint:946
 msgctxt "Tr"
 msgid "flagged as picks"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:944
+#: crates/leyline-studio/ui/types.slint:949
 msgctxt "Tr"
 msgid "It will always hold the photos {}."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:947
+#: crates/leyline-studio/ui/types.slint:952
 msgctxt "Tr"
 msgid ""
 "No filter is on: this would hold the whole library. Narrow the grid first."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:953
+#: crates/leyline-studio/ui/types.slint:958
 msgctxt "Tr"
 msgid ""
 "The « {} » filter cannot be kept: a dynamic collection knows the rating, the "
 "camera, keywords and the pick flag, and nothing else."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:957
+#: crates/leyline-studio/ui/types.slint:962
 msgctxt "Tr"
 msgid "colour label"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:960
+#: crates/leyline-studio/ui/types.slint:965
 msgctxt "Tr"
 msgid "lens"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:966
+#: crates/leyline-studio/ui/types.slint:971
 msgctxt "Tr"
 msgid "aperture"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:969
+#: crates/leyline-studio/ui/types.slint:974
 msgctxt "Tr"
 msgid "focal length"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:972
+#: crates/leyline-studio/ui/types.slint:977
 msgctxt "Tr"
 msgid "shutter speed"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:975
+#: crates/leyline-studio/ui/types.slint:980
 msgctxt "Tr"
 msgid "search"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:978
+#: crates/leyline-studio/ui/types.slint:983
 msgctxt "Tr"
 msgid "capture date"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:981
+#: crates/leyline-studio/ui/types.slint:986
 msgctxt "Tr"
 msgid "folder"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:984
+#: crates/leyline-studio/ui/types.slint:989
 msgctxt "Tr"
 msgid "collection"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:987
+#: crates/leyline-studio/ui/types.slint:992
 msgctxt "Tr"
 msgid "rejected"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:990
+#: crates/leyline-studio/ui/types.slint:995
 msgctxt "Tr"
 msgid "no flag"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:995
+#: crates/leyline-studio/ui/types.slint:1000
 msgctxt "Tr"
 msgid "{} photo found."
 msgid_plural "{} photos found."
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/leyline-studio/ui/types.slint:1001
+#: crates/leyline-studio/ui/types.slint:1006
 msgctxt "Tr"
 msgid "{} photo found before you stopped the scan."
 msgid_plural "{} photos found before you stopped the scan."
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/leyline-studio/ui/types.slint:1008
+#: crates/leyline-studio/ui/types.slint:1013
 msgctxt "Tr"
 msgid "Looking at the folder"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:1011
+#: crates/leyline-studio/ui/types.slint:1016
 msgctxt "Tr"
 msgid "Export"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:1014
+#: crates/leyline-studio/ui/types.slint:1019
 msgctxt "Tr"
 msgid "Printing"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:1017
+#: crates/leyline-studio/ui/types.slint:1022
 msgctxt "Tr"
 msgid "Contact sheet"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:1020
+#: crates/leyline-studio/ui/types.slint:1025
 msgctxt "Tr"
 msgid "Reprocessing"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:1023
+#: crates/leyline-studio/ui/types.slint:1028
 msgctxt "Tr"
 msgid "Assisted culling"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:1028
+#: crates/leyline-studio/ui/types.slint:1033
 msgctxt "Tr"
 msgid " — stopped; what was done is kept."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:1031
+#: crates/leyline-studio/ui/types.slint:1036
 msgctxt "Tr"
 msgid "Select a photo first."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:1034
+#: crates/leyline-studio/ui/types.slint:1039
 msgctxt "Tr"
 msgid "Enter a destination folder."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:1037
+#: crates/leyline-studio/ui/types.slint:1042
 msgctxt "Tr"
 msgid "Exporting…"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:1040
+#: crates/leyline-studio/ui/types.slint:1045
 msgctxt "Tr"
 msgid "Enter a name."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:1044
+#: crates/leyline-studio/ui/types.slint:1049
 msgctxt "Tr"
 msgid "Top level"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:1047
+#: crates/leyline-studio/ui/types.slint:1052
 msgctxt "Tr"
 msgid "Creation failed: {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:1050
+#: crates/leyline-studio/ui/types.slint:1055
 msgctxt "Tr"
 msgid "Open a photo in develop first."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:1053
+#: crates/leyline-studio/ui/types.slint:1058
 msgctxt "Tr"
 msgid "Pick at least one group."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:1060
+#: crates/leyline-studio/ui/types.slint:1065
 msgctxt "Tr"
 msgid "Delete “{}”, and remove it from {} photo?"
 msgid_plural "Delete “{}”, and remove it from {} photos?"
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/leyline-studio/ui/types.slint:1063
+#: crates/leyline-studio/ui/types.slint:1068
 msgctxt "Tr"
 msgid ""
 "“{}” still has keywords under it. Delete those first — one deletes leaves, "
 "upward, so nothing disappears unseen."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:1066
+#: crates/leyline-studio/ui/types.slint:1071
 msgctxt "Tr"
 msgid "Save failed: {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:1069
+#: crates/leyline-studio/ui/types.slint:1074
 msgctxt "Tr"
 msgid "Error: {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:1072
+#: crates/leyline-studio/ui/types.slint:1077
 msgctxt "Tr"
 msgid "Select a collection in the sidebar first."
 msgstr ""
 
-#: crates/leyline-studio/ui/types.slint:1075
+#: crates/leyline-studio/ui/types.slint:1080
 msgctxt "Tr"
 msgid "Preset saved."
 msgstr ""

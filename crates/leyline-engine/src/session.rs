@@ -94,6 +94,8 @@ pub enum Param {
     /// unit, like [`Param::ToneCurve`] beside it — four regions and three
     /// splits are one decision about the tone of a photograph.
     ParametricCurve,
+    /// Colour moiré reduction (ADR 0165), 0–100.
+    Moire,
     /// Levels (ADR 0164): the five numbers as one commit unit — a black, a
     /// gamma and a white point are one decision about the tonal range.
     Levels,
@@ -582,6 +584,7 @@ pub(crate) fn apply(settings: &mut Settings, param: Param, value: Value) -> Resu
         (Param::ToneCurve, Value::ToneCurve(v)) => settings.tone_curve = v,
         (Param::ParametricCurve, Value::ParametricCurve(v)) => settings.parametric_curve = v,
         (Param::Levels, Value::Levels(v)) => settings.levels = v,
+        (Param::Moire, Value::Int(v)) => settings.moire = v,
         (Param::SpotRemoval, Value::SpotRemoval(v)) => settings.spot_removal = v,
         (Param::RedEye, Value::RedEye(v)) => settings.red_eye = v,
         (Param::LocalAdjustment(index), Value::LocalAdjustment(v)) => match v {
