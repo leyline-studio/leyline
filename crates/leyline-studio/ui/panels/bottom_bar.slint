@@ -215,7 +215,10 @@ export component BottomBar inherits Rectangle {
             horizontal-stretch: 1;
         }
 
-        if root.in-grid: Text {
+        // The slider's label goes first when the bar runs short: below
+        // 1000px the pill, pushed right of the sort, would cover it, and
+        // the slider still says what it does by moving the thumbnails.
+        if root.in-grid && root.width >= 1000px: Text {
             text: @tr("Thumbnails");
             color: Theme.text-disabled;
             font-size: 11px;

@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2026-10-17 20:57+0000\n"
+"POT-Creation-Date: 2026-10-18 07:40+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1354,57 +1354,57 @@ msgctxt "BottomBar"
 msgid "Sort: {} {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/bottom_bar.slint:219
+#: crates/leyline-studio/ui/panels/bottom_bar.slint:222
 msgctxt "BottomBar"
 msgid "Thumbnails"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/bottom_bar.slint:240
+#: crates/leyline-studio/ui/panels/bottom_bar.slint:243
 msgctxt "BottomBar"
 msgid "Fit"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/bottom_bar.slint:240
+#: crates/leyline-studio/ui/panels/bottom_bar.slint:243
 msgctxt "BottomBar"
 msgid "100%    Z"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/bottom_bar.slint:251
+#: crates/leyline-studio/ui/panels/bottom_bar.slint:254
 msgctxt "BottomBar"
 msgid "Show or hide the filmstrip"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/bottom_bar.slint:259
+#: crates/leyline-studio/ui/panels/bottom_bar.slint:262
 msgctxt "BottomBar"
 msgid "Show or hide the right panel"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/bottom_bar.slint:289
+#: crates/leyline-studio/ui/panels/bottom_bar.slint:292
 msgctxt "BottomBar"
 msgid "Rate {} ★    {}"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/bottom_bar.slint:299
+#: crates/leyline-studio/ui/panels/bottom_bar.slint:302
 msgctxt "BottomBar"
 msgid "Pick    P"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/bottom_bar.slint:309
+#: crates/leyline-studio/ui/panels/bottom_bar.slint:312
 msgctxt "BottomBar"
 msgid "Reject    X"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/bottom_bar.slint:323
+#: crates/leyline-studio/ui/panels/bottom_bar.slint:326
 msgctxt "BottomBar"
 msgid "Copy Settings"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/bottom_bar.slint:362
+#: crates/leyline-studio/ui/panels/bottom_bar.slint:365
 msgctxt "BottomBar"
 msgid "By"
 msgstr ""
 
-#: crates/leyline-studio/ui/panels/bottom_bar.slint:380
+#: crates/leyline-studio/ui/panels/bottom_bar.slint:383
 msgctxt "BottomBar"
 msgid "Order"
 msgstr ""
