@@ -12,7 +12,7 @@ use leyline_core::Result;
 /// Migration scripts: index `n` migrates the database to `user_version` `n + 1`.
 const MIGRATIONS: &[&str] = &[
     SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8,
-    SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13,
+    SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14,
 ];
 
 /// The schema version produced by the newest migration.
@@ -717,4 +717,29 @@ LEFT JOIN metadata m ON m.asset_id = a.id
 LEFT JOIN asset_descriptions d ON d.asset_id = a.id
 LEFT JOIN cameras c ON c.id = m.camera_id
 LEFT JOIN lenses l ON l.id = m.lens_id;
+";
+
+/// v13 → v14: an export knows where it comes from (ADR 0153 §2).
+///
+/// Six columns, NULL for every row written before: what an older export
+/// was made from was never recorded, and is not invented now. The version
+/// and the revision are `SET NULL` rather than `CASCADE`: the journal says a
+/// file was written, which stays true when the version is deleted. Both are
+/// indexed for the same reason as every cascading key (§32): `SET NULL` looks
+/// up the children exactly as a cascade does. The two checksums are indexed
+/// because `verify` looks a file up by them.
+const SCHEMA_V14: &str = "
+ALTER TABLE export_history ADD COLUMN version_id INTEGER
+    REFERENCES develop_versions(id) ON DELETE SET NULL;
+ALTER TABLE export_history ADD COLUMN revision_id INTEGER
+    REFERENCES develop_revisions(id) ON DELETE SET NULL;
+ALTER TABLE export_history ADD COLUMN revision_fingerprint BLOB;
+ALTER TABLE export_history ADD COLUMN export_settings_json TEXT;
+ALTER TABLE export_history ADD COLUMN decoder TEXT;
+ALTER TABLE export_history ADD COLUMN output_checksum BLOB;
+
+CREATE INDEX idx_export_history_version ON export_history(version_id);
+CREATE INDEX idx_export_history_revision ON export_history(revision_id);
+CREATE INDEX idx_export_history_fingerprint ON export_history(revision_fingerprint);
+CREATE INDEX idx_export_history_output ON export_history(output_checksum);
 ";

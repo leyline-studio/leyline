@@ -59,6 +59,13 @@ pub struct ExportRequest {
 /// ADR 0023's preview split).
 pub(crate) struct ExportPlan {
     pub(crate) asset: AssetId,
+    /// The version exported and its head revision, kept for the journal:
+    /// the head may move while the render runs, and the file is the render
+    /// of this one (ADR 0153 §2).
+    version: VersionId,
+    revision: leyline_core::RevisionId,
+    /// ADR 0153 §1, computed here from the revision as stored.
+    revision_fingerprint: [u8; leyline_catalog::CHECKSUM_LEN],
     develop: Settings,
     source: PathBuf,
     shot: Option<crate::render::LensShot>,
@@ -90,7 +97,10 @@ pub(crate) fn plan_export(
 ) -> Result<ExportPlan> {
     let asset = catalog.version_asset(version)?;
     let head = catalog.version_head(version)?;
-    let develop = Settings::parse(&catalog.revision(head)?.settings_json)?;
+    let stored = catalog.revision(head)?.settings_json;
+    let develop = Settings::parse(&stored)?;
+    let revision_fingerprint =
+        crate::provenance::revision_fingerprint(&catalog.asset_checksum(asset)?, &stored);
 
     let relative = catalog.asset_relative_path(asset)?;
     let source = crate::roots::locate(catalog, library_root, asset)?;
@@ -105,6 +115,9 @@ pub(crate) fn plan_export(
 
     Ok(ExportPlan {
         asset,
+        version,
+        revision: head,
+        revision_fingerprint,
         develop,
         source,
         shot,
@@ -228,12 +241,23 @@ pub(crate) fn journal_export(
     preset: Option<ExportPresetId>,
     settings: &ExportSettings,
     destination: &Path,
+    output_checksum: [u8; leyline_catalog::CHECKSUM_LEN],
 ) -> Result<()> {
     catalog.record_export(
         plan.asset,
         preset,
         settings.format.extension(),
         &destination.display().to_string(),
+        &leyline_catalog::ExportProvenance {
+            version: plan.version,
+            revision: plan.revision,
+            revision_fingerprint: plan.revision_fingerprint,
+            // Resolved: a preset can be edited after the fact, and the
+            // journal must say what was applied, not what is called so now.
+            export_settings_json: settings.to_json(),
+            decoder: leyline_raw::decoder_version().to_owned(),
+            output_checksum,
+        },
     )
 }
 
@@ -336,7 +360,15 @@ pub fn export_version(
     settings.validate().map_err(export_err)?;
     let plan = plan_export(catalog, library_root, version)?;
     let destination = render_export(&plan, settings, destination_dir)?;
-    journal_export(catalog, &plan, preset, settings, &destination)?;
+    let output_checksum = crate::provenance::file_checksum(&destination)?;
+    journal_export(
+        catalog,
+        &plan,
+        preset,
+        settings,
+        &destination,
+        output_checksum,
+    )?;
     Ok(destination)
 }
 

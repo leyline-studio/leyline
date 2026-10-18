@@ -466,6 +466,17 @@ fn exports_a_png_source_to_jpeg_and_journals_it() {
     let history = catalog.export_history(registered.asset).unwrap();
     assert_eq!(history.len(), 1);
     assert_eq!(history[0].format, "jpg");
+
+    // ADR 0153 §2: the row says what the file was made from, and holds the
+    // checksum of the very bytes on disk.
+    let row = &history[0];
+    assert_eq!(row.version, Some(registered.version));
+    assert_eq!(row.revision, Some(registered.revision));
+    assert_eq!(row.output_checksum, Some(*blake3::hash(&bytes).as_bytes()));
+    assert!(row.revision_fingerprint.is_some());
+    assert_eq!(row.decoder.as_deref(), Some(leyline_raw::decoder_version()));
+    let recipe = ExportSettings::parse(row.export_settings_json.as_deref().unwrap()).unwrap();
+    assert_eq!(recipe, ExportSettings::default());
 }
 
 /// What the photographer typed reaches the exported file, and the policy is

@@ -5,9 +5,9 @@
 //! the last destination used; the recipe content is opaque here — the
 //! engine validates it (`leyline-export`), the catalog stores it.
 
-use leyline_core::{AssetId, ExportPresetId, LeylineError, Result};
+use leyline_core::{AssetId, ExportPresetId, LeylineError, Result, RevisionId, VersionId};
 
-use crate::{Catalog, db_err, now_ms};
+use crate::{CHECKSUM_LEN, Catalog, db_err, now_ms};
 
 /// One stored export preset.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,7 +22,28 @@ pub struct ExportPreset {
     pub created_at: i64,
 }
 
+/// What an export was made from, and what it wrote (ADR 0153 §2).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExportProvenance {
+    /// The version exported.
+    pub version: VersionId,
+    /// Its head revision at export time.
+    pub revision: RevisionId,
+    /// BLAKE3 of the asset checksum and the revision's stored settings
+    /// (ADR 0153 §1) — computed once, never recomputed to match.
+    pub revision_fingerprint: [u8; CHECKSUM_LEN],
+    /// The resolved recipe that was applied, whatever preset it came from.
+    pub export_settings_json: String,
+    /// The decoder version loaded at export time (ADR 0086).
+    pub decoder: String,
+    /// BLAKE3 of the file written.
+    pub output_checksum: [u8; CHECKSUM_LEN],
+}
+
 /// One line of the export history, newest first.
+///
+/// Every field after `exported_at` is `None` for a row written before
+/// migration v14, and the version and revision also once deleted.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExportRecord {
     /// The exported asset.
@@ -35,6 +56,18 @@ pub struct ExportRecord {
     pub destination: String,
     /// Export time, UTC Unix epoch milliseconds.
     pub exported_at: i64,
+    /// The version exported.
+    pub version: Option<VersionId>,
+    /// Its head revision at export time.
+    pub revision: Option<RevisionId>,
+    /// See [`ExportProvenance::revision_fingerprint`].
+    pub revision_fingerprint: Option<[u8; CHECKSUM_LEN]>,
+    /// The resolved recipe.
+    pub export_settings_json: Option<String>,
+    /// The decoder version at export time.
+    pub decoder: Option<String>,
+    /// BLAKE3 of the file written.
+    pub output_checksum: Option<[u8; CHECKSUM_LEN]>,
 }
 
 impl Catalog {
@@ -112,19 +145,28 @@ impl Catalog {
         preset: Option<ExportPresetId>,
         format: &str,
         destination: &str,
+        provenance: &ExportProvenance,
     ) -> Result<()> {
         self.ensure_writable()?;
         let inserted = self
             .conn
             .execute(
-                "INSERT INTO export_history (asset_id, preset_id, format, destination, exported_at)
-                 SELECT id, ?2, ?3, ?4, ?5 FROM assets WHERE id = ?1",
+                "INSERT INTO export_history (asset_id, preset_id, format, destination, exported_at,
+                                             version_id, revision_id, revision_fingerprint,
+                                             export_settings_json, decoder, output_checksum)
+                 SELECT id, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11 FROM assets WHERE id = ?1",
                 rusqlite::params![
                     asset.get(),
                     preset.map(ExportPresetId::get),
                     format,
                     destination,
-                    now_ms()
+                    now_ms(),
+                    provenance.version.get(),
+                    provenance.revision.get(),
+                    provenance.revision_fingerprint.as_slice(),
+                    provenance.export_settings_json,
+                    provenance.decoder,
+                    provenance.output_checksum.as_slice(),
                 ],
             )
             .map_err(db_err)?;
@@ -139,7 +181,8 @@ impl Catalog {
         let mut stmt = self
             .conn
             .prepare_cached(
-                "SELECT preset_id, format, destination, exported_at
+                "SELECT preset_id, format, destination, exported_at, version_id, revision_id,
+                        revision_fingerprint, export_settings_json, decoder, output_checksum
                  FROM export_history WHERE asset_id = ?1
                  ORDER BY exported_at DESC, id DESC",
             )
@@ -154,10 +197,30 @@ impl Catalog {
                     format: row.get("format")?,
                     destination: row.get("destination")?,
                     exported_at: row.get("exported_at")?,
+                    version: row.get::<_, Option<i64>>("version_id")?.map(VersionId::new),
+                    revision: row
+                        .get::<_, Option<i64>>("revision_id")?
+                        .map(RevisionId::new),
+                    revision_fingerprint: checksum_column(row, "revision_fingerprint")?,
+                    export_settings_json: row.get("export_settings_json")?,
+                    decoder: row.get("decoder")?,
+                    output_checksum: checksum_column(row, "output_checksum")?,
                 })
             })
             .map_err(db_err)?;
         rows.collect::<std::result::Result<Vec<_>, _>>()
             .map_err(db_err)
     }
+}
+
+/// A nullable 32-byte checksum column. A blob of another length is read as
+/// absent rather than failing the whole history: a damaged row must not hide
+/// the others.
+fn checksum_column(
+    row: &rusqlite::Row<'_>,
+    column: &str,
+) -> rusqlite::Result<Option<[u8; CHECKSUM_LEN]>> {
+    Ok(row
+        .get::<_, Option<Vec<u8>>>(column)?
+        .and_then(|bytes| bytes.try_into().ok()))
 }

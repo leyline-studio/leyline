@@ -46,6 +46,7 @@ mod pixels;
 mod presets;
 mod preview;
 mod print;
+mod provenance;
 mod rename;
 mod render;
 mod reprocess;

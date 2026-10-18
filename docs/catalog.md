@@ -1407,18 +1407,44 @@ CREATE TABLE export_history (
 
     exported_at INTEGER NOT NULL,
 
+    -- v14 (ADR 0153 §2), NULL for rows written before
+    version_id INTEGER,
+    revision_id INTEGER,
+    revision_fingerprint BLOB,
+    export_settings_json TEXT,
+    decoder TEXT,
+    output_checksum BLOB,
+
     FOREIGN KEY(asset_id)
         REFERENCES assets(id)
         ON DELETE CASCADE,
 
     FOREIGN KEY(preset_id)
         REFERENCES export_presets(id)
+        ON DELETE SET NULL,
+
+    FOREIGN KEY(version_id)
+        REFERENCES develop_versions(id)
+        ON DELETE SET NULL,
+
+    FOREIGN KEY(revision_id)
+        REFERENCES develop_revisions(id)
         ON DELETE SET NULL
 
 );
 ```
 
-The history makes it possible to reproduce an export, or to identify quickly the last destination used.
+Each row says what a file was made from and what was written ([ADR 0153](adr/0153-an-export-knows-where-it-comes-from.md)):
+
+* `version_id` and `revision_id`: the version exported and its head revision at that moment. `SET NULL` rather than `CASCADE`: the row says a file was written, which stays true once the version is deleted.
+* `revision_fingerprint`: BLAKE3 of the asset checksum, a zero byte and the revision's `settings_json` **as stored** — computed once at export and never recomputed, so a later build's serialization of `Settings` cannot orphan the files already written.
+* `export_settings_json`: the **resolved** recipe that was applied — a preset can be edited after the fact, and `preset_id` alone would then lie.
+* `decoder`: the LibRaw version loaded at export time, one of the conditions of `pipeline.md` §5.1 ([ADR 0086](adr/0086-decoder-in-the-promise.md)).
+* `output_checksum`: BLAKE3 of the file written (§12), what tells a file on someone's drive is still the one Leyline wrote.
+
+All six are NULL for the rows written before migration v14: what those exports were made from was never recorded, and nothing is invented for them. `version_id`, `revision_id`, `revision_fingerprint` and `output_checksum` are indexed (§32): the first two because `SET NULL` looks up children exactly as a cascade does, the last two because a file is looked up by them.
+
+With these columns the history can replay an export of the same revision with the same recipe, and identify quickly the last destination used.
 
 ---
 
@@ -1627,6 +1653,20 @@ ON develop_current(version_id);
 
 CREATE INDEX idx_export_history_asset
 ON export_history(asset_id);
+
+-- v14: SET NULL looks children up as a cascade does (ADR 0153 §2)
+CREATE INDEX idx_export_history_version
+ON export_history(version_id);
+
+CREATE INDEX idx_export_history_revision
+ON export_history(revision_id);
+
+-- v14: how verify finds a file (ADR 0153 §4)
+CREATE INDEX idx_export_history_fingerprint
+ON export_history(revision_fingerprint);
+
+CREATE INDEX idx_export_history_output
+ON export_history(output_checksum);
 
 CREATE INDEX idx_previews_revision
 ON previews(revision_id);

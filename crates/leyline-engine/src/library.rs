@@ -1890,6 +1890,10 @@ impl Library {
                             Ok((plan, destination)) => crate::panic_net::isolate(|| {
                                 crate::export::render_export_to(plan, settings, destination)
                                     .and_then(|()| {
+                                        // Hashed before the lock is taken
+                                        // (ADR 0024, ADR 0153 §2).
+                                        let output_checksum =
+                                            crate::provenance::file_checksum(destination)?;
                                         let mut catalog = lock(&self.inner.catalog);
                                         crate::export::journal_export(
                                             &mut catalog,
@@ -1897,6 +1901,7 @@ impl Library {
                                             preset,
                                             settings,
                                             destination,
+                                            output_checksum,
                                         )?;
                                         Ok(destination.clone())
                                     })

@@ -236,6 +236,25 @@ impl Catalog {
         Ok(deleted)
     }
 
+    /// The BLAKE3 checksum of an asset's file (§12) — one half of the
+    /// revision fingerprint an export records (ADR 0153 §1).
+    pub fn asset_checksum(&self, asset: AssetId) -> Result<[u8; CHECKSUM_LEN]> {
+        let bytes: Vec<u8> = self
+            .conn
+            .query_row(
+                "SELECT checksum FROM assets WHERE id = ?1",
+                [asset.get()],
+                |row| row.get(0),
+            )
+            .map_err(|e| match e {
+                rusqlite::Error::QueryReturnedNoRows => LeylineError::AssetMissing(asset),
+                other => db_err(other),
+            })?;
+        bytes
+            .try_into()
+            .map_err(|_| LeylineError::Db(format!("asset {asset} has a malformed checksum")))
+    }
+
     /// Returns the asset already carrying this checksum, if any — the
     /// duplicate detection of `docs/catalog.md` §12.
     pub fn find_asset_by_checksum(&self, checksum: &[u8; CHECKSUM_LEN]) -> Result<Option<AssetId>> {

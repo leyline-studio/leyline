@@ -47,7 +47,7 @@ pub use collections::{CollectionNode, RatingRule, SmartRules};
 pub use contact_sheets::ContactSheetPreset;
 pub use descriptions::AssetDescription;
 pub use details::AssetDetails;
-pub use exports::{ExportPreset, ExportRecord};
+pub use exports::{ExportPreset, ExportProvenance, ExportRecord};
 pub use folders::FolderNode;
 pub use grid::{GRID_COLUMNS, GridItem, GridQuery, GridShape, ShotRange, Sort};
 pub use justify::{
