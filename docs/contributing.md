@@ -17,6 +17,16 @@ This document is the complete guide. The repository root carries a [`CONTRIBUTIN
 * clippy with no warnings
 * green CI required.
 
+### No panic on a production path
+
+A file, a sidecar, the catalog, the clock or the operating system can be hostile; none of them is a reason to stop ([ADR 0152](adr/0152-a-panic-is-not-an-error-message.md)). In a crate's library or binary:
+
+* return an error instead of `unwrap`, `expect`, `panic!`, `unreachable!`, `todo!` or `unimplemented!`;
+* keep a panic site only when it is provably infallible, under `#[allow(clippy::…, reason = "…")]` — the reason says *why* it cannot fail, not that it cannot;
+* fix a panic with a regression test that feeds the input that used to trigger it.
+
+A crate root whose sites are all cleared carries `#![deny(…)]` on those six lints, and `#![forbid(unsafe_code)]` everywhere except `leyline-raw` (LibRaw) and `leyline-cli` (`SIGPIPE`). Tests are exempt (`clippy.toml`).
+
 ## Commands
 
 A `Makefile` at the root gathers what comes up often — `make` on its own lists the targets. Nothing in it is mandatory: each target is only a wrapper around a `cargo` invocation or a script in `packaging/`, and everything stays runnable by hand. The point is to keep the exact options in a single place, several of them being easy to misremember.
@@ -41,7 +51,7 @@ Everything lives in `crates/leyline-engine/src/stages/`: one module per operator
 
 > Once published, a stage version never moves. Not its body, not its rank, not the `apply` binding that names it in `STAGES`.
 
-Fixing a render therefore means **adding** `v2`, never editing `v1`. An optimisation that produces exactly the same bytes is not a render change and stays in `v1`.
+Fixing a render therefore means **adding** `v2`, never editing `v1`. An optimisation that produces exactly the same bytes is not a render change and stays in `v1`. So is a fix for an input that used to **panic**: it had no output to preserve ([ADR 0152](adr/0152-a-panic-is-not-an-error-message.md) §4), provided every other input keeps its exact bytes.
 
 ### Fixing an existing operator
 
