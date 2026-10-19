@@ -6,7 +6,7 @@
 //! drag starts from a GPU-side copy of it. The result comes back as 8-bit
 //! RGB, the form every preview already has.
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use wgpu::util::DeviceExt;
 
@@ -40,6 +40,21 @@ pub enum Op {
         width: f64,
         /// Height, as a fraction of the height.
         height: f64,
+    },
+    /// `sharpen` v1 and v2: the luma of the display-axis frame, minus its
+    /// Gaussian blur, times `k` — and, with `edge`, times v2's blurred
+    /// Sobel mask — added to all three channels on the display axis. A
+    /// neighbourhood operator, so it runs on the whole frame like any
+    /// kernel before a crop.
+    Sharpen {
+        /// Amount / 100.
+        k: f32,
+        /// The CPU's half kernel at the stage's σ, centre first.
+        weights: Arc<Vec<f32>>,
+        /// v2's mask threshold and softness, when masking is above 0.
+        edge: Option<[f32; 2]>,
+        /// The CPU's transfer tables.
+        transfer: Transfer,
     },
     /// `vignette` v1, in the coordinates of the (cropped) frame: applied as
     /// the output reads each pixel, so it may only be followed by
@@ -163,6 +178,9 @@ pub struct Frame {
     work: wgpu::Buffer,
     output: wgpu::Buffer,
     readback: wgpu::Buffer,
+    /// Four single-channel planes for the neighbourhood kernels, allocated
+    /// on the first frame that needs them and kept with the frame.
+    planes: OnceLock<[wgpu::Buffer; 4]>,
 }
 
 impl Frame {
@@ -207,6 +225,7 @@ impl Frame {
             work,
             output,
             readback,
+            planes: OnceLock::new(),
         })
     }
 
@@ -272,6 +291,22 @@ impl Frame {
                     return None;
                 }
                 window = crop_window(self.width, self.height, *x, *y, *width, *height)?;
+                continue;
+            }
+            if let Op::Sharpen {
+                k,
+                weights,
+                edge,
+                transfer,
+            } = step
+            {
+                let params = SharpenParams {
+                    groups: (groups_x, groups_y),
+                    stride,
+                    k: *k,
+                    edge: *edge,
+                };
+                self.sharpen(gpu, &mut encoder, &params, weights, transfer)?;
                 continue;
             }
             if let Op::Display(op, transfer) = step {
@@ -395,25 +430,178 @@ impl Frame {
     }
 }
 
+/// What one sharpen records, besides its tables.
+struct SharpenParams {
+    groups: (u32, u32),
+    stride: u32,
+    k: f32,
+    edge: Option<[f32; 2]>,
+}
+
+impl Frame {
+    /// Records `sharpen` v1/v2 into `encoder`: the luma plane, its blur,
+    /// v2's blurred edge mask when there is one, then the luma shift —
+    /// the CPU's passes in the CPU's order.
+    fn sharpen(
+        &self,
+        gpu: &Gpu,
+        encoder: &mut wgpu::CommandEncoder,
+        sharpen: &SharpenParams,
+        weights: &[f32],
+        transfer: &Transfer,
+    ) -> Option<()> {
+        let device = gpu.device();
+        let [luma, scratch, blurred, mask] = self.planes.get_or_init(|| {
+            [0, 1, 2, 3].map(|_| {
+                device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("plane"),
+                    size: u64::from(self.pixels) * 4,
+                    usage: wgpu::BufferUsages::STORAGE,
+                    mapped_at_creation: false,
+                })
+            })
+        });
+        let mut params = Vec::with_capacity(48);
+        let taps = u32::try_from(weights.len().checked_sub(1)?).ok()?;
+        let masked = u32::from(sharpen.edge.is_some());
+        for word in [
+            self.pixels,
+            sharpen.stride,
+            self.width,
+            self.height,
+            taps,
+            masked,
+        ] {
+            params.extend_from_slice(&word.to_le_bytes());
+        }
+        let [threshold, softness] = sharpen.edge.unwrap_or_default();
+        for value in [sharpen.k, threshold, softness] {
+            params.extend_from_slice(&value.to_le_bytes());
+        }
+        params.resize(48, 0);
+        let params = uniform(device, &params);
+        let to_display = table(device, &transfer.to_display);
+        let to_linear = table(device, &transfer.to_linear);
+        let weights = table(device, weights);
+        let pipelines = &gpu.pipelines().sharpen;
+        let groups = sharpen.groups;
+        let pass = |encoder: &mut wgpu::CommandEncoder,
+                    pipeline: &wgpu::ComputePipeline,
+                    entries: &[wgpu::BindGroupEntry<'_>]| {
+            record(device, encoder, pipeline, entries, groups);
+        };
+        let blur = |encoder: &mut wgpu::CommandEncoder, from: &wgpu::Buffer, to: &wgpu::Buffer| {
+            let rows = [
+                entry(1, &params),
+                entry(4, from),
+                entry(7, scratch),
+                entry(8, &weights),
+            ];
+            pass(encoder, &pipelines.blur_rows, &rows);
+            let columns = [
+                entry(1, &params),
+                entry(4, scratch),
+                entry(7, to),
+                entry(8, &weights),
+            ];
+            pass(encoder, &pipelines.blur_columns, &columns);
+        };
+        let luma_entries = [
+            entry(0, &self.work),
+            entry(1, &params),
+            entry(2, &to_display),
+            entry(7, luma),
+        ];
+        pass(encoder, &pipelines.luma, &luma_entries);
+        blur(encoder, luma, blurred);
+        if sharpen.edge.is_some() {
+            pass(
+                encoder,
+                &pipelines.edge,
+                &[entry(1, &params), entry(4, luma), entry(7, mask)],
+            );
+            blur(encoder, mask, mask);
+        }
+        pass(
+            encoder,
+            &pipelines.apply,
+            &[
+                entry(0, &self.work),
+                entry(1, &params),
+                entry(2, &to_display),
+                entry(3, &to_linear),
+                entry(4, luma),
+                entry(5, blurred),
+                entry(6, mask),
+            ],
+        );
+        Some(())
+    }
+}
+
+/// Records one compute pass of `pipeline` over the frame.
+fn record(
+    device: &wgpu::Device,
+    encoder: &mut wgpu::CommandEncoder,
+    pipeline: &wgpu::ComputePipeline,
+    entries: &[wgpu::BindGroupEntry<'_>],
+    (groups_x, groups_y): (u32, u32),
+) {
+    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: None,
+        layout: &pipeline.get_bind_group_layout(0),
+        entries,
+    });
+    let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor::default());
+    pass.set_pipeline(pipeline);
+    pass.set_bind_group(0, &bind_group, &[]);
+    pass.dispatch_workgroups(groups_x, groups_y, 1);
+}
+
 /// The compiled pipelines, built once per device.
 #[derive(Debug)]
 pub(crate) struct Pipelines {
     gains: wgpu::ComputePipeline,
     display: wgpu::ComputePipeline,
+    sharpen: SharpenPipelines,
     output: wgpu::ComputePipeline,
+}
+
+/// The passes of [`Op::Sharpen`], entry points of one shader module.
+#[derive(Debug)]
+pub(crate) struct SharpenPipelines {
+    luma: wgpu::ComputePipeline,
+    blur_rows: wgpu::ComputePipeline,
+    blur_columns: wgpu::ComputePipeline,
+    edge: wgpu::ComputePipeline,
+    apply: wgpu::ComputePipeline,
 }
 
 impl Pipelines {
     pub(crate) fn new(device: &wgpu::Device) -> Pipelines {
+        let display = format!("{AXIS}{DISPLAY}");
+        let sharpen = format!("{AXIS}{SHARPEN}");
         Pipelines {
-            gains: pipeline(device, "gains", GAINS),
-            display: pipeline(device, "display", DISPLAY),
-            output: pipeline(device, "output rendering", OUTPUT_RENDERING),
+            gains: pipeline(device, "gains", GAINS, "main"),
+            display: pipeline(device, "display", &display, "main"),
+            sharpen: SharpenPipelines {
+                luma: pipeline(device, "sharpen luma", &sharpen, "luma"),
+                blur_rows: pipeline(device, "sharpen blur rows", &sharpen, "blur_rows"),
+                blur_columns: pipeline(device, "sharpen blur columns", &sharpen, "blur_columns"),
+                edge: pipeline(device, "sharpen edge", &sharpen, "edge"),
+                apply: pipeline(device, "sharpen apply", &sharpen, "apply"),
+            },
+            output: pipeline(device, "output rendering", OUTPUT_RENDERING, "main"),
         }
     }
 }
 
-fn pipeline(device: &wgpu::Device, label: &str, source: &str) -> wgpu::ComputePipeline {
+fn pipeline(
+    device: &wgpu::Device,
+    label: &str,
+    source: &str,
+    entry_point: &str,
+) -> wgpu::ComputePipeline {
     let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some(label),
         source: wgpu::ShaderSource::Wgsl(source.into()),
@@ -422,7 +610,7 @@ fn pipeline(device: &wgpu::Device, label: &str, source: &str) -> wgpu::ComputePi
         label: Some(label),
         layout: None,
         module: &module,
-        entry_point: Some("main"),
+        entry_point: Some(entry_point),
         compilation_options: wgpu::PipelineCompilationOptions::default(),
         cache: None,
     })
@@ -651,10 +839,41 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 }
 ";
 
+/// The CPU's `display`/`linear` pair: its tables below 1, the exact sRGB
+/// formulas above. Prepended to every module that crosses the display
+/// axis, which declares the two tables it reads.
+const AXIS: &str = r"
+fn lookup_display(v: f32) -> f32 {
+    let size = arrayLength(&to_display_table) - 1u;
+    let x = clamp(v, 0.0, 1.0) * f32(size);
+    let i = min(u32(x), size - 1u);
+    let t = x - f32(i);
+    return to_display_table[i] + (to_display_table[i + 1u] - to_display_table[i]) * t;
+}
+
+fn lookup_linear(v: f32) -> f32 {
+    let size = arrayLength(&to_linear_table) - 1u;
+    let x = clamp(v, 0.0, 1.0) * f32(size);
+    let i = min(u32(x), size - 1u);
+    let t = x - f32(i);
+    return to_linear_table[i] + (to_linear_table[i + 1u] - to_linear_table[i]) * t;
+}
+
+fn to_display(v: f32) -> f32 {
+    if (v <= 1.0) { return lookup_display(v); }
+    if (v <= 0.0031308) { return v * 12.92; }
+    return 1.055 * pow(v, 1.0 / 2.4) - 0.055;
+}
+
+fn to_linear(v: f32) -> f32 {
+    if (v <= 1.0) { return lookup_linear(v); }
+    if (v <= 0.04045) { return v / 12.92; }
+    return pow((v + 0.055) / 1.055, 2.4);
+}
+";
+
 /// The display-axis operators: `in_display` (to the display axis, the
-/// operator, back to linear from a value floored at 0), with the CPU's
-/// tables below 1 and the exact sRGB formulas above, as `display`/`linear`
-/// do.
+/// operator, back to linear from a value floored at 0), across [`AXIS`].
 const DISPLAY: &str = r"
 struct Params {
     mode: u32,
@@ -673,40 +892,12 @@ struct Params {
 @group(0) @binding(3) var<storage, read> to_linear_table: array<f32>;
 @group(0) @binding(4) var<storage, read> curve_table: array<f32>;
 
-fn lookup_display(v: f32) -> f32 {
-    let size = arrayLength(&to_display_table) - 1u;
-    let x = clamp(v, 0.0, 1.0) * f32(size);
-    let i = min(u32(x), size - 1u);
-    let t = x - f32(i);
-    return to_display_table[i] + (to_display_table[i + 1u] - to_display_table[i]) * t;
-}
-
-fn lookup_linear(v: f32) -> f32 {
-    let size = arrayLength(&to_linear_table) - 1u;
-    let x = clamp(v, 0.0, 1.0) * f32(size);
-    let i = min(u32(x), size - 1u);
-    let t = x - f32(i);
-    return to_linear_table[i] + (to_linear_table[i + 1u] - to_linear_table[i]) * t;
-}
-
 fn lookup_curve(v: f32) -> f32 {
     let size = params.curve_entries - 1u;
     let x = clamp(v, 0.0, 1.0) * f32(size);
     let i = min(u32(x), size - 1u);
     let t = x - f32(i);
     return curve_table[i] + (curve_table[i + 1u] - curve_table[i]) * t;
-}
-
-fn to_display(v: f32) -> f32 {
-    if (v <= 1.0) { return lookup_display(v); }
-    if (v <= 0.0031308) { return v * 12.92; }
-    return 1.055 * pow(v, 1.0 / 2.4) - 0.055;
-}
-
-fn to_linear(v: f32) -> f32 {
-    if (v <= 1.0) { return lookup_linear(v); }
-    if (v <= 0.04045) { return v / 12.92; }
-    return pow((v + 0.055) / 1.055, 2.4);
 }
 
 // The per-sample function of the curve-like modes, defined on [0, 1].
@@ -920,5 +1111,119 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     samples[base] = to_linear(max(rgb.x, 0.0));
     samples[base + 1u] = to_linear(max(rgb.y, 0.0));
     samples[base + 2u] = to_linear(max(rgb.z, 0.0));
+}
+";
+
+/// `sharpen` v1/v2, one entry point per pass, across [`AXIS`]: `luma`
+/// writes the display-axis luma plane, `blur_rows` then `blur_columns` are
+/// `gaussian_blur` (edges replicated, the same half kernel), `edge` is
+/// v2's Sobel mask before its blur, and `apply` adds the delta on the
+/// display axis and returns to linear, as `add_luma_delta` inside
+/// `in_display` does.
+const SHARPEN: &str = r"
+struct Params {
+    pixels: u32,
+    stride: u32,
+    width: u32,
+    height: u32,
+    taps: u32,
+    masked: u32,
+    k: f32,
+    threshold: f32,
+    softness: f32,
+}
+@group(0) @binding(0) var<storage, read_write> samples: array<f32>;
+@group(0) @binding(1) var<uniform> params: Params;
+@group(0) @binding(2) var<storage, read> to_display_table: array<f32>;
+@group(0) @binding(3) var<storage, read> to_linear_table: array<f32>;
+@group(0) @binding(4) var<storage, read> plane: array<f32>;
+@group(0) @binding(5) var<storage, read> blurred: array<f32>;
+@group(0) @binding(6) var<storage, read> mask: array<f32>;
+@group(0) @binding(7) var<storage, read_write> plane_out: array<f32>;
+@group(0) @binding(8) var<storage, read> weights: array<f32>;
+
+fn pixel_of(id: vec3<u32>) -> u32 {
+    return id.y * params.stride + id.x;
+}
+
+@compute @workgroup_size(64)
+fn luma(@builtin(global_invocation_id) id: vec3<u32>) {
+    let pixel = pixel_of(id);
+    if (pixel >= params.pixels) { return; }
+    let base = pixel * 3u;
+    plane_out[pixel] = 0.2627 * to_display(samples[base])
+        + 0.6780 * to_display(samples[base + 1u])
+        + 0.0593 * to_display(samples[base + 2u]);
+}
+
+@compute @workgroup_size(64)
+fn blur_rows(@builtin(global_invocation_id) id: vec3<u32>) {
+    let pixel = pixel_of(id);
+    if (pixel >= params.pixels) { return; }
+    let x = pixel % params.width;
+    let row = pixel - x;
+    var acc = weights[0] * plane[pixel];
+    for (var k = 1u; k <= params.taps; k++) {
+        let lo = select(0u, x - k, x >= k);
+        let hi = min(x + k, params.width - 1u);
+        acc += weights[k] * (plane[row + lo] + plane[row + hi]);
+    }
+    plane_out[pixel] = acc;
+}
+
+@compute @workgroup_size(64)
+fn blur_columns(@builtin(global_invocation_id) id: vec3<u32>) {
+    let pixel = pixel_of(id);
+    if (pixel >= params.pixels) { return; }
+    let x = pixel % params.width;
+    let y = pixel / params.width;
+    var acc = weights[0] * plane[pixel];
+    for (var k = 1u; k <= params.taps; k++) {
+        let lo = select(0u, y - k, y >= k);
+        let hi = min(y + k, params.height - 1u);
+        acc += weights[k] * (plane[lo * params.width + x] + plane[hi * params.width + x]);
+    }
+    plane_out[pixel] = acc;
+}
+
+fn at(x: u32, y: u32) -> f32 {
+    return plane[y * params.width + x];
+}
+
+@compute @workgroup_size(64)
+fn edge(@builtin(global_invocation_id) id: vec3<u32>) {
+    let pixel = pixel_of(id);
+    if (pixel >= params.pixels) { return; }
+    let x = pixel % params.width;
+    let y = pixel / params.width;
+    let x0 = select(0u, x - 1u, x > 0u);
+    let x1 = min(x + 1u, params.width - 1u);
+    let y0 = select(0u, y - 1u, y > 0u);
+    let y1 = min(y + 1u, params.height - 1u);
+    let gx = (at(x1, y0) + 2.0 * at(x1, y) + at(x1, y1))
+        - (at(x0, y0) + 2.0 * at(x0, y) + at(x0, y1));
+    let gy = (at(x0, y1) + 2.0 * at(x, y1) + at(x1, y1))
+        - (at(x0, y0) + 2.0 * at(x, y0) + at(x1, y0));
+    let magnitude = sqrt(gx * gx + gy * gy) / 4.0;
+    let t = clamp(
+        (magnitude - params.threshold + params.softness) / (2.0 * params.softness),
+        0.0,
+        1.0,
+    );
+    plane_out[pixel] = t * t * (3.0 - 2.0 * t);
+}
+
+@compute @workgroup_size(64)
+fn apply(@builtin(global_invocation_id) id: vec3<u32>) {
+    let pixel = pixel_of(id);
+    if (pixel >= params.pixels) { return; }
+    var weight = 1.0;
+    if (params.masked != 0u) { weight = mask[pixel]; }
+    let delta = weight * params.k * (plane[pixel] - blurred[pixel]);
+    let base = pixel * 3u;
+    for (var c = 0u; c < 3u; c++) {
+        let shifted = max(to_display(samples[base + c]) + delta, 0.0);
+        samples[base + c] = to_linear(shifted);
+    }
 }
 ";

@@ -1829,6 +1829,7 @@ impl StageCache {
             &mut current.gpu_frame,
             plan.get(deepest.applied..)?,
             settings,
+            f32::from_bits(current.key.1),
             deepest.applied,
             deepest.fingerprint,
             &deepest.pixels,
@@ -1868,7 +1869,11 @@ impl StageCache {
             .filter(|c| c.fingerprint == prefix_fingerprint(settings, &plan, c.applied))
             .max_by_key(|c| c.applied)
             .is_some_and(|deepest| {
-                crate::gpu_preview::covers(plan.get(deepest.applied..).unwrap_or(&[]), settings)
+                crate::gpu_preview::covers(
+                    plan.get(deepest.applied..).unwrap_or(&[]),
+                    settings,
+                    f32::from_bits(context.key.1),
+                )
             })
     }
 

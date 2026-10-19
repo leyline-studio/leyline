@@ -670,11 +670,26 @@ vignette — requires). The *colour* drag with a shadow grade and a vignette
 added: 337 ms → 18 ms at 4K, 91 → 12 ms at 2048, worst gap 1 on
 0.0008–0.0009 % of samples.
 
-The sharpening drag is unchanged (155–170 ms at 4K): sharpening has no
-kernel yet, so per §4 that drag stays on the CPU, as it must. The 4K
-exposure drag is now at or near the 33 ms budget; what is left in it is the
-read-back of 44 MB and its repacking, to be measured on their own before
-anything is optimised.
+Sixth slice, the first neighbourhood operator (§5.2: kept only if it
+pays): `sharpen` v1 and v2 — the luma plane, its separable blur with the
+CPU's own weights, v2's blurred Sobel mask when masking is above 0, then
+the luma shift, in five passes on planes kept with the resident frame.
+The sharpening drag, on the GPU / with `LEYLINE_GPU=off`:
+
+| File | Class | Sharpening, CPU | Sharpening, GPU | Worst gap | Samples off by 1 |
+|---|---|---|---|---|---|
+| 10 Mpx CR2 | native (3888×2592) | 161 ms | 26 ms | — | — |
+| 30 Mpx 5D IV CR2 | 1024 | 13 ms | 3 ms | 1 | 0.0001 % |
+| | 2048 | 44 ms | 7 ms | 1 | 0.0002 % |
+| | 4096 | 181 ms | 26 ms | 1 | 0.0002 % |
+
+It pays at every class, so it stays. The drag measured runs at masking 0
+(v1's arithmetic); the masked path is held to the same one level by the
+engine's GPU test.
+
+The 4K exposure drag is now at or near the 33 ms budget; what is left in
+it is the read-back of 44 MB and its repacking, to be measured on their
+own before anything is optimised.
 
 ---
 

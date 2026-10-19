@@ -246,12 +246,10 @@ pub(crate) fn add_luma_delta(px: &mut Pixels, delta: impl Fn(usize) -> f32 + Syn
         });
 }
 
-/// Separable Gaussian blur of a single plane. Kernel radius is `⌈3σ⌉`,
-/// edges are clamped (replicated). σ ≤ 0 returns the plane unchanged.
-pub(crate) fn gaussian_blur(plane: &[f32], width: usize, height: usize, sigma: f32) -> Vec<f32> {
-    if sigma <= 0.0 {
-        return plane.to_vec();
-    }
+/// The half kernel [`gaussian_blur`] convolves with, centre first and
+/// normalised over both sides — public to the crate so the GPU preview
+/// blurs with the very weights the CPU does (ADR 0156 §3).
+pub(crate) fn gaussian_weights(sigma: f32) -> Vec<f32> {
     let radius = (3.0 * sigma).ceil() as usize;
     let mut kernel: Vec<f32> = (0..=radius)
         .map(|i| (-((i * i) as f32) / (2.0 * sigma * sigma)).exp())
@@ -260,6 +258,16 @@ pub(crate) fn gaussian_blur(plane: &[f32], width: usize, height: usize, sigma: f
     for weight in &mut kernel {
         *weight /= sum;
     }
+    kernel
+}
+
+/// Separable Gaussian blur of a single plane. Kernel radius is `⌈3σ⌉`,
+/// edges are clamped (replicated). σ ≤ 0 returns the plane unchanged.
+pub(crate) fn gaussian_blur(plane: &[f32], width: usize, height: usize, sigma: f32) -> Vec<f32> {
+    if sigma <= 0.0 {
+        return plane.to_vec();
+    }
+    let kernel = gaussian_weights(sigma);
 
     let convolve = |src: &[f32], i: usize, length: usize, stride: usize, base: usize| -> f32 {
         let mut acc = kernel[0] * src[base + i * stride];

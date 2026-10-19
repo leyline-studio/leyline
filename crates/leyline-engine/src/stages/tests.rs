@@ -2687,9 +2687,9 @@ fn the_stage_cache_is_dropped_across_input_sizes_at_one_scale() {
 /// ADR 0156 §3: a drag the GPU renders stays within one 8-bit level of the
 /// CPU's render of the same settings. The first render is the CPU's and
 /// leaves the checkpoint; the second moves every operator that has a kernel
-/// — the Basic panel's tone, both curves, levels, the rolloff — with an
-/// exposure high enough to send highlights above 1, and so has only
-/// kernel-backed stages after it.
+/// — the Basic panel's tone, both curves, levels, the rolloff, sharpening
+/// with and without its edge mask — with an exposure high enough to send
+/// highlights above 1, and so has only kernel-backed stages after it.
 #[cfg(feature = "gpu")]
 #[test]
 fn the_gpu_preview_stays_within_one_level_of_the_cpu() {
@@ -2770,9 +2770,17 @@ fn the_gpu_preview_stays_within_one_level_of_the_cpu() {
     dragged.vignette.amount = -40;
     dragged.vignette.midpoint = 40;
     dragged.vignette.feather = 60;
+    dragged.sharpening = Sharpening {
+        amount: 60,
+        radius: 1.2,
+        masking: 0,
+    };
     let mut monochrome = dragged.clone();
     monochrome.monochrome = true;
-    for mut dragged in [dragged, monochrome] {
+    // v2's edge mask: a plane, its own blur, and a weight per pixel.
+    let mut masked = dragged.clone();
+    masked.sharpening.masking = 40;
+    for mut dragged in [dragged, monochrome, masked] {
         super::pin(&mut dragged);
         let mut cache = StageCache::default();
         // A drag moves values, not the pinned map: the frame before it is the
@@ -2964,12 +2972,12 @@ fn would_render_on_gpu_follows_the_cache_and_the_kernels() {
     // Another class has no checkpoint yet.
     assert!(!cache.would_render_on_gpu(asset, Some(1024), &dragged));
     // A stage with no kernel after the checkpoint keeps it on the CPU.
-    let sharpened = leyline_core::Settings {
-        sharpening: Sharpening {
+    let grained = leyline_core::Settings {
+        grain: leyline_core::Grain {
             amount: 30,
             ..Default::default()
         },
         ..dragged
     };
-    assert!(!cache.would_render_on_gpu(asset, Some(4096), &sharpened));
+    assert!(!cache.would_render_on_gpu(asset, Some(4096), &grained));
 }

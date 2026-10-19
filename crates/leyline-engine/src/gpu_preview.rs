@@ -42,8 +42,9 @@ pub(crate) fn preview_backend() -> Option<String> {
 /// The preview kernel of one stage version, built from the settings it
 /// renders (ADR 0156 §3) — a table beside `STAGES`, keyed by name and
 /// version like `INPUT_DECODE`, so a frozen `Version` is never edited to
-/// gain one. `None` means the GPU cannot run this version.
-fn kernel(stage: &Stage, version: &Version, settings: &Settings) -> Option<Op> {
+/// gain one. `scale` is the render's, as `StageContext::scale`. `None`
+/// means the GPU cannot run this version.
+fn kernel(stage: &Stage, version: &Version, settings: &Settings, scale: f32) -> Option<Op> {
     match (stage.name, version.version) {
         ("gains", 1) => Some(Op::Gains(crate::stages::gains::v1::channel_gains(
             settings.white_balance.as_ref(),
@@ -116,6 +117,31 @@ fn kernel(stage: &Stage, version: &Version, settings: &Settings) -> Option<Op> {
                 blending: f32::from(grading.blending as i16) / 100.0,
             })
         }
+        // The same σ as both versions, from the same weights; v2 at
+        // masking 0 renders exactly v1, so it skips the mask here too.
+        ("sharpen", 1 | 2) => {
+            let sharpening = &settings.sharpening;
+            let sigma = (sharpening.radius * f64::from(scale)) as f32;
+            let masking = if version.version == 2 {
+                sharpening.masking
+            } else {
+                0
+            };
+            let edge = (masking > 0).then(|| {
+                let threshold = f32::from(masking as i16) / 100.0 * 0.25;
+                [threshold, (threshold * 0.5).max(1e-4)]
+            });
+            Some(Op::Sharpen {
+                k: f32::from(sharpening.amount as i16) / 100.0,
+                weights: Arc::new(if sigma <= 0.0 {
+                    vec![1.0]
+                } else {
+                    crate::stages::kernel::v1::gaussian_weights(sigma)
+                }),
+                edge,
+                transfer: transfer(),
+            })
+        }
         // The same derivations as `vignette` v1, in the same `f32`.
         ("vignette", 1) => {
             let vignette = &settings.vignette;
@@ -148,15 +174,21 @@ fn kernel(stage: &Stage, version: &Version, settings: &Settings) -> Option<Op> {
 
 /// A display-axis operation with the CPU's transfer tables.
 fn display(op: DisplayOp) -> Option<Op> {
+    Some(Op::Display(op, transfer()))
+}
+
+/// The CPU's transfer tables, shared with every frame.
+fn transfer() -> Transfer {
     static TRANSFER: OnceLock<Transfer> = OnceLock::new();
-    let transfer = TRANSFER.get_or_init(|| {
-        let (to_linear, to_display) = crate::stages::kernel::v1::tables();
-        Transfer {
-            to_linear: Arc::new(to_linear.to_vec()),
-            to_display: Arc::new(to_display.to_vec()),
-        }
-    });
-    Some(Op::Display(op, transfer.clone()))
+    TRANSFER
+        .get_or_init(|| {
+            let (to_linear, to_display) = crate::stages::kernel::v1::tables();
+            Transfer {
+                to_linear: Arc::new(to_linear.to_vec()),
+                to_display: Arc::new(to_display.to_vec()),
+            }
+        })
+        .clone()
 }
 
 /// The CPU's display-curve table, shared with every frame.
@@ -167,11 +199,15 @@ fn display_table() -> Arc<Vec<f32>> {
 
 /// Whether the GPU could run every stage of `rest` for `settings`
 /// (ADR 0166 §3), with a device to run them on.
-pub(crate) fn covers(rest: &[(&'static Stage, &'static Version)], settings: &Settings) -> bool {
+pub(crate) fn covers(
+    rest: &[(&'static Stage, &'static Version)],
+    settings: &Settings,
+    scale: f32,
+) -> bool {
     gpu().is_some()
         && rest
             .iter()
-            .all(|(stage, version)| kernel(stage, version, settings).is_some())
+            .all(|(stage, version)| kernel(stage, version, settings, scale).is_some())
 }
 
 /// The resident copy of one checkpoint, and which checkpoint it is.
@@ -189,6 +225,7 @@ pub(crate) fn render(
     resident: &mut Option<ResidentFrame>,
     rest: &[(&'static Stage, &'static Version)],
     settings: &Settings,
+    scale: f32,
     applied: usize,
     fingerprint: u64,
     pixels: &Pixels,
@@ -196,7 +233,7 @@ pub(crate) fn render(
     let gpu = gpu()?;
     let ops = rest
         .iter()
-        .map(|(stage, version)| kernel(stage, version, settings))
+        .map(|(stage, version)| kernel(stage, version, settings, scale))
         .collect::<Option<Vec<Op>>>()?;
     let key = (applied, fingerprint);
     if resident.as_ref().is_none_or(|r| r.key != key) {
