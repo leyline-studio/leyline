@@ -56,6 +56,23 @@ pub enum Op {
         /// The CPU's transfer tables.
         transfer: Transfer,
     },
+    /// `clarity` v1 and `texture` v1, the CPU's `local_contrast`: the luma
+    /// shift of [`Op::Sharpen`] without a mask, around the blur of the
+    /// CPU's `approx_blur` — a `factor`×`factor` box reduction, a Gaussian
+    /// at the reduced scale and a bilinear return — or a literal Gaussian
+    /// when `factor` is 1.
+    LocalContrast {
+        /// Amount / 100.
+        k: f32,
+        /// How much smaller a side of the blurred plane is; 1 blurs it at
+        /// full size.
+        factor: u32,
+        /// The CPU's half kernel at the blur's σ (the reduced one when
+        /// `factor` is above 1), centre first.
+        weights: Arc<Vec<f32>>,
+        /// The CPU's transfer tables.
+        transfer: Transfer,
+    },
     /// `vignette` v1, in the coordinates of the (cropped) frame: applied as
     /// the output reads each pixel, so it may only be followed by
     /// [`Op::OutputRendering`]. Values as the stage derives them.
@@ -305,6 +322,24 @@ impl Frame {
                     stride,
                     k: *k,
                     edge: *edge,
+                    factor: 1,
+                };
+                self.sharpen(gpu, &mut encoder, &params, weights, transfer)?;
+                continue;
+            }
+            if let Op::LocalContrast {
+                k,
+                factor,
+                weights,
+                transfer,
+            } = step
+            {
+                let params = SharpenParams {
+                    groups: (groups_x, groups_y),
+                    stride,
+                    k: *k,
+                    edge: None,
+                    factor: *factor,
                 };
                 self.sharpen(gpu, &mut encoder, &params, weights, transfer)?;
                 continue;
@@ -436,12 +471,15 @@ struct SharpenParams {
     stride: u32,
     k: f32,
     edge: Option<[f32; 2]>,
+    /// The blur's reduction, 1 for none.
+    factor: u32,
 }
 
 impl Frame {
-    /// Records `sharpen` v1/v2 into `encoder`: the luma plane, its blur,
-    /// v2's blurred edge mask when there is one, then the luma shift —
-    /// the CPU's passes in the CPU's order.
+    /// Records `sharpen` v1/v2 or `local_contrast` into `encoder`: the luma
+    /// plane, its blur (through a reduced plane when `factor` is above 1),
+    /// v2's blurred edge mask when there is one, then the luma shift — the
+    /// CPU's passes in the CPU's order.
     fn sharpen(
         &self,
         gpu: &Gpu,
@@ -461,66 +499,104 @@ impl Frame {
                 })
             })
         });
-        let mut params = Vec::with_capacity(48);
         let taps = u32::try_from(weights.len().checked_sub(1)?).ok()?;
         let masked = u32::from(sharpen.edge.is_some());
-        for word in [
-            self.pixels,
-            sharpen.stride,
-            self.width,
-            self.height,
-            taps,
-            masked,
-        ] {
-            params.extend_from_slice(&word.to_le_bytes());
-        }
         let [threshold, softness] = sharpen.edge.unwrap_or_default();
-        for value in [sharpen.k, threshold, softness] {
-            params.extend_from_slice(&value.to_le_bytes());
+        // One layout for both planes' passes: its own size first, then the
+        // other plane's, which the reduction and its return read across.
+        let params_of = |(pixels, stride, width, height): (u32, u32, u32, u32),
+                         (other_width, other_height): (u32, u32)| {
+            let mut params = Vec::with_capacity(48);
+            for word in [pixels, stride, width, height, taps, masked] {
+                params.extend_from_slice(&word.to_le_bytes());
+            }
+            for value in [sharpen.k, threshold, softness] {
+                params.extend_from_slice(&value.to_le_bytes());
+            }
+            for word in [other_width, other_height, sharpen.factor] {
+                params.extend_from_slice(&word.to_le_bytes());
+            }
+            uniform(device, &params)
+        };
+        let factor = sharpen.factor.max(1);
+        let small =
+            (factor > 1).then(|| (self.width.div_ceil(factor), self.height.div_ceil(factor)));
+        // `approx_blur` blurs a one-pixel side literally; so does the CPU
+        // fallback this answer hands it to.
+        if small.is_some() && (self.width < 2 || self.height < 2) {
+            return None;
         }
-        params.resize(48, 0);
-        let params = uniform(device, &params);
+        let (small_width, small_height) = small.unwrap_or((self.width, self.height));
+        let params = params_of(
+            (self.pixels, sharpen.stride, self.width, self.height),
+            (small_width, small_height),
+        );
+        let small_groups = dispatch(small_width * small_height);
+        let small_params = params_of(
+            (
+                small_width * small_height,
+                small_groups.0 * WORKGROUP,
+                small_width,
+                small_height,
+            ),
+            (self.width, self.height),
+        );
         let to_display = table(device, &transfer.to_display);
         let to_linear = table(device, &transfer.to_linear);
         let weights = table(device, weights);
         let pipelines = &gpu.pipelines().sharpen;
-        let groups = sharpen.groups;
         let pass = |encoder: &mut wgpu::CommandEncoder,
                     pipeline: &wgpu::ComputePipeline,
-                    entries: &[wgpu::BindGroupEntry<'_>]| {
+                    entries: &[wgpu::BindGroupEntry<'_>],
+                    groups: (u32, u32)| {
             record(device, encoder, pipeline, entries, groups);
         };
-        let blur = |encoder: &mut wgpu::CommandEncoder, from: &wgpu::Buffer, to: &wgpu::Buffer| {
+        let blur = |encoder: &mut wgpu::CommandEncoder,
+                    params: &wgpu::Buffer,
+                    groups: (u32, u32),
+                    from: &wgpu::Buffer,
+                    to: &wgpu::Buffer| {
             let rows = [
-                entry(1, &params),
+                entry(1, params),
                 entry(4, from),
                 entry(7, scratch),
                 entry(8, &weights),
             ];
-            pass(encoder, &pipelines.blur_rows, &rows);
+            pass(encoder, &pipelines.blur_rows, &rows, groups);
             let columns = [
-                entry(1, &params),
+                entry(1, params),
                 entry(4, scratch),
                 entry(7, to),
                 entry(8, &weights),
             ];
-            pass(encoder, &pipelines.blur_columns, &columns);
+            pass(encoder, &pipelines.blur_columns, &columns, groups);
         };
+        let groups = sharpen.groups;
         let luma_entries = [
             entry(0, &self.work),
             entry(1, &params),
             entry(2, &to_display),
             entry(7, luma),
         ];
-        pass(encoder, &pipelines.luma, &luma_entries);
-        blur(encoder, luma, blurred);
+        pass(encoder, &pipelines.luma, &luma_entries, groups);
+        if small.is_some() {
+            // The reduced plane fits in `mask`, which only v2's edge uses.
+            let reduce = [entry(1, &small_params), entry(4, luma), entry(7, mask)];
+            pass(encoder, &pipelines.reduce, &reduce, small_groups);
+            blur(encoder, &small_params, small_groups, mask, mask);
+            let expand = [entry(1, &params), entry(4, mask), entry(7, blurred)];
+            pass(encoder, &pipelines.expand, &expand, groups);
+        } else {
+            blur(encoder, &params, groups, luma, blurred);
+        }
         if sharpen.edge.is_some() {
             pass(
                 encoder,
                 &pipelines.edge,
                 &[entry(1, &params), entry(4, luma), entry(7, mask)],
+                groups,
             );
-            blur(encoder, mask, mask);
+            blur(encoder, &params, groups, mask, mask);
         }
         pass(
             encoder,
@@ -534,6 +610,7 @@ impl Frame {
                 entry(5, blurred),
                 entry(6, mask),
             ],
+            groups,
         );
         Some(())
     }
@@ -567,12 +644,15 @@ pub(crate) struct Pipelines {
     output: wgpu::ComputePipeline,
 }
 
-/// The passes of [`Op::Sharpen`], entry points of one shader module.
+/// The passes of [`Op::Sharpen`] and [`Op::LocalContrast`], entry points of
+/// one shader module.
 #[derive(Debug)]
 pub(crate) struct SharpenPipelines {
     luma: wgpu::ComputePipeline,
     blur_rows: wgpu::ComputePipeline,
     blur_columns: wgpu::ComputePipeline,
+    reduce: wgpu::ComputePipeline,
+    expand: wgpu::ComputePipeline,
     edge: wgpu::ComputePipeline,
     apply: wgpu::ComputePipeline,
 }
@@ -588,6 +668,8 @@ impl Pipelines {
                 luma: pipeline(device, "sharpen luma", &sharpen, "luma"),
                 blur_rows: pipeline(device, "sharpen blur rows", &sharpen, "blur_rows"),
                 blur_columns: pipeline(device, "sharpen blur columns", &sharpen, "blur_columns"),
+                reduce: pipeline(device, "sharpen reduce", &sharpen, "reduce"),
+                expand: pipeline(device, "sharpen expand", &sharpen, "expand"),
                 edge: pipeline(device, "sharpen edge", &sharpen, "edge"),
                 apply: pipeline(device, "sharpen apply", &sharpen, "apply"),
             },
@@ -1131,6 +1213,9 @@ struct Params {
     k: f32,
     threshold: f32,
     softness: f32,
+    other_width: u32,
+    other_height: u32,
+    factor: u32,
 }
 @group(0) @binding(0) var<storage, read_write> samples: array<f32>;
 @group(0) @binding(1) var<uniform> params: Params;
@@ -1184,6 +1269,54 @@ fn blur_columns(@builtin(global_invocation_id) id: vec3<u32>) {
         acc += weights[k] * (plane[lo * params.width + x] + plane[hi * params.width + x]);
     }
     plane_out[pixel] = acc;
+}
+
+// `approx_blur`'s box reduction, one invocation per pixel of the reduced
+// plane, summed in the CPU's order.
+@compute @workgroup_size(64)
+fn reduce(@builtin(global_invocation_id) id: vec3<u32>) {
+    let pixel = pixel_of(id);
+    if (pixel >= params.pixels) { return; }
+    let sx = pixel % params.width;
+    let sy = pixel / params.width;
+    var sum = 0.0;
+    var count = 0u;
+    for (var dy = 0u; dy < params.factor; dy++) {
+        let y = sy * params.factor + dy;
+        if (y >= params.other_height) { continue; }
+        for (var dx = 0u; dx < params.factor; dx++) {
+            let x = sx * params.factor + dx;
+            if (x >= params.other_width) { continue; }
+            sum += plane[y * params.other_width + x];
+            count += 1u;
+        }
+    }
+    plane_out[pixel] = select(0.0, sum / f32(count), count > 0u);
+}
+
+// `approx_blur`'s bilinear return to the full plane.
+@compute @workgroup_size(64)
+fn expand(@builtin(global_invocation_id) id: vec3<u32>) {
+    let pixel = pixel_of(id);
+    if (pixel >= params.pixels) { return; }
+    let x = pixel % params.width;
+    let y = pixel / params.width;
+    let factor = f32(params.factor);
+    let sy = min(f32(y) / factor, f32(params.other_height) - 1.0);
+    let y0 = u32(floor(sy));
+    let y1 = min(y0 + 1u, params.other_height - 1u);
+    let ty = sy - f32(y0);
+    let sx = min(f32(x) / factor, f32(params.other_width) - 1.0);
+    let x0 = u32(floor(sx));
+    let x1 = min(x0 + 1u, params.other_width - 1u);
+    let tx = sx - f32(x0);
+    let v00 = plane[y0 * params.other_width + x0];
+    let v10 = plane[y0 * params.other_width + x1];
+    let v01 = plane[y1 * params.other_width + x0];
+    let v11 = plane[y1 * params.other_width + x1];
+    let v0 = v00 + (v10 - v00) * tx;
+    let v1 = v01 + (v11 - v01) * tx;
+    plane_out[pixel] = v0 + (v1 - v0) * ty;
 }
 
 fn at(x: u32, y: u32) -> f32 {

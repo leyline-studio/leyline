@@ -687,6 +687,22 @@ It pays at every class, so it stays. The drag measured runs at masking 0
 (v1's arithmetic); the masked path is held to the same one level by the
 engine's GPU test.
 
+Seventh slice: `clarity` v1 and `texture` v1, one operator
+(`local_contrast`) at two radii. The GPU takes the CPU's `approx_blur`
+path for the σ at hand — a box reduction of the luma plane, the
+separable blur at the reduced scale with the CPU's weights, a bilinear
+return — or the literal blur where the CPU blurs literally, then
+sharpening's luma shift without a mask. The clarity drag over texture 15,
+on the GPU / with `LEYLINE_GPU=off`:
+
+| File | Class | Clarity, CPU | Clarity, GPU | Worst gap | Samples off by 1 |
+|---|---|---|---|---|---|
+| 30 Mpx 5D IV CR2 | 1024 | 19 ms | 3 ms | 1 | 0.0002 % |
+| | 2048 | 72 ms | 16 ms | 1 | 0.0005 % |
+| | 4096 | 274 ms | 31 ms | 1 | 0.0005 % |
+
+It pays at every class, so it stays.
+
 The 4K exposure drag is now at or near the 33 ms budget; what is left in
 it is the read-back of 44 MB and its repacking, to be measured on their
 own before anything is optimised.

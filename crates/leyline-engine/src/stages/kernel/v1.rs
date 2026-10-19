@@ -304,19 +304,31 @@ pub(crate) fn gaussian_blur(plane: &[f32], width: usize, height: usize, sigma: f
 /// blur regardless of how large the source image is.
 pub(crate) const APPROX_BLUR_DOWNSAMPLE_DIVISOR: f32 = 4.0;
 
+/// The reduction [`approx_blur`] blurs through at `sigma`: the side
+/// divisor and the σ of the blur at the reduced scale, or `None` when it
+/// blurs literally instead — public to the crate so the GPU preview takes
+/// the very same path (ADR 0156 §3).
+pub(crate) fn approx_blur_reduction(sigma: f32) -> Option<(usize, f32)> {
+    if sigma <= 1.0 {
+        return None;
+    }
+    let factor = (sigma / APPROX_BLUR_DOWNSAMPLE_DIVISOR).round().max(1.0) as usize;
+    // A light extra blur at the reduced scale smooths block-averaging
+    // edges; sigma scales down with the same factor the plane did.
+    (factor > 1).then(|| (factor, (sigma / factor as f32).max(0.5)))
+}
+
 /// Approximates a large-radius Gaussian blur via downsample → small blur →
 /// bilinear upsample (a single-level Gaussian-pyramid approximation)
 /// instead of a literal full-resolution kernel (ADR 0033). At `sigma <= 1`
 /// downsampling would lose more than it saves, so this falls back to the
 /// literal [`gaussian_blur`] directly.
 pub(crate) fn approx_blur(plane: &[f32], width: usize, height: usize, sigma: f32) -> Vec<f32> {
-    if sigma <= 1.0 || width < 2 || height < 2 {
+    let Some((factor, small_sigma)) =
+        approx_blur_reduction(sigma).filter(|_| width >= 2 && height >= 2)
+    else {
         return gaussian_blur(plane, width, height, sigma);
-    }
-    let factor = (sigma / APPROX_BLUR_DOWNSAMPLE_DIVISOR).round().max(1.0) as usize;
-    if factor <= 1 {
-        return gaussian_blur(plane, width, height, sigma);
-    }
+    };
     let small_w = width.div_ceil(factor).max(1);
     let small_h = height.div_ceil(factor).max(1);
 
@@ -347,9 +359,6 @@ pub(crate) fn approx_blur(plane: &[f32], width: usize, height: usize, sigma: f32
             }
         });
 
-    // A light extra blur at the reduced scale smooths block-averaging
-    // edges; sigma scales down with the same factor the plane did.
-    let small_sigma = (sigma / factor as f32).max(0.5);
     let small_blurred = gaussian_blur(&small, small_w, small_h, small_sigma);
 
     // Bilinear upsample back to full resolution.

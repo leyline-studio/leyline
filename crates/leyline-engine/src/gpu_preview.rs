@@ -117,6 +117,16 @@ fn kernel(stage: &Stage, version: &Version, settings: &Settings, scale: f32) -> 
                 blending: f32::from(grading.blending as i16) / 100.0,
             })
         }
+        // `local_contrast` at each version's radius, through the
+        // reduction `approx_blur` picks for that σ.
+        ("clarity", 1) => local_contrast(
+            settings.clarity,
+            crate::stages::clarity::v1::CLARITY_RADIUS * scale,
+        ),
+        ("texture", 1) => local_contrast(
+            settings.texture,
+            crate::stages::texture::v1::TEXTURE_RADIUS * scale,
+        ),
         // The same σ as both versions, from the same weights; v2 at
         // masking 0 renders exactly v1, so it skips the mask here too.
         ("sharpen", 1 | 2) => {
@@ -170,6 +180,23 @@ fn kernel(stage: &Stage, version: &Version, settings: &Settings, scale: f32) -> 
         }),
         _ => None,
     }
+}
+
+/// `kernel::v1::local_contrast` at `sigma`, blurred as its `approx_blur`
+/// blurs: reduced when the CPU reduces, literally otherwise.
+fn local_contrast(amount: i32, sigma: f32) -> Option<Op> {
+    let (factor, sigma) =
+        crate::stages::kernel::v1::approx_blur_reduction(sigma).unwrap_or((1, sigma));
+    Some(Op::LocalContrast {
+        k: f32::from(amount as i16) / 100.0,
+        factor: u32::try_from(factor).ok()?,
+        weights: Arc::new(if sigma <= 0.0 {
+            vec![1.0]
+        } else {
+            crate::stages::kernel::v1::gaussian_weights(sigma)
+        }),
+        transfer: transfer(),
+    })
 }
 
 /// A display-axis operation with the CPU's transfer tables.

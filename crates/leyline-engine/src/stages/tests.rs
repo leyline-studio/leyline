@@ -2688,7 +2688,7 @@ fn the_stage_cache_is_dropped_across_input_sizes_at_one_scale() {
 /// CPU's render of the same settings. The first render is the CPU's and
 /// leaves the checkpoint; the second moves every operator that has a kernel
 /// — the Basic panel's tone, both curves, levels, the rolloff, sharpening
-/// with and without its edge mask — with an exposure high enough to send
+/// with and without its edge mask, clarity and texture — with an exposure high enough to send
 /// highlights above 1, and so has only kernel-backed stages after it.
 #[cfg(feature = "gpu")]
 #[test]
@@ -2780,7 +2780,12 @@ fn the_gpu_preview_stays_within_one_level_of_the_cpu() {
     // v2's edge mask: a plane, its own blur, and a weight per pixel.
     let mut masked = dragged.clone();
     masked.sharpening.masking = 40;
-    for mut dragged in [dragged, monochrome, masked] {
+    // Clarity through `approx_blur`'s reduction (σ 40, a tenth of a side),
+    // texture through a smaller one (σ 6, a half).
+    let mut local_contrast = dragged.clone();
+    local_contrast.clarity = 35;
+    local_contrast.texture = -20;
+    for mut dragged in [dragged, monochrome, masked, local_contrast] {
         super::pin(&mut dragged);
         let mut cache = StageCache::default();
         // A drag moves values, not the pinned map: the frame before it is the

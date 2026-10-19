@@ -9,7 +9,7 @@
 //! (Small 1024 px, Medium 2048 px, Large 4096 px) renders a drag on an early
 //! slider (exposure: the whole pipeline after the decode is replayed), on
 //! contrast with the rest of the tonal block active, on saturation in a
-//! cropped photograph, and on a late one
+//! cropped photograph, on clarity over a little texture, and on a late one
 //! (sharpening: the stage cache's best case), and prints the
 //! median of the frames after the first, in milliseconds. Every render goes
 //! through `Library::preview_live`, the path Studio's drag uses.
@@ -80,7 +80,7 @@ fn measure(file: &Path) -> Result<(), String> {
         (PreviewKind::Medium, "medium-2048"),
         (PreviewKind::Large, "large-4096"),
     ] {
-        for slider in ["exposure", "tone", "colour", "sharpening"] {
+        for slider in ["exposure", "tone", "colour", "sharpening", "clarity"] {
             let mut times = Vec::with_capacity(FRAMES);
             let mut size = (0, 0);
             let mut last = None;
@@ -150,6 +150,12 @@ fn dragged(head: &Settings, slider: &str, frame: usize) -> Settings {
                 width: 0.8,
                 height: 0.75,
             });
+        }
+        // Clarity dragged over a little texture: both local-contrast
+        // radii, the reduced blur and the literal one at small classes.
+        "clarity" => {
+            settings.clarity = 10 + frame as i32 * 5;
+            settings.texture = 15;
         }
         _ => {
             settings.sharpening.amount = 20 + frame as i32 * 5;
