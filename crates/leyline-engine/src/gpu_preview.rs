@@ -96,6 +96,16 @@ fn kernel(stage: &Stage, version: &Version, settings: &Settings) -> Option<Op> {
             k: f32::from(settings.saturation as i16) / 100.0,
             vibrance: false,
         }),
+        ("hsl", 1) => display(DisplayOp::Hsl {
+            bands: settings.hsl.map(|band| {
+                [
+                    f32::from(band.hue as i16),
+                    f32::from(band.saturation as i16),
+                    f32::from(band.luminance as i16),
+                ]
+            }),
+        }),
+        ("monochrome", 1) => display(DisplayOp::Monochrome),
         ("crop", 1) => settings.crop.as_ref().map(|rect| Op::Crop {
             x: rect.x,
             y: rect.y,

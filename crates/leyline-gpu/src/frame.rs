@@ -103,6 +103,16 @@ pub enum DisplayOp {
         /// Weigh by how unsaturated a pixel already is.
         vibrance: bool,
     },
+    /// `hsl` v1: the eight bands' hue, saturation and luminance amounts,
+    /// as the settings hold them (in [-100, 100]), band order of
+    /// `HSL_BAND_CENTERS_DEG`.
+    Hsl {
+        /// Per band: hue, saturation, luminance.
+        bands: [[f32; 3]; 8],
+    },
+    /// `monochrome` v1: every channel set to the Rec. 2020 luma, on the
+    /// **linear** axis — the one mode that does not cross to display.
+    Monochrome,
 }
 
 /// The CPU's transfer tables between the linear and display axes, shared
@@ -443,6 +453,16 @@ fn display_params(op: &DisplayOp) -> (u32, [f32; 5], Option<Arc<Vec<f32>>>) {
             [*k, if *vibrance { 1.0 } else { 0.0 }, 0.0, 0.0, 0.0],
             None,
         ),
+        // The bands go through the table binding: hues, then saturations,
+        // then luminances.
+        DisplayOp::Hsl { bands } => {
+            let mut table = Vec::with_capacity(24);
+            for component in 0..3 {
+                table.extend(bands.iter().map(|band| band[component]));
+            }
+            (6, [0.0; 5], Some(Arc::new(table)))
+        }
+        DisplayOp::Monochrome => (7, [0.0; 5], None),
     }
 }
 
@@ -649,6 +669,84 @@ fn highlights_shadows(rgb: vec3<f32>) -> vec3<f32> {
     return out;
 }
 
+fn euclid(x: f32, m: f32) -> f32 {
+    return x - floor(x / m) * m;
+}
+
+fn rgb_to_hsl(rgb: vec3<f32>) -> vec3<f32> {
+    let mx = max(rgb.x, max(rgb.y, rgb.z));
+    let mn = min(rgb.x, min(rgb.y, rgb.z));
+    let l = (mx + mn) / 2.0;
+    let delta = mx - mn;
+    if (delta < 1e-6) { return vec3<f32>(0.0, 0.0, l); }
+    var s: f32;
+    if (l <= 0.5) { s = delta / (mx + mn); } else { s = delta / (2.0 - mx - mn); }
+    var h: f32;
+    if (mx == rgb.x) {
+        h = 60.0 * euclid((rgb.y - rgb.z) / delta, 6.0);
+    } else if (mx == rgb.y) {
+        h = 60.0 * ((rgb.z - rgb.x) / delta + 2.0);
+    } else {
+        h = 60.0 * ((rgb.x - rgb.y) / delta + 4.0);
+    }
+    return vec3<f32>(euclid(h, 360.0), s, l);
+}
+
+fn hsl_to_rgb(h: f32, s: f32, l: f32) -> vec3<f32> {
+    if (s <= 1e-6) { return vec3<f32>(l); }
+    let c = (1.0 - abs(2.0 * l - 1.0)) * s;
+    let x = c * (1.0 - abs(euclid(h / 60.0, 2.0) - 1.0));
+    let m = l - c / 2.0;
+    var rgb1: vec3<f32>;
+    if (h < 60.0) { rgb1 = vec3<f32>(c, x, 0.0); }
+    else if (h < 120.0) { rgb1 = vec3<f32>(x, c, 0.0); }
+    else if (h < 180.0) { rgb1 = vec3<f32>(0.0, c, x); }
+    else if (h < 240.0) { rgb1 = vec3<f32>(0.0, x, c); }
+    else if (h < 300.0) { rgb1 = vec3<f32>(x, 0.0, c); }
+    else { rgb1 = vec3<f32>(c, 0.0, x); }
+    return clamp(rgb1 + vec3<f32>(m), vec3<f32>(0.0), vec3<f32>(1.0));
+}
+
+// `hsl::v1`'s band centres, in degrees.
+const CENTRES = array<f32, 8>(0.0, 30.0, 60.0, 120.0, 180.0, 240.0, 275.0, 315.0);
+
+// `hsl` v1 inside `preserving_headroom`; the bands are in `curve_table`.
+fn hsl_mix(input: vec3<f32>) -> vec3<f32> {
+    let peak = max(1.0, max(input.x, max(input.y, input.z)));
+    var rgb = input;
+    if (peak > 1.0) { rgb = rgb / peak; }
+    let hsl = rgb_to_hsl(rgb);
+    let h = euclid(hsl.x, 360.0);
+    var i0 = 0u;
+    var i1 = 1u;
+    var t = 0.0;
+    for (var i = 0u; i < 8u; i = i + 1u) {
+        let j = (i + 1u) % 8u;
+        let start = CENTRES[i];
+        var end = CENTRES[j];
+        if (j == 0u) { end = end + 360.0; }
+        var probe = h;
+        if (h < start) { probe = h + 360.0; }
+        if (probe >= start && probe <= end) {
+            i0 = i;
+            i1 = j;
+            t = (probe - start) / (end - start);
+            break;
+        }
+    }
+    let w1 = t * t * (3.0 - 2.0 * t);
+    let w0 = 1.0 - w1;
+    let hue_shift = (curve_table[i0] * w0 + curve_table[i1] * w1) / 100.0 * 30.0;
+    let sat_shift = (curve_table[8u + i0] * w0 + curve_table[8u + i1] * w1) / 100.0;
+    let lum_shift = (curve_table[16u + i0] * w0 + curve_table[16u + i1] * w1) / 100.0;
+    let new_h = euclid(hsl.x + hue_shift, 360.0);
+    let new_s = clamp(hsl.y * (1.0 + sat_shift), 0.0, 1.0);
+    let new_l = clamp(hsl.z + lum_shift * 0.25, 0.0, 1.0);
+    rgb = hsl_to_rgb(new_h, new_s, new_l);
+    if (peak > 1.0) { rgb = rgb * peak; }
+    return rgb;
+}
+
 // `saturate` with `preserving_headroom` around it: the pixel is brought into
 // the unit cube by its peak, adjusted there, and scaled back.
 fn saturate(input: vec3<f32>) -> vec3<f32> {
@@ -671,6 +769,13 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     let pixel = id.y * params.stride + id.x;
     if (pixel >= params.pixels) { return; }
     let base = pixel * 3u;
+    if (params.mode == 7u) {
+        let l = 0.2627 * samples[base] + 0.6780 * samples[base + 1u] + 0.0593 * samples[base + 2u];
+        samples[base] = l;
+        samples[base + 1u] = l;
+        samples[base + 2u] = l;
+        return;
+    }
     var rgb = vec3<f32>(
         to_display(samples[base]),
         to_display(samples[base + 1u]),
@@ -680,6 +785,8 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
         rgb = highlights_shadows(rgb);
     } else if (params.mode == 5u) {
         rgb = saturate(rgb);
+    } else if (params.mode == 6u) {
+        rgb = hsl_mix(rgb);
     } else {
         rgb = vec3<f32>(display_curve(rgb.x), display_curve(rgb.y), display_curve(rgb.z));
     }

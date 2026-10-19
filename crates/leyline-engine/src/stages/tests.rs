@@ -2699,7 +2699,6 @@ fn the_gpu_preview_stays_within_one_level_of_the_cpu() {
 
     let image = test_image(96, 64);
     let source = super::Source::plain(super::SourceColor::Srgb);
-    let mut cache = StageCache::default();
     let cached = |settings: &leyline_core::Settings, cache: &mut StageCache| {
         develop_scaled_cached(
             &image,
@@ -2758,50 +2757,58 @@ fn the_gpu_preview_stays_within_one_level_of_the_cpu() {
         ..Default::default()
     };
     dragged.output_rendering.highlight_rolloff = 70;
-    super::pin(&mut dragged);
-    // A drag moves values, not the pinned map: the frame before it is the
-    // same revision with the exposure where the pointer started.
-    let first = leyline_core::Settings {
-        exposure: 0.3,
-        ..dragged.clone()
-    };
-    cached(&first, &mut cache);
-    let before = crate::gpu_preview::tests::RENDERED.load(Ordering::SeqCst);
-    let gpu = cached(&dragged, &mut cache);
-    if crate::gpu_preview::tests::RENDERED.load(Ordering::SeqCst) == before {
-        // Silent only when there is truly nothing to run on: an adapter and
-        // a CPU-rendered drag is the defect this test exists to catch.
-        assert!(
-            crate::gpu_preview::preview_backend().is_none(),
-            "an adapter is there, yet the drag stayed on the CPU"
-        );
-        eprintln!("no GPU adapter on this machine: only the CPU path was exercised");
-        return;
-    }
-    let cpu = develop_scaled(
-        &image,
-        &dragged,
-        None,
-        None,
-        None,
-        None,
-        &Default::default(),
-        &source,
-        1.0,
-    )
-    .unwrap();
-    assert_eq!((gpu.width, gpu.height), (cpu.width, cpu.height));
-    let worst = gpu
-        .data
-        .iter()
-        .zip(&cpu.data)
-        .map(|(g, c)| g.abs_diff(*c))
-        .max()
+    dragged.hsl[0].hue = 40;
+    dragged.hsl[3].saturation = -50;
+    dragged.hsl[5].luminance = 30;
+    let mut monochrome = dragged.clone();
+    monochrome.monochrome = true;
+    for mut dragged in [dragged, monochrome] {
+        super::pin(&mut dragged);
+        let mut cache = StageCache::default();
+        // A drag moves values, not the pinned map: the frame before it is the
+        // same revision with the exposure where the pointer started.
+        let first = leyline_core::Settings {
+            exposure: 0.3,
+            ..dragged.clone()
+        };
+        cached(&first, &mut cache);
+        let before = crate::gpu_preview::tests::RENDERED.load(Ordering::SeqCst);
+        let gpu = cached(&dragged, &mut cache);
+        if crate::gpu_preview::tests::RENDERED.load(Ordering::SeqCst) == before {
+            // Silent only when there is truly nothing to run on: an adapter and
+            // a CPU-rendered drag is the defect this test exists to catch.
+            assert!(
+                crate::gpu_preview::preview_backend().is_none(),
+                "an adapter is there, yet the drag stayed on the CPU"
+            );
+            eprintln!("no GPU adapter on this machine: only the CPU path was exercised");
+            continue;
+        }
+        let cpu = develop_scaled(
+            &image,
+            &dragged,
+            None,
+            None,
+            None,
+            None,
+            &Default::default(),
+            &source,
+            1.0,
+        )
         .unwrap();
-    assert!(
-        worst <= 1,
-        "the GPU preview strays {worst} levels from the CPU"
-    );
+        assert_eq!((gpu.width, gpu.height), (cpu.width, cpu.height));
+        let worst = gpu
+            .data
+            .iter()
+            .zip(&cpu.data)
+            .map(|(g, c)| g.abs_diff(*c))
+            .max()
+            .unwrap();
+        assert!(
+            worst <= 1,
+            "the GPU preview strays {worst} levels from the CPU"
+        );
+    }
 }
 
 /// ADR 0166 §4: the develop view's `Small` render and its loupe-sized

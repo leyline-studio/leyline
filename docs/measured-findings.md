@@ -660,6 +660,10 @@ held:
 | | 2048 (1638×1025) | 38 ms | 5 ms | 1 | 0.0002 % |
 | | 4096 (3277×2051) | 160 ms | 18 ms | 1 | 0.0004 % |
 
+Fourth slice: `hsl` and `monochrome`. With three HSL bands moved, the
+*colour* drag on the 5D IV costs 248 ms at 4K on the CPU and 16 ms on the
+GPU (69 → 11 ms at 2048), worst gap 1 on 0.0005–0.0007 % of samples.
+
 The sharpening drag is unchanged (155–170 ms at 4K): sharpening has no
 kernel yet, so per §4 that drag stays on the CPU, as it must. The 4K
 exposure drag is now at or near the 33 ms budget; what is left in it is the
