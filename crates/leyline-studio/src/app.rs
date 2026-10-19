@@ -182,6 +182,9 @@ pub(crate) struct App {
     /// into a number. It existed one line before the displayed image was
     /// built; what is new is that it is not dropped straight away.
     pub(crate) dev_pixels: Option<leyline_sdk::Rgb8>,
+    /// The loupe-sized upgrades of the develop view and the generation of
+    /// the view on screen (ADR 0166 §2).
+    pub(crate) loupe: crate::wiring::develop::loupe::Loupe,
     /// Whether the selected mask's coverage is painted over the develop
     /// preview (ADR 0071). Interface state, never written to a revision.
     pub(crate) show_mask_overlay: bool,

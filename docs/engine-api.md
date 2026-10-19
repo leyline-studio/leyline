@@ -553,6 +553,7 @@ impl EditSession {
 * `commit` is called at the commit points defined by `pipeline.md` (release, tool change…). The session alone decides whether it is a new revision or an amendment.
 * Closing the session (drop) commits the pending state: nothing is ever lost.
 * A view that must not be written — a slider mid-drag, a group looked at without its values ([ADR 0163](adr/0163-a-look-without-one-group.md)) — therefore never goes through a session's `set`: `settings_with(&head, changes)` applies the same mapping and the same validation in memory, and `Library::preview_live` renders the result. A session opened only to *read* the head commits nothing on drop.
+* **The preview on the GPU** ([ADR 0156](adr/0156-a-gpu-for-the-preview-alone.md), [0166](adr/0166-the-loupe-at-the-screens-resolution.md)). In a build with the `gpu` feature (on by default), `preview_live` and the cached previews render on the GPU the stages after the stage cache's checkpoint when every one of them has a kernel, within one 8-bit level of the CPU; exports never do. `Library::live_on_gpu(asset, kind, settings)` says whether a `preview_live` at that class would take that path **now** — what a client asks before choosing a loupe-sized frame over a `Small` one — and `Library::preview_backend()` names the adapter, or `None` for the CPU. A software adapter is never used; `LEYLINE_GPU=off` keeps the preview on the CPU and `LEYLINE_GPU=any` accepts a software adapter, both for diagnosis.
 
 ### The claim ([ADR 0120](adr/0120-edit-session-claim.md))
 

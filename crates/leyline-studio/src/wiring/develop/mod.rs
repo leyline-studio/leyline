@@ -16,6 +16,7 @@ pub(crate) mod clipboard;
 pub(crate) mod curve;
 pub(crate) mod history;
 pub(crate) mod keystone;
+pub(crate) mod loupe;
 pub(crate) mod masks;
 pub(crate) mod profiles;
 pub(crate) mod proof;
@@ -102,11 +103,17 @@ pub(super) fn live_preview(
             return Ok(None);
         };
         let settings = leyline_sdk::settings_with(&head, [change])?;
+        // The loupe's class when the GPU will render it now (ADR 0166 §3).
+        let class = loupe::live_class(app, window, asset, &settings);
         app.library
-            .preview_live(asset, PreviewKind::Small, &settings)
-            .map(Some)
+            .preview_live(asset, class, &settings)
+            .map(|image| Some((image, settings, class)))
     })();
-    if let Ok(Some(image)) = shown {
+    if let Ok(Some((image, settings, class))) = shown {
+        app.loupe.invalidate();
+        if class != PreviewKind::Small {
+            app.loupe.showing(settings);
+        }
         DevelopState::get(window).set_develop_image(crate::models::rgb8_to_slint_image(&image));
         app.dev_pixels = Some(image);
     }
@@ -261,13 +268,30 @@ pub(crate) fn refresh_develop(app: &mut App, window: &StudioWindow) -> Result<()
     state.set_dev_shadows_clipped(low);
     state.set_dev_clip_highlights(app.clip_highlights);
     state.set_dev_clip_shadows(app.clip_shadows);
-    let image = match overlay {
-        Some(painted) => painted,
-        None => crate::models::rgb8_to_slint_image(&rgb),
-    };
-    DevelopState::get(window).set_develop_image(image);
-    // Kept for the readout, and the *unpainted* one on purpose (ADR 0112 §2).
-    app.dev_pixels = Some(rgb);
+    let overlay_is_off = overlay.is_none();
+    let plain_view = app.soft_proof.is_none() && overlay_is_off;
+    // A loupe-sized frame of exactly these settings is already on screen —
+    // the last frame of the drag this refresh follows: keep it rather than
+    // stepping down to `Small` and back up (ADR 0166 §2). Only unpainted:
+    // the clipping overlay is painted on the `Small` render below.
+    let keep_loupe =
+        plain_view && !app.clip_highlights && !app.clip_shadows && app.loupe.shows(&settings);
+    if !keep_loupe {
+        let image = match overlay {
+            Some(painted) => painted,
+            None => crate::models::rgb8_to_slint_image(&rgb),
+        };
+        DevelopState::get(window).set_develop_image(image);
+        // Kept for the readout, and the *unpainted* one on purpose (ADR 0112 §2).
+        app.dev_pixels = Some(rgb);
+        // The loupe-sized upgrade (ADR 0166 §2) — never over a proof or a
+        // mask overlay, which are `Small` views composed in memory.
+        if plain_view {
+            loupe::request_upgrade(app, window, asset, settings.clone());
+        } else {
+            app.loupe.invalidate();
+        }
+    }
     if let Ok(bins) = app.library.histogram(asset, PreviewKind::Small) {
         const CANVAS: (f64, f64) = (256.0, 90.0);
         let scale_max = bins.iter().flatten().copied().max().unwrap_or(0);

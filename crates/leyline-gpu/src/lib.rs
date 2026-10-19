@@ -41,7 +41,17 @@ impl Gpu {
     }
 
     fn acquire_with(software: bool) -> Option<Gpu> {
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::from_env_or_default());
+        // Vulkan, Metal and DX12 only, never OpenGL: Studio's own renderer
+        // holds a GL context on the UI thread, and wgpu's GL backend, merely
+        // probing for an adapter there, panicked on `eglMakeCurrent`
+        // (`BadAccess`) — a crash on entering Develop, found by running
+        // Studio, not by any test. `WGPU_BACKEND` still overrides, for a
+        // diagnosis.
+        let mut descriptor = wgpu::InstanceDescriptor::from_env_or_default();
+        if std::env::var_os("WGPU_BACKEND").is_none() {
+            descriptor.backends = wgpu::Backends::PRIMARY;
+        }
+        let instance = wgpu::Instance::new(&descriptor);
         let adapter =
             pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
                 .ok()?;

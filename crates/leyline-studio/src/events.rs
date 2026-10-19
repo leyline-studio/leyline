@@ -49,6 +49,7 @@ pub(crate) fn event_pump(app: &Rc<RefCell<App>>, window: &StudioWindow) -> Timer
             }
         }
         dispatch_thumbnails(&mut app);
+        crate::wiring::develop::loupe::deliver(&mut app, &window);
     });
     timer
 }

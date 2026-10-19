@@ -443,6 +443,7 @@ fn run() -> Result<(), Startup> {
         dev_history_version: None,
         presets: Vec::new(),
         dev_pixels: None,
+        loupe: crate::wiring::develop::loupe::Loupe::new(),
         print_presets: Vec::new(),
         sheet_presets: Vec::new(),
         dev_presets: Vec::new(),

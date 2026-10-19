@@ -17,20 +17,18 @@ use crate::stages::{Stage, Version};
 
 /// The device, acquired once per process on first use. `LEYLINE_GPU=off`
 /// keeps the preview on the CPU, for a comparison or a driver that
-/// misbehaves; nothing else reads it.
+/// misbehaves; `LEYLINE_GPU=any` accepts a software adapter, to exercise
+/// the GPU path on a machine that has none (it is slower than the CPU
+/// there, which is why nothing else accepts one). Nothing else reads it.
 fn gpu() -> Option<&'static Gpu> {
     static GPU: OnceLock<Option<Gpu>> = OnceLock::new();
-    GPU.get_or_init(|| {
-        if std::env::var("LEYLINE_GPU").is_ok_and(|v| v == "off") {
-            return None;
-        }
+    GPU.get_or_init(|| match std::env::var("LEYLINE_GPU").as_deref() {
+        Ok("off") => None,
+        Ok("any") => Gpu::acquire_any(),
         // The engine's own tests run on whatever adapter the machine has,
         // lavapipe included; a user's preview never runs on a software one.
-        if cfg!(test) {
-            Gpu::acquire_any()
-        } else {
-            Gpu::acquire()
-        }
+        _ if cfg!(test) => Gpu::acquire_any(),
+        _ => Gpu::acquire(),
     })
     .as_ref()
 }
