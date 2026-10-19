@@ -30,7 +30,7 @@ pub enum Op {
     /// `crop` v1: the frame from here on is this rectangle, given as
     /// fractions of the frame and rounded exactly as the CPU rounds them.
     /// Applied when the output is read, so it may only be followed by
-    /// [`Op::OutputRendering`].
+    /// [`Op::Vignette`] and [`Op::OutputRendering`].
     Crop {
         /// Left edge, as a fraction of the width.
         x: f64,
@@ -40,6 +40,21 @@ pub enum Op {
         width: f64,
         /// Height, as a fraction of the height.
         height: f64,
+    },
+    /// `vignette` v1, in the coordinates of the (cropped) frame: applied as
+    /// the output reads each pixel, so it may only be followed by
+    /// [`Op::OutputRendering`]. Values as the stage derives them.
+    Vignette {
+        /// Amount / 100.
+        amount: f32,
+        /// Midpoint / 100, clamped to [0, 1].
+        midpoint: f32,
+        /// The superellipse exponent.
+        exponent: f32,
+        /// `2^(1/exponent)`.
+        corner: f32,
+        /// The feather's width, at least 1e-4.
+        width: f32,
     },
     /// The output rendering (`output_rendering` v1): the highlight rolloff
     /// at `knee`, the working space to linear sRGB through `matrix`, the
@@ -113,6 +128,19 @@ pub enum DisplayOp {
     /// `monochrome` v1: every channel set to the Rec. 2020 luma, on the
     /// **linear** axis — the one mode that does not cross to display.
     Monochrome,
+    /// `color_grading` v1, its values computed by the CPU: the three zone
+    /// tints (shadows, midtones, highlights), their luminance shifts, and
+    /// the balance and blending, each as the stage scales them.
+    ColorGrading {
+        /// Per zone, the tint already multiplied by its saturation.
+        tints: [[f32; 3]; 3],
+        /// Per zone, the luminance shift in [-1, 1].
+        luminance: [f32; 3],
+        /// The balance, in [-1, 1].
+        balance: f32,
+        /// The blending, in [0, 1].
+        blending: f32,
+    },
 }
 
 /// The CPU's transfer tables between the linear and display axes, shared
@@ -211,7 +239,23 @@ impl Frame {
         let mut uniforms = Vec::with_capacity(ops.len());
         // The window the output reads: the whole frame, unless cropped.
         let mut window = (0, 0, self.width, self.height);
+        // The vignette the output applies, in the window's coordinates.
+        let mut vignette = None;
         for (index, step) in steps.iter().enumerate() {
+            if let Op::Vignette {
+                amount,
+                midpoint,
+                exponent,
+                corner,
+                width,
+            } = step
+            {
+                if index + 1 != steps.len() {
+                    return None;
+                }
+                vignette = Some([*amount, *midpoint, *exponent, *corner, *width]);
+                continue;
+            }
             if let Op::Crop {
                 x,
                 y,
@@ -219,9 +263,12 @@ impl Frame {
                 height,
             } = step
             {
-                // Nothing but the output may follow a crop: every kernel
-                // before it runs on the whole frame.
-                if index + 1 != steps.len() {
+                // Nothing but the vignette and the output may follow a crop:
+                // every kernel before it runs on the whole frame.
+                let next = steps.get(index + 1);
+                if !(next.is_none()
+                    || index + 2 == steps.len() && matches!(next, Some(Op::Vignette { .. })))
+                {
                     return None;
                 }
                 window = crop_window(self.width, self.height, *x, *y, *width, *height)?;
@@ -301,6 +348,12 @@ impl Frame {
         for word in [self.width, x0, y0, out_width] {
             params.extend_from_slice(&word.to_le_bytes());
         }
+        params.extend_from_slice(&u32::from(vignette.is_some()).to_le_bytes());
+        for value in vignette.unwrap_or_default() {
+            params.extend_from_slice(&value.to_le_bytes());
+        }
+        params.extend_from_slice(&out_height.to_le_bytes());
+        params.resize(112, 0);
         uniforms.push(uniform(device, &params));
         let table = table(device, display_table);
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -463,6 +516,21 @@ fn display_params(op: &DisplayOp) -> (u32, [f32; 5], Option<Arc<Vec<f32>>>) {
             (6, [0.0; 5], Some(Arc::new(table)))
         }
         DisplayOp::Monochrome => (7, [0.0; 5], None),
+        // Through the table binding: nine tint values, three shifts.
+        DisplayOp::ColorGrading {
+            tints,
+            luminance,
+            balance,
+            blending,
+        } => {
+            let mut table: Vec<f32> = tints.iter().flatten().copied().collect();
+            table.extend_from_slice(luminance);
+            (
+                8,
+                [*balance, *blending, 0.0, 0.0, 0.0],
+                Some(Arc::new(table)),
+            )
+        }
     }
 }
 
@@ -509,6 +577,13 @@ struct Params {
     x0: u32,
     y0: u32,
     out_width: u32,
+    vignette_on: u32,
+    vignette_amount: f32,
+    vignette_midpoint: f32,
+    vignette_exponent: f32,
+    vignette_corner: f32,
+    vignette_width: f32,
+    out_height: u32,
 }
 @group(0) @binding(0) var<storage, read_write> samples: array<f32>;
 @group(0) @binding(1) var<uniform> params: Params;
@@ -532,6 +607,19 @@ fn display(value: f32) -> f32 {
     return display_table[i] + (display_table[i + 1u] - display_table[i]) * t;
 }
 
+// `vignette` v1's gain at an output pixel, floored at 0 like the stage.
+fn vignette_gain(x: u32, y: u32) -> f32 {
+    let n = params.vignette_exponent;
+    let u = 2.0 * (f32(x) + 0.5) / f32(params.out_width) - 1.0;
+    let v = 2.0 * (f32(y) + 0.5) / f32(params.out_height) - 1.0;
+    let d = pow(pow(abs(u), n) + pow(abs(v), n), 1.0 / n) / params.vignette_corner;
+    let edge0 = params.vignette_midpoint;
+    let edge1 = params.vignette_midpoint + params.vignette_width;
+    let t0 = clamp((d - edge0) / (edge1 - edge0), 0.0, 1.0);
+    let t = t0 * t0 * (3.0 - 2.0 * t0);
+    return max(exp2(3.0 * params.vignette_amount * t), 0.0);
+}
+
 fn quantize(value: f32) -> u32 {
     return u32(floor(clamp(value, 0.0, 1.0) * 255.0 + 0.5));
 }
@@ -545,10 +633,14 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     let source = (params.y0 + pixel / params.out_width) * params.source_width
         + params.x0 + pixel % params.out_width;
     let base = source * 3u;
+    var linear = vec3<f32>(samples[base], samples[base + 1u], samples[base + 2u]);
+    if (params.vignette_on == 1u) {
+        linear = linear * vignette_gain(pixel % params.out_width, pixel / params.out_width);
+    }
     let rolled = vec3<f32>(
-        rolloff(samples[base], params.knee),
-        rolloff(samples[base + 1u], params.knee),
-        rolloff(samples[base + 2u], params.knee),
+        rolloff(linear.x, params.knee),
+        rolloff(linear.y, params.knee),
+        rolloff(linear.z, params.knee),
     );
     let r4 = vec4<f32>(rolled, 0.0);
     let srgb = vec3<f32>(dot(params.row0, r4), dot(params.row1, r4), dot(params.row2, r4));
@@ -747,6 +839,39 @@ fn hsl_mix(input: vec3<f32>) -> vec3<f32> {
     return rgb;
 }
 
+// `color_grading` v1 inside `preserving_headroom`; tints and shifts are in
+// `curve_table`, balance and blending in `a` and `b`.
+fn color_grading(input: vec3<f32>) -> vec3<f32> {
+    let peak = max(1.0, max(input.x, max(input.y, input.z)));
+    var rgb = input;
+    if (peak > 1.0) { rgb = rgb / peak; }
+    let l = 0.2627 * rgb.x + 0.6780 * rgb.y + 0.0593 * rgb.z;
+    let gap = 0.3;
+    let centre = clamp(0.5 - params.a * 0.25, 0.05, 0.95);
+    let half_width = 0.02 + params.b * 0.13;
+    let b1 = centre - gap / 2.0;
+    let b2 = centre + gap / 2.0;
+    let s0 = clamp((l - (b1 - half_width)) / (2.0 * half_width), 0.0, 1.0);
+    let shadow = 1.0 - s0 * s0 * (3.0 - 2.0 * s0);
+    let h0 = clamp((l - (b2 - half_width)) / (2.0 * half_width), 0.0, 1.0);
+    let highlight = h0 * h0 * (3.0 - 2.0 * h0);
+    let midtone = max(1.0 - shadow - highlight, 0.0);
+    let sum = shadow + midtone + highlight;
+    var weights = vec3<f32>(0.0, 1.0, 0.0);
+    if (sum > 1e-6) { weights = vec3<f32>(shadow, midtone, highlight) / sum; }
+    var tint = vec3<f32>(0.0);
+    var lum_shift = 0.0;
+    for (var zone = 0u; zone < 3u; zone = zone + 1u) {
+        let base = zone * 3u;
+        tint = tint + vec3<f32>(curve_table[base], curve_table[base + 1u], curve_table[base + 2u]) * weights[zone];
+        lum_shift = lum_shift + curve_table[9u + zone] * weights[zone];
+    }
+    let delta_l = lum_shift * 0.25;
+    rgb = clamp(rgb + vec3<f32>(delta_l) + tint * 0.6, vec3<f32>(0.0), vec3<f32>(1.0));
+    if (peak > 1.0) { rgb = rgb * peak; }
+    return rgb;
+}
+
 // `saturate` with `preserving_headroom` around it: the pixel is brought into
 // the unit cube by its peak, adjusted there, and scaled back.
 fn saturate(input: vec3<f32>) -> vec3<f32> {
@@ -787,6 +912,8 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
         rgb = saturate(rgb);
     } else if (params.mode == 6u) {
         rgb = hsl_mix(rgb);
+    } else if (params.mode == 8u) {
+        rgb = color_grading(rgb);
     } else {
         rgb = vec3<f32>(display_curve(rgb.x), display_curve(rgb.y), display_curve(rgb.z));
     }

@@ -664,6 +664,12 @@ Fourth slice: `hsl` and `monochrome`. With three HSL bands moved, the
 *colour* drag on the 5D IV costs 248 ms at 4K on the CPU and 16 ms on the
 GPU (69 → 11 ms at 2048), worst gap 1 on 0.0005–0.0007 % of samples.
 
+Fifth slice: `color_grading` and `vignette` (applied as the output reads a
+pixel, in the cropped frame's coordinates, as the CPU order — crop, then
+vignette — requires). The *colour* drag with a shadow grade and a vignette
+added: 337 ms → 18 ms at 4K, 91 → 12 ms at 2048, worst gap 1 on
+0.0008–0.0009 % of samples.
+
 The sharpening drag is unchanged (155–170 ms at 4K): sharpening has no
 kernel yet, so per §4 that drag stays on the CPU, as it must. The 4K
 exposure drag is now at or near the 33 ms budget; what is left in it is the

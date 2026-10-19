@@ -133,14 +133,17 @@ fn dragged(head: &Settings, slider: &str, frame: usize) -> Settings {
             settings.levels.gamma = 1.2;
             settings.parametric_curve.darks = 15;
         }
-        // A cropped photograph, its saturation dragged with vibrance and
-        // the HSL mixer held.
+        // A cropped, vignetted photograph, its saturation dragged with
+        // vibrance, the HSL mixer and a shadow grade held.
         "colour" => {
             settings.saturation = -20 + frame as i32 * 5;
             settings.vibrance = 20;
             settings.hsl[0].hue = 30;
             settings.hsl[3].saturation = -40;
             settings.hsl[5].luminance = 25;
+            settings.color_grading.shadows.hue = 220;
+            settings.color_grading.shadows.saturation = 30;
+            settings.vignette.amount = -30;
             settings.crop = Some(leyline_core::Crop {
                 x: 0.1,
                 y: 0.1,

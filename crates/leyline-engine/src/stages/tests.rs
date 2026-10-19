@@ -2760,6 +2760,16 @@ fn the_gpu_preview_stays_within_one_level_of_the_cpu() {
     dragged.hsl[0].hue = 40;
     dragged.hsl[3].saturation = -50;
     dragged.hsl[5].luminance = 30;
+    dragged.color_grading.shadows.hue = 220;
+    dragged.color_grading.shadows.saturation = 40;
+    dragged.color_grading.highlights.hue = 40;
+    dragged.color_grading.highlights.saturation = 30;
+    dragged.color_grading.midtones.luminance = 10;
+    dragged.color_grading.balance = -20;
+    dragged.color_grading.blending = 60;
+    dragged.vignette.amount = -40;
+    dragged.vignette.midpoint = 40;
+    dragged.vignette.feather = 60;
     let mut monochrome = dragged.clone();
     monochrome.monochrome = true;
     for mut dragged in [dragged, monochrome] {

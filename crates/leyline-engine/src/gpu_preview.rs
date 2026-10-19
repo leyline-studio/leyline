@@ -106,6 +106,29 @@ fn kernel(stage: &Stage, version: &Version, settings: &Settings) -> Option<Op> {
             }),
         }),
         ("monochrome", 1) => display(DisplayOp::Monochrome),
+        ("color_grading", 1) => {
+            let grading = &settings.color_grading;
+            let zones = [&grading.shadows, &grading.midtones, &grading.highlights];
+            display(DisplayOp::ColorGrading {
+                tints: zones.map(crate::stages::color_grading::v1::zone_tint),
+                luminance: zones.map(|zone| f32::from(zone.luminance as i16) / 100.0),
+                balance: f32::from(grading.balance as i16) / 100.0,
+                blending: f32::from(grading.blending as i16) / 100.0,
+            })
+        }
+        // The same derivations as `vignette` v1, in the same `f32`.
+        ("vignette", 1) => {
+            let vignette = &settings.vignette;
+            let midpoint = (vignette.midpoint as f32 / 100.0).clamp(0.0, 1.0);
+            let exponent = (2.0 * 3.0f32.powf(vignette.roundness as f32 / 100.0)).clamp(1.0, 6.0);
+            Some(Op::Vignette {
+                amount: vignette.amount as f32 / 100.0,
+                midpoint,
+                exponent,
+                corner: 2.0f32.powf(1.0 / exponent),
+                width: ((vignette.feather as f32 / 100.0) * (1.0 - midpoint)).max(1e-4),
+            })
+        }
         ("crop", 1) => settings.crop.as_ref().map(|rect| Op::Crop {
             x: rect.x,
             y: rect.y,
