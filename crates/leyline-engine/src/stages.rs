@@ -1825,7 +1825,7 @@ impl StageCache {
             .checkpoints
             .retain(|c| c.fingerprint == prefix_fingerprint(settings, plan, c.applied));
         let deepest = current.checkpoints.iter().max_by_key(|c| c.applied)?;
-        let data = crate::gpu_preview::render(
+        let (width, height, data) = crate::gpu_preview::render(
             &mut current.gpu_frame,
             plan.get(deepest.applied..)?,
             settings,
@@ -1834,8 +1834,8 @@ impl StageCache {
             &deepest.pixels,
         )?;
         Some(Rendered {
-            width: deepest.pixels.width,
-            height: deepest.pixels.height,
+            width,
+            height,
             data,
         })
     }

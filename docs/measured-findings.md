@@ -646,6 +646,20 @@ parametric curve held), measured the same way:
 | | 2048 | 115 ms | 27 ms | 1 | 0.0010 % |
 | | 4096 | 459 ms | 58 ms | 1 | 0.0011 % |
 
+Third slice: `saturation`, `vibrance` and `crop` (a crop is applied as the
+window the output reads, so it must be the last kernel before it). A fourth
+drag, *colour* — saturation moved on a cropped photograph with vibrance
+held:
+
+| File | Class (frame) | Colour, CPU | Colour, GPU | Worst gap | Samples off by 1 |
+|---|---|---|---|---|---|
+| 10 Mpx CR2 | 1024 (819×512) | 10 ms | 2 ms | 1 | 0.0001 % |
+| | 2048 (1638×1024) | 38 ms | 9 ms | 1 | 0.0002 % |
+| | native (3110×1944) | 144 ms | 33 ms | 1 | 0.0004 % |
+| 30 Mpx 5D IV CR2 | 1024 (819×513) | 11 ms | 5 ms | 1 | 0.0003 % |
+| | 2048 (1638×1025) | 38 ms | 5 ms | 1 | 0.0002 % |
+| | 4096 (3277×2051) | 160 ms | 18 ms | 1 | 0.0004 % |
+
 The sharpening drag is unchanged (155–170 ms at 4K): sharpening has no
 kernel yet, so per §4 that drag stays on the CPU, as it must. The 4K
 exposure drag is now at or near the 33 ms budget; what is left in it is the

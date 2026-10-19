@@ -2727,6 +2727,14 @@ fn the_gpu_preview_stays_within_one_level_of_the_cpu() {
         shadows: 30,
         whites: 15,
         blacks: -10,
+        vibrance: 25,
+        saturation: -15,
+        crop: Some(leyline_core::Crop {
+            x: 0.1,
+            y: 0.05,
+            width: 0.7,
+            height: 0.8,
+        }),
         parametric_curve: leyline_core::ParametricCurve {
             darks: 20,
             highlights: -15,

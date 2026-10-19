@@ -88,6 +88,20 @@ fn kernel(stage: &Stage, version: &Version, settings: &Settings) -> Option<Op> {
                     .to_vec(),
             )))
         }
+        ("vibrance", 1) => display(DisplayOp::Saturate {
+            k: f32::from(settings.vibrance as i16) / 100.0,
+            vibrance: true,
+        }),
+        ("saturation", 1) => display(DisplayOp::Saturate {
+            k: f32::from(settings.saturation as i16) / 100.0,
+            vibrance: false,
+        }),
+        ("crop", 1) => settings.crop.as_ref().map(|rect| Op::Crop {
+            x: rect.x,
+            y: rect.y,
+            width: rect.width,
+            height: rect.height,
+        }),
         ("output_rendering", 1) => Some(Op::OutputRendering {
             knee: crate::stages::output_rendering::v1::knee(
                 settings.output_rendering.highlight_rolloff,
@@ -145,7 +159,7 @@ pub(crate) fn render(
     applied: usize,
     fingerprint: u64,
     pixels: &Pixels,
-) -> Option<Vec<u8>> {
+) -> Option<(u32, u32, Vec<u8>)> {
     let gpu = gpu()?;
     let ops = rest
         .iter()

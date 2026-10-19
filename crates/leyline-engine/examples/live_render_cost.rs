@@ -8,7 +8,8 @@
 //! For each file: imports it into a throw-away library, then for each class
 //! (Small 1024 px, Medium 2048 px, Large 4096 px) renders a drag on an early
 //! slider (exposure: the whole pipeline after the decode is replayed), on
-//! contrast with the rest of the tonal block active, and on a late one
+//! contrast with the rest of the tonal block active, on saturation in a
+//! cropped photograph, and on a late one
 //! (sharpening: the stage cache's best case), and prints the
 //! median of the frames after the first, in milliseconds. Every render goes
 //! through `Library::preview_live`, the path Studio's drag uses.
@@ -79,7 +80,7 @@ fn measure(file: &Path) -> Result<(), String> {
         (PreviewKind::Medium, "medium-2048"),
         (PreviewKind::Large, "large-4096"),
     ] {
-        for slider in ["exposure", "tone", "sharpening"] {
+        for slider in ["exposure", "tone", "colour", "sharpening"] {
             let mut times = Vec::with_capacity(FRAMES);
             let mut size = (0, 0);
             let mut last = None;
@@ -131,6 +132,17 @@ fn dragged(head: &Settings, slider: &str, frame: usize) -> Settings {
             settings.blacks = -5;
             settings.levels.gamma = 1.2;
             settings.parametric_curve.darks = 15;
+        }
+        // A cropped photograph, its saturation dragged with vibrance held.
+        "colour" => {
+            settings.saturation = -20 + frame as i32 * 5;
+            settings.vibrance = 20;
+            settings.crop = Some(leyline_core::Crop {
+                x: 0.1,
+                y: 0.1,
+                width: 0.8,
+                height: 0.75,
+            });
         }
         _ => {
             settings.sharpening.amount = 20 + frame as i32 * 5;

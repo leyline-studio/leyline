@@ -27,6 +27,20 @@ pub enum Op {
     Gains([f32; 3]),
     /// A tone operator on the display axis.
     Display(DisplayOp, Transfer),
+    /// `crop` v1: the frame from here on is this rectangle, given as
+    /// fractions of the frame and rounded exactly as the CPU rounds them.
+    /// Applied when the output is read, so it may only be followed by
+    /// [`Op::OutputRendering`].
+    Crop {
+        /// Left edge, as a fraction of the width.
+        x: f64,
+        /// Top edge, as a fraction of the height.
+        y: f64,
+        /// Width, as a fraction of the width.
+        width: f64,
+        /// Height, as a fraction of the height.
+        height: f64,
+    },
     /// The output rendering (`output_rendering` v1): the highlight rolloff
     /// at `knee`, the working space to linear sRGB through `matrix`, the
     /// clamp, and the display curve through `display_table` — the very
@@ -80,6 +94,15 @@ pub enum DisplayOp {
     /// A curve the CPU already tabulated (`tone_curve` v1, the parametric
     /// curve): looked up exactly as the CPU looks it up.
     Curve(Arc<Vec<f32>>),
+    /// `saturation` v1 (`vibrance` false) and `vibrance` v1 (true), at
+    /// `k` = amount / 100, headroom preserved as the CPU's
+    /// `preserving_headroom` does.
+    Saturate {
+        /// The amount, in [-1, 1].
+        k: f32,
+        /// Weigh by how unsaturated a pixel already is.
+        vibrance: bool,
+    },
 }
 
 /// The CPU's transfer tables between the linear and display axes, shared
@@ -155,10 +178,10 @@ impl Frame {
     }
 
     /// Runs `ops` on a fresh copy of the uploaded buffer and reads the
-    /// result back as packed 8-bit RGB. `ops` must end with
-    /// [`Op::OutputRendering`], the only step that produces 8-bit values;
-    /// `None` otherwise, or when the device fails.
-    pub fn render(&self, gpu: &Gpu, ops: &[Op]) -> Option<Vec<u8>> {
+    /// result back as its width, height and packed 8-bit RGB. `ops` must
+    /// end with [`Op::OutputRendering`], the only step that produces 8-bit
+    /// values; `None` otherwise, or when the device fails.
+    pub fn render(&self, gpu: &Gpu, ops: &[Op]) -> Option<(u32, u32, Vec<u8>)> {
         let (last, steps) = ops.split_last()?;
         let Op::OutputRendering {
             knee,
@@ -176,7 +199,24 @@ impl Frame {
 
         // Uniforms live until the submission; collected so they outlive it.
         let mut uniforms = Vec::with_capacity(ops.len());
-        for step in steps {
+        // The window the output reads: the whole frame, unless cropped.
+        let mut window = (0, 0, self.width, self.height);
+        for (index, step) in steps.iter().enumerate() {
+            if let Op::Crop {
+                x,
+                y,
+                width,
+                height,
+            } = step
+            {
+                // Nothing but the output may follow a crop: every kernel
+                // before it runs on the whole frame.
+                if index + 1 != steps.len() {
+                    return None;
+                }
+                window = crop_window(self.width, self.height, *x, *y, *width, *height)?;
+                continue;
+            }
             if let Op::Display(op, transfer) = step {
                 let (mode, values, curve) = display_params(op);
                 let mut params = Vec::with_capacity(48);
@@ -239,11 +279,18 @@ impl Frame {
             }
             params.extend_from_slice(&0.0f32.to_le_bytes()); // a `vec4` row
         }
+        let (x0, y0, out_width, out_height) = window;
+        let out_pixels = out_width.checked_mul(out_height)?;
+        let (out_groups_x, out_groups_y) = dispatch(out_pixels);
+        let out_stride = out_groups_x * WORKGROUP;
         params.extend_from_slice(&knee.to_le_bytes());
-        params.extend_from_slice(&self.pixels.to_le_bytes());
-        params.extend_from_slice(&stride.to_le_bytes());
+        params.extend_from_slice(&out_pixels.to_le_bytes());
+        params.extend_from_slice(&out_stride.to_le_bytes());
         let table_entries = u32::try_from(display_table.len()).ok()?;
         params.extend_from_slice(&table_entries.to_le_bytes());
+        for word in [self.width, x0, y0, out_width] {
+            params.extend_from_slice(&word.to_le_bytes());
+        }
         uniforms.push(uniform(device, &params));
         let table = table(device, display_table);
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -260,27 +307,28 @@ impl Frame {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor::default());
             pass.set_pipeline(&gpu.pipelines().output);
             pass.set_bind_group(0, &bind_group, &[]);
-            pass.dispatch_workgroups(groups_x, groups_y, 1);
+            pass.dispatch_workgroups(out_groups_x, out_groups_y, 1);
         }
-        encoder.copy_buffer_to_buffer(&self.output, 0, &self.readback, 0, self.output.size());
+        let out_bytes = u64::from(out_pixels) * 4;
+        encoder.copy_buffer_to_buffer(&self.output, 0, &self.readback, 0, out_bytes);
         gpu.queue().submit([encoder.finish()]);
 
         let (sender, receiver) = std::sync::mpsc::channel();
         self.readback
-            .slice(..)
+            .slice(..out_bytes)
             .map_async(wgpu::MapMode::Read, move |result| {
                 let _ = sender.send(result);
             });
         device.poll(wgpu::PollType::Wait).ok()?;
         receiver.recv().ok()?.ok()?;
-        let mapped = self.readback.slice(..).get_mapped_range();
-        let mut rgb = Vec::with_capacity(self.pixels as usize * 3);
+        let mapped = self.readback.slice(..out_bytes).get_mapped_range();
+        let mut rgb = Vec::with_capacity(out_pixels as usize * 3);
         for packed in mapped.chunks_exact(4) {
             rgb.extend_from_slice(&packed[..3]);
         }
         drop(mapped);
         self.readback.unmap();
-        Some(rgb)
+        Some((out_width, out_height, rgb))
     }
 }
 
@@ -348,6 +396,27 @@ fn table(device: &wgpu::Device, values: &[f32]) -> wgpu::Buffer {
     })
 }
 
+/// `crop` v1's rectangle in pixels — the CPU's arithmetic, in the CPU's
+/// `f64`, so both cut the same pixels.
+fn crop_window(
+    width: u32,
+    height: u32,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+) -> Option<(u32, u32, u32, u32)> {
+    if width == 0 || height == 0 {
+        return None;
+    }
+    let (fw, fh) = (f64::from(width), f64::from(height));
+    let x0 = ((x * fw).round() as u32).min(width - 1);
+    let y0 = ((y * fh).round() as u32).min(height - 1);
+    let out_w = ((w * fw).round() as u32).clamp(1, width - x0);
+    let out_h = ((h * fh).round() as u32).clamp(1, height - y0);
+    Some((x0, y0, out_w, out_h))
+}
+
 /// The shader's mode, its five values, and the curve table if any.
 fn display_params(op: &DisplayOp) -> (u32, [f32; 5], Option<Arc<Vec<f32>>>) {
     match op {
@@ -369,6 +438,11 @@ fn display_params(op: &DisplayOp) -> (u32, [f32; 5], Option<Arc<Vec<f32>>>) {
             None,
         ),
         DisplayOp::Curve(table) => (4, [0.0; 5], Some(Arc::clone(table))),
+        DisplayOp::Saturate { k, vibrance } => (
+            5,
+            [*k, if *vibrance { 1.0 } else { 0.0 }, 0.0, 0.0, 0.0],
+            None,
+        ),
     }
 }
 
@@ -411,6 +485,10 @@ struct Params {
     pixels: u32,
     stride: u32,
     table_entries: u32,
+    source_width: u32,
+    x0: u32,
+    y0: u32,
+    out_width: u32,
 }
 @group(0) @binding(0) var<storage, read_write> samples: array<f32>;
 @group(0) @binding(1) var<uniform> params: Params;
@@ -442,7 +520,11 @@ fn quantize(value: f32) -> u32 {
 fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     let pixel = id.y * params.stride + id.x;
     if (pixel >= params.pixels) { return; }
-    let base = pixel * 3u;
+    // The crop's window into the frame: row and column of the output pixel,
+    // offset into the source.
+    let source = (params.y0 + pixel / params.out_width) * params.source_width
+        + params.x0 + pixel % params.out_width;
+    let base = source * 3u;
     let rolled = vec3<f32>(
         rolloff(samples[base], params.knee),
         rolloff(samples[base + 1u], params.knee),
@@ -567,6 +649,23 @@ fn highlights_shadows(rgb: vec3<f32>) -> vec3<f32> {
     return out;
 }
 
+// `saturate` with `preserving_headroom` around it: the pixel is brought into
+// the unit cube by its peak, adjusted there, and scaled back.
+fn saturate(input: vec3<f32>) -> vec3<f32> {
+    let peak = max(1.0, max(input.x, max(input.y, input.z)));
+    var rgb = input;
+    if (peak > 1.0) { rgb = rgb / peak; }
+    let l = 0.2627 * rgb.x + 0.6780 * rgb.y + 0.0593 * rgb.z;
+    var factor = 1.0 + params.a;
+    if (params.b > 0.5) {
+        let chroma = max(0.0, max(rgb.x, max(rgb.y, rgb.z))) - min(1.0, min(rgb.x, min(rgb.y, rgb.z)));
+        factor = 1.0 + params.a * (1.0 - chroma);
+    }
+    rgb = clamp(vec3<f32>(l) + (rgb - vec3<f32>(l)) * factor, vec3<f32>(0.0), vec3<f32>(1.0));
+    if (peak > 1.0) { rgb = rgb * peak; }
+    return rgb;
+}
+
 @compute @workgroup_size(64)
 fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     let pixel = id.y * params.stride + id.x;
@@ -579,6 +678,8 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     );
     if (params.mode == 2u) {
         rgb = highlights_shadows(rgb);
+    } else if (params.mode == 5u) {
+        rgb = saturate(rgb);
     } else {
         rgb = vec3<f32>(display_curve(rgb.x), display_curve(rgb.y), display_curve(rgb.z));
     }
