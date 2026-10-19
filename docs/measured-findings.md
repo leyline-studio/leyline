@@ -707,6 +707,28 @@ The 4K exposure drag is now at or near the 33 ms budget; what is left in
 it is the read-back of 44 MB and its repacking, to be measured on their
 own before anything is optimised.
 
+Eighth slice: `dehaze` v1, the dark channel prior. Two separable minimum
+filters, as the CPU's, and between them the one global step — the
+atmospheric light, the brightest of the 0.1 % largest dark-channel values
+— found on the device too: a two-step radix select over the values' bits
+gives the cut, two atomic passes the brightest pixel at or above it, so no
+read-back interrupts the frame. Where the CPU's `select_nth_unstable` keeps
+only some of the pixels tied at the cut, the GPU keeps them all; neither
+real file below lands on such a tie. The dehaze drag (10 → 55), on the
+GPU / with `LEYLINE_GPU=off`:
+
+| File | Class | Dehaze, CPU | Dehaze, GPU | Worst gap | Samples off by 1 |
+|---|---|---|---|---|---|
+| 5D IV | 1024 | 24 ms | 4 ms | 1 | 0.0001 % |
+| 5D IV | 2048 | 89 ms | 9 ms | 1 | 0.0004 % |
+| 5D IV | 4096 | 332 ms | 38 ms | 1 | 0.0004 % |
+| 60D | 1024 | 23 ms | 5 ms | 1 | 0.0005 % |
+| 60D | 2048 | 91 ms | 10 ms | 1 | 0.0007 % |
+| 60D | 3888 | 343 ms | 36 ms | 1 | 0.0006 % |
+
+Without the kernel the drag stayed on the CPU at the GPU's machine too
+(326 ms at 4K). It pays at every class, so it stays.
+
 ---
 
 # 4. Axis C — Optional local AI

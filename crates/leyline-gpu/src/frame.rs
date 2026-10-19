@@ -12,6 +12,9 @@ use wgpu::util::DeviceExt;
 
 use crate::Gpu;
 
+mod dehaze;
+use dehaze::{DehazeParams, DehazePipelines};
+
 /// Invocations per workgroup, along x.
 const WORKGROUP: u32 = 64;
 /// The most workgroups one dispatch dimension may hold (WebGPU's floor).
@@ -70,6 +73,28 @@ pub enum Op {
         /// The CPU's half kernel at the blur's σ (the reduced one when
         /// `factor` is above 1), centre first.
         weights: Arc<Vec<f32>>,
+        /// The CPU's transfer tables.
+        transfer: Transfer,
+    },
+    /// `dehaze` v1, the CPU's dark channel prior on the display axis: two
+    /// minimum filters, the atmospheric light between them, and the
+    /// recovery (or, below 0, the added haze). The atmospheric light is
+    /// the brightest of the `take` darkest-channel maxima, chosen on the
+    /// GPU; where the CPU's `select_nth_unstable` keeps only some of the
+    /// pixels tied at the cut, the GPU keeps them all — the one place the
+    /// two may pick a different light (ADR 0156 §3 holds it to a view).
+    Dehaze {
+        /// Amount / 100.
+        k: f32,
+        /// The minimum filters' radius, already scaled.
+        patch: u32,
+        /// The share of the frame, as dark-channel maxima, the atmospheric
+        /// light is chosen among (`DEHAZE_TOP_FRACTION`).
+        top_fraction: f32,
+        /// The share of the haze removed, `DEHAZE_OMEGA`.
+        omega: f32,
+        /// The transmission's floor, `DEHAZE_MIN_TRANSMISSION`.
+        min_transmission: f32,
         /// The CPU's transfer tables.
         transfer: Transfer,
     },
@@ -344,6 +369,30 @@ impl Frame {
                 self.sharpen(gpu, &mut encoder, &params, weights, transfer)?;
                 continue;
             }
+            if let Op::Dehaze {
+                k,
+                patch,
+                top_fraction,
+                omega,
+                min_transmission,
+                transfer,
+            } = step
+            {
+                // Counted as the CPU counts it, in `f32`.
+                let total = self.pixels as usize;
+                let take = ((total as f32 * top_fraction).ceil() as usize).clamp(1, total);
+                let params = DehazeParams {
+                    groups: (groups_x, groups_y),
+                    stride,
+                    k: *k,
+                    patch: *patch,
+                    take: u32::try_from(take).ok()?,
+                    omega: *omega,
+                    min_transmission: *min_transmission,
+                };
+                self.dehaze(gpu, &mut encoder, &params, transfer)?;
+                continue;
+            }
             if let Op::Display(op, transfer) = step {
                 let (mode, values, curve) = display_params(op);
                 let mut params = Vec::with_capacity(48);
@@ -465,6 +514,22 @@ impl Frame {
     }
 }
 
+impl Frame {
+    /// The four single-channel planes, allocated on first use.
+    fn planes(&self, device: &wgpu::Device) -> &[wgpu::Buffer; 4] {
+        self.planes.get_or_init(|| {
+            [0, 1, 2, 3].map(|_| {
+                device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("plane"),
+                    size: u64::from(self.pixels) * 4,
+                    usage: wgpu::BufferUsages::STORAGE,
+                    mapped_at_creation: false,
+                })
+            })
+        })
+    }
+}
+
 /// What one sharpen records, besides its tables.
 struct SharpenParams {
     groups: (u32, u32),
@@ -489,16 +554,7 @@ impl Frame {
         transfer: &Transfer,
     ) -> Option<()> {
         let device = gpu.device();
-        let [luma, scratch, blurred, mask] = self.planes.get_or_init(|| {
-            [0, 1, 2, 3].map(|_| {
-                device.create_buffer(&wgpu::BufferDescriptor {
-                    label: Some("plane"),
-                    size: u64::from(self.pixels) * 4,
-                    usage: wgpu::BufferUsages::STORAGE,
-                    mapped_at_creation: false,
-                })
-            })
-        });
+        let [luma, scratch, blurred, mask] = self.planes(device);
         let taps = u32::try_from(weights.len().checked_sub(1)?).ok()?;
         let masked = u32::from(sharpen.edge.is_some());
         let [threshold, softness] = sharpen.edge.unwrap_or_default();
@@ -641,6 +697,7 @@ pub(crate) struct Pipelines {
     gains: wgpu::ComputePipeline,
     display: wgpu::ComputePipeline,
     sharpen: SharpenPipelines,
+    dehaze: DehazePipelines,
     output: wgpu::ComputePipeline,
 }
 
@@ -673,6 +730,7 @@ impl Pipelines {
                 edge: pipeline(device, "sharpen edge", &sharpen, "edge"),
                 apply: pipeline(device, "sharpen apply", &sharpen, "apply"),
             },
+            dehaze: DehazePipelines::new(device, AXIS),
             output: pipeline(device, "output rendering", OUTPUT_RENDERING, "main"),
         }
     }

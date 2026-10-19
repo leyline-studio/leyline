@@ -89,6 +89,20 @@ fn kernel(stage: &Stage, version: &Version, settings: &Settings, scale: f32) -> 
                     .to_vec(),
             )))
         }
+        // The same patch and cut as `dehaze` v1, from its own constants.
+        ("dehaze", 1) => {
+            use crate::stages::dehaze::v1::{
+                DEHAZE_MIN_TRANSMISSION, DEHAZE_OMEGA, DEHAZE_PATCH_RADIUS, DEHAZE_TOP_FRACTION,
+            };
+            Some(Op::Dehaze {
+                k: f32::from(settings.dehaze as i16) / 100.0,
+                patch: ((DEHAZE_PATCH_RADIUS as f32) * scale).round().max(1.0) as u32,
+                top_fraction: DEHAZE_TOP_FRACTION,
+                omega: DEHAZE_OMEGA,
+                min_transmission: DEHAZE_MIN_TRANSMISSION,
+                transfer: transfer(),
+            })
+        }
         ("vibrance", 1) => display(DisplayOp::Saturate {
             k: f32::from(settings.vibrance as i16) / 100.0,
             vibrance: true,
