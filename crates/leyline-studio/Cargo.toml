@@ -108,7 +108,7 @@ icons = [
 # `resources` at all), and is a glob that resolves to nothing when the
 # vendor DLL hasn't been built yet — safe no-op for the Linux AppImage build.
 # The macOS `.app` packager *does* read `resources` too; if a Windows DLL
-# happens to sit in the vendor dir when someone eventually builds `-f dmg`,
+# happens to sit in the vendor dir when someone builds the `.app` on a Mac,
 # it would get bundled there as well — harmless dead weight, but worth a
 # `rm -rf packaging/windows/vendor` before a macOS build until this is
 # scoped more tightly (cargo-packager 0.11.8 has no per-format resources).
@@ -126,9 +126,5 @@ generate-desktop-entry = true
 installer-icon = "../../packaging/icons/icon.ico"
 installer-mode = "currentUser"
 
-# macOS: .app bundled into a .dmg, drag-to-/Applications — cargo-packager's
-# default dmg layout already does this; sizing/positions below are cosmetic.
-[package.metadata.packager.dmg]
-window-size = { width = 660, height = 400 }
-app-position = { x = 180, y = 170 }
-application-folder-position = { x = 480, y = 170 }
+# macOS: cargo-packager builds the `.app` only (`-f app`); the dmg is made
+# by `packaging/macos/build-dmg.sh` after it bundles the libraries (ADR 0155).

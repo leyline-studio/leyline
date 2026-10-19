@@ -266,12 +266,11 @@ jobs:
   # Windows. Same LibRaw recipe and cache key as the macOS `check` leg, so
   # the two share one prefix.
   #
-  # What this proves is that the deliverable *builds*; two things are still
-  # owed and written down rather than implied: the .app links the pinned
-  # dylibs by the runner's own paths (nothing yet copies them into the
-  # bundle, so the .dmg is not self-contained), and no one has launched the
-  # result on real hardware. `runs-on: macos-latest` is arm64 — the artifact
-  # name says so.
+  # The script copies every non-system dylib into the bundle, signs it ad
+  # hoc, and fails if anything still links outside it (ADR 0155) — so a
+  # green run proves the dmg is self-contained. What it cannot prove is that
+  # the app runs on real hardware: no one has launched it yet.
+  # `runs-on: macos-latest` is arm64 — the artifact name says so.
   macos-package:
     name: macos (dmg)
     if: github.event_name != 'pull_request'
@@ -288,7 +287,10 @@ jobs:
       - name: Install system dependencies
         # Same set, same reasons, and the same libstdc++ shim as the macOS
         # `check` leg above — LibRaw is C++, its .pc says `-lstdc++`, and
-        # current SDKs only ship libc++.
+        # current SDKs only ship libc++. The set stays identical although the
+        # dmg builds neither `tether` nor `heif` (ADR 0155 §4): both legs
+        # share one cached LibRaw, which may link what these pull in, and
+        # the bundling step must find those libraries to copy them.
         run: |
           brew install libgphoto2 libheif nasm autoconf automake libtool
           mkdir -p "$HOME/lib-shim"

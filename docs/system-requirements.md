@@ -84,13 +84,15 @@ Conversely, a large machine gains by raising it: 6 photos in flight take 3.4× i
 |---|---|---|
 | Linux | glibc **2.39** — Ubuntu 24.04, Debian 13, Fedora 40 or newer | AppImage |
 | Windows | Windows 10 | NSIS installer |
-| macOS | arm64 | `.dmg` |
+| macOS | arm64 (Apple silicon), experimental | `.dmg` |
 
 The Linux floor is not an architectural decision: it is the glibc of the machine that built the AppImage. Building it on an older distribution lowers it accordingly, without changing a line of code.
 
 It is set by Leyline's own binary, and by the C libraries next to it. Measured on the 0.1.0 AppImage: the Rust binary references `pidfd_spawnp` and `pidfd_getpid` at version GLIBC_2.39. They are weak symbols, and the standard library falls back when they are absent — but the *version* they carry is recorded without the weak flag, and the dynamic loader checks versions before it looks at a single symbol: on glibc 2.38 (Fedora 39) the binary stops at launch with ``version `GLIBC_2.39' not found``, checked in a container on 2026-09-23. The C libraries the AppImage carries — `libraw_r` built on the packaging machine, `libgomp` and `libltdl` copied from it — stop at 2.38 (the C23 headers bind them to `__isoc23_strtol` and its siblings).
 
 This page said 2.35, then 2.38, each time from a measurement that skipped weak symbols. §7 gives the command that reads what the loader reads.
+
+The macOS dmg is **experimental** ([ADR 0155](adr/0155-an-experimental-macos-dmg.md)): built and checked on the CI's Apple silicon runner, never yet run on a real Mac. It carries its own libraries and is signed ad hoc, not with an Apple identity, so macOS quarantines a downloaded copy and refuses the first launch. Lift it once, either from *System Settings → Privacy & Security → Open Anyway*, or with `xattr -dr com.apple.quarantine "/Applications/Leyline Studio.app"`. Tethering is not available on macOS, as on Windows.
 
 ---
 
