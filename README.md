@@ -107,8 +107,7 @@ make cli ARGS="--help"
 
 ## Documentation
 
-The full documentation lives in [`docs/`](docs/readme.md) **and is written in
-French**. Start with [`docs/readme.md`](docs/readme.md), which gives a reading
+The full documentation lives in [`docs/`](docs/readme.md). Start with [`docs/readme.md`](docs/readme.md), which gives a reading
 order. The two documents worth knowing about:
 
 * [`docs/vision.md`](docs/vision.md) — why the project exists, and what it

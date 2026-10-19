@@ -50,9 +50,9 @@ Every feature listed as delivered is delivered on all **three clients**: Studio,
 These features were scoped as post-V1 candidates in [`v2-scope.md`](v2-scope.md). They are implemented.
 
 | Feature | Decision |
+|---|---|
 | Export provenance | [ADR 0153](adr/0153-an-export-knows-where-it-comes-from.md): the journal records the revision, its fingerprint, the resolved recipe, the decoder and the file's BLAKE3 (migration v14); the file carries a `leyline:` XMP block under the metadata policy; `verify` and `reproduce` in every client. Built |
 | Agent surface (MCP) | [ADR 0154](adr/0154-an-agent-surface-over-stdio.md): `leyline mcp --library <path>` serves the façade's read, edit, preview, import, export and verify verbs over stdio; each revision records the program that wrote it — `studio`, `cli` or `mcp:<client>` (migration v15); while Studio has the library open, an agent opens it read-only and the writing tools refuse by name (§7 step 1). Studio relaying the agent on a local socket (§7 step 2) is decided, not built |
-|---|---|
 | Tone curve (monotone cubic spline, applied on luminance) | [ADR 0030](adr/0030-tone-curve.md) |
 | Spot removal (deterministic cloning, no *heal* mode) | [ADR 0032](adr/0032-spot-removal-clone.md) |
 | Masked local adjustments — brush, radial, graduated | [ADR 0029](adr/0029-process-6-local-adjustments.md) |
@@ -76,6 +76,14 @@ These features were scoped as post-V1 candidates in [`v2-scope.md`](v2-scope.md)
 | The colour space a non-RAW file declares — ICC or HEIF `nclx` — read instead of assumed, for JPEG, PNG, TIFF and HEIF alike | [ADR 0115](adr/0115-tagged-source-colour.md) |
 | Reshape: moving content within the frame — handles that grab at one point and drop at another, nothing invented | [ADR 0109](adr/0109-reshape-stage.md) |
 | Defringe on a mask, the operator of rank 22 run inside a local adjustment | [ADR 0116](adr/0116-local-defringe.md) |
+| No panic on a production path; a panic leaves `last-panic.txt`, and the next launch shows it | [ADR 0152](adr/0152-a-panic-is-not-an-error-message.md), [ADR 0162](adr/0162-the-panic-file-and-the-next-launch.md) |
+| A look without one group: the photograph seen with one settings group reset, nothing committed | [ADR 0163](adr/0163-a-look-without-one-group.md) |
+| Levels, a stage of its own at rank 78 | [ADR 0164](adr/0164-levels.md) |
+| Colour moiré, global, a stage of its own at rank 7 | [ADR 0165](adr/0165-colour-moire.md) |
+| Studio's layout: one window around one photograph, a palette named by role, menus in the top bar, tools in the rail, a justified grid | [ADR 0158](adr/0158-one-window-one-photograph.md), [ADR 0159](adr/0159-menus-in-the-top-bar-and-three-ways-in.md), [ADR 0160](adr/0160-the-tools-move-into-the-rail.md), [ADR 0161](adr/0161-the-justified-grid.md) |
+| The loupe rendered at the screen's resolution, `Small` staying the develop view's truth | [ADR 0166](adr/0166-the-loupe-at-the-screens-resolution.md) |
+| A GPU for the preview alone (`leyline-gpu`, wgpu): optional, falls back to the CPU, never used for export, print or `verify` | [ADR 0156](adr/0156-a-gpu-for-the-preview-alone.md) |
+| macOS dmg, self-contained and signed ad hoc, Apple silicon only — **experimental** | [ADR 0155](adr/0155-an-experimental-macos-dmg.md) |
 
 Masked local adjustments and their range masks have been exposed in all three clients since [ADR 0049](adr/0049-local-adjustments-clients.md): drawing tools and an editor in Studio, the stored `LocalAdjustment` JSON payload in the CLI. What ADR 0049 left out of scope: the overlay of the coverage the engine computes (the "red mask") is **delivered** ([ADR 0071](adr/0071-mask-overlay.md)); the range eyedropper ([ADR 0093](adr/0093-range-mask-eyedropper.md)) and the drag handles on a geometry already drawn ([ADR 0097](adr/0097-mask-geometry-handles.md)) are **delivered** too: nothing of ADR 0049 remains out of scope.
 

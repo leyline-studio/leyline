@@ -16,7 +16,7 @@ The aim is not to reproduce an existing product feature by feature, but to build
 
 ---
 
-## Project status — September 2026
+## Project status — October 2026
 
 **The V1 scope is delivered in full**, on all three clients (Studio, CLI, SDK): import, catalog, thumbnails, EXIF, the complete non-destructive develop pipeline, lens correction, colour management, presets, reprocessing, JPEG/TIFF/WebP/AVIF export, printing, tethering, watched folder, map view, installers and a multilingual interface.
 
@@ -25,6 +25,8 @@ The aim is not to reproduce an existing product feature by feature, but to build
 A library is no longer confined to one volume: it may reference **named roots**, each identified by a marker inside the folder rather than by a remembered path, so a catalog spans several disks while `catalog.db` still holds no absolute path ([ADR 0085](adr/0085-named-roots.md)). An unplugged volume makes its photographs *offline*, never *missing*.
 
 Rendering rests on a pipeline of versioned stages ([ADR 0042](adr/0042-versioned-stage-pipeline.md), [ADR 0043](adr/0043-collapse-prerelease-render-history.md)) working in linear wide-gamut light ([ADR 0044](adr/0044-linear-wide-gamut-working-space.md)): that is what carries the reproducibility promise of [`pipeline.md`](pipeline.md) §5.
+
+October added three things a published version needs. **Robustness and provenance**: a panic is no longer an error message, and the next launch shows what the last one left ([ADR 0152](adr/0152-a-panic-is-not-an-error-message.md), [ADR 0162](adr/0162-the-panic-file-and-the-next-launch.md)); an export knows the revision it comes from, and `verify` and `reproduce` check it ([ADR 0153](adr/0153-an-export-knows-where-it-comes-from.md)); an agent drives a library over stdio ([ADR 0154](adr/0154-an-agent-surface-over-stdio.md)). **Studio's new layout**: one window around one photograph, menus in the top bar, tools in the rail, the justified grid ([ADR 0158](adr/0158-one-window-one-photograph.md)–[ADR 0161](adr/0161-the-justified-grid.md)), and the loupe at the screen's resolution ([ADR 0166](adr/0166-the-loupe-at-the-screens-resolution.md)). **Develop**: a look without one group, Levels, colour moiré ([ADR 0163](adr/0163-a-look-without-one-group.md)–[ADR 0165](adr/0165-colour-moire.md)), the metadata an export carries ([ADR 0157](adr/0157-what-the-exported-file-says.md)), and an optional GPU for the preview alone — never for the export, with the CPU always there ([ADR 0156](adr/0156-a-gpu-for-the-preview-alone.md)).
 
 What remains open:
 
@@ -35,8 +37,8 @@ What remains open:
 | Detected masks | The **socket** is delivered ([ADR 0073](adr/0073-external-mask-detectors.md)): Studio knows how to call an external detector. No detector ships with Leyline, and no model is embedded |
 | Pixel processing (AI denoise, upscaling) | The **socket** is delivered ([ADR 0107](adr/0107-derived-assets-and-the-pixel-socket.md)): Studio hands an external processor the develop buffer and files what comes back as a **new photograph** carrying the original's development. No processor ships with Leyline, and none is needed to open, render or export what one produced |
 | Assisted culling | The half that needs no model is delivered ([ADR 0084](adr/0084-assisted-culling.md) §4): bursts grouped, the sharpest kept, black and blown frames named. It **proposes** — the grid narrows to what it proposes and nothing is written until the photographer applies it. Faces and learned judgement are the model half, and are not built |
-| First publication | No binary published, no version cut |
-| One decoder across the three deliverables | All three build one pinned LibRaw (0.22.2) from source, and an unknown one fails `make check` ([ADR 0086](adr/0086-decoder-in-the-promise.md)). The macOS build has only ever run on the CI runner: running it on real Apple hardware needs a macOS machine |
+| Next version | 0.1.0 is published (2026-09-23). What October built is not yet in a version: 0.2.0 is the next cut |
+| One decoder across the three deliverables | All three build one pinned LibRaw (0.22.2) from source, and an unknown one fails `make check` ([ADR 0086](adr/0086-decoder-in-the-promise.md)). The macOS dmg is **experimental**: Apple silicon only, signed ad hoc, built and checked on the CI runner and never yet run on real Apple hardware ([ADR 0155](adr/0155-an-experimental-macos-dmg.md)) |
 
 The rest of the work is robustness, performance and polish, not missing features.
 

@@ -97,15 +97,39 @@ library, where the fastest and most bulk gestures are
 photograph itself — nothing dragged, nothing pointed at
 ([ADR 0130](adr/0130-direct-manipulation.md)).
 
-Two decisions are taken and **not yet built**, which is the state ADR 0109
-was in for a while and is the ordinary order of work here. A develop session
-holds the whole catalog's lock while it lives, and it should hold a claim on
-its version instead ([ADR 0120](adr/0120-edit-session-claim.md)) — a local
-defect worth fixing on its own, and a prerequisite for the second: a tablet
-that does not develop but **drives** the machine that does
-([ADR 0121](adr/0121-remote-engine-boundary.md)). One catalog, two screens,
-no copy — so none of the costs a synchronisation carries, and `pipeline.md`
-§5.1 never crossed, because one machine always computes.
+A develop session no longer holds the whole catalog's lock while it lives:
+it holds a claim on its version ([ADR 0120](adr/0120-edit-session-claim.md),
+built 2026-09-20). That was the prerequisite for a tablet that does not
+develop but **drives** the machine that does
+([ADR 0121](adr/0121-remote-engine-boundary.md)): one catalog, two screens,
+no copy, and `pipeline.md` §5.1 never crossed, because one machine always
+computes. ADR 0121 stays decided and not planned; its façade boundary was
+first applied with a local transport by the agent surface (ADR 0154, below).
+
+October then turned to what a second version needs, in three strands:
+
+* **robustness and provenance** — no panic on a production path, and a panic
+  file the next launch reports ([ADR 0152](adr/0152-a-panic-is-not-an-error-message.md),
+  [ADR 0162](adr/0162-the-panic-file-and-the-next-launch.md)); an export that
+  records the revision, its fingerprint, the recipe and the decoder, with
+  `verify` and `reproduce` in every client ([ADR 0153](adr/0153-an-export-knows-where-it-comes-from.md));
+  an agent surface over stdio ([ADR 0154](adr/0154-an-agent-surface-over-stdio.md));
+  the metadata an exported file carries ([ADR 0157](adr/0157-what-the-exported-file-says.md));
+* **Studio's layout** — one window around one photograph and its palette
+  ([ADR 0158](adr/0158-one-window-one-photograph.md)), menus in the top bar
+  ([ADR 0159](adr/0159-menus-in-the-top-bar-and-three-ways-in.md)), tools in
+  the rail ([ADR 0160](adr/0160-the-tools-move-into-the-rail.md)), the
+  justified grid ([ADR 0161](adr/0161-the-justified-grid.md)), the loupe at
+  the screen's resolution ([ADR 0166](adr/0166-the-loupe-at-the-screens-resolution.md));
+* **develop and platforms** — a look without one group
+  ([ADR 0163](adr/0163-a-look-without-one-group.md)), Levels
+  ([ADR 0164](adr/0164-levels.md)), colour moiré
+  ([ADR 0165](adr/0165-colour-moire.md)), a GPU for the preview alone,
+  never the export ([ADR 0156](adr/0156-a-gpu-for-the-preview-alone.md)),
+  and an experimental macOS dmg ([ADR 0155](adr/0155-an-experimental-macos-dmg.md)).
+
+0.1.0 was published on 2026-09-23. The next step is to cut **0.2.0** with
+what October built, before any new feature.
 
 What [`readme.md`](readme.md) lists as still open remains the reference: DCP colorimetry not validated against the profile vendor's own render, and two finishing touches to local-adjustment tooling left out of scope by [ADR 0049](adr/0049-local-adjustments-clients.md).
 
