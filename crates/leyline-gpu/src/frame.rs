@@ -13,6 +13,7 @@ use wgpu::util::DeviceExt;
 use crate::Gpu;
 
 mod dehaze;
+mod grain;
 use dehaze::{DehazeParams, DehazePipelines};
 
 /// Invocations per workgroup, along x.
@@ -33,7 +34,7 @@ pub enum Op {
     /// `crop` v1: the frame from here on is this rectangle, given as
     /// fractions of the frame and rounded exactly as the CPU rounds them.
     /// Applied when the output is read, so it may only be followed by
-    /// [`Op::Vignette`] and [`Op::OutputRendering`].
+    /// [`Op::Vignette`], [`Op::Grain`] and [`Op::OutputRendering`].
     Crop {
         /// Left edge, as a fraction of the width.
         x: f64,
@@ -100,7 +101,8 @@ pub enum Op {
     },
     /// `vignette` v1, in the coordinates of the (cropped) frame: applied as
     /// the output reads each pixel, so it may only be followed by
-    /// [`Op::OutputRendering`]. Values as the stage derives them.
+    /// [`Op::Grain`] and [`Op::OutputRendering`]. Values as the stage
+    /// derives them.
     Vignette {
         /// Amount / 100.
         amount: f32,
@@ -112,6 +114,24 @@ pub enum Op {
         corner: f32,
         /// The feather's width, at least 1e-4.
         width: f32,
+    },
+    /// `grain` v1 and v2, in the full-resolution coordinates of the
+    /// (cropped) frame: applied as the output reads each pixel, after the
+    /// vignette, so it may only be followed by [`Op::OutputRendering`].
+    /// Values as the stage derives them.
+    Grain {
+        /// Amount / 100 × the stage's largest amplitude.
+        amplitude: f32,
+        /// The lattice's cell, in full-resolution pixels.
+        cell: f32,
+        /// Roughness / 100, clamped: the fine octave's weight.
+        fine: f32,
+        /// v2's colour / 100, clamped; 0 renders v1.
+        colour: f32,
+        /// Preview pixels per full-resolution pixel, above 0.
+        scale: f32,
+        /// The CPU's transfer tables.
+        transfer: Transfer,
     },
     /// The output rendering (`output_rendering` v1): the highlight rolloff
     /// at `knee`, the working space to linear sRGB through `matrix`, the
@@ -302,7 +322,24 @@ impl Frame {
         let mut window = (0, 0, self.width, self.height);
         // The vignette the output applies, in the window's coordinates.
         let mut vignette = None;
+        // The grain the output applies after it, and the tables it crosses.
+        let mut grain = None;
         for (index, step) in steps.iter().enumerate() {
+            if let Op::Grain {
+                amplitude,
+                cell,
+                fine,
+                colour,
+                scale,
+                transfer,
+            } = step
+            {
+                if index + 1 != steps.len() {
+                    return None;
+                }
+                grain = Some(([*amplitude, *cell, *fine, *colour, *scale], transfer));
+                continue;
+            }
             if let Op::Vignette {
                 amount,
                 midpoint,
@@ -311,7 +348,10 @@ impl Frame {
                 width,
             } = step
             {
-                if index + 1 != steps.len() {
+                if !(index + 1 == steps.len()
+                    || index + 2 == steps.len()
+                        && matches!(steps.get(index + 1), Some(Op::Grain { .. })))
+                {
                     return None;
                 }
                 vignette = Some([*amount, *midpoint, *exponent, *corner, *width]);
@@ -324,11 +364,12 @@ impl Frame {
                 height,
             } = step
             {
-                // Nothing but the vignette and the output may follow a crop:
-                // every kernel before it runs on the whole frame.
-                let next = steps.get(index + 1);
-                if !(next.is_none()
-                    || index + 2 == steps.len() && matches!(next, Some(Op::Vignette { .. })))
+                // Nothing but the vignette, the grain and the output may
+                // follow a crop: every kernel before it runs on the whole
+                // frame.
+                if !steps[index + 1..]
+                    .iter()
+                    .all(|op| matches!(op, Op::Vignette { .. } | Op::Grain { .. }))
                 {
                     return None;
                 }
@@ -472,9 +513,27 @@ impl Frame {
             params.extend_from_slice(&value.to_le_bytes());
         }
         params.extend_from_slice(&out_height.to_le_bytes());
-        params.resize(112, 0);
+        params.extend_from_slice(&u32::from(grain.is_some()).to_le_bytes());
+        for value in grain
+            .map(|(values, _)| values)
+            .unwrap_or([0.0, 1.0, 0.0, 0.0, 1.0])
+        {
+            params.extend_from_slice(&value.to_le_bytes());
+        }
+        params.resize(144, 0);
         uniforms.push(uniform(device, &params));
         let table = table(device, display_table);
+        // Without grain nothing reads them; the display table stands in.
+        let (to_display, to_linear) = match grain {
+            Some((_, transfer)) => (
+                self::table(device, &transfer.to_display),
+                self::table(device, &transfer.to_linear),
+            ),
+            None => (
+                self::table(device, display_table),
+                self::table(device, display_table),
+            ),
+        };
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("output rendering"),
             layout: &gpu.pipelines().output.get_bind_group_layout(0),
@@ -483,6 +542,8 @@ impl Frame {
                 entry(1, uniforms.last()?),
                 entry(2, &table),
                 entry(3, &self.output),
+                entry(4, &to_display),
+                entry(5, &to_linear),
             ],
         });
         {
@@ -718,6 +779,7 @@ impl Pipelines {
     pub(crate) fn new(device: &wgpu::Device) -> Pipelines {
         let display = format!("{AXIS}{DISPLAY}");
         let sharpen = format!("{AXIS}{SHARPEN}");
+        let output = format!("{AXIS}{}{OUTPUT_RENDERING}", grain::GRAIN);
         Pipelines {
             gains: pipeline(device, "gains", GAINS, "main"),
             display: pipeline(device, "display", &display, "main"),
@@ -731,7 +793,7 @@ impl Pipelines {
                 apply: pipeline(device, "sharpen apply", &sharpen, "apply"),
             },
             dehaze: DehazePipelines::new(device, AXIS),
-            output: pipeline(device, "output rendering", OUTPUT_RENDERING, "main"),
+            output: pipeline(device, "output rendering", &output, "main"),
         }
     }
 }
@@ -912,11 +974,19 @@ struct Params {
     vignette_corner: f32,
     vignette_width: f32,
     out_height: u32,
+    grain_on: u32,
+    grain_amplitude: f32,
+    grain_cell: f32,
+    grain_fine: f32,
+    grain_colour: f32,
+    grain_scale: f32,
 }
 @group(0) @binding(0) var<storage, read_write> samples: array<f32>;
 @group(0) @binding(1) var<uniform> params: Params;
 @group(0) @binding(2) var<storage, read> display_table: array<f32>;
 @group(0) @binding(3) var<storage, read_write> packed: array<u32>;
+@group(0) @binding(4) var<storage, read> to_display_table: array<f32>;
+@group(0) @binding(5) var<storage, read> to_linear_table: array<f32>;
 
 fn rolloff(value: f32, knee: f32) -> f32 {
     if (value <= knee || knee >= 1.0) { return min(value, 1.0); }
@@ -964,6 +1034,9 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     var linear = vec3<f32>(samples[base], samples[base + 1u], samples[base + 2u]);
     if (params.vignette_on == 1u) {
         linear = linear * vignette_gain(pixel % params.out_width, pixel / params.out_width);
+    }
+    if (params.grain_on == 1u) {
+        linear = grain(linear, pixel % params.out_width, pixel / params.out_width);
     }
     let rolled = vec3<f32>(
         rolloff(linear.x, params.knee),

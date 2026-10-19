@@ -179,6 +179,24 @@ fn kernel(stage: &Stage, version: &Version, settings: &Settings, scale: f32) -> 
                 width: ((vignette.feather as f32 / 100.0) * (1.0 - midpoint)).max(1e-4),
             })
         }
+        // The same derivations as `grain` v1 and v2, in the same `f32`; v2
+        // at colour 0 renders exactly v1, and so does the kernel.
+        ("grain", 1 | 2) => {
+            let grain = &settings.grain;
+            let colour = if version.version == 2 {
+                (grain.color as f32 / 100.0).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            Some(Op::Grain {
+                amplitude: (grain.amount as f32 / 100.0) * crate::stages::grain::v1::MAX_AMPLITUDE,
+                cell: 1.0 + (grain.size as f32 / 100.0).clamp(0.0, 1.0) * 15.0,
+                fine: (grain.roughness as f32 / 100.0).clamp(0.0, 1.0),
+                colour,
+                scale: if scale > 0.0 { scale } else { 1.0 },
+                transfer: transfer(),
+            })
+        }
         ("crop", 1) => settings.crop.as_ref().map(|rect| Op::Crop {
             x: rect.x,
             y: rect.y,

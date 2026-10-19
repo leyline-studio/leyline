@@ -729,6 +729,26 @@ GPU / with `LEYLINE_GPU=off`:
 Without the kernel the drag stayed on the CPU at the GPU's machine too
 (326 ms at 4K). It pays at every class, so it stays.
 
+Ninth slice: `grain` v1 and v2. A point operator, but one that reads the
+pixel's position, so it joins the crop and the vignette in the output
+pass, after the vignette as the ranks order them. The lattice hash is the
+CPU's 64-bit mix, rebuilt from 32-bit words (WGSL has no `u64`): the field
+is the same 24 bits, and only the `f32` around it may round otherwise.
+The grain drag (amount 20 → 65, colour 40: v2's three salted fields and
+the shared one), on the GPU / with `LEYLINE_GPU=off`:
+
+| File | Class | Grain, CPU | Grain, GPU | Worst gap | Samples off by 1 |
+|---|---|---|---|---|---|
+| 5D IV | 1024 | 14 ms | 4 ms | 1 | 0.018 % |
+| 5D IV | 2048 | 53 ms | 8 ms | 1 | 0.038 % |
+| 5D IV | 4096 | 214 ms | 30 ms | 1 | 0.037 % |
+| 60D | 1024 | 15 ms | 4 ms | 1 | 0.004 % |
+| 60D | 2048 | 54 ms | 9 ms | 1 | 0.004 % |
+| 60D | 3888 | 188 ms | 36 ms | 1 | 0.005 % |
+
+Before it, any photograph with grain kept every drag on the CPU, the grain
+being last in the pipeline. It pays at every class, so it stays.
+
 ---
 
 # 4. Axis C — Optional local AI

@@ -78,7 +78,7 @@ pub(crate) fn grain(px: &mut Pixels, settings: &Grain, scale: f32) {
 ///
 /// Frozen with the version, like every other constant here: it is what the
 /// slider's top end *means*.
-pub(super) const MAX_AMPLITUDE: f32 = 0.09;
+pub(crate) const MAX_AMPLITUDE: f32 = 0.09;
 
 /// Value noise in [-1, 1]: bilinear interpolation between hashed lattice
 /// points.

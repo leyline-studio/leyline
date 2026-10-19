@@ -2791,7 +2791,27 @@ fn the_gpu_preview_stays_within_one_level_of_the_cpu() {
     dehazed.dehaze = 45;
     let mut hazed = dragged.clone();
     hazed.dehaze = -35;
-    for mut dragged in [dragged, monochrome, masked, local_contrast, dehazed, hazed] {
+    // Grain after the crop and the vignette, in both versions' fields:
+    // v1's single one (colour 0) and v2's salted three.
+    let mut grained = dragged.clone();
+    grained.grain = leyline_core::Grain {
+        amount: 60,
+        size: 10,
+        roughness: 40,
+        color: 0,
+    };
+    let mut coloured_grain = grained.clone();
+    coloured_grain.grain.color = 70;
+    for mut dragged in [
+        dragged,
+        monochrome,
+        masked,
+        local_contrast,
+        dehazed,
+        hazed,
+        grained,
+        coloured_grain,
+    ] {
         super::pin(&mut dragged);
         let mut cache = StageCache::default();
         // A drag moves values, not the pinned map: the frame before it is the
@@ -2983,12 +3003,12 @@ fn would_render_on_gpu_follows_the_cache_and_the_kernels() {
     // Another class has no checkpoint yet.
     assert!(!cache.would_render_on_gpu(asset, Some(1024), &dragged));
     // A stage with no kernel after the checkpoint keeps it on the CPU.
-    let grained = leyline_core::Settings {
-        grain: leyline_core::Grain {
-            amount: 30,
+    let denoised = leyline_core::Settings {
+        noise_reduction: leyline_core::NoiseReduction {
+            luminance: 30,
             ..Default::default()
         },
         ..dragged
     };
-    assert!(!cache.would_render_on_gpu(asset, Some(4096), &grained));
+    assert!(!cache.would_render_on_gpu(asset, Some(4096), &denoised));
 }
