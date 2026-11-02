@@ -34,6 +34,7 @@ use leyline_sdk::{
 // the SDK names through `use super::*`, and this file only dispatches.
 mod assist;
 mod capture;
+mod collections;
 mod develop;
 mod export;
 mod library;
@@ -43,6 +44,7 @@ mod usage;
 
 use assist::*;
 use capture::*;
+use collections::*;
 use develop::*;
 use export::*;
 use library::*;
@@ -124,6 +126,13 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("root-locate") => root_locate(&args[1..]),
         Some("root-forget") => root_forget(&args[1..]),
         Some("exports") => exports(&args[1..]),
+        Some("collections") => collections(&args[1..]),
+        Some("collection-create") => collection_create(&args[1..]),
+        Some("collection-add") => collection_add(&args[1..]),
+        Some("collection-remove") => collection_remove(&args[1..]),
+        Some("collection-rename") => collection_rename(&args[1..]),
+        Some("collection-move") => collection_move(&args[1..]),
+        Some("collection-delete") => collection_delete(&args[1..]),
         Some("print") => print_cmd(&args[1..]),
         Some("print-preset") => print_preset(&args[1..]),
         Some("print-presets") => print_presets(&args[1..]),

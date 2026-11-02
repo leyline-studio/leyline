@@ -1435,3 +1435,82 @@ fn levels_are_set_refused_and_reset() {
     let head = history.lines().next().unwrap();
     assert!(!head.contains("levels:"), "{head}");
 }
+
+/// Collections from the CLI (ADR 0169): a manual one filled by hand and
+/// listed by `ls --collection`, a smart one made from flags and refusing
+/// hand-filling, and a delete that takes the subtree and no photo.
+#[test]
+fn collections_are_created_filled_listed_moved_and_deleted() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = library_with_a_photo(&dir);
+
+    let out = run(&["collections", &root]);
+    assert!(stdout(&out).contains("no collection"), "{}", stdout(&out));
+
+    let out = run(&["collection-create", &root, "Album"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out).trim(), "c1");
+    let out = run(&["collection-add", &root, "1", "1"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    let listing = stdout(&run(&["ls", &root, "--collection", "1"]));
+    assert!(listing.contains("1 version(s)"), "{listing}");
+
+    let out = run(&[
+        "collection-create",
+        &root,
+        "Picks",
+        "--pick",
+        "--rating",
+        "3",
+    ]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    let tree = stdout(&run(&["collections", &root]));
+    assert!(tree.contains("manual") && tree.contains("Album"), "{tree}");
+    assert!(tree.contains("smart") && tree.contains("Picks"), "{tree}");
+    assert!(tree.contains("--rating 3 --pick"), "{tree}");
+    // The photo is neither rated nor picked: the smart one is empty.
+    let listing = stdout(&run(&["ls", &root, "--collection", "2"]));
+    assert!(listing.contains("0 version(s)"), "{listing}");
+
+    // A smart collection is filled by its rules, never by hand.
+    let out = run(&["collection-add", &root, "2", "1"]);
+    assert!(!out.status.success());
+    // A keyword the library lacks would make a silently empty collection.
+    let out = run(&[
+        "collection-create",
+        &root,
+        "Birds",
+        "--keyword",
+        "Nature/Oiseaux",
+    ]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("Nature/Oiseaux"), "{}", stderr(&out));
+
+    // A bare move is refused; a move under the album nests it.
+    assert!(!run(&["collection-move", &root, "2"]).status.success());
+    let out = run(&["collection-move", &root, "2", "--parent", "1"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    let out = run(&["collection-move", &root, "1", "--parent", "2"]);
+    assert!(
+        !out.status.success(),
+        "a collection under its own descendant"
+    );
+    let out = run(&["collection-rename", &root, "1", "Trip"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(stdout(&run(&["collections", &root])).contains("Trip"));
+
+    let out = run(&["collection-remove", &root, "1", "1"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    let listing = stdout(&run(&["ls", &root, "--collection", "1"]));
+    assert!(listing.contains("0 version(s)"), "{listing}");
+
+    let out = run(&["collection-delete", &root, "1"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(
+        stdout(&out).contains("2 collection(s) deleted"),
+        "{}",
+        stdout(&out)
+    );
+    let listing = stdout(&run(&["ls", &root]));
+    assert!(listing.contains("1 version(s)"), "{listing}");
+}

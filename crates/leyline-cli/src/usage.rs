@@ -111,9 +111,28 @@ Usage:
   leyline ls <library> [--text <query>] [--rating <min>]
                [--camera <name>] [--lens <name>] [--iso <range>]
                [--aperture <range>] [--focal <range>] [--shutter <range>]
+               [--collection <id>]
                                     shot filters (ADR 0064); a range is written
                                     <min>-<max>, <min>- or -<max>, and speeds
-                                    may be fractions: --shutter -1/500
+                                    may be fractions: --shutter -1/500;
+                                    --collection lists its members, a manual
+                                    one in its own order (ADR 0169)
+  leyline collections <library>     the collection tree: id, manual or smart,
+                                    member count; a smart one prints its rules
+  leyline collection-create <library> <name> [--parent <id>]
+               [--rating <1-5>] [--camera <name>] [--keyword <path>]... [--pick]
+                                    manual, or smart as soon as one rule is
+                                    given; a keyword is a path (Nature/Oiseaux)
+                                    and one the library lacks is refused
+  leyline collection-add <library> <collection-id> <version-id>...
+  leyline collection-remove <library> <collection-id> <version-id>...
+                                    a smart collection is filled by its rules,
+                                    never by hand
+  leyline collection-rename <library> <collection-id> <name>
+  leyline collection-move <library> <collection-id> (--parent <id> | --root)
+  leyline collection-delete <library> <collection-id>
+                                    with everything under it; no version and
+                                    no file is touched
   leyline facets <library>          the bodies, lenses and value ranges the
                                     library actually holds — what the filters
                                     above take

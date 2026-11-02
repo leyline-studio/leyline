@@ -1,6 +1,8 @@
 //! Commands on the library itself: creation, roots, import and scan, listing,
 //! classification (rate, pick, label), pairing, removal, renaming, description.
 
+use leyline_sdk::Sort;
+
 use super::*;
 
 pub(crate) fn new(args: &[String]) -> Result<(), String> {
@@ -202,7 +204,15 @@ pub(crate) fn ls(args: &[String]) -> Result<(), String> {
     let (positional, options) = parse(
         args,
         &[
-            "text", "rating", "camera", "lens", "iso", "aperture", "focal", "shutter",
+            "text",
+            "rating",
+            "camera",
+            "lens",
+            "iso",
+            "aperture",
+            "focal",
+            "shutter",
+            "collection",
         ],
     )?;
     let [root] = positional.as_slice() else {
@@ -210,12 +220,29 @@ pub(crate) fn ls(args: &[String]) -> Result<(), String> {
             "usage: leyline ls <library> [--text <query>] [--rating <min>]\n\
                     \x20                      [--camera <name>] [--lens <name>]\n\
                     \x20                      [--iso <range>] [--aperture <range>]\n\
-                    \x20                      [--focal <range>] [--shutter <range>]"
+                    \x20                      [--focal <range>] [--shutter <range>]\n\
+                    \x20                      [--collection <id>]"
                 .to_owned(),
         );
     };
     let library = open(root)?;
+    let collection = options.value("collection").map(collection_id).transpose()?;
+    // A manual collection is listed in the order its owner gave it; a smart
+    // one has no order of its own and keeps the grid's (ADR 0169 §1).
+    let sort = match collection {
+        Some(id)
+            if library
+                .smart_rules(id)
+                .map_err(|e| e.to_string())?
+                .is_none() =>
+        {
+            Sort::CollectionOrder
+        }
+        _ => GridQuery::default().sort,
+    };
     let query = GridQuery {
+        collection,
+        sort,
         text: options.value("text").map(str::to_owned),
         rating_at_least: options
             .value("rating")
