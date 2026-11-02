@@ -1833,6 +1833,11 @@ msgctxt "DevelopPanel"
 msgid "Presence"
 msgstr "Présence"
 
+#: crates/leyline-studio/ui/panels/develop.slint:3136
+msgctxt "DevelopPanel"
+msgid "Rendering"
+msgstr "Rendu du fichier"
+
 #: crates/leyline-studio/ui/panels/develop.slint:1471 crates/leyline-studio/ui/panels/develop.slint:3100
 msgctxt "DevelopPanel"
 msgid "Texture"
@@ -5041,3 +5046,9 @@ msgstr "Retire les fausses bandes de couleur des motifs fins, tissus ou écrans.
 msgctxt "Tr"
 msgid "Moiré"
 msgstr "Moiré"
+
+#. English writes 100%, French 100 % — as the zoom chip beside it does.
+#: crates/leyline-studio/ui/widgets/controls.slint:63
+msgctxt "Zoom"
+msgid "{}%"
+msgstr "{} %"

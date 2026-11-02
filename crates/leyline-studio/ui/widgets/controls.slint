@@ -57,9 +57,10 @@ export global Zoom {
     public pure function anchored(point: float, offset: length, shown: length) -> float {
         return Math.clamp(point - offset / shown, 0, 1);
     }
-    // What the corner reads: "100 %", never "100.0000 %".
+    // What the corner reads: "100%", never "100.0000%".
     public pure function percent(scale: float) -> string {
-        return Math.round(scale * 100) + " %";
+        // English writes 100%, French 100 % — as the zoom chip beside it does.
+        return @tr("{}%", Math.round(scale * 100));
     }
 }
 

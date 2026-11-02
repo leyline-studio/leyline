@@ -3098,6 +3098,43 @@ export component DevelopPanel inherits HorizontalLayout {
                                 DevelopState.develop-preview("dehaze", v);
                             }
                         }
+                        EditSlider {
+                            label: @tr("Vibrance");
+                            hint: @tr("Saturates the muted colours and spares the vivid ones. Saturation moves them all equally.");
+                            minimum: -100;
+                            maximum: 100;
+                            // Grey to colour, the direction the slider goes.
+                            track-from: Hues.neutral-start;
+                            track-to: Hues.vibrance;
+                            value: DevelopState.dev.vibrance;
+                            edited(v) => {
+                                DevelopState.develop-edit("vibrance", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("vibrance", v);
+                            }
+                        }
+                        EditSlider {
+                            label: @tr("Saturation");
+                            minimum: -100;
+                            maximum: 100;
+                            track-from: Hues.neutral-start;
+                            track-to: Hues.saturation;
+                            value: DevelopState.dev.saturation;
+                            edited(v) => {
+                                DevelopState.develop-edit("saturation", v);
+                            }
+                            previewing(v) => {
+                                DevelopState.develop-preview("saturation", v);
+                            }
+                        }
+                        // Basic's Full-mode block: the three settings about
+                        // getting the photograph out of the file, the
+                        // `rendering` preset group (ADR 0132 §1), kept
+                        // together under one heading.
+                        if !root.basic-mode: SubHeading {
+                            label: @tr("Rendering");
+                        }
                         // What the *decoder* does with a channel that
                         // saturated at the sensor (ADR 0050), as opposed to
                         // the roll-off below, which decides what becomes of
@@ -3189,36 +3226,6 @@ export component DevelopPanel inherits HorizontalLayout {
                             color: Theme.text-disabled;
                             font-size: 11px;
                             wrap: word-wrap;
-                        }
-                        EditSlider {
-                            label: @tr("Vibrance");
-                            hint: @tr("Saturates the muted colours and spares the vivid ones. Saturation moves them all equally.");
-                            minimum: -100;
-                            maximum: 100;
-                            // Grey to colour, the direction the slider goes.
-                            track-from: Hues.neutral-start;
-                            track-to: Hues.vibrance;
-                            value: DevelopState.dev.vibrance;
-                            edited(v) => {
-                                DevelopState.develop-edit("vibrance", v);
-                            }
-                            previewing(v) => {
-                                DevelopState.develop-preview("vibrance", v);
-                            }
-                        }
-                        EditSlider {
-                            label: @tr("Saturation");
-                            minimum: -100;
-                            maximum: 100;
-                            track-from: Hues.neutral-start;
-                            track-to: Hues.saturation;
-                            value: DevelopState.dev.saturation;
-                            edited(v) => {
-                                DevelopState.develop-edit("saturation", v);
-                            }
-                            previewing(v) => {
-                                DevelopState.develop-preview("saturation", v);
-                            }
                         }
                         // An output decision rather than a presence one, and
                         // one that supposes knowing what headroom above white
