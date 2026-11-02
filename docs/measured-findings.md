@@ -604,7 +604,8 @@ the defect could show a soft 1024-px frame where a sharper one was due.
 `crates/leyline-gpu` holds a device and one kernel (every sample times a
 factor, the core of an exposure gain), whose test compares the GPU's output
 with the CPU's. wgpu is pinned at **26.0.1**, the newest release whose MSRV
-(1.84) fits the workspace's 1.85.
+(1.84) fitted the workspace's former 1.85. The MSRV now follows the pinned toolchain
+([ADR 0168](adr/0168-msrv-is-the-pinned-toolchain.md)), so that reason is gone; upgrading wgpu is its own decision.
 
 | Check | Result |
 |---|---|

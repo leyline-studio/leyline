@@ -41,3 +41,33 @@ fn readme_adr_count_matches_directory() {
          update the figure in docs/readme.md"
     );
 }
+
+/// The workspace's declared `rust-version` is the pinned toolchain's
+/// major.minor (ADR 0168). It once said 1.85 while nothing built below
+/// 1.97.1 and the dependency graph needed 1.88.
+#[test]
+fn declared_msrv_is_the_pinned_toolchain() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+
+    let quoted_value = |text: &str, key: &str| -> String {
+        text.lines()
+            .find_map(|line| line.trim().strip_prefix(key))
+            .and_then(|rest| rest.trim().strip_prefix('='))
+            .map(|value| value.trim().trim_matches('"').to_owned())
+            .unwrap_or_else(|| panic!("no `{key} = \"…\"` line"))
+    };
+
+    let manifest = fs::read_to_string(root.join("Cargo.toml")).expect("Cargo.toml must exist");
+    let toolchain = fs::read_to_string(root.join("rust-toolchain.toml"))
+        .expect("rust-toolchain.toml must exist");
+
+    let declared = quoted_value(&manifest, "rust-version");
+    let channel = quoted_value(&toolchain, "channel");
+    let pinned_major_minor: String = channel.splitn(3, '.').take(2).collect::<Vec<_>>().join(".");
+
+    assert_eq!(
+        declared, pinned_major_minor,
+        "Cargo.toml declares rust-version {declared}, rust-toolchain.toml pins {channel}: \
+         they move together (ADR 0168)"
+    );
+}

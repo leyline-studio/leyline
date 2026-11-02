@@ -58,10 +58,10 @@ pub fn colour(path: &Path) -> Option<Colour> {
     let name = path.to_str()?;
     let context = HeifContext::read_from_file(name).ok()?;
     let handle = context.primary_image_handle().ok()?;
-    if let Some(raw) = handle.color_profile_raw() {
-        if !raw.data.is_empty() {
-            return Some(Colour::Icc(raw.data));
-        }
+    if let Some(raw) = handle.color_profile_raw()
+        && !raw.data.is_empty()
+    {
+        return Some(Colour::Icc(raw.data));
     }
     let nclx = handle.color_profile_nclx()?;
     use libheif_rs::TransferCharacteristics as T;

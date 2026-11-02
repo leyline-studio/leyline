@@ -85,6 +85,8 @@ pub(crate) fn decode_params(settings: &Settings, half_size: bool) -> DecodeParam
 /// One step ahead of `v1`'s: when the decoder was asked to reconstruct
 /// highlights rather than clip them, the gain it normalized the whole image by
 /// is undone first (ADR 0050 §3, [`reconstruction_gain`]).
+// A frozen body is not restyled when a newer MSRV unlocks a lint (ADR 0168).
+#[allow(clippy::collapsible_if)]
 pub(crate) fn to_working_space(
     px: &mut Pixels,
     source: SourceColor,

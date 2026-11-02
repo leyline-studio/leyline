@@ -178,7 +178,7 @@ impl OutputTransform {
     /// can never happen in practice.
     pub fn apply(&self, rgb8: &mut [u8]) {
         assert!(
-            rgb8.len() % 3 == 0,
+            rgb8.len().is_multiple_of(3),
             "an RGB8 buffer's length is always a multiple of 3"
         );
         let pixels: &mut [[u8; 3]] = bytemuck::cast_slice_mut(rgb8);
@@ -270,7 +270,7 @@ impl SoftProofTransform {
     /// [`OutputTransform::apply`] and for the same reason.
     pub fn apply(&self, rgb8: &mut [u8]) {
         assert!(
-            rgb8.len() % 3 == 0,
+            rgb8.len().is_multiple_of(3),
             "an RGB8 buffer's length is always a multiple of 3"
         );
         let pixels: &mut [[u8; 3]] = bytemuck::cast_slice_mut(rgb8);

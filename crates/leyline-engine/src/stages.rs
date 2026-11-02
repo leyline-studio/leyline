@@ -411,6 +411,8 @@ impl Stage {
 
 /// The stage registry. Published `(name, version)` entries are frozen —
 /// see the module docs.
+// Published bindings are not restyled when a newer MSRV unlocks a lint (ADR 0168).
+#[allow(clippy::collapsible_if)]
 pub(crate) static STAGES: &[Stage] = &[
     Stage {
         // Always active: there is no rendering without an input, so this

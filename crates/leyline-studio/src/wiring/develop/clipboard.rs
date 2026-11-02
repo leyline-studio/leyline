@@ -118,10 +118,9 @@ pub(crate) fn wire_settings_clipboard(
             if app
                 .develop
                 .is_some_and(|(_, version)| versions.contains(&version))
+                && let Err(error) = refresh_develop(&mut app, &window)
             {
-                if let Err(error) = refresh_develop(&mut app, &window) {
-                    report_error(&window, &error);
-                }
+                report_error(&window, &error);
             }
         });
     }

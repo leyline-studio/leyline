@@ -1597,12 +1597,12 @@ impl Settings {
                         )));
                     }
                 }
-                if let Some(previous_x) = previous_x {
-                    if point.x <= previous_x {
-                        return Err(LeylineError::InvalidSettings(format!(
-                            "{field} must have strictly increasing x"
-                        )));
-                    }
+                if let Some(previous_x) = previous_x
+                    && point.x <= previous_x
+                {
+                    return Err(LeylineError::InvalidSettings(format!(
+                        "{field} must have strictly increasing x"
+                    )));
                 }
                 previous_x = Some(point.x);
             }
@@ -1831,12 +1831,12 @@ impl Settings {
             }
 
             let values = &adjustment.adjustments;
-            if let Some(temperature) = values.temperature {
-                if temperature == 0 {
-                    return Err(LeylineError::InvalidSettings(format!(
-                        "local_adjustments[{i}].adjustments.temperature must be strictly positive"
-                    )));
-                }
+            if let Some(temperature) = values.temperature
+                && temperature == 0
+            {
+                return Err(LeylineError::InvalidSettings(format!(
+                    "local_adjustments[{i}].adjustments.temperature must be strictly positive"
+                )));
             }
             if let Some(tint) = values.tint {
                 slider(

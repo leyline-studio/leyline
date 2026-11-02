@@ -1622,10 +1622,11 @@ impl Library {
             settings.white_balance = Some(wb.clone());
             let image = self.preview_live(asset, PreviewKind::Small, &settings)?;
             let sampled = sample(&image);
-            if step == 0 && strict {
-                if let Some(reason) = crate::wb::refuse(sampled) {
-                    return Err(LeylineError::InvalidImage(reason.to_owned()));
-                }
+            if step == 0
+                && strict
+                && let Some(reason) = crate::wb::refuse(sampled)
+            {
+                return Err(LeylineError::InvalidImage(reason.to_owned()));
             }
             if crate::wb::neutral_enough(sampled) {
                 break;

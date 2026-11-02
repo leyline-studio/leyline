@@ -40,10 +40,10 @@ pub(crate) fn effective_coverage(
     );
     // v1 has no range terms at all (ADR 0048): an entry cannot carry one, so
     // there is nothing to narrow by.
-    if local_adjustments_version >= 2 {
-        if let Some(range) = &adjustment.range {
-            narrow_by_range(&mut coverage, px, range);
-        }
+    if local_adjustments_version >= 2
+        && let Some(range) = &adjustment.range
+    {
+        narrow_by_range(&mut coverage, px, range);
     }
     let opacity = adjustment.opacity.clamp(0.0, 1.0) as f32;
     for cell in &mut coverage {

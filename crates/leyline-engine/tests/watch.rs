@@ -18,10 +18,10 @@ fn open_test_library(name: &str) -> (tempfile::TempDir, Library) {
 fn wait_for(events: &std::sync::mpsc::Receiver<Event>, mut matches: impl FnMut(&Event) -> bool) {
     let deadline = std::time::Instant::now() + Duration::from_secs(10);
     while std::time::Instant::now() < deadline {
-        if let Ok(event) = events.recv_timeout(Duration::from_millis(500)) {
-            if matches(&event) {
-                return;
-            }
+        if let Ok(event) = events.recv_timeout(Duration::from_millis(500))
+            && matches(&event)
+        {
+            return;
         }
     }
     panic!("expected event never arrived within the deadline");

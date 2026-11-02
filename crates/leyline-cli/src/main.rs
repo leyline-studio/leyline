@@ -2185,10 +2185,10 @@ fn detectors(args: &[String]) -> Result<(), String> {
         // Not an error: no detector is shipped with Leyline, so this is
         // the normal state of a fresh installation (ADR 0073).
         println!("no detector installed");
-        if options.value("from").is_none() {
-            if let Some(dir) = leyline_sdk::manifests_dir() {
-                println!("manifests are read from {}", dir.display());
-            }
+        if options.value("from").is_none()
+            && let Some(dir) = leyline_sdk::manifests_dir()
+        {
+            println!("manifests are read from {}", dir.display());
         }
     } else {
         for source in sources {
@@ -2439,10 +2439,10 @@ fn processors(args: &[String]) -> Result<(), String> {
         // The normal state of a fresh installation: no processor ships
         // with Leyline, and the free application is complete without one.
         println!("no pixel processor installed");
-        if options.value("from").is_none() {
-            if let Some(dir) = leyline_sdk::derive::manifests_dir() {
-                println!("manifests are read from {}", dir.display());
-            }
+        if options.value("from").is_none()
+            && let Some(dir) = leyline_sdk::derive::manifests_dir()
+        {
+            println!("manifests are read from {}", dir.display());
         }
     } else {
         for source in sources {

@@ -492,10 +492,10 @@ where
         session.set(param, value)?;
         session.commit().map(|_| ())
     })();
-    if committed.is_ok() {
-        if let Some(row) = written {
-            MaskState::get(window).set_selected_mask(i32::try_from(row).unwrap_or(-1));
-        }
+    if committed.is_ok()
+        && let Some(row) = written
+    {
+        MaskState::get(window).set_selected_mask(i32::try_from(row).unwrap_or(-1));
     }
     if let Err(error) = committed
         .map_err(|e| e.to_string())

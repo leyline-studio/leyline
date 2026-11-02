@@ -130,11 +130,11 @@ pub fn scan<F: Into<Flow>>(
             // The fingerprint, when it was asked for: the same question the
             // import will ask, answered before anything is written — and the
             // only one that can name the asset (ADR 0095 §3).
-            if options.exact {
-                if let Ok((checksum, _)) = crate::import::checksum(path) {
-                    candidate.duplicate_of = catalog.find_asset_by_checksum(&checksum)?;
-                    candidate.already_imported = candidate.duplicate_of.is_some();
-                }
+            if options.exact
+                && let Ok((checksum, _)) = crate::import::checksum(path)
+            {
+                candidate.duplicate_of = catalog.find_asset_by_checksum(&checksum)?;
+                candidate.already_imported = candidate.duplicate_of.is_some();
             }
             report.candidates.push(candidate);
         }

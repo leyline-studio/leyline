@@ -191,10 +191,10 @@ fn track(event: NotifyEvent, pending: &mut Pending) {
         if !recognized {
             continue;
         }
-        if let Ok(metadata) = std::fs::metadata(&path) {
-            if metadata.is_file() {
-                pending.insert(path, (metadata.len(), Instant::now()));
-            }
+        if let Ok(metadata) = std::fs::metadata(&path)
+            && metadata.is_file()
+        {
+            pending.insert(path, (metadata.len(), Instant::now()));
         }
     }
 }
