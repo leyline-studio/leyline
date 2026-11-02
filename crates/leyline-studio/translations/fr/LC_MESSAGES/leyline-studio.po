@@ -1335,6 +1335,26 @@ msgctxt "BrowserPanel"
 msgid "Watch a folder…"
 msgstr "Surveiller un dossier…"
 
+#: crates/leyline-studio/ui/panels/browser.slint:448
+msgctxt "BrowserPanel"
+msgid "Your files are never modified."
+msgstr "Vos fichiers ne sont jamais modifiés."
+
+#: crates/leyline-studio/ui/panels/browser.slint:453
+msgctxt "BrowserPanel"
+msgid "The library references; it does not contain."
+msgstr "La bibliothèque référence, elle ne contient pas."
+
+#: crates/leyline-studio/ui/panels/browser.slint:458
+msgctxt "BrowserPanel"
+msgid "A photograph can have several versions."
+msgstr "Une photo peut avoir plusieurs versions."
+
+#: crates/leyline-studio/ui/panels/browser.slint:466
+msgctxt "BrowserPanel"
+msgid "User Guide…"
+msgstr "Guide de l'utilisateur…"
+
 #: crates/leyline-studio/ui/panels/browser.slint:728
 msgctxt "BrowserPanel"
 msgid "offline"

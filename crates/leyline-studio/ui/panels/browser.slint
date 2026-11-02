@@ -434,6 +434,42 @@ export component BrowserPanel inherits HorizontalLayout {
                         }
                     }
                 }
+
+                // The model in three sentences, in the empty library of
+                // ADR 0054 §1: before the first import, which is exactly when
+                // "will it touch my files?" is asked. The wording is the
+                // guide's §1 (ADR 0151) word for word, so the two never tell
+                // different stories, and the guide is one click away for the
+                // paragraph behind each sentence.
+                if !GridState.narrowed: VerticalLayout {
+                    padding-top: 14px;
+                    spacing: 4px;
+                    Text {
+                        text: @tr("Your files are never modified.");
+                        color: Theme.text-dim;
+                        font-size: 13px;
+                    }
+                    Text {
+                        text: @tr("The library references; it does not contain.");
+                        color: Theme.text-dim;
+                        font-size: 13px;
+                    }
+                    Text {
+                        text: @tr("A photograph can have several versions.");
+                        color: Theme.text-dim;
+                        font-size: 13px;
+                    }
+                }
+                if !GridState.narrowed: HorizontalLayout {
+                    alignment: start;
+                    FilterChip {
+                        text: @tr("User Guide…");
+                        active: false;
+                        clicked => {
+                            LibraryState.open-guide();
+                        }
+                    }
+                }
             }
 
             flick := Flickable {
