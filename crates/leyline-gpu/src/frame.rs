@@ -6,7 +6,7 @@
 //! drag starts from a GPU-side copy of it. The result comes back as 8-bit
 //! RGB, the form every preview already has.
 
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use wgpu::util::DeviceExt;
 
@@ -31,6 +31,14 @@ pub enum Op {
     Gains([f32; 3]),
     /// A tone operator on the display axis.
     Display(DisplayOp, Transfer),
+    /// `rotate` v1: the frame turned clockwise by this angle, on the
+    /// bounding box of the turned frame (ADR 0171). Applied when the output
+    /// is read, like [`Op::Crop`]: only a crop, [`Op::Vignette`],
+    /// [`Op::Grain`] and [`Op::OutputRendering`] may follow it.
+    Rotate {
+        /// Degrees, clockwise.
+        degrees: f64,
+    },
     /// `crop` v1: the frame from here on is this rectangle, given as
     /// fractions of the frame and rounded exactly as the CPU rounds them.
     /// Applied when the output is read, so it may only be followed by
@@ -243,6 +251,10 @@ pub struct Frame {
     /// Four single-channel planes for the neighbourhood kernels, allocated
     /// on the first frame that needs them and kept with the frame.
     planes: OnceLock<[wgpu::Buffer; 4]>,
+    /// An output and a readback larger than the frame, for a rotated window
+    /// that holds more pixels than the source (ADR 0171 §3): its size in
+    /// pixels and the pair, grown when a render needs more.
+    grown: Mutex<Option<(u32, wgpu::Buffer, wgpu::Buffer)>>,
 }
 
 impl Frame {
@@ -293,6 +305,7 @@ impl Frame {
             output,
             readback,
             planes: OnceLock::new(),
+            grown: Mutex::new(None),
         })
     }
 
@@ -328,6 +341,10 @@ impl Frame {
         let mut uniforms = Vec::with_capacity(ops.len());
         // The window the output reads: the whole frame, unless cropped.
         let mut window = (0, 0, self.width, self.height);
+        // The frame's size as the output sees it, and the rotation that
+        // maps it back into `work` (ADR 0171 §2).
+        let mut frame_size = (self.width, self.height);
+        let mut rotation = None;
         // The vignette the output applies, in the window's coordinates.
         let mut vignette = None;
         // The grain the output applies after it, and the tables it crosses.
@@ -365,6 +382,18 @@ impl Frame {
                 vignette = Some([*amount, *midpoint, *exponent, *corner, *width]);
                 continue;
             }
+            if let Op::Rotate { degrees } = step {
+                if !steps[index + 1..].iter().all(|op| {
+                    matches!(op, Op::Crop { .. } | Op::Vignette { .. } | Op::Grain { .. })
+                }) {
+                    return None;
+                }
+                let turned = Rotation::new(self.width, self.height, *degrees);
+                frame_size = (turned.width, turned.height);
+                window = (0, 0, turned.width, turned.height);
+                rotation = Some(turned);
+                continue;
+            }
             if let Op::Crop {
                 x,
                 y,
@@ -381,7 +410,7 @@ impl Frame {
                 {
                     return None;
                 }
-                window = crop_window(self.width, self.height, *x, *y, *width, *height)?;
+                window = crop_window(frame_size.0, frame_size.1, *x, *y, *width, *height)?;
                 continue;
             }
             if let Op::Sharpen {
@@ -506,6 +535,7 @@ impl Frame {
         }
         let (x0, y0, out_width, out_height) = window;
         let out_pixels = out_width.checked_mul(out_height)?;
+        let (output, readback) = self.output_buffers(device, out_pixels)?;
         let (out_groups_x, out_groups_y) = dispatch(out_pixels);
         let out_stride = out_groups_x * WORKGROUP;
         params.extend_from_slice(&knee.to_le_bytes());
@@ -528,7 +558,12 @@ impl Frame {
         {
             params.extend_from_slice(&value.to_le_bytes());
         }
-        params.resize(144, 0);
+        params.extend_from_slice(&u32::from(rotation.is_some()).to_le_bytes());
+        params.extend_from_slice(&self.height.to_le_bytes());
+        for value in rotation.as_ref().map(Rotation::uniform).unwrap_or_default() {
+            params.extend_from_slice(&value.to_le_bytes());
+        }
+        params.resize(176, 0);
         uniforms.push(uniform(device, &params));
         let table = table(device, display_table);
         // Without grain nothing reads them; the display table stands in.
@@ -549,7 +584,7 @@ impl Frame {
                 entry(0, &self.work),
                 entry(1, uniforms.last()?),
                 entry(2, &table),
-                entry(3, &self.output),
+                entry(3, &output),
                 entry(4, &to_display),
                 entry(5, &to_linear),
             ],
@@ -561,11 +596,11 @@ impl Frame {
             pass.dispatch_workgroups(out_groups_x, out_groups_y, 1);
         }
         let out_bytes = u64::from(out_pixels) * 4;
-        encoder.copy_buffer_to_buffer(&self.output, 0, &self.readback, 0, out_bytes);
+        encoder.copy_buffer_to_buffer(&output, 0, &readback, 0, out_bytes);
         gpu.queue().submit([encoder.finish()]);
 
         let (sender, receiver) = std::sync::mpsc::channel();
-        self.readback
+        readback
             .slice(..out_bytes)
             .map_async(wgpu::MapMode::Read, move |result| {
                 let _ = sender.send(result);
@@ -577,18 +612,52 @@ impl Frame {
         if gpu.failure().is_some() {
             return None;
         }
-        let mapped = self.readback.slice(..out_bytes).get_mapped_range();
+        let mapped = readback.slice(..out_bytes).get_mapped_range();
         let mut rgb = Vec::with_capacity(out_pixels as usize * 3);
         for packed in mapped.chunks_exact(4) {
             rgb.extend_from_slice(&packed[..3]);
         }
         drop(mapped);
-        self.readback.unmap();
+        readback.unmap();
         Some((out_width, out_height, rgb))
     }
 }
 
 impl Frame {
+    /// The output and readback for `pixels` output pixels: the frame's own
+    /// when they fit, a grown pair kept for later renders otherwise
+    /// (ADR 0171 §3).
+    fn output_buffers(
+        &self,
+        device: &wgpu::Device,
+        pixels: u32,
+    ) -> Option<(wgpu::Buffer, wgpu::Buffer)> {
+        if pixels <= self.pixels {
+            return Some((self.output.clone(), self.readback.clone()));
+        }
+        let mut grown = self.grown.lock().ok()?;
+        if let Some((size, output, readback)) = grown.as_ref()
+            && *size >= pixels
+        {
+            return Some((output.clone(), readback.clone()));
+        }
+        let bytes = u64::from(pixels) * 4;
+        let output = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("frame output, grown"),
+            size: bytes,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+            mapped_at_creation: false,
+        });
+        let readback = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("frame readback, grown"),
+            size: bytes,
+            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        *grown = Some((pixels, output.clone(), readback.clone()));
+        Some((output, readback))
+    }
+
     /// The four single-channel planes, allocated on first use.
     fn planes(&self, device: &wgpu::Device) -> &[wgpu::Buffer; 4] {
         self.planes.get_or_init(|| {
@@ -862,6 +931,47 @@ fn table(device: &wgpu::Device, values: &[f32]) -> wgpu::Buffer {
     })
 }
 
+/// `rotate` v1's geometry, computed in `f64` exactly as the CPU computes
+/// it: the turned frame's bounding box and the inverse map's terms.
+struct Rotation {
+    width: u32,
+    height: u32,
+    sin: f64,
+    cos: f64,
+    centre: (f64, f64),
+    canvas_centre: (f64, f64),
+}
+
+impl Rotation {
+    fn new(width: u32, height: u32, degrees: f64) -> Rotation {
+        let radians = degrees.rem_euclid(360.0).to_radians();
+        let (sin, cos) = radians.sin_cos();
+        let (w, h) = (f64::from(width), f64::from(height));
+        let out_w = (w * cos.abs() + h * sin.abs()).round().max(1.0) as u32;
+        let out_h = (w * sin.abs() + h * cos.abs()).round().max(1.0) as u32;
+        Rotation {
+            width: out_w,
+            height: out_h,
+            sin,
+            cos,
+            centre: (w / 2.0, h / 2.0),
+            canvas_centre: (f64::from(out_w) / 2.0, f64::from(out_h) / 2.0),
+        }
+    }
+
+    /// The six terms the output shader reads, in its order.
+    fn uniform(&self) -> [f32; 6] {
+        [
+            self.cos as f32,
+            self.sin as f32,
+            self.centre.0 as f32,
+            self.centre.1 as f32,
+            self.canvas_centre.0 as f32,
+            self.canvas_centre.1 as f32,
+        ]
+    }
+}
+
 /// `crop` v1's rectangle in pixels — the CPU's arithmetic, in the CPU's
 /// `f64`, so both cut the same pixels.
 fn crop_window(
@@ -993,6 +1103,14 @@ struct Params {
     grain_fine: f32,
     grain_colour: f32,
     grain_scale: f32,
+    rotate_on: u32,
+    source_height: u32,
+    rotate_cos: f32,
+    rotate_sin: f32,
+    centre_x: f32,
+    centre_y: f32,
+    canvas_centre_x: f32,
+    canvas_centre_y: f32,
 }
 @group(0) @binding(0) var<storage, read_write> samples: array<f32>;
 @group(0) @binding(1) var<uniform> params: Params;
@@ -1031,6 +1149,35 @@ fn vignette_gain(x: u32, y: u32) -> f32 {
     return max(exp2(3.0 * params.vignette_amount * t), 0.0);
 }
 
+fn sample(x: u32, y: u32) -> vec3<f32> {
+    let base = (y * params.source_width + x) * 3u;
+    return vec3<f32>(samples[base], samples[base + 1u], samples[base + 2u]);
+}
+
+// `rotate` v1 at a pixel of the turned frame: the inverse rotation into the
+// source, then `bilinear` — centres at `n + 0.5`, black outside, clamped
+// neighbours — in the CPU's order of operations.
+fn rotated(x: u32, y: u32) -> vec3<f32> {
+    let dx = (f32(x) + 0.5) - params.canvas_centre_x;
+    let dy = (f32(y) + 0.5) - params.canvas_centre_y;
+    let sx = params.rotate_cos * dx + params.rotate_sin * dy + params.centre_x;
+    let sy = -params.rotate_sin * dx + params.rotate_cos * dy + params.centre_y;
+    let w = f32(params.source_width);
+    let h = f32(params.source_height);
+    if (sx < 0.0 || sy < 0.0 || sx >= w || sy >= h) { return vec3<f32>(0.0); }
+    let fx = clamp(sx - 0.5, 0.0, w - 1.0);
+    let fy = clamp(sy - 0.5, 0.0, h - 1.0);
+    let x0 = u32(floor(fx));
+    let y0 = u32(floor(fy));
+    let x1 = min(x0 + 1u, params.source_width - 1u);
+    let y1 = min(y0 + 1u, params.source_height - 1u);
+    let tx = fx - floor(fx);
+    let ty = fy - floor(fy);
+    let top = sample(x0, y0) * (1.0 - tx) + sample(x1, y0) * tx;
+    let bottom = sample(x0, y1) * (1.0 - tx) + sample(x1, y1) * tx;
+    return top * (1.0 - ty) + bottom * ty;
+}
+
 fn quantize(value: f32) -> u32 {
     return u32(floor(clamp(value, 0.0, 1.0) * 255.0 + 0.5));
 }
@@ -1040,11 +1187,15 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     let pixel = id.y * params.stride + id.x;
     if (pixel >= params.pixels) { return; }
     // The crop's window into the frame: row and column of the output pixel,
-    // offset into the source.
-    let source = (params.y0 + pixel / params.out_width) * params.source_width
-        + params.x0 + pixel % params.out_width;
-    let base = source * 3u;
-    var linear = vec3<f32>(samples[base], samples[base + 1u], samples[base + 2u]);
+    // offset into the frame, turned back into the source when rotated.
+    let fx = params.x0 + pixel % params.out_width;
+    let fy = params.y0 + pixel / params.out_width;
+    var linear: vec3<f32>;
+    if (params.rotate_on == 1u) {
+        linear = rotated(fx, fy);
+    } else {
+        linear = sample(fx, fy);
+    }
     if (params.vignette_on == 1u) {
         linear = linear * vignette_gain(pixel % params.out_width, pixel / params.out_width);
     }

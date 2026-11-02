@@ -2802,6 +2802,13 @@ fn the_gpu_preview_stays_within_one_level_of_the_cpu() {
     };
     let mut coloured_grain = grained.clone();
     coloured_grain.grain.color = 70;
+    // Rotation under the crop, and alone on its bounding box (ADR 0171);
+    // 45° grows the output past the source's pixel count.
+    let mut rotated = dragged.clone();
+    rotated.rotation = 3.5;
+    let mut turned = dragged.clone();
+    turned.crop = None;
+    turned.rotation = -45.0;
     for mut dragged in [
         dragged,
         monochrome,
@@ -2811,6 +2818,8 @@ fn the_gpu_preview_stays_within_one_level_of_the_cpu() {
         hazed,
         grained,
         coloured_grain,
+        rotated,
+        turned,
     ] {
         super::pin(&mut dragged);
         let mut cache = StageCache::default();

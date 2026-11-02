@@ -760,16 +760,16 @@ is covered, and which missing kernel blocks the most?
 
 ### The structural answer (pinned by a test)
 
-Four current stage versions after the first checkpoint have no kernel, and a
-fifth has one only in part. What each costs depends on its rank, not on its
-weight:
+On 2026-11-02, before ADR 0171, four current stage versions after the first
+checkpoint had no kernel, and a fifth had one only in part. What each costs
+depends on its rank, not on its weight:
 
 | Stage | Rank | A drag resuming from… goes to the CPU |
 |---|---|---|
 | `tone_curve` with a red, green or blue curve | 80 | checkpoint 40 only (Basic sliders); the master curve alone has a kernel |
 | `local_adjustments` (any mask) | 160 | checkpoints 40, 90, 120: every slider before the masks |
 | `lut` | 165 | every checkpoint |
-| `rotate` (any straightening) | 200 | every checkpoint |
+| `rotate` (any straightening) | 200 | every checkpoint, until ADR 0171 gave it a kernel (below) |
 | `perspective` | 205 | every checkpoint |
 
 The current noise reduction (`noise_luminance`/`noise_color` v3, ranks 5–6)
@@ -777,7 +777,8 @@ and `moire` (rank 7) sit before every checkpoint: they cost the first render,
 never a drag. Their old versions at ranks 170/180 matter only to revisions
 written before v3.
 
-`stages/gpu_coverage.rs` holds this list (`KERNEL_LESS_AFTER_FIRST_CHECKPOINT`)
+`stages/gpu_coverage.rs` holds the current list (`KERNEL_LESS_AFTER_FIRST_CHECKPOINT`:
+`local_adjustments`, `lut`, `perspective`)
 and fails when a current version after rank 40 gains or loses a kernel: the
 permanent tax of ADR 0156, made a decision instead of a discovery.
 
@@ -803,16 +804,28 @@ So the share is not small or large: it is **undefined**. Nobody has edited a
 photograph in a Leyline library on this machine, and the Lightroom history is
 too thin to stand in for it.
 
-### Verdict
+### Verdict, and the kernel it chose
 
-- **No kernel is written on this evidence** (the review's B4 was conditional
-  on this measurement). A `local_adjustments` kernel is the largest job left
-  on the GPU path (every mask type, every per-mask value of ADR 0108 and
-  0116), and nothing here shows it would be exercised.
-- **If real editing ever shows a blocker, the order is set by rank and cost,
-  not by intuition.** `rotate` sends *every* drag to the CPU, is a resampling
-  with no per-mask state, and is far cheaper than `local_adjustments`; it
-  comes first unless the measurement says masks dominate.
+- **The order is set by rank and cost, since use cannot be measured.**
+  `rotate` sent *every* drag to the CPU, is a resampling with no per-mask
+  state, and is far cheaper than `local_adjustments` (every mask type, every
+  per-mask value of ADR 0108 and 0116). So the review's B4 kernel is
+  rotation ([ADR 0171](adr/0171-rotation-on-the-gpu.md)): a geometric step of
+  the output pass, like the crop.
+- Measured with `live_render_cost`'s new *straightened* drag (exposure dragged
+  on a photo rotated 2.5° and cropped to 90 %), 5D IV CR2, Windows native,
+  RTX 3080 Ti (Vulkan), median of the frames after the first:
+
+  | Class | CPU | GPU | Worst gap | Samples off by 1 |
+  |---|---|---|---|---|
+  | 1024 | 13 ms | 2 ms | 1 | 0.004 % |
+  | 2048 | 50 ms | 7 ms | 1 | 0.006 % |
+  | 4096 | 172 ms | 27 ms | 1 | 0.010 % |
+
+  Before it, the same drag was the CPU's 172 ms at 4K whatever the slider.
+- `local_adjustments` stays on the CPU until a measurement on real edits
+  says masks dominate; `perspective` would fit rotation's mechanism if one
+  asks for it.
 - **Rerun** when a library holds real edits:
   `LEYLINE_TEST_CATALOG=/copy/of/catalog.db cargo test -p leyline-engine --lib
   gpu_coverage_of_a_real_catalog -- --ignored --nocapture`, always on a copy.

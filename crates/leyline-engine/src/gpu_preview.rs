@@ -208,6 +208,10 @@ fn kernel(stage: &Stage, version: &Version, settings: &Settings, scale: f32) -> 
                 transfer: transfer(),
             })
         }
+        // A geometric step of the output pass, like the crop (ADR 0171).
+        ("rotate", 1) => Some(Op::Rotate {
+            degrees: settings.rotation,
+        }),
         ("crop", 1) => settings.crop.as_ref().map(|rect| Op::Crop {
             x: rect.x,
             y: rect.y,

@@ -4,7 +4,7 @@
 //! A drag resumes from the deepest checkpoint still valid, and stays on the
 //! GPU only if every active stage after it has a kernel. So a kernel-less
 //! stage costs more the later it sits: `local_adjustments` (rank 160) sends
-//! every drag before it to the CPU, `rotate` (200) every drag at all.
+//! every drag before it to the CPU, `perspective` (205) every drag at all.
 
 use std::collections::BTreeMap;
 
@@ -18,8 +18,7 @@ use crate::gpu_preview::has_kernel;
 /// ADR 0156's permanent tax, written down: a new stage version either gets a
 /// kernel or joins this list, and joining it is a decision someone makes on
 /// purpose, not something a drag discovers on a user's machine.
-const KERNEL_LESS_AFTER_FIRST_CHECKPOINT: &[&str] =
-    &["local_adjustments", "lut", "rotate", "perspective"];
+const KERNEL_LESS_AFTER_FIRST_CHECKPOINT: &[&str] = &["local_adjustments", "lut", "perspective"];
 
 /// Settings under which every kernel that exists is offered, each stage as
 /// it is when active: a crop rectangle (no rectangle, nothing to cut) and a
@@ -78,9 +77,10 @@ fn the_stages_a_drag_cannot_cross_on_the_gpu_are_the_listed_ones() {
 }
 
 #[test]
-fn a_rotation_sends_every_drag_to_the_cpu() {
+fn a_rotation_stays_on_the_gpu_and_a_perspective_sends_every_drag_to_the_cpu() {
     let mut settings = neutral_settings();
     settings.exposure = 0.5;
+    settings.rotation = 2.0;
     assert!(
         blockers(&settings)
             .unwrap()
@@ -88,12 +88,15 @@ fn a_rotation_sends_every_drag_to_the_cpu() {
             .all(|(_, names)| names.is_empty())
     );
 
-    settings.rotation = 2.0;
+    settings.perspective = Some(leyline_core::Perspective {
+        vertical: 10,
+        horizontal: 0,
+    });
     assert!(
         blockers(&settings)
             .unwrap()
             .iter()
-            .all(|(_, names)| names == &["rotate"])
+            .all(|(_, names)| names == &["perspective"])
     );
 }
 
