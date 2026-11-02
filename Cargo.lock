@@ -3506,7 +3506,7 @@ dependencies = [
 
 [[package]]
 name = "leyline-catalog"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "leyline-core",
  "proptest",
@@ -3519,7 +3519,7 @@ dependencies = [
 
 [[package]]
 name = "leyline-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "embed-resource",
  "image",
@@ -3532,7 +3532,7 @@ dependencies = [
 
 [[package]]
 name = "leyline-color"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "bytemuck",
  "lcms2",
@@ -3544,7 +3544,7 @@ dependencies = [
 
 [[package]]
 name = "leyline-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "proptest",
  "serde",
@@ -3554,14 +3554,14 @@ dependencies = [
 
 [[package]]
 name = "leyline-cull"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "image",
 ]
 
 [[package]]
 name = "leyline-derive"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "directories",
  "image",
@@ -3573,7 +3573,7 @@ dependencies = [
 
 [[package]]
 name = "leyline-detect"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "directories",
  "image",
@@ -3585,7 +3585,7 @@ dependencies = [
 
 [[package]]
 name = "leyline-engine"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "blake3",
  "criterion",
@@ -3625,7 +3625,7 @@ dependencies = [
 
 [[package]]
 name = "leyline-export"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "ab_glyph",
  "image-webp",
@@ -3646,7 +3646,7 @@ dependencies = [
 
 [[package]]
 name = "leyline-gpu"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pollster",
  "wgpu",
@@ -3654,7 +3654,7 @@ dependencies = [
 
 [[package]]
 name = "leyline-heif"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "libheif-rs",
  "tempfile",
@@ -3663,14 +3663,14 @@ dependencies = [
 
 [[package]]
 name = "leyline-lens"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "lensfun",
 ]
 
 [[package]]
 name = "leyline-map"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "rusqlite",
  "tempfile",
@@ -3679,7 +3679,7 @@ dependencies = [
 
 [[package]]
 name = "leyline-mcp"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64",
  "image",
@@ -3694,7 +3694,7 @@ dependencies = [
 
 [[package]]
 name = "leyline-preview"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "leyline-core",
  "png 0.18.1",
@@ -3705,7 +3705,7 @@ dependencies = [
 
 [[package]]
 name = "leyline-raw"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "blake3",
  "cc",
@@ -3719,7 +3719,7 @@ dependencies = [
 
 [[package]]
 name = "leyline-sdk"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "leyline-catalog",
  "leyline-color",
@@ -3736,7 +3736,7 @@ dependencies = [
 
 [[package]]
 name = "leyline-studio"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cargo-packager-updater",
  "directories",
@@ -3754,7 +3754,7 @@ dependencies = [
 
 [[package]]
 name = "leyline-tether"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "gphoto2",
  "leyline-core",

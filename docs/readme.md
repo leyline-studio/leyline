@@ -37,7 +37,7 @@ What remains open:
 | Detected masks | The **socket** is delivered ([ADR 0073](adr/0073-external-mask-detectors.md)): Studio knows how to call an external detector. No detector ships with Leyline, and no model is embedded |
 | Pixel processing (AI denoise, upscaling) | The **socket** is delivered ([ADR 0107](adr/0107-derived-assets-and-the-pixel-socket.md)): Studio hands an external processor the develop buffer and files what comes back as a **new photograph** carrying the original's development. No processor ships with Leyline, and none is needed to open, render or export what one produced |
 | Assisted culling | The half that needs no model is delivered ([ADR 0084](adr/0084-assisted-culling.md) §4): bursts grouped, the sharpest kept, black and blown frames named. It **proposes** — the grid narrows to what it proposes and nothing is written until the photographer applies it. Faces and learned judgement are the model half, and are not built |
-| Next version | 0.1.0 is published (2026-09-23). What October built is not yet in a version: 0.2.0 is the next cut |
+| Current version | 0.2.0 carries what October built: the new Studio layout, export provenance (`verify`, `reproduce`), the agent surface and the GPU preview. 0.1.0 was the first public release (2026-09-23) |
 | One decoder across the three deliverables | All three build one pinned LibRaw (0.22.2) from source, and an unknown one fails `make check` ([ADR 0086](adr/0086-decoder-in-the-promise.md)). The macOS dmg is **experimental**: Apple silicon only, signed ad hoc, built and checked on the CI runner and never yet run on real Apple hardware ([ADR 0155](adr/0155-an-experimental-macos-dmg.md)) |
 
 The rest of the work is robustness, performance and polish, not missing features.

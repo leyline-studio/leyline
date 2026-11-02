@@ -128,8 +128,8 @@ October then turned to what a second version needs, in three strands:
   never the export ([ADR 0156](adr/0156-a-gpu-for-the-preview-alone.md)),
   and an experimental macOS dmg ([ADR 0155](adr/0155-an-experimental-macos-dmg.md)).
 
-0.1.0 was published on 2026-09-23. The next step is to cut **0.2.0** with
-what October built, before any new feature.
+0.1.0 was published on 2026-09-23, and **0.2.0** carries what October built.
+What comes after it is decided by the feedback on it, before any new feature.
 
 What [`readme.md`](readme.md) lists as still open remains the reference: DCP colorimetry not validated against the profile vendor's own render, and two finishing touches to local-adjustment tooling left out of scope by [ADR 0049](adr/0049-local-adjustments-clients.md).
 

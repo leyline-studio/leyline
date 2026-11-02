@@ -50,7 +50,7 @@ between releases.
   command-line tool, and a Rust SDK. Everything Studio does, the CLI does too,
   because they call the same API.
 
-## Status — 0.1.0, the first public release
+## Status — 0.2.0
 
 The V1 scope is implemented, and packages are on the
 [releases page](https://github.com/leyline-studio/leyline/releases/latest):
@@ -59,7 +59,7 @@ The V1 scope is implemented, and packages are on the
 |---|---|---|
 | Linux x86-64 | AppImage | glibc 2.39 — Ubuntu 24.04, Debian 13, Fedora 40 or newer |
 | Windows x86-64 | installer | Windows 10 |
-| macOS | **none yet** | no binary has been validated on a Mac |
+| macOS | **none yet** | an experimental dmg is built in CI, but has never run on a Mac |
 
 Two things the packages leave out on purpose: HEIF/HEIC reading, which needs a
 build against your system's libheif (below), and USB tethering on Windows. The
@@ -68,7 +68,7 @@ full requirements, measured rather than estimated, are in
 for updates only once you have said yes to it, and verifies every download
 against a signature before installing anything.
 
-This is a first release by a single author: expect rough edges, and report
+This is an early release by a single author: expect rough edges, and report
 them as [issues](https://github.com/leyline-studio/leyline/issues).
 
 ## Build from source
