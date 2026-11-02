@@ -44,6 +44,9 @@ export component MenuBar inherits Rectangle {
     // A search sent from the bar hands the keyboard back to the window, so
     // the next key is a shortcut again and not a letter in the field.
     callback return-focus();
+    // The search field, folded to its icon on a narrow window, opened for
+    // typing over the menus (ADR 0159 §1).
+    property <bool> search-open: false;
     // The library grid, and nothing else: the only place a thumbnail has a
     // size. Written here rather than repeated on two rows.
     property <bool> in-grid: !DevelopState.develop-mode && !MapState.map-mode
@@ -1029,12 +1032,16 @@ export component MenuBar inherits Rectangle {
 
         // The grid's text filter, given the place it deserves (ADR 0158
         // §2). The one control of the bar that gives ground: on a narrow
-        // window it shrinks, the menus never (ADR 0159 §1).
+        // window it shrinks, down to an icon that opens it, the menus never
+        // (ADR 0159 §1) — French at 900px pushed Export and the theme
+        // switch off the window before it folded.
         VerticalLayout {
             alignment: center;
-            Rectangle {
+            search-field := Rectangle {
+                // Too narrow to read what one types: the icon instead.
+                property <bool> folded: self.width < 100px;
                 height: 26px;
-                min-width: 120px;
+                min-width: 26px;
                 preferred-width: 360px;
                 max-width: 360px;
                 horizontal-stretch: 2;
@@ -1043,6 +1050,7 @@ export component MenuBar inherits Rectangle {
                 border-width: 1px;
                 border-color: search-input.text == "" ? Theme.border : Theme.focus;
                 search-input := TextInput {
+                    visible: !search-field.folded;
                     x: 12px;
                     width: parent.width - 24px;
                     height: 100%;
@@ -1056,13 +1064,52 @@ export component MenuBar inherits Rectangle {
                         root.return-focus();
                     }
                 }
-                if search-input.text == "" && !search-input.has-focus: Text {
+                if search-input.text == "" && !search-input.has-focus && !search-field.folded: Text {
                     x: 12px;
                     height: 100%;
                     text: @tr("Search…");
                     color: Theme.text-disabled;
                     font-size: 12px;
                     vertical-alignment: center;
+                }
+                // A magnifier in rectangles: the glyph is missing from
+                // most proportional fonts. The ring stays lit while a
+                // search narrows the grid, as the open field's border does.
+                if search-field.folded: Rectangle {
+                    x: (parent.width - 14px) / 2;
+                    y: (parent.height - 14px) / 2;
+                    width: 14px;
+                    height: 14px;
+                    Rectangle {
+                        x: 0;
+                        y: 0;
+                        width: 9px;
+                        height: 9px;
+                        border-radius: 4.5px;
+                        border-width: 1.5px;
+                        border-color: Theme.text-dim;
+                    }
+                    Rectangle {
+                        x: 8px;
+                        y: 8px;
+                        width: 3px;
+                        height: 3px;
+                        background: Theme.text-dim;
+                    }
+                    Rectangle {
+                        x: 10.5px;
+                        y: 10.5px;
+                        width: 3px;
+                        height: 3px;
+                        background: Theme.text-dim;
+                    }
+                }
+                if search-field.folded: TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => {
+                        root.open-menu = "";
+                        root.search-open = true;
+                    }
                 }
             }
         }
@@ -1136,6 +1183,43 @@ export component MenuBar inherits Rectangle {
                 clicked => {
                     Theme.choice = Math.mod(Theme.choice + 1, 3);
                     PreferencesState.remember-interface-theme(Theme.choice);
+                }
+            }
+        }
+    }
+
+    // The folded search, opened (ADR 0159 §1): declared after `menu-row` so
+    // it paints over the labels it covers while one types. It closes when
+    // the search is sent or the field loses the keyboard.
+    if root.search-open: Rectangle {
+        x: (root.width - self.width) / 2;
+        y: (Frame.top-bar - self.height) / 2;
+        width: min(320px, root.width - 32px);
+        height: 26px;
+        background: Theme.sunken;
+        border-radius: 13px;
+        border-width: 1px;
+        border-color: Theme.focus;
+        TextInput {
+            x: 12px;
+            width: parent.width - 24px;
+            height: 100%;
+            text <=> FilterState.search-text;
+            color: Theme.text;
+            font-size: 12px;
+            vertical-alignment: center;
+            single-line: true;
+            init => {
+                self.focus();
+            }
+            accepted => {
+                FilterState.search(self.text);
+                root.search-open = false;
+                root.return-focus();
+            }
+            changed has-focus => {
+                if (!self.has-focus) {
+                    root.search-open = false;
                 }
             }
         }
