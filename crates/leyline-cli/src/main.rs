@@ -136,6 +136,8 @@ Usage:
                                     iso, wb) and --capture-every releases the
                                     shutter at an interval
   leyline watch <library> <folder>
+                                    imports each file that settles in the
+                                    folder, until Ctrl+C (ADR 0039)
   leyline ls <library> [--text <query>] [--rating <min>]
                [--camera <name>] [--lens <name>] [--iso <range>]
                [--aperture <range>] [--focal <range>] [--shutter <range>]
@@ -209,7 +211,10 @@ Usage:
                                     camera_profile, creative_lut, effects,
                                     lens_correction, detail, rendering,
                                     geometry, reshape, spot_removal, red_eye,
-                                    local_adjustments (ADR 0132 §1)
+                                    local_adjustments (ADR 0132 §1),
+                                    comma-separated, no spaces; only the
+                                    groups named are captured
+                                    (docs/presets.md §3.1)
   leyline preset-list <library>
   leyline preset-apply <library> <name> <version-id>...
   leyline preset-rm <library> <name>
@@ -344,19 +349,15 @@ Develop params (docs/pipeline.md §3.2, schema 1):
                                     each value integer in [-100, 100]
   color-grading <shadows|midtones|highlights> <hue> <saturation> <luminance>
                                     hue integer in [0, 360), saturation in [0, 100], luminance in [-100, 100]
-  color-grading balance <n>        integer in [-100, 100]
-  color-grading blending <n>       integer in [0, 100]
-  color-grading reset              clears every zone and balance/blending
+  color-grading balance <n>         integer in [-100, 100]
+  color-grading blending <n>        integer in [0, 100]
+  color-grading reset               clears every zone and balance/blending
   camera-profile <path|on|off|none>
                                     path is library-relative, as listed by
                                     `leyline camera-profiles`; on/off toggles the
                                     profile already referenced, none removes it
                                     EXPERIMENTAL: DCP colors are not yet validated
                                     against reference renders
-
-Preset groups (docs/presets.md §3.1, comma-separated, no spaces):
-  white_balance tone presence effects lens_correction detail geometry
-                                    geometry is never included unless named
 
   leyline --version                 this build, and the RAW decoder it links
 ";
