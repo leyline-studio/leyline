@@ -3,6 +3,14 @@
 use super::*;
 
 impl Library {
+    /// The world basemap compiled into the binary (ADR 0059), when this
+    /// build carries one. Natural Earth I, zoom 0–5, JPEG tiles: enough to
+    /// place GPS pins on continents and coastlines from the first launch,
+    /// never a substitute for a pack the user imports.
+    #[cfg(feature = "bundled-basemap")]
+    const BUNDLED_BASEMAP: &'static [u8] =
+        include_bytes!("../../../../assets/basemap/world-z0-5.mbtiles");
+
     /// The library-relative path of the active map pack file (ADR 0040) —
     /// a convention, not a catalog row: presence of the file is what makes
     /// a pack "active", one at a time in V1.
