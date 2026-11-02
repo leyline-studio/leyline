@@ -3469,7 +3469,7 @@ msgstr "Sélectionnez d'abord une collection dans le panneau latéral."
 #: crates/leyline-studio/ui/types.slint:659
 msgctxt "Tr"
 msgid "Preset saved."
-msgstr "Préréglage enregistré."
+msgstr "Preset enregistré."
 
 #: crates/leyline-studio/ui/widgets/controls.slint:505
 msgctxt "ViewModeChips"
@@ -3611,7 +3611,7 @@ msgstr "Rétablir la description    Ctrl+Y"
 #: crates/leyline-studio/ui/panels/presets.slint:179 crates/leyline-studio/ui/panels/presets.slint:182
 msgctxt "PresetsPanel"
 msgid "Save these settings as a preset    S"
-msgstr "Enregistrer ces réglages en préréglage    S"
+msgstr "Enregistrer ces réglages comme preset    S"
 
 #: crates/leyline-studio/ui/widgets/controls.slint:98 crates/leyline-studio/ui/widgets/controls.slint:101
 msgctxt "GroupHeader"
