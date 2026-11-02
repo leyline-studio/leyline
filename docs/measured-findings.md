@@ -750,6 +750,73 @@ the shared one), on the GPU / with `LEYLINE_GPU=off`:
 Before it, any photograph with grain kept every drag on the CPU, the grain
 being last in the pipeline. It pays at every class, so it stays.
 
+## B6 — GPU coverage of a real catalogue — **measured on 2026-11-02**
+
+The question the 2026-10-20 project review left before writing another
+kernel: under ADR 0156 §4 a drag resumes from the deepest checkpoint still
+valid (before ranks 40, 90, 120 and 165) and stays on the GPU only if
+**every** active stage after it has a kernel. What share of real revisions
+is covered, and which missing kernel blocks the most?
+
+### The structural answer (pinned by a test)
+
+Four current stage versions after the first checkpoint have no kernel, and a
+fifth has one only in part. What each costs depends on its rank, not on its
+weight:
+
+| Stage | Rank | A drag resuming from… goes to the CPU |
+|---|---|---|
+| `tone_curve` with a red, green or blue curve | 80 | checkpoint 40 only (Basic sliders); the master curve alone has a kernel |
+| `local_adjustments` (any mask) | 160 | checkpoints 40, 90, 120: every slider before the masks |
+| `lut` | 165 | every checkpoint |
+| `rotate` (any straightening) | 200 | every checkpoint |
+| `perspective` | 205 | every checkpoint |
+
+The current noise reduction (`noise_luminance`/`noise_color` v3, ranks 5–6)
+and `moire` (rank 7) sit before every checkpoint: they cost the first render,
+never a drag. Their old versions at ranks 170/180 matter only to revisions
+written before v3.
+
+`stages/gpu_coverage.rs` holds this list (`KERNEL_LESS_AFTER_FIRST_CHECKPOINT`)
+and fails when a current version after rank 40 gains or loses a kernel: the
+permanent tax of ADR 0156, made a decision instead of a discovery.
+
+### The measured answer: there is nothing to measure yet
+
+The same file holds an ignored test that reads a copy of a `catalog.db` and
+counts, per checkpoint, the edited head revisions that would drag on the GPU,
+and the stages that block the rest. Checked on a scratch library with one
+photo per case (exposure only, a rotation, a mask, a red curve): of the 4
+edited, 1, 2, 2 and 3 drag on the GPU from checkpoints 40, 90, 120 and 165,
+exactly the table above.
+
+On the real data of this machine:
+
+| Source | Photos | Edited | Kernel-less feature used |
+|---|---|---|---|
+| Leyline, `G:\Mes images` (the working library) | 38,834 head revisions | **0**: every one is its import revision | — |
+| Leyline, `A:\…\Leyline Library` | 0 | — | — |
+| Lightroom 5 catalogue (2016), as a proxy for habits | 5,029 | ~16, exposure and the Basic sliders | no crop angle, no mask, no channel curve |
+| Lightroom XMP sidecars in the photo tree | 9 | none beyond defaults | none |
+
+So the share is not small or large: it is **undefined**. Nobody has edited a
+photograph in a Leyline library on this machine, and the Lightroom history is
+too thin to stand in for it.
+
+### Verdict
+
+- **No kernel is written on this evidence** (the review's B4 was conditional
+  on this measurement). A `local_adjustments` kernel is the largest job left
+  on the GPU path (every mask type, every per-mask value of ADR 0108 and
+  0116), and nothing here shows it would be exercised.
+- **If real editing ever shows a blocker, the order is set by rank and cost,
+  not by intuition.** `rotate` sends *every* drag to the CPU, is a resampling
+  with no per-mask state, and is far cheaper than `local_adjustments`; it
+  comes first unless the measurement says masks dominate.
+- **Rerun** when a library holds real edits:
+  `LEYLINE_TEST_CATALOG=/copy/of/catalog.db cargo test -p leyline-engine --lib
+  gpu_coverage_of_a_real_catalog -- --ignored --nocapture`, always on a copy.
+
 ---
 
 # 4. Axis C — Optional local AI

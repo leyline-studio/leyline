@@ -1416,6 +1416,9 @@ pub(crate) fn native_bit_depth(settings: &Settings) -> bool {
 #[cfg(test)]
 mod fixture;
 
+#[cfg(all(test, feature = "gpu"))]
+mod gpu_coverage;
+
 #[cfg(test)]
 mod golden;
 

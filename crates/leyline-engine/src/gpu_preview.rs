@@ -266,7 +266,19 @@ pub(crate) fn covers(
     gpu().is_some()
         && rest
             .iter()
-            .all(|(stage, version)| kernel(stage, version, settings, scale).is_some())
+            .all(|(stage, version)| has_kernel(stage, version, settings, scale))
+}
+
+/// Whether the GPU has a kernel for this version under these settings,
+/// device or not: what [`covers`] asks of each stage, and what the coverage
+/// measurement of `docs/measured-findings.md` §B6 counts without a GPU.
+pub(crate) fn has_kernel(
+    stage: &Stage,
+    version: &Version,
+    settings: &Settings,
+    scale: f32,
+) -> bool {
+    kernel(stage, version, settings, scale).is_some()
 }
 
 /// The resident copy of one checkpoint, and which checkpoint it is.
