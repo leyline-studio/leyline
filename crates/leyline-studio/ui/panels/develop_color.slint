@@ -1,0 +1,616 @@
+// Groups of the develop panel's adjustment column, each the body of one
+// collapsible group in `develop.slint`, which keeps the headers and the
+// expanded state. Like the panel itself (ADR 0045 §3), a group inherits the
+// `VerticalLayout` it replaces and sets no geometry of its own.
+
+import { Hues, Theme } from "../theme.slint";
+import { DevelopState } from "../state/develop.slint";
+import { EditSlider, FilterChip } from "../widgets/controls.slint";
+
+// One split marker of the parametric curve (ADR 0137 §4): a triangle on the
+// tonal axis, dragged left and right and stopped by its neighbours.
+//
+// Its own component so the three of them are three declarations, and so the
+// clamp — which is what keeps `Settings::validate`'s strictly-increasing rule
+// unreachable from the interface — is written once.
+component SplitHandle inherits Rectangle {
+    in property <string> which;
+    in property <float> value;
+    in property <float> lower;
+    in property <float> upper;
+
+    // While dragging, the handle follows the pointer; at rest it follows the
+    // committed value. The same arrangement `EditSlider` uses, and for the
+    // same reason: refreshing the settings mid-drag must not fight the hand.
+    property <float> shown: drag.pressed ? root.dragged : root.value;
+    property <float> dragged;
+
+    // The canvas is the same fixed 220px square the point curve uses, which
+    // is why `2.2px` per percent and `210px` are literals here as they are
+    // there: one number for the square, written where it is used.
+    x: root.shown * 2.2px - 5px;
+    y: 210px;
+    width: 10px;
+    height: 10px;
+
+    Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: 10;
+        viewbox-height: 10;
+        commands: "M5 0 L10 10 L0 10 Z";
+        fill: drag.pressed ? Theme.focus : Theme.text-dim;
+    }
+    drag := TouchArea {
+        // Wider than the triangle: a 10px target is a target one misses.
+        x: -5px;
+        width: 20px;
+        y: -6px;
+        height: 16px;
+        mouse-cursor: ew-resize;
+        moved => {
+            if (self.pressed) {
+                root.dragged = Math.clamp(
+                    Math.round(root.value + (self.mouse-x - self.pressed-x) / 2.2px),
+                    root.lower, root.upper);
+                DevelopState.develop-preview-split(root.which, root.dragged);
+            }
+        }
+        pointer-event(event) => {
+            if (event.kind == PointerEventKind.up) {
+                DevelopState.develop-set-split(root.which, root.dragged);
+            }
+            if (event.kind == PointerEventKind.down) {
+                root.dragged = root.value;
+            }
+        }
+    }
+}
+
+// The Tone curve group: the parametric curve with its split handles, and the
+// point curve per channel.
+export component ToneCurveGroup inherits VerticalLayout {
+        spacing: 8px;
+        // Which of the four curves is being edited
+        // (ADR 0098 §4). The canvas below tints itself from
+        // the same property, so the state is visible without
+        // reading the chips.
+        // Which of the two curves is on screen (ADR 0137 §4).
+        // Both apply whichever is shown: this chooses what one
+        // edits, not what the photograph gets.
+        HorizontalLayout {
+            spacing: 4px;
+            FilterChip {
+                text: @tr("Point");
+                active: DevelopState.dev-curve-mode == "point";
+                clicked => {
+                    DevelopState.dev-curve-mode = "point";
+                }
+            }
+            FilterChip {
+                text: @tr("Region");
+                active: DevelopState.dev-curve-mode == "region";
+                clicked => {
+                    DevelopState.dev-curve-mode = "region";
+                }
+            }
+        }
+        if DevelopState.dev-curve-mode == "point": HorizontalLayout {
+            spacing: 4px;
+            FilterChip {
+                text: @tr("Master");
+                active: DevelopState.dev-curve-channel == "master";
+                clicked => {
+                    DevelopState.dev-curve-channel = "master";
+                }
+            }
+            FilterChip {
+                text: @tr("Red");
+                active: DevelopState.dev-curve-channel == "red";
+                clicked => {
+                    DevelopState.dev-curve-channel = "red";
+                }
+            }
+            FilterChip {
+                text: @tr("Green");
+                active: DevelopState.dev-curve-channel == "green";
+                clicked => {
+                    DevelopState.dev-curve-channel = "green";
+                }
+            }
+            FilterChip {
+                text: @tr("Blue");
+                active: DevelopState.dev-curve-channel == "blue";
+                clicked => {
+                    DevelopState.dev-curve-channel = "blue";
+                }
+            }
+        }
+        if DevelopState.dev-curve-mode == "point": Text {
+            text: @tr("Click to add a point, click a point to remove it.");
+            color: Theme.text-disabled;
+            font-size: 11px;
+            wrap: word-wrap;
+        }
+        if DevelopState.dev-curve-mode == "point": Rectangle {
+            width: 220px;
+            height: 220px;
+            background: Theme.surface;
+            border-width: 1px;
+            border-color: Theme.border;
+
+            // Diagonal reference line: the identity curve.
+            Path {
+                width: 220px;
+                height: 220px;
+                viewbox-width: 220;
+                viewbox-height: 220;
+                commands: "M0 220 L220 0";
+                stroke: Theme.border;
+                stroke-width: 1px;
+            }
+            // The actual curve, empty when there are no
+            // points (the identity curve above already
+            // shows that case).
+            Path {
+                width: 220px;
+                height: 220px;
+                viewbox-width: 220;
+                viewbox-height: 220;
+                commands: DevelopState.dev-curve-path;
+                // Tinted by the channel being edited
+                // (ADR 0098 §4), so which curve is on
+                // screen is read from the drawing itself.
+                stroke: DevelopState.dev-curve-channel == "red"
+                    ? Hues.curve-red
+                    : (DevelopState.dev-curve-channel == "green"
+                        ? Hues.curve-green
+                        : (DevelopState.dev-curve-channel == "blue"
+                            ? Hues.curve-blue
+                            : Theme.focus));
+                stroke-width: 2px;
+            }
+            for point in DevelopState.dev-curve-points: Rectangle {
+                x: point.x * 1px - 4px;
+                y: point.y * 1px - 4px;
+                width: 8px;
+                height: 8px;
+                border-radius: 4px;
+                background: Theme.focus;
+            }
+            curve-click := TouchArea {
+                mouse-cursor: crosshair;
+                pointer-event(event) => {
+                    if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
+                        DevelopState.develop-curve-click(self.mouse-x / 1px, self.mouse-y / 1px, self.width / 1px, self.height / 1px);
+                    }
+                }
+            }
+        }
+
+        // The parametric curve (ADR 0137 §4). The same square
+        // as the point canvas, so the two modes read as two
+        // views of one thing rather than two panels.
+        if DevelopState.dev-curve-mode == "region": Rectangle {
+            width: 220px;
+            height: 220px;
+            background: Theme.surface;
+            border-width: 1px;
+            border-color: Theme.border;
+
+            // The four regions, faintly shaded, so the split
+            // one drags is visibly the boundary between two
+            // named things.
+            Rectangle {
+                x: 0;
+                width: DevelopState.dev.parametric-shadow-split * 2.2px;
+                height: 100%;
+                background: Theme.veil-faint;
+            }
+            Rectangle {
+                x: DevelopState.dev.parametric-midtone-split * 2.2px;
+                width: (DevelopState.dev.parametric-highlight-split - DevelopState.dev.parametric-midtone-split) * 2.2px;
+                height: 100%;
+                background: Theme.veil-faint;
+            }
+
+            Path {
+                width: 220px;
+                height: 220px;
+                viewbox-width: 220;
+                viewbox-height: 220;
+                commands: "M0 220 L220 0";
+                stroke: Theme.border;
+                stroke-width: 1px;
+            }
+            Path {
+                width: 220px;
+                height: 220px;
+                viewbox-width: 220;
+                viewbox-height: 220;
+                commands: DevelopState.dev-parametric-path;
+                stroke: Theme.focus;
+                stroke-width: 2px;
+            }
+
+            // The three splits. Each is stopped by its
+            // neighbours — `validate` refuses equal splits,
+            // so the interface must never be able to ask for
+            // them (ADR 0137 §1).
+            SplitHandle {
+                which: "shadow";
+                value: DevelopState.dev.parametric-shadow-split;
+                lower: 1;
+                upper: DevelopState.dev.parametric-midtone-split - 1;
+            }
+            SplitHandle {
+                which: "midtone";
+                value: DevelopState.dev.parametric-midtone-split;
+                lower: DevelopState.dev.parametric-shadow-split + 1;
+                upper: DevelopState.dev.parametric-highlight-split - 1;
+            }
+            SplitHandle {
+                which: "highlight";
+                value: DevelopState.dev.parametric-highlight-split;
+                lower: DevelopState.dev.parametric-midtone-split + 1;
+                upper: 99;
+            }
+        }
+        if DevelopState.dev-curve-mode == "region": Text {
+            text: @tr("Drag the three markers to say where each region begins.");
+            color: Theme.text-disabled;
+            font-size: 11px;
+            wrap: word-wrap;
+        }
+        if DevelopState.dev-curve-mode == "region": EditSlider {
+            label: @tr("Highlights");
+            hint: @tr("Lifts the brightest region, between the last marker and white.");
+            minimum: -100;
+            maximum: 100;
+            value: DevelopState.dev.parametric-highlights;
+            edited(v) => {
+                DevelopState.develop-edit("parametric-highlights", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("parametric-highlights", v);
+            }
+        }
+        if DevelopState.dev-curve-mode == "region": EditSlider {
+            label: @tr("Lights");
+            hint: @tr("Lifts the region between the second and third markers.");
+            minimum: -100;
+            maximum: 100;
+            value: DevelopState.dev.parametric-lights;
+            edited(v) => {
+                DevelopState.develop-edit("parametric-lights", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("parametric-lights", v);
+            }
+        }
+        if DevelopState.dev-curve-mode == "region": EditSlider {
+            label: @tr("Darks");
+            hint: @tr("Lifts the region between the first and second markers.");
+            minimum: -100;
+            maximum: 100;
+            value: DevelopState.dev.parametric-darks;
+            edited(v) => {
+                DevelopState.develop-edit("parametric-darks", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("parametric-darks", v);
+            }
+        }
+        if DevelopState.dev-curve-mode == "region": EditSlider {
+            label: @tr("Shadows");
+            hint: @tr("Lifts the darkest region, between black and the first marker.");
+            minimum: -100;
+            maximum: 100;
+            value: DevelopState.dev.parametric-shadows;
+            edited(v) => {
+                DevelopState.develop-edit("parametric-shadows", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("parametric-shadows", v);
+            }
+        }
+        FilterChip {
+            text: @tr("Reset Curve");
+            active: false;
+            clicked => {
+                DevelopState.develop-curve-reset();
+            }
+        }
+}
+
+// The Levels group (ADR 0164).
+export component LevelsGroup inherits VerticalLayout {
+        spacing: 8px;
+        EditSlider {
+            label: @tr("Black point");
+            hint: @tr("Input level that becomes the output black.");
+            minimum: 0;
+            maximum: 254;
+            value: DevelopState.dev.levels-input-black;
+            edited(v) => {
+                DevelopState.develop-edit("levels-input-black", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("levels-input-black", v);
+            }
+        }
+        EditSlider {
+            label: @tr("Gamma");
+            hint: @tr("Midtones: above 1 brightens, below 1 darkens.");
+            minimum: 0.1;
+            maximum: 3;
+            decimals: 2;
+            neutral: 1;
+            value: DevelopState.dev.levels-gamma;
+            edited(v) => {
+                DevelopState.develop-edit("levels-gamma", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("levels-gamma", v);
+            }
+        }
+        EditSlider {
+            label: @tr("White point");
+            hint: @tr("Input level that becomes the output white.");
+            minimum: 1;
+            maximum: 255;
+            neutral: 255;
+            value: DevelopState.dev.levels-input-white;
+            edited(v) => {
+                DevelopState.develop-edit("levels-input-white", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("levels-input-white", v);
+            }
+        }
+        EditSlider {
+            label: @tr("Output black");
+            hint: @tr("The darkest level the photograph keeps.");
+            minimum: 0;
+            maximum: 255;
+            value: DevelopState.dev.levels-output-black;
+            edited(v) => {
+                DevelopState.develop-edit("levels-output-black", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("levels-output-black", v);
+            }
+        }
+        EditSlider {
+            label: @tr("Output white");
+            hint: @tr("The brightest level the photograph keeps.");
+            minimum: 0;
+            maximum: 255;
+            neutral: 255;
+            value: DevelopState.dev.levels-output-white;
+            edited(v) => {
+                DevelopState.develop-edit("levels-output-white", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("levels-output-white", v);
+            }
+        }
+}
+
+// The HSL / Color group: hue, saturation and luminance per band.
+export component HslGroup inherits VerticalLayout {
+    in-out property <[string]> hsl-band-names;
+
+        spacing: 14px;
+        for band[i] in DevelopState.dev.hsl: VerticalLayout {
+            spacing: 6px;
+            Text {
+                text: root.hsl-band-names[i];
+                color: Theme.text-dim;
+                font-size: 12px;
+                font-weight: 600;
+            }
+            EditSlider {
+                label: @tr("Hue");
+                minimum: -100;
+                maximum: 100;
+                value: band.hue;
+                edited(v) => {
+                    DevelopState.develop-edit-hsl-band(i, "hue", v);
+                }
+                previewing(v) => {
+                    DevelopState.develop-preview-hsl-band(i, "hue", v);
+                }
+            }
+            EditSlider {
+                label: @tr("Saturation");
+                minimum: -100;
+                maximum: 100;
+                value: band.saturation;
+                edited(v) => {
+                    DevelopState.develop-edit-hsl-band(i, "saturation", v);
+                }
+                previewing(v) => {
+                    DevelopState.develop-preview-hsl-band(i, "saturation", v);
+                }
+            }
+            EditSlider {
+                label: @tr("Luminance");
+                minimum: -100;
+                maximum: 100;
+                value: band.luminance;
+                edited(v) => {
+                    DevelopState.develop-edit-hsl-band(i, "luminance", v);
+                }
+                previewing(v) => {
+                    DevelopState.develop-preview-hsl-band(i, "luminance", v);
+                }
+            }
+        }
+}
+
+// The Color grading group: shadows, midtones, highlights and global wheels.
+export component ColorGradingGroup inherits VerticalLayout {
+        spacing: 14px;
+        VerticalLayout {
+            spacing: 6px;
+            Text {
+                text: @tr("Shadows");
+                color: Theme.text-dim;
+                font-size: 12px;
+                font-weight: 600;
+            }
+            EditSlider {
+                label: @tr("Hue");
+                minimum: 0;
+                maximum: 359;
+                value: DevelopState.dev.color-grading-shadows.hue;
+                edited(v) => {
+                    DevelopState.develop-edit-color-grading-zone("shadows", "hue", v);
+                }
+                previewing(v) => {
+                    DevelopState.develop-preview-color-grading-zone("shadows", "hue", v);
+                }
+            }
+            EditSlider {
+                label: @tr("Saturation");
+                minimum: 0;
+                maximum: 100;
+                value: DevelopState.dev.color-grading-shadows.saturation;
+                edited(v) => {
+                    DevelopState.develop-edit-color-grading-zone("shadows", "saturation", v);
+                }
+                previewing(v) => {
+                    DevelopState.develop-preview-color-grading-zone("shadows", "saturation", v);
+                }
+            }
+            EditSlider {
+                label: @tr("Luminance");
+                minimum: -100;
+                maximum: 100;
+                value: DevelopState.dev.color-grading-shadows.luminance;
+                edited(v) => {
+                    DevelopState.develop-edit-color-grading-zone("shadows", "luminance", v);
+                }
+                previewing(v) => {
+                    DevelopState.develop-preview-color-grading-zone("shadows", "luminance", v);
+                }
+            }
+        }
+        VerticalLayout {
+            spacing: 6px;
+            Text {
+                text: @tr("Midtones");
+                color: Theme.text-dim;
+                font-size: 12px;
+                font-weight: 600;
+            }
+            EditSlider {
+                label: @tr("Hue");
+                minimum: 0;
+                maximum: 359;
+                value: DevelopState.dev.color-grading-midtones.hue;
+                edited(v) => {
+                    DevelopState.develop-edit-color-grading-zone("midtones", "hue", v);
+                }
+                previewing(v) => {
+                    DevelopState.develop-preview-color-grading-zone("midtones", "hue", v);
+                }
+            }
+            EditSlider {
+                label: @tr("Saturation");
+                minimum: 0;
+                maximum: 100;
+                value: DevelopState.dev.color-grading-midtones.saturation;
+                edited(v) => {
+                    DevelopState.develop-edit-color-grading-zone("midtones", "saturation", v);
+                }
+                previewing(v) => {
+                    DevelopState.develop-preview-color-grading-zone("midtones", "saturation", v);
+                }
+            }
+            EditSlider {
+                label: @tr("Luminance");
+                minimum: -100;
+                maximum: 100;
+                value: DevelopState.dev.color-grading-midtones.luminance;
+                edited(v) => {
+                    DevelopState.develop-edit-color-grading-zone("midtones", "luminance", v);
+                }
+                previewing(v) => {
+                    DevelopState.develop-preview-color-grading-zone("midtones", "luminance", v);
+                }
+            }
+        }
+        VerticalLayout {
+            spacing: 6px;
+            Text {
+                text: @tr("Highlights");
+                color: Theme.text-dim;
+                font-size: 12px;
+                font-weight: 600;
+            }
+            EditSlider {
+                label: @tr("Hue");
+                minimum: 0;
+                maximum: 359;
+                value: DevelopState.dev.color-grading-highlights.hue;
+                edited(v) => {
+                    DevelopState.develop-edit-color-grading-zone("highlights", "hue", v);
+                }
+                previewing(v) => {
+                    DevelopState.develop-preview-color-grading-zone("highlights", "hue", v);
+                }
+            }
+            EditSlider {
+                label: @tr("Saturation");
+                minimum: 0;
+                maximum: 100;
+                value: DevelopState.dev.color-grading-highlights.saturation;
+                edited(v) => {
+                    DevelopState.develop-edit-color-grading-zone("highlights", "saturation", v);
+                }
+                previewing(v) => {
+                    DevelopState.develop-preview-color-grading-zone("highlights", "saturation", v);
+                }
+            }
+            EditSlider {
+                label: @tr("Luminance");
+                minimum: -100;
+                maximum: 100;
+                value: DevelopState.dev.color-grading-highlights.luminance;
+                edited(v) => {
+                    DevelopState.develop-edit-color-grading-zone("highlights", "luminance", v);
+                }
+                previewing(v) => {
+                    DevelopState.develop-preview-color-grading-zone("highlights", "luminance", v);
+                }
+            }
+        }
+        EditSlider {
+            label: @tr("Balance");
+            hint: @tr("Which zones the three wheels reach: towards the shadows, or towards the highlights.");
+            minimum: -100;
+            maximum: 100;
+            value: DevelopState.dev.color-grading-balance;
+            edited(v) => {
+                DevelopState.develop-edit("color-grading-balance", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("color-grading-balance", v);
+            }
+        }
+        EditSlider {
+            label: @tr("Blending");
+            hint: @tr("How much the three zones overlap. Low keeps them apart, high blends them into one another.");
+            minimum: 0;
+            maximum: 100;
+            value: DevelopState.dev.color-grading-blending;
+            edited(v) => {
+                DevelopState.develop-edit("color-grading-blending", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("color-grading-blending", v);
+            }
+        }
+}

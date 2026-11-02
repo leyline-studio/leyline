@@ -1,6 +1,6 @@
 //! The camera-profile browser (ADR 0089) (ADR 0045 §4).
 //!
-//! Mirrors the Camera profile group of `ui/panels/develop.slint`. Its whole
+//! Mirrors the Camera profile group of `ui/panels/develop_optics.slint`. Its whole
 //! job is showing what a profile *does* before it is chosen: every row is
 //! the open photo rendered through that profile, through `preview_live` —
 //! the "a view, never a revision" path the soft proof and the preset trial

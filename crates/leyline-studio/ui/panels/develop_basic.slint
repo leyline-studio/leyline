@@ -1,0 +1,394 @@
+// Groups of the develop panel's adjustment column, each the body of one
+// collapsible group in `develop.slint`, which keeps the headers and the
+// expanded state. Like the panel itself (ADR 0045 §3), a group inherits the
+// `VerticalLayout` it replaces and sets no geometry of its own.
+
+import { Hues, Theme } from "../theme.slint";
+import { DevelopState } from "../state/develop.slint";
+import { EditSlider, FilterChip, PipetteChip, SubHeading } from "../widgets/controls.slint";
+
+// The Basic group of the develop panel: white balance, tone and presence.
+export component BasicGroup inherits VerticalLayout {
+    in-out property <string> active-tool;
+    in-out property <bool> basic-mode;
+    in-out property <bool> dev-zoomed;
+    in-out property <bool> spot-pending;
+
+        spacing: 6px;
+        // The fixed white balances (ADR 0091 §4), momentary
+        // like Auto: each writes both sliders in one
+        // revision. "As Shot" clears the override — the
+        // true neutral of the model; "Auto WB" measures.
+        HorizontalLayout {
+            spacing: 4px;
+            // The white-balance picker (ADR 0091) beside the
+            // presets it competes with (ADR 0160 §3).
+            PipetteChip {
+                hint: @tr("White balance: click a neutral grey in the photograph");
+                active: root.active-tool == "wb";
+                clicked => {
+                    root.active-tool = root.active-tool == "wb" ? "select" : "wb";
+                    root.spot-pending = false;
+                    root.dev-zoomed = false;
+                }
+            }
+            FilterChip {
+                text: @tr("As Shot");
+                clicked => {
+                    DevelopState.apply-wb-preset("as-shot");
+                }
+            }
+            FilterChip {
+                text: @tr("Auto WB");
+                clicked => {
+                    DevelopState.run-auto-wb();
+                }
+            }
+            FilterChip {
+                text: @tr("Daylight");
+                clicked => {
+                    DevelopState.apply-wb-preset("daylight");
+                }
+            }
+        }
+        HorizontalLayout {
+            spacing: 4px;
+            FilterChip {
+                text: @tr("Cloudy");
+                clicked => {
+                    DevelopState.apply-wb-preset("cloudy");
+                }
+            }
+            FilterChip {
+                text: @tr("Shade");
+                clicked => {
+                    DevelopState.apply-wb-preset("shade");
+                }
+            }
+            FilterChip {
+                text: @tr("Tungsten");
+                clicked => {
+                    DevelopState.apply-wb-preset("tungsten");
+                }
+            }
+        }
+        HorizontalLayout {
+            spacing: 4px;
+            FilterChip {
+                text: @tr("Fluorescent");
+                clicked => {
+                    DevelopState.apply-wb-preset("fluorescent");
+                }
+            }
+            FilterChip {
+                text: @tr("Flash");
+                clicked => {
+                    DevelopState.apply-wb-preset("flash");
+                }
+            }
+        }
+        EditSlider {
+            label: @tr("Temperature");
+            hint: @tr("Warms or cools the photograph. Higher values look warmer — the reverse of the physical scale.");
+            minimum: 2000;
+            maximum: 12000;
+            // Not zero: the neutral of a temperature is the
+            // daylight it is measured against (`Settings`
+            // default, 6500 K).
+            neutral: 6500;
+            track-from: Hues.temperature-cold;
+            track-to: Hues.temperature-warm;
+            value: DevelopState.dev.wb-temp;
+            edited(v) => {
+                DevelopState.develop-edit("wb-temp", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("wb-temp", v);
+            }
+        }
+        EditSlider {
+            label: @tr("Tint");
+            hint: @tr("The green–magenta axis: the half of a white balance that temperature alone cannot reach.");
+            minimum: -100;
+            maximum: 100;
+            track-from: Hues.tint-green;
+            track-to: Hues.tint-magenta;
+            value: DevelopState.dev.wb-tint;
+            edited(v) => {
+                DevelopState.develop-edit("wb-tint", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("wb-tint", v);
+            }
+        }
+
+        SubHeading {
+            label: @tr("Tone");
+        }
+        EditSlider {
+            label: @tr("Exposure");
+            minimum: -5;
+            maximum: 5;
+            decimals: 2;
+            value: DevelopState.dev.exposure;
+            edited(v) => {
+                DevelopState.develop-edit("exposure", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("exposure", v);
+            }
+        }
+        EditSlider {
+            label: @tr("Contrast");
+            minimum: -100;
+            maximum: 100;
+            value: DevelopState.dev.contrast;
+            edited(v) => {
+                DevelopState.develop-edit("contrast", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("contrast", v);
+            }
+        }
+        EditSlider {
+            label: @tr("Highlights");
+            hint: @tr("Bends the bright tones below the clipping point. Whites sets the point itself.");
+            minimum: -100;
+            maximum: 100;
+            value: DevelopState.dev.highlights;
+            edited(v) => {
+                DevelopState.develop-edit("highlights", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("highlights", v);
+            }
+        }
+        EditSlider {
+            label: @tr("Shadows");
+            hint: @tr("Lifts or lowers the dark tones above the black point. Blacks sets the point itself.");
+            minimum: -100;
+            maximum: 100;
+            value: DevelopState.dev.shadows;
+            edited(v) => {
+                DevelopState.develop-edit("shadows", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("shadows", v);
+            }
+        }
+        EditSlider {
+            label: @tr("Whites");
+            hint: @tr("Where the brightest tones clip. Highlights bends what is below that point; this sets the point.");
+            minimum: -100;
+            maximum: 100;
+            value: DevelopState.dev.whites;
+            edited(v) => {
+                DevelopState.develop-edit("whites", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("whites", v);
+            }
+        }
+        EditSlider {
+            label: @tr("Blacks");
+            hint: @tr("Where the darkest tones clip. Shadows lifts what is above that point; this sets the point.");
+            minimum: -100;
+            maximum: 100;
+            value: DevelopState.dev.blacks;
+            edited(v) => {
+                DevelopState.develop-edit("blacks", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("blacks", v);
+            }
+        }
+
+        SubHeading {
+            label: @tr("Presence");
+        }
+        EditSlider {
+            label: @tr("Texture");
+            hint: @tr("Contrast over fine detail: skin, bark, fabric. Unlike sharpening, it leaves edges alone.");
+            minimum: -100;
+            maximum: 100;
+            value: DevelopState.dev.texture;
+            edited(v) => {
+                DevelopState.develop-edit("texture", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("texture", v);
+            }
+        }
+        EditSlider {
+            label: @tr("Clarity");
+            hint: @tr("Contrast over broad shapes. Coarser than Texture, gentler than Dehaze.");
+            minimum: -100;
+            maximum: 100;
+            value: DevelopState.dev.clarity;
+            edited(v) => {
+                DevelopState.develop-edit("clarity", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("clarity", v);
+            }
+        }
+        EditSlider {
+            label: @tr("Dehaze");
+            hint: @tr("Pulls contrast back into flat, veiled light. A contrast tool, not a weather one.");
+            minimum: -100;
+            maximum: 100;
+            value: DevelopState.dev.dehaze;
+            edited(v) => {
+                DevelopState.develop-edit("dehaze", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("dehaze", v);
+            }
+        }
+        EditSlider {
+            label: @tr("Vibrance");
+            hint: @tr("Saturates the muted colours and spares the vivid ones. Saturation moves them all equally.");
+            minimum: -100;
+            maximum: 100;
+            // Grey to colour, the direction the slider goes.
+            track-from: Hues.neutral-start;
+            track-to: Hues.vibrance;
+            value: DevelopState.dev.vibrance;
+            edited(v) => {
+                DevelopState.develop-edit("vibrance", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("vibrance", v);
+            }
+        }
+        EditSlider {
+            label: @tr("Saturation");
+            minimum: -100;
+            maximum: 100;
+            track-from: Hues.neutral-start;
+            track-to: Hues.saturation;
+            value: DevelopState.dev.saturation;
+            edited(v) => {
+                DevelopState.develop-edit("saturation", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("saturation", v);
+            }
+        }
+        // Basic's Full-mode block: the three settings about
+        // getting the photograph out of the file, the
+        // `rendering` preset group (ADR 0132 §1), kept
+        // together under one heading.
+        if !root.basic-mode: SubHeading {
+            label: @tr("Rendering");
+        }
+        // What the *decoder* does with a channel that
+        // saturated at the sensor (ADR 0050), as opposed to
+        // the roll-off below, which decides what becomes of
+        // the headroom on the way out. Full mode only: it
+        // supposes knowing what a clipped channel is
+        // (ADR 0054 §2).
+        if !root.basic-mode: Text {
+            text: @tr("Clipped highlights");
+            color: Theme.text-dim;
+            font-size: 12px;
+        }
+        if !root.basic-mode: HorizontalLayout {
+            spacing: 6px;
+            alignment: start;
+            FilterChip {
+                text: @tr("Clip");
+                hint: @tr("Cuts the clipped channels off at white. Fastest, and what a photograph without blown highlights wants.");
+                active: DevelopState.dev.highlight-reconstruction == "clip";
+                clicked => {
+                    DevelopState.develop-set-highlight-reconstruction("clip");
+                }
+            }
+            FilterChip {
+                text: @tr("Blend");
+                hint: @tr("Fills a clipped channel from the ones that did not clip, keeping the colour plausible.");
+                active: DevelopState.dev.highlight-reconstruction == "blend";
+                clicked => {
+                    DevelopState.develop-set-highlight-reconstruction("blend");
+                }
+            }
+            FilterChip {
+                text: @tr("Rebuild");
+                hint: @tr("Reconstructs clipped detail from neighbouring pixels. Slowest, for a badly blown sky.");
+                active: DevelopState.dev.highlight-reconstruction == "rebuild";
+                clicked => {
+                    DevelopState.develop-set-highlight-reconstruction("rebuild");
+                }
+            }
+        }
+        // Demosaic (ADR 0061), Complete mode only: the very
+        // first rendering decision, and one that supposes
+        // knowing what a Bayer sensor is (ADR 0054 §2). The
+        // caption is not decoration — the choice genuinely
+        // does nothing at these preview sizes, and a control
+        // that appears inert reads as broken.
+        if !root.basic-mode: Text {
+            text: @tr("Demosaic");
+            color: Theme.text-dim;
+            font-size: 12px;
+        }
+        if !root.basic-mode: HorizontalLayout {
+            spacing: 6px;
+            alignment: start;
+            FilterChip {
+                text: @tr("AHD");
+                hint: @tr("Adaptive Homogeneity-Directed. The default: good detail, few zips along diagonal edges.");
+                active: DevelopState.dev.demosaic == "ahd";
+                clicked => {
+                    DevelopState.develop-set-demosaic("ahd");
+                }
+            }
+            FilterChip {
+                text: @tr("VNG");
+                hint: @tr("Variable Number of Gradients. Softer, and steadier on very noisy files.");
+                active: DevelopState.dev.demosaic == "vng";
+                clicked => {
+                    DevelopState.develop-set-demosaic("vng");
+                }
+            }
+            FilterChip {
+                text: @tr("DCB");
+                hint: @tr("A refined interpolation: more detail than AHD, and slower.");
+                active: DevelopState.dev.demosaic == "dcb";
+                clicked => {
+                    DevelopState.develop-set-demosaic("dcb");
+                }
+            }
+            FilterChip {
+                text: @tr("DHT");
+                hint: @tr("Directional, for fine repeating texture — fabric, brickwork — where others produce maze artefacts.");
+                active: DevelopState.dev.demosaic == "dht";
+                clicked => {
+                    DevelopState.develop-set-demosaic("dht");
+                }
+            }
+        }
+        if !root.basic-mode: Text {
+            text: @tr("Visible at full size and on export only — small previews skip interpolation.");
+            color: Theme.text-disabled;
+            font-size: 11px;
+            wrap: word-wrap;
+        }
+        // An output decision rather than a presence one, and
+        // one that supposes knowing what headroom above white
+        // is: Full mode, after the sequence rather than inside
+        // it (ADR 0054 §2).
+        if !root.basic-mode: EditSlider {
+            label: @tr("Roll-off");
+            hint: @tr("How gently the brightest tones reach white. Higher keeps a bright sky a sky instead of a white shape.");
+            minimum: 0;
+            maximum: 100;
+            value: DevelopState.dev.highlight-rolloff;
+            edited(v) => {
+                DevelopState.develop-edit("highlight-rolloff", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("highlight-rolloff", v);
+            }
+        }
+}

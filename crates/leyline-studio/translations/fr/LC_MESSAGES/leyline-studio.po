@@ -1640,11 +1640,6 @@ msgctxt "DevelopPanel"
 msgid "Magenta"
 msgstr "Magenta"
 
-#: crates/leyline-studio/ui/panels/develop.slint:208
-msgctxt "DevelopPanel"
-msgid "Select"
-msgstr "Sélection"
-
 #: crates/leyline-studio/ui/panels/develop.slint:216
 msgctxt "DevelopPanel"
 msgid "Crop"
@@ -1685,18 +1680,6 @@ msgstr "Dégradé"
 msgctxt "DevelopPanel"
 msgid "Brush"
 msgstr "Pinceau"
-
-#. whatever the wheel has been doing (ADR 0112 §3).
-#: crates/leyline-studio/ui/panels/develop.slint:337
-msgctxt "DevelopPanel"
-msgid "Fit"
-msgstr "Ajuster"
-
-#. whatever the wheel has been doing (ADR 0112 §3).
-#: crates/leyline-studio/ui/panels/develop.slint:337
-msgctxt "DevelopPanel"
-msgid "100%    Z"
-msgstr "100 %    Z"
 
 #: crates/leyline-studio/ui/panels/develop.slint:518
 msgctxt "DevelopPanel"
@@ -1763,366 +1746,35 @@ msgctxt "DevelopPanel"
 msgid "Reset All"
 msgstr "Tout réinitialiser"
 
-#: crates/leyline-studio/ui/panels/develop.slint:1303
-msgctxt "DevelopPanel"
-msgid "As Shot"
-msgstr "Telle quelle"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1309
-msgctxt "DevelopPanel"
-msgid "Auto WB"
-msgstr "BdB auto"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1315
-msgctxt "DevelopPanel"
-msgid "Daylight"
-msgstr "Ensoleillé"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1324
-msgctxt "DevelopPanel"
-msgid "Cloudy"
-msgstr "Nuageux"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1330
-msgctxt "DevelopPanel"
-msgid "Shade"
-msgstr "Ombre"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1336
-msgctxt "DevelopPanel"
-msgid "Tungsten"
-msgstr "Tungstène"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1345
-msgctxt "DevelopPanel"
-msgid "Fluorescent"
-msgstr "Fluorescent"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1351
-msgctxt "DevelopPanel"
-msgid "Flash"
-msgstr "Flash"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1358 crates/leyline-studio/ui/panels/develop.slint:3183
-msgctxt "DevelopPanel"
-msgid "Temperature"
-msgstr "Température"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1376 crates/leyline-studio/ui/panels/develop.slint:3195
-msgctxt "DevelopPanel"
-msgid "Tint"
-msgstr "Teinte"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1391
-msgctxt "DevelopPanel"
-msgid "Tone"
-msgstr "Tonalité"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1394 crates/leyline-studio/ui/panels/develop.slint:2987
-msgctxt "DevelopPanel"
-msgid "Exposure"
-msgstr "Exposition"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1407 crates/leyline-studio/ui/panels/develop.slint:3000
-msgctxt "DevelopPanel"
-msgid "Contrast"
-msgstr "Contraste"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1419 crates/leyline-studio/ui/panels/develop.slint:2396 crates/leyline-studio/ui/panels/develop.slint:3012
-msgctxt "DevelopPanel"
-msgid "Highlights"
-msgstr "Hautes lumières"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1431 crates/leyline-studio/ui/panels/develop.slint:2306 crates/leyline-studio/ui/panels/develop.slint:3024
-msgctxt "DevelopPanel"
-msgid "Shadows"
-msgstr "Ombres"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1443 crates/leyline-studio/ui/panels/develop.slint:3036
-msgctxt "DevelopPanel"
-msgid "Whites"
-msgstr "Blancs"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1455 crates/leyline-studio/ui/panels/develop.slint:3048
-msgctxt "DevelopPanel"
-msgid "Blacks"
-msgstr "Noirs"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1468
-msgctxt "DevelopPanel"
-msgid "Presence"
-msgstr "Présence"
-
-#: crates/leyline-studio/ui/panels/develop.slint:3136
-msgctxt "DevelopPanel"
-msgid "Rendering"
-msgstr "Rendu du fichier"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1471 crates/leyline-studio/ui/panels/develop.slint:3100
-msgctxt "DevelopPanel"
-msgid "Texture"
-msgstr "Texture"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1483 crates/leyline-studio/ui/panels/develop.slint:3088
-msgctxt "DevelopPanel"
-msgid "Clarity"
-msgstr "Clarté"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1495
-msgctxt "DevelopPanel"
-msgid "Dehaze"
-msgstr "Voile"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1513
-msgctxt "DevelopPanel"
-msgid "Clipped highlights"
-msgstr "Hautes lumières écrêtées"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1521
-msgctxt "DevelopPanel"
-msgid "Clip"
-msgstr "Écrêter"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1528
-msgctxt "DevelopPanel"
-msgid "Blend"
-msgstr "Mélanger"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1535
-msgctxt "DevelopPanel"
-msgid "Rebuild"
-msgstr "Reconstruire"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1549
-msgctxt "DevelopPanel"
-msgid "Demosaic"
-msgstr "Dématriçage"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1557
-msgctxt "DevelopPanel"
-msgid "AHD"
-msgstr "AHD"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1564
-msgctxt "DevelopPanel"
-msgid "VNG"
-msgstr "VNG"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1571
-msgctxt "DevelopPanel"
-msgid "DCB"
-msgstr "DCB"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1578
-msgctxt "DevelopPanel"
-msgid "DHT"
-msgstr "DHT"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1586
-msgctxt "DevelopPanel"
-msgid ""
-"Visible at full size and on export only — small previews skip interpolation."
-msgstr "Visible seulement à pleine taille et à l'export — les petits aperçus ne passent pas par l'interpolation."
-
-#: crates/leyline-studio/ui/panels/develop.slint:1592 crates/leyline-studio/ui/panels/develop.slint:3060
-msgctxt "DevelopPanel"
-msgid "Vibrance"
-msgstr "Vibrance"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1607 crates/leyline-studio/ui/panels/develop.slint:2267 crates/leyline-studio/ui/panels/develop.slint:2324 crates/leyline-studio/ui/panels/develop.slint:2369 crates/leyline-studio/ui/panels/develop.slint:2414 crates/leyline-studio/ui/panels/develop.slint:3072 crates/leyline-studio/ui/panels/develop.slint:3375
-msgctxt "DevelopPanel"
-msgid "Saturation"
-msgstr "Saturation"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1625
-msgctxt "DevelopPanel"
-msgid "Highlight roll-off"
-msgstr "Récupération des hautes lumières"
-
 #: crates/leyline-studio/ui/panels/develop.slint:1639
 msgctxt "DevelopPanel"
 msgid "Camera profile"
 msgstr "Profil d'appareil"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1653
-msgctxt "DevelopPanel"
-msgid "Experimental: colors are not yet validated against reference renders."
-msgstr "Expérimental : les couleurs ne sont pas encore validées contre des rendus de référence."
-
-#: crates/leyline-studio/ui/panels/develop.slint:1711
-msgctxt "DevelopPanel"
-msgid "Could not be read"
-msgstr "Illisible"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1729
-msgctxt "DevelopPanel"
-msgid "Import .dcp…"
-msgstr "Importer un .dcp…"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1737 crates/leyline-studio/ui/panels/develop.slint:1778 crates/leyline-studio/ui/panels/develop.slint:1817
-msgctxt "DevelopPanel"
-msgid "Enabled"
-msgstr "Activée"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1737 crates/leyline-studio/ui/panels/develop.slint:1778 crates/leyline-studio/ui/panels/develop.slint:1817
-msgctxt "DevelopPanel"
-msgid "Disabled"
-msgstr "Désactivée"
 
 #: crates/leyline-studio/ui/panels/develop.slint:1746
 msgctxt "DevelopPanel"
 msgid "Creative LUT"
 msgstr "LUT créative"
 
-#: crates/leyline-studio/ui/panels/develop.slint:1760
-msgctxt "DevelopPanel"
-msgid "No LUT — Leyline's own color only"
-msgstr "Aucune LUT — les couleurs de Leyline seules"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1770
-msgctxt "DevelopPanel"
-msgid "Choose .cube…"
-msgstr "Choisir un .cube…"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1784
-msgctxt "DevelopPanel"
-msgid "Remove"
-msgstr "Retirer"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1792 crates/leyline-studio/ui/panels/develop.slint:2484
-msgctxt "DevelopPanel"
-msgid "Strength"
-msgstr "Intensité"
-
 #: crates/leyline-studio/ui/panels/develop.slint:1806
 msgctxt "DevelopPanel"
 msgid "Lens correction"
 msgstr "Correction optique"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1826
-msgctxt "DevelopPanel"
-msgid "Chromatic aberration (% of radius)"
-msgstr "Aberration chromatique (% du rayon)"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1831
-msgctxt "DevelopPanel"
-msgid "Red / cyan"
-msgstr "Rouge / cyan"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1846
-msgctxt "DevelopPanel"
-msgid "Blue / yellow"
-msgstr "Bleu / jaune"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1864
-msgctxt "DevelopPanel"
-msgid "Measure from this photo"
-msgstr "Mesurer sur cette photo"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1874
-msgctxt "DevelopPanel"
-msgid "Defringe (colour halo at an edge)"
-msgstr "Défrangeage (halo coloré sur un contour)"
 
 #: crates/leyline-studio/ui/panels/develop.slint:1909
 msgctxt "DevelopPanel"
 msgid "Detail"
 msgstr "Détail"
 
-#: crates/leyline-studio/ui/panels/develop.slint:1919
-msgctxt "DevelopPanel"
-msgid "Luminance NR"
-msgstr "RdB luminance"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1931
-msgctxt "DevelopPanel"
-msgid "Color NR"
-msgstr "RdB couleur"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1943
-msgctxt "DevelopPanel"
-msgid "Sharpen amount"
-msgstr "Intensité de netteté"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1955
-msgctxt "DevelopPanel"
-msgid "Sharpen radius"
-msgstr "Rayon de netteté"
-
-#: crates/leyline-studio/ui/panels/develop.slint:1973
-msgctxt "DevelopPanel"
-msgid "Sharpen masking"
-msgstr "Masquage de netteté"
-
 #: crates/leyline-studio/ui/panels/develop.slint:1992
 msgctxt "DevelopPanel"
 msgid "Effects"
 msgstr "Effets"
 
-#: crates/leyline-studio/ui/panels/develop.slint:2006
-msgctxt "DevelopPanel"
-msgid "Vignette"
-msgstr "Vignettage"
-
-#: crates/leyline-studio/ui/panels/develop.slint:2009 crates/leyline-studio/ui/panels/develop.slint:2060
-msgctxt "DevelopPanel"
-msgid "Amount"
-msgstr "Intensité"
-
-#: crates/leyline-studio/ui/panels/develop.slint:2021
-msgctxt "DevelopPanel"
-msgid "Midpoint"
-msgstr "Milieu"
-
-#: crates/leyline-studio/ui/panels/develop.slint:2033
-msgctxt "DevelopPanel"
-msgid "Roundness"
-msgstr "Rondeur"
-
-#: crates/leyline-studio/ui/panels/develop.slint:2045 crates/leyline-studio/ui/panels/develop.slint:2558 crates/leyline-studio/ui/panels/develop.slint:2968
-msgctxt "DevelopPanel"
-msgid "Feather"
-msgstr "Contour"
-
-#: crates/leyline-studio/ui/panels/develop.slint:2057
-msgctxt "DevelopPanel"
-msgid "Grain"
-msgstr "Grain"
-
-#: crates/leyline-studio/ui/panels/develop.slint:2072
-msgctxt "DevelopPanel"
-msgid "Size"
-msgstr "Taille"
-
-#: crates/leyline-studio/ui/panels/develop.slint:2084
-msgctxt "DevelopPanel"
-msgid "Roughness"
-msgstr "Rugosité"
-
-#: crates/leyline-studio/ui/panels/develop.slint:2098
-msgctxt "DevelopPanel"
-msgid "Color"
-msgstr "Couleur"
-
 #: crates/leyline-studio/ui/panels/develop.slint:2112
 msgctxt "DevelopPanel"
 msgid "Tone Curve"
 msgstr "Courbe des tonalités"
-
-#: crates/leyline-studio/ui/panels/develop.slint:2128
-msgctxt "DevelopPanel"
-msgid "Master"
-msgstr "Maîtresse"
-
-#: crates/leyline-studio/ui/panels/develop.slint:2157
-msgctxt "DevelopPanel"
-msgid "Click to add a point, click a point to remove it."
-msgstr "Cliquez pour ajouter un point, cliquez sur un point pour le retirer."
-
-#: crates/leyline-studio/ui/panels/develop.slint:2218
-msgctxt "DevelopPanel"
-msgid "Reset Curve"
-msgstr "Réinitialiser la courbe"
 
 #: crates/leyline-studio/ui/panels/develop.slint:2227
 msgctxt "DevelopPanel"
@@ -2135,278 +1787,20 @@ msgctxt "DevelopPanel"
 msgid "In black and white, only Luminance acts: it is the B&W mix."
 msgstr "En noir et blanc, seule la Luminance agit : c'est le mixeur N&B."
 
-#: crates/leyline-studio/ui/panels/develop.slint:2255 crates/leyline-studio/ui/panels/develop.slint:2312 crates/leyline-studio/ui/panels/develop.slint:2357 crates/leyline-studio/ui/panels/develop.slint:2402 crates/leyline-studio/ui/panels/develop.slint:3278
-msgctxt "DevelopPanel"
-msgid "Hue"
-msgstr "Teinte"
-
-#: crates/leyline-studio/ui/panels/develop.slint:2279 crates/leyline-studio/ui/panels/develop.slint:2336 crates/leyline-studio/ui/panels/develop.slint:2381 crates/leyline-studio/ui/panels/develop.slint:2426
-msgctxt "DevelopPanel"
-msgid "Luminance"
-msgstr "Luminance"
-
 #: crates/leyline-studio/ui/panels/develop.slint:2294
 msgctxt "DevelopPanel"
 msgid "Color Grading"
 msgstr "Étalonnage couleur"
-
-#: crates/leyline-studio/ui/panels/develop.slint:2351
-msgctxt "DevelopPanel"
-msgid "Midtones"
-msgstr "Tons moyens"
-
-#: crates/leyline-studio/ui/panels/develop.slint:2439
-msgctxt "DevelopPanel"
-msgid "Balance"
-msgstr "Balance"
-
-#: crates/leyline-studio/ui/panels/develop.slint:2451
-msgctxt "DevelopPanel"
-msgid "Blending"
-msgstr "Fusion"
-
-#: crates/leyline-studio/ui/panels/develop.slint:2475
-msgctxt "DevelopPanel"
-msgid ""
-"Pick the Reshape tool above, then drag from the content to where it should "
-"go. The pixels within the radius follow and fade to nothing at its edge; "
-"nothing is invented."
-msgstr "Choisissez l'outil Remodeler ci-dessus, puis glissez du contenu vers l'endroit où il doit aller. Les pixels dans le rayon suivent et s'éteignent à son bord ; rien n'est inventé."
-
-#: crates/leyline-studio/ui/panels/develop.slint:2483 crates/leyline-studio/ui/panels/develop.slint:2557 crates/leyline-studio/ui/panels/develop.slint:2637
-msgctxt "DevelopPanel"
-msgid "Radius %"
-msgstr "Rayon %"
-
-#: crates/leyline-studio/ui/panels/develop.slint:2522 crates/leyline-studio/ui/panels/develop.slint:2599
-msgctxt "DevelopPanel"
-msgid "{} placed"
-msgstr "{} posé(s)"
-
-#: crates/leyline-studio/ui/panels/develop.slint:2528 crates/leyline-studio/ui/panels/develop.slint:2605 crates/leyline-studio/ui/panels/develop.slint:3466
-msgctxt "DevelopPanel"
-msgid "Clear"
-msgstr "Effacer"
-
-#: crates/leyline-studio/ui/panels/develop.slint:2549
-msgctxt "DevelopPanel"
-msgid ""
-"Pick the Red Eye tool above, then click each pupil. Only red pixels inside "
-"the circle are corrected, so the circle need not be precise."
-msgstr "Choisissez l'outil Yeux rouges ci-dessus, puis cliquez chaque pupille. Seuls les pixels rouges du cercle sont corrigés : le cercle n'a pas besoin d'être précis."
-
-#: crates/leyline-studio/ui/panels/develop.slint:2559
-msgctxt "DevelopPanel"
-msgid "Darken"
-msgstr "Assombrir"
-
-#: crates/leyline-studio/ui/panels/develop.slint:2626
-msgctxt "DevelopPanel"
-msgid ""
-"Pick the Spot Removal tool above, click a clean source, then the spot to fix."
-msgstr "Choisissez l'outil Correction des taches ci-dessus, cliquez sur une source propre, puis sur la tache à corriger."
-
-#: crates/leyline-studio/ui/panels/develop.slint:2663
-msgctxt "DevelopPanel"
-msgid "Feather %"
-msgstr "Contour progressif %"
-
-#: crates/leyline-studio/ui/panels/develop.slint:2689
-msgctxt "DevelopPanel"
-msgid "Opacity %"
-msgstr "Opacité %"
-
-#: crates/leyline-studio/ui/panels/develop.slint:2715
-msgctxt "DevelopPanel"
-msgid "{} spot(s)"
-msgstr "{} tache(s)"
-
-#: crates/leyline-studio/ui/panels/develop.slint:2722
-msgctxt "DevelopPanel"
-msgid "Undo Last"
-msgstr "Annuler le dernier"
-
-#: crates/leyline-studio/ui/panels/develop.slint:2729
-msgctxt "DevelopPanel"
-msgid "Clear All"
-msgstr "Tout effacer"
 
 #: crates/leyline-studio/ui/panels/develop.slint:2739
 msgctxt "DevelopPanel"
 msgid "Local Adjustments"
 msgstr "Retouches locales"
 
-#: crates/leyline-studio/ui/panels/develop.slint:2753
-msgctxt "DevelopPanel"
-msgid ""
-"Pick Radial, Gradient or Brush above and draw on the photo. Click a row to "
-"edit it; drawing again moves the selected mask."
-msgstr "Choisissez Radial, Dégradé ou Pinceau ci-dessus et tracez sur la photo. Cliquez une ligne pour la modifier ; tracer de nouveau déplace le masque sélectionné."
-
-#: crates/leyline-studio/ui/panels/develop.slint:2780
-msgctxt "DevelopPanel"
-msgid "Whole image"
-msgstr "Image entière"
-
-#. §1) — nothing to trace, so a button.
-#: crates/leyline-studio/ui/panels/develop.slint:2820
-msgctxt "DevelopPanel"
-msgid "Add whole-image mask"
-msgstr "Ajouter un masque sur toute l'image"
-
-#. in another program and comes in whole.
-#: crates/leyline-studio/ui/panels/develop.slint:2831
-msgctxt "DevelopPanel"
-msgid "Add mask from file…"
-msgstr "Ajouter un masque depuis un fichier…"
-
-#. handles of its own.
-#: crates/leyline-studio/ui/panels/develop.slint:2855
-msgctxt "DevelopPanel"
-msgid "Show mask"
-msgstr "Afficher le masque"
-
-#: crates/leyline-studio/ui/panels/develop.slint:2870
-msgctxt "DevelopPanel"
-msgid "Size %"
-msgstr "Taille %"
-
-#: crates/leyline-studio/ui/panels/develop.slint:2896
-msgctxt "DevelopPanel"
-msgid "Flow %"
-msgstr "Débit %"
-
-#: crates/leyline-studio/ui/panels/develop.slint:2922
-msgctxt "DevelopPanel"
-msgid "Hardness %"
-msgstr "Dureté %"
-
-#: crates/leyline-studio/ui/panels/develop.slint:2956
-msgctxt "DevelopPanel"
-msgid "Opacity"
-msgstr "Opacité"
-
-#: crates/leyline-studio/ui/panels/develop.slint:2980
-msgctxt "DevelopPanel"
-msgid "Outside the ellipse"
-msgstr "À l'extérieur de l'ellipse"
-
-#: crates/leyline-studio/ui/panels/develop.slint:2980
-msgctxt "DevelopPanel"
-msgid "Inside the ellipse"
-msgstr "À l'intérieur de l'ellipse"
-
-#: crates/leyline-studio/ui/panels/develop.slint:3112
-msgctxt "DevelopPanel"
-msgid "Sharpness"
-msgstr "Netteté"
-
-#: crates/leyline-studio/ui/panels/develop.slint:3124
-msgctxt "DevelopPanel"
-msgid "Luminance noise"
-msgstr "Bruit de luminance"
-
-#: crates/leyline-studio/ui/panels/develop.slint:3136
-msgctxt "DevelopPanel"
-msgid "Color noise"
-msgstr "Bruit de couleur"
-
-#: crates/leyline-studio/ui/panels/develop.slint:3149
-msgctxt "DevelopPanel"
-msgid "Defringe purple"
-msgstr "Défrangeage violet"
-
-#: crates/leyline-studio/ui/panels/develop.slint:3163
-msgctxt "DevelopPanel"
-msgid "Defringe green"
-msgstr "Défrangeage vert"
-
-#: crates/leyline-studio/ui/panels/develop.slint:3176
-msgctxt "DevelopPanel"
-msgid "Local white balance"
-msgstr "Balance des blancs locale"
-
-#: crates/leyline-studio/ui/panels/develop.slint:3210
-msgctxt "DevelopPanel"
-msgid "Luminance range"
-msgstr "Plage de luminance"
-
-#: crates/leyline-studio/ui/panels/develop.slint:3228
-msgctxt "DevelopPanel"
-msgid "Range from"
-msgstr "Plage à partir de"
-
-#: crates/leyline-studio/ui/panels/develop.slint:3240
-msgctxt "DevelopPanel"
-msgid "Range to"
-msgstr "Plage jusqu'à"
-
-#: crates/leyline-studio/ui/panels/develop.slint:3252
-msgctxt "DevelopPanel"
-msgid "Range softness"
-msgstr "Douceur de la plage"
-
-#: crates/leyline-studio/ui/panels/develop.slint:3264
-msgctxt "DevelopPanel"
-msgid "Color range"
-msgstr "Plage de couleur"
-
-#: crates/leyline-studio/ui/panels/develop.slint:3290
-msgctxt "DevelopPanel"
-msgid "Hue width"
-msgstr "Largeur de teinte"
-
-#: crates/leyline-studio/ui/panels/develop.slint:3302
-msgctxt "DevelopPanel"
-msgid "Hue softness"
-msgstr "Douceur de teinte"
-
 #: crates/leyline-studio/ui/panels/develop.slint:3317
 msgctxt "DevelopPanel"
 msgid "Soft Proof"
 msgstr "Épreuvage écran"
-
-#: crates/leyline-studio/ui/panels/develop.slint:3326
-msgctxt "DevelopPanel"
-msgid ""
-"Shows the photo as a destination profile would reproduce it. Never stored, "
-"never exported."
-msgstr "Montre la photo telle qu'un profil de destination la reproduirait. Jamais enregistré, jamais exporté."
-
-#: crates/leyline-studio/ui/panels/develop.slint:3333
-msgctxt "DevelopPanel"
-msgid "No proof — the real render"
-msgstr "Aucune épreuve — le rendu réel"
-
-#: crates/leyline-studio/ui/panels/develop.slint:3343
-msgctxt "DevelopPanel"
-msgid "Choose .icc…"
-msgstr "Choisir un .icc…"
-
-#: crates/leyline-studio/ui/panels/develop.slint:3350
-msgctxt "DevelopPanel"
-msgid "Stop proofing"
-msgstr "Arrêter l'épreuvage"
-
-#: crates/leyline-studio/ui/panels/develop.slint:3361
-msgctxt "DevelopPanel"
-msgid "Perceptual"
-msgstr "Perceptuel"
-
-#: crates/leyline-studio/ui/panels/develop.slint:3368
-msgctxt "DevelopPanel"
-msgid "Relative"
-msgstr "Relatif"
-
-#: crates/leyline-studio/ui/panels/develop.slint:3382
-msgctxt "DevelopPanel"
-msgid "Absolute"
-msgstr "Absolu"
-
-#: crates/leyline-studio/ui/panels/develop.slint:3390
-msgctxt "DevelopPanel"
-msgid "Flag out-of-gamut colors"
-msgstr "Signaler les couleurs hors gamut"
 
 #: crates/leyline-studio/ui/panels/develop.slint:3399
 msgctxt "DevelopPanel"
@@ -2417,55 +1811,6 @@ msgstr "Géométrie"
 msgctxt "DevelopPanel"
 msgid "Rotation"
 msgstr "Rotation"
-
-#: crates/leyline-studio/ui/panels/develop.slint:3424
-msgctxt "DevelopPanel"
-msgid "Vertical perspective"
-msgstr "Perspective verticale"
-
-#: crates/leyline-studio/ui/panels/develop.slint:3436
-msgctxt "DevelopPanel"
-msgid "Horizontal perspective"
-msgstr "Perspective horizontale"
-
-#: crates/leyline-studio/ui/panels/develop.slint:3452
-msgctxt "DevelopPanel"
-msgid "{} guides"
-msgstr "{} lignes"
-
-#: crates/leyline-studio/ui/panels/develop.slint:3458
-msgctxt "DevelopPanel"
-msgid "Straighten"
-msgstr "Redresser"
-
-#: crates/leyline-studio/ui/panels/develop.slint:3475
-msgctxt "DevelopPanel"
-msgid ""
-"Pick Keystone in the header above, then drag along two or more edges that "
-"ought "
-"to be vertical or horizontal. Each line's own slope says which it is, and "
-"nothing is detected: the drawing is the whole input."
-msgstr "Choisissez Lignes directrices dans l'en-tête ci-dessus, puis tracez le long d'au moins deux arêtes qui devraient être verticales ou horizontales. La pente de chaque ligne dit laquelle des deux elle est, et rien n'est détecté : le tracé est la totalité de l'entrée."
-
-#: crates/leyline-studio/ui/panels/develop.slint:3482
-msgctxt "DevelopPanel"
-msgid "Crop left"
-msgstr "Recadrage gauche"
-
-#: crates/leyline-studio/ui/panels/develop.slint:3494
-msgctxt "DevelopPanel"
-msgid "Crop top"
-msgstr "Recadrage haut"
-
-#: crates/leyline-studio/ui/panels/develop.slint:3506
-msgctxt "DevelopPanel"
-msgid "Crop width"
-msgstr "Largeur du recadrage"
-
-#: crates/leyline-studio/ui/panels/develop.slint:3518
-msgctxt "DevelopPanel"
-msgid "Crop height"
-msgstr "Hauteur du recadrage"
 
 #: crates/leyline-studio/ui/panels/develop.slint:3532
 msgctxt "DevelopPanel"
@@ -3542,11 +2887,6 @@ msgctxt "DevelopPanel"
 msgid "Target"
 msgstr "Cible"
 
-#: crates/leyline-studio/ui/panels/develop.slint:397
-msgctxt "DevelopPanel"
-msgid "White balance: click a neutral grey in the photograph"
-msgstr "Balance des blancs : cliquez un gris neutre sur la photo"
-
 #: crates/leyline-studio/ui/panels/develop.slint:1391 crates/leyline-studio/ui/panels/develop.slint:1394
 msgctxt "DevelopPanel"
 msgid "Show crushed shadows    J"
@@ -3556,17 +2896,6 @@ msgstr "Afficher les ombres bouchées    J"
 msgctxt "DevelopPanel"
 msgid "Show clipped highlights    J"
 msgstr "Afficher les hautes lumières écrêtées    J"
-
-#. picker, for the same gesture.
-#: crates/leyline-studio/ui/panels/develop.slint:3466
-msgctxt "DevelopPanel"
-msgid "Take the brightness range from the photograph"
-msgstr "Prendre la plage de luminosité sur la photo"
-
-#: crates/leyline-studio/ui/panels/develop.slint:3517
-msgctxt "DevelopPanel"
-msgid "Take the colour range from the photograph"
-msgstr "Prendre la plage de couleur sur la photo"
 
 #: crates/leyline-studio/ui/panels/menubar.slint:49
 msgctxt "MenuBar"
@@ -3790,174 +3119,6 @@ msgctxt "SettingsGroupChips"
 msgid "Local adjustments"
 msgstr "Retouches locales"
 
-msgctxt "DevelopPanel"
-msgid "Warms or cools the photograph. Higher values look warmer — the reverse of the physical scale."
-msgstr "Réchauffe ou refroidit la photo. Plus la valeur monte, plus c'est chaud — l'inverse de l'échelle physique."
-
-msgctxt "DevelopPanel"
-msgid "The green–magenta axis: the half of a white balance that temperature alone cannot reach."
-msgstr "L'axe vert–magenta : la moitié d'une balance des blancs que la température seule n'atteint pas."
-
-msgctxt "DevelopPanel"
-msgid "Bends the bright tones below the clipping point. Whites sets the point itself."
-msgstr "Infléchit les tons clairs sous le point d'écrêtage. Blancs règle le point lui-même."
-
-msgctxt "DevelopPanel"
-msgid "Lifts or lowers the dark tones above the black point. Blacks sets the point itself."
-msgstr "Relève ou abaisse les tons sombres au-dessus du point noir. Noirs règle le point lui-même."
-
-msgctxt "DevelopPanel"
-msgid "Where the brightest tones clip. Highlights bends what is below that point; this sets the point."
-msgstr "Où les tons les plus clairs s'écrêtent. Hautes lumières infléchit ce qui est en dessous ; ceci règle le point."
-
-msgctxt "DevelopPanel"
-msgid "Where the darkest tones clip. Shadows lifts what is above that point; this sets the point."
-msgstr "Où les tons les plus sombres s'écrêtent. Ombres relève ce qui est au-dessus ; ceci règle le point."
-
-msgctxt "DevelopPanel"
-msgid "Contrast over fine detail: skin, bark, fabric. Unlike sharpening, it leaves edges alone."
-msgstr "Contraste sur le détail fin : peau, écorce, tissu. Contrairement à l'accentuation, il laisse les contours."
-
-msgctxt "DevelopPanel"
-msgid "Contrast over broad shapes. Coarser than Texture, gentler than Dehaze."
-msgstr "Contraste sur les formes larges. Plus grossier que Texture, plus doux que Voile."
-
-msgctxt "DevelopPanel"
-msgid "Pulls contrast back into flat, veiled light. A contrast tool, not a weather one."
-msgstr "Ramène du contraste dans une lumière plate et voilée. Un outil de contraste, pas de météo."
-
-msgctxt "DevelopPanel"
-msgid "Cuts the clipped channels off at white. Fastest, and what a photograph without blown highlights wants."
-msgstr "Coupe les canaux saturés au blanc. Le plus rapide, et ce que veut une photo sans hautes lumières brûlées."
-
-msgctxt "DevelopPanel"
-msgid "Fills a clipped channel from the ones that did not clip, keeping the colour plausible."
-msgstr "Remplit un canal saturé à partir de ceux qui ne le sont pas, en gardant une couleur plausible."
-
-msgctxt "DevelopPanel"
-msgid "Reconstructs clipped detail from neighbouring pixels. Slowest, for a badly blown sky."
-msgstr "Reconstruit le détail saturé à partir des pixels voisins. Le plus lent, pour un ciel très brûlé."
-
-msgctxt "DevelopPanel"
-msgid "Adaptive Homogeneity-Directed. The default: good detail, few zips along diagonal edges."
-msgstr "Adaptive Homogeneity-Directed. Le défaut : bon détail, peu d'escaliers sur les diagonales."
-
-msgctxt "DevelopPanel"
-msgid "Variable Number of Gradients. Softer, and steadier on very noisy files."
-msgstr "Variable Number of Gradients. Plus doux, et plus stable sur un fichier très bruité."
-
-msgctxt "DevelopPanel"
-msgid "A refined interpolation: more detail than AHD, and slower."
-msgstr "Une interpolation affinée : plus de détail qu'AHD, et plus lente."
-
-msgctxt "DevelopPanel"
-msgid "Directional, for fine repeating texture — fabric, brickwork — where others produce maze artefacts."
-msgstr "Directionnel, pour une texture fine répétée — tissu, brique — où les autres font des labyrinthes."
-
-msgctxt "DevelopPanel"
-msgid "Saturates the muted colours and spares the vivid ones. Saturation moves them all equally."
-msgstr "Sature les couleurs ternes et épargne les vives. Saturation les déplace toutes pareil."
-
-msgctxt "DevelopPanel"
-msgid "How gently the brightest tones reach white. Higher keeps a bright sky a sky instead of a white shape."
-msgstr "Avec quelle douceur les tons les plus clairs atteignent le blanc. Plus haut, un ciel reste un ciel."
-
-msgctxt "DevelopPanel"
-msgid "Manual correction of colour fringing on the red–cyan axis, for a lens no profile fits."
-msgstr "Correction manuelle des franges colorées sur l'axe rouge–cyan, pour un objectif sans profil."
-
-msgctxt "DevelopPanel"
-msgid "Manual correction of colour fringing on the blue–yellow axis, for a lens no profile fits."
-msgstr "Correction manuelle des franges colorées sur l'axe bleu–jaune, pour un objectif sans profil."
-
-msgctxt "DevelopPanel"
-msgid "Removes purple fringes along high-contrast edges."
-msgstr "Enlève les franges violettes le long des contours très contrastés."
-
-msgctxt "DevelopPanel"
-msgid "Removes green fringes along high-contrast edges."
-msgstr "Enlève les franges vertes le long des contours très contrastés."
-
-msgctxt "DevelopPanel"
-msgid "Noise reduction on brightness — the grain. Too much turns detail into plastic."
-msgstr "Débruitage de la luminosité — le grain. Trop, et le détail devient plastique."
-
-msgctxt "DevelopPanel"
-msgid "Noise reduction on colour — the coloured speckle. Costs far less detail than luminance does."
-msgstr "Débruitage de la couleur — les taches colorées. Coûte bien moins de détail que la luminance."
-
-msgctxt "DevelopPanel"
-msgid "How wide an edge the sharpening works on. Small for fine detail, larger for a soft image."
-msgstr "Sur quelle largeur de contour l'accentuation agit. Petit pour le détail fin, large pour une image molle."
-
-msgctxt "DevelopPanel"
-msgid "Keeps the sharpening on the edges and off the flat areas, so a sky stays smooth."
-msgstr "Garde l'accentuation sur les contours et hors des aplats, pour qu'un ciel reste lisse."
-
-msgctxt "DevelopPanel"
-msgid "How far from the centre the vignette begins."
-msgstr "À quelle distance du centre le vignettage commence."
-
-msgctxt "DevelopPanel"
-msgid "Whether the vignette follows a circle or the shape of the frame."
-msgstr "Si le vignettage suit un cercle ou la forme du cadre."
-
-msgctxt "DevelopPanel"
-msgid "How gradually the vignette fades in."
-msgstr "Avec quelle progressivité le vignettage s'installe."
-
-msgctxt "DevelopPanel"
-msgid "How uneven the grain is. Higher reads as faster film."
-msgstr "À quel point le grain est irrégulier. Plus haut, cela se lit comme un film plus rapide."
-
-msgctxt "DevelopPanel"
-msgid "How coloured the grain is. Zero is a monochrome speckle."
-msgstr "À quel point le grain est coloré. Zéro donne une granulation monochrome."
-
-msgctxt "DevelopPanel"
-msgid "Which zones the three wheels reach: towards the shadows, or towards the highlights."
-msgstr "Quelles zones les trois roues atteignent : vers les ombres, ou vers les hautes lumières."
-
-msgctxt "DevelopPanel"
-msgid "How much the three zones overlap. Low keeps them apart, high blends them into one another."
-msgstr "À quel point les trois zones se recouvrent. Bas les sépare, haut les fond l'une dans l'autre."
-
-msgctxt "DevelopPanel"
-msgid "How gradually the mask fades at its edge."
-msgstr "Avec quelle progressivité le masque s'estompe sur son bord."
-
-msgctxt "DevelopPanel"
-msgid "Sharpening, inside the mask only."
-msgstr "Accentuation, à l'intérieur du masque seulement."
-
-msgctxt "DevelopPanel"
-msgid "The mask acts only on tones brighter than this."
-msgstr "Le masque n'agit que sur les tons plus clairs que ceci."
-
-msgctxt "DevelopPanel"
-msgid "The mask acts only on tones darker than this."
-msgstr "Le masque n'agit que sur les tons plus sombres que ceci."
-
-msgctxt "DevelopPanel"
-msgid "How gradually the mask fades outside that band of brightness."
-msgstr "Avec quelle progressivité le masque s'estompe hors de cette plage de luminosité."
-
-msgctxt "DevelopPanel"
-msgid "How far either side of the chosen hue the mask reaches."
-msgstr "Jusqu'où de part et d'autre de la teinte choisie le masque s'étend."
-
-msgctxt "DevelopPanel"
-msgid "How gradually the mask fades outside that band of hues."
-msgstr "Avec quelle progressivité le masque s'estompe hors de cette plage de teintes."
-
-msgctxt "DevelopPanel"
-msgid "Straightens converging verticals — a building that leans away."
-msgstr "Redresse les verticales convergentes — un bâtiment qui bascule en arrière."
-
-msgctxt "DevelopPanel"
-msgid "Straightens converging horizontals — a wall taken from an angle."
-msgstr "Redresse les horizontales convergentes — un mur pris de biais."
-
 msgctxt "RenameKeywordDialog"
 msgid "Rename keyword"
 msgstr "Renommer le mot-clé"
@@ -4032,106 +3193,10 @@ msgctxt "DevelopPanel"
 msgid "Grid    O"
 msgstr "Grille    O"
 
-msgctxt "DevelopPanel"
-msgid "Point"
-msgstr "Points"
-
-msgctxt "DevelopPanel"
-msgid "Region"
-msgstr "Régions"
-
-msgctxt "DevelopPanel"
-msgid "Drag the three markers to say where each region begins."
-msgstr "Tirez les trois repères pour dire où commence chaque région."
-
-msgctxt "DevelopPanel"
-msgid "Lights"
-msgstr "Clairs"
-
-msgctxt "DevelopPanel"
-msgid "Darks"
-msgstr "Sombres"
-
-msgctxt "DevelopPanel"
-msgid "Lifts the brightest region, between the last marker and white."
-msgstr "Relève la région la plus claire, entre le dernier repère et le blanc."
-
-msgctxt "DevelopPanel"
-msgid "Lifts the region between the second and third markers."
-msgstr "Relève la région entre le deuxième et le troisième repère."
-
-msgctxt "DevelopPanel"
-msgid "Lifts the region between the first and second markers."
-msgstr "Relève la région entre le premier et le deuxième repère."
-
-msgctxt "DevelopPanel"
-msgid "Lifts the darkest region, between black and the first marker."
-msgstr "Relève la région la plus sombre, entre le noir et le premier repère."
-
-#: crates/leyline-studio/ui/panels/develop.slint
-msgctxt "DevelopPanel"
-msgid "Roll-off"
-msgstr "Récupération"
-
-#: crates/leyline-studio/ui/panels/develop.slint
-msgctxt "DevelopPanel"
-msgid "Noise reduction"
-msgstr "Réduction du bruit"
-
-#: crates/leyline-studio/ui/panels/develop.slint
-msgctxt "DevelopPanel"
-msgid "Sharpening"
-msgstr "Netteté"
-
-#: crates/leyline-studio/ui/panels/develop.slint
-msgctxt "DevelopPanel"
-msgid "Radius"
-msgstr "Rayon"
-
-#: crates/leyline-studio/ui/panels/develop.slint
-msgctxt "DevelopPanel"
-msgid "Masking"
-msgstr "Masquage"
-
-#: crates/leyline-studio/ui/panels/develop.slint
-msgctxt "DevelopPanel"
-msgid "Defringe"
-msgstr "Défrangeage"
-
-#: crates/leyline-studio/ui/panels/develop.slint
-msgctxt "DevelopPanel"
-msgid "From"
-msgstr "À partir de"
-
-#: crates/leyline-studio/ui/panels/develop.slint
-msgctxt "DevelopPanel"
-msgid "To"
-msgstr "Jusqu'à"
-
-#: crates/leyline-studio/ui/panels/develop.slint
-msgctxt "DevelopPanel"
-msgid "Softness"
-msgstr "Douceur"
-
 #: crates/leyline-studio/ui/panels/develop.slint
 msgctxt "DevelopPanel"
 msgid "Width"
 msgstr "Largeur"
-
-#: crates/leyline-studio/ui/panels/develop.slint
-msgctxt "DevelopPanel"
-msgid "Perspective"
-msgstr "Perspective"
-
-#: crates/leyline-studio/ui/panels/develop.slint
-msgctxt "DevelopPanel"
-msgid "Vertical"
-msgstr "Verticale"
-
-#: crates/leyline-studio/ui/panels/develop.slint
-msgctxt "DevelopPanel"
-msgid "Horizontal"
-msgstr "Horizontale"
 
 #: crates/leyline-studio/ui/panels/develop.slint
 msgctxt "DevelopPanel"
@@ -4576,16 +3641,6 @@ msgctxt "Tr"
 msgid "Z–A"
 msgstr "Z–A"
 
-#: crates/leyline-studio/ui/panels/develop.slint:558
-msgctxt "DevelopPanel"
-msgid "Undo (Ctrl+Z)"
-msgstr "Annuler (Ctrl+Z)"
-
-#: crates/leyline-studio/ui/panels/develop.slint:567
-msgctxt "DevelopPanel"
-msgid "Redo (Ctrl+Y)"
-msgstr "Rétablir (Ctrl+Y)"
-
 msgctxt "MenuBar"
 msgid "Theme: dark. Click for light."
 msgstr "Thème : sombre. Cliquer pour le clair."
@@ -5011,57 +4066,9 @@ msgctxt "DevelopPanel"
 msgid "Levels"
 msgstr "Niveaux"
 
-msgctxt "DevelopPanel"
-msgid "Black point"
-msgstr "Point noir"
-
-msgctxt "DevelopPanel"
-msgid "Input level that becomes the output black."
-msgstr "Niveau d'entrée qui devient le noir de sortie."
-
-msgctxt "DevelopPanel"
-msgid "Gamma"
-msgstr "Gamma"
-
-msgctxt "DevelopPanel"
-msgid "Midtones: above 1 brightens, below 1 darkens."
-msgstr "Tons moyens : au-dessus de 1 éclaircit, en dessous assombrit."
-
-msgctxt "DevelopPanel"
-msgid "White point"
-msgstr "Point blanc"
-
-msgctxt "DevelopPanel"
-msgid "Input level that becomes the output white."
-msgstr "Niveau d'entrée qui devient le blanc de sortie."
-
-msgctxt "DevelopPanel"
-msgid "Output black"
-msgstr "Noir de sortie"
-
-msgctxt "DevelopPanel"
-msgid "The darkest level the photograph keeps."
-msgstr "Le niveau le plus sombre que garde la photo."
-
-msgctxt "DevelopPanel"
-msgid "Output white"
-msgstr "Blanc de sortie"
-
-msgctxt "DevelopPanel"
-msgid "The brightest level the photograph keeps."
-msgstr "Le niveau le plus clair que garde la photo."
-
 msgctxt "Tr"
 msgid "Levels"
 msgstr "Niveaux"
-
-msgctxt "DevelopPanel"
-msgid "Moiré"
-msgstr "Moiré"
-
-msgctxt "DevelopPanel"
-msgid "Removes false colour bands over fine patterns such as fabric or screens. Stripes stay."
-msgstr "Retire les fausses bandes de couleur des motifs fins, tissus ou écrans. Les rayures restent."
 
 msgctxt "Tr"
 msgid "Moiré"
@@ -5072,3 +4079,1002 @@ msgstr "Moiré"
 msgctxt "Zoom"
 msgid "{}%"
 msgstr "{} %"
+
+msgctxt "BasicGroup"
+msgid "White balance: click a neutral grey in the photograph"
+msgstr "Balance des blancs : cliquez un gris neutre sur la photo"
+
+msgctxt "BasicGroup"
+msgid "As Shot"
+msgstr "Telle quelle"
+
+msgctxt "BasicGroup"
+msgid "Auto WB"
+msgstr "BdB auto"
+
+msgctxt "BasicGroup"
+msgid "Daylight"
+msgstr "Ensoleillé"
+
+msgctxt "BasicGroup"
+msgid "Cloudy"
+msgstr "Nuageux"
+
+msgctxt "BasicGroup"
+msgid "Shade"
+msgstr "Ombre"
+
+msgctxt "BasicGroup"
+msgid "Tungsten"
+msgstr "Tungstène"
+
+msgctxt "BasicGroup"
+msgid "Fluorescent"
+msgstr "Fluorescent"
+
+msgctxt "BasicGroup"
+msgid "Flash"
+msgstr "Flash"
+
+msgctxt "BasicGroup"
+msgid "Temperature"
+msgstr "Température"
+
+msgctxt "BasicGroup"
+msgid "Warms or cools the photograph. Higher values look warmer — the reverse of the physical scale."
+msgstr "Réchauffe ou refroidit la photo. Plus la valeur monte, plus c'est chaud — l'inverse de l'échelle physique."
+
+msgctxt "BasicGroup"
+msgid "Tint"
+msgstr "Teinte"
+
+msgctxt "BasicGroup"
+msgid "The green–magenta axis: the half of a white balance that temperature alone cannot reach."
+msgstr "L'axe vert–magenta : la moitié d'une balance des blancs que la température seule n'atteint pas."
+
+msgctxt "BasicGroup"
+msgid "Tone"
+msgstr "Tonalité"
+
+msgctxt "BasicGroup"
+msgid "Exposure"
+msgstr "Exposition"
+
+msgctxt "BasicGroup"
+msgid "Contrast"
+msgstr "Contraste"
+
+msgctxt "BasicGroup"
+msgid "Highlights"
+msgstr "Hautes lumières"
+
+msgctxt "BasicGroup"
+msgid "Bends the bright tones below the clipping point. Whites sets the point itself."
+msgstr "Infléchit les tons clairs sous le point d'écrêtage. Blancs règle le point lui-même."
+
+msgctxt "BasicGroup"
+msgid "Shadows"
+msgstr "Ombres"
+
+msgctxt "BasicGroup"
+msgid "Lifts or lowers the dark tones above the black point. Blacks sets the point itself."
+msgstr "Relève ou abaisse les tons sombres au-dessus du point noir. Noirs règle le point lui-même."
+
+msgctxt "BasicGroup"
+msgid "Whites"
+msgstr "Blancs"
+
+msgctxt "BasicGroup"
+msgid "Where the brightest tones clip. Highlights bends what is below that point; this sets the point."
+msgstr "Où les tons les plus clairs s'écrêtent. Hautes lumières infléchit ce qui est en dessous ; ceci règle le point."
+
+msgctxt "BasicGroup"
+msgid "Blacks"
+msgstr "Noirs"
+
+msgctxt "BasicGroup"
+msgid "Where the darkest tones clip. Shadows lifts what is above that point; this sets the point."
+msgstr "Où les tons les plus sombres s'écrêtent. Ombres relève ce qui est au-dessus ; ceci règle le point."
+
+msgctxt "BasicGroup"
+msgid "Presence"
+msgstr "Présence"
+
+msgctxt "BasicGroup"
+msgid "Texture"
+msgstr "Texture"
+
+msgctxt "BasicGroup"
+msgid "Contrast over fine detail: skin, bark, fabric. Unlike sharpening, it leaves edges alone."
+msgstr "Contraste sur le détail fin : peau, écorce, tissu. Contrairement à l'accentuation, il laisse les contours."
+
+msgctxt "BasicGroup"
+msgid "Clarity"
+msgstr "Clarté"
+
+msgctxt "BasicGroup"
+msgid "Contrast over broad shapes. Coarser than Texture, gentler than Dehaze."
+msgstr "Contraste sur les formes larges. Plus grossier que Texture, plus doux que Voile."
+
+msgctxt "BasicGroup"
+msgid "Dehaze"
+msgstr "Voile"
+
+msgctxt "BasicGroup"
+msgid "Pulls contrast back into flat, veiled light. A contrast tool, not a weather one."
+msgstr "Ramène du contraste dans une lumière plate et voilée. Un outil de contraste, pas de météo."
+
+msgctxt "BasicGroup"
+msgid "Vibrance"
+msgstr "Vibrance"
+
+msgctxt "BasicGroup"
+msgid "Saturates the muted colours and spares the vivid ones. Saturation moves them all equally."
+msgstr "Sature les couleurs ternes et épargne les vives. Saturation les déplace toutes pareil."
+
+msgctxt "BasicGroup"
+msgid "Saturation"
+msgstr "Saturation"
+
+msgctxt "BasicGroup"
+msgid "Rendering"
+msgstr "Rendu du fichier"
+
+msgctxt "BasicGroup"
+msgid "Clipped highlights"
+msgstr "Hautes lumières écrêtées"
+
+msgctxt "BasicGroup"
+msgid "Clip"
+msgstr "Écrêter"
+
+msgctxt "BasicGroup"
+msgid "Cuts the clipped channels off at white. Fastest, and what a photograph without blown highlights wants."
+msgstr "Coupe les canaux saturés au blanc. Le plus rapide, et ce que veut une photo sans hautes lumières brûlées."
+
+msgctxt "BasicGroup"
+msgid "Blend"
+msgstr "Mélanger"
+
+msgctxt "BasicGroup"
+msgid "Fills a clipped channel from the ones that did not clip, keeping the colour plausible."
+msgstr "Remplit un canal saturé à partir de ceux qui ne le sont pas, en gardant une couleur plausible."
+
+msgctxt "BasicGroup"
+msgid "Rebuild"
+msgstr "Reconstruire"
+
+msgctxt "BasicGroup"
+msgid "Reconstructs clipped detail from neighbouring pixels. Slowest, for a badly blown sky."
+msgstr "Reconstruit le détail saturé à partir des pixels voisins. Le plus lent, pour un ciel très brûlé."
+
+msgctxt "BasicGroup"
+msgid "Demosaic"
+msgstr "Dématriçage"
+
+msgctxt "BasicGroup"
+msgid "AHD"
+msgstr "AHD"
+
+msgctxt "BasicGroup"
+msgid "Adaptive Homogeneity-Directed. The default: good detail, few zips along diagonal edges."
+msgstr "Adaptive Homogeneity-Directed. Le défaut : bon détail, peu d'escaliers sur les diagonales."
+
+msgctxt "BasicGroup"
+msgid "VNG"
+msgstr "VNG"
+
+msgctxt "BasicGroup"
+msgid "Variable Number of Gradients. Softer, and steadier on very noisy files."
+msgstr "Variable Number of Gradients. Plus doux, et plus stable sur un fichier très bruité."
+
+msgctxt "BasicGroup"
+msgid "DCB"
+msgstr "DCB"
+
+msgctxt "BasicGroup"
+msgid "A refined interpolation: more detail than AHD, and slower."
+msgstr "Une interpolation affinée : plus de détail qu'AHD, et plus lente."
+
+msgctxt "BasicGroup"
+msgid "DHT"
+msgstr "DHT"
+
+msgctxt "BasicGroup"
+msgid "Directional, for fine repeating texture — fabric, brickwork — where others produce maze artefacts."
+msgstr "Directionnel, pour une texture fine répétée — tissu, brique — où les autres font des labyrinthes."
+
+msgctxt "BasicGroup"
+msgid ""
+"Visible at full size and on export only — small previews skip interpolation."
+msgstr "Visible seulement à pleine taille et à l'export — les petits aperçus ne passent pas par l'interpolation."
+
+msgctxt "BasicGroup"
+msgid "Roll-off"
+msgstr "Récupération"
+
+msgctxt "BasicGroup"
+msgid "How gently the brightest tones reach white. Higher keeps a bright sky a sky instead of a white shape."
+msgstr "Avec quelle douceur les tons les plus clairs atteignent le blanc. Plus haut, un ciel reste un ciel."
+
+msgctxt "ToneCurveGroup"
+msgid "Point"
+msgstr "Points"
+
+msgctxt "ToneCurveGroup"
+msgid "Region"
+msgstr "Régions"
+
+msgctxt "ToneCurveGroup"
+msgid "Master"
+msgstr "Maîtresse"
+
+msgctxt "ToneCurveGroup"
+msgid "Red"
+msgstr "Rouge"
+
+msgctxt "ToneCurveGroup"
+msgid "Green"
+msgstr "Vert"
+
+msgctxt "ToneCurveGroup"
+msgid "Blue"
+msgstr "Bleu"
+
+msgctxt "ToneCurveGroup"
+msgid "Click to add a point, click a point to remove it."
+msgstr "Cliquez pour ajouter un point, cliquez sur un point pour le retirer."
+
+msgctxt "ToneCurveGroup"
+msgid "Drag the three markers to say where each region begins."
+msgstr "Tirez les trois repères pour dire où commence chaque région."
+
+msgctxt "ToneCurveGroup"
+msgid "Highlights"
+msgstr "Hautes lumières"
+
+msgctxt "ToneCurveGroup"
+msgid "Lifts the brightest region, between the last marker and white."
+msgstr "Relève la région la plus claire, entre le dernier repère et le blanc."
+
+msgctxt "ToneCurveGroup"
+msgid "Lights"
+msgstr "Clairs"
+
+msgctxt "ToneCurveGroup"
+msgid "Lifts the region between the second and third markers."
+msgstr "Relève la région entre le deuxième et le troisième repère."
+
+msgctxt "ToneCurveGroup"
+msgid "Darks"
+msgstr "Sombres"
+
+msgctxt "ToneCurveGroup"
+msgid "Lifts the region between the first and second markers."
+msgstr "Relève la région entre le premier et le deuxième repère."
+
+msgctxt "ToneCurveGroup"
+msgid "Shadows"
+msgstr "Ombres"
+
+msgctxt "ToneCurveGroup"
+msgid "Lifts the darkest region, between black and the first marker."
+msgstr "Relève la région la plus sombre, entre le noir et le premier repère."
+
+msgctxt "ToneCurveGroup"
+msgid "Reset Curve"
+msgstr "Réinitialiser la courbe"
+
+msgctxt "LevelsGroup"
+msgid "Black point"
+msgstr "Point noir"
+
+msgctxt "LevelsGroup"
+msgid "Input level that becomes the output black."
+msgstr "Niveau d'entrée qui devient le noir de sortie."
+
+msgctxt "LevelsGroup"
+msgid "Gamma"
+msgstr "Gamma"
+
+msgctxt "LevelsGroup"
+msgid "Midtones: above 1 brightens, below 1 darkens."
+msgstr "Tons moyens : au-dessus de 1 éclaircit, en dessous assombrit."
+
+msgctxt "LevelsGroup"
+msgid "White point"
+msgstr "Point blanc"
+
+msgctxt "LevelsGroup"
+msgid "Input level that becomes the output white."
+msgstr "Niveau d'entrée qui devient le blanc de sortie."
+
+msgctxt "LevelsGroup"
+msgid "Output black"
+msgstr "Noir de sortie"
+
+msgctxt "LevelsGroup"
+msgid "The darkest level the photograph keeps."
+msgstr "Le niveau le plus sombre que garde la photo."
+
+msgctxt "LevelsGroup"
+msgid "Output white"
+msgstr "Blanc de sortie"
+
+msgctxt "LevelsGroup"
+msgid "The brightest level the photograph keeps."
+msgstr "Le niveau le plus clair que garde la photo."
+
+msgctxt "HslGroup"
+msgid "Hue"
+msgstr "Teinte"
+
+msgctxt "HslGroup"
+msgid "Saturation"
+msgstr "Saturation"
+
+msgctxt "HslGroup"
+msgid "Luminance"
+msgstr "Luminance"
+
+msgctxt "ColorGradingGroup"
+msgid "Shadows"
+msgstr "Ombres"
+
+msgctxt "ColorGradingGroup"
+msgid "Hue"
+msgstr "Teinte"
+
+msgctxt "ColorGradingGroup"
+msgid "Saturation"
+msgstr "Saturation"
+
+msgctxt "ColorGradingGroup"
+msgid "Luminance"
+msgstr "Luminance"
+
+msgctxt "ColorGradingGroup"
+msgid "Midtones"
+msgstr "Tons moyens"
+
+msgctxt "ColorGradingGroup"
+msgid "Highlights"
+msgstr "Hautes lumières"
+
+msgctxt "ColorGradingGroup"
+msgid "Balance"
+msgstr "Balance"
+
+msgctxt "ColorGradingGroup"
+msgid "Which zones the three wheels reach: towards the shadows, or towards the highlights."
+msgstr "Quelles zones les trois roues atteignent : vers les ombres, ou vers les hautes lumières."
+
+msgctxt "ColorGradingGroup"
+msgid "Blending"
+msgstr "Fusion"
+
+msgctxt "ColorGradingGroup"
+msgid "How much the three zones overlap. Low keeps them apart, high blends them into one another."
+msgstr "À quel point les trois zones se recouvrent. Bas les sépare, haut les fond l'une dans l'autre."
+
+msgctxt "LocalGroup"
+msgid ""
+"Pick Radial, Gradient or Brush above and draw on the photo. Click a row to "
+"edit it; drawing again moves the selected mask."
+msgstr "Choisissez Radial, Dégradé ou Pinceau ci-dessus et tracez sur la photo. Cliquez une ligne pour la modifier ; tracer de nouveau déplace le masque sélectionné."
+
+msgctxt "LocalGroup"
+msgid "Radial"
+msgstr "Radial"
+
+msgctxt "LocalGroup"
+msgid "Gradient"
+msgstr "Dégradé"
+
+msgctxt "LocalGroup"
+msgid "Brush"
+msgstr "Pinceau"
+
+msgctxt "LocalGroup"
+msgid "Whole image"
+msgstr "Image entière"
+
+#. §1) — nothing to trace, so a button.
+msgctxt "LocalGroup"
+msgid "Add whole-image mask"
+msgstr "Ajouter un masque sur toute l'image"
+
+#. in another program and comes in whole.
+msgctxt "LocalGroup"
+msgid "Add mask from file…"
+msgstr "Ajouter un masque depuis un fichier…"
+
+#. handles of its own.
+msgctxt "LocalGroup"
+msgid "Show mask"
+msgstr "Afficher le masque"
+
+msgctxt "LocalGroup"
+msgid "Size %"
+msgstr "Taille %"
+
+msgctxt "LocalGroup"
+msgid "Flow %"
+msgstr "Débit %"
+
+msgctxt "LocalGroup"
+msgid "Hardness %"
+msgstr "Dureté %"
+
+msgctxt "LocalGroup"
+msgid "Opacity"
+msgstr "Opacité"
+
+msgctxt "LocalGroup"
+msgid "Feather"
+msgstr "Contour"
+
+msgctxt "LocalGroup"
+msgid "How gradually the mask fades at its edge."
+msgstr "Avec quelle progressivité le masque s'estompe sur son bord."
+
+msgctxt "LocalGroup"
+msgid "Outside the ellipse"
+msgstr "À l'extérieur de l'ellipse"
+
+msgctxt "LocalGroup"
+msgid "Inside the ellipse"
+msgstr "À l'intérieur de l'ellipse"
+
+msgctxt "LocalGroup"
+msgid "Exposure"
+msgstr "Exposition"
+
+msgctxt "LocalGroup"
+msgid "Contrast"
+msgstr "Contraste"
+
+msgctxt "LocalGroup"
+msgid "Highlights"
+msgstr "Hautes lumières"
+
+msgctxt "LocalGroup"
+msgid "Bends the bright tones below the clipping point. Whites sets the point itself."
+msgstr "Infléchit les tons clairs sous le point d'écrêtage. Blancs règle le point lui-même."
+
+msgctxt "LocalGroup"
+msgid "Shadows"
+msgstr "Ombres"
+
+msgctxt "LocalGroup"
+msgid "Lifts or lowers the dark tones above the black point. Blacks sets the point itself."
+msgstr "Relève ou abaisse les tons sombres au-dessus du point noir. Noirs règle le point lui-même."
+
+msgctxt "LocalGroup"
+msgid "Whites"
+msgstr "Blancs"
+
+msgctxt "LocalGroup"
+msgid "Where the brightest tones clip. Highlights bends what is below that point; this sets the point."
+msgstr "Où les tons les plus clairs s'écrêtent. Hautes lumières infléchit ce qui est en dessous ; ceci règle le point."
+
+msgctxt "LocalGroup"
+msgid "Blacks"
+msgstr "Noirs"
+
+msgctxt "LocalGroup"
+msgid "Where the darkest tones clip. Shadows lifts what is above that point; this sets the point."
+msgstr "Où les tons les plus sombres s'écrêtent. Ombres relève ce qui est au-dessus ; ceci règle le point."
+
+msgctxt "LocalGroup"
+msgid "Vibrance"
+msgstr "Vibrance"
+
+msgctxt "LocalGroup"
+msgid "Saturates the muted colours and spares the vivid ones. Saturation moves them all equally."
+msgstr "Sature les couleurs ternes et épargne les vives. Saturation les déplace toutes pareil."
+
+msgctxt "LocalGroup"
+msgid "Saturation"
+msgstr "Saturation"
+
+msgctxt "LocalGroup"
+msgid "Clarity"
+msgstr "Clarté"
+
+msgctxt "LocalGroup"
+msgid "Contrast over broad shapes. Coarser than Texture, gentler than Dehaze."
+msgstr "Contraste sur les formes larges. Plus grossier que Texture, plus doux que Voile."
+
+msgctxt "LocalGroup"
+msgid "Texture"
+msgstr "Texture"
+
+msgctxt "LocalGroup"
+msgid "Contrast over fine detail: skin, bark, fabric. Unlike sharpening, it leaves edges alone."
+msgstr "Contraste sur le détail fin : peau, écorce, tissu. Contrairement à l'accentuation, il laisse les contours."
+
+msgctxt "LocalGroup"
+msgid "Sharpness"
+msgstr "Netteté"
+
+msgctxt "LocalGroup"
+msgid "Sharpening, inside the mask only."
+msgstr "Accentuation, à l'intérieur du masque seulement."
+
+msgctxt "LocalGroup"
+msgid "Noise reduction"
+msgstr "Réduction du bruit"
+
+msgctxt "LocalGroup"
+msgid "Luminance"
+msgstr "Luminance"
+
+msgctxt "LocalGroup"
+msgid "Noise reduction on brightness — the grain. Too much turns detail into plastic."
+msgstr "Débruitage de la luminosité — le grain. Trop, et le détail devient plastique."
+
+msgctxt "LocalGroup"
+msgid "Color"
+msgstr "Couleur"
+
+msgctxt "LocalGroup"
+msgid "Noise reduction on colour — the coloured speckle. Costs far less detail than luminance does."
+msgstr "Débruitage de la couleur — les taches colorées. Coûte bien moins de détail que la luminance."
+
+msgctxt "LocalGroup"
+msgid "Defringe"
+msgstr "Défrangeage"
+
+msgctxt "LocalGroup"
+msgid "Purple"
+msgstr "Violet"
+
+msgctxt "LocalGroup"
+msgid "Removes purple fringes along high-contrast edges."
+msgstr "Enlève les franges violettes le long des contours très contrastés."
+
+msgctxt "LocalGroup"
+msgid "Green"
+msgstr "Vert"
+
+msgctxt "LocalGroup"
+msgid "Removes green fringes along high-contrast edges."
+msgstr "Enlève les franges vertes le long des contours très contrastés."
+
+msgctxt "LocalGroup"
+msgid "Local white balance"
+msgstr "Balance des blancs locale"
+
+msgctxt "LocalGroup"
+msgid "Temperature"
+msgstr "Température"
+
+msgctxt "LocalGroup"
+msgid "Warms or cools the photograph. Higher values look warmer — the reverse of the physical scale."
+msgstr "Réchauffe ou refroidit la photo. Plus la valeur monte, plus c'est chaud — l'inverse de l'échelle physique."
+
+msgctxt "LocalGroup"
+msgid "Tint"
+msgstr "Teinte"
+
+msgctxt "LocalGroup"
+msgid "The green–magenta axis: the half of a white balance that temperature alone cannot reach."
+msgstr "L'axe vert–magenta : la moitié d'une balance des blancs que la température seule n'atteint pas."
+
+msgctxt "LocalGroup"
+msgid "Luminance range"
+msgstr "Plage de luminance"
+
+#. picker, for the same gesture.
+msgctxt "LocalGroup"
+msgid "Take the brightness range from the photograph"
+msgstr "Prendre la plage de luminosité sur la photo"
+
+msgctxt "LocalGroup"
+msgid "From"
+msgstr "À partir de"
+
+msgctxt "LocalGroup"
+msgid "The mask acts only on tones brighter than this."
+msgstr "Le masque n'agit que sur les tons plus clairs que ceci."
+
+msgctxt "LocalGroup"
+msgid "To"
+msgstr "Jusqu'à"
+
+msgctxt "LocalGroup"
+msgid "The mask acts only on tones darker than this."
+msgstr "Le masque n'agit que sur les tons plus sombres que ceci."
+
+msgctxt "LocalGroup"
+msgid "Softness"
+msgstr "Douceur"
+
+msgctxt "LocalGroup"
+msgid "How gradually the mask fades outside that band of brightness."
+msgstr "Avec quelle progressivité le masque s'estompe hors de cette plage de luminosité."
+
+msgctxt "LocalGroup"
+msgid "Color range"
+msgstr "Plage de couleur"
+
+msgctxt "LocalGroup"
+msgid "Take the colour range from the photograph"
+msgstr "Prendre la plage de couleur sur la photo"
+
+msgctxt "LocalGroup"
+msgid "Hue"
+msgstr "Teinte"
+
+msgctxt "LocalGroup"
+msgid "Width"
+msgstr "Largeur"
+
+msgctxt "LocalGroup"
+msgid "How far either side of the chosen hue the mask reaches."
+msgstr "Jusqu'où de part et d'autre de la teinte choisie le masque s'étend."
+
+msgctxt "LocalGroup"
+msgid "How gradually the mask fades outside that band of hues."
+msgstr "Avec quelle progressivité le masque s'estompe hors de cette plage de teintes."
+
+msgctxt "CameraProfileGroup"
+msgid "Experimental: colors are not yet validated against reference renders."
+msgstr "Expérimental : les couleurs ne sont pas encore validées contre des rendus de référence."
+
+msgctxt "CameraProfileGroup"
+msgid "Could not be read"
+msgstr "Illisible"
+
+msgctxt "CameraProfileGroup"
+msgid "Import .dcp…"
+msgstr "Importer un .dcp…"
+
+msgctxt "CameraProfileGroup"
+msgid "Enabled"
+msgstr "Activée"
+
+msgctxt "CameraProfileGroup"
+msgid "Disabled"
+msgstr "Désactivée"
+
+msgctxt "LutGroup"
+msgid "No LUT — Leyline's own color only"
+msgstr "Aucune LUT — les couleurs de Leyline seules"
+
+msgctxt "LutGroup"
+msgid "Choose .cube…"
+msgstr "Choisir un .cube…"
+
+msgctxt "LutGroup"
+msgid "Enabled"
+msgstr "Activée"
+
+msgctxt "LutGroup"
+msgid "Disabled"
+msgstr "Désactivée"
+
+msgctxt "LutGroup"
+msgid "Remove"
+msgstr "Retirer"
+
+msgctxt "LutGroup"
+msgid "Strength"
+msgstr "Intensité"
+
+msgctxt "LensGroup"
+msgid "Enabled"
+msgstr "Activée"
+
+msgctxt "LensGroup"
+msgid "Disabled"
+msgstr "Désactivée"
+
+msgctxt "LensGroup"
+msgid "Chromatic aberration (% of radius)"
+msgstr "Aberration chromatique (% du rayon)"
+
+msgctxt "LensGroup"
+msgid "Red / cyan"
+msgstr "Rouge / cyan"
+
+msgctxt "LensGroup"
+msgid "Manual correction of colour fringing on the red–cyan axis, for a lens no profile fits."
+msgstr "Correction manuelle des franges colorées sur l'axe rouge–cyan, pour un objectif sans profil."
+
+msgctxt "LensGroup"
+msgid "Blue / yellow"
+msgstr "Bleu / jaune"
+
+msgctxt "LensGroup"
+msgid "Manual correction of colour fringing on the blue–yellow axis, for a lens no profile fits."
+msgstr "Correction manuelle des franges colorées sur l'axe bleu–jaune, pour un objectif sans profil."
+
+msgctxt "LensGroup"
+msgid "Measure from this photo"
+msgstr "Mesurer sur cette photo"
+
+msgctxt "LensGroup"
+msgid "Defringe (colour halo at an edge)"
+msgstr "Défrangeage (halo coloré sur un contour)"
+
+msgctxt "LensGroup"
+msgid "Purple"
+msgstr "Violet"
+
+msgctxt "LensGroup"
+msgid "Removes purple fringes along high-contrast edges."
+msgstr "Enlève les franges violettes le long des contours très contrastés."
+
+msgctxt "LensGroup"
+msgid "Green"
+msgstr "Vert"
+
+msgctxt "LensGroup"
+msgid "Removes green fringes along high-contrast edges."
+msgstr "Enlève les franges vertes le long des contours très contrastés."
+
+msgctxt "DetailGroup"
+msgid "Noise reduction"
+msgstr "Réduction du bruit"
+
+msgctxt "DetailGroup"
+msgid "Luminance"
+msgstr "Luminance"
+
+msgctxt "DetailGroup"
+msgid "Noise reduction on brightness — the grain. Too much turns detail into plastic."
+msgstr "Débruitage de la luminosité — le grain. Trop, et le détail devient plastique."
+
+msgctxt "DetailGroup"
+msgid "Color"
+msgstr "Couleur"
+
+msgctxt "DetailGroup"
+msgid "Noise reduction on colour — the coloured speckle. Costs far less detail than luminance does."
+msgstr "Débruitage de la couleur — les taches colorées. Coûte bien moins de détail que la luminance."
+
+msgctxt "DetailGroup"
+msgid "Moiré"
+msgstr "Moiré"
+
+msgctxt "DetailGroup"
+msgid "Removes false colour bands over fine patterns such as fabric or screens. Stripes stay."
+msgstr "Retire les fausses bandes de couleur des motifs fins, tissus ou écrans. Les rayures restent."
+
+msgctxt "DetailGroup"
+msgid "Sharpening"
+msgstr "Netteté"
+
+msgctxt "DetailGroup"
+msgid "Amount"
+msgstr "Intensité"
+
+msgctxt "DetailGroup"
+msgid "Radius"
+msgstr "Rayon"
+
+msgctxt "DetailGroup"
+msgid "How wide an edge the sharpening works on. Small for fine detail, larger for a soft image."
+msgstr "Sur quelle largeur de contour l'accentuation agit. Petit pour le détail fin, large pour une image molle."
+
+msgctxt "DetailGroup"
+msgid "Masking"
+msgstr "Masquage"
+
+msgctxt "DetailGroup"
+msgid "Keeps the sharpening on the edges and off the flat areas, so a sky stays smooth."
+msgstr "Garde l'accentuation sur les contours et hors des aplats, pour qu'un ciel reste lisse."
+
+msgctxt "EffectsGroup"
+msgid "Vignette"
+msgstr "Vignettage"
+
+msgctxt "EffectsGroup"
+msgid "Amount"
+msgstr "Intensité"
+
+msgctxt "EffectsGroup"
+msgid "Midpoint"
+msgstr "Milieu"
+
+msgctxt "EffectsGroup"
+msgid "How far from the centre the vignette begins."
+msgstr "À quelle distance du centre le vignettage commence."
+
+msgctxt "EffectsGroup"
+msgid "Roundness"
+msgstr "Rondeur"
+
+msgctxt "EffectsGroup"
+msgid "Whether the vignette follows a circle or the shape of the frame."
+msgstr "Si le vignettage suit un cercle ou la forme du cadre."
+
+msgctxt "EffectsGroup"
+msgid "Feather"
+msgstr "Contour"
+
+msgctxt "EffectsGroup"
+msgid "How gradually the vignette fades in."
+msgstr "Avec quelle progressivité le vignettage s'installe."
+
+msgctxt "EffectsGroup"
+msgid "Grain"
+msgstr "Grain"
+
+msgctxt "EffectsGroup"
+msgid "Size"
+msgstr "Taille"
+
+msgctxt "EffectsGroup"
+msgid "Roughness"
+msgstr "Rugosité"
+
+msgctxt "EffectsGroup"
+msgid "How uneven the grain is. Higher reads as faster film."
+msgstr "À quel point le grain est irrégulier. Plus haut, cela se lit comme un film plus rapide."
+
+msgctxt "EffectsGroup"
+msgid "Color"
+msgstr "Couleur"
+
+msgctxt "EffectsGroup"
+msgid "How coloured the grain is. Zero is a monochrome speckle."
+msgstr "À quel point le grain est coloré. Zéro donne une granulation monochrome."
+
+msgctxt "ProofGroup"
+msgid ""
+"Shows the photo as a destination profile would reproduce it. Never stored, "
+"never exported."
+msgstr "Montre la photo telle qu'un profil de destination la reproduirait. Jamais enregistré, jamais exporté."
+
+msgctxt "ProofGroup"
+msgid "No proof — the real render"
+msgstr "Aucune épreuve — le rendu réel"
+
+msgctxt "ProofGroup"
+msgid "Choose .icc…"
+msgstr "Choisir un .icc…"
+
+msgctxt "ProofGroup"
+msgid "Stop proofing"
+msgstr "Arrêter l'épreuvage"
+
+msgctxt "ProofGroup"
+msgid "Perceptual"
+msgstr "Perceptuel"
+
+msgctxt "ProofGroup"
+msgid "Relative"
+msgstr "Relatif"
+
+msgctxt "ProofGroup"
+msgid "Saturation"
+msgstr "Saturation"
+
+msgctxt "ProofGroup"
+msgid "Absolute"
+msgstr "Absolu"
+
+msgctxt "ProofGroup"
+msgid "Flag out-of-gamut colors"
+msgstr "Signaler les couleurs hors gamut"
+
+msgctxt "GeometryGroup"
+msgid "Perspective"
+msgstr "Perspective"
+
+msgctxt "GeometryGroup"
+msgid "Vertical"
+msgstr "Verticale"
+
+msgctxt "GeometryGroup"
+msgid "Straightens converging verticals — a building that leans away."
+msgstr "Redresse les verticales convergentes — un bâtiment qui bascule en arrière."
+
+msgctxt "GeometryGroup"
+msgid "Horizontal"
+msgstr "Horizontale"
+
+msgctxt "GeometryGroup"
+msgid "Straightens converging horizontals — a wall taken from an angle."
+msgstr "Redresse les horizontales convergentes — un mur pris de biais."
+
+msgctxt "GeometryGroup"
+msgid "{} guides"
+msgstr "{} lignes"
+
+msgctxt "GeometryGroup"
+msgid "Straighten"
+msgstr "Redresser"
+
+msgctxt "GeometryGroup"
+msgid "Clear"
+msgstr "Effacer"
+
+msgctxt "GeometryGroup"
+msgid ""
+"Pick Keystone in the header above, then drag along two or more edges that "
+"ought "
+"to be vertical or horizontal. Each line's own slope says which it is, and "
+"nothing is detected: the drawing is the whole input."
+msgstr "Choisissez Lignes directrices dans l'en-tête ci-dessus, puis tracez le long d'au moins deux arêtes qui devraient être verticales ou horizontales. La pente de chaque ligne dit laquelle des deux elle est, et rien n'est détecté : le tracé est la totalité de l'entrée."
+
+msgctxt "SpotRemovalGroup"
+msgid ""
+"Pick the Spot Removal tool above, click a clean source, then the spot to fix."
+msgstr "Choisissez l'outil Correction des taches ci-dessus, cliquez sur une source propre, puis sur la tache à corriger."
+
+msgctxt "SpotRemovalGroup"
+msgid "Radius %"
+msgstr "Rayon %"
+
+msgctxt "SpotRemovalGroup"
+msgid "Feather %"
+msgstr "Contour progressif %"
+
+msgctxt "SpotRemovalGroup"
+msgid "Opacity %"
+msgstr "Opacité %"
+
+msgctxt "SpotRemovalGroup"
+msgid "{} spot(s)"
+msgstr "{} tache(s)"
+
+msgctxt "SpotRemovalGroup"
+msgid "Undo Last"
+msgstr "Annuler le dernier"
+
+msgctxt "SpotRemovalGroup"
+msgid "Clear All"
+msgstr "Tout effacer"
+
+msgctxt "RedEyeGroup"
+msgid ""
+"Pick the Red Eye tool above, then click each pupil. Only red pixels inside "
+"the circle are corrected, so the circle need not be precise."
+msgstr "Choisissez l'outil Yeux rouges ci-dessus, puis cliquez chaque pupille. Seuls les pixels rouges du cercle sont corrigés : le cercle n'a pas besoin d'être précis."
+
+msgctxt "RedEyeGroup"
+msgid "Radius %"
+msgstr "Rayon %"
+
+msgctxt "RedEyeGroup"
+msgid "Feather"
+msgstr "Contour"
+
+msgctxt "RedEyeGroup"
+msgid "Darken"
+msgstr "Assombrir"
+
+msgctxt "RedEyeGroup"
+msgid "{} placed"
+msgstr "{} posé(s)"
+
+msgctxt "RedEyeGroup"
+msgid "Clear"
+msgstr "Effacer"
+
+msgctxt "ReshapeGroup"
+msgid ""
+"Pick the Reshape tool above, then drag from the content to where it should "
+"go. The pixels within the radius follow and fade to nothing at its edge; "
+"nothing is invented."
+msgstr "Choisissez l'outil Remodeler ci-dessus, puis glissez du contenu vers l'endroit où il doit aller. Les pixels dans le rayon suivent et s'éteignent à son bord ; rien n'est inventé."
+
+msgctxt "ReshapeGroup"
+msgid "Radius %"
+msgstr "Rayon %"
+
+msgctxt "ReshapeGroup"
+msgid "Strength"
+msgstr "Intensité"
+
+msgctxt "ReshapeGroup"
+msgid "{} placed"
+msgstr "{} posé(s)"
+
+msgctxt "ReshapeGroup"
+msgid "Clear"
+msgstr "Effacer"

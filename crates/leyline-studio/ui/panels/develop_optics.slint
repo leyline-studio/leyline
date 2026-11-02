@@ -1,0 +1,628 @@
+// Groups of the develop panel's adjustment column, each the body of one
+// collapsible group in `develop.slint`, which keeps the headers and the
+// expanded state. Like the panel itself (ADR 0045 §3), a group inherits the
+// `VerticalLayout` it replaces and sets no geometry of its own.
+
+import { Hues, Theme } from "../theme.slint";
+import { DevelopState } from "../state/develop.slint";
+import { EditSlider, FilterChip, SubHeading } from "../widgets/controls.slint";
+
+// The Camera profile group (ADR 0035).
+export component CameraProfileGroup inherits VerticalLayout {
+        spacing: 8px;
+        // The matrix path has not been validated against
+        // Adobe's own renders yet (`docs/pipeline.md`
+        // process 11): say so where the user chooses,
+        // not only in the ADR.
+        Text {
+            text: @tr("Experimental: colors are not yet validated against reference renders.");
+            color: Theme.notice;
+            font-size: 11px;
+            wrap: word-wrap;
+        }
+        // The browser (ADR 0089 §1): each entry is the open
+        // photo as that profile renders it, not a stock
+        // swatch — what a profile does depends on the sensor
+        // that shot the file.
+        //
+        // Two per row, because a colour decision is made by
+        // comparing two renderings and a single column would
+        // put them a scroll apart.
+        Flickable {
+            height: min(260px, grid.preferred-height);
+            viewport-height: grid.preferred-height;
+            grid := VerticalLayout {
+                width: parent.width;
+                spacing: 6px;
+                for row[i] in DevelopState.profile-rows: Rectangle {
+                    height: 74px;
+                    background: row.selected ? Theme.active : (entry.has-hover ? Theme.veil : transparent);
+                    border-radius: 4px;
+                    HorizontalLayout {
+                        x: 4px;
+                        width: parent.width - 8px;
+                        height: 100%;
+                        spacing: 8px;
+                        Rectangle {
+                            width: 66px;
+                            background: Theme.sunken;
+                            border-radius: 3px;
+                            Image {
+                                source: row.thumbnail;
+                                image-fit: contain;
+                                width: 100%;
+                                height: 100%;
+                            }
+                        }
+                        VerticalLayout {
+                            spacing: 2px;
+                            horizontal-stretch: 1;
+                            padding-top: 8px;
+                            Text {
+                                text: row.name;
+                                color: Theme.text;
+                                font-size: 11px;
+                                wrap: word-wrap;
+                            }
+                            // A profile that produced no
+                            // picture says so rather than
+                            // showing an unexplained black
+                            // square: it is in the list
+                            // because the file is in the
+                            // library, and refusing it is
+                            // the useful thing to be able
+                            // to do.
+                            if row.thumbnail.width == 0 && row.path != "": Text {
+                                text: @tr("Could not be read");
+                                color: Theme.alert;
+                                font-size: 10px;
+                            }
+                        }
+                    }
+                    entry := TouchArea {
+                        clicked => {
+                            DevelopState.choose-profile(i);
+                        }
+                    }
+                }
+            }
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            alignment: start;
+            FilterChip {
+                text: @tr("Import .dcp…");
+                active: false;
+                clicked => {
+                    DevelopState.browse-camera-profile();
+                }
+            }
+            if DevelopState.camera-profile-name != "": FilterChip {
+                active: DevelopState.dev.camera-profile;
+                text: DevelopState.dev.camera-profile ? @tr("Enabled") : @tr("Disabled");
+                clicked => {
+                    DevelopState.develop-edit("camera-profile", DevelopState.dev.camera-profile ? 0 : 1);
+                }
+            }
+        }
+}
+
+// The LUT group.
+export component LutGroup inherits VerticalLayout {
+        spacing: 8px;
+        Text {
+            text: DevelopState.lut-name == ""
+                ? @tr("No LUT — Leyline's own color only")
+                : DevelopState.lut-name;
+            color: Theme.text-dim;
+            font-size: 12px;
+            wrap: word-wrap;
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            alignment: start;
+            FilterChip {
+                text: @tr("Choose .cube…");
+                active: false;
+                clicked => {
+                    DevelopState.browse-lut();
+                }
+            }
+            if DevelopState.lut-name != "": FilterChip {
+                active: DevelopState.dev.lut;
+                text: DevelopState.dev.lut ? @tr("Enabled") : @tr("Disabled");
+                clicked => {
+                    DevelopState.develop-edit("lut", DevelopState.dev.lut ? 0 : 1);
+                }
+            }
+            if DevelopState.lut-name != "": FilterChip {
+                text: @tr("Remove");
+                active: false;
+                clicked => {
+                    DevelopState.clear-lut();
+                }
+            }
+        }
+        if DevelopState.lut-name != "": EditSlider {
+            label: @tr("Strength");
+            minimum: 0;
+            maximum: 100;
+            value: DevelopState.dev.lut-strength;
+            edited(v) => {
+                DevelopState.develop-edit("lut-strength", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("lut-strength", v);
+            }
+        }
+}
+
+// The Lens corrections group: profile, distortion, vignetting, chromatic aberration.
+export component LensGroup inherits VerticalLayout {
+        spacing: 12px;
+        FilterChip {
+            active: DevelopState.dev.lens-correction;
+            text: DevelopState.dev.lens-correction ? @tr("Enabled") : @tr("Disabled");
+            clicked => {
+                DevelopState.develop-edit("lens-correction", DevelopState.dev.lens-correction ? 0 : 1);
+            }
+        }
+        // Manual chromatic aberration (ADR 0111): usable on
+        // its own, which is the point — an uncalibrated lens
+        // gets nothing from the profile above.
+        Text {
+            text: @tr("Chromatic aberration (% of radius)");
+            color: Theme.text-dim;
+            font-size: 12px;
+        }
+        EditSlider {
+            label: @tr("Red / cyan");
+            hint: @tr("Manual correction of colour fringing on the red–cyan axis, for a lens no profile fits.");
+            minimum: -0.5;
+            maximum: 0.5;
+            decimals: 3;
+            value: DevelopState.dev.lens-tca-red;
+            track-from: Hues.fringe-red;
+            track-to: Hues.fringe-cyan;
+            edited(v) => {
+                DevelopState.develop-edit("lens-tca-red", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("lens-tca-red", v);
+            }
+        }
+        EditSlider {
+            label: @tr("Blue / yellow");
+            hint: @tr("Manual correction of colour fringing on the blue–yellow axis, for a lens no profile fits.");
+            minimum: -0.5;
+            maximum: 0.5;
+            decimals: 3;
+            value: DevelopState.dev.lens-tca-blue;
+            track-from: Hues.fringe-blue;
+            track-to: Hues.fringe-yellow;
+            edited(v) => {
+                DevelopState.develop-edit("lens-tca-blue", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("lens-tca-blue", v);
+            }
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            alignment: start;
+            FilterChip {
+                text: @tr("Measure from this photo");
+                active: false;
+                clicked => {
+                    DevelopState.measure-tca();
+                }
+            }
+        }
+        // Axial aberration, beside the lateral one it is the
+        // other half of (ADR 0113 §5).
+        Text {
+            text: @tr("Defringe (colour halo at an edge)");
+            color: Theme.text-dim;
+            font-size: 12px;
+        }
+        EditSlider {
+            label: @tr("Purple");
+            hint: @tr("Removes purple fringes along high-contrast edges.");
+            minimum: 0;
+            maximum: 100;
+            value: DevelopState.dev.defringe-purple;
+            track-from: Hues.neutral-start-dark;
+            track-to: Hues.fringe-purple;
+            edited(v) => {
+                DevelopState.develop-edit("defringe-purple", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("defringe-purple", v);
+            }
+        }
+        EditSlider {
+            label: @tr("Green");
+            hint: @tr("Removes green fringes along high-contrast edges.");
+            minimum: 0;
+            maximum: 100;
+            value: DevelopState.dev.defringe-green;
+            track-from: Hues.neutral-start-dark;
+            track-to: Hues.fringe-green;
+            edited(v) => {
+                DevelopState.develop-edit("defringe-green", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("defringe-green", v);
+            }
+        }
+}
+
+// The Detail group: sharpening, noise reduction and moiré.
+export component DetailGroup inherits VerticalLayout {
+    in-out property <bool> basic-mode;
+
+        spacing: 12px;
+        // Sub-headings rather than a prefix on every label
+        // (ADR 0140 §2): « Réduction du bruit — luminance »
+        // does not fit a label column at any width worth
+        // having, and the group heading carries the word
+        // once instead of five times.
+        SubHeading {
+            label: @tr("Noise reduction");
+        }
+        EditSlider {
+            label: @tr("Luminance");
+            hint: @tr("Noise reduction on brightness — the grain. Too much turns detail into plastic.");
+            minimum: 0;
+            maximum: 100;
+            value: DevelopState.dev.nr-luminance;
+            edited(v) => {
+                DevelopState.develop-edit("nr-luminance", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("nr-luminance", v);
+            }
+        }
+        EditSlider {
+            label: @tr("Color");
+            hint: @tr("Noise reduction on colour — the coloured speckle. Costs far less detail than luminance does.");
+            minimum: 0;
+            maximum: 100;
+            value: DevelopState.dev.nr-color;
+            edited(v) => {
+                DevelopState.develop-edit("nr-color", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("nr-color", v);
+            }
+        }
+        // Colour moiré (ADR 0165), beside the colour noise it
+        // neighbours in the pipeline. Off until moved: a
+        // false positive would damage a photograph nobody
+        // was looking at (§4).
+        EditSlider {
+            label: @tr("Moiré");
+            hint: @tr("Removes false colour bands over fine patterns such as fabric or screens. Stripes stay.");
+            minimum: 0;
+            maximum: 100;
+            value: DevelopState.dev.moire;
+            edited(v) => {
+                DevelopState.develop-edit("moire", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("moire", v);
+            }
+        }
+        SubHeading {
+            label: @tr("Sharpening");
+        }
+        EditSlider {
+            label: @tr("Amount");
+            minimum: 0;
+            maximum: 100;
+            value: DevelopState.dev.sharpen-amount;
+            edited(v) => {
+                DevelopState.develop-edit("sharpen-amount", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("sharpen-amount", v);
+            }
+        }
+        EditSlider {
+            label: @tr("Radius");
+            hint: @tr("How wide an edge the sharpening works on. Small for fine detail, larger for a soft image.");
+            minimum: 0.5;
+            maximum: 3;
+            decimals: 1;
+            value: DevelopState.dev.sharpen-radius;
+            edited(v) => {
+                DevelopState.develop-edit("sharpen-radius", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("sharpen-radius", v);
+            }
+        }
+        // The edge mask (ADR 0096): an unsharp mask
+        // amplifies skin grain and sky noise as readily as
+        // eyelashes and branches; this is what tells them
+        // apart. Full mode only, beside the two sliders it
+        // modulates.
+        if !root.basic-mode: EditSlider {
+            label: @tr("Masking");
+            hint: @tr("Keeps the sharpening on the edges and off the flat areas, so a sky stays smooth.");
+            minimum: 0;
+            maximum: 100;
+            value: DevelopState.dev.sharpen-masking;
+            edited(v) => {
+                DevelopState.develop-edit("sharpen-masking", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("sharpen-masking", v);
+            }
+        }
+}
+
+// The Effects group (ADR 0090): post-crop vignette and grain.
+export component EffectsGroup inherits VerticalLayout {
+        spacing: 12px;
+        // Two sub-headings rather than seven long labels:
+        // the label column truncates anything past about
+        // fifteen characters, and "Vignette roundness" was
+        // reaching the panel as "Vignette rou…".
+        SubHeading {
+            label: @tr("Vignette");
+        }
+        EditSlider {
+            label: @tr("Amount");
+            minimum: -100;
+            maximum: 100;
+            value: DevelopState.dev.vignette-amount;
+            edited(v) => {
+                DevelopState.develop-edit("vignette-amount", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("vignette-amount", v);
+            }
+        }
+        EditSlider {
+            label: @tr("Midpoint");
+            hint: @tr("How far from the centre the vignette begins.");
+            minimum: 0;
+            maximum: 100;
+            value: DevelopState.dev.vignette-midpoint;
+            edited(v) => {
+                DevelopState.develop-edit("vignette-midpoint", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("vignette-midpoint", v);
+            }
+        }
+        EditSlider {
+            label: @tr("Roundness");
+            hint: @tr("Whether the vignette follows a circle or the shape of the frame.");
+            minimum: -100;
+            maximum: 100;
+            value: DevelopState.dev.vignette-roundness;
+            edited(v) => {
+                DevelopState.develop-edit("vignette-roundness", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("vignette-roundness", v);
+            }
+        }
+        EditSlider {
+            label: @tr("Feather");
+            hint: @tr("How gradually the vignette fades in.");
+            minimum: 0;
+            maximum: 100;
+            value: DevelopState.dev.vignette-feather;
+            edited(v) => {
+                DevelopState.develop-edit("vignette-feather", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("vignette-feather", v);
+            }
+        }
+        SubHeading {
+            label: @tr("Grain");
+        }
+        EditSlider {
+            label: @tr("Amount");
+            minimum: 0;
+            maximum: 100;
+            value: DevelopState.dev.grain-amount;
+            edited(v) => {
+                DevelopState.develop-edit("grain-amount", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("grain-amount", v);
+            }
+        }
+        EditSlider {
+            label: @tr("Size");
+            minimum: 0;
+            maximum: 100;
+            value: DevelopState.dev.grain-size;
+            edited(v) => {
+                DevelopState.develop-edit("grain-size", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("grain-size", v);
+            }
+        }
+        EditSlider {
+            label: @tr("Roughness");
+            hint: @tr("How uneven the grain is. Higher reads as faster film.");
+            minimum: 0;
+            maximum: 100;
+            value: DevelopState.dev.grain-roughness;
+            edited(v) => {
+                DevelopState.develop-edit("grain-roughness", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("grain-roughness", v);
+            }
+        }
+        // How much the three layers disagree (ADR 0118): it
+        // adds chroma and leaves the grain's grey as loud.
+        EditSlider {
+            label: @tr("Color");
+            hint: @tr("How coloured the grain is. Zero is a monochrome speckle.");
+            minimum: 0;
+            maximum: 100;
+            value: DevelopState.dev.grain-color;
+            edited(v) => {
+                DevelopState.develop-edit("grain-color", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("grain-color", v);
+            }
+        }
+}
+
+// The Soft proofing group.
+export component ProofGroup inherits VerticalLayout {
+        spacing: 8px;
+        Text {
+            text: @tr("Shows the photo as a destination profile would reproduce it. Never stored, never exported.");
+            color: Theme.text-disabled;
+            font-size: 11px;
+            wrap: word-wrap;
+        }
+        Text {
+            text: DevelopState.soft-proof-name == ""
+                ? @tr("No proof — the real render")
+                : DevelopState.soft-proof-name;
+            color: Theme.text-dim;
+            font-size: 12px;
+            wrap: word-wrap;
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            alignment: start;
+            FilterChip {
+                text: @tr("Choose .icc…");
+                active: false;
+                clicked => {
+                    DevelopState.browse-soft-proof();
+                }
+            }
+            if DevelopState.soft-proof-name != "": FilterChip {
+                text: @tr("Stop proofing");
+                active: false;
+                clicked => {
+                    DevelopState.clear-soft-proof();
+                }
+            }
+        }
+        if DevelopState.soft-proof-name != "": HorizontalLayout {
+            spacing: 6px;
+            alignment: start;
+            FilterChip {
+                text: @tr("Perceptual");
+                active: DevelopState.soft-proof-intent == 0;
+                clicked => {
+                    DevelopState.set-soft-proof-intent(0);
+                }
+            }
+            FilterChip {
+                text: @tr("Relative");
+                active: DevelopState.soft-proof-intent == 1;
+                clicked => {
+                    DevelopState.set-soft-proof-intent(1);
+                }
+            }
+            FilterChip {
+                text: @tr("Saturation");
+                active: DevelopState.soft-proof-intent == 2;
+                clicked => {
+                    DevelopState.set-soft-proof-intent(2);
+                }
+            }
+            FilterChip {
+                text: @tr("Absolute");
+                active: DevelopState.soft-proof-intent == 3;
+                clicked => {
+                    DevelopState.set-soft-proof-intent(3);
+                }
+            }
+        }
+        if DevelopState.soft-proof-name != "": FilterChip {
+            text: @tr("Flag out-of-gamut colors");
+            active: DevelopState.soft-proof-gamut-warning;
+            clicked => {
+                DevelopState.toggle-soft-proof-gamut-warning();
+            }
+        }
+}
+
+// The Geometry group: rotation and perspective.
+export component GeometryGroup inherits VerticalLayout {
+        spacing: 12px;
+        // Perspective (ADR 0052). The rotation and the crop
+        // that frame it in the pipeline are the Crop entry's
+        // since ADR 0160 §2.
+        SubHeading {
+            label: @tr("Perspective");
+        }
+        EditSlider {
+            label: @tr("Vertical");
+            hint: @tr("Straightens converging verticals — a building that leans away.");
+            minimum: -100;
+            maximum: 100;
+            value: DevelopState.dev.perspective-vertical;
+            edited(v) => {
+                DevelopState.develop-edit("perspective-vertical", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("perspective-vertical", v);
+            }
+        }
+        EditSlider {
+            label: @tr("Horizontal");
+            hint: @tr("Straightens converging horizontals — a wall taken from an angle.");
+            minimum: -100;
+            maximum: 100;
+            value: DevelopState.dev.perspective-horizontal;
+            edited(v) => {
+                DevelopState.develop-edit("perspective-horizontal", v);
+            }
+            previewing(v) => {
+                DevelopState.develop-preview("perspective-horizontal", v);
+            }
+        }
+        // The guide tool's own row (ADR 0119): what it has,
+        // and the two verbs. Drawing happens on the photo.
+        HorizontalLayout {
+            spacing: 8px;
+            Text {
+                text: @tr("{} guides", DevelopState.keystone-guides.length);
+                color: Theme.text-dim;
+                font-size: 12px;
+                vertical-alignment: center;
+            }
+            FilterChip {
+                text: @tr("Straighten");
+                active: false;
+                enabled: DevelopState.keystone-guides.length >= 2;
+                clicked => {
+                    DevelopState.develop-keystone-apply();
+                }
+            }
+            FilterChip {
+                text: @tr("Clear");
+                active: false;
+                enabled: DevelopState.keystone-guides.length > 0;
+                clicked => {
+                    DevelopState.develop-keystone-clear();
+                }
+            }
+        }
+        Text {
+            text: @tr("Pick Keystone in the header above, then drag along two or more edges that ought to be vertical or horizontal. Each line's own slope says which it is, and nothing is detected: the drawing is the whole input.");
+            color: Theme.text-disabled;
+            font-size: 11px;
+            wrap: word-wrap;
+        }
+
+}

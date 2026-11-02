@@ -80,18 +80,51 @@ mod tests {
         /// (ADR 0140 §2).
         label: String,
         hinted: bool,
+        /// The panel file it sits in.
+        file: &'static str,
     }
 
-    /// Reads `develop.slint` and returns every slider in it.
+    /// The develop panel and the files its groups live in, each read whole.
+    const PANEL_SOURCES: &[(&str, &str)] = &[
+        ("develop.slint", include_str!("../ui/panels/develop.slint")),
+        (
+            "develop_basic.slint",
+            include_str!("../ui/panels/develop_basic.slint"),
+        ),
+        (
+            "develop_color.slint",
+            include_str!("../ui/panels/develop_color.slint"),
+        ),
+        (
+            "develop_local.slint",
+            include_str!("../ui/panels/develop_local.slint"),
+        ),
+        (
+            "develop_optics.slint",
+            include_str!("../ui/panels/develop_optics.slint"),
+        ),
+        (
+            "develop_retouch.slint",
+            include_str!("../ui/panels/develop_retouch.slint"),
+        ),
+    ];
+
+    /// Reads the develop panel's files and returns every slider in them.
     ///
     /// A parser of four lines, because the shape it reads is four lines: the
     /// panel writes `label:` first and `hint:` — when there is one — directly
     /// after it, which the insertion that added them guaranteed and this
     /// keeps true.
     fn sliders() -> Vec<Slider> {
-        let source = include_str!("../ui/panels/develop.slint");
-        let lines: Vec<&str> = source.lines().collect();
         let mut found = Vec::new();
+        for (file, source) in PANEL_SOURCES {
+            sliders_in(file, source, &mut found);
+        }
+        found
+    }
+
+    fn sliders_in(file: &'static str, source: &str, found: &mut Vec<Slider>) {
+        let lines: Vec<&str> = source.lines().collect();
         // The sub-heading a slider sits under, if any. It survives until the
         // next sub-heading or the next group — the same scope the eye gives
         // it.
@@ -124,7 +157,7 @@ mod tests {
             // enough: nothing in this panel puts anything between them.
             let window = &lines[index + 1..(index + 5).min(lines.len())];
             let Some(label) = window.iter().find_map(|l| translated(l, "label")) else {
-                panic!("line {}: an EditSlider with no label", index + 1);
+                panic!("{file}:{}: an EditSlider with no label", index + 1);
             };
             found.push(Slider {
                 line: index + 1,
@@ -133,9 +166,9 @@ mod tests {
                     None => label,
                 },
                 hinted: window.iter().any(|l| translated(l, "hint").is_some()),
+                file,
             });
         }
-        found
     }
 
     /// The text of a `<property>: @tr("…");` line, or `None`.
@@ -159,7 +192,7 @@ mod tests {
         let unclassified: Vec<String> = sliders
             .iter()
             .filter(|slider| !slider.hinted && !SELF_EVIDENT.contains(&slider.label.as_str()))
-            .map(|slider| format!("{} (develop.slint:{})", slider.label, slider.line))
+            .map(|slider| format!("{} ({}:{})", slider.label, slider.file, slider.line))
             .collect();
         assert!(
             unclassified.is_empty(),
@@ -176,7 +209,7 @@ mod tests {
         let both: Vec<String> = sliders()
             .iter()
             .filter(|slider| slider.hinted && SELF_EVIDENT.contains(&slider.label.as_str()))
-            .map(|slider| format!("{} (develop.slint:{})", slider.label, slider.line))
+            .map(|slider| format!("{} ({}:{})", slider.label, slider.file, slider.line))
             .collect();
         assert!(
             both.is_empty(),
@@ -189,22 +222,23 @@ mod tests {
     /// a control that needs redesigning, and this is where that shows up.
     #[test]
     fn a_hint_stays_one_sentence() {
-        let source = include_str!("../ui/panels/develop.slint");
-        for (index, line) in source.lines().enumerate() {
-            let Some(hint) = translated(line, "hint") else {
-                continue;
-            };
-            assert!(
-                hint.chars().count() <= 110,
-                "develop.slint:{}: {} characters — ADR 0133 §2 caps a hint at 110:\n  {hint}",
-                index + 1,
-                hint.chars().count()
-            );
-            assert!(
-                !hint.ends_with('.') || hint.matches(". ").count() <= 1,
-                "develop.slint:{}: more than two sentences:\n  {hint}",
-                index + 1
-            );
+        for (file, source) in PANEL_SOURCES {
+            for (index, line) in source.lines().enumerate() {
+                let Some(hint) = translated(line, "hint") else {
+                    continue;
+                };
+                assert!(
+                    hint.chars().count() <= 110,
+                    "{file}:{}: {} characters — ADR 0133 §2 caps a hint at 110:\n  {hint}",
+                    index + 1,
+                    hint.chars().count()
+                );
+                assert!(
+                    !hint.ends_with('.') || hint.matches(". ").count() <= 1,
+                    "{file}:{}: more than two sentences:\n  {hint}",
+                    index + 1
+                );
+            }
         }
     }
 }

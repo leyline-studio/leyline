@@ -75,7 +75,7 @@ ui/studio.slint     assembly: window attributes, keyboard shortcuts, mount order
 ui/types.slint      the structs of the Rust ↔ UI contract, and the translation templates (Tr)
 ui/state/           one Slint `global` per domain — the only surface that crosses into Rust
 ui/widgets/         reusable controls, with no knowledge of state
-ui/panels/          the views (develop, map, browser), the dialog overlay, the menu bar
+ui/panels/          the views (develop and its groups in develop_*.slint, map, browser), the dialog overlay, the menu bar
 ui/dialogs/         one file per modal dialog
 ```
 
