@@ -16,6 +16,8 @@
 )]
 #![forbid(unsafe_code)]
 
+use std::sync::{Arc, OnceLock};
+
 /// A device the preview can run kernels on.
 #[derive(Debug)]
 pub struct Gpu {
@@ -23,6 +25,8 @@ pub struct Gpu {
     queue: wgpu::Queue,
     info: wgpu::AdapterInfo,
     pipelines: Pipelines,
+    /// The first error wgpu reported, or the device's loss (ADR 0170 §1).
+    failure: Arc<OnceLock<String>>,
 }
 
 impl Gpu {
@@ -66,13 +70,47 @@ impl Gpu {
             ..wgpu::DeviceDescriptor::default()
         };
         let (device, queue) = pollster::block_on(adapter.request_device(&descriptor)).ok()?;
+        // wgpu's default handler panics; a preview that may always fall back
+        // to the CPU records the failure instead (ADR 0170 §1). The first
+        // one wins: what follows a loss is only its echo.
+        let failure = Arc::new(OnceLock::new());
+        let on_error = Arc::clone(&failure);
+        device.on_uncaptured_error(Box::new(move |error| {
+            let _ = on_error.set(error.to_string());
+        }));
+        let on_loss = Arc::clone(&failure);
+        device.set_device_lost_callback(move |reason, message| {
+            let _ = on_loss.set(format!("device lost ({reason:?}): {message}"));
+        });
         let pipelines = Pipelines::new(&device);
         Some(Gpu {
             device,
             queue,
             info,
             pipelines,
+            failure,
         })
+    }
+
+    /// Why this device can no longer be trusted, once wgpu has reported an
+    /// error or lost it; `None` while it is healthy (ADR 0170 §1).
+    pub fn failure(&self) -> Option<&str> {
+        self.failure.get().map(String::as_str)
+    }
+
+    /// Marks the device failed from outside: what a caller does when work on
+    /// it panicked (ADR 0170 §3). The first reason recorded is kept.
+    pub fn retire(&self, reason: &str) {
+        let _ = self.failure.set(reason.to_owned());
+    }
+
+    /// Gives the device up, as a driver reset does: every later call on it
+    /// fails, and [`Gpu::failure`] says so once wgpu has noticed. What the
+    /// tests of ADR 0170 lose a device with, on any machine.
+    pub fn destroy(&self) {
+        self.device.destroy();
+        // A lost device is reported on the next poll.
+        let _ = self.device.poll(wgpu::PollType::Wait);
     }
 
     /// What the adapter calls itself and which backend runs it, for

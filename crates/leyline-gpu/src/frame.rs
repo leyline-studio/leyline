@@ -250,6 +250,11 @@ impl Frame {
     /// buffer. `None` when the device refuses the allocation: the caller
     /// renders on the CPU (ADR 0156 §2).
     pub fn upload(gpu: &Gpu, width: u32, height: u32, samples: &[f32]) -> Option<Frame> {
+        // Buffer creation with contents maps the buffer, and wgpu panics on
+        // that mapping once the device has failed (ADR 0170 §1).
+        if gpu.failure().is_some() {
+            return None;
+        }
         let pixels = width.checked_mul(height)?;
         if samples.len() != pixels as usize * 3 || pixels == 0 {
             return None;
@@ -301,6 +306,9 @@ impl Frame {
     /// end with [`Op::OutputRendering`], the only step that produces 8-bit
     /// values; `None` otherwise, or when the device fails.
     pub fn render(&self, gpu: &Gpu, ops: &[Op]) -> Option<(u32, u32, Vec<u8>)> {
+        if gpu.failure().is_some() {
+            return None;
+        }
         let (last, steps) = ops.split_last()?;
         let Op::OutputRendering {
             knee,
@@ -564,6 +572,11 @@ impl Frame {
             });
         device.poll(wgpu::PollType::Wait).ok()?;
         receiver.recv().ok()?.ok()?;
+        // wgpu's `get_mapped_range` panics on a buffer of a failed device,
+        // whatever the mapping callback said (ADR 0170 §1).
+        if gpu.failure().is_some() {
+            return None;
+        }
         let mapped = self.readback.slice(..out_bytes).get_mapped_range();
         let mut rgb = Vec::with_capacity(out_pixels as usize * 3);
         for packed in mapped.chunks_exact(4) {

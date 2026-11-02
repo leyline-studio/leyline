@@ -31,6 +31,17 @@ fn gpu() -> Option<&'static Gpu> {
         _ => Gpu::acquire(),
     })
     .as_ref()
+    // A device that failed once is retired for the session (ADR 0170 §2).
+    .filter(|gpu| gpu.failure().is_none())
+}
+
+/// Says once per process, on stderr, why the preview left the GPU
+/// (ADR 0170 §4).
+fn say_retired(reason: &str) {
+    static SAID: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if !SAID.swap(true, std::sync::atomic::Ordering::Relaxed) {
+        eprintln!("GPU preview off for this session: {reason}");
+    }
 }
 
 /// What the preview's renders run on, for *About* (ADR 0156 §2): the
@@ -301,29 +312,104 @@ pub(crate) fn render(
     fingerprint: u64,
     pixels: &Pixels,
 ) -> Option<(u32, u32, Vec<u8>)> {
-    let gpu = gpu()?;
+    let target = Checkpoint {
+        applied,
+        fingerprint,
+        pixels,
+    };
+    let rgb = render_on(gpu()?, resident, rest, settings, scale, &target)?;
+    #[cfg(test)]
+    tests::RENDERED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    Some(rgb)
+}
+
+/// The checkpoint a GPU render starts from: how many stages it holds, the
+/// fingerprint of their settings, and its pixels.
+struct Checkpoint<'a> {
+    applied: usize,
+    fingerprint: u64,
+    pixels: &'a Pixels,
+}
+
+/// [`render`] on a given device. A failure during the render — an error
+/// wgpu reported, a lost device, a panic — retires the device and discards
+/// whatever the render produced; the CPU draws this frame (ADR 0170 §2–§3).
+fn render_on(
+    gpu: &Gpu,
+    resident: &mut Option<ResidentFrame>,
+    rest: &[(&'static Stage, &'static Version)],
+    settings: &Settings,
+    scale: f32,
+    from: &Checkpoint<'_>,
+) -> Option<(u32, u32, Vec<u8>)> {
     let ops = rest
         .iter()
         .map(|(stage, version)| kernel(stage, version, settings, scale))
         .collect::<Option<Vec<Op>>>()?;
-    let key = (applied, fingerprint);
-    if resident.as_ref().is_none_or(|r| r.key != key) {
+    let key = (from.applied, from.fingerprint);
+    let rendered = crate::panic_net::isolate(|| {
+        if resident.as_ref().is_none_or(|r| r.key != key) {
+            *resident = None;
+            let pixels = from.pixels;
+            let frame = Frame::upload(gpu, pixels.width, pixels.height, &pixels.data)?;
+            *resident = Some(ResidentFrame { key, frame });
+        }
+        resident.as_ref()?.frame.render(gpu, &ops)
+    })
+    .unwrap_or_else(|reason| {
+        gpu.retire(&reason);
+        None
+    });
+    if let Some(reason) = gpu.failure() {
+        say_retired(reason);
         *resident = None;
-        let frame = Frame::upload(gpu, pixels.width, pixels.height, &pixels.data)?;
-        *resident = Some(ResidentFrame { key, frame });
+        return None;
     }
-    let frame = &resident.as_ref()?.frame;
-    let rgb = frame.render(gpu, &ops)?;
-    #[cfg(test)]
-    tests::RENDERED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    Some(rgb)
+    rendered
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
     use std::sync::atomic::AtomicUsize;
 
+    use super::*;
+
     /// Frames this process rendered on the GPU, so a test can tell the
     /// path it took from the pixels it got.
     pub(crate) static RENDERED: AtomicUsize = AtomicUsize::new(0);
+
+    /// ADR 0170: once its device is lost, a render hands the frame back to
+    /// the CPU and drops the resident copy, without a panic. On a device of
+    /// its own, so the process-wide one the other tests use stays healthy.
+    #[test]
+    fn a_lost_device_hands_the_frame_back_to_the_cpu() {
+        let Some(gpu) = Gpu::acquire_any() else {
+            eprintln!("no GPU adapter on this machine: nothing to lose");
+            return;
+        };
+        let output = crate::stages::STAGES
+            .iter()
+            .find(|stage| stage.name == "output_rendering")
+            .unwrap();
+        let rest = [(output, output.versions.last().unwrap())];
+        let settings = crate::stages::neutral_settings();
+        let pixels = Pixels {
+            width: 8,
+            height: 4,
+            data: vec![0.25; 8 * 4 * 3],
+        };
+        let from = Checkpoint {
+            applied: 0,
+            fingerprint: 0,
+            pixels: &pixels,
+        };
+        let mut resident = None;
+
+        assert!(render_on(&gpu, &mut resident, &rest, &settings, 1.0, &from).is_some());
+        assert!(resident.is_some());
+        gpu.destroy();
+        assert!(render_on(&gpu, &mut resident, &rest, &settings, 1.0, &from).is_none());
+        assert!(resident.is_none(), "a lost device's frame is not kept");
+        assert!(gpu.failure().is_some());
+    }
 }

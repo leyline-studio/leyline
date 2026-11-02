@@ -26,6 +26,9 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 /// the device fails at any step: the caller renders on the CPU instead
 /// (ADR 0156 §2).
 pub fn scale_samples(gpu: &Gpu, samples: &[f32], factor: f32) -> Option<Vec<f32>> {
+    if gpu.failure().is_some() {
+        return None;
+    }
     let count = u32::try_from(samples.len()).ok()?;
     if count == 0 {
         return Some(Vec::new());
@@ -96,6 +99,11 @@ pub fn scale_samples(gpu: &Gpu, samples: &[f32], factor: f32) -> Option<Vec<f32>
         });
     device.poll(wgpu::PollType::Wait).ok()?;
     receiver.recv().ok()?.ok()?;
+    // wgpu's `get_mapped_range` panics on a buffer of a failed device,
+    // whatever the mapping callback said (ADR 0170 §1).
+    if gpu.failure().is_some() {
+        return None;
+    }
     let mapped = readback.slice(..).get_mapped_range();
     let out = mapped
         .chunks_exact(4)
@@ -130,5 +138,18 @@ mod tests {
                 "{gpu_value} vs {expected}"
             );
         }
+    }
+    /// ADR 0170: a device the driver takes away reports it, and work on it
+    /// answers `None`, never a panic.
+    #[test]
+    fn a_lost_device_says_so_instead_of_panicking() {
+        let Some(gpu) = Gpu::acquire_any() else {
+            eprintln!("no GPU adapter on this machine: nothing to lose");
+            return;
+        };
+        assert_eq!(gpu.failure(), None);
+        gpu.destroy();
+        assert_eq!(scale_samples(&gpu, &[0.5; 64], 2.0), None);
+        assert!(gpu.failure().is_some(), "the loss went unreported");
     }
 }
