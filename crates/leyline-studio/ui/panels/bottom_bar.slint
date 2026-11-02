@@ -79,6 +79,9 @@ export component BottomBar inherits Rectangle {
     property <bool> sort-open: false;
     // Where the sort chip ends, so the pill never covers it.
     property <length> sort-end: 0px;
+    // Where the tools at the right begin, so the pill never covers them
+    // either (the zoom chip, in a 900px window in French).
+    property <length> tools-start: root.width;
     property <bool> in-grid: !GridState.loupe-mode && !GridState.compare-mode && !GridState.survey-mode
         && !DevelopState.develop-mode;
     property <bool> has-photo: GridState.selected >= 0;
@@ -213,6 +216,15 @@ export component BottomBar inherits Rectangle {
 
         Rectangle {
             horizontal-stretch: 1;
+            init => {
+                root.tools-start = self.x + self.width;
+            }
+            changed x => {
+                root.tools-start = self.x + self.width;
+            }
+            changed width => {
+                root.tools-start = self.x + self.width;
+            }
         }
 
         // The slider's label goes first when the bar runs short: below
@@ -270,8 +282,14 @@ export component BottomBar inherits Rectangle {
     // Centred on the window and not between its neighbours, so it does not
     // slide when the sort label or the zoom changes width — unless that
     // would cover the sort, as a 900px window in French does: it then
-    // stands just right of it.
-    if root.shown: Rectangle {
+    // stands just right of it. When even that leaves too little room before
+    // the tools at the right, the pill drops « Copy Settings », which the
+    // menu bar and Ctrl+C still offer: the marks are what it is for.
+    if root.shown: pill-frame := Rectangle {
+        // Measured on the parts whose width never depends on this, so the
+        // decision cannot feed back into itself.
+        property <bool> copy-fits: root.tools-start - root.sort-end - 16px
+            >= marks.preferred-width + 20px + 10px + copy-text.preferred-width + 12px;
         x: max((root.width - self.width) / 2, root.sort-end + 8px);
         y: root.bar-y + 6px;
         width: pill.preferred-width;
@@ -284,6 +302,8 @@ export component BottomBar inherits Rectangle {
             padding-right: 10px;
             spacing: 0px;
 
+            marks := HorizontalLayout {
+            spacing: 0px;
             for s in 5: PillMark {
                 glyph: root.rating > s ? "★" : "☆";
                 lit: root.rating > s;
@@ -314,9 +334,11 @@ export component BottomBar inherits Rectangle {
                     GridState.classify("x");
                 }
             }
-            Rectangle { width: 10px; }
+            }
+            Rectangle { width: pill-frame.copy-fits ? 10px : 0px; }
             copy := TouchArea {
-                width: copy-text.preferred-width + 12px;
+                visible: pill-frame.copy-fits;
+                width: pill-frame.copy-fits ? copy-text.preferred-width + 12px : 0px;
                 enabled: root.has-photo;
                 mouse-cursor: pointer;
                 clicked => {
