@@ -446,7 +446,7 @@ fn blur3(plane: &[f32], w: usize, h: usize, radius: usize) -> Vec<f32> {
     let mut out = plane.to_vec();
     for _ in 0..3 {
         out = box_rows(&out, w, h, radius);
-        out = transpose(&box_rows(&transpose(&out, w, h), h, w, radius), h, w);
+        out = box_columns(&out, w, h, radius);
     }
     out
 }
@@ -469,13 +469,50 @@ fn box_rows(plane: &[f32], w: usize, h: usize, radius: usize) -> Vec<f32> {
     out
 }
 
-fn transpose(plane: &[f32], w: usize, h: usize) -> Vec<f32> {
+/// The vertical counterpart of [`box_rows`]: the same `f64` sums in the
+/// same order, so the result is the one a transposed horizontal pass gave,
+/// bit for bit. Walking rows top to bottom with one running sum per column
+/// keeps every read contiguous, where transposing a full-resolution plane
+/// twice per pass was most of the stage's time (ADR 0172 §6).
+fn box_columns(plane: &[f32], w: usize, h: usize, radius: usize) -> Vec<f32> {
+    const STRIP: usize = 256;
+    let span = (2 * radius + 1) as f64;
+    let r = radius as isize;
+    let row_at = |y: isize| y.clamp(0, h as isize - 1) as usize * w;
+    let strips: Vec<Vec<f32>> = (0..w.div_ceil(STRIP))
+        .into_par_iter()
+        .map(|strip| {
+            let (x0, x1) = (strip * STRIP, ((strip + 1) * STRIP).min(w));
+            let sw = x1 - x0;
+            let mut sums = vec![0.0f64; sw];
+            for k in -r..=r {
+                let row = &plane[row_at(k) + x0..row_at(k) + x1];
+                for (sum, v) in sums.iter_mut().zip(row) {
+                    *sum += f64::from(*v);
+                }
+            }
+            let mut out = vec![0.0f32; sw * h];
+            for (y, out_row) in out.chunks_mut(sw).enumerate() {
+                for (o, sum) in out_row.iter_mut().zip(&sums) {
+                    *o = (sum / span) as f32;
+                }
+                let y = y as isize;
+                let (enter, leave) = (row_at(y + r + 1) + x0, row_at(y - r) + x0);
+                for (i, sum) in sums.iter_mut().enumerate() {
+                    *sum += f64::from(plane[enter + i]) - f64::from(plane[leave + i]);
+                }
+            }
+            out
+        })
+        .collect();
     let mut out = vec![0.0f32; w * h];
-    for y in 0..h {
-        for x in 0..w {
-            out[x * h + y] = plane[y * w + x];
+    out.par_chunks_mut(w).enumerate().for_each(|(y, row)| {
+        for (strip, values) in strips.iter().enumerate() {
+            let x0 = strip * STRIP;
+            let sw = values.len() / h;
+            row[x0..x0 + sw].copy_from_slice(&values[y * sw..(y + 1) * sw]);
         }
-    }
+    });
     out
 }
 

@@ -21,8 +21,9 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use leyline_color::{DcpProfile, Matrix3};
 use leyline_core::{
-    BrushStroke, ColorGrading, ColorGradingZone, Crop, CurvePoint, HslBand, LensCorrection,
-    LocalAdjustment, LocalAdjustmentValues, Mask, NoiseReduction, Point, Settings, Sharpening,
+    Backdrop, BackdropProtect, BackdropRegion, BackdropZone, BrushStroke, ColorGrading,
+    ColorGradingZone, Crop, CurvePoint, HslBand, LensCorrection, LocalAdjustment,
+    LocalAdjustmentValues, Mask, NoiseReduction, Point, ProtectWithin, Settings, Sharpening,
     SpotRemoval, StageVersions, ToneCurve, WhiteBalance,
 };
 use leyline_engine::{LensShot, SensorShot, Source, SourceColor, render};
@@ -228,6 +229,53 @@ fn benches(c: &mut Criterion) {
                 width: 0.8,
                 height: 0.8,
             }),
+            ..Settings::default()
+        };
+        b.iter(|| {
+            render(
+                black_box(&image),
+                black_box(&settings),
+                None,
+                None,
+                None,
+                None,
+                &Default::default(),
+                &Source::plain(SOURCE),
+            )
+            .unwrap()
+        });
+    });
+
+    // Extending a backdrop (ADR 0172): one region, a hole, a protected
+    // subject — the shape of a real session, every blur at full size.
+    group.bench_function("backdrop", |b| {
+        let point = |x, y| Point { x, y };
+        let settings = Settings {
+            backdrop: Backdrop {
+                regions: vec![BackdropRegion {
+                    source: vec![
+                        point(0.0, 0.0),
+                        point(0.66, 0.0),
+                        point(0.62, 1.0),
+                        point(0.0, 1.0),
+                    ],
+                    zone: BackdropZone::OutsideSource,
+                    holes: vec![vec![point(0.2, 0.2), point(0.3, 0.2), point(0.3, 0.3)]],
+                }],
+                protect: vec![BackdropProtect {
+                    mask: Mask::Radial {
+                        cx: 0.65,
+                        cy: 0.5,
+                        rx: 0.1,
+                        ry: 0.2,
+                        angle: 0.0,
+                        feather: 0.3,
+                        inverted: false,
+                    },
+                    within: ProtectWithin::Everywhere,
+                }],
+                ..Backdrop::default()
+            },
             ..Settings::default()
         };
         b.iter(|| {
