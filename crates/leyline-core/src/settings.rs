@@ -133,6 +133,9 @@ pub struct Settings {
     /// Red-eye corrections (ADR 0103). Empty = none, the neutral state.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub red_eye: Vec<RedEye>,
+    /// Backdrop extension (ADR 0172). Neutral: no region.
+    #[serde(default, skip_serializing_if = "Backdrop::is_neutral")]
+    pub backdrop: Backdrop,
 
     /// Masked local adjustments, applied in list order. Neutral: empty (ADR
     /// 0029).
@@ -226,6 +229,7 @@ impl Default for Settings {
             spot_removal: Vec::new(),
             reshape: Vec::new(),
             red_eye: Vec::new(),
+            backdrop: Backdrop::default(),
             local_adjustments: Vec::new(),
             lens_correction: LensCorrection::default(),
             noise_reduction: NoiseReduction::default(),
@@ -535,6 +539,7 @@ impl Settings {
                     .to_owned(),
             ));
         }
+        self.validate_backdrop()?;
         // Validated exactly like `spot_removal` below, which shares its
         // geometry (ADR 0103 §1).
         for (i, eye) in self.red_eye.iter().enumerate() {
@@ -622,6 +627,21 @@ impl Settings {
                     adjustment.opacity
                 )));
             }
+            if matches!(adjustment.mask, Mask::Coverage { .. })
+                && matches!(self.stages.get("local_adjustments"), Some(&v) if v < 3)
+            {
+                // Same capability rule as `range` below, one variant wider:
+                // v1 and v2 have no code that reads a stored coverage, and an
+                // ignored mask is a local adjustment applied to the whole
+                // image (ADR 0070 §4).
+                return Err(LeylineError::InvalidSettings(format!(
+                    "local_adjustments[{i}].mask is a stored coverage, which needs \
+                     stage local_adjustments version 3, but this revision pins an \
+                     earlier one; reprocess the photo to the current stage versions \
+                     first"
+                )));
+            }
+            validate_mask(&format!("local_adjustments[{i}].mask"), &adjustment.mask)?;
             let unit = |name: &str, value: f64| -> Result<()> {
                 if (0.0..=1.0).contains(&value) {
                     Ok(())
@@ -631,82 +651,6 @@ impl Settings {
                     )))
                 }
             };
-            match &adjustment.mask {
-                Mask::Radial {
-                    cx,
-                    cy,
-                    rx,
-                    ry,
-                    angle,
-                    feather,
-                    inverted: _,
-                } => {
-                    unit("mask.cx", *cx)?;
-                    unit("mask.cy", *cy)?;
-                    if *rx <= 0.0 || *ry <= 0.0 {
-                        return Err(LeylineError::InvalidSettings(format!(
-                            "local_adjustments[{i}].mask.rx/ry must be strictly positive, got {rx}/{ry}"
-                        )));
-                    }
-                    finite("mask.angle", *angle)?;
-                    unit("mask.feather", *feather)?;
-                }
-                Mask::Gradient { x0, y0, x1, y1 } => {
-                    unit("mask.x0", *x0)?;
-                    unit("mask.y0", *y0)?;
-                    unit("mask.x1", *x1)?;
-                    unit("mask.y1", *y1)?;
-                    if (x1 - x0).hypot(y1 - y0) <= 0.0 {
-                        return Err(LeylineError::InvalidSettings(format!(
-                            "local_adjustments[{i}].mask: gradient endpoints must differ"
-                        )));
-                    }
-                }
-                Mask::Everything => {}
-                Mask::Brush { strokes } => {
-                    if strokes.is_empty() {
-                        return Err(LeylineError::InvalidSettings(format!(
-                            "local_adjustments[{i}].mask.strokes must not be empty"
-                        )));
-                    }
-                    for (j, stroke) in strokes.iter().enumerate() {
-                        unit(&format!("mask.strokes[{j}].x"), stroke.x)?;
-                        unit(&format!("mask.strokes[{j}].y"), stroke.y)?;
-                        if stroke.radius <= 0.0 {
-                            return Err(LeylineError::InvalidSettings(format!(
-                                "local_adjustments[{i}].mask.strokes[{j}].radius must be strictly positive, got {}",
-                                stroke.radius
-                            )));
-                        }
-                        unit(&format!("mask.strokes[{j}].flow"), stroke.flow)?;
-                        unit(&format!("mask.strokes[{j}].hardness"), stroke.hardness)?;
-                    }
-                }
-                Mask::Coverage { path, checksum } => {
-                    // Same capability rule as `range` below, one variant
-                    // wider: v1 and v2 have no code that reads a stored
-                    // coverage, and an ignored mask is a local adjustment
-                    // applied to the whole image (ADR 0070 §4).
-                    if matches!(self.stages.get("local_adjustments"), Some(&v) if v < 3) {
-                        return Err(LeylineError::InvalidSettings(format!(
-                            "local_adjustments[{i}].mask is a stored coverage, which needs \
-                             stage local_adjustments version 3, but this revision pins an \
-                             earlier one; reprocess the photo to the current stage versions \
-                             first"
-                        )));
-                    }
-                    crate::validate_library_relative_path(
-                        &format!("local_adjustments[{i}].mask.path"),
-                        path,
-                    )?;
-                    if !checksum.starts_with("blake3:") || checksum.len() != "blake3:".len() + 64 {
-                        return Err(LeylineError::InvalidSettings(format!(
-                            "local_adjustments[{i}].mask.checksum must be \"blake3:<64 hex>\", \
-                             got {checksum:?}"
-                        )));
-                    }
-                }
-            }
 
             if let Some(range) = &adjustment.range {
                 // A range is a *capability* of the stage version, not just a
@@ -1041,6 +985,142 @@ mod double_option {
         // the inner `Option` carries whether it holds a value.
         Option::deserialize(deserializer).map(Some)
     }
+}
+
+impl Settings {
+    /// The backdrop's own rules (ADR 0172 §2); its masks go through
+    /// [`validate_mask`] like a local adjustment's.
+    fn validate_backdrop(&self) -> Result<()> {
+        let backdrop = &self.backdrop;
+        let invalid = |message: String| Err(LeylineError::InvalidSettings(message));
+        let polygon = |label: &str, points: &[Point]| -> Result<()> {
+            if points.len() < 3 {
+                return invalid(format!(
+                    "{label} needs at least 3 vertices, got {}",
+                    points.len()
+                ));
+            }
+            for (k, point) in points.iter().enumerate() {
+                for (axis, value) in [("x", point.x), ("y", point.y)] {
+                    if !(0.0..=1.0).contains(&value) {
+                        return invalid(format!(
+                            "{label}[{k}].{axis} must be in [0, 1], got {value}"
+                        ));
+                    }
+                }
+            }
+            Ok(())
+        };
+        for (i, region) in backdrop.regions.iter().enumerate() {
+            polygon(&format!("backdrop.regions[{i}].source"), &region.source)?;
+            if let BackdropZone::Polygons(zones) = &region.zone {
+                if zones.is_empty() {
+                    return invalid(format!(
+                        "backdrop.regions[{i}].zone.polygons must not be empty"
+                    ));
+                }
+                for (j, zone) in zones.iter().enumerate() {
+                    polygon(&format!("backdrop.regions[{i}].zone.polygons[{j}]"), zone)?;
+                }
+            }
+            for (j, hole) in region.holes.iter().enumerate() {
+                polygon(&format!("backdrop.regions[{i}].holes[{j}]"), hole)?;
+            }
+        }
+        for (i, protect) in backdrop.protect.iter().enumerate() {
+            validate_mask(&format!("backdrop.protect[{i}].mask"), &protect.mask)?;
+        }
+        for (i, mask) in backdrop.release.iter().enumerate() {
+            validate_mask(&format!("backdrop.release[{i}]"), mask)?;
+        }
+        if !(0.0..=0.05).contains(&backdrop.feather) {
+            return invalid(format!(
+                "backdrop.feather must be in [0, 0.05], got {}",
+                backdrop.feather
+            ));
+        }
+        if !(0..=200).contains(&backdrop.texture) {
+            return invalid(format!(
+                "backdrop.texture must be in [0, 200], got {}",
+                backdrop.texture
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// Validates one mask's geometry, every message prefixed by `label` (the
+/// mask's path in the settings, e.g. `local_adjustments[2].mask`). Shared by
+/// the local adjustments and the backdrop's protect/release masks
+/// (ADR 0172 §2), which use the same shapes and so the same rules.
+fn validate_mask(label: &str, mask: &Mask) -> Result<()> {
+    let invalid = |message: String| Err(LeylineError::InvalidSettings(message));
+    let unit = |name: &str, value: f64| -> Result<()> {
+        if (0.0..=1.0).contains(&value) {
+            Ok(())
+        } else {
+            invalid(format!("{label}.{name} must be in [0, 1], got {value}"))
+        }
+    };
+    match mask {
+        Mask::Radial {
+            cx,
+            cy,
+            rx,
+            ry,
+            angle,
+            feather,
+            inverted: _,
+        } => {
+            unit("cx", *cx)?;
+            unit("cy", *cy)?;
+            if *rx <= 0.0 || *ry <= 0.0 {
+                return invalid(format!(
+                    "{label}.rx/ry must be strictly positive, got {rx}/{ry}"
+                ));
+            }
+            if !angle.is_finite() {
+                return invalid(format!("{label}.angle must be finite, got {angle}"));
+            }
+            unit("feather", *feather)?;
+        }
+        Mask::Gradient { x0, y0, x1, y1 } => {
+            unit("x0", *x0)?;
+            unit("y0", *y0)?;
+            unit("x1", *x1)?;
+            unit("y1", *y1)?;
+            if (x1 - x0).hypot(y1 - y0) <= 0.0 {
+                return invalid(format!("{label}: gradient endpoints must differ"));
+            }
+        }
+        Mask::Everything => {}
+        Mask::Brush { strokes } => {
+            if strokes.is_empty() {
+                return invalid(format!("{label}.strokes must not be empty"));
+            }
+            for (j, stroke) in strokes.iter().enumerate() {
+                unit(&format!("strokes[{j}].x"), stroke.x)?;
+                unit(&format!("strokes[{j}].y"), stroke.y)?;
+                if stroke.radius <= 0.0 {
+                    return invalid(format!(
+                        "{label}.strokes[{j}].radius must be strictly positive, got {}",
+                        stroke.radius
+                    ));
+                }
+                unit(&format!("strokes[{j}].flow"), stroke.flow)?;
+                unit(&format!("strokes[{j}].hardness"), stroke.hardness)?;
+            }
+        }
+        Mask::Coverage { path, checksum } => {
+            crate::validate_library_relative_path(&format!("{label}.path"), path)?;
+            if !checksum.starts_with("blake3:") || checksum.len() != "blake3:".len() + 64 {
+                return invalid(format!(
+                    "{label}.checksum must be \"blake3:<64 hex>\", got {checksum:?}"
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

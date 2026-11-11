@@ -256,10 +256,11 @@ pub(crate) fn detector_key(
 /// Runs a detection and appends the coverage it returns as a local
 /// adjustment (`docs/adr/0105` §2).
 pub(crate) fn detect_cmd(args: &[String]) -> Result<(), String> {
-    let (positional, options) = parse(args, &["from"])?;
+    let (positional, options) = parse(args, &["from", "within"])?;
     let [root, version, key] = positional.as_slice() else {
         return Err(
-            "usage: leyline detect <library> <version-id> <detector>:<detection> [--from <dir>]"
+            "usage: leyline detect <library> <version-id> <detector>:<detection> [--from <dir>] \
+             [--backdrop [--within everywhere|source|outside_source]]"
                 .to_owned(),
         );
     };
@@ -279,9 +280,33 @@ pub(crate) fn detect_cmd(args: &[String]) -> Result<(), String> {
         .store_mask_coverage(width, height, &samples)
         .map_err(|e| e.to_string())?;
 
+    let mut session = library.edit(version).map_err(|e| e.to_string())?;
+    if options.switch("backdrop") {
+        // The detected subjects are what the backdrop extension must never
+        // write (ADR 0172 §2), appended to its protected masks.
+        let within = match options.value("within").unwrap_or("everywhere") {
+            "everywhere" => ProtectWithin::Everywhere,
+            "source" => ProtectWithin::Source,
+            "outside_source" => ProtectWithin::OutsideSource,
+            other => {
+                return Err(format!(
+                    "unknown --within {other:?}, expected everywhere/source/outside_source"
+                ));
+            }
+        };
+        let mut backdrop = session.settings().backdrop.clone();
+        backdrop.protect.push(BackdropProtect { mask, within });
+        let index = backdrop.protect.len() - 1;
+        session
+            .set(Param::Backdrop, Value::Backdrop(backdrop))
+            .map_err(|e| e.to_string())?;
+        let revision = session.commit().map_err(|e| e.to_string())?;
+        println!("backdrop protect {index} carries the detected coverage");
+        println!("committed revision {revision}");
+        return Ok(());
+    }
     // Neutral values, like Studio's: the detection chose *where*, the
     // photographer still chooses *what* (ADR 0105 §2).
-    let mut session = library.edit(version).map_err(|e| e.to_string())?;
     let index = session.settings().local_adjustments.len();
     let entry = LocalAdjustment {
         mask,

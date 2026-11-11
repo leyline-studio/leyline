@@ -479,6 +479,24 @@ pub(crate) fn develop(args: &[String]) -> Result<(), String> {
             };
             (Param::Reshape, Value::Reshape(points))
         }
+        "backdrop" => {
+            // The whole extension at once, written exactly as
+            // `settings_json` stores it, or `reset` to remove it (ADR 0172
+            // §5). Subjects are protected afterwards by `detect --backdrop`,
+            // so a payload is about polygons, not masks.
+            let backdrop = match at(0)? {
+                "reset" => Backdrop::default(),
+                payload => {
+                    let json = match payload.strip_prefix('@') {
+                        Some(path) => std::fs::read_to_string(path)
+                            .map_err(|e| format!("cannot read {path}: {e}"))?,
+                        None => payload.to_owned(),
+                    };
+                    serde_json::from_str(&json).map_err(|e| format!("bad backdrop payload: {e}"))?
+                }
+            };
+            (Param::Backdrop, Value::Backdrop(backdrop))
+        }
         "red-eye" => {
             // Same shape as `spot-removal` below, one entry appended per
             // call, or `red-eye reset` to clear the list (ADR 0103).
@@ -765,6 +783,7 @@ pub(crate) fn groups(value: &str) -> Result<Vec<SettingsGroup>, String> {
             "spot_removal" => Ok(SettingsGroup::SpotRemoval),
             "red_eye" => Ok(SettingsGroup::RedEye),
             "local_adjustments" => Ok(SettingsGroup::LocalAdjustments),
+            "backdrop" => Ok(SettingsGroup::Backdrop),
             other => Err(format!("unknown preset group {other:?}")),
         })
         .collect()

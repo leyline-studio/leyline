@@ -3,11 +3,11 @@
 
 use leyline_catalog::{CHECKSUM_LEN, Catalog, NewAsset, RegisteredAsset};
 use leyline_core::{
-    CURRENT_SCHEMA, CameraProfile, ColorGrading, Crop, CurvePoint, Defringe, Demosaic, Grain,
-    HighlightReconstruction, HslBand, LensCorrection, Levels, LocalAdjustment,
-    LocalAdjustmentValues, Lut, Mask, MediaType, NoiseReduction, OutputRendering, ParametricCurve,
-    Perspective, Point, PresetSettings, RedEye, ReshapePoint, Settings, SettingsGroup, Sharpening,
-    SpotRemoval, ToneCurve, VersionId, Vignette, WhiteBalance,
+    Backdrop, BackdropRegion, BackdropZone, CURRENT_SCHEMA, CameraProfile, ColorGrading, Crop,
+    CurvePoint, Defringe, Demosaic, Grain, HighlightReconstruction, HslBand, LensCorrection,
+    Levels, LocalAdjustment, LocalAdjustmentValues, Lut, Mask, MediaType, NoiseReduction,
+    OutputRendering, ParametricCurve, Perspective, Point, PresetSettings, RedEye, ReshapePoint,
+    Settings, SettingsGroup, Sharpening, SpotRemoval, ToneCurve, VersionId, Vignette, WhiteBalance,
 };
 use leyline_engine::{EditSession, Param, Value, apply_batch, capture};
 
@@ -222,6 +222,18 @@ fn a_development_with_nothing_left_neutral() -> Settings {
             feather: 0.4,
             darken: 0.8,
         }],
+        backdrop: Backdrop {
+            regions: vec![BackdropRegion {
+                source: vec![
+                    Point { x: 0.1, y: 0.0 },
+                    Point { x: 0.9, y: 0.0 },
+                    Point { x: 0.9, y: 1.0 },
+                ],
+                zone: BackdropZone::OutsideSource,
+                holes: Vec::new(),
+            }],
+            ..Backdrop::default()
+        },
         local_adjustments: vec![LocalAdjustment {
             mask: Mask::Everything,
             range: None,
@@ -299,6 +311,7 @@ fn every_category_carries_its_settings_all_the_way_across() {
         SettingsGroup::SpotRemoval,
         SettingsGroup::RedEye,
         SettingsGroup::LocalAdjustments,
+        SettingsGroup::Backdrop,
     ];
 
     let moved = a_development_with_nothing_left_neutral();

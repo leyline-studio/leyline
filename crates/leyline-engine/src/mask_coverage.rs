@@ -88,8 +88,22 @@ impl MaskCoverages {
 /// An empty map when the revision references none, which is the usual case.
 pub fn resolve_from_settings(library_root: &Path, settings: &Settings) -> Result<MaskCoverages> {
     let mut coverages = HashMap::new();
-    for adjustment in &settings.local_adjustments {
-        let Mask::Coverage { path, checksum } = &adjustment.mask else {
+    // The backdrop's protect and release masks may be stored coverages
+    // too (ADR 0172 §2), resolved into the same map.
+    let masks = settings
+        .local_adjustments
+        .iter()
+        .map(|adjustment| &adjustment.mask)
+        .chain(
+            settings
+                .backdrop
+                .protect
+                .iter()
+                .map(|protect| &protect.mask),
+        )
+        .chain(&settings.backdrop.release);
+    for mask in masks {
+        let Mask::Coverage { path, checksum } = mask else {
             continue;
         };
         if coverages.contains_key(path) {

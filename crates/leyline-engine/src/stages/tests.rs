@@ -1743,6 +1743,18 @@ fn everything() -> Settings {
             feather: 0.5,
             darken: 0.6,
         }],
+        backdrop: leyline_core::Backdrop {
+            regions: vec![leyline_core::BackdropRegion {
+                source: vec![
+                    Point { x: 0.0, y: 0.0 },
+                    Point { x: 0.7, y: 0.0 },
+                    Point { x: 0.7, y: 1.0 },
+                ],
+                zone: leyline_core::BackdropZone::OutsideSource,
+                holes: Vec::new(),
+            }],
+            ..leyline_core::Backdrop::default()
+        },
         exposure: 0.2,
         contrast: 10,
         highlights: -10,

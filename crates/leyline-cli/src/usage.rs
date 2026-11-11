@@ -50,7 +50,10 @@ Usage:
   leyline detect <library> <version-id> <detector:detection>
                                     runs the detection on the preview and adds a
                                     local adjustment carrying the coverage it
-                                    returned (ADR 0105)
+                                    returned (ADR 0105); with --backdrop, adds
+                                    it to the backdrop's protected subjects
+                                    instead, --within everywhere (default),
+                                    source or outside_source (ADR 0172)
   leyline detect-check <detector:detection>
                                     checks a detector speaks the protocol, on a
                                     synthetic image (ADR 0105 §3); never judges
@@ -310,6 +313,14 @@ Develop params (docs/pipeline.md §3.2, schema 1):
                                     (to), positions and radius percent 0-100,
                                     strength in [0, 1] (default 1) — ADR 0109;
                                     `reshape reset` empties the list
+  backdrop <json|@file>             replaces the backdrop extension (ADR 0172),
+                                    written exactly as `settings_json` stores
+                                    it, e.g. '{\"regions\":[{\"source\":[
+                                    {\"x\":0,\"y\":0},{\"x\":0.8,\"y\":0},
+                                    {\"x\":0.8,\"y\":1}]}]}' — the zone
+                                    defaults to outside the source; protect
+                                    subjects afterwards with detect --backdrop;
+                                    `backdrop reset` removes it
   red-eye <x> <y> <radius> <feather> <darken>
                                     position/radius percent 0-100,
                                     feather/darken in [0, 1]; appends one

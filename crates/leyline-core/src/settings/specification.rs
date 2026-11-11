@@ -34,6 +34,14 @@ fn every_settings_key_is_named_in_the_pipeline_specification() {
             feather: 0.4,
             darken: 0.8,
         }],
+        backdrop: Backdrop {
+            regions: vec![BackdropRegion {
+                source: vec![Point { x: 0.0, y: 0.0 }; 3],
+                zone: BackdropZone::OutsideSource,
+                holes: Vec::new(),
+            }],
+            ..Backdrop::default()
+        },
         source_encoding: SourceEncoding::LinearWorkspace,
         // `extra` stays empty: it is `#[serde(flatten)]`, so it has no
         // key of its own — what it holds is spliced in at the top level

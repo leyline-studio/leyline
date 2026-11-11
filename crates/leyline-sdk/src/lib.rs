@@ -17,16 +17,16 @@
 #![forbid(unsafe_code)]
 
 pub use leyline_core::{
-    AssetId, BrushStroke, CURRENT_SCHEMA, CameraProfile, CameraSetting, CameraSettings,
-    CollectionId, CollectionType, ColorGrading, ColorGradingZone, ColorLabel, ColorRange,
-    ContactSheetPresetId, Crop, CurvePoint, Defringe, Demosaic, ExportPresetId, FolderId, Grain,
-    HighlightReconstruction, HslBand, JobId, KeywordId, LensCorrection, Levels, LeylineError,
-    LocalAdjustment, LocalAdjustmentValues, LuminanceRange, Lut, Mask, MediaType, NoiseReduction,
-    ParametricCurve, Perspective, PickState, Point, PresetFolderId, PresetId, PresetSettings,
-    PreviewKind, PrintPresetId, RangeMask, RedEye, ReshapePoint, Result, RevisionId,
-    RevisionOrigin, SETTINGS_KEYS, Settings, SettingsGroup, Sharpening, SpotRemoval, StageVersions,
-    TetherSetting, ToneCurve, VersionId, Vignette, WHITE_BALANCE_PRESETS, WhiteBalance,
-    WhiteBalancePreset,
+    AssetId, Backdrop, BackdropProtect, BackdropRegion, BackdropZone, BrushStroke, CURRENT_SCHEMA,
+    CameraProfile, CameraSetting, CameraSettings, CollectionId, CollectionType, ColorGrading,
+    ColorGradingZone, ColorLabel, ColorRange, ContactSheetPresetId, Crop, CurvePoint, Defringe,
+    Demosaic, ExportPresetId, FolderId, Grain, HighlightReconstruction, HslBand, JobId, KeywordId,
+    LensCorrection, Levels, LeylineError, LocalAdjustment, LocalAdjustmentValues, LuminanceRange,
+    Lut, Mask, MediaType, NoiseReduction, ParametricCurve, Perspective, PickState, Point,
+    PresetFolderId, PresetId, PresetSettings, PreviewKind, PrintPresetId, ProtectWithin, RangeMask,
+    RedEye, ReshapePoint, Result, RevisionId, RevisionOrigin, SETTINGS_KEYS, Settings,
+    SettingsGroup, Sharpening, SpotRemoval, StageVersions, TetherSetting, ToneCurve, VersionId,
+    Vignette, WHITE_BALANCE_PRESETS, WhiteBalance, WhiteBalancePreset,
 };
 
 pub use leyline_engine::{

@@ -18,16 +18,17 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use leyline_sdk::{
-    AssetDescription, AssetId, CameraProfile, CameraSettings, CaptionSource, ColorGrading,
-    ColorGradingZone, ColorLabel, ContactSheetRecipe, ContactSheetRequest, ContactSheetSettings,
-    Crop, CurvePoint, Defringe, Demosaic, DifferenceSuspect, ExportFormat, ExportMetadata,
-    ExportRecipe, ExportRecord, ExportRequest, ExportSettings, ExportVerdict, GridQuery, GuideLine,
-    HighlightReconstruction, HslBand, ImportOptions, LensCorrection, Levels, Library,
-    LocalAdjustment, LocalAdjustmentValues, Lut, Margins, NoiseReduction, Orientation, PaperSize,
-    Param, Perspective, PickState, Point, PresetId, PreviewKind, PrintRecipe, PrintRequest,
-    PrintSettings, RedEye, RenderingIntent, Reproduction, ReshapePoint, RevisionOrigin,
-    ScanOptions, Settings, SettingsGroup, Sharpening, ShotRange, SpotRemoval, TetherOptions,
-    TetherSetting, Value, VersionId, Watermark, WatermarkAnchor, WhiteBalance,
+    AssetDescription, AssetId, Backdrop, BackdropProtect, CameraProfile, CameraSettings,
+    CaptionSource, ColorGrading, ColorGradingZone, ColorLabel, ContactSheetRecipe,
+    ContactSheetRequest, ContactSheetSettings, Crop, CurvePoint, Defringe, Demosaic,
+    DifferenceSuspect, ExportFormat, ExportMetadata, ExportRecipe, ExportRecord, ExportRequest,
+    ExportSettings, ExportVerdict, GridQuery, GuideLine, HighlightReconstruction, HslBand,
+    ImportOptions, LensCorrection, Levels, Library, LocalAdjustment, LocalAdjustmentValues, Lut,
+    Margins, NoiseReduction, Orientation, PaperSize, Param, Perspective, PickState, Point,
+    PresetId, PreviewKind, PrintRecipe, PrintRequest, PrintSettings, ProtectWithin, RedEye,
+    RenderingIntent, Reproduction, ReshapePoint, RevisionOrigin, ScanOptions, Settings,
+    SettingsGroup, Sharpening, ShotRange, SpotRemoval, TetherOptions, TetherSetting, Value,
+    VersionId, Watermark, WatermarkAnchor, WhiteBalance,
 };
 
 // One module per family of commands; each reads the shared parser, `open` and

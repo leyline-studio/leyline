@@ -61,6 +61,10 @@ pub enum SettingsGroup {
     /// included by default — though a graduated filter over a horizon often
     /// suits a whole series.
     LocalAdjustments,
+    /// [`Settings::backdrop`] (ADR 0172). Positional — polygons traced on
+    /// one frame — so never included by default. Last, so the bit masks
+    /// already stored keep naming the same categories.
+    Backdrop,
 }
 
 /// A named, partial jeu of develop settings (`docs/presets.md` §3.2,
@@ -80,6 +84,7 @@ pub enum SettingsGroup {
 /// which builds a settings value with every field off its neutral and
 /// compares what it serializes with this list.
 pub const SETTINGS_KEYS: &[&str] = &[
+    "backdrop",
     "blacks",
     "camera_profile",
     "clarity",
@@ -293,6 +298,9 @@ pub struct PresetSettings {
     /// Present when `groups` includes [`SettingsGroup::LocalAdjustments`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub local_adjustments: Option<Vec<LocalAdjustment>>,
+    /// Present when `groups` includes [`SettingsGroup::Backdrop`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backdrop: Option<Backdrop>,
 }
 
 impl PresetSettings {
@@ -361,6 +369,9 @@ impl PresetSettings {
                 }
                 SettingsGroup::LocalAdjustments => {
                     preset.local_adjustments = Some(settings.local_adjustments.clone());
+                }
+                SettingsGroup::Backdrop => {
+                    preset.backdrop = Some(settings.backdrop.clone());
                 }
                 SettingsGroup::Effects => {
                     preset.vignette = Some(settings.vignette);

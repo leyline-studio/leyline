@@ -234,7 +234,7 @@ fn scaled(width: u32, height: u32, long_edge: u32) -> (u32, u32) {
 /// Every settings group, so a capture holds every field `apply_edits` can
 /// change. The match below has no wildcard: a group added to the core fails
 /// to compile here until it is listed.
-const ALL_GROUPS: [SettingsGroup; 17] = [
+const ALL_GROUPS: [SettingsGroup; 18] = [
     SettingsGroup::WhiteBalance,
     SettingsGroup::Tone,
     SettingsGroup::Presence,
@@ -252,6 +252,7 @@ const ALL_GROUPS: [SettingsGroup; 17] = [
     SettingsGroup::SpotRemoval,
     SettingsGroup::RedEye,
     SettingsGroup::LocalAdjustments,
+    SettingsGroup::Backdrop,
 ];
 
 #[cfg(test)]
@@ -273,7 +274,8 @@ fn is_listed(group: SettingsGroup) -> bool {
         | SettingsGroup::Reshape
         | SettingsGroup::SpotRemoval
         | SettingsGroup::RedEye
-        | SettingsGroup::LocalAdjustments => ALL_GROUPS.contains(&group),
+        | SettingsGroup::LocalAdjustments
+        | SettingsGroup::Backdrop => ALL_GROUPS.contains(&group),
     }
 }
 

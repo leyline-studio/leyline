@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 
 use leyline_catalog::{Catalog, RevisionRow};
 use leyline_core::{
-    CURRENT_SCHEMA, CameraProfile, ColorGrading, Crop, Defringe, Demosaic, Grain,
+    Backdrop, CURRENT_SCHEMA, CameraProfile, ColorGrading, Crop, Defringe, Demosaic, Grain,
     HighlightReconstruction, HslBand, LensCorrection, LeylineError, LocalAdjustment, Lut,
     NoiseReduction, Perspective, PresetId, RedEye, ReshapePoint, Result, RevisionId, Settings,
     Sharpening, SpotRemoval, ToneCurve, VersionId, Vignette, WhiteBalance,
@@ -71,6 +71,8 @@ pub enum Param {
     /// Red-eye corrections, the whole list replaced atomically like
     /// `SpotRemoval`'s (ADR 0103).
     RedEye,
+    /// The backdrop extension, replaced whole (ADR 0172).
+    Backdrop,
     /// One local adjustment (ADR 0029): geometry and re-parameterized
     /// values together as one tool, addressed by its index in
     /// `local_adjustments` — the same grouping [`Param::WhiteBalance`]
@@ -154,6 +156,8 @@ pub enum Value {
     SpotRemoval(Vec<SpotRemoval>),
     /// For [`Param::RedEye`].
     RedEye(Vec<RedEye>),
+    /// For [`Param::Backdrop`].
+    Backdrop(Backdrop),
     /// For [`Param::LocalAdjustment`]: `Some` replaces the whole entry at
     /// that index (or appends, if the index equals the current length —
     /// there is no separate `add_mask` method, ADR 0029); `None` removes
@@ -587,6 +591,7 @@ pub(crate) fn apply(settings: &mut Settings, param: Param, value: Value) -> Resu
         (Param::Moire, Value::Int(v)) => settings.moire = v,
         (Param::SpotRemoval, Value::SpotRemoval(v)) => settings.spot_removal = v,
         (Param::RedEye, Value::RedEye(v)) => settings.red_eye = v,
+        (Param::Backdrop, Value::Backdrop(v)) => settings.backdrop = v,
         (Param::LocalAdjustment(index), Value::LocalAdjustment(v)) => match v {
             Some(adjustment) if index < settings.local_adjustments.len() => {
                 settings.local_adjustments[index] = adjustment;

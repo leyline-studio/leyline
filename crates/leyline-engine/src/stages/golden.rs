@@ -60,10 +60,11 @@ use leyline_color::DcpProfile;
 
 use crate::stages::Source;
 use leyline_core::{
-    BrushStroke, CameraProfile, ColorGrading, ColorGradingZone, ColorRange, Crop, CurvePoint,
-    Grain, HslBand, LensCorrection, LocalAdjustment, LocalAdjustmentValues, LuminanceRange, Mask,
-    NoiseReduction, Point, RangeMask, RedEye, Settings, Sharpening, SpotRemoval, StageVersions,
-    ToneCurve, Vignette, WhiteBalance,
+    Backdrop, BackdropProtect, BackdropRegion, BackdropZone, BrushStroke, CameraProfile,
+    ColorGrading, ColorGradingZone, ColorRange, Crop, CurvePoint, Grain, HslBand, LensCorrection,
+    LocalAdjustment, LocalAdjustmentValues, LuminanceRange, Mask, NoiseReduction, Point,
+    ProtectWithin, RangeMask, RedEye, Settings, Sharpening, SpotRemoval, StageVersions, ToneCurve,
+    Vignette, WhiteBalance,
 };
 use leyline_raw::RawImage;
 use serde::{Deserialize, Serialize};
@@ -286,6 +287,41 @@ fn red_eye(settings: Settings) -> Settings {
             feather: 0.4,
             darken: 0.55,
         }],
+        ..settings
+    }
+}
+
+/// Backdrop extension (ADR 0172) — a new case: the right third is the
+/// zone, a hole stands for a logo, and a radial subject straddles the edge
+/// so the protection is pinned too.
+fn backdrop(settings: Settings) -> Settings {
+    let point = |x, y| Point { x, y };
+    Settings {
+        backdrop: Backdrop {
+            regions: vec![BackdropRegion {
+                source: vec![
+                    point(0.0, 0.0),
+                    point(0.66, 0.0),
+                    point(0.62, 1.0),
+                    point(0.0, 1.0),
+                ],
+                zone: BackdropZone::OutsideSource,
+                holes: vec![vec![point(0.2, 0.2), point(0.3, 0.2), point(0.3, 0.3)]],
+            }],
+            protect: vec![BackdropProtect {
+                mask: Mask::Radial {
+                    cx: 0.65,
+                    cy: 0.5,
+                    rx: 0.1,
+                    ry: 0.2,
+                    angle: 0.0,
+                    feather: 0.3,
+                    inverted: false,
+                },
+                within: ProtectWithin::Everywhere,
+            }],
+            ..Backdrop::default()
+        },
         ..settings
     }
 }
@@ -864,6 +900,7 @@ pub(super) fn cases() -> Vec<(String, Case)> {
         ("tone_curve_channels", tone_curve_channels(base.clone())),
         ("spots", spots(base.clone())),
         ("red_eye", red_eye(base.clone())),
+        ("backdrop", backdrop(base.clone())),
         ("locals", locals(base.clone())),
         ("locals_range", locals_range(base.clone())),
         ("locals_neighbourhood", locals_neighbourhood(base.clone())),

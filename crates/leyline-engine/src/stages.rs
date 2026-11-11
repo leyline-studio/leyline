@@ -97,6 +97,9 @@ pub(crate) mod reshape {
 pub(crate) mod red_eye {
     pub(crate) mod v1;
 }
+pub(crate) mod backdrop {
+    pub(crate) mod v1;
+}
 pub(crate) mod spot_removal {
     pub(crate) mod v1;
 }
@@ -704,6 +707,28 @@ pub(crate) static STAGES: &[Stage] = &[
                     ctx.settings.defringe.purple,
                     ctx.settings.defringe.green,
                     ctx.scale,
+                );
+            },
+        }],
+    },
+    Stage {
+        // After `spot_removal`, so a pole cloned out of the cloth is gone
+        // before the cloth is measured, and before every tonal stage, so
+        // the extension and the real cloth are developed alike
+        // (ADR 0172 §1).
+        name: "backdrop",
+        active: |settings| !settings.backdrop.is_neutral(),
+        reads: &["backdrop", "rotation"],
+        versions: &[Version {
+            version: 1,
+            rank: 32,
+            space: Space::LinearRec2020,
+            apply: |px, ctx| {
+                backdrop::v1::backdrop(
+                    px,
+                    &ctx.settings.backdrop,
+                    ctx.settings.rotation,
+                    ctx.coverages,
                 );
             },
         }],

@@ -3315,6 +3315,11 @@ msgstr "Yeux rouges"
 
 #: crates/leyline-studio/ui/types.slint
 msgctxt "Tr"
+msgid "Backdrop"
+msgstr "Fond"
+
+#: crates/leyline-studio/ui/types.slint
+msgctxt "Tr"
 msgid "Local adjustments"
 msgstr "Retouches locales"
 

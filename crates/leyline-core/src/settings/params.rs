@@ -777,6 +777,105 @@ impl Default for RedEye {
     }
 }
 
+/// Extending a backdrop (ADR 0172): replace what lies beside a too-narrow
+/// backdrop — stands, wall, radiator — by a continuation of the backdrop
+/// itself, measured on it.
+///
+/// An empty [`Backdrop::regions`] is the neutral value: the stage does not
+/// run. Every polygon is in the post-rotation, pre-crop referential of
+/// ADR 0026, like [`RedEye`] and [`SpotRemoval`].
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Backdrop {
+    /// What to extend and where, in order: where two zones overlap, the
+    /// later region wins (§2).
+    pub regions: Vec<BackdropRegion>,
+    /// Masks whose union is never replaced — the subjects. Usually a stored
+    /// coverage written by a detector (ADR 0073), run by a gesture, never by
+    /// default.
+    pub protect: Vec<BackdropProtect>,
+    /// Masks subtracted from the protected union: the piece of a stand a
+    /// detector stuck to a hand.
+    pub release: Vec<Mask>,
+    /// Width of the blend between the fill and what it meets, as a fraction
+    /// of the buffer's larger dimension, in `[0, 0.05]`.
+    pub feather: f64,
+    /// The synthetic mottle's amplitude, in percent of the one measured on
+    /// the source, in `[0, 200]`. 0 leaves only the slow field.
+    pub texture: i32,
+}
+
+impl Default for Backdrop {
+    fn default() -> Self {
+        Self {
+            regions: Vec::new(),
+            protect: Vec::new(),
+            release: Vec::new(),
+            feather: 0.003,
+            texture: 100,
+        }
+    }
+}
+
+impl Backdrop {
+    /// No region: the stage does not run, whatever the other fields say.
+    pub fn is_neutral(&self) -> bool {
+        self.regions.is_empty()
+    }
+}
+
+/// One region of a [`Backdrop`]: the polygon that is measured, and the zone
+/// that is replaced by what was measured.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BackdropRegion {
+    /// The backdrop as traced by the photographer: at least three vertices,
+    /// each in `[0, 1]`.
+    pub source: Vec<Point>,
+    /// What is replaced.
+    #[serde(default)]
+    pub zone: BackdropZone,
+    /// Polygons *inside* the source that are replaced too — a logo printed
+    /// on a mat — and never measured.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub holes: Vec<Vec<Point>>,
+}
+
+/// Where a [`BackdropRegion`] writes.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BackdropZone {
+    /// The whole frame minus the source polygon: the common case.
+    #[default]
+    OutsideSource,
+    /// Only these polygons.
+    Polygons(Vec<Vec<Point>>),
+}
+
+/// One protected mask of a [`Backdrop`], and where its protection holds.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BackdropProtect {
+    /// The shape, any [`Mask`] a local adjustment may carry.
+    pub mask: Mask,
+    /// Where the protection applies.
+    #[serde(default)]
+    pub within: ProtectWithin,
+}
+
+/// Where a [`BackdropProtect`] holds — what lets a "main subject" coverage
+/// and a "people" coverage be combined so that a stand outside the backdrop
+/// is never kept (ADR 0172 §2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProtectWithin {
+    /// Everywhere in the frame.
+    #[default]
+    Everywhere,
+    /// Only inside the regions' source polygons.
+    Source,
+    /// Only outside them.
+    OutsideSource,
+}
+
 /// One point of a [`Mask::Brush`] stroke (ADR 0029): a single dab in the
 /// brush's path, in the same post-rotation, pre-crop referential as
 /// [`Point`].

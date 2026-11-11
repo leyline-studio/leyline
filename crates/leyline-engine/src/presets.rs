@@ -267,6 +267,9 @@ fn param_values(preset: &PresetSettings) -> Vec<(Param, Value)> {
     if let Some(v) = &preset.spot_removal {
         values.push((Param::SpotRemoval, Value::SpotRemoval(v.clone())));
     }
+    if let Some(v) = &preset.backdrop {
+        values.push((Param::Backdrop, Value::Backdrop(v.clone())));
+    }
     if let Some(v) = &preset.red_eye {
         values.push((Param::RedEye, Value::RedEye(v.clone())));
     }

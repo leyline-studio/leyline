@@ -384,6 +384,7 @@ The code of every stage version is kept in the engine forever: that is the price
 | 22 | `defringe` | 1 | Takes the saturation out of the purple and green halos axial aberration and blooming leave **beside** a high-contrast edge, hue and luminance untouched ([ADR 0113](adr/0113-defringe.md)) |
 | 25 | `reshape` | 1 | Moves content *within* the frame: handles that grab at one point and drop at another, the pixels around following through an **inverse** map — nothing invented, every output pixel comes from an input pixel ([ADR 0109](adr/0109-reshape-stage.md)) |
 | 30 | `spot_removal` | 1 | Deterministic cloning by a softened bilinear copy, with no *heal* mode (ADR 0031) |
+| 32 | `backdrop` | 1 | Extends a too-narrow backdrop: per region, a traced source polygon is measured (its slow field, and the robust energy of its mottle per frequency band and per direction) and the zone — outside the source, or drawn polygons, plus holes — is replaced by that slow field extrapolated by push-pull and a noise of the same energy, a pure function of the normalised position; `protect` masks (a stored coverage from a detector included) are never written, `release` masks take back from them ([ADR 0172](adr/0172-extending-a-backdrop.md)) |
 | 35 | `red_eye` | 1 | Red-eye correction: a hand-placed disk, corrected by red dominance (ADR 0103) |
 | 40 | `gains` | 1 | White balance and exposure: a per-channel multiplication, the buffer being already in linear light (ADR 0044) |
 | 50 | `contrast` | 1 | An S-curve around middle grey |
