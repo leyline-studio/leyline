@@ -79,8 +79,8 @@ pub use leyline_map::TilePackInfo;
 /// only (`docs/architecture.md` §À l'intérieur de Studio).
 pub use leyline_detect::{
     Conformance, DetectError, Detection, DetectorSource, Rejection, check_conformance,
-    coverage_from_image, detect, detect_coverage, discover, discover_in, manifests_dir,
-    rejected_in,
+    coverage_from_image, detect, detect_coverage, detect_coverage_of, discover, discover_in,
+    manifests_dir, rejected_in,
 };
 
 /// External pixel processors (ADR 0107). Not part of the engine either: a

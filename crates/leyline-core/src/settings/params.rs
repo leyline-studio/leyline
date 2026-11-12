@@ -822,6 +822,16 @@ impl Backdrop {
     pub fn is_neutral(&self) -> bool {
         self.regions.is_empty()
     }
+
+    /// Whether nothing was decided at all — a different question from
+    /// [`Self::is_neutral`], and the one the **document** asks (ADR 0173
+    /// §2). A protection detected before any polygon is traced renders
+    /// nothing yet and is still a decision: serialised on `is_neutral`, it
+    /// was thrown away while the client reported a commit.
+    #[must_use]
+    pub fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
 }
 
 /// One region of a [`Backdrop`]: the polygon that is measured, and the zone

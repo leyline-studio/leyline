@@ -288,6 +288,40 @@ pub fn detect_coverage(
     Ok(coverage_from_image(&answer))
 }
 
+/// [`detect_coverage`] for an image the caller holds in memory rather than
+/// on disk — a **view**, which by definition was written nowhere (ADR 0173
+/// §1: a backdrop's subjects are detected on the photograph rendered
+/// without its backdrop, and that render is no cached preview).
+///
+/// `rgb` is `width × height` interleaved 8-bit samples. The file a detector
+/// needs is made and dropped here, for the reason [`detect_coverage`] gives.
+pub fn detect_coverage_of(
+    source: &DetectorSource,
+    detection: &str,
+    width: u32,
+    height: u32,
+    rgb: &[u8],
+) -> Result<(u32, u32, Vec<u16>)> {
+    let spawn = |source_error: std::io::Error| DetectError::Spawn {
+        command: source.command.display().to_string(),
+        source: source_error,
+    };
+    let shown = tempfile::Builder::new()
+        .prefix("leyline-shown-")
+        .suffix(".png")
+        .tempfile()
+        .map_err(spawn)?;
+    image::save_buffer(
+        shown.path(),
+        rgb,
+        width,
+        height,
+        image::ExtendedColorType::Rgb8,
+    )
+    .map_err(|error| spawn(std::io::Error::other(error)))?;
+    detect_coverage(source, detection, shown.path())
+}
+
 /// Reads a detector's answer as coverage samples (ADR 0105 §1).
 ///
 /// **The second half of the protocol.** The first half says how a detector
@@ -518,6 +552,29 @@ mod tests {
         let report = check_conformance(&fake(dir.path(), "copy", COPY_IMAGE_TO_OUT), "sky");
         assert!(report.passed(), "{report:?}");
         assert!(report.warnings.is_empty(), "{report:?}");
+    }
+
+    /// ADR 0173 §1: a view is handed over as pixels; the detector receives
+    /// them as the image the protocol promises, and its answer comes back
+    /// at the view's size.
+    #[cfg(unix)]
+    #[test]
+    fn pixels_held_in_memory_reach_the_detector_as_an_image() {
+        let dir = tempfile::tempdir().unwrap();
+        let (width, height) = (6u32, 4u32);
+        let mut rgb = vec![0u8; (width * height * 3) as usize];
+        rgb[..3].copy_from_slice(&[255, 255, 255]);
+        let (w, h, samples) = detect_coverage_of(
+            &fake(dir.path(), "copy", COPY_IMAGE_TO_OUT),
+            "sky",
+            width,
+            height,
+            &rgb,
+        )
+        .unwrap();
+        assert_eq!((w, h), (width, height));
+        assert_eq!(samples[0], u16::MAX, "the white pixel came back covered");
+        assert_eq!(samples[1], 0);
     }
 
     /// The four failures, each caught and each named.

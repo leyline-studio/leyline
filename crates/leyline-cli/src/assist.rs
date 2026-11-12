@@ -271,11 +271,26 @@ pub(crate) fn detect_cmd(args: &[String]) -> Result<(), String> {
         .catalog()
         .version_asset(version)
         .map_err(|e| e.to_string())?;
-    let preview = library
-        .preview(asset, PreviewKind::Medium)
-        .map_err(|e| e.to_string())?;
-    let (width, height, samples) = leyline_sdk::detect_coverage(&source, &detection, &preview.path)
-        .map_err(|e| e.to_string())?;
+    let (width, height, samples) = if options.switch("backdrop") {
+        // What the extension will replace must still be in the picture the
+        // detector is shown, on the canvas a coverage lives on (ADR 0173 §1).
+        let view = library
+            .preview_before_backdrop(asset, PreviewKind::Medium)
+            .map_err(|e| e.to_string())?;
+        leyline_sdk::detect_coverage_of(
+            &source,
+            &detection,
+            view.width(),
+            view.height(),
+            view.data(),
+        )
+    } else {
+        let preview = library
+            .preview(asset, PreviewKind::Medium)
+            .map_err(|e| e.to_string())?;
+        leyline_sdk::detect_coverage(&source, &detection, &preview.path)
+    }
+    .map_err(|e| e.to_string())?;
     let mask = library
         .store_mask_coverage(width, height, &samples)
         .map_err(|e| e.to_string())?;

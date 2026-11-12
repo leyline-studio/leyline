@@ -151,6 +151,41 @@ impl Library {
         })
     }
 
+    /// The photograph as a detector must see it to protect a backdrop's
+    /// subjects (ADR 0173 §1): the head revision without its `backdrop` —
+    /// the stage the answer will feed, which would otherwise have replaced
+    /// by cloth whatever stands beside the cloth before the detector looked
+    /// — and without its crop, because a coverage lives on the pre-crop
+    /// canvas (ADR 0070 §3).
+    ///
+    /// A view like [`Library::preview_before`]: nothing is written, cached
+    /// or recorded, and the stage cache is left alone.
+    pub fn preview_before_backdrop(
+        &self,
+        asset: AssetId,
+        kind: PreviewKind,
+    ) -> Result<leyline_preview::Rgb8> {
+        let (plan, settings) = {
+            let catalog = lock(&self.inner.catalog);
+            let plan =
+                crate::preview::plan_settings_render(&catalog, &self.inner.root, asset, kind)?;
+            let version = catalog.current_version(asset)?;
+            let head = catalog.version_head(version)?;
+            let mut settings = Settings::parse(&catalog.revision(head)?.settings_json)?;
+            settings.backdrop = leyline_core::Backdrop::default();
+            settings.crop = None;
+            (plan, settings)
+        };
+        let image = {
+            let mut decodes = lock(&self.inner.decodes);
+            crate::preview::render_with_settings(&mut decodes, None, asset, &plan, &settings)?
+        };
+        Ok(match leyline_preview::max_edge(kind) {
+            Some(edge) => image.scaled_to_fit(edge),
+            None => image,
+        })
+    }
+
     /// Whether [`Library::preview_live`] at `kind` would render `settings`
     /// on the GPU **now** (ADR 0166 §3): a device, a checkpoint of that
     /// class still valid for these settings, and a kernel for every stage

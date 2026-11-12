@@ -977,3 +977,111 @@ fn a_batch_leaves_a_claimed_version_alone_and_says_so() {
     // around it.
     assert!((open.settings().exposure - 2.0).abs() < f64::EPSILON);
 }
+
+/// ADR 0173 §1: the view a detector is given to protect a backdrop's
+/// subjects shows the photograph **without** the backdrop extension and
+/// **without** the crop — the developed preview has already replaced by
+/// cloth whatever stands beside the cloth, and is cropped onto a canvas a
+/// coverage does not live on.
+#[test]
+fn the_view_before_the_backdrop_still_shows_what_the_backdrop_replaces() {
+    use leyline_core::{Backdrop, BackdropRegion, BackdropZone, Crop, Point, PreviewKind};
+
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::create(&dir.path().join("Lib"), "Test").unwrap();
+    let source = dir.path().join("src");
+    std::fs::create_dir(&source).unwrap();
+    // A grey cloth on the left two thirds, a white wall on the right.
+    let (w, h) = (96u32, 64u32);
+    let mut pixels = Vec::new();
+    for _y in 0..h {
+        for x in 0..w {
+            let level = if x < 64 { 90 } else { 240 };
+            pixels.extend_from_slice(&[level, level, level]);
+        }
+    }
+    image::save_buffer(
+        source.join("studio.png"),
+        &pixels,
+        w,
+        h,
+        image::ExtendedColorType::Rgb8,
+    )
+    .unwrap();
+    let report = library
+        .import(
+            &source,
+            &ImportOptions {
+                copy_files: true,
+                recursive: false,
+                pair_companions: true,
+                thumbnails: false,
+            },
+            |_, _| {},
+        )
+        .unwrap();
+    let registered = report.imported[0].registered;
+
+    let point = |x, y| Point { x, y };
+    {
+        let mut session = library.edit(registered.version).unwrap();
+        session
+            .set(
+                Param::Backdrop,
+                Value::Backdrop(Backdrop {
+                    regions: vec![BackdropRegion {
+                        source: vec![
+                            point(0.0, 0.0),
+                            point(0.66, 0.0),
+                            point(0.66, 1.0),
+                            point(0.0, 1.0),
+                        ],
+                        zone: BackdropZone::OutsideSource,
+                        holes: Vec::new(),
+                    }],
+                    ..Backdrop::default()
+                }),
+            )
+            .unwrap();
+        session
+            .set(
+                Param::Crop,
+                Value::Crop(Some(Crop {
+                    x: 0.25,
+                    y: 0.0,
+                    width: 0.75,
+                    height: 1.0,
+                })),
+            )
+            .unwrap();
+        session.commit().unwrap();
+    }
+
+    let right_edge = |image: &leyline_preview::Rgb8| {
+        let x = image.width() - 4;
+        let y = image.height() / 2;
+        image.data()[((y * image.width() + x) * 3) as usize]
+    };
+
+    // The developed preview: cropped, and the wall is cloth.
+    let developed = library
+        .preview(registered.asset, PreviewKind::Small)
+        .unwrap();
+    let developed = leyline_preview::Rgb8::load_png(&developed.path).unwrap();
+    assert_eq!(developed.width(), 72, "three quarters of the frame");
+    assert!(right_edge(&developed) < 150, "the wall was extended over");
+
+    // The detection view: the whole frame, the wall still a wall.
+    let cache_before = std::fs::read_dir(dir.path().join("Lib/Cache"))
+        .map(|entries| entries.count())
+        .unwrap_or(0);
+    let view = library
+        .preview_before_backdrop(registered.asset, PreviewKind::Small)
+        .unwrap();
+    assert_eq!((view.width(), view.height()), (w, h));
+    assert!(right_edge(&view) > 200, "the detector still sees the wall");
+    let cache_after = std::fs::read_dir(dir.path().join("Lib/Cache"))
+        .map(|entries| entries.count())
+        .unwrap_or(0);
+    assert_eq!(cache_before, cache_after, "a view writes nothing");
+}

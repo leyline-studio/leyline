@@ -1260,3 +1260,28 @@ fn preset_round_trips_losslessly() {
     let reparsed = PresetSettings::parse(&preset.to_json()).unwrap();
     assert_eq!(preset, reparsed);
 }
+
+/// ADR 0173 §2: a protection detected before any polygon is traced renders
+/// nothing yet (no region, so the stage does not run) and must still be
+/// stored — it used to be dropped while the client reported a commit.
+#[test]
+fn a_backdrop_protection_without_a_region_is_stored() {
+    let settings = Settings {
+        backdrop: Backdrop {
+            protect: vec![BackdropProtect {
+                mask: Mask::Everything,
+                within: ProtectWithin::Everywhere,
+            }],
+            ..Backdrop::default()
+        },
+        ..Settings::default()
+    };
+    assert!(
+        settings.backdrop.is_neutral(),
+        "no region: the stage is idle"
+    );
+    let stored = Settings::parse(&settings.to_json()).unwrap();
+    assert_eq!(stored.backdrop, settings.backdrop);
+    // And an untouched backdrop still leaves no trace in the document.
+    assert!(!Settings::default().to_json().contains("backdrop"));
+}

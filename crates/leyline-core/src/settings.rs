@@ -133,8 +133,9 @@ pub struct Settings {
     /// Red-eye corrections (ADR 0103). Empty = none, the neutral state.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub red_eye: Vec<RedEye>,
-    /// Backdrop extension (ADR 0172). Neutral: no region.
-    #[serde(default, skip_serializing_if = "Backdrop::is_neutral")]
+    /// Backdrop extension (ADR 0172). Neutral: no region. Stored unless
+    /// nothing at all was decided (ADR 0173 §2).
+    #[serde(default, skip_serializing_if = "Backdrop::is_default")]
     pub backdrop: Backdrop,
 
     /// Masked local adjustments, applied in list order. Neutral: empty (ADR

@@ -96,7 +96,7 @@ The word *experimental* is literal: the colorimetric accuracy of the DCP matrix 
 | Subject | Decision |
 |---|---|
 | Image watermark (a logo) | Cut by [ADR 0034](adr/0034-softproofing-watermark-print.md): the asset-reference problem is not settled |
-| Extending a backdrop (stands, wall beside a too-narrow backdrop) | Decided by [ADR 0172](adr/0172-extending-a-backdrop.md): stage `backdrop` v1 at rank 32; engine and CLI built, Studio tool and a reliable subject mask still to come (§6) |
+| Extending a backdrop (stands, wall beside a too-narrow backdrop) | Decided by [ADR 0172](adr/0172-extending-a-backdrop.md): stage `backdrop` v1 at rank 32; engine and CLI built, detection sequence fixed by [ADR 0173](adr/0173-detecting-before-the-backdrop.md); Studio tool and a reliable subject mask still to come (§6) |
 
 ---
 
