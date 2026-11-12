@@ -232,3 +232,71 @@ fn a_polygon_is_filled_at_pixel_centres() {
     let row: Vec<f32> = mask[..8].to_vec();
     assert_eq!(row, vec![0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0]);
 }
+
+/// Long enough that the slow field, the coarse bands and the channel
+/// gains are worked on reduced buffers (every radius is a fraction of the
+/// long side), short enough to stay quick.
+const STRIP: (u32, u32) = (2048, 320);
+
+/// A lit cloth on the left (a slow ramp, vertical folds, a 2-D mottle), a
+/// wall on the right.
+fn lit_cloth(x: usize, y: usize) -> [f32; 3] {
+    if x >= STRIP.0 as usize / 2 {
+        return WALL;
+    }
+    let ramp = 0.25 + 0.15 * y as f32 / STRIP.1 as f32 + 0.05 * x as f32 / STRIP.0 as f32;
+    let folds = 0.04 * value_noise(x as f32 / 9.0, 0.5, 7);
+    let mottle = 0.03 * value_noise(x as f32 / 40.0, y as f32 / 40.0, 3);
+    let v = ramp * (folds + mottle).exp();
+    [v, v * 0.95, v * 1.2]
+}
+
+fn strip(paint: impl Fn(usize, usize) -> [f32; 3]) -> Pixels {
+    let (w, h) = STRIP;
+    let mut data = Vec::new();
+    for y in 0..h as usize {
+        for x in 0..w as usize {
+            data.extend_from_slice(&paint(x, y));
+        }
+    }
+    Pixels {
+        width: w,
+        height: h,
+        data,
+    }
+}
+
+/// Near the cloth's edge, where the fill is read as its continuation, the
+/// reduced path matches the full-resolution one in level and in grain.
+/// Further out the two may part: the push-pull fill is not scale-free (its
+/// pyramid stops at a size in pixels).
+#[test]
+fn the_reduced_scales_fill_like_the_full_resolution_near_the_edge() {
+    let (mut full, mut reduced) = (strip(lit_cloth), strip(lit_cloth));
+    let coverages = MaskCoverages::default();
+    backdrop_at(&mut full, &left_half(), 0.0, &coverages, Floors::NONE);
+    backdrop_at(
+        &mut reduced,
+        &left_half(),
+        0.0,
+        &coverages,
+        Floors::PRODUCTION,
+    );
+    assert_ne!(full.data, reduced.data, "the reduced path ran");
+
+    let (mut level_full, mut level_reduced) = (0.0f64, 0.0f64);
+    let (mut grain_full, mut grain_reduced) = (0.0f64, 0.0f64);
+    for y in 20..STRIP.1 as usize - 20 {
+        for x in 1040..1200 {
+            let (a, b) = (at(&full, x, y)[0], at(&reduced, x, y)[0]);
+            level_full += f64::from(a);
+            level_reduced += f64::from(b);
+            grain_full += f64::from((at(&full, x + 1, y)[0] - a).abs());
+            grain_reduced += f64::from((at(&reduced, x + 1, y)[0] - b).abs());
+        }
+    }
+    let drift = (level_reduced / level_full - 1.0).abs();
+    assert!(drift < 0.01, "level drifted by {drift}");
+    let grain = grain_reduced / grain_full;
+    assert!((0.85..1.15).contains(&grain), "grain ratio {grain}");
+}

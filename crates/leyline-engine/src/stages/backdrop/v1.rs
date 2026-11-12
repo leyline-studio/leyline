@@ -53,6 +53,34 @@ const COARSEST_BAND_WEIGHT: f32 = 0.5;
 /// mottle to measure.
 const LOG_FLOOR: f32 = 1e-4;
 
+/// How far each part of the stage may be worked on a reduced buffer: the
+/// smallest blur radius, in pixels, a reduction may leave. A slow field
+/// and a coarse mottle band are smooth over many pixels, so they are
+/// measured and synthesised small, then enlarged: the full-resolution
+/// blurs were most of the stage's time (ADR 0172 §6).
+#[derive(Clone, Copy)]
+struct Floors {
+    /// For each mottle band (its finer radius) and the channel gains.
+    mottle: f64,
+    /// For the slow field's smoothing radius. Higher: its push-pull fill
+    /// is not scale-free, and at 3 px the level near the cloth's edge
+    /// moved by a percent.
+    slow: f64,
+}
+
+impl Floors {
+    const PRODUCTION: Self = Self {
+        mottle: 3.0,
+        slow: 8.0,
+    };
+    /// Everything at full resolution: what a test compares against.
+    #[cfg(test)]
+    const NONE: Self = Self {
+        mottle: f64::INFINITY,
+        slow: f64::INFINITY,
+    };
+}
+
 /// The robust standard deviation of a normal law from its median absolute
 /// deviation.
 const MAD_TO_SIGMA: f64 = 1.4826;
@@ -64,6 +92,24 @@ pub(crate) fn backdrop(
     backdrop: &Backdrop,
     rotation_degrees: f64,
     coverages: &MaskCoverages,
+) {
+    backdrop_at(
+        px,
+        backdrop,
+        rotation_degrees,
+        coverages,
+        Floors::PRODUCTION,
+    );
+}
+
+/// [`backdrop`] with the reduction floors as a parameter, so a test can
+/// compare the reduced path with the full-resolution one.
+fn backdrop_at(
+    px: &mut Pixels,
+    backdrop: &Backdrop,
+    rotation_degrees: f64,
+    coverages: &MaskCoverages,
+    floors: Floors,
 ) {
     let release = union_of(
         backdrop
@@ -99,7 +145,14 @@ pub(crate) fn backdrop(
                 .map(|(p, r)| p * (1.0 - r))
                 .collect()
         };
-        fill_region(px, &shapes, &protect, backdrop.feather, backdrop.texture);
+        fill_region(
+            px,
+            &shapes,
+            &protect,
+            backdrop.feather,
+            backdrop.texture,
+            floors,
+        );
     }
 }
 
@@ -136,6 +189,7 @@ fn fill_region(
     protect: &[f32],
     feather: f64,
     texture: i32,
+    floors: Floors,
 ) {
     let (w, h) = (px.width as usize, px.height as usize);
     let side = w.max(h) as f64;
@@ -175,8 +229,9 @@ fn fill_region(
         h,
         radius(SLOW_RADIUS),
         radius(SLOW_SMOOTHING),
+        floors.slow,
     );
-    let mottle = mottle(&channels, &known, w, h, side, texture);
+    let mottle = mottle(&channels, &known, w, h, side, texture, floors.mottle);
 
     for (i, f) in fill.iter().enumerate() {
         if *f <= 0.0 {
@@ -193,9 +248,43 @@ fn fill_region(
     }
 }
 
-/// The source's slow field, extrapolated into the whole buffer.
+/// The source's slow field, extrapolated into the whole buffer. Worked on
+/// a buffer reduced so the smoothing radius stays above the floor.
 fn slow_field(
     channels: &[Vec<f32>; 3],
+    known: &[f32],
+    w: usize,
+    h: usize,
+    radius: usize,
+    smoothing: usize,
+    min_reduced_radius: f64,
+) -> [Vec<f32>; 3] {
+    let k = reduction_for(smoothing as f64, min_reduced_radius);
+    if k > 1 {
+        let low = Reduced::new(w, h, k);
+        let known_low = low.known(known);
+        // A source narrower than one reduced block has nothing to say at
+        // that scale: measure it at full resolution instead.
+        if known_low.iter().any(|k| *k > 0.0) {
+            let planes = channels.each_ref().map(|plane| low.reduce(plane));
+            let scaled = |r: usize| ((r as f64 / k as f64).round() as usize).max(1);
+            let field = slow_field_on(
+                &planes,
+                &known_low,
+                low.w,
+                low.h,
+                scaled(radius),
+                scaled(smoothing),
+            );
+            return field.map(|plane| low.enlarge(&plane));
+        }
+    }
+    let planes = channels.each_ref().map(|plane| plane.as_slice());
+    slow_field_on(&planes, known, w, h, radius, smoothing)
+}
+
+fn slow_field_on<P: AsRef<[f32]>>(
+    channels: &[P; 3],
     known: &[f32],
     w: usize,
     h: usize,
@@ -207,7 +296,7 @@ fn slow_field(
         .iter()
         .map(|d| if *d > 0.7 { 1.0 } else { 0.0 })
         .collect();
-    let extend = |plane: &Vec<f32>| {
+    let extend = |plane: &[f32]| {
         let weighted: Vec<f32> = plane.iter().zip(known).map(|(v, k)| v * k).collect();
         let local: Vec<f32> = blur3(&weighted, w, h, radius)
             .iter()
@@ -216,11 +305,7 @@ fn slow_field(
             .collect();
         blur3(&push_pull(&local, &trusted, w, h), w, h, smoothing)
     };
-    [
-        extend(&channels[0]),
-        extend(&channels[1]),
-        extend(&channels[2]),
-    ]
+    channels.each_ref().map(|plane| extend(plane.as_ref()))
 }
 
 /// The synthetic mottle as a log factor, and how each channel follows it.
@@ -231,7 +316,8 @@ struct Mottle {
 
 /// Measures the source's mottle band by band and direction by direction,
 /// on the logarithm of the luminance, then synthesises a field of the same
-/// energy everywhere.
+/// energy everywhere. Each band is measured and synthesised on a buffer
+/// reduced until its finer radius reaches the floor, then enlarged.
 ///
 /// The logarithm because a cloth's mottle multiplies the light falling on
 /// it: measured additively in linear light, the lit centre's amplitude
@@ -243,24 +329,35 @@ fn mottle(
     h: usize,
     side: f64,
     texture: i32,
+    min_reduced_radius: f64,
 ) -> Mottle {
     let log = |v: f32| v.max(LOG_FLOOR).ln();
     let luma: Vec<f32> = (0..w * h)
+        .into_par_iter()
         .map(|i| log((channels[0][i] + channels[1][i] + channels[2][i]) / 3.0))
         .collect();
-    let levels: Vec<Vec<f32>> = BAND_RADII
-        .iter()
-        .map(|r| blur3(&luma, w, h, (r * side).round() as usize))
-        .collect();
+    let mut scales = Scales::new(&luma, known, w, h);
+    let pixels = |r: f64| r * side;
     let amount = texture as f32 / 100.0;
     let mut field = vec![0.0f32; w * h];
     for band in 0..BAND_RADII.len() - 1 {
-        let (fine, coarse) = (&levels[band], &levels[band + 1]);
-        let detail: Vec<f32> = fine.iter().zip(coarse).map(|(a, b)| a - b).collect();
+        let (fine_px, coarse_px) = (pixels(BAND_RADII[band]), pixels(BAND_RADII[band + 1]));
+        let k = reduction_for(fine_px, min_reduced_radius);
+        let scaled = |r: f64| (r / k as f64).round() as usize;
+        let (fine_r, coarse_r) = (scaled(fine_px), scaled(coarse_px));
+        scales.prepare(k, &[fine_r, coarse_r]);
+        let (lw, lh) = scales.size(k);
+        let known_low = scales.known(k);
+        let detail: Vec<f32> = scales
+            .level(k, fine_r)
+            .iter()
+            .zip(scales.level(k, coarse_r))
+            .map(|(a, b)| a - b)
+            .collect();
         let sigma = robust_sigma(
             detail
                 .iter()
-                .zip(known)
+                .zip(known_low)
                 .filter(|(_, k)| **k > 0.0)
                 .map(|(d, _)| *d),
         );
@@ -269,8 +366,8 @@ fn mottle(
         }
         // Folds and seams have more energy across than along: stretch the
         // noise along them, by the square root of the ratio each way.
-        let across = robust_sigma(gradients(&detail, known, w, h, 1, 0));
-        let along = robust_sigma(gradients(&detail, known, w, h, 0, 1));
+        let across = robust_sigma(gradients(&detail, known_low, lw, lh, 1, 0));
+        let along = robust_sigma(gradients(&detail, known_low, lw, lh, 0, 1));
         // A ratio, bounded to 16 each way: a perfectly vertical fold has
         // no energy along it at all.
         let stretch = if across.max(along) > 0.0 {
@@ -280,20 +377,22 @@ fn mottle(
         };
         // The noise goes through the very band filter that measured the
         // source, then is scaled by its own deviation: each band carries the
-        // measured energy and nothing leaks into its neighbours.
+        // measured energy and nothing leaks into its neighbours. Its lattice
+        // is placed in full-resolution coordinates, so a reduced band draws
+        // the same pattern, only sampled more sparsely.
         let cell = BAND_RADII[band].max(1.0 / side);
         let (cell_x, cell_y) = (cell / stretch, cell * stretch);
-        let mut noise = vec![0.0f32; w * h];
-        noise.par_chunks_mut(w).enumerate().for_each(|(y, row)| {
-            let v = (y as f64 + 0.5) / side;
+        let step = k as f64;
+        let mut noise = vec![0.0f32; lw * lh];
+        noise.par_chunks_mut(lw).enumerate().for_each(|(y, row)| {
+            let v = (y as f64 + 0.5) * step / side;
             for (x, out) in row.iter_mut().enumerate() {
-                let u = (x as f64 + 0.5) / side;
+                let u = (x as f64 + 0.5) * step / side;
                 *out = value_noise((u / cell_x) as f32, (v / cell_y) as f32, band as u32);
             }
         });
-        let radius = |r: f64| (r * side).round() as usize;
-        let fine_noise = blur3(&noise, w, h, radius(BAND_RADII[band]));
-        let coarse_noise = blur3(&noise, w, h, radius(BAND_RADII[band + 1]));
+        let fine_noise = blur3(&noise, lw, lh, fine_r);
+        let coarse_noise = blur3(&noise, lw, lh, coarse_r);
         let banded: Vec<f32> = fine_noise
             .iter()
             .zip(&coarse_noise)
@@ -309,20 +408,36 @@ fn mottle(
             1.0
         };
         let scale = (sigma / noise_sigma) as f32 * amount * weight;
-        for (out, n) in field.iter_mut().zip(&banded) {
-            *out += scale * n;
-        }
+        let banded = if k > 1 {
+            Reduced::new(w, h, k).enlarge(&banded)
+        } else {
+            banded
+        };
+        field
+            .par_iter_mut()
+            .zip(&banded)
+            .for_each(|(out, n)| *out += scale * n);
     }
 
     // Each channel follows the luminance mottle by its own regression gain,
     // each measured against its own coarse level.
-    let coarsest = (BAND_RADII[BAND_RADII.len() - 1] * side).round() as usize;
-    let base = &levels[BAND_RADII.len() - 1];
+    let coarsest_px = pixels(BAND_RADII[BAND_RADII.len() - 1]);
+    let kc = reduction_for(coarsest_px, min_reduced_radius);
+    let coarsest = (coarsest_px / kc as f64).round() as usize;
+    let low = Reduced::new(w, h, kc);
+    let coarse_of = |plane: &[f32]| {
+        if kc > 1 {
+            low.enlarge(&blur3(&low.reduce(plane), low.w, low.h, coarsest))
+        } else {
+            blur3(plane, w, h, coarsest)
+        }
+    };
+    let base = coarse_of(&luma);
     let channel_detail: Vec<Vec<f32>> = channels
         .iter()
         .map(|plane| {
-            let logged: Vec<f32> = plane.iter().map(|v| log(*v)).collect();
-            let coarse = blur3(&logged, w, h, coarsest);
+            let logged: Vec<f32> = plane.par_iter().map(|v| log(*v)).collect();
+            let coarse = coarse_of(&logged);
             logged.iter().zip(&coarse).map(|(a, b)| a - b).collect()
         })
         .collect();
@@ -341,6 +456,165 @@ fn mottle(
         }
     }
     Mottle { field, gains }
+}
+
+/// The reduction factor that keeps `radius_px` at or above the floor: 1,
+/// full resolution, when it is already small.
+fn reduction_for(radius_px: f64, min_reduced_radius: f64) -> usize {
+    ((radius_px / min_reduced_radius).floor() as usize).max(1)
+}
+
+/// A buffer reduced by an integer factor: each reduced pixel is the mean
+/// of a `k`×`k` block (a partial block at the right and bottom edges).
+struct Reduced {
+    k: usize,
+    full_w: usize,
+    full_h: usize,
+    w: usize,
+    h: usize,
+}
+
+impl Reduced {
+    fn new(full_w: usize, full_h: usize, k: usize) -> Self {
+        Self {
+            k,
+            full_w,
+            full_h,
+            w: full_w.div_ceil(k),
+            h: full_h.div_ceil(k),
+        }
+    }
+
+    /// Block means.
+    fn reduce(&self, plane: &[f32]) -> Vec<f32> {
+        self.blocks(plane, |values| {
+            values.iter().map(|v| f64::from(*v)).sum::<f64>() as f32 / values.len() as f32
+        })
+    }
+
+    /// A block is measured only when every pixel of it is: the measure
+    /// never reaches past the eroded source.
+    fn known(&self, known: &[f32]) -> Vec<f32> {
+        self.blocks(known, |values| {
+            if values.iter().all(|k| *k > 0.0) {
+                1.0
+            } else {
+                0.0
+            }
+        })
+    }
+
+    fn blocks(&self, plane: &[f32], of: impl Fn(&[f32]) -> f32 + Sync) -> Vec<f32> {
+        let mut out = vec![0.0f32; self.w * self.h];
+        out.par_chunks_mut(self.w)
+            .enumerate()
+            .for_each(|(by, row)| {
+                let mut values = Vec::with_capacity(self.k * self.k);
+                for (bx, out) in row.iter_mut().enumerate() {
+                    values.clear();
+                    for y in by * self.k..((by + 1) * self.k).min(self.full_h) {
+                        let start = y * self.full_w;
+                        let x_end = ((bx + 1) * self.k).min(self.full_w);
+                        values.extend_from_slice(&plane[start + bx * self.k..start + x_end]);
+                    }
+                    *out = of(&values);
+                }
+            });
+        out
+    }
+
+    /// Bilinear enlargement back to full resolution, reduced pixel centres
+    /// at the centres of their blocks.
+    fn enlarge(&self, low: &[f32]) -> Vec<f32> {
+        let axis = |full: usize, reduced: usize| -> Vec<(usize, usize, f32)> {
+            (0..full)
+                .map(|x| {
+                    let at =
+                        ((x as f64 + 0.5) / self.k as f64 - 0.5).clamp(0.0, (reduced - 1) as f64);
+                    let i = at.floor() as usize;
+                    (i, (i + 1).min(reduced - 1), (at - i as f64) as f32)
+                })
+                .collect()
+        };
+        let (columns, rows) = (axis(self.full_w, self.w), axis(self.full_h, self.h));
+        let mut out = vec![0.0f32; self.full_w * self.full_h];
+        out.par_chunks_mut(self.full_w)
+            .zip(&rows)
+            .for_each(|(row, (y0, y1, ty))| {
+                let (top, bottom) = (&low[y0 * self.w..], &low[y1 * self.w..]);
+                for (out, (x0, x1, tx)) in row.iter_mut().zip(&columns) {
+                    let upper = top[*x0] + (top[*x1] - top[*x0]) * tx;
+                    let lower = bottom[*x0] + (bottom[*x1] - bottom[*x0]) * tx;
+                    *out = upper + (lower - upper) * ty;
+                }
+            });
+        out
+    }
+}
+
+/// The luminance and its measured pixels at each reduction a band asks
+/// for, and their blurred levels, each computed once: neighbouring bands
+/// share a radius.
+struct Scales<'a> {
+    luma: &'a [f32],
+    known: &'a [f32],
+    w: usize,
+    h: usize,
+    reduced: std::collections::HashMap<usize, (Vec<f32>, Vec<f32>)>,
+    levels: std::collections::HashMap<(usize, usize), Vec<f32>>,
+}
+
+impl<'a> Scales<'a> {
+    fn new(luma: &'a [f32], known: &'a [f32], w: usize, h: usize) -> Self {
+        Self {
+            luma,
+            known,
+            w,
+            h,
+            reduced: Default::default(),
+            levels: Default::default(),
+        }
+    }
+
+    fn size(&self, k: usize) -> (usize, usize) {
+        let low = Reduced::new(self.w, self.h, k);
+        (low.w, low.h)
+    }
+
+    fn prepare(&mut self, k: usize, radii: &[usize]) {
+        if k > 1 && !self.reduced.contains_key(&k) {
+            let low = Reduced::new(self.w, self.h, k);
+            self.reduced
+                .insert(k, (low.reduce(self.luma), low.known(self.known)));
+        }
+        let (w, h) = self.size(k);
+        for radius in radii {
+            if !self.levels.contains_key(&(k, *radius)) {
+                let level = blur3(self.plane(k), w, h, *radius);
+                self.levels.insert((k, *radius), level);
+            }
+        }
+    }
+
+    fn plane(&self, k: usize) -> &[f32] {
+        if k > 1 {
+            &self.reduced[&k].0
+        } else {
+            self.luma
+        }
+    }
+
+    fn known(&self, k: usize) -> &[f32] {
+        if k > 1 {
+            &self.reduced[&k].1
+        } else {
+            self.known
+        }
+    }
+
+    fn level(&self, k: usize, radius: usize) -> &[f32] {
+        &self.levels[&(k, radius)]
+    }
 }
 
 /// Differences between a pixel and its neighbour `(dx, dy)` away, where both

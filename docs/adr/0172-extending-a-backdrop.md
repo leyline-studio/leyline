@@ -239,6 +239,15 @@ through the CLI end to end (import, polygon, detection, export):
   active, on all cores. To be brought down (the slow field and the
   statistics do not need full resolution) before Studio's slice, where it
   would run on every committed render.
+* Brought down (2026-11-12): the vertical blur pass no longer transposes
+  (same output, bit for bit), and the slow field, the coarse mottle bands
+  and the channel gains are worked on buffers reduced until their radius
+  is about 8 px (slow field) or 3 px (mottle), then enlarged. The full
+  5D IV export of `5D4_2740` takes 6.5 s end to end. The reduced slow
+  field carries the source's gradient further from the cloth's edge: on
+  `5D4_2740` it removed a cyan cast the full-resolution fill had drifted
+  to at the frame's right, and the three other frames did not visibly
+  change.
 
 ## Consequences
 
